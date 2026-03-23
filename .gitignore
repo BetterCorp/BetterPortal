@@ -5,3 +5,5 @@ node_modules/
 **/.bsbdevwatch
 **/bsb-plugin.json
 **/bsb-tests.json
+**/start.log
+**/start2.log

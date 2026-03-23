@@ -5,8 +5,7 @@
   "private": true,
   "scripts": {
     "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
-    "demo": "npm run demo -w services/nodejs/examples/hello-view"
+    "test": "npm run test --workspaces"
   },
   "keywords": [],
   "author": "",

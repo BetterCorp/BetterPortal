@@ -1,16 +1,12 @@
+/** @jsxImportSource jsx-htmx */
 import {
-  App,
-  composeShellPage,
   createPluginManifest,
   createViewDefinition,
   negotiateViewResponse,
-  PluginManifest,
-  RequestedRepresentation,
-  Tenant,
+  type PluginManifest,
+  type RequestedRepresentation,
   resolveRepresentationFromAccept
 } from "@betterportal/framework-nodejs";
-import { renderBootstrap1Shell } from "@betterportal/theme-bootstrap1-nodejs";
-import { renderEmbeddedShell } from "@betterportal/theme-embedded-nodejs";
 import { z } from "zod";
 
 const HelloParamsSchema = z.object({});
@@ -79,38 +75,45 @@ export const HelloManifest: PluginManifest = createPluginManifest({
   }
 });
 
-function renderBootstrap1Hello(response: HelloResponse): string {
-  return `
+function Bootstrap1HelloFragment(response: HelloResponse): string {
+  return String(
     <section class="container-fluid px-0">
       <div class="d-flex flex-column gap-3">
-        <span class="badge rounded-pill text-bg-primary w-auto">${response.themeHint}</span>
+        <span class="badge rounded-pill text-bg-primary w-auto">{response.themeHint}</span>
         <div>
-          <h1 class="h3 mb-2">${response.greeting}</h1>
-          <p class="text-body-secondary mb-0">This HTML representation is rendered from the same validated API output.</p>
+          <h1 class="h3 mb-2">{response.greeting}</h1>
+          <p class="text-body-secondary mb-0">
+            This HTML representation is rendered from the same validated API output.
+          </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          ${response.supports.map((item) => `<span class="badge text-bg-light border">${item}</span>`).join("")}
+          {response.supports.map((item) => (
+            <span class="badge text-bg-light border text-dark">{item}</span>
+          ))}
         </div>
       </div>
-    </section>`;
+    </section>
+  );
 }
 
-function renderEmbeddedHello(response: HelloResponse): string {
-  return `<div class="card border-0 shadow-sm">
-    <div class="card-body">
-      <div class="small text-body-secondary mb-2">${response.themeHint}</div>
-      <div class="h5 mb-2">${response.greeting}</div>
-      <div class="text-body-secondary">Rendered for lightweight embedded usage.</div>
+function EmbeddedHelloFragment(response: HelloResponse): string {
+  return String(
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="small text-body-secondary mb-2">{response.themeHint}</div>
+        <div class="h5 mb-2">{response.greeting}</div>
+        <div class="text-body-secondary">Rendered for lightweight embedded usage.</div>
+      </div>
     </div>
-  </div>`;
+  );
 }
 
 export function renderHelloHtml(theme: string, response: HelloResponse): string {
   if (theme === "embedded") {
-    return renderEmbeddedHello(response);
+    return EmbeddedHelloFragment(response);
   }
 
-  return renderBootstrap1Hello(response);
+  return Bootstrap1HelloFragment(response);
 }
 
 export function buildHelloResponse(name: string, requestedRepresentation: RequestedRepresentation): HelloResponse {
@@ -134,46 +137,4 @@ export function handleHelloViewRequest(input: {
   const response = buildHelloResponse(query.name, requestedRepresentation);
 
   return negotiateViewResponse(HelloView, input.acceptHeader, response, (theme) => renderHelloHtml(theme, response));
-}
-
-export function renderHelloWithinTheme(input: {
-  acceptHeader?: string;
-  query: unknown;
-  tenant: Tenant;
-  app: App;
-  mode?: "light" | "dark";
-  loginUrl?: string;
-  logoutUrl?: string;
-}): ReturnType<typeof negotiateViewResponse<typeof HelloResponseSchema>> {
-  const response = handleHelloViewRequest({
-    acceptHeader: input.acceptHeader,
-    query: input.query
-  });
-
-  const requestedRepresentation = resolveRepresentationFromAccept(input.acceptHeader);
-  if (requestedRepresentation.kind !== "html") {
-    return response;
-  }
-
-  const renderShell = requestedRepresentation.theme === "embedded"
-    ? (context: {
-        title: string;
-        brandName: string;
-        themeMode: "light" | "dark";
-        bodyHtml: string;
-      }): string => renderEmbeddedShell({
-        title: context.title,
-        bodyHtml: context.bodyHtml
-      })
-    : renderBootstrap1Shell;
-
-  return composeShellPage({
-    tenant: input.tenant,
-    app: input.app,
-    response,
-    renderShell,
-    mode: input.mode,
-    loginUrl: input.loginUrl,
-    logoutUrl: input.logoutUrl
-  }) as ReturnType<typeof negotiateViewResponse<typeof HelloResponseSchema>>;
 }
