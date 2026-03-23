@@ -1,0 +1,15 @@
+default:
+  observable:
+    observable-default:
+      plugin: observable-default
+      enabled: true
+      config: {}
+  events:
+    events-default:
+      plugin: events-default
+      enabled: true
+  services:
+    service-betterportal-auth-default:
+      plugin: service-betterportal-auth-default
+      enabled: true
+      config: {}

@@ -1,0 +1,20 @@
+{
+  "name": "betterportal",
+  "version": "1.0.0",
+  "description": "BetterPortal v10 workspace",
+  "private": true,
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "(AGPL-3.0-only OR Commercial)",
+  "workspaces": [
+    "framework/nodejs",
+    "auth/nodejs",
+    "themes/nodejs/bootstrap1",
+    "themes/nodejs/embedded",
+    "services/nodejs/examples/hello-view"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "greeting": "Hello, World",
+  "themeHint": "json",
+  "supports": [
+    "application/json",
+    "application/vnd.betterportal.metadata+json",
+    "text/html"
+  ]
+}

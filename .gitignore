@@ -1,0 +1,7 @@
+node_modules/
+**/node_modules/
+**/lib/
+**/.bsb/
+**/.bsbdevwatch
+**/bsb-plugin.json
+**/bsb-tests.json

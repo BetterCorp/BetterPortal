@@ -1,0 +1,33 @@
+{
+  "name": "@betterportal/theme-embedded-nodejs",
+  "version": "1.0.0",
+  "description": "BetterPortal v10 embedded theme plugin for Node.js",
+  "main": "lib/index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "bsb-plugin-cli build",
+    "clean": "bsb-plugin-cli clean",
+    "start": "bsb-plugin-cli start",
+    "dev": "bsb-plugin-cli dev",
+    "test": "bsb-plugin-cli test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "(AGPL-3.0-only OR Commercial)",
+  "type": "commonjs",
+  "devDependencies": {
+    "@bsb/base": "^9.0.5",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@betterportal/framework-nodejs": "^1.0.0",
+    "zod": "^4.3.6"
+  },
+  "files": [
+    "lib/**/*",
+    "README.md",
+    "bsb-plugin.json",
+    "bsb-tests.json"
+  ],
+  "bsb": {}
+}
