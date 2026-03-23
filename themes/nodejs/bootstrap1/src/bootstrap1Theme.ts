@@ -93,6 +93,7 @@ export function renderBootstrap1Shell(context: Bootstrap1ShellContext): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="htmx-config" content='{"selfRequestsOnly": false}' />
     <title>${context.title}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
