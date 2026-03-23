@@ -80,9 +80,19 @@ function sendHtml(response: ServerResponse, statusCode: number, body: string): v
 }
 
 function applyPluginCors(request: IncomingMessage, response: ServerResponse): boolean {
-  response.setHeader("Access-Control-Allow-Origin", HOST_ORIGIN);
+  const originHeader = request.headers.origin;
+  const allowedOrigin = typeof originHeader === "string" && originHeader === HOST_ORIGIN
+    ? originHeader
+    : HOST_ORIGIN;
+  const requestedHeaders = request.headers["access-control-request-headers"];
+  const allowHeaders = typeof requestedHeaders === "string" && requestedHeaders.trim().length > 0
+    ? requestedHeaders
+    : "Accept, Content-Type, HX-Current-URL, HX-Request, HX-Target, HX-Trigger, HX-Trigger-Name";
+
+  response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  response.setHeader("Vary", "Origin, Access-Control-Request-Headers");
   response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Accept, Content-Type, HX-Request, HX-Target, HX-Trigger");
+  response.setHeader("Access-Control-Allow-Headers", allowHeaders);
 
   if (request.method === "OPTIONS") {
     response.writeHead(204);
