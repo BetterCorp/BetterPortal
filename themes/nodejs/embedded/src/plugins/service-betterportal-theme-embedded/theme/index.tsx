@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { css } from "jsx-htmx";
 import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework-nodejs";
 
 export interface EmbeddedShellContext {
@@ -38,15 +39,13 @@ function EmbeddedDocument(context: EmbeddedShellContext): HtmlRenderable {
           rel="stylesheet"
         />
         <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-        <style>
-          {`
-            body.shell-embed {
-              margin: 0;
-              background: transparent;
-              padding: 0;
-            }
-          `}
-        </style>
+        <style>{css({
+          "body.shell-embed": {
+            margin: 0,
+            background: "transparent",
+            padding: 0
+          }
+        })}</style>
       </head>
       <body class="shell-embed">{context.bodyHtml}</body>
     </html>

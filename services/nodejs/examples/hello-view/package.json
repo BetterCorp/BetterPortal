@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@betterportal/framework-nodejs": "file:../../../../framework/nodejs",
-    "jsx-htmx": "^1.0.8",
+    "jsx-htmx": "file:C:/Users/MitchellRobert/_win_repos/jsx-htmx",
     "zod": "^4.3.6"
   },
   "files": [

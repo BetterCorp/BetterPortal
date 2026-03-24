@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { css, js } from "jsx-htmx";
 import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework-nodejs";
 
 export interface Bootstrap1ShellContext {
@@ -44,111 +45,110 @@ export const Bootstrap1Manifest: PluginManifest = createPluginManifest({
   }
 });
 
-function shellStyles(mode: "light" | "dark"): string {
+function shellStyles(mode: "light" | "dark") {
   const isDark = mode === "dark";
-  return `
-    :root {
-      color-scheme: ${isDark ? "dark" : "light"};
-      --bp-bg: ${isDark ? "#0b1220" : "#f3f6fb"};
-      --bp-surface: ${isDark ? "#111827" : "#ffffff"};
-      --bp-surface-alt: ${isDark ? "#0f172a" : "#e8eef6"};
-      --bp-text: ${isDark ? "#f8fafc" : "#0f172a"};
-      --bp-text-soft: ${isDark ? "#94a3b8" : "#526277"};
-      --bp-border: ${isDark ? "#243244" : "#d6deea"};
-      --bp-accent: #0d6efd;
-      --bp-accent-soft: ${isDark ? "rgba(13,110,253,0.18)" : "rgba(13,110,253,0.10)"};
-      --bp-shadow: ${isDark ? "0 28px 72px rgba(2, 6, 23, 0.45)" : "0 28px 72px rgba(15, 23, 42, 0.12)"};
-    }
-    html, body {
-      margin: 0;
-      min-height: 100%;
+  return css({
+    ":root": {
+      colorScheme: isDark ? "dark" : "light",
+      "--bp-bg": isDark ? "#0b1220" : "#f3f6fb",
+      "--bp-surface": isDark ? "#111827" : "#ffffff",
+      "--bp-surface-alt": isDark ? "#0f172a" : "#e8eef6",
+      "--bp-text": isDark ? "#f8fafc" : "#0f172a",
+      "--bp-text-soft": isDark ? "#94a3b8" : "#526277",
+      "--bp-border": isDark ? "#243244" : "#d6deea",
+      "--bp-accent": "#0d6efd",
+      "--bp-accent-soft": isDark ? "rgba(13,110,253,0.18)" : "rgba(13,110,253,0.10)",
+      "--bp-shadow": isDark ? "0 28px 72px rgba(2, 6, 23, 0.45)" : "0 28px 72px rgba(15, 23, 42, 0.12)"
+    },
+    "html, body": {
+      margin: 0,
+      minHeight: "100%",
       background:
-        radial-gradient(circle at top, rgba(13, 110, 253, 0.12), transparent 32%),
-        linear-gradient(180deg, var(--bp-bg), var(--bp-surface-alt));
-      color: var(--bp-text);
-    }
-    body {
-      font-family: "Inter", "Segoe UI", sans-serif;
-    }
-    .bp-shell {
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 1.5rem 1rem 3rem;
-    }
-    .bp-shell__nav {
-      background: color-mix(in srgb, var(--bp-surface) 88%, transparent);
-      border: 1px solid var(--bp-border);
-      border-radius: 1.5rem;
-      box-shadow: var(--bp-shadow);
-      padding: 1rem 1.25rem;
-      margin-bottom: 1.5rem;
-      backdrop-filter: blur(14px);
-    }
-    .bp-shell__panel {
-      background: color-mix(in srgb, var(--bp-surface) 94%, transparent);
-      border: 1px solid var(--bp-border);
-      border-radius: 1.75rem;
-      box-shadow: var(--bp-shadow);
-      padding: 1.5rem;
-    }
-    .bp-shell__brand {
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
-    .bp-shell__meta {
-      color: var(--bp-text-soft);
-      font-size: 0.95rem;
-    }
-    .bp-shell__hero {
-      display: grid;
-      gap: 1.5rem;
-    }
-    .bp-shell__grid {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-    .bp-shell__card {
-      background: var(--bp-surface);
-      border: 1px solid var(--bp-border);
-      border-radius: 1.25rem;
-      padding: 1.1rem;
-      height: 100%;
-    }
-    .bp-shell__badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      border-radius: 999px;
-      background: var(--bp-accent-soft);
-      color: var(--bp-accent);
-      font-size: 0.875rem;
-      font-weight: 600;
-      padding: 0.45rem 0.85rem;
-    }
-    .bp-fragment-slot {
-      min-height: 180px;
-      border: 1px dashed var(--bp-border);
-      border-radius: 1.25rem;
-      padding: 1.25rem;
-      background: color-mix(in srgb, var(--bp-surface-alt) 72%, var(--bp-surface));
-    }
-    .bp-loading {
-      color: var(--bp-text-soft);
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    @media (max-width: 768px) {
-      .bp-shell {
-        padding: 1rem 0.75rem 2rem;
+        "radial-gradient(circle at top, rgba(13, 110, 253, 0.12), transparent 32%), linear-gradient(180deg, var(--bp-bg), var(--bp-surface-alt))",
+      color: "var(--bp-text)"
+    },
+    body: {
+      fontFamily: '"Inter", "Segoe UI", sans-serif'
+    },
+    ".bp-shell": {
+      maxWidth: 1180,
+      margin: "0 auto",
+      padding: "1.5rem 1rem 3rem"
+    },
+    ".bp-shell__nav": {
+      background: "color-mix(in srgb, var(--bp-surface) 88%, transparent)",
+      border: "1px solid var(--bp-border)",
+      borderRadius: "1.5rem",
+      boxShadow: "var(--bp-shadow)",
+      padding: "1rem 1.25rem",
+      marginBottom: "1.5rem",
+      backdropFilter: "blur(14px)"
+    },
+    ".bp-shell__panel": {
+      background: "color-mix(in srgb, var(--bp-surface) 94%, transparent)",
+      border: "1px solid var(--bp-border)",
+      borderRadius: "1.75rem",
+      boxShadow: "var(--bp-shadow)",
+      padding: "1.5rem"
+    },
+    ".bp-shell__brand": {
+      fontSize: "1.1rem",
+      fontWeight: 700,
+      letterSpacing: "0.01em"
+    },
+    ".bp-shell__meta": {
+      color: "var(--bp-text-soft)",
+      fontSize: "0.95rem"
+    },
+    ".bp-shell__hero": {
+      display: "grid",
+      gap: "1.5rem"
+    },
+    ".bp-shell__grid": {
+      display: "grid",
+      gap: "1rem",
+      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))"
+    },
+    ".bp-shell__card": {
+      background: "var(--bp-surface)",
+      border: "1px solid var(--bp-border)",
+      borderRadius: "1.25rem",
+      padding: "1.1rem",
+      height: "100%"
+    },
+    ".bp-shell__badge": {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "0.5rem",
+      borderRadius: 999,
+      background: "var(--bp-accent-soft)",
+      color: "var(--bp-accent)",
+      fontSize: "0.875rem",
+      fontWeight: 600,
+      padding: "0.45rem 0.85rem"
+    },
+    ".bp-fragment-slot": {
+      minHeight: 180,
+      border: "1px dashed var(--bp-border)",
+      borderRadius: "1.25rem",
+      padding: "1.25rem",
+      background: "color-mix(in srgb, var(--bp-surface-alt) 72%, var(--bp-surface))"
+    },
+    ".bp-loading": {
+      color: "var(--bp-text-soft)",
+      display: "flex",
+      alignItems: "center",
+      gap: "0.75rem"
+    },
+    "@media (max-width: 768px)": {
+      ".bp-shell": {
+        padding: "1rem 0.75rem 2rem"
+      },
+      ".bp-shell__panel": {
+        padding: "1rem"
       }
-      .bp-shell__panel {
-        padding: 1rem;
-      }
     }
-  `;
+  });
 }
 
 function AuthLink(props: { loginUrl?: string; logoutUrl?: string }): string {
@@ -194,13 +194,12 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
           </nav>
           <main class="bp-shell__panel">{context.bodyHtml}</main>
         </div>
-        <script>
-          {`
-            document.body.addEventListener("htmx:responseError", function (event) {
-              console.error("BetterPortal HTMX response error", event.detail);
-            });
-          `}
-        </script>
+        <script>{js(() => {
+          document.body.addEventListener("htmx:responseError", function (event) {
+            const htmxEvent = event as Event & { detail?: unknown };
+            console.error("BetterPortal HTMX response error", htmxEvent.detail);
+          });
+        })}</script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
       </body>
     </html>
