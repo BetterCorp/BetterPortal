@@ -1,29 +1,9 @@
 import { App } from "../contracts/binding";
-
-export interface HeaderMap {
-  origin?: string;
-  referer?: string;
-}
-
-function hostnameFromHeaderValue(value?: string): string | null {
-  if (!value || value.trim().length === 0) {
-    return null;
-  }
-
-  try {
-    return new URL(value).hostname;
-  } catch {
-    try {
-      return new URL(`https://${value}`).hostname;
-    } catch {
-      return null;
-    }
-  }
-}
+import { type HeaderMap, resolveEmbeddedHostname, resolveThemeHostname } from "./http";
 
 export function resolveAppFromHeaders(headers: HeaderMap, apps: readonly App[]): App | null {
-  const refererHostname = hostnameFromHeaderValue(headers.referer);
-  const originHostname = hostnameFromHeaderValue(headers.origin);
+  const refererHostname = resolveEmbeddedHostname(headers);
+  const originHostname = resolveThemeHostname(headers);
 
   if (refererHostname) {
     const refererMatch = apps.find((app) => app.hostname === refererHostname);

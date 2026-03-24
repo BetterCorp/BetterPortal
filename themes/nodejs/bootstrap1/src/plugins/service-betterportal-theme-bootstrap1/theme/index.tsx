@@ -1,11 +1,11 @@
 /** @jsxImportSource jsx-htmx */
-import { createPluginManifest, type PluginManifest } from "@betterportal/framework-nodejs";
+import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework-nodejs";
 
 export interface Bootstrap1ShellContext {
   title: string;
   brandName: string;
   themeMode: "light" | "dark";
-  bodyHtml: string;
+  bodyHtml: HtmlRenderable;
   loginUrl?: string;
   logoutUrl?: string;
 }
@@ -153,17 +153,17 @@ function shellStyles(mode: "light" | "dark"): string {
 
 function AuthLink(props: { loginUrl?: string; logoutUrl?: string }): string {
   if (props.logoutUrl) {
-    return <a class="btn btn-outline-secondary btn-sm" href={props.logoutUrl}>Sign out</a>;
+    return String(<a class="btn btn-outline-secondary btn-sm" href={props.logoutUrl}>Sign out</a>);
   }
 
   if (props.loginUrl) {
-    return <a class="btn btn-primary btn-sm" href={props.loginUrl}>Sign in</a>;
+    return String(<a class="btn btn-primary btn-sm" href={props.loginUrl}>Sign in</a>);
   }
 
   return "";
 }
 
-function Bootstrap1Document(context: Bootstrap1ShellContext): string {
+function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
   return (
     <html lang="en" data-bs-theme={context.themeMode}>
       <head>
@@ -207,7 +207,7 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): string {
   );
 }
 
-function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): string {
+function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderable {
   const fragmentUrl = `${context.helloServiceOrigin}/hello?name=${encodeURIComponent(context.defaultName)}`;
 
   return (

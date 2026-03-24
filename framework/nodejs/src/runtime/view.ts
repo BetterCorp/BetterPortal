@@ -12,6 +12,10 @@ import { RequestedRepresentation, resolveRequestedRepresentation } from "./media
 import { toJsonSchemaDocument } from "./jsonSchema";
 
 type AnySchema = z.ZodType<unknown>;
+export interface HtmlRenderableLike {
+  toString(): string;
+}
+export type HtmlRenderable = string | HtmlRenderableLike;
 
 export interface ViewSchemas<
   ParamsSchema extends AnySchema,
@@ -58,7 +62,7 @@ export interface BetterPortalViewDefinition<
 export interface NegotiatedViewResponse {
   status: number;
   contentType: string;
-  body: JsonValue | string;
+  body: JsonValue | HtmlRenderable;
 }
 
 export function createViewDefinition<
@@ -119,7 +123,7 @@ export function negotiateViewResponse<ResponseSchema extends AnySchema>(
   view: BetterPortalViewDefinition<AnySchema, AnySchema, AnySchema, AnySchema, ResponseSchema>,
   acceptHeader: string | undefined,
   jsonBody: z.infer<ResponseSchema>,
-  renderHtml: ((theme: string, mode: RenderMode, body: z.infer<ResponseSchema>) => string) | undefined
+  renderHtml: ((theme: string, mode: RenderMode, body: z.infer<ResponseSchema>) => HtmlRenderable) | undefined
 ): NegotiatedViewResponse {
   const requested = resolveRequestedRepresentation(acceptHeader);
   const validatedJsonBody = view.schemas.response.parse(jsonBody) as JsonValue;

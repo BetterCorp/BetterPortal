@@ -1,9 +1,9 @@
 /** @jsxImportSource jsx-htmx */
-import { createPluginManifest, type PluginManifest } from "@betterportal/framework-nodejs";
+import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework-nodejs";
 
 export interface EmbeddedShellContext {
   title: string;
-  bodyHtml: string;
+  bodyHtml: HtmlRenderable;
 }
 
 export const EmbeddedManifest: PluginManifest = createPluginManifest({
@@ -25,7 +25,7 @@ export const EmbeddedManifest: PluginManifest = createPluginManifest({
   }
 });
 
-function EmbeddedDocument(context: EmbeddedShellContext): string {
+function EmbeddedDocument(context: EmbeddedShellContext): HtmlRenderable {
   return (
     <html lang="en">
       <head>

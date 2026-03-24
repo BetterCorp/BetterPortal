@@ -6,7 +6,8 @@ import {
   type Observable
 } from "@bsb/base";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { HelloManifest, handleHelloViewRequest } from "../../helloView";
+import { acceptHeader, sendJson, sendNegotiatedResponse } from "@betterportal/framework-nodejs";
+import { HelloManifest, handleHelloRoute } from "./routes/hello";
 import { z } from "zod";
 
 const Config = createConfigSchema(
@@ -40,6 +41,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   readonly runBeforePlugins: string[] = [];
   readonly runAfterPlugins: string[] = [];
   private server: Server | null = null;
+  private requestHandler: ((request: IncomingMessage, response: ServerResponse) => void) | null = null;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
@@ -64,14 +66,21 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   }
 
   async init(obs: Observable): Promise<void> {
-    obs.log.info("Hello view example initialized");
-  }
+    this.requestHandler = (request, response) => {
+      void this.handleRequest(request, response);
+    };
+    this.server = createServer((request, response) => {
+      if (this.requestHandler === null) {
+        sendJson(response, 500, {
+          error: "Hello view request handler is not initialized"
+        });
+        return;
+      }
 
-  private sendJson(response: ServerResponse, statusCode: number, body: string): void {
-    response.writeHead(statusCode, {
-      "Content-Type": "application/json; charset=utf-8"
+      this.requestHandler(request, response);
     });
-    response.end(body);
+
+    obs.log.info("Hello view example initialized");
   }
 
   private applyCors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -104,11 +113,6 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
     return value ?? undefined;
   }
 
-  private acceptHeader(request: IncomingMessage): string | undefined {
-    const header = request.headers.accept;
-    return typeof header === "string" ? header : undefined;
-  }
-
   private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
     if (this.applyCors(request, response)) {
       return;
@@ -116,60 +120,52 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
 
     const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
     if (requestUrl.pathname === "/manifest") {
-      this.sendJson(response, 200, JSON.stringify(HelloManifest, null, 2));
+      sendJson(response, 200, HelloManifest);
       return;
     }
 
     if (requestUrl.pathname === "/_health") {
-      this.sendJson(response, 200, JSON.stringify({
+      sendJson(response, 200, {
         ok: true,
         plugin: "service-betterportal-hello-view",
         port: this.configuredPort()
-      }, null, 2));
+      });
       return;
     }
 
     if (requestUrl.pathname === "/hello") {
-      const negotiated = handleHelloViewRequest({
-        acceptHeader: this.acceptHeader(request),
+      const negotiated = handleHelloRoute({
+        acceptHeader: acceptHeader(request),
         query: {
           name: this.queryValueFromUrl(request, "name") ?? "World"
         }
       });
 
-      response.writeHead(negotiated.status, {
-        "Content-Type": `${negotiated.contentType}; charset=utf-8`
-      });
-      response.end(
-        typeof negotiated.body === "string"
-          ? negotiated.body
-          : JSON.stringify(negotiated.body, null, 2)
-      );
+      sendNegotiatedResponse(response, negotiated);
       return;
     }
 
-    this.sendJson(response, 404, JSON.stringify({
+    sendJson(response, 404, {
       error: "Not found",
       path: requestUrl.pathname
-    }, null, 2));
+    });
   }
 
   async run(obs: Observable): Promise<void> {
-    if (this.server !== null) {
-      return;
+    if (this.server === null) {
+      throw new Error("Hello service server was not created during init");
     }
 
-    this.server = createServer((request, response) => {
-      void this.handleRequest(request, response);
-    });
+    if (this.server.listening) {
+      return;
+    }
 
     await new Promise<void>((resolve, reject) => {
       const server = this.server;
       if (server === null) {
-        reject(new Error("Hello service server was not created"));
+        reject(new Error("Hello service server missing during run"));
         return;
       }
-
       server.once("error", reject);
       server.listen(this.configuredPort(), this.configuredHost(), () => {
         server.off("error", reject);

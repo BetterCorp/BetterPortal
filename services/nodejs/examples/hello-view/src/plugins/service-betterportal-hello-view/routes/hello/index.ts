@@ -1,13 +1,14 @@
-/** @jsxImportSource jsx-htmx */
 import {
   createPluginManifest,
   createViewDefinition,
   negotiateViewResponse,
+  resolveRepresentationFromAccept,
+  type HtmlRenderable,
   type PluginManifest,
-  type RequestedRepresentation,
-  resolveRepresentationFromAccept
+  type RequestedRepresentation
 } from "@betterportal/framework-nodejs";
 import { z } from "zod";
+import { renderBootstrap1HelloView, renderEmbeddedHelloView } from "../../views/hello";
 
 const HelloParamsSchema = z.object({});
 const HelloQuerySchema = z.object({
@@ -25,7 +26,7 @@ export const HelloResponseSchema = z.object({
 });
 export type HelloResponse = z.infer<typeof HelloResponseSchema>;
 
-export const HelloView = createViewDefinition({
+export const HelloRoute = createViewDefinition({
   viewId: "hello.index",
   title: "Hello View",
   description: "Example BetterPortal view with JSON, HTML, and metadata representations.",
@@ -52,7 +53,7 @@ export const HelloView = createViewDefinition({
   },
   cacheHints: {
     ttlSeconds: 60,
-    varyBy: ["accept", "origin", "referer"]
+    varyBy: ["accept", "origin", "referer", ":origin", ":referer"]
   }
 });
 
@@ -66,7 +67,7 @@ export const HelloManifest: PluginManifest = createPluginManifest({
   capabilities: ["view.json", "view.html", "view.metadata", "theme.bootstrap1", "theme.embedded"],
   supportedThemes: ["bootstrap1", "embedded"],
   supportedRenderModes: ["page", "fragment", "embed"],
-  views: [HelloView.toMetadata()],
+  views: [HelloRoute.toMetadata()],
   configSchemas: [],
   permissions: [],
   adminApis: [],
@@ -74,47 +75,6 @@ export const HelloManifest: PluginManifest = createPluginManifest({
     metadataTtlSeconds: 1800
   }
 });
-
-function Bootstrap1HelloFragment(response: HelloResponse): string {
-  return String(
-    <section class="container-fluid px-0">
-      <div class="d-flex flex-column gap-3">
-        <span class="badge rounded-pill text-bg-primary w-auto">{response.themeHint}</span>
-        <div>
-          <h1 class="h3 mb-2">{response.greeting}</h1>
-          <p class="text-body-secondary mb-0">
-            This HTML representation is rendered from the same validated API output.
-          </p>
-        </div>
-        <div class="d-flex flex-wrap gap-2">
-          {response.supports.map((item) => (
-            <span class="badge text-bg-light border text-dark">{item}</span>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function EmbeddedHelloFragment(response: HelloResponse): string {
-  return String(
-    <div class="card border-0 shadow-sm">
-      <div class="card-body">
-        <div class="small text-body-secondary mb-2">{response.themeHint}</div>
-        <div class="h5 mb-2">{response.greeting}</div>
-        <div class="text-body-secondary">Rendered for lightweight embedded usage.</div>
-      </div>
-    </div>
-  );
-}
-
-export function renderHelloHtml(theme: string, response: HelloResponse): string {
-  if (theme === "embedded") {
-    return EmbeddedHelloFragment(response);
-  }
-
-  return Bootstrap1HelloFragment(response);
-}
 
 export function buildHelloResponse(name: string, requestedRepresentation: RequestedRepresentation): HelloResponse {
   const themeHint = requestedRepresentation.kind === "html"
@@ -128,13 +88,21 @@ export function buildHelloResponse(name: string, requestedRepresentation: Reques
   });
 }
 
-export function handleHelloViewRequest(input: {
+export function renderHelloHtml(theme: string, response: HelloResponse): HtmlRenderable {
+  if (theme === "embedded") {
+    return renderEmbeddedHelloView(response);
+  }
+
+  return renderBootstrap1HelloView(response);
+}
+
+export function handleHelloRoute(input: {
   acceptHeader?: string;
   query: unknown;
-}): ReturnType<typeof negotiateViewResponse<typeof HelloResponseSchema>> {
+}) {
   const query = HelloQuerySchema.parse(input.query);
   const requestedRepresentation = resolveRepresentationFromAccept(input.acceptHeader);
   const response = buildHelloResponse(query.name, requestedRepresentation);
 
-  return negotiateViewResponse(HelloView, input.acceptHeader, response, (theme) => renderHelloHtml(theme, response));
+  return negotiateViewResponse(HelloRoute, input.acceptHeader, response, (theme) => renderHelloHtml(theme, response));
 }

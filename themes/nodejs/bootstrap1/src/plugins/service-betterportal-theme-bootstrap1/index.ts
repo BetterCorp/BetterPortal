@@ -6,7 +6,7 @@ import {
   type Observable
 } from "@bsb/base";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { Bootstrap1Manifest, renderBootstrap1HostPage } from "../../bootstrap1Theme";
+import { Bootstrap1Manifest, renderBootstrap1HostPage } from "./theme";
 import { z } from "zod";
 
 const Config = createConfigSchema(
@@ -43,6 +43,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   readonly runBeforePlugins: string[] = [];
   readonly runAfterPlugins: string[] = [];
   private server: Server | null = null;
+  private requestHandler: ((request: IncomingMessage, response: ServerResponse) => void) | null = null;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
@@ -83,6 +84,20 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   }
 
   async init(obs: Observable): Promise<void> {
+    this.requestHandler = (request, response) => {
+      void this.handleRequest(request, response);
+    };
+    this.server = createServer((request, response) => {
+      if (this.requestHandler === null) {
+        this.sendJson(response, 500, {
+          error: "Bootstrap1 request handler is not initialized"
+        });
+        return;
+      }
+
+      this.requestHandler(request, response);
+    });
+
     obs.log.info("Bootstrap1 theme initialized with default mode {mode}", {
       mode: this.config.defaultMode ?? this.configuredMode()
     });
@@ -141,21 +156,20 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   }
 
   async run(obs: Observable): Promise<void> {
-    if (this.server !== null) {
-      return;
+    if (this.server === null) {
+      throw new Error("Bootstrap1 server was not created during init");
     }
 
-    this.server = createServer((request, response) => {
-      void this.handleRequest(request, response);
-    });
+    if (this.server.listening) {
+      return;
+    }
 
     await new Promise<void>((resolve, reject) => {
       const server = this.server;
       if (server === null) {
-        reject(new Error("Bootstrap1 server was not created"));
+        reject(new Error("Bootstrap1 server missing during run"));
         return;
       }
-
       server.once("error", reject);
       server.listen(this.configuredPort(), this.configuredHost(), () => {
         server.off("error", reject);

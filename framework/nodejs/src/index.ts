@@ -9,6 +9,7 @@ export * from "./controlPlane/store";
 export * from "./controlPlane/sync";
 export * from "./controlPlane/types";
 export * from "./runtime/jsonSchema";
+export * from "./runtime/http";
 export * from "./runtime/manifest";
 export * from "./runtime/media";
 export * from "./runtime/shell";
