@@ -43,63 +43,21 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   readonly runBeforePlugins: string[] = [];
   readonly runAfterPlugins: string[] = [];
   private server: Server | null = null;
-  private requestHandler: ((request: IncomingMessage, response: ServerResponse) => void) | null = null;
+  private readonly requestHandler: (request: IncomingMessage, response: ServerResponse) => void;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
-  }
-
-  private configuredHost(): string {
-    return typeof this.config.host === "string" && this.config.host.length > 0
-      ? this.config.host
-      : "0.0.0.0";
-  }
-
-  private configuredPort(): number {
-    return typeof this.config.port === "number" && Number.isInteger(this.config.port) && this.config.port > 0
-      ? this.config.port
-      : 3100;
-  }
-
-  private configuredMode(): "light" | "dark" {
-    return this.config.defaultMode === "dark" ? "dark" : "light";
-  }
-
-  private configuredBrandName(): string {
-    return typeof this.config.brandName === "string" && this.config.brandName.length > 0
-      ? this.config.brandName
-      : "BetterPortal";
-  }
-
-  private configuredHelloServiceOrigin(): string {
-    return typeof this.config.helloServiceOrigin === "string" && this.config.helloServiceOrigin.length > 0
-      ? this.config.helloServiceOrigin
-      : "http://localhost:3200";
-  }
-
-  private configuredDefaultGreetingName(): string {
-    return typeof this.config.defaultGreetingName === "string" && this.config.defaultGreetingName.length > 0
-      ? this.config.defaultGreetingName
-      : "Mitchell";
-  }
-
-  async init(obs: Observable): Promise<void> {
     this.requestHandler = (request, response) => {
       void this.handleRequest(request, response);
     };
     this.server = createServer((request, response) => {
-      if (this.requestHandler === null) {
-        this.sendJson(response, 500, {
-          error: "Bootstrap1 request handler is not initialized"
-        });
-        return;
-      }
-
       this.requestHandler(request, response);
     });
+  }
 
+  async init(obs: Observable): Promise<void> {
     obs.log.info("Bootstrap1 theme initialized with default mode {mode}", {
-      mode: this.config.defaultMode ?? this.configuredMode()
+      mode: this.config.defaultMode
     });
   }
 
@@ -122,11 +80,11 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
 
     if (requestUrl.pathname === "/") {
       this.sendHtml(response, 200, renderBootstrap1HostPage({
-        title: this.configuredBrandName(),
-        brandName: this.configuredBrandName(),
-        themeMode: this.configuredMode(),
-        helloServiceOrigin: this.configuredHelloServiceOrigin(),
-        defaultName: this.configuredDefaultGreetingName()
+        title: this.config.brandName,
+        brandName: this.config.brandName,
+        themeMode: this.config.defaultMode,
+        helloServiceOrigin: this.config.helloServiceOrigin,
+        defaultName: this.config.defaultGreetingName
       }));
       return;
     }
@@ -144,7 +102,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       this.sendJson(response, 200, {
         ok: true,
         plugin: "service-betterportal-theme-bootstrap1",
-        port: this.configuredPort()
+        port: this.config.port
       });
       return;
     }
@@ -171,15 +129,15 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
         return;
       }
       server.once("error", reject);
-      server.listen(this.configuredPort(), this.configuredHost(), () => {
+      server.listen(this.config.port, this.config.host, () => {
         server.off("error", reject);
         resolve();
       });
     });
 
     obs.log.info("Bootstrap1 theme serving at http://{host}:{port}", {
-      host: this.configuredHost(),
-      port: this.configuredPort()
+      host: this.config.host,
+      port: this.config.port
     });
   }
 

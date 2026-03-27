@@ -196,8 +196,7 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
         </div>
         <script>{js(() => {
           document.body.addEventListener("htmx:responseError", function (event) {
-            const htmxEvent = event as Event & { detail?: unknown };
-            console.error("BetterPortal HTMX response error", htmxEvent.detail);
+            console.error("BetterPortal HTMX response error", event.detail);
           });
         })}</script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

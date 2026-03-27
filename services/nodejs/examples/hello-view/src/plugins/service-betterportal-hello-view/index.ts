@@ -20,7 +20,7 @@ const Config = createConfigSchema(
   z.object({
     host: z.string().min(1).default("0.0.0.0"),
     port: z.number().int().positive().default(3200),
-    allowOrigin: z.string().default("http://localhost:3100")
+    allowOrigin: z.string().url().default("http://localhost:3100")
   })
 );
 
@@ -40,54 +40,28 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   readonly initAfterPlugins: string[] = [];
   readonly runBeforePlugins: string[] = [];
   readonly runAfterPlugins: string[] = [];
-  private server: Server | null = null;
-  private requestHandler: ((request: IncomingMessage, response: ServerResponse) => void) | null = null;
+  private server: Server;
+  private readonly requestHandler: (request: IncomingMessage, response: ServerResponse) => void;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
-  }
-
-  private configuredHost(): string {
-    return typeof this.config.host === "string" && this.config.host.length > 0
-      ? this.config.host
-      : "0.0.0.0";
-  }
-
-  private configuredPort(): number {
-    return typeof this.config.port === "number" && Number.isInteger(this.config.port) && this.config.port > 0
-      ? this.config.port
-      : 3200;
-  }
-
-  private configuredAllowOrigin(): string {
-    return typeof this.config.allowOrigin === "string" && this.config.allowOrigin.length > 0
-      ? this.config.allowOrigin
-      : "http://localhost:3100";
-  }
-
-  async init(obs: Observable): Promise<void> {
     this.requestHandler = (request, response) => {
       void this.handleRequest(request, response);
     };
     this.server = createServer((request, response) => {
-      if (this.requestHandler === null) {
-        sendJson(response, 500, {
-          error: "Hello view request handler is not initialized"
-        });
-        return;
-      }
-
       this.requestHandler(request, response);
     });
+  }
 
+  async init(obs: Observable): Promise<void> {
     obs.log.info("Hello view example initialized");
   }
 
   private applyCors(request: IncomingMessage, response: ServerResponse): boolean {
     const originHeader = request.headers.origin;
-    const allowedOrigin = typeof originHeader === "string" && originHeader === this.configuredAllowOrigin()
+    const allowedOrigin = typeof originHeader === "string" && originHeader === this.config.allowOrigin
       ? originHeader
-      : this.configuredAllowOrigin();
+      : this.config.allowOrigin;
     const requestedHeaders = request.headers["access-control-request-headers"];
     const allowHeaders = typeof requestedHeaders === "string" && requestedHeaders.trim().length > 0
       ? requestedHeaders
@@ -128,7 +102,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       sendJson(response, 200, {
         ok: true,
         plugin: "service-betterportal-hello-view",
-        port: this.configuredPort()
+        port: this.config.port
       });
       return;
     }
@@ -152,30 +126,21 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   }
 
   async run(obs: Observable): Promise<void> {
-    if (this.server === null) {
-      throw new Error("Hello service server was not created during init");
-    }
-
-    if (this.server.listening) {
-      return;
-    }
-
     await new Promise<void>((resolve, reject) => {
-      const server = this.server;
-      if (server === null) {
+      if (this.server === null) {
         reject(new Error("Hello service server missing during run"));
         return;
       }
-      server.once("error", reject);
-      server.listen(this.configuredPort(), this.configuredHost(), () => {
-        server.off("error", reject);
+      this.server.once("error", reject);
+      this.server.listen(this.config.port, this.config.host, () => {
+        this.server.off("error", reject);
         resolve();
       });
     });
 
     obs.log.info("Hello view example serving at http://{host}:{port}", {
-      host: this.configuredHost(),
-      port: this.configuredPort()
+      host: this.config.host,
+      port: this.config.port
     });
   }
 
@@ -197,7 +162,6 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
           resolve();
         });
       });
-      this.server = null;
     }
   }
 }

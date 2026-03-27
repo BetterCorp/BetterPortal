@@ -11,6 +11,7 @@ export function renderBootstrap1HelloView(response: HelloResponse): HtmlRenderab
           <h1 class="h3 mb-2">{response.greeting}</h1>
           <p class="text-body-secondary mb-0">
             This HTML representation is rendered from the same validated API output.
+            WOOP.
           </p>
         </div>
         <div class="d-flex flex-wrap gap-2">

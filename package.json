@@ -12,6 +12,7 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "workspaces": [
     "framework/nodejs",
+    "plugins/nodejs/betterportal-bsb",
     "auth/nodejs",
     "themes/nodejs/bootstrap1",
     "themes/nodejs/embedded",

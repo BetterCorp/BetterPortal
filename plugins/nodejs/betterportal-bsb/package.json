@@ -1,7 +1,7 @@
 {
-  "name": "@betterportal/framework-nodejs",
+  "name": "@betterportal/plugin-bsb-nodejs",
   "version": "1.0.0",
-  "description": "BetterPortal v10 core library for Node.js",
+  "description": "BetterPortal BSB integration for Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
@@ -13,14 +13,18 @@
   "author": "",
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "commonjs",
-  "devDependencies": {
-    "typescript": "^5.9.3"
-  },
   "files": [
     "lib/**/*",
     "README.md"
   ],
   "dependencies": {
-    "zod": "^4.3.6"
+    "@betterportal/framework-nodejs": "file:../../../framework/nodejs"
+  },
+  "peerDependencies": {
+    "@bsb/base": "^9.0.5"
+  },
+  "devDependencies": {
+    "@bsb/base": "^9.0.5",
+    "typescript": "^5.9.3"
   }
 }
