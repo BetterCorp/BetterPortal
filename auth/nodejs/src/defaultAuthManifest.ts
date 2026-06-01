@@ -1,19 +1,21 @@
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
 import {
   AdminApiDescriptor,
   AuthAudienceRule,
   createPluginManifest,
   JwtClaimsSchema,
   PluginManifest,
-  TokenLifetimeConfigSchema,
   ViewPermissionDefinition
 } from "@betterportal/framework-nodejs";
-import { z } from "zod";
 
-export const RuntimeTokenConfigSchema = TokenLifetimeConfigSchema.extend({
-  runtimeAudiences: z.array(z.string().min(1)).min(1),
-  controlPlaneAudiences: z.array(z.string().min(1)).min(1)
-});
-export type RuntimeTokenConfig = z.infer<typeof RuntimeTokenConfigSchema>;
+export const RuntimeTokenConfigSchema = av.object({
+  idTokenSeconds: av.int().min(1).default(60 * 30),
+  refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7),
+  runtimeAudiences: av.array(av.string().minLength(1)).minItems(1),
+  controlPlaneAudiences: av.array(av.string().minLength(1)).minItems(1)
+}, { unknownKeys: "strip" });
+export type RuntimeTokenConfig = Infer<typeof RuntimeTokenConfigSchema>;
 
 export const DefaultRuntimeAudienceRules: readonly AuthAudienceRule[] = [
   {

@@ -1,0 +1,409 @@
+themes:
+  - id: bootstrap1
+    hostname: http://localhost:3100
+    title: Bootstrap 1
+    description: HTMX + Bootstrap 5 theme
+    enabled: true
+  - id: embedded
+    hostname: http://localhost:3100
+    title: Embedded
+    description: Lightweight embedded renderer
+    enabled: true
+platformServices: []
+tenants:
+  - id: betterportal
+    slug: betterportal
+    title: BetterPortal
+    active: true
+    branding:
+      brandName: BetterPortal
+    services:
+      - id: hello-view
+        hostname: http://localhost:3200
+        apiKeyHash: ""
+        serviceId: service.betterportal.hello-view
+        title: Hello View
+        deploymentMode: self-hosted
+        createdAt: 2026-01-01T00:00:00.000Z
+        enabled: true
+      - id: config-manager
+        hostname: http://localhost:3300
+        apiKeyHash: ""
+        serviceId: service.betterportal.config-manager
+        title: Config Manager
+        deploymentMode: self-hosted
+        createdAt: 2026-01-01T00:00:00.000Z
+        enabled: true
+    activatedPlatformServices: []
+  - id: test-tenant
+    slug: test-tenant
+    title: Test Tenant
+    active: true
+    branding: {}
+    services:
+      - id: svc-019e3905-2f8f-773d-ab45-
+        hostname: http://localhost:3200
+        apiKeyHash: 7ae648a0feae67a507b03b5071148a29e2edc6847817740caf144e0c4d89b02d
+        deploymentMode: self-hosted
+        createdAt: 2026-05-18T02:58:21.712Z
+        enabled: true
+    activatedPlatformServices: []
+apps:
+  - id: betterportal-web
+    tenantId: betterportal
+    slug: web
+    title: BetterPortal Web
+    hostnames:
+      - localhost:3100
+    originOverrides: []
+    refererOverrides: []
+    themeId: bootstrap1
+    themeConfig:
+      mode: system
+      bootstrap:
+        primary: "#3b82f6"
+        secondary: "#64748b"
+        success: "#22c55e"
+        info: "#38bdf8"
+        warning: "#f59e0b"
+        danger: "#ef4444"
+        light: "#f8fafc"
+        dark: "#0f172a"
+      light:
+        background: "#dde1e7"
+        surface: "#dde1e7"
+        surfaceAlt: "#d3d7dd"
+        text: "#1d1d1f"
+        textSoft: "#6e6e73"
+        border: rgba(0,0,0,0.04)
+        accentSoft: rgba(59,130,246,0.09)
+      dark:
+        background: "#2c2c2e"
+        surface: "#2c2c2e"
+        surfaceAlt: "#242426"
+        text: "#f5f5f7"
+        textSoft: "#86868b"
+        border: rgba(255,255,255,0.05)
+        accentSoft: rgba(59,130,246,0.15)
+    defaultRoute: /
+    routes:
+      - id: hello
+        path: /
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello
+        title: Hello
+        enabled: true
+        methods:
+          - GET
+      - id: sales
+        path: /sales
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello
+        title: Sales
+        enabled: true
+        methods:
+          - GET
+      - id: sales-pipeline
+        path: /sales/pipeline
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello
+        title: Pipeline
+        enabled: true
+        methods:
+          - GET
+      - id: sales-forecast
+        path: /sales/forecast
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello
+        title: Forecast
+        enabled: true
+        methods:
+          - GET
+      - id: showcase-cards
+        path: /showcase/cards
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello?_c=showcase-cards
+        title: Cards
+        enabled: true
+        methods:
+          - GET
+      - id: showcase-forms
+        path: /showcase/forms
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello?_c=showcase-forms
+        title: Forms
+        enabled: true
+        methods:
+          - GET
+      - id: showcase-data
+        path: /showcase/data
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello?_c=showcase-data
+        title: Data
+        enabled: true
+        methods:
+          - GET
+      - id: showcase-elements
+        path: /showcase/elements
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello?_c=showcase-elements
+        title: Elements
+        enabled: true
+        methods:
+          - GET
+      - id: showcase-overlays
+        path: /showcase/overlays
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello?_c=showcase-overlays
+        title: Overlays
+        enabled: true
+        methods:
+          - GET
+      - id: showcase-patterns
+        path: /showcase/patterns
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello?_c=showcase-patterns
+        title: Patterns
+        enabled: true
+        methods:
+          - GET
+      - id: showcase-interactive
+        path: /showcase/interactive
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello?_c=showcase-interactive
+        title: Interactive
+        enabled: true
+        methods:
+          - GET
+      - id: settings
+        path: /settings
+        serviceId: config-manager
+        viewId: config-admin.index
+        targetPath: /config-admin
+        title: Settings
+        enabled: true
+        methods:
+          - GET
+      - id: settings-services
+        path: /settings/services
+        serviceId: config-manager
+        viewId: admin-services.index
+        targetPath: /admin-services
+        title: Services
+        enabled: true
+        methods:
+          - GET
+      - id: settings-tenants
+        path: /settings/tenants
+        serviceId: config-manager
+        viewId: admin-tenants.index
+        targetPath: /admin-tenants
+        title: Tenants & Apps
+        enabled: true
+        methods:
+          - GET
+      - id: settings-routes
+        path: /settings/routes
+        serviceId: config-manager
+        viewId: admin-routes.index
+        targetPath: /admin-routes
+        title: Routes
+        enabled: true
+        methods:
+          - GET
+      - id: settings-menu
+        path: /settings/menu
+        serviceId: config-manager
+        viewId: admin-menu.index
+        targetPath: /admin-menu
+        title: Menu
+        enabled: true
+        methods:
+          - GET
+      - id: settings-preview
+        path: /settings/preview
+        serviceId: config-manager
+        viewId: admin-preview.index
+        targetPath: /admin-preview
+        title: Preview
+        enabled: true
+        methods:
+          - GET
+      - id: settings-fragments
+        path: /settings/fragments
+        serviceId: config-manager
+        viewId: admin-fragments.index
+        targetPath: /admin-fragments
+        title: Fragments
+        enabled: true
+        methods:
+          - GET
+      - id: 019e3a3f-ca94-7c39-a77b-
+        path: /blah
+        serviceId: hello-view
+        viewId: hello.index
+        targetPath: /hello
+        title: /blah
+        enabled: true
+        methods:
+          - GET
+    menu:
+      - id: m-showcase
+        type: group
+        title: Showcase
+        enabled: true
+        children:
+          - id: m-showcase-cards
+            type: link
+            title: Cards
+            routeId: showcase-cards
+            enabled: true
+          - id: m-showcase-forms
+            type: link
+            title: Forms
+            routeId: showcase-forms
+            enabled: true
+          - id: m-showcase-data
+            type: link
+            title: Data
+            routeId: showcase-data
+            enabled: true
+          - id: m-showcase-elements
+            type: link
+            title: Elements
+            routeId: showcase-elements
+            enabled: true
+          - id: m-showcase-overlays
+            type: link
+            title: Overlays
+            routeId: showcase-overlays
+            enabled: true
+          - id: m-showcase-patterns
+            type: link
+            title: Patterns
+            routeId: showcase-patterns
+            enabled: true
+          - id: m-showcase-interactive
+            type: link
+            title: Interactive
+            routeId: showcase-interactive
+            enabled: true
+            children: []
+      - id: m-sales
+        type: group
+        title: Sales
+        enabled: true
+        children:
+          - id: m-sales-forecast
+            type: link
+            title: Forecast
+            routeId: sales-forecast
+            enabled: true
+            children: []
+          - id: m-sales-overview
+            type: link
+            title: Overview
+            routeId: sales
+            enabled: true
+          - id: m-sales-pipeline
+            type: link
+            title: Pipeline
+            routeId: sales-pipeline
+            enabled: true
+            children: []
+      - id: m-settings
+        type: group
+        title: Settings
+        enabled: true
+        children:
+          - id: m-settings-overview
+            type: link
+            title: Overview
+            routeId: settings
+            enabled: true
+          - id: m-settings-services
+            type: link
+            title: Services
+            routeId: settings-services
+            enabled: true
+          - id: m-settings-tenants
+            type: link
+            title: Tenants & Apps
+            routeId: settings-tenants
+            enabled: true
+          - id: m-settings-routes
+            type: link
+            title: Routes
+            routeId: settings-routes
+            enabled: true
+          - id: m-settings-menu
+            type: link
+            title: Menu
+            routeId: settings-menu
+            enabled: true
+          - id: m-settings-preview
+            type: link
+            title: Preview
+            routeId: settings-preview
+            enabled: true
+          - id: m-settings-fragments
+            type: link
+            title: Fragments
+            routeId: settings-fragments
+            enabled: true
+          - id: m-hello
+            type: link
+            title: Hello World
+            routeId: hello
+            enabled: false
+            children: []
+    slots: []
+    fragments:
+      nav:
+        - serviceId: hello-view
+          fragmentId: clock
+          targetPath: /hello
+          enabled: true
+        - serviceId: hello-view
+          fragmentId: profile
+          targetPath: /hello
+          enabled: true
+  - id: test-tenant-test-app
+    tenantId: test-tenant
+    slug: test-app
+    title: Test App
+    hostnames:
+      - localhost:3101
+    originOverrides: []
+    refererOverrides: []
+    themeId: bootstrap1
+    themeConfig:
+      mode: system
+      bootstrap: {}
+      light: {}
+      dark: {}
+    defaultRoute: /
+    routes:
+      - id: 019e3a3f-92f9-7948-90a9-
+        path: /hello
+        serviceId: svc-019e3905-2f8f-773d-ab45-
+        viewId: hello.index
+        targetPath: /hello
+        title: /hello
+        enabled: true
+        methods:
+          - GET
+    menu: []
+    slots: []
+    fragments: {}

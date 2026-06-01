@@ -1,34 +1,35 @@
-import { z } from "zod";
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
 
-export const HttpMethodSchema = z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
-export type HttpMethod = z.infer<typeof HttpMethodSchema>;
+export const HttpMethodSchema = av.enum_(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const);
+export type HttpMethod = Infer<typeof HttpMethodSchema>;
 
-export const RenderModeSchema = z.enum(["page", "fragment", "embed"]);
-export type RenderMode = z.infer<typeof RenderModeSchema>;
+export const RenderModeSchema = av.enum_(["page", "fragment", "embed"] as const);
+export type RenderMode = Infer<typeof RenderModeSchema>;
 
-export const PluginCategorySchema = z.enum(["framework", "auth", "theme", "service", "utility", "integration"]);
-export type PluginCategory = z.infer<typeof PluginCategorySchema>;
+export const PluginCategorySchema = av.enum_(["framework", "auth", "theme", "service", "utility", "integration"] as const);
+export type PluginCategory = Infer<typeof PluginCategorySchema>;
 
-export const DeploymentModeSchema = z.enum([
+export const DeploymentModeSchema = av.enum_([
   "bp-hosted",
   "customer-hosted",
   "third-party-saas",
   "self-hosted",
   "saas-managed"
-]);
-export type DeploymentMode = z.infer<typeof DeploymentModeSchema>;
+] as const);
+export type DeploymentMode = Infer<typeof DeploymentModeSchema>;
 
-export const ConfigScopeSchema = z.enum(["tenant", "app"]);
-export type ConfigScope = z.infer<typeof ConfigScopeSchema>;
+export const ConfigScopeSchema = av.enum_(["tenant", "app"] as const);
+export type ConfigScope = Infer<typeof ConfigScopeSchema>;
 
-export const ConfigVisibilitySchema = z.enum(["public", "protected", "secret"]);
-export type ConfigVisibility = z.infer<typeof ConfigVisibilitySchema>;
+export const ConfigVisibilitySchema = av.enum_(["public", "protected", "secret"] as const);
+export type ConfigVisibility = Infer<typeof ConfigVisibilitySchema>;
 
-export const ConfigOwnershipSchema = z.enum(["bp", "plugin", "mixed"]);
-export type ConfigOwnership = z.infer<typeof ConfigOwnershipSchema>;
+export const ConfigOwnershipSchema = av.enum_(["bp", "plugin", "mixed"] as const);
+export type ConfigOwnership = Infer<typeof ConfigOwnershipSchema>;
 
-export const ContextTierSchema = z.enum(["public", "runtime-authenticated", "control-plane-authenticated"]);
-export type ContextTier = z.infer<typeof ContextTierSchema>;
+export const ContextTierSchema = av.enum_(["public", "runtime-authenticated", "control-plane-authenticated"] as const);
+export type ContextTier = Infer<typeof ContextTierSchema>;
 
-export const IdentityRealmSchema = z.enum(["runtime", "control-plane"]);
-export type IdentityRealm = z.infer<typeof IdentityRealmSchema>;
+export const IdentityRealmSchema = av.enum_(["runtime", "control-plane"] as const);
+export type IdentityRealm = Infer<typeof IdentityRealmSchema>;

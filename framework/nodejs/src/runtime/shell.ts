@@ -1,5 +1,6 @@
-import { App, Tenant } from "../contracts/binding";
-import { NegotiatedViewResponse } from "./view";
+import { App, Tenant } from "../contracts/binding.js";
+import { toHtmlString } from "./http.js";
+import { NegotiatedViewResponse } from "./view.js";
 
 export interface ShellThemeContext {
   title: string;
@@ -27,9 +28,7 @@ export function composeShellPage(input: ComposeShellInput): NegotiatedViewRespon
     return input.response;
   }
 
-  const bodyHtml = typeof input.response.body === "string"
-    ? input.response.body
-    : JSON.stringify(input.response.body);
+  const bodyHtml = toHtmlString(input.response.body ?? "");
 
   return {
     status: input.response.status,

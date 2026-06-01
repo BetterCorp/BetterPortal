@@ -1,0 +1,19 @@
+default:
+  observable:
+    observable-default:
+      plugin: observable-default
+      enabled: true
+      config: {}
+  events:
+    events-default:
+      plugin: events-default
+      enabled: true
+  services:
+    service-betterportal-config-manager:
+      plugin: service-betterportal-config-manager
+      enabled: true
+      config:
+        host: 0.0.0.0
+        port: 3300
+        bpConfigPath: ../../../../bp-config.yaml
+        requestTimeoutMs: 2000

@@ -12,4 +12,9 @@ default:
     service-betterportal-hello-view:
       plugin: service-betterportal-hello-view
       enabled: true
-      config: {}
+      config: 
+        host: 0.0.0.0
+        port: 3200
+        bpConfigPath: ../../../../bp-config.yaml
+        configApiToken: bp-dev-config-token
+        configEncryptionKey: bp-dev-encryption-key-min16chars

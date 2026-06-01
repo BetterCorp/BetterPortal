@@ -1,4 +1,4 @@
-import { RenderMode, RenderModeSchema } from "../contracts/common";
+import { RenderMode, RenderModeSchema } from "../contracts/common.js";
 
 export interface AcceptEntry {
   mediaType: string;

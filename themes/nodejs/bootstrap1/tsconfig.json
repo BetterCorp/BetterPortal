@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "Node16",
+    "module": "NodeNext",
     "lib": ["ES2022", "DOM"],
     "jsx": "react-jsx",
     "jsxImportSource": "jsx-htmx",
@@ -15,7 +15,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node16",
+    "moduleResolution": "nodenext",
     "types": ["node"],
     "resolveJsonModule": true
   },

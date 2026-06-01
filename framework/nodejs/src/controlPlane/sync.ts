@@ -1,7 +1,7 @@
-import { BindingRecord } from "../contracts/binding";
-import { PluginManifest, PluginManifestSchema } from "../contracts/manifest";
-import { BetterPortalControlPlaneStore } from "./store";
-import { ImportedManifestRecord } from "./types";
+import { BindingRecord } from "../contracts/binding.js";
+import { PluginManifest, PluginManifestSchema } from "../contracts/manifest.js";
+import { BetterPortalControlPlaneStore } from "./store.js";
+import { ImportedManifestRecord } from "./types.js";
 
 export type ManifestProvider = (binding: BindingRecord) => Promise<PluginManifest>;
 

@@ -14,15 +14,16 @@
   "keywords": [],
   "author": "",
   "license": "(AGPL-3.0-only OR Commercial)",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
-    "@bsb/base": "^9.0.5",
-    "@types/node": "^24.3.0",
+    "@bsb/base": "^9.3.1",
+    "@types/node": "^24.12.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@betterportal/framework-nodejs": "file:../../framework/nodejs",
-    "zod": "^4.3.6"
+    "anyvali": "^0.3.1",
+    "@betterportal/framework-nodejs": "1.0.0"
   },
   "files": [
     "lib/**/*",

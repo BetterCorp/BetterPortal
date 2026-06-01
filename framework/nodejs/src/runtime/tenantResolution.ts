@@ -1,5 +1,5 @@
-import { App } from "../contracts/binding";
-import { type HeaderMap, resolveEmbeddedHostname, resolveThemeHostname } from "./http";
+import { App } from "../contracts/binding.js";
+import { type HeaderMap, resolveEmbeddedHostname, resolveThemeHostname } from "./http.js";
 
 export function resolveAppFromHeaders(headers: HeaderMap, apps: readonly App[]): App | null {
   const refererHostname = resolveEmbeddedHostname(headers);

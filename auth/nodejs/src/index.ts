@@ -1,3 +1,3 @@
-export * from "./defaultAuthManifest";
-export * from "./tokens";
-export * from "./plugins/service-betterportal-auth-default";
+export * from "./defaultAuthManifest.js";
+export * from "./tokens.js";
+export * from "./plugins/service-betterportal-auth-default/index.js";

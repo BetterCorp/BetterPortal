@@ -7,9 +7,9 @@ import {
   ServiceCatalogEntrySchema,
   Tenant,
   TenantSchema
-} from "../contracts/binding";
-import { PluginManifest, PluginManifestSchema } from "../contracts/manifest";
-import { ImportedManifestRecord, ControlPlaneSnapshot } from "./types";
+} from "../contracts/binding.js";
+import { PluginManifest, PluginManifestSchema } from "../contracts/manifest.js";
+import { ImportedManifestRecord, ControlPlaneSnapshot } from "./types.js";
 
 export class BetterPortalControlPlaneStore {
   private readonly catalog = new Map<string, ServiceCatalogEntry>();

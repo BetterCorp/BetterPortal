@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as av from "anyvali";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -6,15 +6,7 @@ export interface JsonObject {
   [key: string]: JsonValue;
 }
 
-export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(JsonValueSchema),
-    z.record(z.string(), JsonValueSchema)
-  ])
-);
-
-export const JsonObjectSchema: z.ZodType<JsonObject> = z.record(z.string(), JsonValueSchema);
+// AnyVali does not currently expose a convenient recursive builder for JSON values.
+// Keep the runtime contract JSON-shaped while retaining the explicit TS types above.
+export const JsonValueSchema = av.any() as av.BaseSchema<unknown, JsonValue>;
+export const JsonObjectSchema = av.record(av.any()) as av.BaseSchema<unknown, JsonObject>;

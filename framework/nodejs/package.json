@@ -4,6 +4,10 @@
   "description": "BetterPortal v10 core library for Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "bin": {
+    "bp-codegen": "./lib/codegen/cli.js",
+    "bp-init": "./lib/codegen/init.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "cmd /c if exist lib rmdir /s /q lib",
@@ -12,15 +16,18 @@
   "keywords": [],
   "author": "",
   "license": "(AGPL-3.0-only OR Commercial)",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "tsx": "^4.21.0"
   },
   "files": [
     "lib/**/*",
     "README.md"
   ],
   "dependencies": {
-    "zod": "^4.3.6"
+    "anyvali": "^0.3.1",
+    "h3": "^2.0.1-rc.20",
+    "typescript": "^5.9.3",
+    "yaml": "^2.8.3"
   }
 }

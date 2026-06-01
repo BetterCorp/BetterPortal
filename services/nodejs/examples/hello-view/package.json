@@ -5,6 +5,7 @@
   "main": "lib/index.js",
   "types": "src/index.ts",
   "scripts": {
+    "bp-codegen": "bp-codegen",
     "build": "bsb-plugin-cli build",
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
@@ -14,16 +15,18 @@
   "keywords": [],
   "author": "",
   "license": "(AGPL-3.0-only OR Commercial)",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
-    "@bsb/base": "^9.0.5",
-    "@types/node": "^24.3.0",
+    "@bsb/base": "^9.3.1",
+    "@types/node": "^24.12.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@betterportal/framework-nodejs": "file:../../../../framework/nodejs",
-    "jsx-htmx": "^2.0.1",
-    "zod": "^4.3.6"
+    "anyvali": "^0.3.1",
+    "@betterportal/framework-nodejs": "1.0.0",
+    "@betterportal/plugin-bsb-nodejs": "1.0.0",
+    "jsx-htmx": "4.0.0-beta2"
   },
   "files": [
     "lib/**/*",
@@ -31,5 +34,12 @@
     "bsb-plugin.json",
     "bsb-tests.json"
   ],
-  "bsb": {}
+  "bsb": {
+    "hooks": {
+      "afterSchemas": "bp-codegen"
+    }
+  },
+  "betterportal": {
+    "routes": ["src/plugins/service-betterportal-hello-view/bp-routes/"]
+  }
 }

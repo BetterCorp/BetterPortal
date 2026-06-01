@@ -1,17 +1,18 @@
-import { z } from "zod";
-import { RenderMode } from "../contracts/common";
-import { JsonValue } from "../contracts/json";
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
+import { RenderMode } from "../contracts/common.js";
+import { JsonValue } from "../contracts/json.js";
 import {
   CacheHints,
   HtmlRepresentationSupport,
   ViewAuthRequirement,
   ViewMetadata,
   ViewMetadataSchema
-} from "../contracts/view";
-import { RequestedRepresentation, resolveRequestedRepresentation } from "./media";
-import { toJsonSchemaDocument } from "./jsonSchema";
+} from "../contracts/view.js";
+import { RequestedRepresentation, resolveRequestedRepresentation } from "./media.js";
+import { toJsonSchemaDocument } from "./jsonSchema.js";
 
-type AnySchema = z.ZodType<unknown>;
+type AnySchema = av.BaseSchema<unknown, unknown>;
 export interface HtmlRenderableLike {
   toString(): string;
 }
@@ -46,6 +47,11 @@ export interface CreateViewDefinitionInput<
   schemas: ViewSchemas<ParamsSchema, QuerySchema, HeadersSchema, BodySchema, ResponseSchema>;
   html: HtmlRepresentationSupport;
   auth: ViewAuthRequirement;
+  demoScenarios?: ReadonlyArray<{
+    id: string;
+    title: string;
+    response: Infer<ResponseSchema>;
+  }>;
   cacheHints: CacheHints;
 }
 
@@ -88,6 +94,10 @@ export function createViewDefinition<
     metadataResponseSchema: toJsonSchemaDocument(ViewMetadataSchema),
     html: input.html,
     auth: input.auth,
+    demoScenarios: (input.demoScenarios ?? []).map((scenario) => ({
+      ...scenario,
+      response: input.schemas.response.parse(scenario.response) as JsonValue
+    })),
     cacheHints: input.cacheHints
   });
 
@@ -100,30 +110,22 @@ export function createViewDefinition<
 }
 
 function resolveTheme(html: HtmlRepresentationSupport, requestedTheme?: string): string | null {
-  if (requestedTheme && html.supportedThemes.includes(requestedTheme)) {
-    return requestedTheme;
-  }
-
-  if (!requestedTheme && html.allowDefaultThemeWhenOmitted && html.defaultTheme) {
-    return html.supportedThemes.includes(html.defaultTheme) ? html.defaultTheme : null;
-  }
-
-  return null;
+  if (!requestedTheme) return null;
+  return requestedTheme in html.themeRenderers ? requestedTheme : null;
 }
 
-function resolveMode(html: HtmlRepresentationSupport, requestedMode?: RenderMode): RenderMode | null {
-  if (!requestedMode) {
-    return html.renderModes[0] ?? null;
-  }
-
-  return html.renderModes.includes(requestedMode) ? requestedMode : null;
+function resolveMode(html: HtmlRepresentationSupport, theme: string, requestedMode?: RenderMode): RenderMode | null {
+  const renderer = html.themeRenderers[theme];
+  if (!renderer) return null;
+  if (!requestedMode) return renderer.renderModes[0] ?? null;
+  return renderer.renderModes.includes(requestedMode) ? requestedMode : null;
 }
 
 export function negotiateViewResponse<ResponseSchema extends AnySchema>(
   view: BetterPortalViewDefinition<AnySchema, AnySchema, AnySchema, AnySchema, ResponseSchema>,
   acceptHeader: string | undefined,
-  jsonBody: z.infer<ResponseSchema>,
-  renderHtml: ((theme: string, mode: RenderMode, body: z.infer<ResponseSchema>) => HtmlRenderable) | undefined
+  jsonBody: Infer<ResponseSchema>,
+  renderHtml: ((theme: string, mode: RenderMode, body: Infer<ResponseSchema>) => HtmlRenderable) | undefined
 ): NegotiatedViewResponse {
   const requested = resolveRequestedRepresentation(acceptHeader);
   const validatedJsonBody = view.schemas.response.parse(jsonBody) as JsonValue;
@@ -155,8 +157,17 @@ export function negotiateViewResponse<ResponseSchema extends AnySchema>(
   }
 
   const theme = resolveTheme(view.html, requested.theme);
-  const mode = resolveMode(view.html, requested.mode);
-  if (!theme || !mode) {
+  if (!theme) {
+    return {
+      status: 406,
+      contentType: "application/json",
+      body: {
+        error: "Requested HTML representation is not supported"
+      }
+    };
+  }
+  const mode = resolveMode(view.html, theme, requested.mode);
+  if (!mode) {
     return {
       status: 406,
       contentType: "application/json",

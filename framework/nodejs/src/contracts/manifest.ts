@@ -1,34 +1,37 @@
-import { z } from "zod";
-import { ConfigSchemaDescriptorSchema } from "./config";
-import { DeploymentModeSchema, RenderModeSchema, PluginCategorySchema } from "./common";
-import { ViewMetadataSchema, ViewPermissionDefinitionSchema } from "./view";
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
+import { ConfigSchemaDescriptorSchema } from "./config.js";
+import { DeploymentModeSchema, PluginCategorySchema, RenderModeSchema } from "./common.js";
+import { ViewMetadataSchema, ViewPermissionDefinitionSchema } from "./view.js";
 
-export const AdminApiDescriptorSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().min(1),
-  path: z.string().min(1),
-  methods: z.array(z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"])).min(1),
-  supportsCustomUi: z.boolean().default(false)
-});
-export type AdminApiDescriptor = z.infer<typeof AdminApiDescriptorSchema>;
+const AdminMethodSchema = av.enum_(["GET", "POST", "PUT", "PATCH", "DELETE"] as const);
 
-export const PluginManifestSchema = z.object({
-  pluginId: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().min(1),
-  version: z.string().min(1),
+export const AdminApiDescriptorSchema = av.object({
+  id: av.string().minLength(1),
+  title: av.string().minLength(1),
+  description: av.string().minLength(1),
+  path: av.string().minLength(1),
+  methods: av.array(AdminMethodSchema).minItems(1),
+  supportsCustomUi: av.bool().default(false)
+}, { unknownKeys: "strip" });
+export type AdminApiDescriptor = Infer<typeof AdminApiDescriptorSchema>;
+
+export const PluginManifestSchema = av.object({
+  pluginId: av.string().minLength(1),
+  title: av.string().minLength(1),
+  description: av.string().minLength(1),
+  version: av.string().minLength(1),
   category: PluginCategorySchema,
-  deploymentModes: z.array(DeploymentModeSchema).min(1),
-  capabilities: z.array(z.string().min(1)).default([]),
-  supportedThemes: z.array(z.string().min(1)).default([]),
-  supportedRenderModes: z.array(RenderModeSchema).default([]),
-  views: z.array(ViewMetadataSchema).default([]),
-  configSchemas: z.array(ConfigSchemaDescriptorSchema).default([]),
-  permissions: z.array(ViewPermissionDefinitionSchema).default([]),
-  adminApis: z.array(AdminApiDescriptorSchema).default([]),
-  cacheHints: z.object({
-    metadataTtlSeconds: z.number().int().nonnegative().default(1800)
-  }).default({ metadataTtlSeconds: 1800 })
-});
-export type PluginManifest = z.infer<typeof PluginManifestSchema>;
+  deploymentModes: av.array(DeploymentModeSchema).minItems(1),
+  capabilities: av.array(av.string().minLength(1)).default([]),
+  supportedThemes: av.array(av.string().minLength(1)).default([]),
+  supportedRenderModes: av.array(RenderModeSchema).default([]),
+  views: av.array(ViewMetadataSchema).default([]),
+  configSchemas: av.array(ConfigSchemaDescriptorSchema).default([]),
+  permissions: av.array(ViewPermissionDefinitionSchema).default([]),
+  adminApis: av.array(AdminApiDescriptorSchema).default([]),
+  cacheHints: av.object({
+    metadataTtlSeconds: av.int().min(0).default(1800)
+  }, { unknownKeys: "strip" }).default({ metadataTtlSeconds: 1800 })
+}, { unknownKeys: "strip" });
+export type PluginManifest = Infer<typeof PluginManifestSchema>;

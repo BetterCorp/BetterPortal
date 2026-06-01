@@ -1,14 +1,23 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { JsonValue } from "../contracts/json";
-import { NegotiatedViewResponse, type HtmlRenderable } from "./view";
+import { type HtmlRenderable } from "./view.js";
 
-export interface HeaderMap {
-  [key: string]: string | string[] | undefined;
+export type HeaderMap = Headers | Record<string, string | string[] | undefined>;
+
+function headerLookup(headers: HeaderMap, key: string): string | undefined {
+  if (headers instanceof Headers) {
+    return headers.get(key) ?? undefined;
+  }
+
+  const value = headers[key];
+  if (Array.isArray(value)) {
+    return value.find((entry) => typeof entry === "string" && entry.trim().length > 0);
+  }
+
+  return typeof value === "string" ? value : undefined;
 }
 
 function firstHeaderValue(headers: HeaderMap, candidates: readonly string[]): string | undefined {
   for (const candidate of candidates) {
-    const value = headers[candidate];
+    const value = headerLookup(headers, candidate);
     if (typeof value === "string" && value.trim().length > 0) {
       return value;
     }
@@ -51,32 +60,4 @@ export function resolveThemeHostname(headers: HeaderMap): string | null {
 
 export function toHtmlString(body: HtmlRenderable): string {
   return typeof body === "string" ? body : body.toString();
-}
-
-export function sendJson(response: ServerResponse, statusCode: number, body: JsonValue): void {
-  response.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8"
-  });
-  response.end(JSON.stringify(body, null, 2));
-}
-
-export function sendHtml(response: ServerResponse, statusCode: number, body: HtmlRenderable, contentType = "text/html"): void {
-  response.writeHead(statusCode, {
-    "Content-Type": `${contentType}; charset=utf-8`
-  });
-  response.end(toHtmlString(body));
-}
-
-export function sendNegotiatedResponse(response: ServerResponse, negotiated: NegotiatedViewResponse): void {
-  if (negotiated.contentType.startsWith("text/html")) {
-    sendHtml(response, negotiated.status, negotiated.body as HtmlRenderable, negotiated.contentType);
-    return;
-  }
-
-  sendJson(response, negotiated.status, negotiated.body as JsonValue);
-}
-
-export function acceptHeader(request: IncomingMessage): string | undefined {
-  const header = request.headers.accept;
-  return typeof header === "string" ? header : undefined;
 }

@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { JsonObject, JsonObjectSchema, JsonValue } from "../contracts/json";
+import * as av from "anyvali";
+import { JsonObject, JsonObjectSchema, JsonValue } from "../contracts/json.js";
 
 function sanitizeJsonValue(value: unknown): JsonValue {
   if (
@@ -30,6 +30,6 @@ function sanitizeJsonValue(value: unknown): JsonValue {
   return String(value);
 }
 
-export function toJsonSchemaDocument(schema: z.ZodType<unknown>): JsonObject {
-  return JsonObjectSchema.parse(sanitizeJsonValue(z.toJSONSchema(schema) as unknown));
+export function toJsonSchemaDocument(schema: av.BaseSchema<unknown, unknown>): JsonObject {
+  return JsonObjectSchema.parse(sanitizeJsonValue(av.exportSchema(schema, "portable") as unknown));
 }

@@ -12,4 +12,11 @@ default:
     service-betterportal-theme-bootstrap1:
       plugin: service-betterportal-theme-bootstrap1
       enabled: true
-      config: {}
+      config:
+        host: 0.0.0.0
+        port: 3100
+        bpConfigPath: ../../../bp-config.yaml
+        defaultMode: light
+        brandName: BetterPortal
+        defaultGreetingName: World
+        configApiToken: bp-dev-config-token

@@ -5,8 +5,7 @@ import {
   createEventSchemas,
   type Observable
 } from "@bsb/base";
-import { TokenLifetimeConfigSchema } from "@betterportal/framework-nodejs";
-import { z } from "zod";
+import * as av from "anyvali";
 
 const Config = createConfigSchema(
   {
@@ -15,13 +14,16 @@ const Config = createConfigSchema(
     tags: ["betterportal", "auth", "jwt"],
     documentation: ["./README.md"]
   },
-  z.object({
-    issuer: z.string().min(1).default("betterportal-auth"),
-    tokenConfig: TokenLifetimeConfigSchema.default({
+  av.object({
+    issuer: av.string().minLength(1).default("betterportal-auth"),
+    tokenConfig: av.object({
+      idTokenSeconds: av.int().min(1).default(60 * 30),
+      refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7)
+    }, { unknownKeys: "strip" }).default({
       idTokenSeconds: 60 * 30,
       refreshTokenSeconds: 60 * 60 * 24 * 7
     })
-  })
+  }, { unknownKeys: "strip" })
 );
 
 const EventSchemas = createEventSchemas({
@@ -52,8 +54,9 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   }
 
   async run(obs: Observable): Promise<void> {
+    const tokenConfig = this.config.tokenConfig ?? { idTokenSeconds: 1800, refreshTokenSeconds: 604800 };
     obs.log.info("BetterPortal auth plugin is ready with id token lifetime {seconds}s", {
-      seconds: this.config.tokenConfig.idTokenSeconds
+      seconds: tokenConfig.idTokenSeconds
     });
   }
 

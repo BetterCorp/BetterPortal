@@ -1,36 +1,69 @@
-import { z } from "zod";
-import { ContextTierSchema, HttpMethodSchema, IdentityRealmSchema, RenderModeSchema } from "./common";
-import { JsonObjectSchema } from "./json";
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
+import { ContextTierSchema, HttpMethodSchema, IdentityRealmSchema, RenderModeSchema } from "./common.js";
+import { JsonObjectSchema, JsonValueSchema } from "./json.js";
 
-export const CacheHintsSchema = z.object({
-  ttlSeconds: z.number().int().nonnegative().default(0),
-  varyBy: z.array(z.string().min(1)).default([])
-});
-export type CacheHints = z.infer<typeof CacheHintsSchema>;
+const NonEmptyStringSchema = av.string().minLength(1);
 
-export const HtmlRepresentationSupportSchema = z.object({
-  defaultTheme: z.string().min(1).optional(),
-  allowDefaultThemeWhenOmitted: z.boolean().default(false),
-  supportedThemes: z.array(z.string().min(1)).default([]),
-  renderModes: z.array(RenderModeSchema).default([])
-});
-export type HtmlRepresentationSupport = z.infer<typeof HtmlRepresentationSupportSchema>;
+export const CacheHintsSchema = av.object({
+  ttlSeconds: av.int().min(0).default(0),
+  varyBy: av.array(NonEmptyStringSchema).default([])
+}, { unknownKeys: "strip" });
+export type CacheHints = Infer<typeof CacheHintsSchema>;
 
-export const ViewAuthRequirementSchema = z.object({
-  required: z.boolean().default(false),
-  realm: IdentityRealmSchema.optional(),
+export const ViewRendererVariantSchema = av.object({
+  id: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  slotId: NonEmptyStringSchema,
+  renderModes: av.array(RenderModeSchema).default([])
+}, { unknownKeys: "strip" });
+export type ViewRendererVariant = Infer<typeof ViewRendererVariantSchema>;
+
+export const ThemeRendererSupportSchema = av.object({
+  defaultRenderer: NonEmptyStringSchema.default("default"),
+  renderModes: av.array(RenderModeSchema).default([]),
+  slots: av.array(NonEmptyStringSchema).default([]),
+  renderers: av.array(ViewRendererVariantSchema).default([])
+}, { unknownKeys: "strip" });
+export type ThemeRendererSupport = Infer<typeof ThemeRendererSupportSchema>;
+
+export const HtmlRepresentationSupportSchema = av.object({
+  themeRenderers: av.record(ThemeRendererSupportSchema).default({})
+}, { unknownKeys: "strip" });
+export type HtmlRepresentationSupport = Infer<typeof HtmlRepresentationSupportSchema>;
+
+export const ViewDemoScenarioMatchSchema = av.object({
+  query: av.optional(av.record(av.any())),
+  params: av.optional(av.record(av.any())),
+  headers: av.optional(av.record(av.string())),
+  request: av.optional(av.record(av.any()))
+}, { unknownKeys: "strip" });
+export type ViewDemoScenarioMatch = Infer<typeof ViewDemoScenarioMatchSchema>;
+
+export const ViewDemoScenarioSchema = av.object({
+  id: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  description: av.optional(av.string()),
+  match: av.optional(ViewDemoScenarioMatchSchema),
+  response: JsonValueSchema
+}, { unknownKeys: "strip" });
+export type ViewDemoScenario = Infer<typeof ViewDemoScenarioSchema>;
+
+export const ViewAuthRequirementSchema = av.object({
+  required: av.bool().default(false),
+  realm: IdentityRealmSchema.default("runtime"),
   minimumTier: ContextTierSchema.default("public"),
-  audiences: z.array(z.string().min(1)).default([]),
-  permissions: z.array(z.string().min(1)).default([])
-});
-export type ViewAuthRequirement = z.infer<typeof ViewAuthRequirementSchema>;
+  audiences: av.array(NonEmptyStringSchema).default([]),
+  permissions: av.array(NonEmptyStringSchema).default([])
+}, { unknownKeys: "strip" });
+export type ViewAuthRequirement = Infer<typeof ViewAuthRequirementSchema>;
 
-export const ViewMetadataSchema = z.object({
-  viewId: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().min(1),
-  path: z.string().min(1),
-  methods: z.array(HttpMethodSchema).min(1),
+export const ViewMetadataSchema = av.object({
+  viewId: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  description: NonEmptyStringSchema,
+  path: NonEmptyStringSchema,
+  methods: av.array(HttpMethodSchema).minItems(1),
   paramsSchema: JsonObjectSchema,
   querySchema: JsonObjectSchema,
   headersSchema: JsonObjectSchema,
@@ -39,14 +72,15 @@ export const ViewMetadataSchema = z.object({
   metadataResponseSchema: JsonObjectSchema,
   html: HtmlRepresentationSupportSchema,
   auth: ViewAuthRequirementSchema,
+  demoScenarios: av.array(ViewDemoScenarioSchema).default([]),
   cacheHints: CacheHintsSchema
-});
-export type ViewMetadata = z.infer<typeof ViewMetadataSchema>;
+}, { unknownKeys: "strip" });
+export type ViewMetadata = Infer<typeof ViewMetadataSchema>;
 
-export const ViewPermissionDefinitionSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().min(1),
-  defaultRoles: z.array(z.string().min(1)).default([])
-});
-export type ViewPermissionDefinition = z.infer<typeof ViewPermissionDefinitionSchema>;
+export const ViewPermissionDefinitionSchema = av.object({
+  id: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  description: NonEmptyStringSchema,
+  defaultRoles: av.array(NonEmptyStringSchema).default([])
+}, { unknownKeys: "strip" });
+export type ViewPermissionDefinition = Infer<typeof ViewPermissionDefinitionSchema>;

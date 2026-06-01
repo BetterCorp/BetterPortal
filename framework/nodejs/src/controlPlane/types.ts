@@ -1,5 +1,5 @@
-import { App, BindingRecord, ServiceCatalogEntry, Tenant } from "../contracts/binding";
-import { PluginManifest } from "../contracts/manifest";
+import { App, BindingRecord, ServiceCatalogEntry, Tenant } from "../contracts/binding.js";
+import { PluginManifest } from "../contracts/manifest.js";
 
 export interface ImportedManifestRecord {
   bindingId: string;

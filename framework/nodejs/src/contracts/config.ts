@@ -1,25 +1,26 @@
-import { z } from "zod";
-import { ConfigOwnershipSchema, ConfigScopeSchema, ConfigVisibilitySchema } from "./common";
-import { JsonObjectSchema } from "./json";
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
+import { ConfigOwnershipSchema, ConfigScopeSchema, ConfigVisibilitySchema } from "./common.js";
+import { JsonObjectSchema } from "./json.js";
 
-export const ConfigFieldDescriptorSchema = z.object({
-  key: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().min(1),
+export const ConfigFieldDescriptorSchema = av.object({
+  key: av.string().minLength(1),
+  title: av.string().minLength(1),
+  description: av.string().minLength(1),
   scope: ConfigScopeSchema,
   visibility: ConfigVisibilitySchema,
   ownership: ConfigOwnershipSchema,
-  sourceOfTruth: z.enum(["bp", "plugin", "external"]),
-  required: z.boolean().default(false)
-});
-export type ConfigFieldDescriptor = z.infer<typeof ConfigFieldDescriptorSchema>;
+  sourceOfTruth: av.enum_(["bp", "plugin", "external"] as const),
+  required: av.bool().default(false)
+}, { unknownKeys: "strip" });
+export type ConfigFieldDescriptor = Infer<typeof ConfigFieldDescriptorSchema>;
 
-export const ConfigSchemaDescriptorSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().min(1),
+export const ConfigSchemaDescriptorSchema = av.object({
+  id: av.string().minLength(1),
+  title: av.string().minLength(1),
+  description: av.string().minLength(1),
   scope: ConfigScopeSchema,
   jsonSchema: JsonObjectSchema,
-  fields: z.array(ConfigFieldDescriptorSchema).default([])
-});
-export type ConfigSchemaDescriptor = z.infer<typeof ConfigSchemaDescriptorSchema>;
+  fields: av.array(ConfigFieldDescriptorSchema).default([])
+}, { unknownKeys: "strip" });
+export type ConfigSchemaDescriptor = Infer<typeof ConfigSchemaDescriptorSchema>;

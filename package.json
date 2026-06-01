@@ -16,6 +16,7 @@
     "auth/nodejs",
     "themes/nodejs/bootstrap1",
     "themes/nodejs/embedded",
+    "services/nodejs/admin/config-manager",
     "services/nodejs/examples/hello-view"
   ]
 }

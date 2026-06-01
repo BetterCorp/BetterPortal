@@ -1,73 +1,84 @@
-import { z } from "zod";
-import { ConfigSchemaDescriptorSchema } from "./config";
-import { DeploymentModeSchema } from "./common";
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
+import { ConfigSchemaDescriptorSchema } from "./config.js";
+import { DeploymentModeSchema } from "./common.js";
 
-export const AppRouteSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  path: z.string().min(1),
-  viewId: z.string().min(1),
-  serviceId: z.string().min(1),
-  enabled: z.boolean().default(true)
-});
-export type AppRoute = z.infer<typeof AppRouteSchema>;
+const NonEmptyStringSchema = av.string().minLength(1);
 
-export const TenantSchema = z.object({
-  id: z.string().min(1),
-  slug: z.string().min(1),
-  title: z.string().min(1),
-  branding: z.object({
-    logoUrl: z.string().url().optional(),
-    primaryColor: z.string().min(1).optional(),
-    secondaryColor: z.string().min(1).optional()
-  }).default({})
-});
-export type Tenant = z.infer<typeof TenantSchema>;
+export const AppRouteSchema = av.object({
+  id: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  path: NonEmptyStringSchema,
+  viewId: NonEmptyStringSchema,
+  serviceId: NonEmptyStringSchema,
+  enabled: av.bool().default(true)
+}, { unknownKeys: "strip" });
+export type AppRoute = Infer<typeof AppRouteSchema>;
 
-export const AppSchema = z.object({
-  id: z.string().min(1),
-  tenantId: z.string().min(1),
-  slug: z.string().min(1),
-  hostname: z.string().min(1),
-  title: z.string().min(1),
-  themeId: z.string().min(1),
-  routes: z.array(AppRouteSchema).default([])
-});
-export type App = z.infer<typeof AppSchema>;
+export const TenantSchema = av.object({
+  id: NonEmptyStringSchema,
+  slug: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  branding: av.object({
+    logoUrl: av.optional(av.string().format("url")),
+    primaryColor: av.optional(NonEmptyStringSchema),
+    secondaryColor: av.optional(NonEmptyStringSchema)
+  }, { unknownKeys: "strip" }).default({})
+}, { unknownKeys: "strip" });
+export type Tenant = Infer<typeof TenantSchema>;
 
-export const BindingTrustSchema = z.object({
-  credentialId: z.string().min(1),
-  issuer: z.string().min(1),
-  audience: z.string().min(1),
-  scopes: z.array(z.string().min(1)).default([]),
-  rotationVersion: z.string().min(1)
-});
-export type BindingTrust = z.infer<typeof BindingTrustSchema>;
+export const FragmentAssignmentSchema = av.object({
+  serviceId: NonEmptyStringSchema,
+  fragmentId: NonEmptyStringSchema,
+  enabled: av.bool().default(true)
+}, { unknownKeys: "strip" });
+export type FragmentAssignment = Infer<typeof FragmentAssignmentSchema>;
 
-export const BindingRecordSchema = z.object({
-  bindingId: z.string().min(1),
-  serviceId: z.string().min(1),
-  tenantId: z.string().min(1),
-  appIds: z.array(z.string().min(1)).default([]),
-  endpointBaseUrl: z.string().url(),
+export const AppSchema = av.object({
+  id: NonEmptyStringSchema,
+  tenantId: NonEmptyStringSchema,
+  slug: NonEmptyStringSchema,
+  hostname: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  themeId: NonEmptyStringSchema,
+  routes: av.array(AppRouteSchema).default([]),
+  fragments: av.record(av.array(FragmentAssignmentSchema)).default({})
+}, { unknownKeys: "strip" });
+export type App = Infer<typeof AppSchema>;
+
+export const BindingTrustSchema = av.object({
+  credentialId: NonEmptyStringSchema,
+  issuer: NonEmptyStringSchema,
+  audience: NonEmptyStringSchema,
+  scopes: av.array(NonEmptyStringSchema).default([]),
+  rotationVersion: NonEmptyStringSchema
+}, { unknownKeys: "strip" });
+export type BindingTrust = Infer<typeof BindingTrustSchema>;
+
+export const BindingRecordSchema = av.object({
+  bindingId: NonEmptyStringSchema,
+  serviceId: NonEmptyStringSchema,
+  tenantId: NonEmptyStringSchema,
+  appIds: av.array(NonEmptyStringSchema).default([]),
+  endpointBaseUrl: av.string().format("url"),
   deploymentMode: DeploymentModeSchema,
-  enabled: z.boolean().default(true),
-  importedManifestVersion: z.string().min(1),
-  lastSyncAtIso: z.string().datetime().optional(),
+  enabled: av.bool().default(true),
+  importedManifestVersion: NonEmptyStringSchema,
+  lastSyncAtIso: av.optional(av.string().format("date-time")),
   trust: BindingTrustSchema
-});
-export type BindingRecord = z.infer<typeof BindingRecordSchema>;
+}, { unknownKeys: "strip" });
+export type BindingRecord = Infer<typeof BindingRecordSchema>;
 
-export const ServiceCatalogEntrySchema = z.object({
-  serviceId: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().min(1),
-  category: z.enum(["utility", "integration", "theme", "auth", "service"]),
-  manifestUrl: z.string().url(),
-  defaultEndpointBaseUrl: z.string().url(),
-  deploymentModes: z.array(DeploymentModeSchema).min(1),
-  tenantConfigSchemas: z.array(ConfigSchemaDescriptorSchema).default([]),
-  appConfigSchemas: z.array(ConfigSchemaDescriptorSchema).default([]),
-  hostedByBetterPortal: z.boolean().default(false)
-});
-export type ServiceCatalogEntry = z.infer<typeof ServiceCatalogEntrySchema>;
+export const ServiceCatalogEntrySchema = av.object({
+  serviceId: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  description: NonEmptyStringSchema,
+  category: av.enum_(["utility", "integration", "theme", "auth", "service"] as const),
+  manifestUrl: av.string().format("url"),
+  defaultEndpointBaseUrl: av.string().format("url"),
+  deploymentModes: av.array(DeploymentModeSchema).minItems(1),
+  tenantConfigSchemas: av.array(ConfigSchemaDescriptorSchema).default([]),
+  appConfigSchemas: av.array(ConfigSchemaDescriptorSchema).default([]),
+  hostedByBetterPortal: av.bool().default(false)
+}, { unknownKeys: "strip" });
+export type ServiceCatalogEntry = Infer<typeof ServiceCatalogEntrySchema>;

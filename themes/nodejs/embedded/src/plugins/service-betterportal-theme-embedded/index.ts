@@ -5,7 +5,6 @@ import {
   createEventSchemas,
   type Observable
 } from "@bsb/base";
-import { z } from "zod";
 
 const Config = createConfigSchema(
   {
@@ -13,8 +12,7 @@ const Config = createConfigSchema(
     description: "Embedded BetterPortal theme",
     tags: ["betterportal", "theme", "embedded", "htmx"],
     documentation: ["./README.md"]
-  },
-  z.object({})
+  }
 );
 
 const EventSchemas = createEventSchemas({

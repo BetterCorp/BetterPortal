@@ -1,8 +1,23 @@
 node_modules/
 **/node_modules/
+
+# Build / generated outputs
 **/lib/
+**/dist/
 **/.bsb/
 **/.bsbdevwatch
+**/.bp-generated/
+**/.betterportal/
 **/bsb-plugin.json
 **/bsb-tests.json
+
+# Logs
+*.log
+*.err.log
 **/start*.log
+**/*-start.log
+**/*-start.err.log
+**/theme-dev*.log
+
+# Legacy
+old_project/

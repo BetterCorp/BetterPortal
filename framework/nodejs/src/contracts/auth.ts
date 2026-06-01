@@ -1,33 +1,37 @@
-import { z } from "zod";
-import { IdentityRealmSchema } from "./common";
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
+import { IdentityRealmSchema } from "./common.js";
 
-export const TokenTypeSchema = z.enum(["id", "refresh"]);
-export type TokenType = z.infer<typeof TokenTypeSchema>;
+const NonEmptyStringSchema = av.string().minLength(1);
+const NonEmptyStringArraySchema = av.array(NonEmptyStringSchema).minItems(1);
 
-export const JwtClaimsSchema = z.object({
-  iss: z.string().min(1),
-  aud: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
-  sub: z.string().min(1),
-  exp: z.number().int().positive(),
-  iat: z.number().int().nonnegative(),
-  jti: z.string().min(1),
+export const TokenTypeSchema = av.enum_(["id", "refresh"] as const);
+export type TokenType = Infer<typeof TokenTypeSchema>;
+
+export const JwtClaimsSchema = av.object({
+  iss: NonEmptyStringSchema,
+  aud: av.union([NonEmptyStringSchema, NonEmptyStringArraySchema]),
+  sub: NonEmptyStringSchema,
+  exp: av.int().min(1),
+  iat: av.int().min(0),
+  jti: NonEmptyStringSchema,
   realm: IdentityRealmSchema,
-  tenantId: z.string().min(1),
-  appId: z.string().min(1).optional(),
-  roles: z.array(z.string().min(1)).default([]),
+  tenantId: NonEmptyStringSchema,
+  appId: av.optional(NonEmptyStringSchema),
+  roles: av.array(NonEmptyStringSchema).default([]),
   tokenType: TokenTypeSchema,
-  policyVersion: z.string().min(1).optional()
-});
-export type JwtClaims = z.infer<typeof JwtClaimsSchema>;
+  policyVersion: av.optional(NonEmptyStringSchema)
+}, { unknownKeys: "strip" });
+export type JwtClaims = Infer<typeof JwtClaimsSchema>;
 
-export const TokenLifetimeConfigSchema = z.object({
-  idTokenSeconds: z.number().int().positive().default(60 * 30),
-  refreshTokenSeconds: z.number().int().positive().default(60 * 60 * 24 * 7)
-});
-export type TokenLifetimeConfig = z.infer<typeof TokenLifetimeConfigSchema>;
+export const TokenLifetimeConfigSchema = av.object({
+  idTokenSeconds: av.int().min(1).default(60 * 30),
+  refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7)
+}, { unknownKeys: "strip" });
+export type TokenLifetimeConfig = Infer<typeof TokenLifetimeConfigSchema>;
 
-export const AuthAudienceRuleSchema = z.object({
+export const AuthAudienceRuleSchema = av.object({
   realm: IdentityRealmSchema,
-  audiences: z.array(z.string().min(1)).min(1)
-});
-export type AuthAudienceRule = z.infer<typeof AuthAudienceRuleSchema>;
+  audiences: NonEmptyStringArraySchema
+}, { unknownKeys: "strip" });
+export type AuthAudienceRule = Infer<typeof AuthAudienceRuleSchema>;
