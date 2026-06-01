@@ -2,7 +2,23 @@
 
 A multi-tenant portal platform composed of independent services unified by a theme. API-first, HTMX-first, strict schema validation, plugin-based.
 
-This document is the complete spec needed for an LLM to develop services, themes, or admin tooling for BetterPortal.
+> **Protocol-first.** BetterPortal is a **wire protocol** (`bp-protocol/1`). The normative spec lives in [`spec/`](spec/README.md). `framework/nodejs` is the **Node SDK** — one reference implementation. A PHP/Python/Go/Rust service that implements the spec is a first-class BetterPortal service.
+>
+> This file is the working guide for the Node SDK and the current repo. When this file disagrees with the spec on protocol behavior, **the spec wins** — file a bug.
+>
+> | Source of truth | What |
+> |---|---|
+> | [`spec/README.md`](spec/README.md) | Index of all protocol docs. |
+> | [`spec/protocol.md`](spec/protocol.md) | HTTP surface, CORS, content negotiation. |
+> | [`spec/manifest.md`](spec/manifest.md) | `/.well-known/bp/manifest`. |
+> | [`spec/schema-json.md`](spec/schema-json.md) | `/.well-known/bp/schema.json`. |
+> | [`spec/fragment-html.md`](spec/fragment-html.md) | Fragment HTML rules + `HX-Trigger` events. |
+> | [`spec/config.md`](spec/config.md) | `bp-config.yaml` + per-service config endpoints. |
+> | [`spec/auth.md`](spec/auth.md) | OIDC + JWT + JWKS + config tickets. |
+> | [`spec/sse.md`](spec/sse.md) | `/__sse` convention + control-plane sync. |
+> | [`spec/conformance.md`](spec/conformance.md) | Test matrix. |
+>
+> This document covers everything the Node SDK adds on top: file-based routing, codegen, BPService base class, theme runtime, admin tooling. Most of it is implementation guidance, not protocol.
 
 ---
 
@@ -40,8 +56,8 @@ This document is the complete spec needed for an LLM to develop services, themes
 - **Theme** (`themes/nodejs/bootstrap1/`): renders the host page (HTML shell) + acts as the front-end origin. Resolves tenant/app from hostname. Provides nav/brand/style/fragments endpoints. Owns the visible URL bar. Does **not** call backend services itself — the browser does.
 - **Service** (`services/nodejs/.../`): self-contained BSB plugin. Exposes typed routes via file-based convention. Negotiates JSON or HTML representation. Owns its own data and config.
 - **Config Manager** (`services/nodejs/admin/config-manager`): special service. Mutates `bp-config.yaml` via REST. Hosts admin views (services registry, tenants, routes, menu editor, fragments editor, theme designer dispatch).
-- **Framework** (`framework/nodejs/`): contracts, runtime helpers, codegen, h3 adapter, schema validation. Imported by all services and themes.
-- **BSB integration plugin** (`plugins/nodejs/betterportal-bsb`): wires h3 + CORS + observability into BSB. Provides `BPService` base class for service plugins.
+- **Node SDK** (`framework/nodejs/`, npm: `@betterportal/framework`): TypeScript implementation of `bp-protocol/1`. Contracts, runtime helpers, codegen (`bp-codegen`), h3 adapter, schema validation. Imported by all Node services and themes. **Other-language SDKs would live as sibling packages** (`@betterportal/sdk-php`, etc.) — none exist yet.
+- **BSB integration plugin** (`plugins/nodejs/betterportal-bsb`, npm: `@betterportal/plugin-bsb`): wires h3 + CORS + observability into BSB. Provides `BPService` base class for service plugins. Node-only by definition.
 - **Auth** (`auth/nodejs/`): optional platform service that issues JWT ID + refresh tokens with JWKS. Activated per-tenant via `activatedPlatformServices`. Theme/services integrate via framework helpers — they are not wired by default.
 
 ### Communication rules
