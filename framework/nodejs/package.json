@@ -11,10 +11,17 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "cmd /c if exist lib rmdir /s /q lib",
-    "test": "node -e \"process.exit(0)\""
+    "test": "node -e \"process.exit(0)\"",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "betterportal",
+    "framework",
+    "htmx",
+    "h3",
+    "codegen"
+  ],
+  "author": "BetterCorp",
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
@@ -29,5 +36,17 @@
     "h3": "^2.0.1-rc.20",
     "typescript": "^5.9.3",
     "yaml": "^2.8.3"
+  },
+  "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git",
+    "directory": "framework/nodejs"
+  },
+  "bugs": {
+    "url": "https://github.com/BetterCorp/BetterPortal/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

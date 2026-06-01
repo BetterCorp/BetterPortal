@@ -9,10 +9,17 @@
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
-    "test": "bsb-plugin-cli test"
+    "test": "bsb-plugin-cli test",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "betterportal",
+    "auth",
+    "jwt",
+    "jwks",
+    "platform-service"
+  ],
+  "author": "BetterCorp",
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
@@ -31,5 +38,17 @@
     "bsb-plugin.json",
     "bsb-tests.json"
   ],
-  "bsb": {}
+  "bsb": {},
+  "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git",
+    "directory": "auth/nodejs"
+  },
+  "bugs": {
+    "url": "https://github.com/BetterCorp/BetterPortal/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

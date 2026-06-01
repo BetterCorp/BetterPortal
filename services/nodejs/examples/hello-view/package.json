@@ -10,10 +10,16 @@
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
-    "test": "bsb-plugin-cli test"
+    "test": "bsb-plugin-cli test",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "betterportal",
+    "example",
+    "service",
+    "demo"
+  ],
+  "author": "BetterCorp",
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
@@ -40,6 +46,20 @@
     }
   },
   "betterportal": {
-    "routes": ["src/plugins/service-betterportal-hello-view/bp-routes/"]
+    "routes": [
+      "src/plugins/service-betterportal-hello-view/bp-routes/"
+    ]
+  },
+  "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git",
+    "directory": "services/nodejs/examples/hello-view"
+  },
+  "bugs": {
+    "url": "https://github.com/BetterCorp/BetterPortal/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
