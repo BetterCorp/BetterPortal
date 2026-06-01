@@ -1,8 +1,11 @@
 # BetterPortal v10
 
 [![License: AGPL-3.0-or-Commercial](https://img.shields.io/badge/License-AGPL%203.0%20or%20Commercial-blue.svg)](LICENSE)
+[![Protocol: bp-protocol/1](https://img.shields.io/badge/Protocol-bp--protocol%2F1-green.svg)](spec/README.md)
 
-A multi-tenant portal platform composed of independent services unified by a single theme. API-first, HTMX-first, schema-validated, plugin-based — built on [BSB (Better Service Base)](https://github.com/BetterCorp/bsb-base).
+A multi-tenant portal platform composed of independent services unified by a single theme. API-first, HTMX-first, schema-validated.
+
+**BetterPortal is a protocol first, a Node SDK second.** The wire protocol (HTTP + HTMX + JSON) is specified in [`spec/`](spec/README.md) so services and themes can be implemented in any language. The reference implementations in this repo (under `framework/nodejs`, `themes/nodejs`, etc.) are one SDK that speaks the protocol — and are built on [BSB (Better Service Base)](https://github.com/BetterCorp/bsb-base). PHP, Python, Go, Rust, etc. SDKs are welcome (none exist yet).
 
 ## What it is
 
@@ -38,21 +41,34 @@ BetterPortal lets you compose a tenant-aware web portal out of small, independen
 - **File-based routing.** Drop a folder under `bp-routes/` — it becomes a route, validated and themed.
 - **Per-tenant config.** Encrypted secrets, scoped sync, admin UI.
 
+## Specification vs. SDK
+
+| Layer | Where | What |
+|---|---|---|
+| **Protocol** | [`spec/`](spec/README.md) | Normative HTTP + HTMX + JSON contracts. Any language can implement. |
+| **Node SDK** | `framework/nodejs/`, `plugins/nodejs/betterportal-bsb/` | Reference TypeScript implementation of the protocol, built on BSB. |
+| **Reference services** | `auth/nodejs/`, `themes/nodejs/`, `services/nodejs/admin/config-manager/` | Concrete services built with the Node SDK. |
+| **Examples** | `services/nodejs/examples/hello-view/` | A minimal Node service demonstrating views, fragments, SSE. |
+
+When the SDK and the spec disagree, **the spec wins** — file a bug.
+
 ## Repository layout
 
 ```
 BetterPortal/
+├── spec/                             # NORMATIVE protocol specification (language-neutral)
 ├── bp-config.yaml                    # platform config (tenants/apps/routes/services/menu/fragments)
-├── framework/nodejs/                 # core: contracts, runtime, codegen, h3 adapter
-├── plugins/nodejs/betterportal-bsb/  # BSB ↔ framework integration (BPService base class)
+├── framework/nodejs/                 # Node SDK: contracts, runtime, codegen, h3 adapter
+├── plugins/nodejs/betterportal-bsb/  # BSB ↔ Node SDK integration (BPService base class)
 ├── themes/nodejs/
-│   ├── bootstrap1/                   # full Bootstrap 5 + HTMX shell
-│   └── embedded/                     # lightweight embedded renderer
-├── auth/nodejs/                      # optional JWT auth platform service
+│   ├── bootstrap1/                   # reference theme: Bootstrap 5 + HTMX shell
+│   └── embedded/                     # reference theme: lightweight embedded renderer
+├── auth/nodejs/                      # optional OIDC-style auth platform service
 ├── services/nodejs/
 │   ├── examples/hello-view/          # example business service (clock SSE, profile fragment, showcase)
 │   └── admin/config-manager/         # admin UI: tenants, services, routes, menu, fragments, preview
-└── docs/                             # architecture + ADRs
+├── llms.txt                          # detailed developer guide (humans + LLMs)
+└── docs/                             # architecture overview + ADRs
 ```
 
 ## Quick start

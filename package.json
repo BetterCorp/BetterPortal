@@ -17,6 +17,7 @@
     "themes/nodejs/bootstrap1",
     "themes/nodejs/embedded",
     "services/nodejs/admin/config-manager",
+    "services/nodejs/docs-site",
     "services/nodejs/examples/hello-view"
   ]
 }

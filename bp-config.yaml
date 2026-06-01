@@ -34,6 +34,14 @@ tenants:
         deploymentMode: self-hosted
         createdAt: 2026-01-01T00:00:00.000Z
         enabled: true
+      - id: docs-site
+        hostname: http://localhost:3400
+        apiKeyHash: ""
+        serviceId: service.betterportal.docs-site
+        title: BetterPortal Docs
+        deploymentMode: self-hosted
+        createdAt: 2026-01-01T00:00:00.000Z
+        enabled: true
     activatedPlatformServices: []
   - id: test-tenant
     slug: test-tenant
@@ -249,6 +257,24 @@ apps:
         enabled: true
         methods:
           - GET
+      - id: docs
+        path: /docs
+        serviceId: docs-site
+        viewId: docs.index
+        targetPath: /docs
+        title: Docs
+        enabled: true
+        methods:
+          - GET
+      - id: docs-page
+        path: /docs/:section/:page
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/:section/:page
+        title: Doc Page
+        enabled: true
+        methods:
+          - GET
       - id: 019e3a3f-ca94-7c39-a77b-
         path: /blah
         serviceId: hello-view
@@ -259,6 +285,16 @@ apps:
         methods:
           - GET
     menu:
+      - id: m-docs
+        type: group
+        title: Docs
+        enabled: true
+        children:
+          - id: m-docs-index
+            type: link
+            title: Overview
+            routeId: docs
+            enabled: true
       - id: m-showcase
         type: group
         title: Showcase

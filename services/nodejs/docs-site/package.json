@@ -1,0 +1,65 @@
+{
+  "name": "@betterportal/docs-site",
+  "version": "1.0.0",
+  "description": "BetterPortal documentation site service",
+  "main": "lib/index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "bp-codegen": "bp-codegen",
+    "prebuild": "npm run bp-codegen",
+    "build": "bsb-plugin-cli build",
+    "clean": "bsb-plugin-cli clean",
+    "start": "bsb-plugin-cli start",
+    "dev": "bsb-plugin-cli dev",
+    "test": "bsb-plugin-cli test",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "betterportal",
+    "docs",
+    "service"
+  ],
+  "author": "BetterCorp",
+  "license": "(AGPL-3.0-only OR Commercial)",
+  "type": "module",
+  "devDependencies": {
+    "@bsb/base": "^9.3.1",
+    "@types/node": "^24.12.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "anyvali": "^0.3.1",
+    "@betterportal/framework": "1.0.0",
+    "@betterportal/plugin-bsb": "1.0.0",
+    "jsx-htmx": "4.0.0-beta2"
+  },
+  "files": [
+    "lib/**/*",
+    "README.md",
+    "bsb-plugin.json",
+    "bsb-tests.json"
+  ],
+  "bsb": {
+    "hooks": {
+      "afterSchemas": "bp-codegen"
+    }
+  },
+  "betterportal": {
+    "routes": [
+      "src/plugins/service-betterportal-docs-site/bp-routes/"
+    ]
+  },
+  "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git",
+    "directory": "services/nodejs/docs-site"
+  },
+  "bugs": {
+    "url": "https://github.com/BetterCorp/BetterPortal/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
