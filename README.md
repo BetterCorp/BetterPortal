@@ -9,22 +9,24 @@ A multi-tenant portal platform composed of independent services unified by a sin
 BetterPortal lets you compose a tenant-aware web portal out of small, independent services that each own their own data, config, and views. A theme service renders the host shell; HTMX swaps content from each business service directly in the browser. There is no client-side framework, no proxy layer, no shared monolith.
 
 ```
-                          ┌─────────────┐
-                          │   Browser   │
-                          └──────┬──────┘
-                                 │ HTTP/HTMX
-                  ┌──────────────┴───────────────┐
-                  │                              │
-                  ▼                              ▼
-           ┌──────────────┐               ┌─────────────┐
-           │   Theme(s)   │◄─ proxies ───►│  Service A  │
-           │  port 3100   │   (server     │  port 3200  │
-           │  bootstrap1  │    or HTMX    └─────────────┘
-           └──────┬───────┘    fetch)
-                  │                       ┌─────────────┐
-                  └──── proxies ─────────►│  Service B  │
-                                          │  port 3300  │
-                                          └─────────────┘
+                       ┌─────────────┐
+                       │   Browser   │
+                       └──┬──┬───┬───┘
+            shell + nav   │  │   │  HTMX fragments / SSE
+                ┌─────────┘  │   │  (CORS, direct)
+                ▼            │   ▼
+        ┌──────────────┐     │   ┌─────────────┐
+        │   Theme(s)   │     │   │  Service A  │
+        │  port 3100   │     │   │  port 3200  │
+        │  bootstrap1  │     │   └─────────────┘
+        └──────────────┘     │   ┌─────────────┐
+                             └──►│  Service B  │
+                                 │  port 3300  │
+                                 └─────────────┘
+
+  Theme serves the HTML shell + nav/style/brand/fragment-list endpoints.
+  Each service is its own origin; the browser calls them directly via
+  HTMX. The theme NEVER proxies content from a service.
 ```
 
 ## Why
