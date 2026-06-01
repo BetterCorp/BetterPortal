@@ -229,6 +229,14 @@ function shellRuntimeSource(): string {
         }
       };
 
+      const isThemeOriginUrl = (url: string) => {
+        try {
+          return new URL(url, window.location.origin).host === window.location.host;
+        } catch {
+          return false;
+        }
+      };
+
       // ── Service route map (reverse: service path → tenant path) ──
 
       interface ServiceRoute {
@@ -558,6 +566,18 @@ function shellRuntimeSource(): string {
         htmx_before_request(_elt: any, detail: any) {
           const target = detail.ctx?.target;
           if (requestTargetsMain(detail)) {
+            const action = detail.ctx?.request?.action || "";
+            if (action && isThemeOriginUrl(action)) {
+              const message = "Invalid BetterPortal route: content service resolves to the theme origin.";
+              setLoading(false);
+              if (hasLoaded()) {
+                showErrorBanner(message, { kind: "reload", label: "Reload" });
+              } else {
+                replaceMainWithError("Route Configuration Error", message, { kind: "reload", label: "Reload" });
+                markLoaded();
+              }
+              return false;
+            }
             clearError();
             if (hasLoaded()) setLoading(true);
           } else if (target instanceof Element) {

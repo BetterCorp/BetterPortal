@@ -71,6 +71,93 @@ const THEME_CONFIG_SCHEMAS: ConfigSchemaDescriptor[] = [
   }
 ];
 
+type SafeServiceTarget =
+  | { ok: true; origin: string; path: string; url: string }
+  | { ok: false; error: string };
+
+function parseAbsoluteHttpUrl(value: string): URL | null {
+  if (!/^https?:\/\//i.test(value)) return null;
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeOrigin(value: string): string | null {
+  const parsed = parseAbsoluteHttpUrl(value);
+  return parsed?.origin ?? null;
+}
+
+function sameOrigin(a: string, b: string): boolean {
+  if (a.toLowerCase() === b.toLowerCase()) return true;
+  try {
+    return new URL(a).host.toLowerCase() === new URL(b).host.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+function resolveSafeServiceTarget(
+  service: { hostname: string } | { endpointBaseUrl: string },
+  path: string,
+  themeOrigin: string
+): SafeServiceTarget {
+  const baseUrl = serviceBaseUrl(service);
+  const serviceOrigin = normalizeOrigin(baseUrl);
+  if (!serviceOrigin) {
+    return {
+      ok: false,
+      error: "Invalid BetterPortal route: content service must use an absolute http(s) origin."
+    };
+  }
+
+  if (sameOrigin(serviceOrigin, themeOrigin)) {
+    return {
+      ok: false,
+      error: "Invalid BetterPortal route: content service resolves to the theme origin."
+    };
+  }
+
+  const resolvedPath = path.startsWith("/") ? path : `/${path}`;
+  return {
+    ok: true,
+    origin: serviceOrigin,
+    path: resolvedPath,
+    url: `${baseUrl}${resolvedPath}`
+  };
+}
+
+function resolveSafeServiceViewTarget(
+  service: { hostname: string } | { endpointBaseUrl: string },
+  route: Parameters<typeof buildServiceViewUrl>[1],
+  currentPath: string,
+  themeOrigin: string
+): SafeServiceTarget {
+  const viewUrl = buildServiceViewUrl(service, route, currentPath);
+  const parsed = parseAbsoluteHttpUrl(viewUrl);
+  if (!parsed) {
+    return {
+      ok: false,
+      error: "Invalid BetterPortal route: content service must use an absolute http(s) origin."
+    };
+  }
+
+  if (sameOrigin(parsed.origin, themeOrigin)) {
+    return {
+      ok: false,
+      error: "Invalid BetterPortal route: content service resolves to the theme origin."
+    };
+  }
+
+  return {
+    ok: true,
+    origin: parsed.origin,
+    path: `${parsed.pathname}${parsed.search}`,
+    url: viewUrl
+  };
+}
+
 const Config = createConfigSchema(
   {
     name: "service-betterportal-theme-bootstrap1",
@@ -200,7 +287,8 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
     return htmlResponse(
       `<style id="bp-theme-style" hx-get="/.well-known/bp/theme/style" hx-trigger="bp:theme-changed from:body" hx-swap="outerHTML">${css}</style>`,
       200,
-      "text/html; mode=fragment"
+      "text/html; mode=fragment",
+      { "cache-control": "no-store" }
     );
   }
 
@@ -208,7 +296,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
     const eff = await this.resolveEffectiveTheme(event);
     if (!eff) return new Response("", { status: 404 });
     const escaped = eff.brandName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    return htmlResponse(escaped, 200, "text/html; mode=fragment");
+    return htmlResponse(escaped, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
   }
 
   private async handleThemeNav(event: BetterPortalEvent): Promise<Response> {
@@ -228,16 +316,17 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       ? new URL(event.req.headers.get("hx-current-url")!).pathname
       : requestContext.app.defaultRoute;
 
-    const navItems = this.buildAppNavItems(portalConfig, requestContext, currentPath);
+    const navItems = this.buildAppNavItems(portalConfig, requestContext, currentPath, url.origin);
     const rendered = renderNavItems(navItems, mobile);
     const html = Array.isArray(rendered) ? rendered.map((r) => toHtmlString(r as any)).join("") : toHtmlString(rendered as any);
-    return htmlResponse(html, 200, "text/html; mode=fragment");
+    return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
   }
 
   private buildLocationFragments(
     portalConfig: any,
     requestContext: any,
-    location: string
+    location: string,
+    themeOrigin: string
   ): Array<{ fragmentId: string; serviceId: string; url: string; fragmentKey: string }> {
     const appFragments = (requestContext.app as any).fragments as Record<string, Array<{ serviceId: string; fragmentId: string; targetPath: string; enabled: boolean }>> | undefined;
     const assignments = appFragments?.[location] ?? [];
@@ -246,11 +335,13 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       .map((a) => {
         const binding = resolveServiceForTenant(portalConfig, a.serviceId, requestContext);
         if (!binding) return null;
-        // Emit RELATIVE service path. Client absolutizes via data-bp-service.
+        const safeTarget = resolveSafeServiceTarget(binding.service, a.targetPath, themeOrigin);
+        if (!safeTarget.ok) return null;
+        // Load-triggered fragments must be absolute before client JS runs.
         return {
           fragmentId: a.fragmentId,
           serviceId: a.serviceId,
-          url: a.targetPath,
+          url: safeTarget.url,
           fragmentKey: `${location}.${a.fragmentId}`
         };
       })
@@ -269,33 +360,38 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
     );
     if (!requestContext) return htmlResponse("", 200, "text/html; mode=fragment");
 
-    const frags = this.buildLocationFragments(portalConfig, requestContext, location);
+    const frags = this.buildLocationFragments(portalConfig, requestContext, location, url.origin);
     const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const appendFragmentKey = (targetUrl: string, fragmentKey: string) =>
+      `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}_f=${fragmentKey}`;
     const html = frags.map((f) =>
-      `<div data-bp-fragment="${escape(f.fragmentId)}" data-bp-fragment-location="${escape(location)}" data-bp-service="${escape(f.serviceId)}" hx-get="${escape(f.url)}?_f=${escape(f.fragmentKey)}" hx-trigger="load" hx-target="this" hx-swap="innerHTML"><span class="placeholder-glow"><span class="placeholder col-12 rounded-pill"></span></span></div>`
+      `<div data-bp-fragment="${escape(f.fragmentId)}" data-bp-fragment-location="${escape(location)}" data-bp-service="${escape(f.serviceId)}" hx-get="${escape(appendFragmentKey(f.url, f.fragmentKey))}" hx-trigger="load" hx-target="this" hx-swap="innerHTML"><span class="placeholder-glow"><span class="placeholder col-12 rounded-pill"></span></span></div>`
     ).join("");
-    return htmlResponse(html, 200, "text/html; mode=fragment");
+    return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
   }
 
   private buildAppNavItems(
     portalConfig: any,
     requestContext: any,
-    currentPath: string
+    currentPath: string,
+    themeOrigin: string
   ): Bootstrap1NavItem[] {
     const routesById = new Map(requestContext.app.routes.map((r: any) => [r.id, r])) as Map<string, any>;
 
     const buildLinkFromRoute = (route: any, displayTitle?: string) => {
       const routeBinding = resolveServiceForTenant(portalConfig, route.serviceId, requestContext);
       if (!routeBinding) return null;
-      // Emit RELATIVE service path. Client-side resolveServiceLinks (with
-      // data-bp-service ancestor) absolutizes to the correct service origin.
+      const safeTarget = resolveSafeServiceViewTarget(routeBinding.service, route, route.path, themeOrigin);
+      // Nav links keep absolute service URLs so route metadata can build the
+      // service map, but unsafe theme-origin targets are withheld.
       return {
         id: route.id,
         title: displayTitle ?? route.title ?? route.id,
         href: route.path,
-        requestUrl: route.targetPath ?? route.path,
+        requestUrl: safeTarget.ok ? safeTarget.url : undefined,
         serviceId: route.serviceId,
-        active: route.path === currentPath
+        active: route.path === currentPath,
+        error: safeTarget.ok ? undefined : safeTarget.error
       };
     };
 
@@ -584,7 +680,9 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       }
 
       return htmlResponse(asset.body, 200, asset.contentType, {
-        "cache-control": "public, max-age=3600"
+        "cache-control": assetPath === "bootstrap1-shell.js"
+          ? "no-store"
+          : "public, max-age=3600"
       });
     });
   }
@@ -606,6 +704,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
         }, 404);
       }
 
+      const themeOrigin = activeEvent.url.origin;
       const currentRoute = resolveAppRoute(requestContext.app, activeEvent.url.pathname) ??
         resolveAppRoute(requestContext.app, requestContext.app.defaultRoute);
 
@@ -615,13 +714,20 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       const buildLinkFromRoute = (route: typeof enabledRoutes[number], displayTitle?: string) => {
         const routeBinding = resolveServiceForTenant(portalConfig, route.serviceId, requestContext);
         if (!routeBinding) return null;
+        const safeTarget = resolveSafeServiceViewTarget(
+          routeBinding.service,
+          route,
+          route.path,
+          themeOrigin
+        );
         return {
           id: route.id,
           title: displayTitle ?? route.title ?? route.id,
           href: route.path,
-          requestUrl: buildServiceViewUrl(routeBinding.service, route, route.path),
+          requestUrl: safeTarget.ok ? safeTarget.url : undefined,
           serviceId: route.serviceId,
-          active: route.path === (currentRoute?.path ?? requestContext.app.defaultRoute)
+          active: route.path === (currentRoute?.path ?? requestContext.app.defaultRoute),
+          error: safeTarget.ok ? undefined : safeTarget.error
         };
       };
 
@@ -693,9 +799,19 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       const initialRouteBinding = currentRoute
         ? resolveServiceForTenant(portalConfig, currentRoute.serviceId, requestContext)
         : null;
-      // Emit RELATIVE service path; client absolutizes via data-bp-service.
-      const initialRouteUrl = currentRoute && initialRouteBinding
-        ? (currentRoute.targetPath ?? currentRoute.path)
+      const initialSafeTarget = currentRoute && initialRouteBinding
+        ? resolveSafeServiceViewTarget(
+          initialRouteBinding.service,
+          currentRoute,
+          activeEvent.url.pathname,
+          themeOrigin
+        )
+        : null;
+      const initialRouteUrl = initialSafeTarget?.ok
+        ? initialSafeTarget.url
+        : undefined;
+      const initialRouteError = initialSafeTarget && !initialSafeTarget.ok
+        ? initialSafeTarget.error
         : undefined;
 
       const resolvedFragments: Record<string, Array<{
@@ -715,11 +831,13 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
             .map(a => {
               const binding = resolveServiceForTenant(portalConfig, a.serviceId, requestContext);
               if (!binding) return null;
-              // Emit RELATIVE service path; client absolutizes via data-bp-service.
+              const safeTarget = resolveSafeServiceTarget(binding.service, a.targetPath, themeOrigin);
+              if (!safeTarget.ok) return null;
+              // Load-triggered fragments must be absolute before client JS runs.
               return {
                 fragmentId: a.fragmentId,
                 serviceId: a.serviceId,
-                url: a.targetPath,
+                url: safeTarget.url,
                 fragmentKey: `${location}.${a.fragmentId}`
               };
             })
@@ -737,11 +855,12 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
           if (!binding) continue;
           if (!resolvedFragments[location]) resolvedFragments[location] = [];
           const viewPath = inferServicePathFromViewId(slot.viewId);
-          // Relative path; client absolutizes.
+          const safeTarget = resolveSafeServiceTarget(binding.service, viewPath, themeOrigin);
+          if (!safeTarget.ok) continue;
           resolvedFragments[location].push({
             fragmentId: id,
             serviceId: slot.serviceId,
-            url: viewPath,
+            url: safeTarget.url,
             fragmentKey: slot.slotId
           });
         }
@@ -791,6 +910,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
           assetBaseUrl: "/_themes/bootstrap1/assets",
           currentPath: activeEvent.url.pathname,
           initialRouteUrl,
+          initialRouteError,
           initialServiceId: currentRoute?.serviceId,
           routeLinks,
           navItems: navItems as any,
@@ -801,6 +921,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
           headers: {
             "content-type": "text/html; charset=utf-8",
             ...(sourceHostname ? { "x-bp-source-hostname": sourceHostname } : {}),
+            "cache-control": "no-store",
             "x-bp-allowed-origin": originPolicy.allowedOrigins[0] ?? "",
             "x-bp-trace-id": span.traceId
           }

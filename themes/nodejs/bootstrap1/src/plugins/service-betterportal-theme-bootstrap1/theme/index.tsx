@@ -11,9 +11,10 @@ export interface Bootstrap1RouteLink {
   id: string;
   title: string;
   href: string;
-  requestUrl: string;
+  requestUrl?: string;
   serviceId: string;
   active: boolean;
+  error?: string;
 }
 
 export interface Bootstrap1ShellContext {
@@ -34,6 +35,7 @@ export interface Bootstrap1HostPageContext {
   currentPath: string;
   initialRouteUrl?: string;
   initialServiceId?: string;
+  initialRouteError?: string;
   routeLinks: Bootstrap1RouteLink[];
   navItems?: Bootstrap1NavItem[];
   resolvedFragments: Record<string, Array<{
@@ -238,6 +240,17 @@ function renderRouteLink(item: Bootstrap1NavLeaf, dismissMobileMenu = false): Ht
   const route = item.route;
   const displayTitle = item.label ?? route.title;
   const isChild = Boolean(item.breadcrumb || item.label);
+  const routeAttrs = route.requestUrl
+    ? {
+      "data-bp-route-request": route.requestUrl,
+      "hx-get": route.requestUrl,
+      "hx-target": "#bp-main",
+      "hx-swap": "innerHTML",
+      "hx-push-url": route.href
+    }
+    : {
+      "data-bp-route-error": route.error ?? "Route cannot be loaded."
+    };
 
   return (
     <a
@@ -246,13 +259,9 @@ function renderRouteLink(item: Bootstrap1NavLeaf, dismissMobileMenu = false): Ht
       data-bp-route-link=""
       data-bp-route-title={route.title}
       data-bp-route-breadcrumb={item.breadcrumb}
-      data-bp-route-request={route.requestUrl}
       data-bp-service={route.serviceId}
-      hx-get={route.requestUrl}
-      hx-target="#bp-main"
-      hx-swap="innerHTML"
-      hx-push-url={route.href}
       data-bs-dismiss={dismissMobileMenu ? "offcanvas" : undefined}
+      {...routeAttrs}
     >
       {displayTitle}
     </a>
@@ -1985,7 +1994,7 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":25,"mode":"cors","extensions":"bp-shell, sse"}' />
+        <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":0,"mode":"cors","extensions":"bp-shell, sse"}' />
         <title>{context.title}</title>
         <link href={`${context.assetBaseUrl}/bootstrap.min.css`} rel="stylesheet" />
         <script src={`${context.assetBaseUrl}/htmx.min.js`} defer></script>
@@ -2010,6 +2019,7 @@ function buildServiceMap(routeLinks: Bootstrap1RouteLink[]): Record<string, stri
   for (const route of routeLinks) {
     if (route.serviceId && !map[route.serviceId]) {
       try {
+        if (!route.requestUrl) continue;
         const parsed = new URL(route.requestUrl);
         map[route.serviceId] = parsed.origin;
       } catch { /* skip invalid URLs */ }
@@ -2018,11 +2028,16 @@ function buildServiceMap(routeLinks: Bootstrap1RouteLink[]): Record<string, stri
   return map;
 }
 
+function appendFragmentKey(url: string, fragmentKey: string): string {
+  return `${url}${url.includes("?") ? "&" : "?"}_f=${fragmentKey}`;
+}
+
 function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderable {
   const navItems = context.navItems ?? buildNavItems(context.routeLinks);
   const activeRoute = context.routeLinks.find((route) => route.active);
   const currentBreadcrumb = activeBreadcrumb(navItems);
   const serviceMap = buildServiceMap(context.routeLinks);
+  const hasInitialRouteError = Boolean(context.initialRouteError);
   return (
     <div
       class="bp-shell"
@@ -2117,7 +2132,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                   data-bp-fragment={frag.fragmentId}
                   data-bp-fragment-location="nav"
                   data-bp-service={frag.serviceId}
-                  hx-get={`${frag.url}?_f=${frag.fragmentKey}`}
+                  hx-get={appendFragmentKey(frag.url, frag.fragmentKey)}
                   hx-trigger="load"
                   hx-target="this"
                   hx-swap="innerHTML"
@@ -2153,10 +2168,18 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                 data-bp-main-outlet=""
                 data-bp-service={context.initialServiceId}
                 hx-get={context.initialRouteUrl ?? ""}
-                hx-trigger={context.initialRouteUrl ? "load" : undefined}
+                hx-trigger={context.initialRouteUrl && !hasInitialRouteError ? "load" : undefined}
                 hx-target="#bp-main"
                 hx-swap="innerHTML"
               >
+                {hasInitialRouteError ? (
+                  <div class="bp-shell__empty-state">
+                    <div class="bp-shell__empty-card">
+                      <div class="bp-shell__empty-title">Route Configuration Error</div>
+                      <div class="bp-shell__empty-copy">{context.initialRouteError}</div>
+                    </div>
+                  </div>
+                ) : (
                 <div class="bp-shell__loading">
                   <div class="bp-shell__loading-skeleton">
                     <div class="bp-shell__skeleton-heading"></div>
@@ -2173,6 +2196,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                     <div class="bp-shell__skeleton-row"></div>
                   </div>
                 </div>
+                )}
               </div>
             </main>
             <footer
@@ -2188,7 +2212,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                   data-bp-fragment={frag.fragmentId}
                   data-bp-fragment-location="footer"
                   data-bp-service={frag.serviceId}
-                  hx-get={`${frag.url}?_f=${frag.fragmentKey}`}
+                  hx-get={appendFragmentKey(frag.url, frag.fragmentKey)}
                   hx-trigger="load"
                   hx-target="this"
                   hx-swap="innerHTML"
