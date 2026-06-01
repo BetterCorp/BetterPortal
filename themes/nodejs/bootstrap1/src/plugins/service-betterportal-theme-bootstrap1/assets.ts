@@ -291,7 +291,7 @@ function shellRuntimeSource(): string {
 
       // ── Service link resolution ──
 
-      const resolveServiceLinks = (root: Element) => {
+      const resolveServiceLinks = (root: Element, reprocess = true) => {
         if (!root) return;
 
         // Determine service context for this content
@@ -443,7 +443,7 @@ function shellRuntimeSource(): string {
           changed = true;
         }
 
-        if (changed && htmx && typeof htmx.process === "function") {
+        if (changed && reprocess && htmx && typeof htmx.process === "function") {
           htmx.process(root);
         }
       };
@@ -553,7 +553,7 @@ function shellRuntimeSource(): string {
         },
 
         htmx_after_process(elt: any) {
-          if (elt instanceof Element) resolveServiceLinks(elt);
+          if (elt instanceof Element) resolveServiceLinks(elt, false);
         },
 
         htmx_config_request(elt: any, detail: any) {
