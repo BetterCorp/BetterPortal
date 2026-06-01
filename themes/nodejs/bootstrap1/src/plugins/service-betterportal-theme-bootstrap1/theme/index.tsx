@@ -1998,9 +1998,9 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
         <title>{context.title}</title>
         <link href={`${context.assetBaseUrl}/bootstrap.min.css`} rel="stylesheet" />
         <script src={`${context.assetBaseUrl}/htmx.min.js`} defer></script>
-        <script src={`${context.assetBaseUrl}/hx-sse.min.js`} defer></script>
         <script src={`${context.assetBaseUrl}/bootstrap.bundle.min.js`} defer></script>
         <script src={`${context.assetBaseUrl}/bootstrap1-shell.js`} defer></script>
+        <script src={`${context.assetBaseUrl}/hx-sse.min.js`} defer></script>
         <style
           id="bp-theme-style"
           hx-get="/.well-known/bp/theme/style"

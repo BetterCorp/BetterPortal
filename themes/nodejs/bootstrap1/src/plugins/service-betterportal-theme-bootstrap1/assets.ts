@@ -552,6 +552,10 @@ function shellRuntimeSource(): string {
           }
         },
 
+        htmx_after_process(elt: any) {
+          if (elt instanceof Element) resolveServiceLinks(elt);
+        },
+
         htmx_config_request(elt: any, detail: any) {
           const ctx = detail.ctx;
           if (!ctx || !ctx.request) return;
