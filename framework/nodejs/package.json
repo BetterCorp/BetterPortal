@@ -1,5 +1,5 @@
 {
-  "name": "@betterportal/framework-nodejs",
+  "name": "@betterportal/framework",
   "version": "1.0.0",
   "description": "BetterPortal v10 core library for Node.js",
   "main": "lib/index.js",
@@ -12,7 +12,8 @@
     "build": "tsc -p tsconfig.json",
     "clean": "cmd /c if exist lib rmdir /s /q lib",
     "test": "node -e \"process.exit(0)\"",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "prepare": "npm run build"
   },
   "keywords": [
     "betterportal",

@@ -5,7 +5,7 @@ import {
   type DemoScenario,
   type ViewAuthRequirement,
   type CacheHints
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 
 const RegisteredServiceItemSchema = av.object({
   id: av.string().minLength(1),

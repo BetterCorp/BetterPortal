@@ -1,6 +1,6 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
-import type { SSEHandlerContext } from "@betterportal/framework-nodejs";
+import type { SSEHandlerContext } from "@betterportal/framework";
 
 // ── Tick schema (validated per yielded value) ────────────────────────
 

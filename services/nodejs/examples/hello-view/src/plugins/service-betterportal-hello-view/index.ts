@@ -4,8 +4,8 @@ import {
   createEventSchemas
 } from "@bsb/base";
 import * as av from "anyvali";
-import { BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb-nodejs";
-import type { ConfigSchemaDescriptor } from "@betterportal/framework-nodejs";
+import { BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
+import type { ConfigSchemaDescriptor } from "@betterportal/framework";
 import { registry } from "./.bp-generated/registry.js";
 
 const PluginConfigSchema = av.object({

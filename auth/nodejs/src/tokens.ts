@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { JwtClaims, JwtClaimsSchema } from "@betterportal/framework-nodejs";
+import { JwtClaims, JwtClaimsSchema } from "@betterportal/framework";
 
 export interface SignJwtOptions {
   secret: string;

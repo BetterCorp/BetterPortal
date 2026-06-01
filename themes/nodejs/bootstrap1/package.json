@@ -1,5 +1,5 @@
 {
-  "name": "@betterportal/theme-bootstrap1-nodejs",
+  "name": "@betterportal/theme-bootstrap1",
   "version": "1.0.0",
   "description": "BetterPortal v10 Bootstrap1 theme plugin for Node.js",
   "main": "lib/index.js",
@@ -28,8 +28,8 @@
   },
   "dependencies": {
     "anyvali": "^0.3.1",
-    "@betterportal/framework-nodejs": "1.0.0",
-    "@betterportal/plugin-bsb-nodejs": "1.0.0",
+    "@betterportal/framework": "1.0.0",
+    "@betterportal/plugin-bsb": "1.0.0",
     "@types/node": "^24.12.2",
     "bootstrap": "^5.3.8",
     "htmx.org": "^4.0.0-beta2",

@@ -1,6 +1,6 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
-import type { HtmlRenderable } from "@betterportal/framework-nodejs";
+import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
 function previewScript(): HtmlRenderable {

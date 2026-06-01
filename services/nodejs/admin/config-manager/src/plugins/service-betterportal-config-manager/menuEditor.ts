@@ -2,12 +2,12 @@ import type {
   BetterPortalH3App,
   BetterPortalEvent,
   PlatformConfigStore
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 import {
   htmlResponse,
   jsonResponse,
   uuidv7
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 
 const API_BASE = "/.well-known/bp/admin";
 

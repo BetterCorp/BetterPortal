@@ -74,7 +74,7 @@ The default `bp-config.yaml` ships with the `betterportal` tenant + `betterporta
 ## Building a new service
 
 1. Scaffold a directory under `services/nodejs/<category>/<name>/` (mirror `services/nodejs/examples/hello-view/`).
-2. Declare the plugin in `src/plugins/<plugin-name>/index.ts` extending `BPService` from `@betterportal/plugin-bsb-nodejs`.
+2. Declare the plugin in `src/plugins/<plugin-name>/index.ts` extending `BPService` from `@betterportal/plugin-bsb`.
 3. Drop routes under `bp-routes/<routeDir>/index.ts`. Export `ResponseSchema`, `handleGet` via `createHandler(...)`. Add theme renderers in `_theme.<themeId>/index.tsx`.
 4. Run `npx bp-codegen` (regenerates `.bp-generated/registry.ts`).
 5. `npm run build && npm start` — visit `/.well-known/bp/manifest`.
@@ -110,13 +110,13 @@ See `llms.txt § 1b` for the full list.
 
 | Package | Purpose |
 |---|---|
-| `@betterportal/framework-nodejs` | Contracts, runtime, codegen CLI (`bp-codegen`), h3 adapter, schema helpers. |
-| `@betterportal/plugin-bsb-nodejs` | `BPService` base class; wires h3, CORS, observability into BSB. |
-| `@betterportal/theme-bootstrap1-nodejs` | Default theme: Bootstrap 5 + HTMX shell, theme designer, nav/brand/style/fragment refresh endpoints. |
-| `@betterportal/theme-embedded-nodejs` | Lightweight embedded renderer for headless / external embeds. |
-| `@betterportal/service-auth-default-nodejs` | Optional JWT auth platform service. |
-| `@betterportal/service-config-manager-nodejs` | Admin UI for tenants, services, routes, menu, fragments, preview. |
-| `@betterportal/service-hello-view-nodejs` | Example business service. |
+| `@betterportal/framework` | Contracts, runtime, codegen CLI (`bp-codegen`), h3 adapter, schema helpers. |
+| `@betterportal/plugin-bsb` | `BPService` base class; wires h3, CORS, observability into BSB. |
+| `@betterportal/theme-bootstrap1` | Default theme: Bootstrap 5 + HTMX shell, theme designer, nav/brand/style/fragment refresh endpoints. |
+| `@betterportal/theme-embedded` | Lightweight embedded renderer for headless / external embeds. |
+| `@betterportal/auth` | Optional JWT auth platform service. |
+| `@betterportal/config-manager` | Admin UI for tenants, services, routes, menu, fragments, preview. |
+| `@betterportal/hello-view` | Example business service. |
 
 All packages live in this repo as a single npm workspace. Versioning is unified.
 

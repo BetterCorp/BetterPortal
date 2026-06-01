@@ -31,10 +31,10 @@ import {
   type ConfigSchemaDescriptor,
   type ServiceConfigAction,
   type ServiceConfigTicketClaims
-} from "@betterportal/framework-nodejs";
-import { createBsbObservability } from "@betterportal/plugin-bsb-nodejs";
+} from "@betterportal/framework";
+import { createBsbObservability } from "@betterportal/plugin-bsb";
 import { Bootstrap1Manifest, renderBootstrap1HostPage, renderNavItems, shellStyles, type Bootstrap1NavItem } from "./theme/index.js";
-import { toHtmlString } from "@betterportal/framework-nodejs";
+import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap1Asset } from "./assets.js";
 
 const PluginConfigSchema = av.object({
@@ -126,7 +126,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
 
     registerServiceConfigRoutes({
       app: this.app,
-      serviceId: "service.betterportal.theme-bootstrap1",
+      serviceId: "theme.betterportal.bootstrap1",
       configSchemas: THEME_CONFIG_SCHEMAS,
       mode: "hybrid",
       customUiPath: "/.well-known/bp/config/ui",
@@ -159,7 +159,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       iss: "internal", aud: ["theme"], sub: "render", exp: now + 60, iat: now,
       jti: `read-${now}`, realm: "control-plane",
       tenantId: reqCtx.tenant.id, appId: reqCtx.app.id,
-      serviceId: "service.betterportal.theme-bootstrap1",
+      serviceId: "theme.betterportal.bootstrap1",
       actions: ["config.read"]
     }).app[reqCtx.app.id] ?? {}) as Record<string, unknown>;
 
@@ -448,7 +448,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       iss: "internal", aud: ["theme"], sub: "render", exp: now + 60, iat: now,
       jti: `read-${now}`, realm: "control-plane",
       tenantId, appId,
-      serviceId: "service.betterportal.theme-bootstrap1",
+      serviceId: "theme.betterportal.bootstrap1",
       actions: ["config.read"]
     }).app[appId] ?? {}) as Record<string, unknown>;
 
@@ -508,7 +508,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       iss: "internal", aud: ["theme"], sub: "save", exp: now + 60, iat: now,
       jti: `save-${now}`, realm: "control-plane",
       tenantId, appId,
-      serviceId: "service.betterportal.theme-bootstrap1",
+      serviceId: "theme.betterportal.bootstrap1",
       actions: ["config.write"]
     });
 
@@ -535,7 +535,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       iss: "internal", aud: ["theme"], sub: "reset", exp: now + 60, iat: now,
       jti: `reset-${now}`, realm: "control-plane" as const,
       tenantId, appId,
-      serviceId: "service.betterportal.theme-bootstrap1",
+      serviceId: "theme.betterportal.bootstrap1",
       actions: ["config.write" as const]
     };
     this.configStore.clearKey?.(tenantId, appId, key, ticket);
@@ -568,7 +568,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       realm: "control-plane",
       tenantId,
       ...(appId ? { appId } : {}),
-      serviceId: "service.betterportal.theme-bootstrap1",
+      serviceId: "theme.betterportal.bootstrap1",
       actions: [action]
     };
   }
@@ -756,7 +756,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
         jti: `read-${now}`, realm: "control-plane",
         tenantId: requestContext.tenant.id,
         appId: requestContext.app.id,
-        serviceId: "service.betterportal.theme-bootstrap1",
+        serviceId: "theme.betterportal.bootstrap1",
         actions: ["config.read"]
       });
       const storedAppValues = storeRead.app[requestContext.app.id] ?? {};

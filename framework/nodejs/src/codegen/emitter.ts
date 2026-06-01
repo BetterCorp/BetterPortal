@@ -298,7 +298,7 @@ export function emitRegistry(scanResult: ScanResult): string {
     lines.push(`import * as ${imp.alias} from ${JSON.stringify(imp.path)};`);
   }
 
-  lines.push(`import type { BetterPortalRegistry } from "@betterportal/framework-nodejs";`);
+  lines.push(`import type { BetterPortalRegistry } from "@betterportal/framework";`);
   lines.push("");
   lines.push("export const registry: BetterPortalRegistry = {");
   lines.push("  routes: [");

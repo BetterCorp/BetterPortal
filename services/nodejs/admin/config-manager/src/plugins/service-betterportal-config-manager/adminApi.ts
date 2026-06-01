@@ -3,15 +3,15 @@ import type {
   BetterPortalEvent,
   PlatformConfigStore,
   JsonValue
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 import {
   generateApiKey,
   hashApiKey,
   htmlResponse,
   jsonResponse,
   uuidv7
-} from "@betterportal/framework-nodejs";
-import type { TenantServiceRegistration, PlatformService } from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
+import type { TenantServiceRegistration, PlatformService } from "@betterportal/framework";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TOKEN = "bp-dev-config-token";

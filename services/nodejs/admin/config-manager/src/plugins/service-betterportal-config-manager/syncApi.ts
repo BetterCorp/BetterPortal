@@ -4,8 +4,8 @@ import type {
   BetterPortalEvent,
   PlatformConfigStore,
   JsonValue
-} from "@betterportal/framework-nodejs";
-import { jsonResponse } from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
+import { jsonResponse } from "@betterportal/framework";
 
 const SYNC_PATH = "/.well-known/bp/sync";
 

@@ -10,7 +10,7 @@ import type {
   BetterPortalTimer,
   ObservabilityAttributes,
   ObservabilityValue
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 
 function mergeAttributes(
   current: ObservabilityAttributes,

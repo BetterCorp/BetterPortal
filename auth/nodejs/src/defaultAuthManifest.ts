@@ -7,7 +7,7 @@ import {
   JwtClaimsSchema,
   PluginManifest,
   ViewPermissionDefinition
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 
 export const RuntimeTokenConfigSchema = av.object({
   idTokenSeconds: av.int().min(1).default(60 * 30),

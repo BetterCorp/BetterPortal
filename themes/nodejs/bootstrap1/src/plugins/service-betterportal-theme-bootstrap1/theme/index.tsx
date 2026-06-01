@@ -5,7 +5,7 @@ import {
   type BetterPortalThemeConfig,
   type HtmlRenderable,
   type PluginManifest
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 
 export interface Bootstrap1RouteLink {
   id: string;

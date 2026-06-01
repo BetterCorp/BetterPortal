@@ -206,7 +206,7 @@ services/nodejs/examples/hello-view/
 ```ts
 import { type BSBServiceConstructor, createConfigSchema, createEventSchemas } from "@bsb/base";
 import * as av from "anyvali";
-import { BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb-nodejs";
+import { BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
 import { registry } from "./.bp-generated/registry.js";
 
 const PluginConfigSchema = av.object({
@@ -251,7 +251,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 export { Config, EventSchemas };
 ```
 
-`BPService` from `@betterportal/plugin-bsb-nodejs` handles: HTTP server, h3 routing, CORS, observability wiring, registering all routes from `registry`, and the well-known endpoints.
+`BPService` from `@betterportal/plugin-bsb` handles: HTTP server, h3 routing, CORS, observability wiring, registering all routes from `registry`, and the well-known endpoints.
 
 For services that need custom endpoints beyond routes, extend `BSBService` directly or call `this.app.get/post/...` inside `onRegistered`.
 
@@ -267,7 +267,7 @@ import {
   type DemoScenario,
   type ViewAuthRequirement,
   type CacheHints
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 
 // 1. Schemas — required for runtime validation
 export const QuerySchema = av.object({ name: av.string().default("World") }, { unknownKeys: "strip" });
@@ -327,7 +327,7 @@ Inside the populate, set `(event as any).__bpResponseModel = data`. The handler 
 
 ```tsx
 /** @jsxImportSource jsx-htmx */
-import type { HtmlRenderable } from "@betterportal/framework-nodejs";
+import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
 export function render(data: ResponseData): HtmlRenderable {
@@ -356,7 +356,7 @@ Rules:
 
 ```tsx
 /** @jsxImportSource jsx-htmx */
-import type { HtmlRenderable } from "@betterportal/framework-nodejs";
+import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
 export function render(data: ResponseData): HtmlRenderable {
@@ -657,7 +657,7 @@ The service is just an endpoint server. It does not maintain sessions, render UI
 
 ### Framework helpers
 
-`@betterportal/framework-nodejs` exports primitives:
+`@betterportal/framework` exports primitives:
 
 | Export                    | Purpose                                                                 |
 | ------------------------- | ----------------------------------------------------------------------- |
@@ -786,7 +786,7 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 
 ## 20. Quick reference — key framework exports
 
-From `@betterportal/framework-nodejs`:
+From `@betterportal/framework`:
 
 | Export                                | What                                                      |
 | ------------------------------------- | --------------------------------------------------------- |
@@ -809,7 +809,7 @@ From `@betterportal/framework-nodejs`:
 | `uuidv7()`                            | UUIDv7 generator.                                         |
 | `toHtmlString(renderable)`            | Convert jsx-htmx output to string.                        |
 
-From `@betterportal/plugin-bsb-nodejs`:
+From `@betterportal/plugin-bsb`:
 
 | Export                                | What                                                      |
 | ------------------------------------- | --------------------------------------------------------- |

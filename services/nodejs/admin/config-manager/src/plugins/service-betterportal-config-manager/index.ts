@@ -5,7 +5,7 @@ import {
   type Observable
 } from "@bsb/base";
 import * as av from "anyvali";
-import { BPService } from "@betterportal/plugin-bsb-nodejs";
+import { BPService } from "@betterportal/plugin-bsb";
 import { registry } from "./.bp-generated/registry.js";
 import { registerAdminApiRoutes } from "./adminApi.js";
 import { registerMenuEditorRoutes } from "./menuEditor.js";
@@ -18,7 +18,7 @@ import {
   type BetterPortalEvent,
   type BetterPortalRegistry,
   type PlatformConfigStore
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -163,7 +163,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         .map((th) => ({
           id: `theme-${t.id}-${th.id}`,
           hostname: th.hostname,
-          serviceId: `service.betterportal.theme-${th.id}`,
+          serviceId: `theme.betterportal.${th.id}`,
           title: th.title,
           description: th.description,
           createdAt: "—",

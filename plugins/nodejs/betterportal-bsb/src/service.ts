@@ -32,7 +32,7 @@ import {
   type ServiceConfigAction,
   type ServiceConfigStore,
   type ServiceConfigTicketClaims
-} from "@betterportal/framework-nodejs";
+} from "@betterportal/framework";
 import { createBsbObservability } from "./index.js";
 
 // ── Config constraint ────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 {
-  "name": "@betterportal/theme-embedded-nodejs",
+  "name": "@betterportal/theme-embedded",
   "version": "1.0.0",
   "description": "BetterPortal v10 embedded theme plugin for Node.js",
   "main": "lib/index.js",
@@ -26,7 +26,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@betterportal/framework-nodejs": "1.0.0",
+    "@betterportal/framework": "1.0.0",
     "@types/node": "^24.12.2",
     "jsx-htmx": "4.0.0-beta2"
   },

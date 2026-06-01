@@ -1,5 +1,5 @@
 {
-  "name": "@betterportal/auth-nodejs",
+  "name": "@betterportal/auth",
   "version": "1.0.0",
   "description": "BetterPortal v10 auth plugin for Node.js",
   "main": "lib/index.js",
@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "anyvali": "^0.3.1",
-    "@betterportal/framework-nodejs": "1.0.0"
+    "@betterportal/framework": "1.0.0"
   },
   "files": [
     "lib/**/*",

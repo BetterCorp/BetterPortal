@@ -1,6 +1,6 @@
 /** @jsxImportSource jsx-htmx */
 import { css } from "jsx-htmx";
-import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework-nodejs";
+import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework";
 
 export interface EmbeddedShellContext {
   title: string;

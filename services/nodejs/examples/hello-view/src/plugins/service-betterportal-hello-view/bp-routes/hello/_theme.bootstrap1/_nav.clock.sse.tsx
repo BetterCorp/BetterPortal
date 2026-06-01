@@ -1,5 +1,5 @@
 /** @jsxImportSource jsx-htmx */
-import type { HtmlRenderable } from "@betterportal/framework-nodejs";
+import type { HtmlRenderable } from "@betterportal/framework";
 import type { Tick } from "../sse.js";
 
 export function renderTick(data: Tick): HtmlRenderable {
