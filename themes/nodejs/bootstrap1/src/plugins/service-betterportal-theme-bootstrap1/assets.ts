@@ -985,7 +985,6 @@ function shellRuntimeSource(): string {
             replaceMainWithError(title, message, action);
             markLoaded();
           }
-          console.error("BetterPortal HTMX error", detail);
         },
       });
     })();

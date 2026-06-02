@@ -25,13 +25,14 @@
   "devDependencies": {
     "@bsb/base": "^9.3.1",
     "@types/node": "^24.12.2",
+    "@types/pg": "^8.20.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "anyvali": "^0.3.1",
     "@betterportal/framework": "1.0.0",
     "@betterportal/plugin-bsb": "1.0.0",
+    "anyvali": "^0.3.1",
     "jsx-htmx": "4.0.0-beta2"
   },
   "files": [
@@ -61,5 +62,8 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "optionalDependencies": {
+    "pg": "^8.21.0"
   }
 }

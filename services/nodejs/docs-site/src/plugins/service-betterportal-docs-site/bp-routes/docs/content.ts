@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface DocSummary {
   id: string;
@@ -16,14 +17,24 @@ export interface DocPage extends DocSummary {
   markdown: string;
 }
 
-const DocsRootCandidates = [
-  path.resolve(process.cwd(), "../../../docs"),
-  path.resolve(process.cwd(), "../../../../docs"),
-  path.resolve(process.cwd(), "docs"),
-  path.resolve(process.cwd(), "../../../../../docs")
-];
+const ModuleDir = path.dirname(fileURLToPath(import.meta.url));
+
+function docsRootCandidates(): string[] {
+  const candidates: string[] = [];
+  let current = ModuleDir;
+
+  while (true) {
+    candidates.push(path.join(current, "docs"));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return candidates;
+}
 
 function docsRoot(): string {
+  const DocsRootCandidates = docsRootCandidates();
   const root = DocsRootCandidates.find((candidate) => existsSync(candidate));
   return root ?? DocsRootCandidates[0];
 }

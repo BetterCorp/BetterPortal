@@ -1,21 +1,34 @@
 import { randomBytes, createHash } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, watchFile, unwatchFile } from "node:fs";
-import { resolve } from "node:path";
-import * as yaml from "yaml";
-import {
-  BetterPortalConfigSchema,
-  type BetterPortalConfig,
-  type TenantServiceRegistration,
-  type PlatformService
-} from "../contracts/platformConfig.js";
 import type {
   PlatformConfigStore,
   ScopedServiceConfig,
   ScopedTenant,
   ScopedApp
-} from "../contracts/controlPlane.js";
+} from "@betterportal/framework";
+import type {
+  BetterPortalConfig,
+  TenantServiceRegistration,
+  PlatformService,
+  BetterPortalApp
+} from "@betterportal/framework";
 
-// ── API key helpers ──────────────────────────────────────────────────
+export type StorageBackend = "file" | "postgres";
+
+export interface FileStorageOptions {
+  readonly backend?: "file";
+  readonly configPath: string;
+}
+
+export interface PostgresStorageOptions {
+  readonly backend: "postgres";
+  readonly connectionString: string;
+  readonly tableName?: string;
+  readonly rowId?: string;
+}
+
+export type StorageOptions =
+  | FileStorageOptions
+  | PostgresStorageOptions;
 
 export function generateApiKey(): string {
   return `bp_sk_${randomBytes(32).toString("hex")}`;
@@ -25,37 +38,11 @@ export function hashApiKey(apiKey: string): string {
   return createHash("sha256").update(apiKey).digest("hex");
 }
 
-// ── File-backed implementation ───────────────────────────────────────
+export abstract class BaseStorage implements PlatformConfigStore {
+  protected listeners: Set<() => void> = new Set();
 
-export class FileBackedPlatformConfigStore implements PlatformConfigStore {
-  private readonly configPath: string;
-  private cachedConfig: BetterPortalConfig | null = null;
-  private listeners: Set<() => void> = new Set();
-  private watching = false;
-
-  constructor(configPath: string) {
-    this.configPath = resolve(configPath);
-  }
-
-  async loadConfig(): Promise<BetterPortalConfig> {
-    if (this.cachedConfig) return this.cachedConfig;
-    const raw = existsSync(this.configPath)
-      ? readFileSync(this.configPath, "utf8")
-      : "platformServices: []\ntenants: []\napps: []";
-    this.cachedConfig = BetterPortalConfigSchema.parse(yaml.parse(raw));
-    this.startWatching();
-    return this.cachedConfig;
-  }
-
-  async saveConfig(config: BetterPortalConfig): Promise<void> {
-    const validated = BetterPortalConfigSchema.parse(config);
-    const yamlStr = yaml.stringify(validated, { indent: 2, lineWidth: 120 });
-    writeFileSync(this.configPath, yamlStr, "utf8");
-    this.cachedConfig = validated;
-    this.notifyListeners();
-  }
-
-  // ── API key validation ─────────────────────────────────────────────
+  abstract loadConfig(): Promise<BetterPortalConfig>;
+  abstract saveConfig(config: BetterPortalConfig): Promise<void>;
 
   async validateApiKey(apiKey: string): Promise<{
     scope: "tenant" | "platform";
@@ -84,8 +71,6 @@ export class FileBackedPlatformConfigStore implements PlatformConfigStore {
     return null;
   }
 
-  // ── Scoped config ──────────────────────────────────────────────────
-
   async getScopedConfig(
     serviceId: string,
     scope: "tenant" | "platform",
@@ -98,6 +83,21 @@ export class FileBackedPlatformConfigStore implements PlatformConfigStore {
     }
 
     return this.scopeForPlatformService(config, serviceId);
+  }
+
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  invalidate(): void {
+    this.notifyListeners();
+  }
+
+  protected notifyListeners(): void {
+    for (const listener of this.listeners) {
+      try { listener(); } catch { /* ignore listener failures */ }
+    }
   }
 
   private scopeForTenantService(
@@ -114,8 +114,11 @@ export class FileBackedPlatformConfigStore implements PlatformConfigStore {
     if (!hasService) return { tenants: [], apps: [] };
 
     const scopedTenant: ScopedTenant = {
-      id: tenant.id, slug: tenant.slug, title: tenant.title,
-      active: tenant.active, branding: tenant.branding
+      id: tenant.id,
+      slug: tenant.slug,
+      title: tenant.title,
+      active: tenant.active,
+      branding: tenant.branding
     };
 
     const apps: ScopedApp[] = config.apps
@@ -138,8 +141,11 @@ export class FileBackedPlatformConfigStore implements PlatformConfigStore {
       if (!tenant.activatedPlatformServices.includes(serviceId)) continue;
 
       tenants.push({
-        id: tenant.id, slug: tenant.slug, title: tenant.title,
-        active: tenant.active, branding: tenant.branding
+        id: tenant.id,
+        slug: tenant.slug,
+        title: tenant.title,
+        active: tenant.active,
+        branding: tenant.branding
       });
 
       const tenantApps = config.apps
@@ -153,7 +159,7 @@ export class FileBackedPlatformConfigStore implements PlatformConfigStore {
     return { tenants, apps };
   }
 
-  private scopeApp(app: typeof BetterPortalConfigSchema extends { _output: infer T } ? T extends { apps: (infer A)[] } ? A : never : never, serviceId: string): ScopedApp {
+  private scopeApp(app: BetterPortalApp, serviceId: string): ScopedApp {
     return {
       id: app.id,
       tenantId: app.tenantId,
@@ -169,35 +175,5 @@ export class FileBackedPlatformConfigStore implements PlatformConfigStore {
           .filter(([, frags]) => (frags as unknown[]).length > 0)
       )
     };
-  }
-
-  // ── Change notification ────────────────────────────────────────────
-
-  onChange(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  }
-
-  private notifyListeners(): void {
-    for (const listener of this.listeners) {
-      try { listener(); } catch { /* ignore */ }
-    }
-  }
-
-  private startWatching(): void {
-    if (this.watching) return;
-    this.watching = true;
-    watchFile(this.configPath, { interval: 2000 }, () => {
-      this.cachedConfig = null;
-      this.notifyListeners();
-    });
-  }
-
-  dispose(): void {
-    if (this.watching) {
-      unwatchFile(this.configPath);
-      this.watching = false;
-    }
-    this.listeners.clear();
   }
 }

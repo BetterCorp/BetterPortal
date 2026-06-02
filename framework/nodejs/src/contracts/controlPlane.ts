@@ -48,5 +48,7 @@ export interface PlatformConfigStore {
 
   getScopedConfig(serviceId: string, scope: "tenant" | "platform", tenantId?: string): Promise<ScopedServiceConfig>;
 
+  invalidate(): void;
+
   onChange(listener: () => void): () => void;
 }

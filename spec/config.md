@@ -11,11 +11,11 @@ This document specifies both.
 
 ---
 
-## 1. Platform config (`bp-config.yaml`)
+## 1. Platform config
 
 ### 1.1 File location and discovery
 
-The file is referenced by every service via its `bpConfigPath` plugin config (or the SDK's equivalent). The path is filesystem-local. SDKs that wish to support remote storage MUST implement an equivalent provider that yields the same JSON-after-parse shape.
+The default file backend is referenced by each SDK's storage configuration. SDKs that support another backend MUST implement an equivalent provider that yields the same JSON-after-parse shape.
 
 YAML is RECOMMENDED for human-edited deployments. JSON is allowed. The conformance suite uses YAML.
 
@@ -26,7 +26,48 @@ themes:           [<theme>, ...]
 platformServices: [<platformService>, ...]
 tenants:          [<tenant>, ...]
 apps:             [<app>, ...]
+configManagement: <configManagement>        # optional
 ```
+
+### 1.2.1 Storage backends
+
+The platform config store is modular. Backends MUST validate data against the same platform config schema before returning it.
+
+| Backend | Behavior |
+|---|---|
+| `file` | Reads/writes the parsed YAML document at the configured file path. |
+| `postgres` | Reads/writes one JSONB platform config document from a PostgreSQL table. |
+
+Stores SHOULD read from their backing storage on each `loadConfig()` call. They MUST NOT depend on polling or filesystem watchers for correctness. Config changes are propagated by the config manager emitting a change event after a successful write; subscribers then reload from storage when they need the latest config.
+
+The reference PostgreSQL backend stores one row:
+
+```sql
+create table if not exists bp_platform_config (
+  id text primary key,
+  config jsonb not null,
+  updated_at timestamptz not null default now()
+);
+```
+
+The default row id is `default`. This is not full multi-tenant storage isolation; tenancy remains represented inside the platform config document until a finer-grained tenant store is introduced.
+
+### 1.2.2 Config management metadata
+
+`configManagement` is optional metadata for the admin/control-plane surface:
+
+```yaml
+configManagement:
+  adminTenantId: betterportal
+  auth:
+    mechanism: none        # none | dev-token | jwt | oidc
+    issuer: https://idp.example.com/
+    audience: betterportal-admin
+    requiredPermissions:
+      - config.write
+```
+
+`adminTenantId` identifies the tenant that owns the admin surface. `auth` records the intended authentication mechanism. SDKs MAY enforce this metadata, but the metadata itself is not a tenant isolation model.
 
 ### 1.3 Theme
 

@@ -26,7 +26,6 @@ export * from "./runtime/tenantResolution.js";
 export * from "./runtime/view.js";
 export * from "./runtime/handler.js";
 export * from "./runtime/configStore.js";
-export * from "./runtime/platformConfigStore.js";
 export * from "./contracts/controlPlane.js";
 export * from "./runtime/uuid.js";
 export * from "./adapters/h3.js";

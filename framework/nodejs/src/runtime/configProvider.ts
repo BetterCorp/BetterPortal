@@ -17,6 +17,9 @@ export interface BetterPortalConfigProvider {
   loadConfig(): Promise<BetterPortalConfig>;
 }
 
+export type BetterPortalConfigProviderOptions =
+  | { readonly backend?: "file"; readonly configPath: string };
+
 export class FileBackedBetterPortalConfigProvider implements BetterPortalConfigProvider {
   constructor(private readonly configPath: string) {}
 
@@ -26,6 +29,10 @@ export class FileBackedBetterPortalConfigProvider implements BetterPortalConfigP
     const parsed = parse(fileContent) as unknown;
     return BetterPortalConfigSchema.parse(parsed);
   }
+}
+
+export function createBetterPortalConfigProvider(options: BetterPortalConfigProviderOptions): BetterPortalConfigProvider {
+  return new FileBackedBetterPortalConfigProvider(options.configPath);
 }
 
 function normalizeUrlCandidate(value: string): URL | null {

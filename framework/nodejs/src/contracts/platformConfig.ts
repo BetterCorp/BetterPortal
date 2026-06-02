@@ -171,7 +171,30 @@ export const BetterPortalAppSchema = av.object({
 }, { unknownKeys: "strip" });
 export type BetterPortalApp = Infer<typeof BetterPortalAppSchema>;
 
+export const BetterPortalConfigManagementAuthSchema = av.object({
+  mechanism: av.enum_(["none", "dev-token", "jwt", "oidc"] as const).default("none"),
+  issuer: av.optional(NonEmptyStringSchema),
+  audience: av.optional(NonEmptyStringSchema),
+  requiredPermissions: av.array(NonEmptyStringSchema).default([])
+}, { unknownKeys: "strip" }).default({
+  mechanism: "none",
+  requiredPermissions: []
+});
+export type BetterPortalConfigManagementAuth = Infer<typeof BetterPortalConfigManagementAuthSchema>;
+
+export const BetterPortalConfigManagementSchema = av.object({
+  adminTenantId: av.optional(NonEmptyStringSchema),
+  auth: BetterPortalConfigManagementAuthSchema
+}, { unknownKeys: "strip" }).default({
+  auth: {
+    mechanism: "none",
+    requiredPermissions: []
+  }
+});
+export type BetterPortalConfigManagement = Infer<typeof BetterPortalConfigManagementSchema>;
+
 export const BetterPortalConfigSchema = av.object({
+  configManagement: BetterPortalConfigManagementSchema,
   themes: av.array(ThemeRegistrationSchema).default([]),
   platformServices: av.array(PlatformServiceSchema).default([]),
   tenants: av.array(BetterPortalTenantSchema).default([]),

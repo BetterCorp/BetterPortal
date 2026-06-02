@@ -5,13 +5,12 @@ import type {
   JsonValue
 } from "@betterportal/framework";
 import {
-  generateApiKey,
-  hashApiKey,
   htmlResponse,
   jsonResponse,
   uuidv7
 } from "@betterportal/framework";
 import type { TenantServiceRegistration, PlatformService } from "@betterportal/framework";
+import { generateApiKey, hashApiKey } from "./storage/index.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TOKEN = "bp-dev-config-token";

@@ -1,9 +1,11 @@
 import {
   type BSBServiceConstructor,
+  createBroadcastEvent,
   createConfigSchema,
   createEventSchemas,
   type Observable
 } from "@bsb/base";
+import { randomUUID } from "node:crypto";
 import * as av from "anyvali";
 import { BPService } from "@betterportal/plugin-bsb";
 import { registry } from "./.bp-generated/registry.js";
@@ -12,19 +14,27 @@ import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerSyncEndpoint } from "./syncApi.js";
 import {
-  FileBackedPlatformConfigStore,
   eventHeaders,
   resolveEmbeddedRequestContext,
   type BetterPortalEvent,
   type BetterPortalRegistry,
   type PlatformConfigStore
 } from "@betterportal/framework";
+import {
+  createStorageFromConfig,
+  PlatformConfigStorageSchema
+} from "./storage/index.js";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3300),
-  bpConfigPath: av.string().minLength(1),
+  storage: PlatformConfigStorageSchema,
   requestTimeoutMs: av.int().min(1).default(2000)
+}, { unknownKeys: "strip" });
+
+const PlatformConfigChangedEventSchema = av.object({
+  sourceId: av.string().minLength(1),
+  backend: av.enum_(["file", "postgres"] as const)
 }, { unknownKeys: "strip" });
 
 const Config = createConfigSchema(
@@ -42,14 +52,25 @@ const EventSchemas = createEventSchemas({
   onEvents: {},
   emitReturnableEvents: {},
   onReturnableEvents: {},
-  emitBroadcast: {},
-  onBroadcast: {}
+  emitBroadcast: {
+    "platform-config.changed": createBroadcastEvent(
+      PlatformConfigChangedEventSchema,
+      "Emitted after platform config is saved by this config-manager instance."
+    )
+  },
+  onBroadcast: {
+    "platform-config.changed": createBroadcastEvent(
+      PlatformConfigChangedEventSchema,
+      "Received when another config-manager instance saved platform config."
+    )
+  }
 });
 
 export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventSchemas> {
   static Config = Config;
   static EventSchemas = EventSchemas;
-  private platformStore!: PlatformConfigStore;
+  private storage!: PlatformConfigStore;
+  private readonly changeSourceId = randomUUID();
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
@@ -68,7 +89,15 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   protected async onRegistered(_registry: BetterPortalRegistry, _obs: Observable): Promise<void> {
-    this.platformStore = new FileBackedPlatformConfigStore(this.config.bpConfigPath);
+    const resolvedStorage = createStorageFromConfig(this.config.storage, this.cwd);
+    this.storage = this.withChangeBroadcasts(resolvedStorage.store, _obs, {
+      backend: resolvedStorage.backend
+    });
+
+    await this.events.onBroadcast("platform-config.changed", _obs, async (_eventObs, event) => {
+      if (event.sourceId === this.changeSourceId) return;
+      this.storage.invalidate();
+    });
 
     this.app.use("/config-admin", (event) => this.populateConfigAdminContext(event));
     this.app.use("/admin-services", (event) => this.populateServicesContext(event));
@@ -78,14 +107,35 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.use("/admin-fragments", (event) => this.populateFragmentsContext(event));
     this.app.use("/admin-preview", (event) => this.populatePreviewContext(event));
 
-    registerAdminApiRoutes(this.app, this.platformStore);
-    registerMenuEditorRoutes(this.app, this.platformStore);
-    registerFragmentsEditorRoutes(this.app, this.platformStore);
-    registerSyncEndpoint(this.app, this.platformStore);
+    registerAdminApiRoutes(this.app, this.storage);
+    registerMenuEditorRoutes(this.app, this.storage);
+    registerFragmentsEditorRoutes(this.app, this.storage);
+    registerSyncEndpoint(this.app, this.storage);
+  }
+
+  private withChangeBroadcasts(
+    store: PlatformConfigStore,
+    obs: Observable,
+    metadata: { backend: "file" | "postgres" }
+  ): PlatformConfigStore {
+    return {
+      loadConfig: () => store.loadConfig(),
+      saveConfig: async (config) => {
+        await store.saveConfig(config);
+        await this.events.emitBroadcast("platform-config.changed", obs, {
+          sourceId: this.changeSourceId,
+          backend: metadata.backend
+        });
+      },
+      validateApiKey: (apiKey) => store.validateApiKey(apiKey),
+      getScopedConfig: (serviceId, scope, tenantId) => store.getScopedConfig(serviceId, scope, tenantId),
+      invalidate: () => store.invalidate(),
+      onChange: (listener) => store.onChange(listener)
+    };
   }
 
   private async populateConfigAdminContext(event: BetterPortalEvent): Promise<void> {
-    const portalConfig = await this.platformStore.loadConfig();
+    const portalConfig = await this.storage.loadConfig();
     const requestContext = resolveEmbeddedRequestContext(portalConfig, eventHeaders(event));
 
     if (requestContext) {
@@ -130,7 +180,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     }
   }
   private async populateServicesContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.platformStore.loadConfig();
+    const config = await this.storage.loadConfig();
 
     const tenantApps: Record<string, Array<{ id: string; title: string }>> = {};
     for (const t of config.tenants) {
@@ -214,7 +264,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateTenantsContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.platformStore.loadConfig();
+    const config = await this.storage.loadConfig();
     (event as unknown as { __bpResponseModel: unknown }).__bpResponseModel = {
       title: "Tenants & Apps",
       tenants: config.tenants.map((t) => ({
@@ -232,7 +282,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateRoutesContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.platformStore.loadConfig();
+    const config = await this.storage.loadConfig();
     const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId ? config.apps.find((a) => a.id === selectedAppId) : undefined;
@@ -294,7 +344,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateMenuContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.platformStore.loadConfig();
+    const config = await this.storage.loadConfig();
     const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId ? config.apps.find((a) => a.id === selectedAppId) : undefined;
@@ -316,7 +366,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateFragmentsContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.platformStore.loadConfig();
+    const config = await this.storage.loadConfig();
     const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
 
@@ -330,7 +380,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populatePreviewContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.platformStore.loadConfig();
+    const config = await this.storage.loadConfig();
     const services: Array<{
       serviceId: string;
       endpointBaseUrl: string;
