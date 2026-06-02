@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">BetterPortal documentation header image</title>
+  <desc id="desc">Layered waves and route cards used as a documentation page header accent.</desc>
+  <defs>
+    <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#dbeafe"/>
+      <stop offset=".45" stop-color="#dcfce7"/>
+      <stop offset="1" stop-color="#fef3c7"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" x2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset=".5" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" rx="24" fill="url(#g1)"/>
+  <path d="M0 246c170-76 314-40 460-12 180 34 360 52 560-38 68-30 132-48 180-54v218H0z" fill="#ffffff" opacity=".54"/>
+  <path d="M0 286c170-54 314-28 470-8 190 24 400 20 590-74 58-28 108-44 140-48v204H0z" fill="#ffffff" opacity=".72"/>
+  <path d="M104 108h236M104 154h150M104 200h190" stroke="url(#g2)" stroke-width="18" stroke-linecap="round" opacity=".7"/>
+  <g fill="#ffffff" opacity=".9">
+    <rect x="670" y="78" width="248" height="76" rx="18"/>
+    <rect x="742" y="182" width="304" height="76" rx="18"/>
+    <rect x="820" y="286" width="176" height="42" rx="18"/>
+  </g>
+</svg>

@@ -246,7 +246,8 @@ function renderRouteLink(item: Bootstrap1NavLeaf, dismissMobileMenu = false): Ht
       "hx-get": route.requestUrl,
       "hx-target": "#bp-main",
       "hx-swap": "innerHTML",
-      "hx-push-url": route.href
+      "hx-push-url": route.href,
+      "hx-preload": "mouseover"
     }
     : {
       "data-bp-route-error": route.error ?? "Route cannot be loaded."
@@ -536,7 +537,8 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
     },
     ".bp-admin__topbar-context": {
       display: "grid",
-      gap: "0.1rem"
+      gap: "0.15rem",
+      minWidth: 0
     },
     ".bp-admin__topbar-label": {
       color: "var(--bp-text-soft)",
@@ -546,9 +548,10 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       fontWeight: 600
     },
     ".bp-admin__topbar-title": {
-      fontSize: "1rem",
+      fontSize: "clamp(1.05rem, 1.8vw, 1.35rem)",
       fontWeight: 700,
-      letterSpacing: "-0.02em"
+      letterSpacing: 0,
+      lineHeight: 1.1
     },
     ".bp-admin__profile-shell": {
       display: "flex",
@@ -595,13 +598,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       pointerEvents: "auto"
     },
     ".bp-admin__content-head": {
-      position: "relative",
-      zIndex: 1,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: "1rem",
-      padding: "1.1rem 1.25rem 0"
+      display: "none"
     },
     ".bp-admin__content-status": {
       position: "relative",
@@ -1994,10 +1991,11 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":0,"mode":"cors","extensions":"bp-shell, sse"}' />
+        <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":0,"mode":"cors","extensions":"bp-shell, preload, sse"}' />
         <title>{context.title}</title>
         <link href={`${context.assetBaseUrl}/bootstrap.min.css`} rel="stylesheet" />
         <script src={`${context.assetBaseUrl}/htmx.min.js`} defer></script>
+        <script src={`${context.assetBaseUrl}/hx-preload.min.js`} defer></script>
         <script src={`${context.assetBaseUrl}/bootstrap.bundle.min.js`} defer></script>
         <script src={`${context.assetBaseUrl}/bootstrap1-shell.js`} defer></script>
         <script src={`${context.assetBaseUrl}/hx-sse.min.js`} defer></script>
@@ -2043,6 +2041,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
       class="bp-shell"
       data-bp-shell-root=""
       data-bp-services={JSON.stringify(serviceMap)}
+      data-bp-dev-reload="auto"
       data-bp-login-url={context.loginUrl}
       data-bp-logout-url={context.logoutUrl}
     >
@@ -2109,14 +2108,10 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                 Menu
               </button>
               <div class="bp-admin__topbar-context">
-                <div class="bp-admin__topbar-label">Workspace</div>
-                <div
-                  class="bp-admin__topbar-title"
-                  hx-get="/.well-known/bp/theme/brand"
-                  hx-trigger="bp:theme-changed from:body"
-                  hx-swap="innerHTML"
-                  data-bp-no-route=""
-                >{context.brandName}</div>
+                <div class="bp-admin__topbar-label bp-admin__breadcrumb" data-bp-current-breadcrumb="">{currentBreadcrumb}</div>
+                <div class="bp-admin__topbar-title" data-bp-current-title="">
+                  {activeRoute?.title ?? context.title}
+                </div>
               </div>
             </div>
             <div
@@ -2144,14 +2139,6 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
             <div class="bp-admin__topbar-progress" id="bp-topbar-progress"></div>
           </header>
           <section class="bp-admin__content-frame">
-            <div class="bp-admin__content-head">
-              <div>
-                <div class="bp-admin__breadcrumb" data-bp-current-breadcrumb="">{currentBreadcrumb}</div>
-                <h1 class="bp-admin__title" data-bp-current-title="">
-                  {activeRoute?.title ?? context.title}
-                </h1>
-              </div>
-            </div>
             <div class="bp-admin__content-status">
               <div id="bp-content-error" class="alert alert-danger bp-admin__error mb-0" role="alert"></div>
             </div>

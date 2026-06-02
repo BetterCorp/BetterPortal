@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">BetterPortal service composition map</title>
+  <desc id="desc">A visual map showing a theme shell connected to independent services and platform configuration.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#eff6ff"/>
+      <stop offset=".54" stop-color="#ecfdf5"/>
+      <stop offset="1" stop-color="#fffbeb"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" x2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" x2="1">
+      <stop offset="0" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#0f172a" flood-opacity=".14"/>
+    </filter>
+  </defs>
+  <rect width="960" height="520" rx="28" fill="url(#bg)"/>
+  <path d="M138 264h164M480 152v88M480 320v78M660 264h164" stroke="#64748b" stroke-width="10" stroke-linecap="round" opacity=".32"/>
+  <path d="M302 264c58 0 82-64 178-64s120 64 178 64" fill="none" stroke="url(#blue)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M302 264c58 0 82 64 178 64s120-64 178-64" fill="none" stroke="url(#green)" stroke-width="8" stroke-linecap="round"/>
+  <g filter="url(#shadow)">
+    <rect x="72" y="180" width="230" height="168" rx="20" fill="#ffffff"/>
+    <rect x="118" y="220" width="138" height="16" rx="8" fill="#bfdbfe"/>
+    <rect x="118" y="252" width="88" height="12" rx="6" fill="#cbd5e1"/>
+    <rect x="118" y="280" width="138" height="12" rx="6" fill="#cbd5e1"/>
+    <text x="187" y="324" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#0f172a">Theme shell</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="365" y="80" width="270" height="170" rx="22" fill="#ffffff"/>
+    <circle cx="416" cy="132" r="20" fill="#dbeafe"/>
+    <rect x="450" y="116" width="116" height="14" rx="7" fill="#93c5fd"/>
+    <rect x="450" y="146" width="76" height="12" rx="6" fill="#cbd5e1"/>
+    <text x="500" y="210" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#0f172a">Service views</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="365" y="306" width="270" height="154" rx="22" fill="#ffffff"/>
+    <rect x="414" y="350" width="170" height="16" rx="8" fill="#bbf7d0"/>
+    <rect x="414" y="383" width="112" height="12" rx="6" fill="#cbd5e1"/>
+    <text x="500" y="424" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#0f172a">Validated HTML</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="660" y="180" width="248" height="168" rx="22" fill="#ffffff"/>
+    <rect x="706" y="220" width="164" height="16" rx="8" fill="#fde68a"/>
+    <rect x="706" y="252" width="112" height="12" rx="6" fill="#cbd5e1"/>
+    <rect x="706" y="280" width="144" height="12" rx="6" fill="#cbd5e1"/>
+    <text x="784" y="324" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700" fill="#0f172a">bp-config</text>
+  </g>
+</svg>

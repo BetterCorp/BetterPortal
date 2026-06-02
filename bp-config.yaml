@@ -97,10 +97,10 @@ apps:
     routes:
       - id: hello
         path: /
-        serviceId: hello-view
-        viewId: hello.index
-        targetPath: /hello
-        title: Hello
+        serviceId: docs-site
+        viewId: docs.index
+        targetPath: /docs
+        title: BetterPortal
         enabled: true
         methods:
           - GET
@@ -258,11 +258,137 @@ apps:
         methods:
           - GET
       - id: docs
-        path: /docs
+        path: /
         serviceId: docs-site
         viewId: docs.index
         targetPath: /docs
         title: Docs
+        enabled: true
+        methods:
+          - GET
+      - id: docs-what-is-betterportal
+        path: /docs/getting-started/what-is-betterportal
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/getting-started/what-is-betterportal
+        title: What is BetterPortal?
+        enabled: true
+        methods:
+          - GET
+      - id: docs-quick-start
+        path: /docs/getting-started/quick-start
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/getting-started/quick-start
+        title: Quick Start
+        enabled: true
+        methods:
+          - GET
+      - id: docs-core-concepts
+        path: /docs/getting-started/core-concepts
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/getting-started/core-concepts
+        title: Core Concepts
+        enabled: true
+        methods:
+          - GET
+      - id: docs-platform-architecture
+        path: /docs/platform/architecture
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/platform/architecture
+        title: Platform Architecture
+        enabled: true
+        methods:
+          - GET
+      - id: docs-security-auth
+        path: /docs/platform/security-and-auth
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/platform/security-and-auth
+        title: Security and Auth
+        enabled: true
+        methods:
+          - GET
+      - id: docs-building-services
+        path: /docs/building/services
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/building/services
+        title: Building Services
+        enabled: true
+        methods:
+          - GET
+      - id: docs-routes-views
+        path: /docs/building/routes-and-views
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/building/routes-and-views
+        title: Routes and Views
+        enabled: true
+        methods:
+          - GET
+      - id: docs-themes
+        path: /docs/building/themes
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/building/themes
+        title: Themes
+        enabled: true
+        methods:
+          - GET
+      - id: docs-shell-links
+        path: /docs/building/shell-links
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/building/shell-links
+        title: Shell Links
+        enabled: true
+        methods:
+          - GET
+      - id: docs-configuration
+        path: /docs/operations/configuration
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/operations/configuration
+        title: Configuration
+        enabled: true
+        methods:
+          - GET
+      - id: docs-deployment
+        path: /docs/operations/deployment
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/operations/deployment
+        title: Deployment
+        enabled: true
+        methods:
+          - GET
+      - id: docs-troubleshooting
+        path: /docs/operations/troubleshooting
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/operations/troubleshooting
+        title: Troubleshooting
+        enabled: true
+        methods:
+          - GET
+      - id: docs-config-manager
+        path: /docs/admin/config-manager
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/admin/config-manager
+        title: Config Manager
+        enabled: true
+        methods:
+          - GET
+      - id: docs-file-structure
+        path: /docs/reference/file-structure
+        serviceId: docs-site
+        viewId: docs.$section.$page.index
+        targetPath: /docs/reference/file-structure
+        title: Repository Structure
         enabled: true
         methods:
           - GET
@@ -292,8 +418,78 @@ apps:
         children:
           - id: m-docs-index
             type: link
-            title: Overview
+            title: Home
             routeId: docs
+            enabled: true
+          - id: m-docs-what-is-bp
+            type: link
+            title: What is BP?
+            routeId: docs-what-is-betterportal
+            enabled: true
+          - id: m-docs-quick-start
+            type: link
+            title: Quick Start
+            routeId: docs-quick-start
+            enabled: true
+          - id: m-docs-core-concepts
+            type: link
+            title: Core Concepts
+            routeId: docs-core-concepts
+            enabled: true
+          - id: m-docs-architecture
+            type: link
+            title: Architecture
+            routeId: docs-platform-architecture
+            enabled: true
+          - id: m-docs-security
+            type: link
+            title: Security & Auth
+            routeId: docs-security-auth
+            enabled: true
+          - id: m-docs-services
+            type: link
+            title: Services
+            routeId: docs-building-services
+            enabled: true
+          - id: m-docs-routes
+            type: link
+            title: Routes & Views
+            routeId: docs-routes-views
+            enabled: true
+          - id: m-docs-themes
+            type: link
+            title: Themes
+            routeId: docs-themes
+            enabled: true
+          - id: m-docs-shell-links
+            type: link
+            title: Shell Links
+            routeId: docs-shell-links
+            enabled: true
+          - id: m-docs-configuration
+            type: link
+            title: Configuration
+            routeId: docs-configuration
+            enabled: true
+          - id: m-docs-deployment
+            type: link
+            title: Deployment
+            routeId: docs-deployment
+            enabled: true
+          - id: m-docs-troubleshooting
+            type: link
+            title: Troubleshooting
+            routeId: docs-troubleshooting
+            enabled: true
+          - id: m-docs-config-manager
+            type: link
+            title: Config Manager
+            routeId: docs-config-manager
+            enabled: true
+          - id: m-docs-file-structure
+            type: link
+            title: Repository Structure
+            routeId: docs-file-structure
             enabled: true
       - id: m-showcase
         type: group

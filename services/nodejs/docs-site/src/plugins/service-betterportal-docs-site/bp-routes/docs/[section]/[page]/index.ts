@@ -48,13 +48,13 @@ export const cacheHints: CacheHints = {
 export const demoScenarios: DemoScenario<ResponseData>[] = [
   {
     id: "default",
-    title: "Overview",
+    title: "Quick Start",
     response: {
-      title: "BetterPortal v10 Overview",
-      section: "architecture",
-      page: "overview",
-      sourcePath: "architecture/overview.md",
-      markdown: "# BetterPortal v10 Overview\n\nBetterPortal documentation.",
+      title: "Quick Start",
+      section: "getting-started",
+      page: "quick-start",
+      sourcePath: "getting-started/quick-start.md",
+      markdown: "# Quick Start\n\nBetterPortal documentation.",
       docs: [],
       notFound: false
     }

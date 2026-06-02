@@ -46,8 +46,8 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
     id: "default",
     title: "Docs Index",
     response: {
-      title: "BetterPortal Docs",
-      description: "Documentation for the BetterPortal platform.",
+      title: "BetterPortal",
+      description: "A service-composed portal platform for multi-tenant products.",
       docs: []
     }
   }
@@ -56,8 +56,8 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
 export const handleGet = createHandler(
   { response: ResponseSchema },
   async () => ({
-    title: "BetterPortal Docs",
-    description: "Documentation for the BetterPortal platform.",
+    title: "BetterPortal",
+    description: "A service-composed portal platform for multi-tenant products.",
     docs: await listDocs()
   })
 );

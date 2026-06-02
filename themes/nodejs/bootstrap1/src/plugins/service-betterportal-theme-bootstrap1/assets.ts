@@ -12,6 +12,7 @@ const BootstrapCssPath = require.resolve("bootstrap/dist/css/bootstrap.min.css")
 const BootstrapBundlePath = require.resolve("bootstrap/dist/js/bootstrap.bundle.min.js");
 const HtmxPath = require.resolve("htmx.org/dist/htmx.min.js");
 const HtmxSsePath = require.resolve("htmx.org/dist/ext/hx-sse.min.js");
+const HtmxPreloadPath = require.resolve("htmx.org/dist/ext/hx-preload.min.js");
 
 const AssetCache = new Map<string, Promise<ThemeAssetResponse>>();
 
@@ -167,6 +168,21 @@ function shellRuntimeSource(): string {
         });
       };
 
+      const scrollPageToTop = () => {
+        const workspace = document.querySelector(".bp-admin__workspace");
+        const frame = contentFrame();
+        const main = document.querySelector(".bp-shell__main");
+        [workspace, frame, main, document.scrollingElement, document.documentElement, document.body].forEach((el: any) => {
+          if (el && typeof el.scrollTo === "function") {
+            el.scrollTo({ top: 0, left: 0, behavior: "auto" });
+          } else if (el) {
+            el.scrollTop = 0;
+            el.scrollLeft = 0;
+          }
+        });
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      };
+
       // ── Loading / error UI ──
 
       const markLoaded = () => { mainOutlet()?.setAttribute("data-bp-loaded", "yes"); };
@@ -251,6 +267,134 @@ function shellRuntimeSource(): string {
         catch { return {}; }
       })();
 
+      const isLocalDevHost = () => {
+        const host = window.location.hostname;
+        return host === "localhost" || host === "127.0.0.1" || host === "::1";
+      };
+
+      const devReloadEnabled = () => {
+        const raw = (shellRoot()?.getAttribute("data-bp-dev-reload") || "auto").toLowerCase();
+        if (["false", "0", "no", "off"].includes(raw)) return false;
+        if (["true", "1", "yes", "on"].includes(raw)) return true;
+        return isLocalDevHost();
+      };
+
+      const activeRouteLink = () => {
+        const path = normalizePath(window.location.pathname);
+        return routeLinks().find((link) => normalizePath(link.getAttribute("href") || "/") === path) || null;
+      };
+
+      const currentServiceId = () =>
+        mainOutlet()?.getAttribute("data-bp-service") || activeRouteLink()?.getAttribute("data-bp-service") || "";
+
+      const currentRouteRequestUrl = () =>
+        activeRouteLink()?.getAttribute("data-bp-route-request") || mainOutlet()?.getAttribute("hx-get") || "";
+
+      const reloadCurrentRoute = (requestUrl?: string, source?: Element | null) => {
+        const action = requestUrl || currentRouteRequestUrl();
+        const outlet = mainOutlet();
+        if (!action || !outlet || !htmx?.ajax) return;
+        const routeSource = source || activeRouteLink() || outlet;
+        clearError();
+        setLoading(hasLoaded());
+        htmx.ajax("GET", action, {
+          source: routeSource,
+          target: "#bp-main",
+          swap: "innerHTML"
+        });
+      };
+
+      const serviceHealthUrl = (serviceId: string) => {
+        const origin = serviceId ? serviceOrigins[serviceId] : "";
+        return origin ? origin.replace(/\/+$/, "") + "/.well-known/bp/health" : "";
+      };
+
+      const checkServiceHealth = async (serviceId: string) => {
+        const url = serviceHealthUrl(serviceId);
+        if (!url) return false;
+        try {
+          const response = await fetch(url, {
+            method: "GET",
+            cache: "no-store",
+            headers: { Accept: "application/json" }
+          });
+          return response.ok;
+        } catch {
+          return false;
+        }
+      };
+
+      const devHealthState = new Map<string, { wasDown: boolean; polling: boolean }>();
+
+      const scheduleDevServiceRecovery = (serviceId: string, requestUrl?: string, source?: Element | null, path = window.location.pathname) => {
+        if (!devReloadEnabled() || !serviceId) return;
+        const state = devHealthState.get(serviceId) || { wasDown: true, polling: false };
+        state.wasDown = true;
+        if (state.polling) {
+          devHealthState.set(serviceId, state);
+          return;
+        }
+        state.polling = true;
+        devHealthState.set(serviceId, state);
+
+        let attempts = 0;
+        const poll = async () => {
+          attempts += 1;
+          const healthy = await checkServiceHealth(serviceId);
+          if (healthy) {
+            state.polling = false;
+            state.wasDown = false;
+            devHealthState.set(serviceId, state);
+            if (normalizePath(window.location.pathname) === normalizePath(path)) {
+              reloadCurrentRoute(requestUrl, source);
+            }
+            return;
+          }
+          if (attempts < 60) {
+            window.setTimeout(poll, 750);
+          } else {
+            state.polling = false;
+            devHealthState.set(serviceId, state);
+          }
+        };
+        window.setTimeout(poll, 750);
+      };
+
+      const startDevCurrentServiceMonitor = () => {
+        if (!devReloadEnabled()) return;
+        let lastServiceId = "";
+        let inFlight = false;
+
+        window.setInterval(async () => {
+          if (document.hidden || inFlight) return;
+          const serviceId = currentServiceId();
+          if (!serviceId) return;
+          if (serviceId !== lastServiceId) {
+            lastServiceId = serviceId;
+            devHealthState.set(serviceId, { wasDown: false, polling: false });
+          }
+
+          inFlight = true;
+          const healthy = await checkServiceHealth(serviceId);
+          inFlight = false;
+
+          const state = devHealthState.get(serviceId) || { wasDown: false, polling: false };
+          if (!healthy) {
+            state.wasDown = true;
+            devHealthState.set(serviceId, state);
+            return;
+          }
+          if (state.wasDown && !state.polling && serviceId === currentServiceId()) {
+            state.wasDown = false;
+            devHealthState.set(serviceId, state);
+            reloadCurrentRoute();
+          } else {
+            state.wasDown = false;
+            devHealthState.set(serviceId, state);
+          }
+        }, 1500);
+      };
+
       const buildServiceRouteMap = (): ServiceRoute[] => {
         const routes: ServiceRoute[] = [];
         routeLinks().forEach((link) => {
@@ -289,6 +433,118 @@ function shellRuntimeSource(): string {
         return tryMatch(serviceId) || tryMatch(null);
       };
 
+      interface BpElementConfig {
+        ignore?: boolean;
+        preload?: boolean;
+        rewrite?: boolean;
+        service?: string;
+      }
+
+      const applyConfigToken = (cfg: BpElementConfig, token: string) => {
+        const trimmed = token.trim();
+        if (!trimmed) return;
+
+        const eqIdx = trimmed.indexOf("=");
+        const rawKey = eqIdx === -1 ? trimmed : trimmed.slice(0, eqIdx).trim();
+        const rawValue = eqIdx === -1 ? "" : trimmed.slice(eqIdx + 1).trim();
+
+        if (!rawKey) return;
+        if (rawKey === "ignore") {
+          cfg.ignore = true;
+          return;
+        }
+
+        const negative = rawKey.startsWith("no-");
+        const key = negative ? rawKey.slice(3) : rawKey;
+        const value = negative
+          ? false
+          : eqIdx === -1
+            ? true
+            : !["false", "0", "no", "off"].includes(rawValue.toLowerCase());
+
+        if (key === "preload") cfg.preload = Boolean(value);
+        else if (key === "rewrite") cfg.rewrite = Boolean(value);
+        else if (key === "service" && eqIdx !== -1 && rawValue) cfg.service = rawValue;
+      };
+
+      const parseConfigAttr = (cfg: BpElementConfig, raw: string | null) => {
+        if (!raw) return;
+        raw.split(";").forEach((token) => applyConfigToken(cfg, token));
+      };
+
+      const bpConfigFor = (el: Element): BpElementConfig => {
+        const chain: Element[] = [];
+        let current: Element | null = el;
+        while (current) {
+          chain.unshift(current);
+          current = current.parentElement;
+        }
+
+        const cfg: BpElementConfig = {};
+        for (const node of chain) {
+          parseConfigAttr(cfg, node.getAttribute("data-bp-config"));
+          parseConfigAttr(cfg, node.getAttribute("bp-config"));
+        }
+        return cfg;
+      };
+
+      const isPreloadableAnchor = (el: Element) => {
+        if (el.tagName !== "A") return false;
+        const href = el.getAttribute("href") || "";
+        if (!href || href.startsWith("#")) return false;
+        if (href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("javascript:")) return false;
+        const target = el.getAttribute("target");
+        if (target && target !== "_self") return false;
+        return !el.hasAttribute("download");
+      };
+
+      const applyPreloadConfig = (el: Element, cfg: BpElementConfig) => {
+        if (!isPreloadableAnchor(el)) return false;
+        if (cfg.preload === false) {
+          if (!el.hasAttribute("hx-preload")) return false;
+          el.removeAttribute("hx-preload");
+          return true;
+        }
+        if (!el.hasAttribute("hx-preload")) {
+          el.setAttribute("hx-preload", "mouseover");
+          return true;
+        }
+        return false;
+      };
+
+      const bindBpPreload = (el: Element) => {
+        if (!isPreloadableAnchor(el)) return;
+        if (!el.hasAttribute("hx-preload")) return;
+        if (el.hasAttribute("data-bp-preload-bound")) return;
+
+        const preload = () => {
+          if (!el.hasAttribute("hx-preload")) return;
+          const hxGet = el.getAttribute("hx-get");
+          if (!hxGet) return;
+          const action = hxGet.replace(/#.*$/, "");
+
+          const state = (el as any)._htmx ?? ((el as any)._htmx = {});
+          if (state.preload) return;
+
+          state.preload = {
+            prefetch: fetch(hxGet, {
+              method: "GET",
+              headers: { Accept: "text/html; mode=page" }
+            }),
+            action,
+            expiresAt: Date.now() + 5000
+          };
+
+          state.preload.prefetch.catch(() => {
+            if (state.preload?.action === action) delete state.preload;
+          });
+        };
+
+        el.addEventListener("mouseover", preload, { passive: true });
+        el.addEventListener("focusin", preload, { passive: true });
+        el.setAttribute("data-bp-preload-bound", "");
+      };
+
       // ── Service link resolution ──
 
       const resolveServiceLinks = (root: Element, reprocess = true) => {
@@ -312,26 +568,37 @@ function shellRuntimeSource(): string {
         let changed = false;
 
         for (const el of elements) {
-          // Skip already-processed or explicitly ignored
+          const bpCfg = bpConfigFor(el);
+          if (bpCfg.ignore) continue;
+
+          if (applyPreloadConfig(el, bpCfg)) changed = true;
+          bindBpPreload(el);
+
+          // Skip already-processed or shell-owned route links after config/preload handling
           if (el.hasAttribute("data-bp-shell-route")) continue;
           if (el.hasAttribute("data-bp-route-link")) continue;
           if (el.hasAttribute("data-bp-no-route")) continue;
+          if (bpCfg.rewrite === false) continue;
 
           const tag = el.tagName;
 
           // ── Static assets: just rewrite to absolute ──
           if ((tag === "SCRIPT" || tag === "IMG") && el.hasAttribute("src")) {
             const src = el.getAttribute("src") || "";
-            if (src.startsWith("/") && serviceOrigin) {
-              el.setAttribute("src", serviceOrigin + src);
+            const assetServiceId = bpCfg.service || el.closest?.("[data-bp-service]")?.getAttribute("data-bp-service") || serviceId;
+            const assetOrigin = assetServiceId ? (serviceOrigins[assetServiceId] || serviceOrigin) : serviceOrigin;
+            if (src.startsWith("/") && assetOrigin) {
+              el.setAttribute("src", assetOrigin + src);
               el.setAttribute("data-bp-shell-route", "asset");
             }
             continue;
           }
           if (tag === "LINK" && el.hasAttribute("href")) {
             const href = el.getAttribute("href") || "";
-            if (href.startsWith("/") && serviceOrigin) {
-              el.setAttribute("href", serviceOrigin + href);
+            const assetServiceId = bpCfg.service || el.closest?.("[data-bp-service]")?.getAttribute("data-bp-service") || serviceId;
+            const assetOrigin = assetServiceId ? (serviceOrigins[assetServiceId] || serviceOrigin) : serviceOrigin;
+            if (href.startsWith("/") && assetOrigin) {
+              el.setAttribute("href", assetOrigin + href);
               el.setAttribute("data-bp-shell-route", "asset");
             }
             continue;
@@ -346,7 +613,7 @@ function shellRuntimeSource(): string {
           if (sseAttr) {
             const sseUrl = el.getAttribute(sseAttr) || "";
             if (sseUrl.startsWith("/")) {
-              const elServiceId = el.closest?.("[data-bp-service]")?.getAttribute("data-bp-service") || serviceId;
+              const elServiceId = bpCfg.service || el.closest?.("[data-bp-service]")?.getAttribute("data-bp-service") || serviceId;
               const elServiceOrigin = elServiceId ? (serviceOrigins[elServiceId] || serviceOrigin) : serviceOrigin;
               if (elServiceOrigin) {
                 el.setAttribute(sseAttr, elServiceOrigin + sseUrl);
@@ -392,7 +659,7 @@ function shellRuntimeSource(): string {
           if (!resolvePath || !resolvePath.startsWith("/")) continue;
 
           // Element-level service override
-          const elServiceId = el.closest?.("[data-bp-service]")?.getAttribute("data-bp-service") || serviceId;
+          const elServiceId = bpCfg.service || el.closest?.("[data-bp-service]")?.getAttribute("data-bp-service") || serviceId;
           const elServiceOrigin = elServiceId ? (serviceOrigins[elServiceId] || serviceOrigin) : serviceOrigin;
 
           // Has explicit hx-target → element knows its context
@@ -493,6 +760,29 @@ function shellRuntimeSource(): string {
         if (action === "reload") window.location.reload();
       };
 
+      const handleShellRouteClick = (event: MouseEvent) => {
+        if (event.defaultPrevented) return;
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+        const anchor = (event.target as Element)?.closest?.("a[href][hx-get]") as HTMLAnchorElement | null;
+        if (!anchor) return;
+        if (anchor.hasAttribute("download")) return;
+        const targetAttr = anchor.getAttribute("target");
+        if (targetAttr && targetAttr !== "_self") return;
+
+        const hxGet = anchor.getAttribute("hx-get");
+        const hxTarget = anchor.getAttribute("hx-target") || "#bp-main";
+        if (!hxGet || hxTarget !== "#bp-main") return;
+
+        event.preventDefault();
+        htmx.ajax("GET", hxGet, {
+          source: anchor,
+          target: hxTarget,
+          swap: anchor.getAttribute("hx-swap") || "innerHTML",
+          event
+        });
+      };
+
       // ── DOM setup ──
 
       document.addEventListener("DOMContentLoaded", () => {
@@ -500,9 +790,11 @@ function shellRuntimeSource(): string {
         resolveServiceLinks(document.body);
         initBootstrapComponents(document.body);
         if (!hasLoaded()) topbarProgress()?.classList.add("is-active");
+        startDevCurrentServiceMonitor();
       });
 
       document.body.addEventListener("click", handleErrorAction);
+      document.body.addEventListener("click", handleShellRouteClick);
 
       document.body.addEventListener("click", (event) => {
         const el = event.target as Element;
@@ -530,6 +822,7 @@ function shellRuntimeSource(): string {
         // already rewrote, PLUS any that were missed (dynamically added, etc.)
         htmx_before_init(elt: any) {
           if (!elt || !elt.getAttribute) return;
+          if (elt instanceof Element) resolveServiceLinks(elt, false);
           for (const attr of HX_METHODS) {
             const val = elt.getAttribute(attr);
             if (val && val.startsWith("/")) {
@@ -632,6 +925,7 @@ function shellRuntimeSource(): string {
             clearError();
             cleanupTeleportedModals();
             teleportModals(target);
+            scrollPageToTop();
           } else if (target instanceof Element) {
             target.classList.remove("bp-fragment-loading");
           }
@@ -678,6 +972,13 @@ function shellRuntimeSource(): string {
             : status === 401 ? "Session Expired" : "Error " + status;
 
           setLoading(false);
+          if ([0, 502, 503, 504].includes(status)) {
+            const source = ctx.sourceElement instanceof Element ? ctx.sourceElement : activeRouteLink();
+            const serviceId =
+              source?.getAttribute("data-bp-service") ||
+              currentServiceId();
+            scheduleDevServiceRecovery(serviceId, ctx.request?.action, source, window.location.pathname);
+          }
           if (hasLoaded()) {
             showErrorBanner(message, action);
           } else {
@@ -722,6 +1023,14 @@ export async function loadBootstrap1Asset(assetPath: string): Promise<ThemeAsset
     const cacheKey = normalized;
     if (!AssetCache.has(cacheKey)) {
       AssetCache.set(cacheKey, readTextAsset(HtmxSsePath, "application/javascript; charset=utf-8"));
+    }
+    return AssetCache.get(cacheKey) ?? null;
+  }
+
+  if (normalized === "hx-preload.min.js") {
+    const cacheKey = normalized;
+    if (!AssetCache.has(cacheKey)) {
+      AssetCache.set(cacheKey, readTextAsset(HtmxPreloadPath, "application/javascript; charset=utf-8"));
     }
     return AssetCache.get(cacheKey) ?? null;
   }

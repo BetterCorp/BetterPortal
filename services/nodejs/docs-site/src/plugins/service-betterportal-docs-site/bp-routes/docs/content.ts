@@ -17,6 +17,7 @@ export interface DocPage extends DocSummary {
 }
 
 const DocsRootCandidates = [
+  path.resolve(process.cwd(), "../../../docs"),
   path.resolve(process.cwd(), "../../../../docs"),
   path.resolve(process.cwd(), "docs"),
   path.resolve(process.cwd(), "../../../../../docs")

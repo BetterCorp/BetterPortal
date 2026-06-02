@@ -26,8 +26,8 @@ function tableBlock(lines: string[]): HtmlRenderable {
   const body = rows.slice(2);
 
   return (
-    <div class="table-responsive my-4">
-      <table class="table table-sm align-middle">
+    <div class="table-responsive my-4 border rounded-2 overflow-hidden">
+      <table class="table table-sm table-hover align-middle mb-0">
         <thead>
           <tr>{header.map((cell) => <th>{inlineText(cell)}</th>)}</tr>
         </thead>
@@ -43,7 +43,7 @@ function tableBlock(lines: string[]): HtmlRenderable {
 
 function listBlock(lines: string[]): HtmlRenderable {
   return (
-    <ul class="mb-4">
+    <ul class="mb-4 ps-3">
       {lines.map((line) => (
         <li>{inlineText(line.replace(/^-\s+/, ""))}</li>
       ))}
@@ -80,7 +80,7 @@ export function renderMarkdown(markdown: string): HtmlRenderable {
 
   const flushCode = () => {
     if (code.length === 0) return;
-    blocks.push(<pre class="bg-body-tertiary border rounded-2 p-3 overflow-auto"><code>{code.join("\n")}</code></pre>);
+    blocks.push(<pre class="bg-dark text-light border rounded-2 p-3 overflow-auto shadow-sm"><code>{code.join("\n")}</code></pre>);
     code = [];
   };
 
@@ -114,7 +114,7 @@ export function renderMarkdown(markdown: string): HtmlRenderable {
       flushParagraph();
       flushList();
       flushTable();
-      blocks.push(<h1 class="h2 mb-3">{inlineText(line.replace(/^#\s+/, ""))}</h1>);
+      blocks.push(<h1 class="h2 mb-3 pb-3 border-bottom">{inlineText(line.replace(/^#\s+/, ""))}</h1>);
       continue;
     }
 
