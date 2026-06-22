@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import * as av from "anyvali";
-import { BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
+import { BetterPortalConfigSchema, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
 import type { BetterPortalRegistry } from "@betterportal/framework";
 import { registry } from "./.bp-generated/registry.js";
 
@@ -18,9 +18,7 @@ const AllowedAssets = new Set(["portal-map.svg", "doc-wave.svg"]);
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3400),
-  bpConfigPath: av.string().minLength(1),
-  configApiToken: av.string().minLength(1).default("bp-dev-config-token"),
-  configEncryptionKey: av.optional(av.string().minLength(16))
+  betterportal: BetterPortalConfigSchema
 }, { unknownKeys: "strip" });
 
 const Config = createConfigSchema(

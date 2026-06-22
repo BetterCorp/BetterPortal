@@ -12,9 +12,12 @@ default:
     service-betterportal-hello-view:
       plugin: service-betterportal-hello-view
       enabled: true
-      config: 
+      config:
         host: 0.0.0.0
-        port: 3200
-        bpConfigPath: ../../../../bp-config.yaml
-        configApiToken: bp-dev-config-token
-        configEncryptionKey: bp-dev-encryption-key-min16chars
+        port: 3205
+        betterportal:
+          # No bpConfigPath — BP services receive their config from the CP via
+          # sync push, cached locally at .bp-sync-cache/scoped.json. With no
+          # serviceApiKey/controlPlaneUrl either, the service boots in setup
+          # mode: install it from the CM admin UI (services registry → install)
+          # and the redeemed apiKey persists to .bp-bootstrap/state.enc.

@@ -4,16 +4,14 @@ import {
   createEventSchemas
 } from "@bsb/base";
 import * as av from "anyvali";
-import { BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
+import { BetterPortalConfigSchema, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
 import type { ConfigSchemaDescriptor } from "@betterportal/framework";
 import { registry } from "./.bp-generated/registry.js";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3200),
-  bpConfigPath: av.string().minLength(1),
-  configApiToken: av.string().minLength(1).default("bp-dev-config-token"),
-  configEncryptionKey: av.optional(av.string().minLength(16))
+  betterportal: BetterPortalConfigSchema
 }, { unknownKeys: "strip" });
 
 const Config = createConfigSchema(

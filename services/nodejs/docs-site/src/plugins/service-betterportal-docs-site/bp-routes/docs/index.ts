@@ -4,7 +4,7 @@ import {
   createHandler,
   type CacheHints,
   type DemoScenario,
-  type ViewAuthRequirement
+  type ApiAuthRequirement
 } from "@betterportal/framework";
 import { listDocs } from "./content.js";
 
@@ -28,11 +28,8 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "BetterPortal Docs";
 export const description = "Documentation index for BetterPortal.";
 
-export const auth: ViewAuthRequirement = {
+export const auth: ApiAuthRequirement = {
   required: false,
-  realm: "runtime",
-  minimumTier: "public",
-  audiences: [],
   permissions: []
 };
 

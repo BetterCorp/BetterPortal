@@ -3,7 +3,7 @@ import type { Infer } from "anyvali";
 import {
   createHandler,
   type DemoScenario,
-  type ViewAuthRequirement,
+  type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
 
@@ -27,11 +27,8 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Hello View";
 export const description = "Example BetterPortal view with JSON, HTML, and metadata representations.";
 
-export const auth: ViewAuthRequirement = {
+export const auth: ApiAuthRequirement = {
   required: false,
-  realm: "runtime",
-  minimumTier: "public",
-  audiences: [],
   permissions: []
 };
 
