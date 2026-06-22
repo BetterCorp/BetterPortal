@@ -1,0 +1,7 @@
+{
+  "name": "zapier-betterportal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zapier app scaffold for BetterPortal automation discovery.",
+  "main": "index.js"
+}

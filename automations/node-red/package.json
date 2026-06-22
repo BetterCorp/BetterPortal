@@ -1,0 +1,12 @@
+{
+  "name": "@betterportal/node-red",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node-RED nodes for BetterPortal automation discovery.",
+  "main": "index.js",
+  "node-red": {
+    "nodes": {
+      "betterportal-action": "betterportal-action.js"
+    }
+  }
+}

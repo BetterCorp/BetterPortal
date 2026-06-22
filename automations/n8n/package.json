@@ -1,0 +1,12 @@
+{
+  "name": "n8n-nodes-betterportal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "n8n node for BetterPortal automation discovery.",
+  "main": "BetterPortal.node.js",
+  "n8n": {
+    "nodes": [
+      "BetterPortal.node.js"
+    ]
+  }
+}
