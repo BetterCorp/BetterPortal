@@ -1,12 +1,12 @@
 {
   "name": "@betterportal/framework",
-  "version": "1.0.3",
+  "version": "0.0.1",
   "description": "BetterPortal v10 core library for Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "bin": {
-    "bp-codegen": "./lib/codegen/cli.js",
-    "bp-init": "./lib/codegen/init.js"
+    "bp-codegen": "lib/codegen/cli.js",
+    "bp-init": "lib/codegen/init.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

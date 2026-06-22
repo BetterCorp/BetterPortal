@@ -1,12 +1,25 @@
 {
-  "name": "n8n-nodes-betterportal",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@betterportal/n8n-nodes-betterportal",
+  "version": "0.0.1",
   "description": "n8n node for BetterPortal automation discovery.",
   "main": "BetterPortal.node.js",
   "n8n": {
     "nodes": [
       "BetterPortal.node.js"
     ]
+  },
+  "author": "BetterCorp",
+  "license": "(AGPL-3.0-only OR Commercial)",
+  "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git",
+    "directory": "automations/n8n"
+  },
+  "bugs": {
+    "url": "https://github.com/BetterCorp/BetterPortal/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

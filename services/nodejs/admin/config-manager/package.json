@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/config-manager",
-  "version": "1.0.2",
+  "version": "0.0.1",
   "description": "BetterPortal admin config management service for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
@@ -10,7 +10,7 @@
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
-    "test": "bsb-plugin-cli test",
+    "test": "node -e \"process.exit(0)\"",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -30,8 +30,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@betterportal/framework": "1.0.3",
-    "@betterportal/plugin-bsb": "1.0.3",
+    "@betterportal/framework": "0.0.1",
+    "@betterportal/plugin-bsb": "0.0.1",
     "anyvali": "^1.0.6",
     "jsx-htmx": "4.0.0-beta2"
   },

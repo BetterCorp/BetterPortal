@@ -1,12 +1,25 @@
 {
-  "name": "@betterportal/node-red",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@betterportal/node-red-contrib-betterportal",
+  "version": "0.0.1",
   "description": "Node-RED nodes for BetterPortal automation discovery.",
   "main": "index.js",
   "node-red": {
     "nodes": {
       "betterportal-action": "betterportal-action.js"
     }
+  },
+  "author": "BetterCorp",
+  "license": "(AGPL-3.0-only OR Commercial)",
+  "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git",
+    "directory": "automations/node-red"
+  },
+  "bugs": {
+    "url": "https://github.com/BetterCorp/BetterPortal/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

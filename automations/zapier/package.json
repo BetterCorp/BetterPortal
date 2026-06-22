@@ -1,7 +1,20 @@
 {
-  "name": "zapier-betterportal",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@betterportal/zapier",
+  "version": "0.0.1",
   "description": "Zapier app scaffold for BetterPortal automation discovery.",
-  "main": "index.js"
+  "main": "index.js",
+  "author": "BetterCorp",
+  "license": "(AGPL-3.0-only OR Commercial)",
+  "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git",
+    "directory": "automations/zapier"
+  },
+  "bugs": {
+    "url": "https://github.com/BetterCorp/BetterPortal/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -1,11 +1,11 @@
 {
   "name": "betterportal",
-  "version": "1.0.2",
+  "version": "0.0.1",
   "description": "BetterPortal v10 workspace",
   "private": true,
   "scripts": {
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces"
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +19,10 @@
     "themes/nodejs/embedded",
     "services/nodejs/admin/config-manager",
     "services/nodejs/docs-site",
-    "services/nodejs/examples/hello-view"
+    "services/nodejs/examples/hello-view",
+    "automations/n8n",
+    "automations/node-red",
+    "automations/zapier"
   ],
   "devDependencies": {
     "@playwright/test": "^1.60.0"
