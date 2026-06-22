@@ -6,12 +6,12 @@ import type { BetterPortalRouteChrome } from "./platformConfig.js";
 import type { BpStreamHandler, StreamRendererSet } from "./streaming.js";
 import type { HtmlRenderable } from "../runtime/view.js";
 
-// ── Theme renderer types ──────────────────────────────────────────────
+// -- Theme renderer types ----------------------------------------------
 
 /** Type of view renderer within a _theme.* directory. */
 export type ThemeRendererType = "page" | "component" | "fragment";
 
-/** A single theme renderer — page, component, or fragment. */
+/** A single theme renderer - page, component, or fragment. */
 export interface RegisteredThemeRenderer {
   readonly rendererId: string;
   readonly type: ThemeRendererType;
@@ -25,7 +25,7 @@ export interface RegisteredThemeRenderer {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly render: (data: any) => HtmlRenderable;
   /**
-   * SSE tick renderer — fragments only.
+   * SSE tick renderer - fragments only.
    * Sourced from `_<location>.<fragmentId>.sse.tsx`'s `renderTick` export.
    * Called once per SSE data item yielded by the route's `handleSSE` generator.
    */
@@ -56,9 +56,9 @@ export interface StatusRenderersByKind {
   readonly fragments?: Readonly<Record<string, RegisteredThemeRenderer>>;
 }
 
-// ── Route schemas ─────────────────────────────────────────────────────
+// -- Route schemas -----------------------------------------------------
 
-/** Schema references for a route — all optional except response. */
+/** Schema references for a route - all optional except response. */
 export interface RouteSchemas {
   readonly response?: BaseSchema<unknown, unknown>;
   readonly query?: BaseSchema<unknown, unknown>;
@@ -71,7 +71,7 @@ export interface RouteSchemas {
   readonly summary?: BaseSchema<unknown, unknown>;
 }
 
-// ── Registered route ──────────────────────────────────────────────────
+// -- Registered route --------------------------------------------------
 
 /** A fully resolved route from the registry. */
 export interface RegisteredRoute {
@@ -97,7 +97,7 @@ export interface RegisteredRoute {
   /** Optional shell chrome hints declared by the service route. */
   readonly chrome?: BetterPortalRouteChrome;
   /**
-   * Status code → renderer map (per theme), broken down by renderer kind.
+   * Status code -> renderer map (per theme), broken down by renderer kind.
    * Adapter looks up by (themeId, statusCode, kind, optional rendererKey).
    */
   readonly statusRenderers?: Readonly<Record<string, Readonly<Record<number, StatusRenderersByKind>>>>;
@@ -113,9 +113,9 @@ export interface RegisteredRoute {
   };
 }
 
-// ── Registry ──────────────────────────────────────────────────────────
+// -- Registry ----------------------------------------------------------
 
-/** The complete compiled registry — output of codegen. */
+/** The complete compiled registry - output of codegen. */
 export interface BetterPortalRegistry {
   readonly routes: ReadonlyArray<RegisteredRoute>;
 }

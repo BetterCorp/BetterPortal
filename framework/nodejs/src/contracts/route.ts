@@ -19,7 +19,7 @@ export type ApiAuthRequirement = Infer<typeof ApiAuthRequirementSchema>;
 
 /**
  * Interface the adapter uses to verify JWTs. Framework does not depend on a particular
- * verifier impl — services or plugin-bsb inject one based on app.auth config.
+ * verifier impl - services or plugin-bsb inject one based on app.auth config.
  */
 export interface JwtVerifier {
   verify(token: string, context: { tenantId: string; appId: string }): Promise<JwtClaims>;
@@ -27,7 +27,7 @@ export interface JwtVerifier {
 
 /**
  * Validated user claims attached to the handler context when auth succeeds.
- * Either fully populated or `undefined` — never partial.
+ * Either fully populated or `undefined` - never partial.
  */
 export type ValidatedUserClaims = JwtClaims;
 
@@ -97,7 +97,7 @@ export interface WebhookEmitOptions {
 
 /**
  * Context provided to a route handler.
- * TParams is auto-generated from [param] directory names — never hand-written.
+ * TParams is auto-generated from [param] directory names - never hand-written.
  */
 export interface RouteHandlerContext<
   TParams = Record<string, string>,
@@ -171,7 +171,7 @@ export type RawRouteHandler<
 };
 
 /**
- * Match criteria for demo scenarios — used to match incoming request data
+ * Match criteria for demo scenarios - used to match incoming request data
  * against a scenario for preview/testing.
  */
 export interface DemoScenarioMatch {
@@ -191,7 +191,7 @@ export const DemoScenarioMatchSchema = av.object({
 }, { unknownKeys: "strip" });
 
 /**
- * A demo scenario for a route — includes optional match criteria
+ * A demo scenario for a route - includes optional match criteria
  * and the expected response data.
  */
 export interface DemoScenario<TResponse = unknown> {
@@ -211,7 +211,7 @@ export const DemoScenarioSchema = av.object({
 }, { unknownKeys: "strip" });
 export type DemoScenarioInferred = Infer<typeof DemoScenarioSchema>;
 
-// ── SSE handler ──────────────────────────────────────────────────────
+// -- SSE handler ------------------------------------------------------
 
 export interface SSEHandlerContext {
   readonly event: unknown;

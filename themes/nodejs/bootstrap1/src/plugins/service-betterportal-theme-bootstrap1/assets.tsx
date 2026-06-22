@@ -38,7 +38,7 @@ function shellRuntimeSource(): string {
       const HX_METHODS = ["hx-get", "hx-post", "hx-put", "hx-delete", "hx-patch"] as const;
       const DOWNLOAD_ATTR = "hx-download";
 
-      // ── DOM helpers ──
+      // -- DOM helpers --
 
       const shellRoot = () => document.querySelector("[data-bp-shell-root]");
       const routeLinks = () => Array.from(document.querySelectorAll("[data-bp-route-link]"));
@@ -118,7 +118,7 @@ function shellRuntimeSource(): string {
         setChromeFullScreen(chrome?.fullScreen === true);
       };
 
-      // ── Bootstrap component lifecycle ──
+      // -- Bootstrap component lifecycle --
 
       const teleportedModals = new Set<Element>();
       const teleportedOffcanvas = new Set<Element>();
@@ -201,7 +201,7 @@ function shellRuntimeSource(): string {
       };
 
       // Convert <div data-bp-sidebar="id"> wrappers into Bootstrap offcanvas markup.
-      // Falls back gracefully if JS fails — content shows inline.
+      // Falls back gracefully if JS fails - content shows inline.
       const convertSidebars = (root: Element | null) => {
         if (!root) return;
         const scope = root.querySelectorAll
@@ -278,7 +278,7 @@ function shellRuntimeSource(): string {
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       };
 
-      // ── Loading / error UI ──
+      // -- Loading / error UI --
 
       const markLoaded = () => { mainOutlet()?.setAttribute("data-bp-loaded", "yes"); };
       const hasLoaded = () => mainOutlet()?.getAttribute("data-bp-loaded") === "yes";
@@ -349,7 +349,7 @@ function shellRuntimeSource(): string {
         }
       };
 
-      // ── Service route map (reverse: service path → tenant path) ──
+      // -- Service route map (reverse: service path -> tenant path) --
 
       interface ServiceRoute {
         tenantPath: string;
@@ -404,7 +404,7 @@ function shellRuntimeSource(): string {
         return map;
       })();
 
-      // ── BP header store (spec: docs/platform/auth-flow.md §0.4) ──
+      // -- BP header store (spec: docs/platform/auth-flow.md section0.4) --
       // Services set client-managed headers via BP-SetHeader / BP-RemoveHeader
       // response headers (e.g. Authorization after login). The shell stores them
       // in localStorage and attaches them to every subsequent BP request,
@@ -432,7 +432,7 @@ function shellRuntimeSource(): string {
 
       const writeBpHeaders = (headers: Record<string, BpStoredHeader>) => {
         try { localStorage.setItem(BP_HEADERS_KEY, JSON.stringify(headers)); }
-        catch { /* storage unavailable — headers just won't persist */ }
+        catch { /* storage unavailable - headers just won't persist */ }
       };
 
       /** Drop expired entries; returns the live set. */
@@ -571,7 +571,7 @@ function shellRuntimeSource(): string {
         const removeRaw = response?.headers?.get?.("bp-removeheader");
         if (!setRaw && !removeRaw) return;
 
-        // A responder is known by its service id AND its origin — owner checks
+        // A responder is known by its service id AND its origin - owner checks
         // accept either, so entries stored before the service map knew this
         // service (owner = origin fallback) stay controllable by their owner.
         const responderOrigin = (() => {
@@ -1179,7 +1179,7 @@ function shellRuntimeSource(): string {
         el.setAttribute("data-bp-preload-bound", "");
       };
 
-      // ── Service link resolution ──
+      // -- Service link resolution --
 
       // Keep service-rendered HTMX requests in their lane. Content may replace
       // #bp-main or content-owned overlays; fragments may only replace themselves
@@ -1309,7 +1309,7 @@ function shellRuntimeSource(): string {
             continue;
           }
 
-          // ── Static assets: just rewrite to absolute ──
+          // -- Static assets: just rewrite to absolute --
           if ((tag === "SCRIPT" || tag === "IMG") && el.hasAttribute("src")) {
             const src = el.getAttribute("src") || "";
             const assetContext = serviceContextFor(el, serviceId);
@@ -1331,7 +1331,7 @@ function shellRuntimeSource(): string {
             continue;
           }
 
-          // ── SSE: rewrite hx-sse:connect / sse-connect to absolute service origin ──
+          // -- SSE: rewrite hx-sse:connect / sse-connect to absolute service origin --
           const sseAttr = el.hasAttribute("hx-sse:connect")
             ? "hx-sse:connect"
             : el.hasAttribute("sse-connect")
@@ -1350,7 +1350,7 @@ function shellRuntimeSource(): string {
             continue;
           }
 
-          // ── Determine what type of element ──
+          // -- Determine what type of element --
 
           // Find hx-method attr if present
           let hxMethodAttr: string | null = null;
@@ -1364,9 +1364,9 @@ function shellRuntimeSource(): string {
             }
           }
 
-          // ── Form default action ──
+          // -- Form default action --
           // A <form> with no hx-method and no native action posts back to the
-          // view that rendered it ("this") — a bare <form> in any BP view is a
+          // view that rendered it ("this") - a bare <form> in any BP view is a
           // working form with zero wiring. Native `action` or an explicit
           // hx-method opts out of the default.
           if (tag === "FORM" && !hxMethodAttr && !el.hasAttribute("action")) {
@@ -1397,7 +1397,7 @@ function shellRuntimeSource(): string {
           const hadExplicitTarget = el.hasAttribute("hx-target");
           if (hadExplicitTarget) el.setAttribute("data-bp-explicit-target", "");
 
-          // ── Shell default targeting ──
+          // -- Shell default targeting --
           // Any hx-action element that doesn't declare its own target swaps the
           // main content panel with innerHTML. Applied at parse time for EVERY
           // method element (relative, absolute, or "this") so views never have
@@ -1424,10 +1424,10 @@ function shellRuntimeSource(): string {
           const resolvePath = hxMethodPath || rawHref;
           if (!hxThisUrl && !isRelativeServicePath(resolvePath)) continue;
 
-          // Had an explicit hx-target BEFORE shell default targeting → the
+          // Had an explicit hx-target BEFORE shell default targeting -> the
           // element knows its own context; don't apply page-nav semantics.
           if (hadExplicitTarget) {
-            // ── Contextual request: just rewrite URL to absolute ──
+            // -- Contextual request: just rewrite URL to absolute --
             if (hxMethodAttr && (hxThisUrl || hxMethodPath) && elServiceOrigin) {
               el.setAttribute(hxMethodAttr, hxThisUrl || (elServiceOrigin + hxMethodPath));
               el.setAttribute("data-bp-shell-route", "ctx");
@@ -1440,7 +1440,7 @@ function shellRuntimeSource(): string {
               continue;
             }
 
-            // ── Full page navigation: resolve service path → tenant path ──
+            // -- Full page navigation: resolve service path -> tenant path --
             const pathParts = resolvePath.split("?");
             const pathOnly = normalizePath(pathParts[0] || "/");
             const query = pathParts[1] ? "?" + pathParts[1] : "";
@@ -1448,7 +1448,7 @@ function shellRuntimeSource(): string {
             const match = elServiceId ? matchServiceRoute(elServiceId, pathOnly) : null;
 
             if (match) {
-              // Known route — rewrite to tenant path and add htmx attrs
+              // Known route - rewrite to tenant path and add htmx attrs
               const tenantUrl = normalizePath(match.route.tenantPath + match.suffix) + query;
               const absoluteServiceUrl = match.route.serviceOrigin + pathOnly + query;
 
@@ -1463,14 +1463,14 @@ function shellRuntimeSource(): string {
               if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", tenantUrl);
               el.setAttribute("data-bp-shell-route", "page");
             } else if (elServiceOrigin && hxMethodAttr && hxMethodPath) {
-              // Unknown route but has hx-method — at minimum make URL absolute
+              // Unknown route but has hx-method - at minimum make URL absolute
               // and treat as full-page since no target
               el.setAttribute(hxMethodAttr, elServiceOrigin + hxMethodPath);
               el.setAttribute("hx-target", "#bp-main");
               el.setAttribute("hx-swap", "innerHTML");
               el.setAttribute("data-bp-shell-route", "page");
             } else if (hasHref && !hxMethodAttr && elServiceOrigin) {
-              // Anchor with unknown service path — still make absolute + page nav
+              // Anchor with unknown service path - still make absolute + page nav
               const absoluteUrl = elServiceOrigin + resolvePath;
               el.setAttribute("hx-get", absoluteUrl);
               el.setAttribute("hx-target", "#bp-main");
@@ -1488,13 +1488,13 @@ function shellRuntimeSource(): string {
           htmx.process(root);
         } else if (newlyHtmxedForms.length > 0 && htmx && typeof htmx.process === "function") {
           // Forms that gained hx-post AFTER htmx processed the swap have no
-          // submit binding yet. Process just those forms — never the whole
+          // submit binding yet. Process just those forms - never the whole
           // root, which would re-fire hx-trigger="load" requests.
           for (const form of newlyHtmxedForms) htmx.process(form);
         }
       };
 
-      // ── Active route management ──
+      // -- Active route management --
 
       const setActiveRoute = (path: string) => {
         let activeLink: Element | null = null;
@@ -1525,7 +1525,7 @@ function shellRuntimeSource(): string {
         }
       };
 
-      // ── Click handler: error actions ──
+      // -- Click handler: error actions --
 
       const routeContextFromSource = (source: Element | null | undefined, fallbackPath = window.location.pathname) => {
         const link = source?.closest?.("[data-bp-route-link]") || activeRouteLink();
@@ -1612,7 +1612,7 @@ function shellRuntimeSource(): string {
         closeContainingOffcanvas(anchor);
       };
 
-      // ── DOM setup ──
+      // -- DOM setup --
 
       document.addEventListener("DOMContentLoaded", () => {
         cleanupStaleBootstrapOverlays();
@@ -1628,7 +1628,7 @@ function shellRuntimeSource(): string {
         }
       });
 
-      // ── Menu health check (P14) ──
+      // -- Menu health check (P14) --
       // Pings /.well-known/bp/health on each service in serviceOrigins.
       // Adds .bp-service-down to anchors whose service is unreachable.
       // Clicking a downed link triggers a force re-check and clears state on success.
@@ -1666,7 +1666,7 @@ function shellRuntimeSource(): string {
         event.stopPropagation();
         await runMenuHealthChecks();
         if (!target.classList.contains("bp-service-down")) {
-          // Recovered — replay click as a normal navigation.
+          // Recovered - replay click as a normal navigation.
           (target as HTMLElement).click();
         }
       }, true);
@@ -1698,7 +1698,7 @@ function shellRuntimeSource(): string {
         }
       });
 
-      // ── HTMX extension: bp-shell ──
+      // -- HTMX extension: bp-shell --
 
       htmx.registerExtension("bp-shell", {
         // Resolve relative service URLs before htmx processes the element.
@@ -1743,7 +1743,7 @@ function shellRuntimeSource(): string {
             : elt instanceof Element
               ? elt
               : null;
-          // Don't clobber Accept header for SSE-connect requests — hx-sse ext
+          // Don't clobber Accept header for SSE-connect requests - hx-sse ext
           // sets it to "text/html, text/event-stream".
           if (source?.hasAttribute?.("hx-sse:connect") || source?.hasAttribute?.("sse-connect")) return;
           const mode = isMainTarget(ctx.target) ? "page" : "fragment";
@@ -1752,11 +1752,11 @@ function shellRuntimeSource(): string {
             ctx.request.headers["Accept"] = "text/html; theme=bootstrap1; mode=" + mode;
           }
 
-          // Attach stored BP headers (Authorization etc.) to every BP request —
+          // Attach stored BP headers (Authorization etc.) to every BP request -
           // this is what carries the login token to services after sign-in.
-          // Rewrite same-origin action URLs (e.g. hx-post="" → current path on theme origin)
+          // Rewrite same-origin action URLs (e.g. hx-post="" -> current path on theme origin)
           // to the owning service origin. Without this, a form rendered by a service-owned
-          // route would POST back to the theme — which has no such route. Service inferred
+          // route would POST back to the theme - which has no such route. Service inferred
           // from the element's nearest data-bp-service ancestor, falling back to bp-main's.
           try {
             const action = ctx.request?.action || "";
@@ -1840,28 +1840,28 @@ function shellRuntimeSource(): string {
           const target = ctx?.target;
           applyChromeFromResponse(detail);
 
-          // JSON is data, never markup — block it from swapping into ANY target
+          // JSON is data, never markup - block it from swapping into ANY target
           // regardless of status. Scripts that want the body (login) read it via
           // htmx:afterRequest; error states surface via htmx:error / 401 flow.
           const swapContentType = ctx?.response?.headers?.get?.("content-type") || "";
           const isJson = swapContentType.includes("application/json");
           if (isJson) {
             if (status && status >= 400 && isMainTarget(target)) {
-              // fall through to the error handling below (401→login etc.)
+              // fall through to the error handling below (401->login etc.)
             } else {
               return false;
             }
           }
 
           if (status && status >= 400 && isMainTarget(target)) {
-            // Themed status views (adapter content-type "…; mode=status") are
-            // real server-rendered error states — let them swap like any view
+            // Themed status views (adapter content-type "...; mode=status") are
+            // real server-rendered error states - let them swap like any view
             // (e.g. register POST 400 re-rendering its form with the message).
             const source = ctx?.sourceElement;
             if (status === 401 && source instanceof Element && source.closest("#bp-login-form")) {
               return false;
             }
-            // On 401, load the login view INTO the shell (#bp-main) — the user
+            // On 401, load the login view INTO the shell (#bp-main) - the user
             // never leaves the theme origin. Services render in-shell via HTMX;
             // a full-page navigation to the auth service origin is wrong (and
             // such services may only be reachable from a browser with the shell
@@ -1896,7 +1896,7 @@ function shellRuntimeSource(): string {
               disposeBootstrapComponents(target);
               return;
             }
-            return false; // cancel swap — htmx:error handles the UI
+            return false; // cancel swap - htmx:error handles the UI
           }
           if (isMainTarget(target)) {
             disposeBootstrapComponents(target);
@@ -1910,12 +1910,12 @@ function shellRuntimeSource(): string {
           cleanupStaleBootstrapOverlays();
           applyChromeFromResponse(detail);
           // Apply BP-SetHeader / BP-RemoveHeader directives from EVERY response
-          // (success or error) before anything else — e.g. login's Authorization.
+          // (success or error) before anything else - e.g. login's Authorization.
           try {
             applyBpHeaderDirectives(detail.ctx?.response, detail.ctx?.request?.action || "");
           } catch { /* non-fatal */ }
 
-          // HX-Location with a bare path has no target in htmx4 — the follow-up
+          // HX-Location with a bare path has no target in htmx4 - the follow-up
           // ajax would swap document.body and blow away the shell. Rewrite it
           // into a config object that swaps the main outlet and pushes the
           // tenant path (config_request later maps the path to its service).
@@ -2026,7 +2026,7 @@ function shellRuntimeSource(): string {
 
           if (!requestTargetsMain(detail)) return;
 
-          // Themed status views already swapped meaningful content — no banner.
+          // Themed status views already swapped meaningful content - no banner.
           setLoading(false);
           const source = ctx?.sourceElement instanceof Element ? ctx.sourceElement : activeRouteLink();
           const serviceId =

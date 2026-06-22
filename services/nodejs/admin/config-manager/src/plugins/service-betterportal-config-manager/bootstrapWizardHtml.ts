@@ -4,9 +4,9 @@
  * Flow (browser-side):
  *  1. Operator enters bootstrap key + admin tenant/app + theme URL + auth URL.
  *  2. Browser:
- *     a) POST /.well-known/bp/bootstrap/commit  → registers admin tenant/app in CP DB
+ *     a) POST /.well-known/bp/bootstrap/commit  -> registers admin tenant/app in CP DB
  *     b) For each of {theme, auth}:
- *        - POST /.well-known/bp/admin/services/begin-install → get setupToken
+ *        - POST /.well-known/bp/admin/services/begin-install -> get setupToken
  *        - POST {serviceUrl}/.well-known/bp/install with {setupToken, cpUrl}
  *     c) Redirect to admin app URL
  *  3. Admin app's login flow redirects to /register while the auth service has
@@ -134,11 +134,11 @@ function step(id, label) {
   const div = document.createElement("div");
   div.className = "step";
   div.id = id;
-  div.innerHTML = '<span class="marker">…</span><span>' + label + '</span>';
+  div.innerHTML = '<span class="marker">...</span><span>' + label + '</span>';
   wrap.appendChild(div);
   return {
-    done() { div.classList.add("done"); div.querySelector(".marker").textContent = "✓"; },
-    fail(msg) { div.classList.add("err"); div.querySelector(".marker").textContent = "✗"; if (msg) div.querySelector("span:last-child").textContent = label + " — " + msg; }
+    done() { div.classList.add("done"); div.querySelector(".marker").textContent = "OK"; },
+    fail(msg) { div.classList.add("err"); div.querySelector(".marker").textContent = "X"; if (msg) div.querySelector("span:last-child").textContent = label + " - " + msg; }
   };
 }
 
@@ -208,7 +208,7 @@ async function buildAdminRole(adminAppId, payload, commit) {
         }
       } catch (e) {
         // Manifest fetch can fail in race with install. Continue with whatever we have.
-        // (silent — surface only via the wizard's overall failure step if all manifests miss)
+        // (silent - surface only via the wizard's overall failure step if all manifests miss)
       }
     }
 
@@ -288,7 +288,7 @@ document.getElementById("wizard").addEventListener("submit", async (evt) => {
     const commit = await commitBootstrap(payload);
 
     // 2. Install auth + theme services via setup-token handshake (browser dispatches).
-    //    instanceIds from commit response → match pre-created tenant.services placeholders.
+    //    instanceIds from commit response -> match pre-created tenant.services placeholders.
     await installService(
       "auth",
       payload.authService.hostname,
@@ -311,7 +311,7 @@ document.getElementById("wizard").addEventListener("submit", async (evt) => {
     //    login flow redirects to /register while the auth service has zero
     //    users, so the request originates from the app origin and tenant/app
     //    context resolves naturally.
-    const okStep = step("done", "Bootstrap complete — redirecting to " + payload.adminApp.hostname + " to create the first admin");
+    const okStep = step("done", "Bootstrap complete - redirecting to " + payload.adminApp.hostname + " to create the first admin");
     okStep.done();
     setTimeout(() => { window.location.href = payload.adminApp.hostname; }, 2000);
   } catch (e) {

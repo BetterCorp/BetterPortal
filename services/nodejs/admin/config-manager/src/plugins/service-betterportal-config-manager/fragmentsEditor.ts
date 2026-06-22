@@ -125,15 +125,15 @@ function renderFragmentRow(frag: Fragment, idx: number, location: string, appId:
       <div class="d-flex align-items-center gap-2">
         <span class="badge text-bg-secondary">${escapeHtml(serviceTitle)}</span>
         <span class="font-monospace">${escapeHtml(frag.fragmentId)}</span>
-        <span class="text-secondary">→</span>
+        <span class="text-secondary">-></span>
         <span class="font-monospace text-secondary small">${escapeHtml(frag.targetPath)}</span>
       </div>
     </div>
     <div class="btn-group btn-group-sm" role="group">
-      ${btn("move-up", "↑", "btn-outline-secondary", "Move up")}
-      ${btn("move-down", "↓", "btn-outline-secondary", "Move down")}
+      ${btn("move-up", "^", "btn-outline-secondary", "Move up")}
+      ${btn("move-down", "v", "btn-outline-secondary", "Move down")}
       ${btn("toggle", frag.enabled ? "on" : "off", frag.enabled ? "btn-success" : "btn-outline-secondary", frag.enabled ? "Disable" : "Enable")}
-      ${btn("remove", "×", "btn-outline-danger", "Remove")}
+      ${btn("remove", "x", "btn-outline-danger", "Remove")}
     </div>
   </li>`;
 }

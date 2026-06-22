@@ -8,7 +8,7 @@ export function render(_data: ResponseData): HtmlRenderable {
   return (
     <div class="d-flex justify-content-center py-5">
       <div class="spinner-border" role="status">
-        <span class="visually-hidden">Signing out…</span>
+        <span class="visually-hidden">Signing out...</span>
       </div>
     </div>
   );

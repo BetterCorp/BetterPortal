@@ -95,8 +95,8 @@ export const AppAuthConfigSchema = av.object({
   refreshViewId: av.optional(NonEmptyStringSchema),
   expectedIssuer: NonEmptyStringSchema,
   expectedAudience: NonEmptyStringSchema,
-  /** Reference URL only — published by the auth service for clients/browsers.
-   *  Verifiers MUST use publicKeys (pushed at /install) to avoid CM → service fetch. */
+  /** Reference URL only - published by the auth service for clients/browsers.
+   *  Verifiers MUST use publicKeys (pushed at /install) to avoid CM -> service fetch. */
   jwksUri: NonEmptyStringSchema,
   /** Public JWKS pushed by the auth service at /install and on key rotation.
    *  CP-side JWT verification uses these static keys, never fetches jwksUri. */
@@ -107,7 +107,7 @@ export const AppAuthConfigSchema = av.object({
 }, { unknownKeys: "strip" });
 export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 
-// ── Tenant-app validation (validateTenantApp hook return) ───────────
+// -- Tenant-app validation (validateTenantApp hook return) -----------
 
 export const TenantAppValidationSchema = av.object({
   allowed: av.bool(),
@@ -117,7 +117,7 @@ export const TenantAppValidationSchema = av.object({
 }, { unknownKeys: "strip" });
 export type TenantAppValidation = Infer<typeof TenantAppValidationSchema>;
 
-// ── CP envelope token claims ────────────────────────────────────────
+// -- CP envelope token claims ----------------------------------------
 
 export const CpEnvelopeClaimsSchema = av.object({
   iss: NonEmptyStringSchema,
@@ -134,7 +134,7 @@ export const CpEnvelopeClaimsSchema = av.object({
 }, { unknownKeys: "strip" });
 export type CpEnvelopeClaims = Infer<typeof CpEnvelopeClaimsSchema>;
 
-// ── Setup token claims (control-plane → browser) ────────────────────
+// -- Setup token claims (control-plane -> browser) --------------------
 
 export const SetupTokenClaimsSchema = av.object({
   iss: NonEmptyStringSchema,
@@ -142,7 +142,7 @@ export const SetupTokenClaimsSchema = av.object({
   iat: av.int().min(0),
   jti: NonEmptyStringSchema,
   tokenType: av.literal("setup"),
-  /** UUIDv7 — pre-assigned by CP for this install. Becomes tenant.services[].id. */
+  /** UUIDv7 - pre-assigned by CP for this install. Becomes tenant.services[].id. */
   instanceId: UuidV7Schema,
   serviceUrl: NonEmptyStringSchema,
   cpUrl: NonEmptyStringSchema,

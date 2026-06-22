@@ -2,9 +2,9 @@
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
-/* ════════════════════════════════════════════
+/*
    Showcase: Forms & Inputs
-   ════════════════════════════════════════════ */
+    */
 
 export function render(data: ResponseData): HtmlRenderable {
   return (
@@ -32,7 +32,7 @@ export function render(data: ResponseData): HtmlRenderable {
               </div>
               <div class="col-md-6">
                 <label class="form-label">Password</label>
-                <input type="password" class="form-control" placeholder="••••••••" />
+                <input type="password" class="form-control" placeholder="--------" />
               </div>
               <div class="col-md-6">
                 <label class="form-label">Disabled Input</label>
@@ -109,15 +109,15 @@ export function render(data: ResponseData): HtmlRenderable {
                 </div>
                 <div class="form-check mb-2">
                   <input class="form-check-input" type="radio" name="plan" id="plan2" />
-                  <label class="form-check-label" for="plan2">Pro — $19/mo</label>
+                  <label class="form-check-label" for="plan2">Pro - $19/mo</label>
                 </div>
                 <div class="form-check mb-2">
                   <input class="form-check-input" type="radio" name="plan" id="plan3" />
-                  <label class="form-check-label" for="plan3">Business — $49/mo</label>
+                  <label class="form-check-label" for="plan3">Business - $49/mo</label>
                 </div>
                 <div class="form-check">
                   <input class="form-check-input" type="radio" name="plan" id="plan4" />
-                  <label class="form-check-label" for="plan4">Enterprise — Custom</label>
+                  <label class="form-check-label" for="plan4">Enterprise - Custom</label>
                 </div>
               </div>
             </div>

@@ -5,27 +5,27 @@
 
 A multi-tenant portal platform composed of independent services unified by a single theme. API-first, HTMX-first, schema-validated.
 
-**BetterPortal is a protocol first, a Node SDK second.** The wire protocol (HTTP + HTMX + JSON) is specified in [`spec/`](spec/README.md) so services and themes can be implemented in any language. The reference implementations in this repo (under `framework/nodejs`, `themes/nodejs`, etc.) are one SDK that speaks the protocol — and are built on [BSB (Better Service Base)](https://github.com/BetterCorp/bsb-base). PHP, Python, Go, Rust, etc. SDKs are welcome (none exist yet).
+**BetterPortal is a protocol first, a Node SDK second.** The wire protocol (HTTP + HTMX + JSON) is specified in [`spec/`](spec/README.md) so services and themes can be implemented in any language. The reference implementations in this repo (under `framework/nodejs`, `themes/nodejs`, etc.) are one SDK that speaks the protocol - and are built on [BSB (Better Service Base)](https://github.com/BetterCorp/bsb-base). PHP, Python, Go, Rust, etc. SDKs are welcome (none exist yet).
 
 ## What it is
 
 BetterPortal lets you compose a tenant-aware web portal out of small, independent services that each own their own data, config, and views. A theme service renders the host shell; HTMX swaps content from each business service directly in the browser. There is no client-side framework, no proxy layer, no shared monolith.
 
 ```
-                       ┌─────────────┐
-                       │   Browser   │
-                       └──┬──┬───┬───┘
-            shell + nav   │  │   │  HTMX fragments / SSE
-                ┌─────────┘  │   │  (CORS, direct)
-                ▼            │   ▼
-        ┌──────────────┐     │   ┌─────────────┐
-        │   Theme(s)   │     │   │  Service A  │
-        │  port 3100   │     │   │  port 3200  │
-        │  bootstrap1  │     │   └─────────────┘
-        └──────────────┘     │   ┌─────────────┐
-                             └──►│  Service B  │
-                                 │  port 3300  │
-                                 └─────────────┘
+                       +-------------+
+                       |   Browser   |
+                       +--+--+---+---+
+            shell + nav   |  |   |  HTMX fragments / SSE
+                +---------+  |   |  (CORS, direct)
+                v            |   v
+        +--------------+     |   +-------------+
+        |   Theme(s)   |     |   |  Service A  |
+        |  port 3100   |     |   |  port 3200  |
+        |  bootstrap1  |     |   +-------------+
+        +--------------+     |   +-------------+
+                             +-->|  Service B  |
+                                 |  port 3300  |
+                                 +-------------+
 
   Theme serves the HTML shell + nav/style/brand/fragment-list endpoints.
   Each service is its own origin; the browser calls them directly via
@@ -38,7 +38,7 @@ BetterPortal lets you compose a tenant-aware web portal out of small, independen
 - **No SPA framework.** Server-rendered HTML. HTMX swaps fragments in. State lives in the URL, server, and DOM. That's all.
 - **No iframes.** Composition is fragment swaps, not nested browsing contexts.
 - **Schema-validated everywhere.** Inputs and outputs go through [anyvali](https://github.com/BetterCorp/anyvali). Nothing untyped crosses a boundary.
-- **File-based routing.** Drop a folder under `bp-routes/` — it becomes a route, validated and themed.
+- **File-based routing.** Drop a folder under `bp-routes/` - it becomes a route, validated and themed.
 - **Per-tenant config.** Encrypted secrets, scoped sync, admin UI.
 
 ## Specification vs. SDK
@@ -50,25 +50,25 @@ BetterPortal lets you compose a tenant-aware web portal out of small, independen
 | **Reference services** | `auth/nodejs/`, `themes/nodejs/`, `services/nodejs/admin/config-manager/` | Concrete services built with the Node SDK. |
 | **Examples** | `services/nodejs/examples/hello-view/` | A minimal Node service demonstrating views, fragments, SSE. |
 
-When the SDK and the spec disagree, **the spec wins** — file a bug.
+When the SDK and the spec disagree, **the spec wins** - file a bug.
 
 ## Repository layout
 
 ```
 BetterPortal/
-├── spec/                             # NORMATIVE protocol specification (language-neutral)
-├── bp-config.yaml                    # platform config (tenants/apps/routes/services/menu/fragments)
-├── framework/nodejs/                 # Node SDK: contracts, runtime, codegen, h3 adapter
-├── plugins/nodejs/betterportal-bsb/  # BSB ↔ Node SDK integration (BPService base class)
-├── themes/nodejs/
-│   ├── bootstrap1/                   # reference theme: Bootstrap 5 + HTMX shell
-│   └── embedded/                     # reference theme: lightweight embedded renderer
-├── auth/nodejs/                      # optional OIDC-style auth platform service
-├── services/nodejs/
-│   ├── examples/hello-view/          # example business service (clock SSE, profile fragment, showcase)
-│   └── admin/config-manager/         # admin UI: tenants, services, routes, menu, fragments, preview
-├── llms.txt                          # detailed developer guide (humans + LLMs)
-└── docs/                             # architecture overview + ADRs
++-- spec/                             # NORMATIVE protocol specification (language-neutral)
++-- bp-config.yaml                    # platform config (tenants/apps/routes/services/menu/fragments)
++-- framework/nodejs/                 # Node SDK: contracts, runtime, codegen, h3 adapter
++-- plugins/nodejs/betterportal-bsb/  # BSB <-> Node SDK integration (BPService base class)
++-- themes/nodejs/
+|   +-- bootstrap1/                   # reference theme: Bootstrap 5 + HTMX shell
+|   +-- embedded/                     # reference theme: lightweight embedded renderer
++-- auth/nodejs/                      # optional OIDC-style auth platform service
++-- services/nodejs/
+|   +-- examples/hello-view/          # example business service (clock SSE, profile fragment, showcase)
+|   +-- admin/config-manager/         # admin UI: tenants, services, routes, menu, fragments, preview
++-- llms.txt                          # detailed developer guide (humans + LLMs)
++-- docs/                             # architecture overview + ADRs
 ```
 
 ## Quick start
@@ -95,10 +95,10 @@ The default `bp-config.yaml` ships with the `betterportal` tenant + `betterporta
 2. Declare the plugin in `src/plugins/<plugin-name>/index.ts` extending `BPService` from `@betterportal/plugin-bsb`.
 3. Drop routes under `bp-routes/<routeDir>/index.ts`. Export `ResponseSchema`, `handleGet` via `createHandler(...)`. Add theme renderers in `_theme.<themeId>/index.tsx`.
 4. Run `npx bp-codegen` (regenerates `.bp-generated/registry.ts`).
-5. `npm run build && npm start` — visit `/.well-known/bp/manifest`.
+5. `npm run build && npm start` - visit `/.well-known/bp/manifest`.
 6. Register in `bp-config.yaml` under a tenant's `services[]` (or as a platform service) and bind a route in `apps[].routes[]`.
 
-The full developer guide lives in **[llms.txt](llms.txt)** — written for LLM agents but equally useful for humans new to the codebase. It covers file conventions, HTMX patterns, design constraints, the auth model, SSE, and codegen in detail.
+The full developer guide lives in **[llms.txt](llms.txt)** - written for LLM agents but equally useful for humans new to the codebase. It covers file conventions, HTMX patterns, design constraints, the auth model, SSE, and codegen in detail.
 
 ## Key concepts
 
@@ -108,8 +108,8 @@ The full developer guide lives in **[llms.txt](llms.txt)** — written for LLM a
 | **App** | A site under a tenant; has theme, routes, menu, fragments. |
 | **Service** | BSB plugin exposing typed views + manifest, registered under a tenant. |
 | **Platform service** | Shared cross-tenant service (e.g., auth); tenants opt in. |
-| **Route** | `path → service + view + targetPath` binding in an app. |
-| **View** | `bp-routes/<dir>/index.ts` — schemas + handler. Theme renderers live alongside in `_theme.<themeId>/index.tsx`. |
+| **Route** | `path -> service + view + targetPath` binding in an app. |
+| **View** | `bp-routes/<dir>/index.ts` - schemas + handler. Theme renderers live alongside in `_theme.<themeId>/index.tsx`. |
 | **Fragment** | HTML island at a named location (`nav`, `footer`). File: `_<location>.<id>.tsx`. Optional SSE renderer: `_<location>.<id>.sse.tsx`. |
 | **Menu** | Per-app tree (groups + links) driving the sidebar nav. |
 
@@ -117,12 +117,12 @@ The full developer guide lives in **[llms.txt](llms.txt)** — written for LLM a
 
 - No iframes.
 - No SPA framework, no client-side router, no client-side state library, no client-side data-fetching library.
-- Server never emits absolute URLs — client rewrites root-relative `/foo` to the correct service origin via `data-bp-service`.
+- Server never emits absolute URLs - client rewrites root-relative `/foo` to the correct service origin via `data-bp-service`.
 - HTML-as-API. Services emit HTML fragments; the browser inserts them.
 - Cookies are theme-origin only. Auth tokens travel via `hx-headers`, never cross-origin cookies.
 - Codegen is mandatory. Hand-written registries are not supported.
 
-See `llms.txt § 1b` for the full list.
+See `llms.txt section 1b` for the full list.
 
 ## Packages
 
@@ -145,7 +145,7 @@ Pre-release. APIs are stabilizing. Expect breaking changes between minor version
 ## Contributing
 
 PRs welcome. Before opening one:
-- Read `llms.txt` end-to-end — especially **§ 1b Design constraints**.
+- Read `llms.txt` end-to-end - especially **section 1b Design constraints**.
 - `npm run -ws build` should pass on every workspace.
 - New routes require `npx bp-codegen` before commit.
 - Don't break the no-iframes / no-SPA / no-absolute-URLs rules.
@@ -154,7 +154,7 @@ PRs welcome. Before opening one:
 
 Dual-licensed:
 
-- **[GNU AGPL-3.0-only](LICENSE)** — for open-source use. If you run a modified BetterPortal as a network service, you must offer the modified source to your users.
-- **Commercial license** — for use without AGPL obligations. Contact [BetterCorp](https://github.com/BetterCorp).
+- **[GNU AGPL-3.0-only](LICENSE)** - for open-source use. If you run a modified BetterPortal as a network service, you must offer the modified source to your users.
+- **Commercial license** - for use without AGPL obligations. Contact [BetterCorp](https://github.com/BetterCorp).
 
 See `LICENSE` for the full AGPL text and `package.json` for SPDX identifiers.

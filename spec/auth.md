@@ -4,10 +4,10 @@
 
 BetterPortal has two authentication surfaces:
 
-1. **View auth** — protecting user-facing routes. Standards-based (OIDC + JWT + JWKS).
-2. **Config ticket** — protecting `/.well-known/bp/config*` admin endpoints. BetterPortal-specific (see `config.md` § 3).
+1. **View auth** - protecting user-facing routes. Standards-based (OIDC + JWT + JWKS).
+2. **Config ticket** - protecting `/.well-known/bp/config*` admin endpoints. BetterPortal-specific (see `config.md` section 3).
 
-Both use HTTP `Authorization: Bearer <token>` headers. **Neither uses cookies for cross-origin auth** — see `protocol.md` § 8.
+Both use HTTP `Authorization: Bearer <token>` headers. **Neither uses cookies for cross-origin auth** - see `protocol.md` section 8.
 
 ---
 
@@ -15,11 +15,11 @@ Both use HTTP `Authorization: Bearer <token>` headers. **Neither uses cookies fo
 
 ### 1.1 Why standards-based
 
-A BetterPortal-issued auth service is OPTIONAL. Any OIDC-compliant identity provider (Auth0, Keycloak, Authentik, Okta, custom) MAY be used, provided it emits ID tokens with the required claims (§ 1.3).
+A BetterPortal-issued auth service is OPTIONAL. Any OIDC-compliant identity provider (Auth0, Keycloak, Authentik, Okta, custom) MAY be used, provided it emits ID tokens with the required claims (section 1.3).
 
 ### 1.2 Token transport
 
-Browser → service requests carry:
+Browser -> service requests carry:
 
 ```
 Authorization: Bearer <id-token>
@@ -35,7 +35,7 @@ The token is injected by the theme via HTMX `hx-headers` on the shell root, so e
 
 The theme is responsible for:
 - Obtaining the ID token (via OIDC code flow against the IdP).
-- Storing it (same-origin theme cookie, `localStorage`, or in-memory) — implementation choice.
+- Storing it (same-origin theme cookie, `localStorage`, or in-memory) - implementation choice.
 - Refreshing it before expiry (using refresh tokens or silent re-auth).
 - Setting the `hx-headers` attribute on the shell root.
 
@@ -69,7 +69,7 @@ GET /.well-known/jwks.json
 GET /.well-known/openid-configuration
 ```
 
-Services verify ID tokens by fetching JWKS (cached, with TTL ≥ 5 minutes). The reference SDK uses `JwksVerifier` (see `framework/nodejs/src/runtime/jwksVerifier.ts`); other SDKs use their stack's equivalent (`jose`, `firebase/php-jwt + web-token`, `golang-jwt`, etc.).
+Services verify ID tokens by fetching JWKS (cached, with TTL >= 5 minutes). The reference SDK uses `JwksVerifier` (see `framework/nodejs/src/runtime/jwksVerifier.ts`); other SDKs use their stack's equivalent (`jose`, `firebase/php-jwt + web-token`, `golang-jwt`, etc.).
 
 ### 1.5 Per-route policy: `ViewAuthRequirement`
 
@@ -77,7 +77,7 @@ Every view declares an `auth` block in its manifest:
 
 ```jsonc
 {
-  "required":   false,             // true → handler MUST see a verified claim set
+  "required":   false,             // true -> handler MUST see a verified claim set
   "realm":      "runtime",
   "minimumTier":"public",          // "public" | "user" | "admin" | <custom>
   "audiences":  [],                // additional required aud values
@@ -125,14 +125,14 @@ The theme is responsible for refreshing the token and retrying. For BetterPortal
 
 ## 2. Config tickets
 
-Distinct from view auth. Used only on `/.well-known/bp/config*` endpoints. See `config.md` § 3 for the full spec.
+Distinct from view auth. Used only on `/.well-known/bp/config*` endpoints. See `config.md` section 3 for the full spec.
 
 Summary:
 
 - Issued by the admin service (or a designated authority).
 - JWT (RS256) with BetterPortal-specific claims: `tenantId`, `appId`, `serviceId`, `actions[]`.
 - Verified by target services against the issuer's JWKS.
-- Short-lived (≤ 5 minutes recommended).
+- Short-lived (<= 5 minutes recommended).
 
 ---
 
@@ -141,7 +141,7 @@ Summary:
 Reference auth services are provided under `services/nodejs/auth-default/` and `services/nodejs/auth-authress-io/`. `auth-default` is an OIDC-compliant identity provider that:
 
 - Issues ID + refresh tokens (RS256 JWT).
-- Exposes `POST /token` (credentials → tokens), `POST /refresh` (refresh → ID), `POST /revoke` (token → 204).
+- Exposes `POST /token` (credentials -> tokens), `POST /refresh` (refresh -> ID), `POST /revoke` (token -> 204).
 - Exposes `GET /.well-known/openid-configuration` and `GET /.well-known/jwks.json`.
 
 Apps bind an auth provider through `app.auth.serviceId`. That value points at a tenant service id or shared-service activation id. Shared providers are registered in `sharedServiceCatalog` and bound through `sharedServiceActivations`; app config should not point directly at a plugin id or shared catalog id.
@@ -207,12 +207,12 @@ A service implementing view auth:
 
 A service implementing config endpoints:
 
-- MUST follow `config.md` § 3 for ticket verification.
+- MUST follow `config.md` section 3 for ticket verification.
 
 An IdP (whether the reference auth service or a third party):
 
 - MUST serve `/.well-known/openid-configuration` and `/.well-known/jwks.json`.
-- MUST issue RS256-signed JWTs with the required claims (§ 1.3).
+- MUST issue RS256-signed JWTs with the required claims (section 1.3).
 - SHOULD support refresh tokens.
 
 See `conformance.md` for the test matrix.

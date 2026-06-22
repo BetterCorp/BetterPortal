@@ -20,11 +20,11 @@ const SETUP_TTL_SECONDS = 5 * 60;
 /**
  * Register the two CM endpoints that drive the browser-mediated install:
  *   1. POST /.well-known/bp/admin/services/begin-install
- *      → admin UI requests a setup token bound to (serviceUrl, scope?)
- *      → returns { setupToken, cpUrl, cpJwksUri }
+ *      -> admin UI requests a setup token bound to (serviceUrl, scope?)
+ *      -> returns { setupToken, cpUrl, cpJwksUri }
  *   2. POST /.well-known/bp/services/redeem
- *      → service exchanges single-use setupToken for the real apiKey
- *      → returns { apiKey, cpId, cpJwksUri }
+ *      -> service exchanges single-use setupToken for the real apiKey
+ *      -> returns { apiKey, cpId, cpJwksUri }
  */
 export function registerSetupEndpoints(input: {
   app: BetterPortalH3App;
@@ -41,7 +41,7 @@ export function registerSetupEndpoints(input: {
   }
 
   // (1) Admin asks CP to mint a setup token for a target serviceUrl.
-  // Optional instanceId — if the caller pre-assigned a UUIDv7 (e.g. bootstrap
+  // Optional instanceId - if the caller pre-assigned a UUIDv7 (e.g. bootstrap
   // commit allocates ids to embed in routes/fragments before install), use it;
   // otherwise mint one here.
   input.app.post("/.well-known/bp/admin/services/begin-install", async (event) => {
@@ -282,6 +282,6 @@ function defaultCapabilities(pluginId: string): string[] {
 
 async function hashApiKey(apiKey: string): Promise<string> {
   const { createHash } = await import("node:crypto");
-  // MUST match storage/core.ts hashApiKey — validator uses hex.
+  // MUST match storage/core.ts hashApiKey - validator uses hex.
   return createHash("sha256").update(apiKey).digest("hex");
 }

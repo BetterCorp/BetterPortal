@@ -1,4 +1,4 @@
-# BetterPortal Protocol — HTTP Surface
+# BetterPortal Protocol - HTTP Surface
 
 **Version:** `bp-protocol/1`
 **Status:** Draft
@@ -52,9 +52,9 @@ Before a service has synced or loaded local config, only core bootstrap/discover
 
 In addition to well-known endpoints, services expose **view routes** declared in the manifest. Each view advertises one or more paths and HTTP methods. Routes outside `/.well-known/bp/*` are the service's view surface.
 
-A view route MUST accept content negotiation (see § 3) and respond with either:
+A view route MUST accept content negotiation (see section 3) and respond with either:
 - `application/json` (the canonical response shape per the view's schema)
-- `text/html` (a theme-rendered representation; theme determined per § 3.3)
+- `text/html` (a theme-rendered representation; theme determined per section 3.3)
 
 A view route MAY also support `application/vnd.betterportal.metadata+json` for tooling.
 
@@ -86,20 +86,20 @@ If `Access-Control-Allow-Origin` is reflected per-request, the response MUST inc
 
 ### 2.1 Why expose `HX-*` headers
 
-HTMX read `HX-Trigger`, `HX-Location`, etc. from response headers. Browsers strip non-CORS-safelisted response headers by default. The list above is the minimum set that enables BetterPortal's live-refresh patterns (see `fragment-html.md` § 4) across origins.
+HTMX read `HX-Trigger`, `HX-Location`, etc. from response headers. Browsers strip non-CORS-safelisted response headers by default. The list above is the minimum set that enables BetterPortal's live-refresh patterns (see `fragment-html.md` section 4) across origins.
 
 ## 3. Content negotiation
 
 ### 3.1 Accept header
 
-A view route inspects the `Accept` header (RFC 7231 § 5.3.2):
+A view route inspects the `Accept` header (RFC 7231 section 5.3.2):
 
-- `application/json` → JSON response per the view's `ResponseSchema`.
-- `text/html` → HTML response (themed; see § 3.3).
-- `application/vnd.betterportal.metadata+json` → metadata about the view (optional).
-- `application/x-ndjson` → streamed frame-per-line response, streaming views only (see `streaming.md`). Non-streaming views return `406`.
-- Multiple types → highest q-weight wins; ties broken by the order above.
-- No `Accept` header or `*/*` → service default (RECOMMENDED: JSON).
+- `application/json` -> JSON response per the view's `ResponseSchema`.
+- `text/html` -> HTML response (themed; see section 3.3).
+- `application/vnd.betterportal.metadata+json` -> metadata about the view (optional).
+- `application/x-ndjson` -> streamed frame-per-line response, streaming views only (see `streaming.md`). Non-streaming views return `406`.
+- Multiple types -> highest q-weight wins; ties broken by the order above.
+- No `Accept` header or `*/*` -> service default (RECOMMENDED: JSON).
 
 Unsupported types return `406 Not Acceptable`.
 
@@ -108,9 +108,9 @@ Unsupported types return `406 Not Acceptable`.
 HTMX requests SHOULD include a `mode` parameter on the HTML Accept type:
 
 ```
-Accept: text/html; mode=page       — full-page render (initial load)
-Accept: text/html; mode=fragment   — fragment render (HTMX swap)
-Accept: text/html; mode=embed      — embedded render (third-party iframe-substitute)
+Accept: text/html; mode=page       - full-page render (initial load)
+Accept: text/html; mode=fragment   - fragment render (HTMX swap)
+Accept: text/html; mode=embed      - embedded render (third-party iframe-substitute)
 ```
 
 If `mode` is omitted, the server SHOULD respond as `mode=page`.
@@ -130,8 +130,8 @@ If the negotiated theme is not supported by the view, the server returns `406` w
 
 For HTML responses, the query string MAY include:
 
-- `?_f=<location>.<fragmentId>` — render only that fragment (location and id MUST match the manifest).
-- `?_c=<componentId>` — render only that component.
+- `?_f=<location>.<fragmentId>` - render only that fragment (location and id MUST match the manifest).
+- `?_c=<componentId>` - render only that component.
 
 These selectors MUST be honored on **any** view route, not only the canonical view path. They are how the theme pulls fragments without needing per-fragment endpoints.
 
@@ -179,8 +179,8 @@ Status codes follow HTTP conventions:
 Reverse-DNS, lowercase, `[a-z0-9.-]+`:
 
 ```
-service.<org>.<name>           — business services
-theme.<org>.<name>             — themes
+service.<org>.<name>           - business services
+theme.<org>.<name>             - themes
 ```
 
 Examples: `service.betterportal.hello-view`, `theme.betterportal.bootstrap1`.
@@ -198,11 +198,11 @@ Examples: `service.betterportal.hello-view`, `theme.betterportal.bootstrap1`.
 
 | Header | When | Meaning |
 |---|---|---|
-| `Accept` | every view request | content negotiation (§ 3) |
+| `Accept` | every view request | content negotiation (section 3) |
 | `Authorization: Bearer <token>` | protected routes, config endpoints | see `auth.md` |
 | `X-BP-Tenant-Id` | service config read/write | tenant scope; MUST match the ticket if a ticket is present |
 | `X-BP-App-Id` | service config read/write (app-scoped) | app scope under the tenant |
-| `X-BP-Theme` | view requests | override theme (see § 3.3) |
+| `X-BP-Theme` | view requests | override theme (see section 3.3) |
 | `HX-*` | HTMX requests | per htmx.org spec; servers MAY use to detect HTMX swaps |
 
 ## 7. Standard response headers
@@ -225,7 +225,7 @@ Services MAY set cookies scoped to their own origin for non-auth purposes (e.g.,
 
 ## 9. Optional: SSE endpoints
 
-Services MAY expose Server-Sent Events streams for views (see `sse.md` and § 11 below). The conventional path is `<route.path>/__sse`. SSE responses have `Content-Type: text/event-stream`; ext-aware clients (HTMX `hx-sse` ext) consume them inline.
+Services MAY expose Server-Sent Events streams for views (see `sse.md` and section 11 below). The conventional path is `<route.path>/__sse`. SSE responses have `Content-Type: text/event-stream`; ext-aware clients (HTMX `hx-sse` ext) consume them inline.
 
 ## 10. Versioning
 

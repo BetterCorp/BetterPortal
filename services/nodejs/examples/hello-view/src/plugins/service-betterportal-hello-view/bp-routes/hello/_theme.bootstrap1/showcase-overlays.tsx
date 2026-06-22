@@ -14,7 +14,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <p class="text-body-secondary">Modals, split-pane detail panels, toasts, tooltips, and popovers.</p>
         </div>
 
-        {/* ── Modals ── */}
+        {/* -- Modals -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Modals</h5>
@@ -172,7 +172,7 @@ export function render(data: ResponseData): HtmlRenderable {
             <div class="modal-content">
               <div class="modal-body text-center py-4">
                 <div class="mb-3">
-                  <span class="badge text-bg-danger rounded-circle d-inline-flex align-items-center justify-content-center" style="width:3rem;height:3rem;font-size:1.25rem;">✕</span>
+                  <span class="badge text-bg-danger rounded-circle d-inline-flex align-items-center justify-content-center" style="width:3rem;height:3rem;font-size:1.25rem;">X</span>
                 </div>
                 <h5>Delete Item?</h5>
                 <p class="text-body-secondary mb-0">This action cannot be undone. The item and all associated data will be permanently removed.</p>
@@ -185,16 +185,16 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Detail Panel (split-pane) ── */}
+        {/* -- Detail Panel (split-pane) -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Detail Panel (Split-Pane)</h5>
             <p class="text-body-secondary mb-3">Desktop: content shifts left, panel appears as card on right. Mobile: slides in as overlay.</p>
-            <button class="btn btn-primary" data-bp-toggle-detail>Toggle Detail Panel →</button>
+            <button class="btn btn-primary" data-bp-toggle-detail>Toggle Detail Panel {"->"}</button>
           </div>
         </div>
 
-        {/* ── Toasts ── */}
+        {/* -- Toasts -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Toasts (Static Preview)</h5>
@@ -231,7 +231,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Tooltips & Popovers ── */}
+        {/* -- Tooltips & Popovers -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Tooltips &amp; Popovers</h5>
@@ -251,7 +251,7 @@ export function render(data: ResponseData): HtmlRenderable {
       </div>
       </div>{/* end bp-split-pane__content */}
 
-      {/* ── Detail panel (right column on desktop, overlay on mobile) ── */}
+      {/* -- Detail panel (right column on desktop, overlay on mobile) -- */}
       <div class="bp-split-pane__detail">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h6 class="mb-0">User Details</h6>

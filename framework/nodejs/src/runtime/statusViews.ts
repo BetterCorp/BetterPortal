@@ -38,14 +38,14 @@ export function resolveStatusRenderer(
 
 /**
  * Status code policy:
- * - 200, 201, 202 (and other 2xx): success — fall back to default renderer if no specific one.
+ * - 200, 201, 202 (and other 2xx): success - fall back to default renderer if no specific one.
  * - 204, 205, 206: no body (HTTP forbids body or strongly discourages).
  * - 1xx, 3xx: no body emitted by framework.
  * - 4xx, 5xx: try specific renderer; if absent, return status with empty body.
  */
 export function shouldFallThroughToDefaultRenderer(statusCode: number): boolean {
   if (statusCode === 200 || statusCode === 201 || statusCode === 202) return true;
-  // Other 2xx that allow a body (203, 207, 208, 226) — fall through too.
+  // Other 2xx that allow a body (203, 207, 208, 226) - fall through too.
   if (statusCode >= 200 && statusCode <= 299 && ![204, 205, 206].includes(statusCode)) return true;
   return false;
 }

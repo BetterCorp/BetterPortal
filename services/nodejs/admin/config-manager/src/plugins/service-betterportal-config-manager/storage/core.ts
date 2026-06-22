@@ -213,7 +213,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
 
     for (const ps of config.platformServices) {
       if (ps.enabled && ps.apiKeyHash === hash) {
-        // Return the UUIDv7 instance id — routes/fragments/app.themeId all key off it.
+        // Return the UUIDv7 instance id - routes/fragments/app.themeId all key off it.
         // (ps.serviceId is the pluginId reference; not used for routing.)
         return { scope: "platform", serviceId: ps.id, service: ps };
       }
@@ -443,7 +443,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
       title: tenant.title,
       active: tenant.active,
       branding: tenant.branding,
-      // apiKeyHash redacted — services know their own key, others have no need.
+      // apiKeyHash redacted - services know their own key, others have no need.
       services: [
         ...tenant.services.map(({ apiKeyHash: _hash, ...rest }) => ({ ...rest, source: "tenant" as const })),
         ...sharedServices

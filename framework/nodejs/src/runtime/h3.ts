@@ -48,7 +48,7 @@ export function eventObservability(event: BetterPortalEvent): BetterPortalObserv
 }
 
 /**
- * The direct socket peer IP of the request — i.e. NOT derived from
+ * The direct socket peer IP of the request - i.e. NOT derived from
  * X-Forwarded-For. Use this to decide whether a request actually arrived from a
  * trusted upstream proxy before honouring any proxy-supplied headers.
  */

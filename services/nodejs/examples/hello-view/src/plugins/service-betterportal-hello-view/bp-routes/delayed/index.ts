@@ -6,7 +6,7 @@ import {
   type CacheHints
 } from "@betterportal/framework";
 
-// ── Schemas (spec/streaming.md — item is the canonical contract) ────
+// -- Schemas (spec/streaming.md - item is the canonical contract) ----
 
 export const QuerySchema = av.object({
   count: av.string().default("5"),
@@ -26,7 +26,7 @@ export const SummarySchema = av.object({
 }, { unknownKeys: "strip" });
 export type DelayedSummary = Infer<typeof SummarySchema>;
 
-// ── Metadata ────────────────────────────────────────────────────────
+// -- Metadata --------------------------------------------------------
 
 export const title = "Delayed Stream";
 export const description = "Example streaming view: items arrive one by one as a slow data source produces them. JSON buffers, NDJSON streams frames, HTML streams rendered rows over SSE.";
@@ -41,7 +41,7 @@ export const cacheHints: CacheHints = {
   varyBy: ["accept", "origin"]
 };
 
-// ── Handler — async generator; the framework drives representation ──
+// -- Handler - async generator; the framework drives representation --
 
 function clampInt(raw: string, min: number, max: number, fallback: number): number {
   const parsed = Number.parseInt(raw, 10);

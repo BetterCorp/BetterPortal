@@ -162,7 +162,7 @@ Services and themes MAY define additional events with the `bp:` prefix. Non-rese
 
 ### 4.2 Cross-origin trigger reception
 
-For `HX-Trigger` to be readable cross-origin, the response MUST include the trigger headers in `Access-Control-Expose-Headers`. See `protocol.md` § 2.
+For `HX-Trigger` to be readable cross-origin, the response MUST include the trigger headers in `Access-Control-Expose-Headers`. See `protocol.md` section 2.
 
 ## 5. Boolean attributes and special markers
 
@@ -193,7 +193,7 @@ The same view path can return three different HTML shapes:
 
 | `Accept` header / query | Response |
 |---|---|
-| `text/html; mode=page` (default) | Full body content. NO `<html>`, `<head>`, or `<body>` wrappers — the theme provides those. |
+| `text/html; mode=page` (default) | Full body content. NO `<html>`, `<head>`, or `<body>` wrappers - the theme provides those. |
 | `text/html; mode=fragment` (HTMX request) | Same content as `page` but optimized for swap (skip heavy decorations). |
 | `text/html; mode=fragment` + `?_f=loc.id` | ONLY the fragment HTML for the given location/id. |
 | `text/html; mode=fragment` + `?_c=componentId` | ONLY the component HTML. |

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 /**
- * Generate a UUIDv7 (RFC 9562) — timestamp-sortable, globally unique.
+ * Generate a UUIDv7 (RFC 9562) - timestamp-sortable, globally unique.
  * Layout: 48-bit unix_ts_ms | 4-bit version(7) | 12-bit rand_a | 2-bit variant(10) | 62-bit rand_b
  */
 export function uuidv7(): string {

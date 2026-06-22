@@ -2,9 +2,9 @@
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
-/* ════════════════════════════════════════════
+/*
    Showcase: Cards & Containers
-   ════════════════════════════════════════════ */
+    */
 
 export function render(data: ResponseData): HtmlRenderable {
   return (
@@ -61,7 +61,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   <div class="small text-body-secondary mb-1">{stat.label}</div>
                   <div class="h4 mb-1">{stat.value}</div>
                   <div class={`small ${stat.positive ? "text-success" : "text-danger"}`}>
-                    {stat.positive ? "↑" : "↓"} {stat.change}
+                    {stat.positive ? "^" : "v"} {stat.change}
                   </div>
                 </div>
               </div>

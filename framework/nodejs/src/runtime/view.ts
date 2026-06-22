@@ -147,7 +147,7 @@ export function negotiateViewResponse<ResponseSchema extends AnySchema>(
   }
 
   // NDJSON streaming is only supported by streaming routes (spec/streaming.md),
-  // which negotiate in the adapter — never through this buffered path.
+  // which negotiate in the adapter - never through this buffered path.
   if (requested.kind === "ndjson") {
     return {
       status: 406,

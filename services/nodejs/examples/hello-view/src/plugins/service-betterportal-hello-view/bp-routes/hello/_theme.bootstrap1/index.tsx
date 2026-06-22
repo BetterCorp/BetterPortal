@@ -10,7 +10,7 @@ function statCard(label: string, value: string, change: string, positive: boolea
           <div class="small text-body-secondary mb-1">{label}</div>
           <div class="h4 mb-1">{value}</div>
           <div class={`small ${positive ? "text-success" : "text-danger"}`}>
-            {positive ? "↑" : "↓"} {change}
+            {positive ? "^" : "v"} {change}
           </div>
         </div>
       </div>
@@ -23,7 +23,7 @@ export function render(data: ResponseData): HtmlRenderable {
     <section class="container-fluid px-0">
       <div class="d-flex flex-column gap-4">
 
-        {/* ── Hero ── */}
+        {/* -- Hero -- */}
         <div>
           <h1 class="h3 mb-1">{data.greeting}</h1>
           <p class="text-body-secondary mb-0">
@@ -31,7 +31,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </p>
         </div>
 
-        {/* ── Stat cards ── */}
+        {/* -- Stat cards -- */}
         <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
           {statCard("Total Users", "12,482", "14% vs last month", true)}
           {statCard("Revenue", "$48,290", "8.2% vs last month", true)}
@@ -39,7 +39,7 @@ export function render(data: ResponseData): HtmlRenderable {
           {statCard("Avg. Response", "124ms", "12% improvement", true)}
         </div>
 
-        {/* ── Content sections ── */}
+        {/* -- Content sections -- */}
         <div class="row g-3">
           <div class="col-lg-8">
             <div class="card border-0 shadow-sm">
@@ -72,7 +72,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Table-like section ── */}
+        {/* -- Table-like section -- */}
         <div class="card border-0 shadow-sm">
           <div class="card-body">
             <h2 class="h5 mb-3">Recent Activity</h2>
@@ -101,7 +101,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Long-form content ── */}
+        {/* -- Long-form content -- */}
         <div class="card border-0 shadow-sm">
           <div class="card-body">
             <h2 class="h5 mb-3">Architecture Notes</h2>

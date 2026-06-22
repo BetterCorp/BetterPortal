@@ -24,7 +24,7 @@ function buildDefaultAdminRoutes(cmInstanceId: string, authServiceInstanceId: st
     { id: uuidv7(), path: "/preview", serviceId: cmInstanceId, viewId: "preview.index", title: "Preview", icon: "eye", enabled: true, methods: ["GET"] },
     { id: uuidv7(), path: "/auth", serviceId: cmInstanceId, viewId: "auth.index", title: "Permissions", icon: "shield", enabled: true, methods: ["GET"] },
     { id: uuidv7(), path: "/config", serviceId: cmInstanceId, viewId: "config.index", title: "Config", icon: "settings", enabled: true, methods: ["GET"] },
-    // Login page (unauthenticated landing) — required for the /login redirect to land somewhere.
+    // Login page (unauthenticated landing) - required for the /login redirect to land somewhere.
     { id: uuidv7(), path: "/login", serviceId: authServiceInstanceId, viewId: "login.index", title: "Sign In", enabled: true, methods: ["GET", "POST"] },
     { id: uuidv7(), path: "/logout", serviceId: authServiceInstanceId, viewId: "logout.index", title: "Sign Out", enabled: true, methods: ["GET", "POST"] },
     { id: uuidv7(), path: "/refresh", serviceId: authServiceInstanceId, viewId: "refresh.index", title: "Refresh Session", enabled: true, methods: ["POST"] },
@@ -181,7 +181,7 @@ export async function registerBootstrapEndpoint(input: {
       ]
     };
 
-    // CM registers itself as a tenant service (self-install — no /redeem cycle).
+    // CM registers itself as a tenant service (self-install - no /redeem cycle).
     // serviceId carries the pluginId for lookups; id is the platform UUIDv7.
     const cmServiceRegistration = {
       id: cmInstanceId,

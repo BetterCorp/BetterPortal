@@ -16,7 +16,7 @@ function pushPathOf(url: string | undefined, fallback: string): string {
 
 /** Client-side confirm-password gate; everything else is server-rendered. */
 function registerScript(): HtmlRenderable {
-  // IIFE — htmx executes swapped <script> content as a plain script, where a
+  // IIFE - htmx executes swapped <script> content as a plain script, where a
   // top-level `return` inside a bare block is a SyntaxError.
   return js(`(() => {
     const form = document.getElementById("bp-register-form");
@@ -95,7 +95,7 @@ function renderForm(data: ResponseData): HtmlRenderable {
 }
 
 export function render(data: ResponseData): HtmlRenderable {
-  // POST success — server-rendered confirmation, then on to sign-in.
+  // POST success - server-rendered confirmation, then on to sign-in.
   if (data.status === "ok" && data.user) {
     return (
       <div class="container py-5" style="max-width: 420px;">
@@ -105,9 +105,9 @@ export function render(data: ResponseData): HtmlRenderable {
             <div class="alert alert-success mb-3">
               <strong>{data.user.username}</strong> is now the platform administrator.
             </div>
-            <p class="text-secondary small mb-0">Taking you to sign in…</p>
+            <p class="text-secondary small mb-0">Taking you to sign in...</p>
             {data.loginUrl
-              ? redirectStub(data.loginUrl, pushPathOf(data.loginUrl, "/login"), "Redirecting to sign in…")
+              ? redirectStub(data.loginUrl, pushPathOf(data.loginUrl, "/login"), "Redirecting to sign in...")
               : <a class="btn btn-primary mt-3" href="/login">Sign in</a>}
           </div>
         </div>
@@ -115,15 +115,15 @@ export function render(data: ResponseData): HtmlRenderable {
     );
   }
 
-  // POST validation error (rendered via the 400 status view) — form + message.
+  // POST validation error (rendered via the 400 status view) - form + message.
   if (data.status === "error") {
     return renderForm(data);
   }
 
-  // GET with users already present — registrations are closed; bounce to login.
+  // GET with users already present - registrations are closed; bounce to login.
   if (!data.registrationOpen) {
     if (data.loginUrl) {
-      return redirectStub(data.loginUrl, pushPathOf(data.loginUrl, "/login"), "Redirecting to sign in…");
+      return redirectStub(data.loginUrl, pushPathOf(data.loginUrl, "/login"), "Redirecting to sign in...");
     }
     return (
       <div class="container py-5" style="max-width: 420px;">
@@ -132,6 +132,6 @@ export function render(data: ResponseData): HtmlRenderable {
     );
   }
 
-  // GET, zero users — the first-admin form.
+  // GET, zero users - the first-admin form.
   return renderForm(data);
 }

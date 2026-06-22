@@ -1,6 +1,6 @@
 import type { ScanResult, ScannedRoute } from "./scanner.js";
 
-// ── Types ────────────────────────────────────────────────────────────
+// -- Types ------------------------------------------------------------
 
 export interface ValidationError {
   file: string;
@@ -8,12 +8,12 @@ export interface ValidationError {
   severity: "error" | "warning";
 }
 
-// ── Fragment file-name pattern ───────────────────────────────────────
+// -- Fragment file-name pattern ---------------------------------------
 
-/** Matches `_{location}.{id}.tsx` — at least two dot-separated parts after `_`. */
+/** Matches `_{location}.{id}.tsx` - at least two dot-separated parts after `_`. */
 const FRAGMENT_PATTERN = /^_([a-zA-Z][a-zA-Z0-9]*)\.([a-zA-Z][a-zA-Z0-9]*)\.tsx$/;
 
-// ── Validation helpers ───────────────────────────────────────────────
+// -- Validation helpers -----------------------------------------------
 
 function checkHandlerExports(route: ScannedRoute, errors: ValidationError[]): void {
   const hasHandler = route.handlerExports.some((e) => e.startsWith("handle"));
@@ -45,7 +45,7 @@ function checkResponseSchema(route: ScannedRoute, errors: ValidationError[]): vo
     if (route.handlerExports.includes("ResponseSchema")) {
       errors.push({
         file: route.relativePath + "/index.ts",
-        message: `Route "${route.viewId}" exports both ItemSchema and ResponseSchema. Streaming routes derive their response schema — remove ResponseSchema.`,
+        message: `Route "${route.viewId}" exports both ItemSchema and ResponseSchema. Streaming routes derive their response schema - remove ResponseSchema.`,
         severity: "error",
       });
     }
@@ -139,7 +139,7 @@ function checkThemeRendererOrphans(route: ScannedRoute, errors: ValidationError[
   for (const renderer of route.themeRenderers) {
     if (!renderer.relativePath.includes(route.relativePath.replace(/\/index\.ts$/, ""))) {
       // The renderer's relative path does not share the route's base
-      // directory — this should never happen with the scanner, but
+      // directory - this should never happen with the scanner, but
       // guard against hand-edited ScanResults.
       errors.push({
         file: renderer.relativePath,
@@ -164,7 +164,7 @@ function checkMissingThemeRenderers(route: ScannedRoute, errors: ValidationError
   }
 }
 
-// ── Public API ───────────────────────────────────────────────────────
+// -- Public API -------------------------------------------------------
 
 /**
  * Validate a `ScanResult` for convention violations.

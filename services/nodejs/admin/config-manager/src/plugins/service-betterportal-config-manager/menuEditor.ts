@@ -12,7 +12,7 @@ import { getManifestCache } from "./syncApi.js";
 
 const API_BASE = "/.well-known/bp/admin";
 
-// ── Types ────────────────────────────────────────────────────────────
+// -- Types ------------------------------------------------------------
 
 interface MenuItem {
   id: string;
@@ -35,7 +35,7 @@ interface Route {
   targetPath?: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
+// -- Helpers ----------------------------------------------------------
 
 async function readFormBody(event: BetterPortalEvent): Promise<Record<string, string>> {
   const fd = await event.req.formData().catch(() => null);
@@ -85,7 +85,7 @@ function getRoutes(appDef: any): Route[] {
 }
 
 function getServiceTitle(config: any, serviceId: string | undefined): string {
-  if (!serviceId) return "—";
+  if (!serviceId) return "-";
   for (const t of config.tenants ?? []) {
     const s = (t.services ?? []).find((x: any) => x.id === serviceId);
     if (s) return s.title || s.serviceId || s.id;
@@ -135,7 +135,7 @@ function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: s
     }));
 }
 
-// ── Row renderer (3 modes per item) ──────────────────────────────────
+// -- Row renderer (3 modes per item) ----------------------------------
 
 type RowMode = "display" | "edit-title" | "edit-external" | "edit-link";
 
@@ -145,7 +145,7 @@ function rowAttrs(item: MenuItem, depth: number): string {
 
 function titleDisplayHtml(item: MenuItem, route: Route | null, appId: string): string {
   const titleText =
-    item.type === "divider" ? "— divider —" :
+    item.type === "divider" ? "- divider -" :
     item.type === "section" ? `[${item.title || "Section"}]` :
     item.type === "external" ? (item.title || item.href || "External") :
     item.type === "group" ? (item.title || "Group") :
@@ -181,7 +181,7 @@ function subLineHtml(item: MenuItem, route: Route | null, config: any, appId: st
         hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-external"
         hx-target="#bp-menu-row-${item.id}"
         hx-swap="outerHTML"
-        title="Edit URL">✎</button>
+        title="Edit URL">Edit</button>
     </div>`;
   }
 
@@ -193,16 +193,16 @@ function subLineHtml(item: MenuItem, route: Route | null, config: any, appId: st
   const serviceTitle = getServiceTitle(config, route.serviceId);
   return `<div class="small d-flex align-items-center gap-2 flex-wrap">
     <span class="badge text-bg-secondary">${escapeHtml(serviceTitle)}</span>
-    <span class="text-secondary">·</span>
+    <span class="text-secondary">-</span>
     <span class="font-monospace">${escapeHtml(route.viewId ?? "(view?)")}</span>
-    <span class="text-secondary">→</span>
+    <span class="text-secondary">-></span>
     <span class="font-monospace text-secondary">${escapeHtml(route.path)}</span>
     ${route.targetPath && route.targetPath !== route.path ? `<span class="text-secondary">(target: <span class="font-monospace">${escapeHtml(route.targetPath)}</span>)</span>` : ""}
     <button type="button" class="btn btn-sm btn-link p-0 ms-1"
       hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-link"
       hx-target="#bp-menu-row-${item.id}"
       hx-swap="outerHTML"
-      title="Edit URL & paths">✎</button>
+      title="Edit URL & paths">Edit</button>
   </div>`;
 }
 
@@ -226,7 +226,7 @@ function actionButtons(item: MenuItem, appId: string): string {
   return `<div class="btn-group btn-group-sm" role="group">
     ${expandedBtn}
     ${btn("toggle", item.enabled ? "on" : "off", item.enabled ? "btn-success" : "btn-outline-secondary", item.enabled ? "Disable" : "Enable")}
-    ${btn("remove", "×", "btn-outline-danger", "Remove")}
+    ${btn("remove", "x", "btn-outline-danger", "Remove")}
   </div>`;
 }
 
@@ -243,10 +243,10 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
         <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
         <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
         <input type="text" name="title" class="form-control form-control-sm flex-grow-1" value="${escapeHtml(item.title ?? "")}" autofocus />
-        <button type="submit" class="btn btn-sm btn-success" title="Save">✓</button>
+        <button type="submit" class="btn btn-sm btn-success" title="Save">OK</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" title="Cancel"
           hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
-          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">✕</button>
+          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">X</button>
       </form>
     </li>`;
   }
@@ -264,10 +264,10 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
         <label class="form-label small mb-0">URL</label>
         <input type="url" name="href" class="form-control form-control-sm" value="${escapeHtml(item.href ?? "")}" placeholder="https://..." required />
         <div class="d-flex gap-2 justify-content-end">
-          <button type="submit" class="btn btn-sm btn-success">✓ Save</button>
+          <button type="submit" class="btn btn-sm btn-success">OK Save</button>
           <button type="button" class="btn btn-sm btn-outline-secondary"
             hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
-            hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">✕ Cancel</button>
+            hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">X Cancel</button>
         </div>
       </form>
     </li>`;
@@ -276,7 +276,7 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
   // display mode
   return `<li ${rowAttrs(item, depth)} class="list-group-item">
     <div class="d-flex align-items-start gap-3">
-      <span class="text-secondary" style="cursor:grab; padding-top:0.3rem; user-select:none; font-size:1.1rem; line-height:1;" title="Drag to reorder">⋮⋮</span>
+      <span class="text-secondary" style="cursor:grab; padding-top:0.3rem; user-select:none; font-size:0.75rem; line-height:1;" title="Drag to reorder">drag</span>
       <div class="d-flex flex-column gap-1 flex-grow-1 min-width-0">
         <div class="d-flex align-items-center gap-2">
           <span class="badge ${typeBadgeClass}">${escapeHtml(item.type)}</span>
@@ -351,12 +351,12 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
         </div>
       </div>
       <div class="d-flex gap-2 justify-content-end">
-        <button type="submit" class="btn btn-sm btn-success">✓ Save</button>
+        <button type="submit" class="btn btn-sm btn-success">OK Save</button>
         <button type="button" class="btn btn-sm btn-outline-secondary"
           hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
-          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">✕ Cancel</button>
+          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">X Cancel</button>
       </div>
-      <div class="small text-secondary">Path/target/service/view edits update the underlying route — affects any other menu items referencing it.</div>
+      <div class="small text-secondary">Path/target/service/view edits update the underlying route - affects any other menu items referencing it.</div>
     </form>
   </li>`;
 }
@@ -488,7 +488,7 @@ function renderEditor(config: any, appDef: any, appId: string): string {
   </div>`;
 }
 
-// ── Endpoint registration ────────────────────────────────────────────
+// -- Endpoint registration --------------------------------------------
 
 export function registerMenuEditorRoutes(app: BetterPortalH3App, store: PlatformConfigStore): void {
 
@@ -607,7 +607,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     });
   });
 
-  // Cascade: serviceId change → view options (sourced from local manifest cache)
+  // Cascade: serviceId change -> view options (sourced from local manifest cache)
   app.get(`${API_BASE}/menu-editor/views`, async (event) => {
     const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
     const serviceId = url.searchParams.get("serviceId") ?? "";
@@ -616,7 +616,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     return htmlResponse(renderViewOptions(views, ""), 200, "text/html; mode=fragment");
   });
 
-  // View change → returns new targetPath input pre-filled with view's default path
+  // View change -> returns new targetPath input pre-filled with view's default path
   app.get(`${API_BASE}/menu-editor/default-target`, async (event) => {
     const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
     const serviceId = url.searchParams.get("serviceId") ?? "";

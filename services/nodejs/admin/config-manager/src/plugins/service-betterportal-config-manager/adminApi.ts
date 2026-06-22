@@ -1878,7 +1878,7 @@ function renderWizardStep2(d: { tenantId: string; hostname: string; pluginId: st
       <div class="form-text">Auto-filled from manifest. Edit if needed.</div>
     </div>
     <div class="d-flex gap-2">
-      <button type="button" class="btn btn-outline-secondary" hx-get="/.well-known/bp/admin/wizard/step1" hx-target="#bp-wizard-step" hx-swap="outerHTML">← Back</button>
+      <button type="button" class="btn btn-outline-secondary" hx-get="/.well-known/bp/admin/wizard/step1" hx-target="#bp-wizard-step" hx-swap="outerHTML"><- Back</button>
       <button type="submit" class="btn btn-primary flex-grow-1">Register Service</button>
     </div>
   </form>
@@ -2041,7 +2041,7 @@ function renderConfigForm(d: {
     : "";
 
   if (d.needsApp && !d.appId) {
-    return `<div class="small text-secondary mb-3">${escapeHtml(d.serviceTitle)} · <span class="font-monospace">${escapeHtml(d.hostname)}</span></div>
+    return `<div class="small text-secondary mb-3">${escapeHtml(d.serviceTitle)} - <span class="font-monospace">${escapeHtml(d.hostname)}</span></div>
 ${appSelector}
 <div class="alert alert-info">Select an app to load its config</div>`;
   }
@@ -2057,7 +2057,7 @@ ${appSelector}
     </div>`;
   }).join("");
 
-  return `<div class="small text-secondary mb-3">${escapeHtml(d.serviceTitle)} · <span class="font-monospace">${escapeHtml(d.hostname)}</span></div>
+  return `<div class="small text-secondary mb-3">${escapeHtml(d.serviceTitle)} - <span class="font-monospace">${escapeHtml(d.hostname)}</span></div>
 ${appSelector}
 <form hx-post="/.well-known/bp/admin/configure-save" hx-target="#bp-config-save-status" hx-swap="innerHTML"
   hx-on::after-request="if(event.detail.successful) setTimeout(()=>bootstrap.Offcanvas.getInstance(document.getElementById('bp-config-edit-panel'))?.hide(), 800)">

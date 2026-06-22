@@ -23,7 +23,7 @@ export interface BufferedStreamResult {
 export interface StreamDriverSink {
   onItem(item: unknown): Promise<void> | void;
   onSummary(summary: unknown): Promise<void> | void;
-  /** Terminal — exactly one of onError / onEnd fires, then nothing. */
+  /** Terminal - exactly one of onError / onEnd fires, then nothing. */
   onError(frame: StreamErrorFrame): Promise<void> | void;
   onEnd(count: number): Promise<void> | void;
 }
@@ -39,7 +39,7 @@ function toErrorFrame(error: unknown): StreamErrorFrame {
 
 /**
  * Drive the generator, validating each frame payload, and report frames to
- * the sink in legal order: items → summary? → exactly one terminal.
+ * the sink in legal order: items -> summary? -> exactly one terminal.
  */
 export async function driveStream(
   handler: AnyStreamHandler,
@@ -73,7 +73,7 @@ export async function driveStream(
 
 /**
  * Run the stream to completion and assemble the derived buffered shape
- * `{ items, summary? }` (spec/streaming.md § 2.1). Throws on any failure so
+ * `{ items, summary? }` (spec/streaming.md section 2.1). Throws on any failure so
  * buffered representations surface real HTTP status codes.
  */
 export async function driveStreamBuffered(
@@ -101,7 +101,7 @@ export async function driveStreamBuffered(
 }
 
 /**
- * NDJSON representation (spec/streaming.md § 2.2): one frame per line,
+ * NDJSON representation (spec/streaming.md section 2.2): one frame per line,
  * flushed per frame, in-band terminal frame.
  */
 export function ndjsonStreamResponse(

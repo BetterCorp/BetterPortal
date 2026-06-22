@@ -3,13 +3,13 @@ import type { BaseSchema, Infer } from "anyvali";
 import type { RouteHandlerContext } from "../contracts/route.js";
 import { BP_STREAM_HANDLER, type BpStreamHandler } from "../contracts/streaming.js";
 
-// ── Schema configuration ─────────────────────────────────────────────
+// -- Schema configuration ---------------------------------------------
 
 /**
  * Schema configuration for a streaming route handler.
  * `item` is required (the canonical per-frame payload); `summary` is the
  * optional end-of-stream aggregate. Cross-item invariants belong in `summary`,
- * not `item` — see spec/streaming.md § 3.
+ * not `item` - see spec/streaming.md section 3.
  */
 export interface StreamHandlerSchemas<
   TItem extends BaseSchema<unknown, unknown>,
@@ -32,14 +32,14 @@ type SchemaOutput<
 type SummaryReturn<TSummary extends BaseSchema<unknown, unknown> | undefined> =
   TSummary extends BaseSchema<unknown, unknown> ? Infer<TSummary> : void;
 
-// ── Factory ──────────────────────────────────────────────────────────
+// -- Factory ----------------------------------------------------------
 
 /**
  * Create a streaming route handler. Mirrors `createHandler` but the handler is
  * an async generator yielding items; the generator's `return` value is the
  * summary frame (when a `summary` schema is declared).
  *
- * The adapter — not this factory — drives the stream: it validates every
+ * The adapter - not this factory - drives the stream: it validates every
  * yielded item against `schemas.item` before emission and negotiates the
  * representation (buffered JSON / NDJSON frames / themed HTML over SSE).
  *

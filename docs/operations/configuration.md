@@ -123,7 +123,7 @@ Common fields:
 | `host` | Bind host. Usually `0.0.0.0` locally. |
 | `port` | Service port. |
 | `storage` | Config-manager storage backend. Defaults to `backend: file` and `configPath: ./bp-config.yaml` relative to the BSB service cwd. Use `backend: postgres` with `connectionString` for PostgreSQL. |
-| `configApiToken` | **Dev only.** Static bearer for the local config-API fallback. Inert unless `BP_ALLOW_DEV_CONFIG_TOKEN=true` is also set in the environment. Production verifies CP-signed tickets via the CP JWKS and needs no token — do **not** set this in production. |
+| `configApiToken` | **Dev only.** Static bearer for the local config-API fallback. Inert unless `BP_ALLOW_DEV_CONFIG_TOKEN=true` is also set in the environment. Production verifies CP-signed tickets via the CP JWKS and needs no token - do **not** set this in production. |
 | `configEncryptionKey` | Key for encrypted service config values. |
 
 ## Common mistakes

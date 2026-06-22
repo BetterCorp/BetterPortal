@@ -12,7 +12,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <p class="text-body-secondary">Accordions, collapse, spinners, placeholders, breadcrumbs, and range inputs.</p>
         </div>
 
-        {/* ── Accordion ── */}
+        {/* -- Accordion -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Accordion</h5>
@@ -25,7 +25,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 </h2>
                 <div id="acc-1" class="accordion-collapse collapse show" data-bs-parent="#showcase-accordion">
                   <div class="accordion-body text-body-secondary">
-                    BetterPortal uses a theme plugin system. Each theme provides renderers for standard Bootstrap components. Services write vanilla Bootstrap HTML and the theme's CSS overrides handle the visual treatment — glass neumorphic in this case.
+                    BetterPortal uses a theme plugin system. Each theme provides renderers for standard Bootstrap components. Services write vanilla Bootstrap HTML and the theme's CSS overrides handle the visual treatment - glass neumorphic in this case.
                   </div>
                 </div>
               </div>
@@ -49,7 +49,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 </h2>
                 <div id="acc-3" class="accordion-collapse collapse" data-bs-parent="#showcase-accordion">
                   <div class="accordion-body text-body-secondary">
-                    The theme supports <code>light</code>, <code>dark</code>, and <code>system</code> modes. Each mode has its own surface, shadow, and overlay values. Glass effects adapt automatically — lighter translucency in dark mode, frosted white in light mode.
+                    The theme supports <code>light</code>, <code>dark</code>, and <code>system</code> modes. Each mode has its own surface, shadow, and overlay values. Glass effects adapt automatically - lighter translucency in dark mode, frosted white in light mode.
                   </div>
                 </div>
               </div>
@@ -69,7 +69,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Collapse ── */}
+        {/* -- Collapse -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Collapse / Show-Hide</h5>
@@ -110,7 +110,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Spinners & Loading ── */}
+        {/* -- Spinners & Loading -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Spinners &amp; Loading</h5>
@@ -161,7 +161,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Placeholders / Skeletons ── */}
+        {/* -- Placeholders / Skeletons -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Placeholders / Skeletons</h5>
@@ -205,7 +205,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Breadcrumbs ── */}
+        {/* -- Breadcrumbs -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Breadcrumbs</h5>
@@ -227,7 +227,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Range Inputs ── */}
+        {/* -- Range Inputs -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Range Inputs</h5>
@@ -252,7 +252,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Keyboard Shortcuts / Kbd ── */}
+        {/* -- Keyboard Shortcuts / Kbd -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Keyboard Shortcuts</h5>
@@ -262,7 +262,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 { keys: ["Ctrl", "S"], action: "Save current document" },
                 { keys: ["Ctrl", "Shift", "P"], action: "Open settings" },
                 { keys: ["Esc"], action: "Close modal / cancel" },
-                { keys: ["↑", "↓"], action: "Navigate list items" }
+                { keys: ["^", "v"], action: "Navigate list items" }
               ].map((shortcut) => (
                 <div class="d-flex justify-content-between align-items-center py-1">
                   <span class="text-body-secondary">{shortcut.action}</span>

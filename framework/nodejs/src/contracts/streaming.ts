@@ -3,7 +3,7 @@ import type { BaseSchema, Infer } from "anyvali";
 import type { RouteHandlerContext } from "./route.js";
 import type { HtmlRenderable } from "../runtime/view.js";
 
-// ── Frame envelope (spec/streaming.md § 1) ───────────────────────────
+// -- Frame envelope (spec/streaming.md section 1) ---------------------------
 // Protocol-defined wire shape. Payload (`data`) schemas are view-defined.
 
 export const StreamErrorFrameSchema = av.object({
@@ -40,7 +40,7 @@ export type StreamFrame<TItem = unknown, TSummary = unknown> =
   | StreamErrorFrame
   | StreamEndFrame;
 
-// ── Stream handler (branded, produced by createStreamHandler) ────────
+// -- Stream handler (branded, produced by createStreamHandler) --------
 
 /**
  * Brand key identifying a stream handler in the registry's `handlers` map.
@@ -82,12 +82,12 @@ export function isStreamHandler(value: unknown): value is BpStreamHandler<any, a
     && (value as Record<symbol, unknown>)[BP_STREAM_HANDLER] === true;
 }
 
-// ── Stream theme renderers (spec/streaming.md § 4) ───────────────────
+// -- Stream theme renderers (spec/streaming.md section 4) -------------------
 
 /**
  * Context passed to a streaming view's shell renderer.
  * `sseConnectPath` is the relative SSE URL (path + original query string) the
- * shell should wire via `hx-sse:connect` — the client rewriter absolutizes it.
+ * shell should wire via `hx-sse:connect` - the client rewriter absolutizes it.
  */
 export interface StreamShellContext {
   readonly sseConnectPath: string;

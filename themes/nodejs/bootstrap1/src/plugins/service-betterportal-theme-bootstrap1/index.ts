@@ -142,8 +142,8 @@ function resolveSafeServiceTarget(
 /**
  * hx-trigger spec for a fragment wrapper. Besides the initial load, every
  * fragment listens for conventional reload events on <body>:
- *   bp:fragment:<location>.<fragmentId>  — reload one specific fragment
- *   bp:fragments:<pluginId>              — reload all fragments of a service
+ *   bp:fragment:<location>.<fragmentId>  - reload one specific fragment
+ *   bp:fragments:<pluginId>              - reload all fragments of a service
  * Any service response can fire these via the HX-Trigger header (e.g. auth
  * after login/logout); fragments that listen reload, everyone else ignores.
  */
@@ -935,7 +935,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
       return htmlResponse(asset.body, 200, asset.contentType, {
         // The shell runtime (standalone or inside the core bundle) changes with
-        // theme deploys — never let browsers serve a stale copy.
+        // theme deploys - never let browsers serve a stale copy.
         "cache-control": assetPath === "bootstrap1-shell.js" || assetPath === "bootstrap1-core.js"
           ? "no-store"
           : "public, max-age=3600"
@@ -1053,7 +1053,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
       const navItems = buildNavTree(menu);
 
-      // routeLinks: every enabled app route — NOT just menu leaves — so the
+      // routeLinks: every enabled app route - NOT just menu leaves - so the
       // client service map (data-bp-services) covers all bound services. Menu-
       // less routes like the auth service's /login and /register must still
       // resolve a service origin for header ownership/scoping on the client.
@@ -1072,7 +1072,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           themeOrigin
         )
         : null;
-      // Carry the query string through to the service (e.g. /login?next=…) —
+      // Carry the query string through to the service (e.g. /login?next=...) -
       // the tenant URL's search params belong to the view, not the shell.
       const initialRouteUrl = initialSafeTarget?.ok
         ? initialSafeTarget.url + activeEvent.url.search
@@ -1153,7 +1153,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const effectiveMode = resolveConcreteMode(mergedThemeConfig.mode, this.config.defaultMode);
 
       // Resolve the login URL from the app's auth config. The theme is the only
-      // party that knows where the auth provider lives — services only know its
+      // party that knows where the auth provider lives - services only know its
       // JWKS for token validation, not a URL to navigate to. The client shell
       // redirects here on a 401 (see assets.ts htmx_before_swap).
       let loginUrl: string | undefined;

@@ -35,7 +35,7 @@ The manifest is a service's self-description. Themes and admin tooling read it t
 | Field | Type | Notes |
 |---|---|---|
 | `protocolVersion` | int | Match this document's version. |
-| `pluginId` | string | Reverse-DNS, lowercase. See `protocol.md` § 5.1. |
+| `pluginId` | string | Reverse-DNS, lowercase. See `protocol.md` section 5.1. |
 | `title` | string | Display title. |
 | `version` | semver string | Service version, NOT protocol version. |
 | `views` | array | Empty array if no views (e.g., a pure auth service). |
@@ -50,7 +50,7 @@ The manifest is a service's self-description. Themes and admin tooling read it t
 | `capabilities` | string[] | Free-form capability tokens (e.g., `theme.shell`, `theme.htmx`, `view.json`). |
 | `supportedThemes` | string[] | Themes this service has renderers for. Themes themselves declare what themes they themselves provide. |
 | `supportedRenderModes` | string[] | `page`, `fragment`, `embed`. |
-| `configSchemas` | array | Per-service config descriptors (see § 3). |
+| `configSchemas` | array | Per-service config descriptors (see section 3). |
 | `permissions` | array | Permission strings this service defines (see `auth.md`). |
 | `adminApis` | array | Admin-only endpoints surfaced for tooling. |
 | `cacheHints.metadataTtlSeconds` | int | How long clients MAY cache this manifest. |
@@ -72,7 +72,7 @@ Each entry in `views[]`:
   "bodySchema": { ... },
   "jsonResponseSchema": { ... },
   "metadataResponseSchema": { ... },  // optional
-  "streaming": {                      // optional — streaming views only, see streaming.md
+  "streaming": {                      // optional - streaming views only, see streaming.md
     "itemSchema": { ... },
     "summarySchema": { ... }
   },
@@ -100,7 +100,7 @@ Each entry in `views[]`:
 - `viewId` is unique per service. Convention: `<routeDir>.<filename>` (e.g., `hello.index`).
 - `path` MUST start with `/`. Path parameters use `:name` syntax: `/orders/:orderId`.
 - `methods` lists HTTP verbs the view handles. Auto-derived in the Node SDK from `handleGet`/`handlePost`/etc. exports.
-- Schema fields use a portable JSON descriptor (see § 4) so non-Node SDKs can emit them.
+- Schema fields use a portable JSON descriptor (see section 4) so non-Node SDKs can emit them.
 - `html.themeRenderers` is keyed by themeId. Each entry lists the renderers (page, components, fragments) the view supports for that theme.
 
 ### Renderer slot semantics
@@ -132,7 +132,7 @@ Per-service descriptors for the config UI. Each schema describes a settings surf
   "title": "Hello Tenant Config",
   "description": "Tenant-scoped settings for the hello service.",
   "scope": "tenant" | "app",
-  "jsonSchema": { ... },              // flat key→type map (informational)
+  "jsonSchema": { ... },              // flat key->type map (informational)
   "groups": [
     {
       "id": "connection",

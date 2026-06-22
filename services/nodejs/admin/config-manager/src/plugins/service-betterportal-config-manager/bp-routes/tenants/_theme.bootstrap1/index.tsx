@@ -64,7 +64,7 @@ export function render(data: ResponseData): HtmlRenderable {
     <div class="container-fluid px-0">
       <h2 class="mb-4">{data.title}</h2>
 
-      {/* ── Tenants ── */}
+      {/* -- Tenants -- */}
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="mb-0">Tenants</h4>
         <button class="btn btn-sm btn-primary" data-bs-toggle="offcanvas" data-bs-target="#bp-add-tenant-panel">+ Add Tenant</button>
@@ -98,7 +98,7 @@ export function render(data: ResponseData): HtmlRenderable {
                         hx-confirm={`Delete tenant ${t.id} and all its apps?`}
                         hx-target="#bp-main"
                         hx-swap="innerHTML"
-                      >×</button>
+                      >x</button>
                     </div>
                   </td>
                 </tr>
@@ -108,7 +108,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       )}
 
-      {/* ── Apps ── */}
+      {/* -- Apps -- */}
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="mb-0">Apps</h4>
         <button class="btn btn-sm btn-primary" data-bs-toggle="offcanvas" data-bs-target="#bp-add-app-panel">+ Add App</button>
@@ -159,7 +159,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       )}
 
-      {/* ── Add Tenant ── */}
+      {/* -- Add Tenant -- */}
       <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-add-tenant-panel">
         <div class="offcanvas-header">
           <h5 class="offcanvas-title">Add Tenant</h5>
@@ -179,7 +179,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       </div>
 
-      {/* ── Edit Tenant ── */}
+      {/* -- Edit Tenant -- */}
       <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-edit-tenant-panel">
         <div class="offcanvas-header">
           <h5 class="offcanvas-title">Edit Tenant</h5>
@@ -208,7 +208,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       </div>
 
-      {/* ── Add App ── */}
+      {/* -- Add App -- */}
       <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-add-app-panel">
         <div class="offcanvas-header">
           <h5 class="offcanvas-title">Add App</h5>
@@ -256,7 +256,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       </div>
 
-      {/* ── Edit App ── */}
+      {/* -- Edit App -- */}
       <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-edit-app-panel">
         <div class="offcanvas-header">
           <h5 class="offcanvas-title">Edit App</h5>

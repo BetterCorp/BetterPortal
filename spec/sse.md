@@ -4,8 +4,8 @@
 
 BetterPortal uses Server-Sent Events (SSE) for two purposes:
 
-1. **Per-view streams** — a route can push data to a connected client (e.g., a live clock, ticker, notification feed).
-2. **Control-plane config sync** — services subscribe to a control-plane SSE stream to receive scoped config updates.
+1. **Per-view streams** - a route can push data to a connected client (e.g., a live clock, ticker, notification feed).
+2. **Control-plane config sync** - services subscribe to a control-plane SSE stream to receive scoped config updates.
 
 This document specifies both. WebSockets are NOT used by the protocol; if bidirectional comms are needed, define a separate endpoint.
 
@@ -23,8 +23,8 @@ GET <route.path>/__sse
 
 Examples:
 
-- View at `/hello` → SSE at `/hello/__sse`
-- View at `/orders/:orderId` → SSE at `/orders/:orderId/__sse` (path parameters preserved)
+- View at `/hello` -> SSE at `/hello/__sse`
+- View at `/orders/:orderId` -> SSE at `/orders/:orderId/__sse` (path parameters preserved)
 
 The endpoint MUST respond with `Content-Type: text/event-stream`.
 
@@ -42,7 +42,7 @@ event: tick
 data: 12:34:57
 
 event: error
-data: {"code":"render_failed","message":"…"}
+data: {"code":"render_failed","message":"..."}
 
 data: A plain text message
 
@@ -124,7 +124,7 @@ A view declares SSE support in its manifest entry:
 
 ### 1.8 CORS
 
-SSE endpoints follow the same CORS rules as view routes (see `protocol.md` § 2). The `Access-Control-Allow-Credentials` header is not used — auth tokens travel via `Authorization`, not cookies.
+SSE endpoints follow the same CORS rules as view routes (see `protocol.md` section 2). The `Access-Control-Allow-Credentials` header is not used - auth tokens travel via `Authorization`, not cookies.
 
 ---
 

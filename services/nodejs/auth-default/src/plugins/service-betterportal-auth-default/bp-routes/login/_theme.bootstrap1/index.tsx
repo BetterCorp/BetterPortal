@@ -4,7 +4,7 @@ import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
 function loginScript(): HtmlRenderable {
-  // IIFE — htmx executes swapped <script> content as a plain script, where a
+  // IIFE - htmx executes swapped <script> content as a plain script, where a
   // top-level `return` inside a bare block is a SyntaxError.
   return js(`(() => {
     const form = document.getElementById("bp-login-form");
@@ -41,10 +41,10 @@ function loginScript(): HtmlRenderable {
         }
         return;
       }
-      // Token storage happens via BP-SetHeader directives (shell shim) — writing
+      // Token storage happens via BP-SetHeader directives (shell shim) - writing
       // bp.headers here too would stamp the wrong lock owner and block the
       // server's later BP-RemoveHeader / refresh overwrites.
-      // Server sets HX-Location: next — htmx soft-navigates automatically. No reload.
+      // Server sets HX-Location: next - htmx soft-navigates automatically. No reload.
     });
   })()`);
 }
@@ -65,7 +65,7 @@ export function render(data: ResponseData): HtmlRenderable {
     );
   }
 
-  // Zero users → this deployment still needs its first admin. Soft-redirect to
+  // Zero users -> this deployment still needs its first admin. Soft-redirect to
   // the register view in-shell; URL bar follows via hx-push-url.
   if (data.requiresFirstAdmin && data.firstAdminUrl) {
     return (
@@ -77,25 +77,25 @@ export function render(data: ResponseData): HtmlRenderable {
         hx-push-url="/register"
       >
         <div class="d-flex justify-content-center py-5">
-          <div class="spinner-border" role="status"><span class="visually-hidden">Redirecting to first-admin setup…</span></div>
+          <div class="spinner-border" role="status"><span class="visually-hidden">Redirecting to first-admin setup...</span></div>
         </div>
       </div>
     );
   }
 
-  // Already signed in with an explicit destination — go there immediately,
+  // Already signed in with an explicit destination - go there immediately,
   // no interstitial. The shell maps the tenant path to its owning service.
   if (data.alreadyLoggedIn && data.nextUrl) {
     const next = data.nextUrl;
     return (
       <div class="d-flex justify-content-center py-5">
-        <div class="spinner-border" role="status"><span class="visually-hidden">Redirecting…</span></div>
+        <div class="spinner-border" role="status"><span class="visually-hidden">Redirecting...</span></div>
         <script>{js(`window.htmx.ajax("GET", ${JSON.stringify(next)}, { target: "#bp-main", swap: "innerHTML", push: ${JSON.stringify(next)} })`)}</script>
       </div>
     );
   }
 
-  // Request already carried a valid token — show the signed-in state with a
+  // Request already carried a valid token - show the signed-in state with a
   // way out (logout path from app config) instead of a pointless login form.
   if (data.alreadyLoggedIn) {
     const displayName = data.user?.name || data.user?.username || data.user?.email || "your account";

@@ -10,7 +10,7 @@ import type { AdminApiDescriptor, PluginManifest } from "../contracts/manifest.j
 import type { ViewMetadata } from "../contracts/view.js";
 import { toJsonSchemaDocument } from "./jsonSchema.js";
 
-// ── Route resolution ──────────────────────────────────────────────────
+// -- Route resolution --------------------------------------------------
 
 export interface ResolvedRoute {
   readonly route: RegisteredRoute;
@@ -88,7 +88,7 @@ export function resolveRoute(
   };
 }
 
-// ── Renderer resolution ───────────────────────────────────────────────
+// -- Renderer resolution -----------------------------------------------
 
 export interface ResolvedRenderer {
   readonly renderer: RegisteredThemeRenderer;
@@ -149,7 +149,7 @@ export function resolveRenderer(
   return generic ? { renderer: generic, themeId } : null;
 }
 
-// ── Manifest builder ──────────────────────────────────────────────────
+// -- Manifest builder --------------------------------------------------
 
 export interface ManifestBaseFields {
   pluginId: string;
@@ -205,7 +205,7 @@ export function buildManifestFromRegistry(
   capabilities.add("view.metadata");
 
   for (const route of registry.routes) {
-    // Streaming views (spec/streaming.md § 5)
+    // Streaming views (spec/streaming.md section 5)
     if (route.schemas.item) {
       capabilities.add("stream.ndjson");
     }
@@ -348,7 +348,7 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
   };
 }
 
-// ── BP Schema builder ─────────────────────────────────────────────────
+// -- BP Schema builder -------------------------------------------------
 
 export interface BpSchemaOutput {
   manifest: PluginManifest;

@@ -2,9 +2,9 @@
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
-/* ════════════════════════════════════════════
+/*
    Data Table (paginated sub-component)
-   ════════════════════════════════════════════ */
+    */
 
 const ALL_USERS = [
   { name: "Alice Johnson", email: "alice@example.com", role: "Admin", status: "Active", statusColor: "success", joined: "Jan 15, 2025" },
@@ -87,12 +87,12 @@ function renderDataTableFragment(page: number, routePath: string): HtmlRenderabl
         </table>
       </div>
       <div class="card-footer d-flex justify-content-between align-items-center">
-        <span class="text-body-secondary small">Showing {start + 1}–{Math.min(start + PAGE_SIZE, ALL_USERS.length)} of {ALL_USERS.length}</span>
+        <span class="text-body-secondary small">Showing {start + 1}-{Math.min(start + PAGE_SIZE, ALL_USERS.length)} of {ALL_USERS.length}</span>
         <nav>
           <ul class="pagination pagination-sm mb-0">
-            {pageBtn(safePage - 1, "←", safePage <= 1)}
+            {pageBtn(safePage - 1, "<-", safePage <= 1)}
             {Array.from({ length: TOTAL_PAGES }, (_, i) => i + 1).map((p) => pageBtn(p, String(p), false))}
-            {pageBtn(safePage + 1, "→", safePage >= TOTAL_PAGES)}
+            {pageBtn(safePage + 1, "->", safePage >= TOTAL_PAGES)}
           </ul>
         </nav>
       </div>
@@ -100,9 +100,9 @@ function renderDataTableFragment(page: number, routePath: string): HtmlRenderabl
   );
 }
 
-/* ════════════════════════════════════════════
+/*
    Showcase: Data Display
-   ════════════════════════════════════════════ */
+    */
 
 export function render(data: ResponseData, page = 1): HtmlRenderable {
   const routePath = "/hello";
@@ -115,7 +115,7 @@ export function render(data: ResponseData, page = 1): HtmlRenderable {
           <p class="text-body-secondary">Functional table with HTMX pagination, list groups, progress bars, and tabs.</p>
         </div>
 
-        {/* Functional table — component container */}
+        {/* Functional table - component container */}
         <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span>User Directory</span>

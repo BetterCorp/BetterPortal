@@ -34,19 +34,19 @@ export const ResponseSchema = av.object({
     email: av.optional(av.string()).describe("User email address, when set."),
     name: av.optional(av.string()).describe("Display name, when set.")
   }, { unknownKeys: "strip" }).describe("Authenticated user summary.")),
-  // True while the auth service has zero users — the theme renderer redirects
+  // True while the auth service has zero users - the theme renderer redirects
   // to the register view (first-admin setup) instead of showing the login form.
   requiresFirstAdmin: av.optional(av.bool()).describe("True while the auth service has zero users; the theme renderer should redirect to first-admin registration instead of showing the login form."),
   // Absolute URL of this auth service's register view (self-origin). Provided so
   // the theme renderer can load it in-shell without knowing the auth origin.
   firstAdminUrl: av.optional(av.string()).describe("Absolute self-origin URL of this auth service's register view so the theme can load it in-shell without knowing the auth origin."),
-  // True when the GET request already carried a valid access token — the theme
+  // True when the GET request already carried a valid access token - the theme
   // renderer shows a "signed in" state instead of the login form.
   alreadyLoggedIn: av.optional(av.bool()).describe("True when the GET request already carried a valid access token; the theme renderer should show a signed-in state instead of the login form."),
   loggedOut: av.optional(av.bool()).describe("True after the login route handled ?action=logout."),
   // Tenant-app path of the logout view (app config auth.logoutViewId).
   logoutUrl: av.optional(av.string()).describe("Tenant-app path of the logout view from app auth config."),
-  // Echo of ?next= when already signed in — the theme renderer redirects there
+  // Echo of ?next= when already signed in - the theme renderer redirects there
   // immediately instead of showing the signed-in card.
   nextUrl: av.optional(av.string()).describe("Echo of the next path when already signed in; the theme renderer should redirect there immediately.")
 }, { unknownKeys: "strip" });
@@ -100,7 +100,7 @@ export const handleGet = createHandler(
       };
     }
 
-    // Valid token already on the request — no point rendering a login form.
+    // Valid token already on the request - no point rendering a login form.
     // First-admin setup still wins: a token can outlive a wiped user store.
     if (ctx.user && !requiresFirstAdmin) {
       const config = resolveDefaultAuthAppConfig(ctx.config);
@@ -181,12 +181,12 @@ export const handlePost = createHandler(
     const config = resolveDefaultAuthAppConfig(ctx.config);
     const next = body.next || (ctx.query as { next?: string }).next || config.loginRedirectPath || "/";
     ctx.responseHeaders?.set("HX-Redirect", next);
-    // Auth state changed — reload this service's fragments (nav profile etc.).
+    // Auth state changed - reload this service's fragments (nav profile etc.).
     // Fragments listening on this key re-fetch; absent fragments ignore it.
     if (ctx.serviceId) {
       ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
     }
-    // Expire the stored header with the ACCESS token, not the refresh token —
+    // Expire the stored header with the ACCESS token, not the refresh token -
     // otherwise the client replays a dead JWT for days. The refresh token is
     // stored separately so the profile fragment can renew before expiry.
     ctx.bpHeaders?.set('Authorization', `Bearer ${issued.accessToken}`, {

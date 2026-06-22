@@ -3,7 +3,7 @@ import type { HtmlRenderable, StreamErrorFrame, StreamShellContext } from "@bett
 import type { DelayedItem, DelayedSummary } from "../index.js";
 
 /**
- * Streaming renderers (spec/streaming.md § 4). The shell returns instantly with
+ * Streaming renderers (spec/streaming.md section 4). The shell returns instantly with
  * SSE wiring; each frame is rendered server-side and swapped in as it arrives.
  */
 
@@ -18,7 +18,7 @@ export function renderShell(ctx: StreamShellContext): HtmlRenderable {
         <ul class="list-group" sse-swap="item" hx-swap="beforeend">
           <li class="list-group-item text-body-secondary" sse-swap="end" hx-swap="delete">
             <span class="spinner-border spinner-border-sm me-2"></span>
-            Waiting for data…
+            Waiting for data...
           </li>
         </ul>
         <div sse-swap="summary" hx-swap="innerHTML"></div>

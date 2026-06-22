@@ -69,7 +69,7 @@ export const ResponseSchema = av.object({
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Permission Manager";
-export const description = "Define role → permission grants per app. Services advertise per-view permission requirements via their manifest.";
+export const description = "Define role -> permission grants per app. Services advertise per-view permission requirements via their manifest.";
 
 export const auth: ApiAuthRequirement = {
   required: true,

@@ -5,9 +5,9 @@ import { dirname, resolve } from "node:path";
  * Local cache for the scoped platform config that a BPService receives from
  * its control plane (CM). Lets the service serve requests on restart before
  * the first sync completes, and means BP services NEVER share CM's bp-config.yaml
- * — they hold their own cached projection of just the slice the CP sent them.
+ * - they hold their own cached projection of just the slice the CP sent them.
  *
- * Default file backend; will become pluggable (redis/psql) — keep this surface
+ * Default file backend; will become pluggable (redis/psql) - keep this surface
  * narrow so other backends slot in with `read()` / `write()`.
  */
 export interface ScopedConfigCacheOptions {

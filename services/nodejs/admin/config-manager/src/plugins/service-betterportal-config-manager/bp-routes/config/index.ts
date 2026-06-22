@@ -7,7 +7,7 @@ import {
   type CacheHints
 } from "@betterportal/framework";
 
-// ── Schemas ─────────────────────────────────────────────────────────
+// -- Schemas ---------------------------------------------------------
 
 export const QuerySchema = av.object({}, { unknownKeys: "strip" });
 
@@ -34,7 +34,7 @@ export const ResponseSchema = av.object({
 }, { unknownKeys: "strip" });
 export type ResponseData = Infer<typeof ResponseSchema>;
 
-// ── Metadata ────────────────────────────────────────────────────────
+// -- Metadata --------------------------------------------------------
 
 export const title = "Config Manager";
 export const description = "Admin service that discovers BetterPortal service config surfaces.";
@@ -66,13 +66,13 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
   }
 ];
 
-// ── Handler ─────────────────────────────────────────────────────────
+// -- Handler ---------------------------------------------------------
 
 export const handleGet = createHandler(
   { response: ResponseSchema },
   (ctx) => {
     // The actual data is injected by the main plugin via the handler context.
-    // This handler is a passthrough — the plugin builds the response model
+    // This handler is a passthrough - the plugin builds the response model
     // from config/bindings and attaches it to the event before the H3 adapter
     // calls this handler.
     if (ctx.responseModel) {

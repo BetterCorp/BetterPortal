@@ -97,7 +97,7 @@ function trustedProxyHeaderCandidates(options: BetterPortalHeaderTrustOptions = 
 }
 
 export function resolveEmbeddedSourceHeader(headers: HeaderMap, options: BetterPortalHeaderTrustOptions = {}): string | undefined {
-  // NOTE: hx-current-url is deliberately NOT trusted — it is set by client-side
+  // NOTE: hx-current-url is deliberately NOT trusted - it is set by client-side
   // JS (HTMX) and is fully attacker-controllable, so it must never drive
   // tenant/app resolution. Rely on browser-enforced referer/origin instead, and
   // on proxy headers only when an upstream proxy is explicitly trusted.

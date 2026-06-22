@@ -14,7 +14,7 @@ const KID_PATTERN = /^[A-Za-z0-9_-]+$/;
 /** Audience every BetterPortal service-config ticket is minted for. */
 export const CONFIG_TICKET_AUDIENCE = "betterportal-service-config";
 
-// ── Signing (control plane) ──────────────────────────────────────────
+// -- Signing (control plane) ------------------------------------------
 
 export interface SignServiceConfigTicketOptions {
   /** PEM of the CP signing key (cpState.keyPair.privateKeyPem). */
@@ -34,7 +34,7 @@ export interface SignServiceConfigTicketOptions {
 
 /**
  * Mint a config ticket as an RS256 JWT signed by the control plane's key.
- * Replaces the legacy symmetric HMAC ticket — services verify it against the
+ * Replaces the legacy symmetric HMAC ticket - services verify it against the
  * CP JWKS, so no shared secret is required and only the CP can issue tickets.
  */
 export function signServiceConfigTicket(options: SignServiceConfigTicketOptions): string {
@@ -60,7 +60,7 @@ export function signServiceConfigTicket(options: SignServiceConfigTicketOptions)
   });
 }
 
-// ── Verification (service) ───────────────────────────────────────────
+// -- Verification (service) -------------------------------------------
 
 interface CachedClient {
   client: JwksClient;
@@ -95,7 +95,7 @@ export interface VerifyServiceConfigTicketOptions {
   jwksUri?: string;
   /** In-process key lookup, used instead of jwksUri when supplied (no network). */
   keyResolver?: (kid: string) => Promise<string> | string;
-  /** Expected `iss` — the CP URL the service was installed against. */
+  /** Expected `iss` - the CP URL the service was installed against. */
   issuer: string;
   /** This service's id; the ticket's `serviceId` must match. */
   serviceId: string;

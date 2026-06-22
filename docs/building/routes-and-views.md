@@ -212,9 +212,9 @@ export const handleGet = createStreamHandler(
 
 One handler, negotiated representations (see [`spec/streaming.md`](../../spec/streaming.md)):
 
-- `Accept: application/json` — buffered `{ items, summary? }` (response schema derived, never hand-written).
-- `Accept: application/x-ndjson` — one frame per line as data is produced (`item`/`summary`/`error`/`end`).
-- `Accept: text/html` — streamed: an instant shell wired to `<path>/__sse`, which pushes server-rendered rows per frame. With `mode=page` and a page renderer present, a buffered full render instead.
+- `Accept: application/json` - buffered `{ items, summary? }` (response schema derived, never hand-written).
+- `Accept: application/x-ndjson` - one frame per line as data is produced (`item`/`summary`/`error`/`end`).
+- `Accept: text/html` - streamed: an instant shell wired to `<path>/__sse`, which pushes server-rendered rows per frame. With `mode=page` and a page renderer present, a buffered full render instead.
 
 Streaming HTML renderers live in `_theme.<themeId>/index.stream.tsx` exporting `renderShell`, `renderItem`, and optionally `renderSummary` / `renderError`. The shell receives `ctx.sseConnectPath` and wires `hx-ext="sse"` / `sse-swap` itself; a plain `index.tsx` page renderer over `{ items, summary }` provides the buffered fallback. See `bp-routes/delayed/` in the hello-view example.
 

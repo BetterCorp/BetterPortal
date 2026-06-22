@@ -54,13 +54,13 @@ export type ViewDemoScenario = Infer<typeof ViewDemoScenarioSchema>;
 /**
  * Optional role hint for a view. Used by discovery flows to auto-fill app config.
  * Examples: "auth.login", "auth.logout", "auth.refresh", "nav.profile", "footer.brand".
- * Not enforced — pure metadata.
+ * Not enforced - pure metadata.
  */
 export const ViewRoleSchema = av.string().minLength(1);
 export type ViewRole = Infer<typeof ViewRoleSchema>;
 
 /**
- * Streaming declaration for a view (spec/streaming.md § 5). Present only on
+ * Streaming declaration for a view (spec/streaming.md section 5). Present only on
  * streaming views; `jsonResponseSchema` then holds the derived buffered shape.
  */
 export const ViewStreamingSupportSchema = av.object({

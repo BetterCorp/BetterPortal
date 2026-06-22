@@ -2,9 +2,9 @@
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
-/* ════════════════════════════════════════════
+/*
    Showcase: Elements (buttons, badges, alerts, typography)
-   ════════════════════════════════════════════ */
+    */
 
 export function render(data: ResponseData): HtmlRenderable {
   return (
@@ -105,7 +105,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 <strong>Error:</strong> Failed to connect to upstream service. Retrying in 30s.
               </div>
               <div class="alert alert-info mb-0">
-                <strong>Tip:</strong> You can configure keyboard shortcuts in Settings → Preferences.
+                <strong>Tip:</strong> You can configure keyboard shortcuts in Settings {"->"} Preferences.
               </div>
             </div>
           </div>

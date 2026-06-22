@@ -26,25 +26,25 @@ This document supersedes `docs/platform/security-and-auth.md` once Phase 2 lands
 ## Architecture overview
 
 ```
-┌────────────┐    Authorization: Bearer <jwt>   ┌──────────────┐
-│  Browser   │ ───────────────────────────────▶ │   Service    │
-│  + BP shim │                                  │   (any)      │
-└────────────┘                                  └──────┬───────┘
-      │                                                │
-      │ (token in localStorage,                        │ verifyJwt via JWKS
-      │  attached per request)                         ▼
-      │                                         ┌──────────────┐
-      │  POST /auth/login                       │  Auth        │
-      └────────────────────────────────────────▶│  Provider    │
-         BP-SetHeader: Authorization=...        │  Service     │
-         (theme stores, attaches to next reqs)  └──────────────┘
-                                                       │
++------------+    Authorization: Bearer <jwt>   +--------------+
+|  Browser   | ------------------------------- |   Service    |
+|  + BP shim |                                  |   (any)      |
++------------+                                  +------+-------+
+      |                                                |
+      | (token in localStorage,                        | verifyJwt via JWKS
+      |  attached per request)                         v
+      |                                         +--------------+
+      |  POST /auth/login                       |  Auth        |
+      +----------------------------------------|  Provider    |
+         BP-SetHeader: Authorization=...        |  Service     |
+         (theme stores, attaches to next reqs)  +--------------+
+                                                       |
                                           GET /.well-known/jwks.json
-                                                       │
+                                                       |
                                                   (RS256 pubkey)
 ```
 
-- App config in config-manager declares `app.auth.serviceId` — which service issues tokens for this app.
+- App config in config-manager declares `app.auth.serviceId` - which service issues tokens for this app.
 - Login is a view on the auth service. Form is themed by the app's theme.
 - Login handler signs a JWT (RS256, private key local to auth service), returns it via `BP-SetHeader` response header.
 - Client-side BP shim stores the header in localStorage and attaches it to all subsequent requests on this origin.
@@ -142,14 +142,14 @@ Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Ea
 - Reads service manifests via control plane to assemble the canonical permission catalog (`PluginManifest.permissions[]` + per-view CRUD declarations).
 - Renders UI for an admin to define `app.auth.roles[]` and assign permissions.
 - POSTs role definitions to config-manager as part of app config.
-- **Display-only catalog**. Not stored as canonical truth — services own their manifest, this UI just aggregates.
+- **Display-only catalog**. Not stored as canonical truth - services own their manifest, this UI just aggregates.
 
 ### Auth service admin UI (out-of-tree)
 
 - Manages user records. Owned entirely by the auth service.
 - Fetches role list from config-manager (the canonical app role registry).
 - Stores per-user role assignments in the auth service's own database.
-- At login: looks up user → reads role assignments → builds JWT with `roles: [...]` claim.
+- At login: looks up user -> reads role assignments -> builds JWT with `roles: [...]` claim.
 
 ---
 
@@ -231,14 +231,14 @@ On every BP-managed fetch/HTMX request:
 
 ### Removal rules
 
-- `BP-RemoveHeader: X` in a response → check `stored[X].owner === responseServiceId || stored[X].locked === false`. Drop if condition holds. Ignore otherwise (logged as warning).
+- `BP-RemoveHeader: X` in a response -> check `stored[X].owner === responseServiceId || stored[X].locked === false`. Drop if condition holds. Ignore otherwise (logged as warning).
 - Manual logout flow always succeeds because the auth service is the owner.
 - BSB framework client can force-remove any header (e.g., on session reset).
 
 ### Cross-cutting concerns
 
 - **CORS**: services allow the `BP-*` prefix wildcard in `Access-Control-Allow-Headers` and expose it in `Access-Control-Expose-Headers`. Standard headers (`Authorization` etc.) are added via the route's declared `headers` schema, which feeds the per-route preflight allowance.
-- **localStorage budget**: total stored headers capped at ~8KB per app (cookie-equivalent). Exceed → oldest non-locked headers dropped.
+- **localStorage budget**: total stored headers capped at ~8KB per app (cookie-equivalent). Exceed -> oldest non-locked headers dropped.
 - **localStorage race**: last-write-wins. Concurrent requests are fine because services should not race on the same header name. Locking prevents the case that matters (auth).
 - **BP UI knows nothing about tokens**. It manages the header store as opaque key/value pairs. Token expiry timing and refresh scheduling are driven by JavaScript provided by the auth service's nav fragment.
 
@@ -290,19 +290,19 @@ The adapter (`framework/nodejs/src/adapters/h3.ts`) inserts an auth resolver ste
 
 ## 0.6 Status views
 
-A view file named `view.{code}.tsx` adjacent to `view.tsx` is rendered when the route returns that status code. Any HTTP status code is supported — 401, 403, 404, 418, 500, anything.
+A view file named `view.{code}.tsx` adjacent to `view.tsx` is rendered when the route returns that status code. Any HTTP status code is supported - 401, 403, 404, 418, 500, anything.
 
 Resolution order on status code N:
 
 ```
 1. route.viewRenderers[N] for current theme (i.e., adjacent file view.N.tsx with matching theme)
-   present → render, return body with status N
+   present -> render, return body with status N
 
-2. app.statusViewIds[N] (optional app config — points to a view on any service)
-   present → fetch that view, render, return body with status N
+2. app.statusViewIds[N] (optional app config - points to a view on any service)
+   present -> fetch that view, render, return body with status N
 
 3. theme default status renderer for N (themes ship 401/403/404/500 generics)
-   present → render, return body with status N
+   present -> render, return body with status N
 
 4. framework JSON fallback
    { error: "Status N" } with status N
@@ -316,7 +316,7 @@ If route.viewRenderers[401] absent
    AND theme has 401 renderer
    AND request is an HTMX/page navigation (not JSON/SSE)
    AND app.auth.loginViewId is configured
-→ respond with HTMX redirect (HX-Redirect header) to loginViewId resolved path with ?next=<current>
+-> respond with HTMX redirect (HX-Redirect header) to loginViewId resolved path with ?next=<current>
 ```
 
 This lets the theme auto-redirect to login when no service-specific or app-specific 401 page exists. Pure-JSON clients (mobile, API consumers) always get JSON 401, never redirects.
@@ -335,7 +335,7 @@ Library configured with `algorithms: ["RS256"]` only. Manual re-parse rejects an
 
 ### Algorithm confusion (HS256 with RS256 pubkey)
 
-Same mitigation. The verifier never reads `alg` from the token to choose verification mode — the algorithm is hardcoded by the caller's config.
+Same mitigation. The verifier never reads `alg` from the token to choose verification mode - the algorithm is hardcoded by the caller's config.
 
 ### `kid` injection / path traversal
 
@@ -351,7 +351,7 @@ RS256 only. No HS256 code path in production verifiers.
 
 ### Missing or future expiry
 
-Manual layer rejects tokens with missing `exp`, with `exp <= now`, or with `nbf > now`. Library does this too — manual layer is defense in depth.
+Manual layer rejects tokens with missing `exp`, with `exp <= now`, or with `nbf > now`. Library does this too - manual layer is defense in depth.
 
 ### Token replay (window before exp)
 
@@ -363,7 +363,7 @@ JWT payload is signed but not encrypted. Design: never put secrets in claims. Ro
 
 ### CSRF
 
-Not applicable — no cookies, no session. Bearer header is immune to CSRF since browsers do not auto-attach `Authorization` headers cross-origin.
+Not applicable - no cookies, no session. Bearer header is immune to CSRF since browsers do not auto-attach `Authorization` headers cross-origin.
 
 ### Double verification (the meta-mitigation)
 
@@ -435,114 +435,114 @@ The auth provider's own admin UI manages users and assigns role names. It fetche
 
 ## Phase plan
 
-### Phase 0 — Spec (this document)
+### Phase 0 - Spec (this document)
 
 Lock the contract before any code lands. Done when this file is reviewed and signed off.
 
-### Phase 1 — Token verifier core
+### Phase 1 - Token verifier core
 
 Files:
 
-- `services/nodejs/auth-default/src/tokens.ts` — rewrite for RS256 + `jsonwebtoken` + `jwks-rsa` + manual double-verify layer. Remove HS256 path.
-- `services/nodejs/auth-default/src/jwks.ts` — per-(issuer, jwksUri) cached jwks-rsa client with kid format validation.
-- `services/nodejs/auth-default/src/keypair.ts` — helper to generate/load RS256 keypairs (PEM) for auth provider services.
-- `services/nodejs/auth-default/src/index.ts` — export `verifyJwt`, `signJwt`, `JwtClaimsSchema`, `generateKeyPair`.
-- `services/nodejs/auth-default/tests/tokens.test.ts` — exhaustive JWT validation tests (see test list below).
+- `services/nodejs/auth-default/src/tokens.ts` - rewrite for RS256 + `jsonwebtoken` + `jwks-rsa` + manual double-verify layer. Remove HS256 path.
+- `services/nodejs/auth-default/src/jwks.ts` - per-(issuer, jwksUri) cached jwks-rsa client with kid format validation.
+- `services/nodejs/auth-default/src/keypair.ts` - helper to generate/load RS256 keypairs (PEM) for auth provider services.
+- `services/nodejs/auth-default/src/index.ts` - export `verifyJwt`, `signJwt`, `JwtClaimsSchema`, `generateKeyPair`.
+- `services/nodejs/auth-default/tests/tokens.test.ts` - exhaustive JWT validation tests (see test list below).
 
 Adds dependencies to `services/nodejs/auth-default/package.json`: `jsonwebtoken`, `jwks-rsa`, `bcrypt`, `@types/jsonwebtoken`, `@types/bcrypt`.
 
 #### JWT validation test list
 
-- Valid RS256 token → returns claims.
-- `alg: none` token → rejected.
-- HS256 token signed with RS256 pubkey as secret → rejected.
-- Wrong RSA signature → rejected.
-- Expired token (`exp <= now`) → rejected.
-- Future token (`nbf > now`) → rejected.
-- Missing `exp` claim → rejected.
-- Missing `iss` claim → rejected (or wrong `iss`).
-- Wrong `aud` → rejected.
-- Missing `tenantId` claim → rejected.
-- `tenantId` not a string → rejected.
-- Missing `appId` claim → rejected.
-- Missing `roles` claim → rejected.
-- `roles` not an array → rejected.
-- `roles[N]` not a string → rejected.
-- Tampered payload (signature mismatch) → rejected.
-- Malformed JWT (not three parts) → rejected.
-- `kid` with traversal characters → rejected before JWKS lookup.
-- Token with `jku` header pointing to attacker URL → ignored, default JWKS used.
-- Token with `typ` field absent or wrong → rejected.
+- Valid RS256 token -> returns claims.
+- `alg: none` token -> rejected.
+- HS256 token signed with RS256 pubkey as secret -> rejected.
+- Wrong RSA signature -> rejected.
+- Expired token (`exp <= now`) -> rejected.
+- Future token (`nbf > now`) -> rejected.
+- Missing `exp` claim -> rejected.
+- Missing `iss` claim -> rejected (or wrong `iss`).
+- Wrong `aud` -> rejected.
+- Missing `tenantId` claim -> rejected.
+- `tenantId` not a string -> rejected.
+- Missing `appId` claim -> rejected.
+- Missing `roles` claim -> rejected.
+- `roles` not an array -> rejected.
+- `roles[N]` not a string -> rejected.
+- Tampered payload (signature mismatch) -> rejected.
+- Malformed JWT (not three parts) -> rejected.
+- `kid` with traversal characters -> rejected before JWKS lookup.
+- Token with `jku` header pointing to attacker URL -> ignored, default JWKS used.
+- Token with `typ` field absent or wrong -> rejected.
 
-### Phase 2 — Route auth contract + adapter enforcement
-
-Files:
-
-- `framework/nodejs/src/contracts/route.ts` — add `ApiAuthRequirement` separate from `ViewAuthRequirement`. `permissions` field shape: `[{ serviceId, viewId, permissions: ("read"|"create"|"update"|"delete")[] }]`.
-- `framework/nodejs/src/contracts/platformConfig.ts` — add `AppAuthConfigSchema` + `AppAuthRoleSchema` (see 0.2).
-- `framework/nodejs/src/adapters/h3.ts:handleRouteRequest` — insert auth resolver between input parse and handler invoke. Implements steps 1-8 from section 0.5.
-- `framework/nodejs/src/contracts/route.ts:RouteHandlerContext` — add `user?: ValidatedClaims` and `bpHeaders: BpHeadersApi` and `serviceId: string`.
-- `framework/nodejs/src/runtime/statusViews.ts` — status view resolver per section 0.6.
-
-Tests:
-
-- `required:false` + no token → handler runs, `ctx.user` null.
-- `required:false` + invalid token → handler runs, `ctx.user` null (not partial).
-- `required:true` + valid token wrong tenant → 401.
-- `required:true` + valid token wrong app → 401.
-- `required:true` + valid token missing permission → 403.
-- 401 with `view.401.tsx` present → renders themed page with 401 status.
-- 401 with no view + HTMX request + loginViewId set → 200 OK with HX-Redirect header.
-- 401 with no view + JSON request → JSON 401.
-
-### Phase 3 — Header transport
+### Phase 2 - Route auth contract + adapter enforcement
 
 Files:
 
-- `framework/nodejs/src/runtime/bpHeaders.ts` — implements the `BpHeadersApi` (set/remove with options).
-- `framework/nodejs/src/adapters/h3.ts` — collect bpHeaders from ctx after handler, emit `BP-SetHeader`/`BP-RemoveHeader` response headers.
-- `framework/nodejs/src/runtime/cors.ts` — auto-add `BP-*` wildcard to allowed/exposed headers.
-- `themes/nodejs/bootstrap1/src/.../client-headers.js` — client-side shim: storage, attachment, removal, expiry checks.
+- `framework/nodejs/src/contracts/route.ts` - add `ApiAuthRequirement` separate from `ViewAuthRequirement`. `permissions` field shape: `[{ serviceId, viewId, permissions: ("read"|"create"|"update"|"delete")[] }]`.
+- `framework/nodejs/src/contracts/platformConfig.ts` - add `AppAuthConfigSchema` + `AppAuthRoleSchema` (see 0.2).
+- `framework/nodejs/src/adapters/h3.ts:handleRouteRequest` - insert auth resolver between input parse and handler invoke. Implements steps 1-8 from section 0.5.
+- `framework/nodejs/src/contracts/route.ts:RouteHandlerContext` - add `user?: ValidatedClaims` and `bpHeaders: BpHeadersApi` and `serviceId: string`.
+- `framework/nodejs/src/runtime/statusViews.ts` - status view resolver per section 0.6.
 
 Tests:
 
-- Service A locks Authorization → service B's response with `BP-RemoveHeader: Authorization` is ignored.
+- `required:false` + no token -> handler runs, `ctx.user` null.
+- `required:false` + invalid token -> handler runs, `ctx.user` null (not partial).
+- `required:true` + valid token wrong tenant -> 401.
+- `required:true` + valid token wrong app -> 401.
+- `required:true` + valid token missing permission -> 403.
+- 401 with `view.401.tsx` present -> renders themed page with 401 status.
+- 401 with no view + HTMX request + loginViewId set -> 200 OK with HX-Redirect header.
+- 401 with no view + JSON request -> JSON 401.
+
+### Phase 3 - Header transport
+
+Files:
+
+- `framework/nodejs/src/runtime/bpHeaders.ts` - implements the `BpHeadersApi` (set/remove with options).
+- `framework/nodejs/src/adapters/h3.ts` - collect bpHeaders from ctx after handler, emit `BP-SetHeader`/`BP-RemoveHeader` response headers.
+- `framework/nodejs/src/runtime/cors.ts` - auto-add `BP-*` wildcard to allowed/exposed headers.
+- `themes/nodejs/bootstrap1/src/.../client-headers.js` - client-side shim: storage, attachment, removal, expiry checks.
+
+Tests:
+
+- Service A locks Authorization -> service B's response with `BP-RemoveHeader: Authorization` is ignored.
 - Scoped header only attached to declared service requests.
 - Expired header dropped on next request.
 - Unknown response header from service stripped (not stored).
 
-### Phase 4 — Auth provider helper
+### Phase 4 - Auth provider helper
 
 Files:
 
-- `plugins/nodejs/betterportal-bsb/src/service.ts` — add `registerAsAuthProvider({ issuer, privateKey, kid })` method. Exposes `/.well-known/jwks.json` route on the service's H3 app.
+- `plugins/nodejs/betterportal-bsb/src/service.ts` - add `registerAsAuthProvider({ issuer, privateKey, kid })` method. Exposes `/.well-known/jwks.json` route on the service's H3 app.
 
-### Phase 5 — Basic auth service (reference implementation)
+### Phase 5 - Basic auth service (reference implementation)
 
 Replaces scaffold `services/nodejs/auth-default/src/plugins/service-betterportal-auth-default/`.
 
 Files:
 
-- `service.ts` — extends BPService, calls `registerAsAuthProvider`, mounts user db + login/logout/refresh views.
-- `userStore.ts` — file-backed user store with bcrypt password hashing. Pluggable via service config.
-- `bp-routes/login/index.ts` + `view.tsx` — POST handler: lookup user, bcrypt compare, sign JWT, return via `BP-SetHeader`. GET returns login form.
-- `bp-routes/logout/index.ts` + `view.tsx` — clears `Authorization` via `BP-RemoveHeader`.
-- `bp-routes/refresh/index.ts` — POST handler: verifies refresh token, issues new access token.
-- `bp-routes/nav-profile/_theme.bootstrap1/index.tsx` — nav fragment with user display + JS auto-refresh scheduler.
+- `service.ts` - extends BPService, calls `registerAsAuthProvider`, mounts user db + login/logout/refresh views.
+- `userStore.ts` - file-backed user store with bcrypt password hashing. Pluggable via service config.
+- `bp-routes/login/index.ts` + `view.tsx` - POST handler: lookup user, bcrypt compare, sign JWT, return via `BP-SetHeader`. GET returns login form.
+- `bp-routes/logout/index.ts` + `view.tsx` - clears `Authorization` via `BP-RemoveHeader`.
+- `bp-routes/refresh/index.ts` - POST handler: verifies refresh token, issues new access token.
+- `bp-routes/nav-profile/_theme.bootstrap1/index.tsx` - nav fragment with user display + JS auto-refresh scheduler.
 
 Tests:
 
-- Login with valid creds → 200 + `BP-SetHeader: Authorization=...`.
-- Login with wrong password → 401.
-- Login with unknown user → 401 (same message, no enumeration).
-- Refresh with valid refresh token → 200 + new access token.
-- Refresh with expired refresh token → 401.
+- Login with valid creds -> 200 + `BP-SetHeader: Authorization=...`.
+- Login with wrong password -> 401.
+- Login with unknown user -> 401 (same message, no enumeration).
+- Refresh with valid refresh token -> 200 + new access token.
+- Refresh with expired refresh token -> 401.
 
-### Phase 6 — Permission Manager UI (admin)
+### Phase 6 - Permission Manager UI (admin)
 
 New routes in `services/nodejs/admin/config-manager` or sibling service. Aggregates perms from control-plane manifests; UI to compose roles; POSTs to config-manager app config.
 
-### Deferred — View-id resolver
+### Deferred - View-id resolver
 
 Separate refactor. App config + theme rendering switch from URL paths to view ids. Tracked but not in auth scope.
 
@@ -551,12 +551,12 @@ Separate refactor. App config + theme rendering switch from URL paths to view id
 ## Order rationale
 
 - Phase 0 first: changes after code = pain.
-- Phase 1 standalone — verifier + tests land without integration risk.
+- Phase 1 standalone - verifier + tests land without integration risk.
 - Phase 2 needs Phase 1. Once enforcement is wired, auth gates work.
-- Phase 3 independent of auth — general-purpose header transport. Auth is the first consumer.
+- Phase 3 independent of auth - general-purpose header transport. Auth is the first consumer.
 - Phase 4 thin wrapper over Phase 1 sign path.
 - Phase 5 end-to-end reference. Validates the full flow.
-- Phase 6 admin tooling — needs the rest working.
+- Phase 6 admin tooling - needs the rest working.
 
 ---
 
@@ -565,4 +565,4 @@ Separate refactor. App config + theme rendering switch from URL paths to view id
 - Multi-app SSO within same tenant. Not in V1 because apps live on separate origins.
 - Cross-service refresh-token revocation. Per-service jti revocation lists are out of scope; rely on short TTL.
 - Optional auth providers exposing `/.well-known/openid-configuration` for OIDC discovery. Useful for third-party clients but not required for BetterPortal-internal flows.
-- View-id refactor (paths → ids in app config). Required for cleanest `loginViewId`/`logoutViewId` UX. Tracked separately.
+- View-id refactor (paths -> ids in app config). Required for cleanest `loginViewId`/`logoutViewId` UX. Tracked separately.

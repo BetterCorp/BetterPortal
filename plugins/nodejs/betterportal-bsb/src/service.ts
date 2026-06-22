@@ -100,7 +100,7 @@ export interface BetterPortalConfig {
 export const BetterPortalConfigSchema = av.optional(av.object({
   bpConfigPath: av.optional(av.string().minLength(1)),
   // Optional dev-only shared secret for the static config-token fallback. NOT
-  // set by default — production verifies CP-signed tickets via the CP JWKS and
+  // set by default - production verifies CP-signed tickets via the CP JWKS and
   // never needs this. The fallback is additionally gated behind
   // BP_ALLOW_DEV_CONFIG_TOKEN=true (see validateConfigTicket).
   configApiToken: av.optional(av.string().minLength(1)),
@@ -157,7 +157,7 @@ export abstract class BPService<
   /**
    * Resolve header-trust options for a request. Proxy-supplied host headers are
    * only honoured when the request's direct socket peer IP is in the configured
-   * `trustedProxyIps` allowlist — otherwise an attacker connecting directly
+   * `trustedProxyIps` allowlist - otherwise an attacker connecting directly
    * could spoof X-Forwarded-Host/Forwarded/CF-* to impersonate another tenant.
    */
   protected headerTrustOptions(event: BetterPortalEvent): { trustedProxyHeaders?: boolean; cfProxy?: boolean } {
@@ -278,7 +278,7 @@ export abstract class BPService<
   }
 
   /**
-   * Override to provide the service-instance-id → pluginId alias map used by the
+   * Override to provide the service-instance-id -> pluginId alias map used by the
    * permission check (role grants use instance ids, route auth uses pluginIds).
    * Default: reads the tenant's service bindings from scopedConfig.
    */
@@ -437,7 +437,7 @@ export abstract class BPService<
     }
 
     if (this.inSetupMode) {
-      obs.log.warn("{pluginId} initialized in SETUP MODE — awaiting POST to /.well-known/bp/install", {
+      obs.log.warn("{pluginId} initialized in SETUP MODE - awaiting POST to /.well-known/bp/install", {
         pluginId: def.manifest.pluginId
       });
     } else {
@@ -563,7 +563,7 @@ export abstract class BPService<
 
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
       this.scopedConfig = rawConfig as ScopedServiceConfig;
-      // Persist for restart resilience — the service owns its cache; CM's
+      // Persist for restart resilience - the service owns its cache; CM's
       // bp-config.yaml is never shared.
       try {
         this.scopedConfigCache.write(rawConfig);
@@ -876,7 +876,7 @@ export abstract class BPService<
         const ctx = await this.resolveCorsContext(event);
         if (ctx) this.applyRequestContext(event, ctx);
       } catch {
-        // ignore — public path stays open even if scope can't be resolved
+        // ignore - public path stays open even if scope can't be resolved
       }
       const corsResult = handleCorsRequest(event, {
         origin: [origin],
@@ -972,7 +972,7 @@ export abstract class BPService<
       "/.well-known/bp/bootstrap/commit",
       "/.well-known/bp/admin/services/begin-install",
       "/.well-known/jwks.json",
-      // Auth endpoints — explicitly cross-origin (login form posts from any app).
+      // Auth endpoints - explicitly cross-origin (login form posts from any app).
       "/login",
       "/logout",
       "/refresh",
@@ -1206,7 +1206,7 @@ export abstract class BPService<
    * If none yield credentials, enter setup mode.
    */
   private resolveCredentials(obs: Observable): void {
-    // Self-hosted services (the CP itself — e.g. config-manager) don't poll a
+    // Self-hosted services (the CP itself - e.g. config-manager) don't poll a
     // remote CP and never enter setup mode.
     if (!this.requireBetterPortalConfigSource) {
       this.inSetupMode = false;
@@ -1249,9 +1249,9 @@ export abstract class BPService<
     const hasSync = !!this.resolvedApiKey && !!this.resolvedCpUrl;
 
     if (!hasLocalPath && !hasSync) {
-      // Setup mode — service will accept POST /.well-known/bp/install
+      // Setup mode - service will accept POST /.well-known/bp/install
       obs.log.warn(
-        "No credentials available — entering setup mode. POST /.well-known/bp/install with setupToken+cpUrl to provision."
+        "No credentials available - entering setup mode. POST /.well-known/bp/install with setupToken+cpUrl to provision."
       );
       return;
     }
@@ -1350,10 +1350,10 @@ export abstract class BPService<
     }, status);
   }
 
-  // ── Install endpoint ──────────────────────────────────────────────
+  // -- Install endpoint ----------------------------------------------
 
   /**
-   * Mounts POST /.well-known/bp/install — the browser-driven service installer.
+   * Mounts POST /.well-known/bp/install - the browser-driven service installer.
    * Caller posts { setupToken, cpUrl }. Service fetches CP JWKS, verifies the
    * setup token, then redeems it for the real apiKey via CP /services/redeem.
    * Persists credentials and starts CP sync.
@@ -1386,7 +1386,7 @@ export abstract class BPService<
           return jsonResponse({ error: "Setup token cpJwksUri mismatch" }, 400);
         }
 
-        // Redeem token at CP — exchanges single-use setup token for the real apiKey.
+        // Redeem token at CP - exchanges single-use setup token for the real apiKey.
         // Also pushes our JWKS (if we're an auth provider) so the CP can verify
         // JWTs we issue WITHOUT fetching JWKS from us (CM cannot reach services).
         const redeemResponse = await fetch(`${normalizedCp}/.well-known/bp/services/redeem`, {
@@ -1435,7 +1435,7 @@ export abstract class BPService<
         console.log(`\n*** BP install complete for ${this.manifest.pluginId} ***\n    apiKey: ${redeemBody.apiKey}\n    cpUrl:  ${normalizedCp}\n`);
         obs.log.info("Install complete for {pluginId}; apiKey persisted; starting CP sync", { pluginId: this.manifest.pluginId });
 
-        // Kick off CP sync (idempotent — connectToControlPlane uses resolved fields)
+        // Kick off CP sync (idempotent - connectToControlPlane uses resolved fields)
         this.connectToControlPlane(obs);
 
         return jsonResponse({
@@ -1507,7 +1507,7 @@ export abstract class BPService<
 
   /**
    * Validate a service-config ticket. Primary path: verify a CP-signed RS256
-   * ticket against the CP JWKS learned at install/redeem — there is no shared
+   * ticket against the CP JWKS learned at install/redeem - there is no shared
    * secret and only the CP can mint tickets. Before install (no cpJwksUri yet)
    * the service fails closed: config endpoints reject every request until it has
    * been provisioned.
@@ -1528,7 +1528,7 @@ export abstract class BPService<
           serviceId: this.manifest.pluginId
         });
       } catch {
-        // Not a valid CP ticket — fall through to the dev path (only if enabled).
+        // Not a valid CP ticket - fall through to the dev path (only if enabled).
       }
     }
 

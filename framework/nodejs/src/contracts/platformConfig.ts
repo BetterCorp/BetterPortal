@@ -57,7 +57,7 @@ export const BetterPortalThemeConfigSchema = av.object({
 });
 export type BetterPortalThemeConfig = Infer<typeof BetterPortalThemeConfigSchema>;
 
-// ── Service registration (per-tenant owned) ─────────────────────────
+// -- Service registration (per-tenant owned) -------------------------
 
 export const TenantServiceRegistrationSchema = av.object({
   id: UuidV7Schema,
@@ -81,7 +81,7 @@ export const BetterPortalAppShellSchema = av.object({
 }, { unknownKeys: "strip" });
 export type BetterPortalAppShell = Infer<typeof BetterPortalAppShellSchema>;
 
-// ── Platform service (BP-hosted marketplace) ─────────────────────────
+// -- Platform service (BP-hosted marketplace) -------------------------
 
 export const PlatformServiceSchema = av.object({
   id: UuidV7Schema,
@@ -99,7 +99,7 @@ export const PlatformServiceSchema = av.object({
 }, { unknownKeys: "strip" });
 export type PlatformService = Infer<typeof PlatformServiceSchema>;
 
-// ── Tenant ───────────────────────────────────────────────────────────
+// -- Tenant -----------------------------------------------------------
 
 export const BetterPortalTenantSchema = av.object({
   id: UuidV7Schema,
@@ -145,7 +145,7 @@ export const BetterPortalRouteMountSchema = av.object({
 }, { unknownKeys: "strip" });
 export type BetterPortalRouteMount = Infer<typeof BetterPortalRouteMountSchema>;
 
-// ── Menu (separate from routes) ──────────────────────────────────────
+// -- Menu (separate from routes) --------------------------------------
 
 export const BetterPortalMenuItemSchema: any = av.object({
   id: UuidV7Schema,
@@ -222,7 +222,7 @@ export const BetterPortalConfigManagementSchema = av.object({
 });
 export type BetterPortalConfigManagement = Infer<typeof BetterPortalConfigManagementSchema>;
 
-// ── Shared service catalog (BP-curated + 3rd-party marketplace) ─────
+// -- Shared service catalog (BP-curated + 3rd-party marketplace) -----
 
 export const SharedServiceDefinitionSchema = av.object({
   id: NonEmptyStringSchema,
@@ -255,7 +255,7 @@ export const TenantSharedServiceActivationSchema = av.object({
 }, { unknownKeys: "strip" });
 export type TenantSharedServiceActivation = Infer<typeof TenantSharedServiceActivationSchema>;
 
-// ── Manifest cache (CP-side per spec section P8) ────────────────────
+// -- Manifest cache (CP-side per spec section P8) --------------------
 
 export const ServiceManifestCacheEntrySchema = av.object({
   serviceId: NonEmptyStringSchema,

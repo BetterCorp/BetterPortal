@@ -12,7 +12,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <p class="text-body-secondary">Common UI patterns: empty states, search, avatars, timelines, toolbars, and step wizards.</p>
         </div>
 
-        {/* ── Empty States ── */}
+        {/* -- Empty States -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Empty States</h5>
@@ -20,7 +20,7 @@ export function render(data: ResponseData): HtmlRenderable {
               <div class="col-md-6">
                 <div class="card h-100">
                   <div class="card-body text-center py-5">
-                    <div class="mb-3" style="font-size:2.5rem;opacity:0.3;">📋</div>
+                    <div class="mb-3" style="font-size:2.5rem;opacity:0.3;"></div>
                     <h6>No Projects Yet</h6>
                     <p class="text-body-secondary small mb-3">Create your first project to get started.</p>
                     <button class="btn btn-primary btn-sm">Create Project</button>
@@ -30,7 +30,7 @@ export function render(data: ResponseData): HtmlRenderable {
               <div class="col-md-6">
                 <div class="card h-100">
                   <div class="card-body text-center py-5">
-                    <div class="mb-3" style="font-size:2.5rem;opacity:0.3;">🔍</div>
+                    <div class="mb-3" style="font-size:2.5rem;opacity:0.3;"></div>
                     <h6>No Results Found</h6>
                     <p class="text-body-secondary small mb-3">Try adjusting your search or filter criteria.</p>
                     <button class="btn btn-outline-secondary btn-sm">Clear Filters</button>
@@ -41,7 +41,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Search ── */}
+        {/* -- Search -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Search Patterns</h5>
@@ -49,7 +49,7 @@ export function render(data: ResponseData): HtmlRenderable {
               <div class="col-md-6">
                 <label class="form-label">Basic Search</label>
                 <div class="input-group">
-                  <span class="input-group-text">🔍</span>
+                  <span class="input-group-text"></span>
                   <input type="search" class="form-control" placeholder="Search users, projects, settings..." />
                 </div>
               </div>
@@ -68,7 +68,7 @@ export function render(data: ResponseData): HtmlRenderable {
                       <div class="d-flex justify-content-between align-items-center">
                         <div>
                           <div class="fw-semibold">Jane Doe</div>
-                          <small class="text-body-secondary">jane@example.com · Admin</small>
+                          <small class="text-body-secondary">jane@example.com - Admin</small>
                         </div>
                         <span class="badge text-bg-primary rounded-pill">User</span>
                       </div>
@@ -77,7 +77,7 @@ export function render(data: ResponseData): HtmlRenderable {
                       <div class="d-flex justify-content-between align-items-center">
                         <div>
                           <div class="fw-semibold">Dashboard Settings</div>
-                          <small class="text-body-secondary">Settings → Dashboard → Layout</small>
+                          <small class="text-body-secondary">Settings {"->"} Dashboard {"->"} Layout</small>
                         </div>
                         <span class="badge text-bg-secondary rounded-pill">Setting</span>
                       </div>
@@ -86,7 +86,7 @@ export function render(data: ResponseData): HtmlRenderable {
                       <div class="d-flex justify-content-between align-items-center">
                         <div>
                           <div class="fw-semibold">Project Alpha</div>
-                          <small class="text-body-secondary">Created Mar 15, 2025 · 12 members</small>
+                          <small class="text-body-secondary">Created Mar 15, 2025 - 12 members</small>
                         </div>
                         <span class="badge text-bg-success rounded-pill">Project</span>
                       </div>
@@ -98,7 +98,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Avatars ── */}
+        {/* -- Avatars -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Avatars &amp; User Chips</h5>
@@ -147,17 +147,17 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Timeline / Activity Feed ── */}
+        {/* -- Timeline / Activity Feed -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Activity Timeline</h5>
             <div class="d-flex flex-column gap-0">
               {[
-                { time: "2 min ago", icon: "🟢", title: "Deployment completed", desc: "Production v2.4.1 deployed successfully.", badge: "Success", color: "success" },
-                { time: "15 min ago", icon: "👤", title: "New user registered", desc: "alex@example.com joined the workspace.", badge: "User", color: "primary" },
-                { time: "1 hr ago", icon: "⚙️", title: "Config updated", desc: "SMTP settings changed by admin@example.com.", badge: "Config", color: "secondary" },
-                { time: "3 hr ago", icon: "🔴", title: "Alert triggered", desc: "CPU usage exceeded 90% on node-3.", badge: "Critical", color: "danger" },
-                { time: "6 hr ago", icon: "📦", title: "Backup completed", desc: "Daily backup finished. Size: 2.4GB.", badge: "System", color: "info" }
+                { time: "2 min ago", icon: "", title: "Deployment completed", desc: "Production v2.4.1 deployed successfully.", badge: "Success", color: "success" },
+                { time: "15 min ago", icon: "", title: "New user registered", desc: "alex@example.com joined the workspace.", badge: "User", color: "primary" },
+                { time: "1 hr ago", icon: "", title: "Config updated", desc: "SMTP settings changed by admin@example.com.", badge: "Config", color: "secondary" },
+                { time: "3 hr ago", icon: "", title: "Alert triggered", desc: "CPU usage exceeded 90% on node-3.", badge: "Critical", color: "danger" },
+                { time: "6 hr ago", icon: "", title: "Backup completed", desc: "Daily backup finished. Size: 2.4GB.", badge: "System", color: "info" }
               ].map((event, i) => (
                 <div class="d-flex gap-3 position-relative" style="padding-bottom:1.5rem;">
                   {i < 4 ? <div class="position-absolute" style="left:1rem;top:2.2rem;bottom:0;width:2px;background:var(--bp-border,rgba(0,0,0,0.06));"></div> : ""}
@@ -176,7 +176,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Toolbar / Action Bar ── */}
+        {/* -- Toolbar / Action Bar -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Toolbars</h5>
@@ -192,7 +192,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   <div class="dropdown">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Sort</button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                      <li><a class="dropdown-item" href="javascript:;">Name A–Z</a></li>
+                      <li><a class="dropdown-item" href="javascript:;">Name A-Z</a></li>
                       <li><a class="dropdown-item" href="javascript:;">Date Created</a></li>
                       <li><a class="dropdown-item" href="javascript:;">Last Modified</a></li>
                     </ul>
@@ -211,7 +211,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
 
-        {/* ── Steps / Wizard ── */}
+        {/* -- Steps / Wizard -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Steps / Wizard</h5>
@@ -225,7 +225,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 <div class="d-flex align-items-center gap-0 flex-grow-1">
                   <div class="text-center">
                     <div class={`rounded-circle d-inline-flex align-items-center justify-content-center fw-bold ${step.done ? "bg-success text-white" : step.active ? "bg-primary text-white" : "bg-light text-body-secondary border"}`} style="width:2.2rem;height:2.2rem;font-size:0.8rem;">
-                      {step.done ? "✓" : step.num}
+                      {step.done ? "OK" : step.num}
                     </div>
                     <div class={`small mt-1 ${step.active ? "fw-semibold" : "text-body-secondary"}`}>{step.label}</div>
                   </div>
@@ -257,15 +257,15 @@ export function render(data: ResponseData): HtmlRenderable {
                   </div>
                 </div>
                 <div class="d-flex justify-content-between mt-4">
-                  <button class="btn btn-outline-secondary">← Back</button>
-                  <button class="btn btn-primary">Continue →</button>
+                  <button class="btn btn-outline-secondary">{"<-"} Back</button>
+                  <button class="btn btn-primary">Continue {"->"}</button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Input Groups ── */}
+        {/* -- Input Groups -- */}
         <div class="card">
           <div class="card-body">
             <h5 class="card-title mb-3">Input Groups</h5>

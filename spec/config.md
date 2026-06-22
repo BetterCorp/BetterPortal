@@ -4,8 +4,8 @@
 
 BetterPortal has **two** kinds of config:
 
-1. **Platform config (`bp-config.yaml`)** — global state managed by the admin (`config-manager`) service. Defines tenants, apps, themes, routes, menus, fragments, service bindings. Read by every service that needs to resolve a request to a tenant/app.
-2. **Per-service config** — settings each service exposes for tenants/apps to customize (e.g., an API key, a default greeting). Served via `/.well-known/bp/config*` endpoints.
+1. **Platform config (`bp-config.yaml`)** - global state managed by the admin (`config-manager`) service. Defines tenants, apps, themes, routes, menus, fragments, service bindings. Read by every service that needs to resolve a request to a tenant/app.
+2. **Per-service config** - settings each service exposes for tenants/apps to customize (e.g., an API key, a default greeting). Served via `/.well-known/bp/config*` endpoints.
 
 This document specifies both.
 
@@ -147,7 +147,7 @@ apps:
       mode: system
       bootstrap: {...}
     defaultRoute: /
-    routes:                                  # public path → service.view binding
+    routes:                                  # public path -> service.view binding
       - id: hello                            # opaque
         path: /
         serviceId: hello-view                # tenant.services[].id or sharedServiceActivations[].id
@@ -156,21 +156,21 @@ apps:
         title: Hello
         enabled: true
         methods: [GET]
-    menu:                                    # tree; see fragment-html.md § 4 for events
+    menu:                                    # tree; see fragment-html.md section 4 for events
       - id: m-hello
         type: link | group | external | section | divider
         title: Hello
         routeId: hello
         enabled: true
         children: []                         # only for type=group
-    fragments:                               # location → list of fragment bindings
+    fragments:                               # location -> list of fragment bindings
       nav:
         - serviceId: hello-view
           fragmentId: profile
           targetPath: /hello                 # public path on the service
           enabled: true
       footer: []
-    slots: []                                # LEGACY — prefer fragments
+    slots: []                                # LEGACY - prefer fragments
 ```
 
 ### 1.7 Resolution rules
@@ -205,11 +205,11 @@ Returns the service's config surface:
 |---|---|
 | `mode: static` | Schema is fixed; values come from `bp-config.yaml` directly. No read/write endpoints. |
 | `mode: dynamic` | Schema is fixed but values live in the service. Read/write via the endpoints below. |
-| `mode: hybrid` | Both — some fields static, some dynamic. |
+| `mode: hybrid` | Both - some fields static, some dynamic. |
 | `supportsCustomUi` | Admin tooling SHOULD navigate to `customUiPath` instead of generating a form. |
 | `supportsWrite` | If `false`, the POST endpoint returns `501`. |
 
-`ConfigSchemaDescriptor` is defined in `manifest.md` § 3.
+`ConfigSchemaDescriptor` is defined in `manifest.md` section 3.
 
 Config schema descriptors MAY include `groups[]` plus per-field `groupId`, `order`, and `defaultValue` metadata. These fields are UI metadata and do not change storage semantics: writes still persist only declared `fields[].key` values. Admin UIs SHOULD use `field.order` for deterministic display, render grouped fields together, and use `field.defaultValue` as the visible fallback when neither tenant nor app scope has a value. For app scope, `group.optional` MAY be rendered as a group-level override toggle that clears all fields in that group when disabled.
 
@@ -220,9 +220,9 @@ Read tenant- and/or app-scoped values.
 Request headers:
 
 ```
-Authorization: Bearer <ticket>     ← see § 3
+Authorization: Bearer <ticket>     <- see section 3
 X-BP-Tenant-Id: <tenantId>
-X-BP-App-Id: <appId>               ← optional; presence determines scope
+X-BP-App-Id: <appId>               <- optional; presence determines scope
 ```
 
 Response:
@@ -241,10 +241,10 @@ Response:
 
 Status codes:
 
-- `200` — success.
-- `401` — missing or invalid ticket.
-- `403` — ticket valid but tenant/app scope mismatch.
-- `404` — service does not implement `mode: dynamic` or `hybrid`.
+- `200` - success.
+- `401` - missing or invalid ticket.
+- `403` - ticket valid but tenant/app scope mismatch.
+- `404` - service does not implement `mode: dynamic` or `hybrid`.
 
 ### 2.3 `POST /.well-known/bp/config`
 
@@ -334,11 +334,11 @@ A service verifying a config ticket MUST:
 5. Check the requested action (`config.read` for GET, `config.write` for POST) is in `actions`.
 6. Check `tenantId` and `appId` match the request's `X-BP-Tenant-Id` and `X-BP-App-Id` headers (and the body's `tenantId`/`appId` for POST).
 
-Any failure → `401` (signature/exp/iat/aud) or `403` (scope mismatch).
+Any failure -> `401` (signature/exp/iat/aud) or `403` (scope mismatch).
 
 ### 3.3 Dev tokens
 
-Config tickets are RS256 JWTs signed by the control plane's key and verified against its JWKS (§3.1). There is no shared signing secret — only the control plane can mint a ticket.
+Config tickets are RS256 JWTs signed by the control plane's key and verified against its JWKS (section3.1). There is no shared signing secret - only the control plane can mint a ticket.
 
 For local development a service MAY additionally accept a static bearer string equal to a configured `configApiToken`. This path is OFF by default and MUST be explicitly enabled with the environment variable `BP_ALLOW_DEV_CONFIG_TOKEN=true`; with it disabled (the default) the service rejects every request until it has been provisioned by the control plane. Because the static token lets the caller name an arbitrary tenant via `X-BP-Tenant-Id`, production deployments MUST NOT set `BP_ALLOW_DEV_CONFIG_TOKEN`. The reference SDKs ship no default `configApiToken`; the legacy world-known value `bp-dev-config-token` is no longer a signing key and grants nothing on its own.
 
@@ -372,8 +372,8 @@ A service implementing dynamic config:
 
 - MUST serve `GET /.well-known/bp/config/schema`.
 - MUST serve `GET /.well-known/bp/config` and `POST /.well-known/bp/config` (or return `501` if write-only or read-only).
-- MUST validate tickets per § 3.2.
-- MUST encrypt secret fields per § 4.
+- MUST validate tickets per section 3.2.
+- MUST encrypt secret fields per section 4.
 - MUST redact secrets on read.
 - MUST NOT log cleartext values for secret fields.
 

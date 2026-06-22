@@ -1,7 +1,7 @@
 import type { BaseSchema, Infer } from "anyvali";
 import type { RawRouteHandler, RouteHandlerContext, RouteHandler } from "../contracts/route.js";
 
-// ── Schema configuration ─────────────────────────────────────────────
+// -- Schema configuration ---------------------------------------------
 
 /**
  * Schema configuration for a route handler.
@@ -19,7 +19,7 @@ export interface HandlerSchemas<
   readonly request?: TRequest;
 }
 
-// ── Type helpers ─────────────────────────────────────────────────────
+// -- Type helpers -----------------------------------------------------
 
 /** Resolve a schema to its inferred output type, or fall back to a default. */
 type SchemaOutput<
@@ -42,14 +42,14 @@ type TypedHandlerContext<
   TServiceConfig
 >;
 
-// ── Factory ──────────────────────────────────────────────────────────
+// -- Factory ----------------------------------------------------------
 
 /**
  * Create a type-safe route handler with framework-enforced validation.
  *
  * - TypeScript enforces the return type matches `Infer<ResponseSchema>` at compile time.
  * - At runtime, the response is validated through `schemas.response.parse()` as a safety net.
- * - The handler's `ctx` is fully typed from the provided schemas — no manual `.parse()` needed.
+ * - The handler's `ctx` is fully typed from the provided schemas - no manual `.parse()` needed.
  *
  * @example
  * ```ts
@@ -89,7 +89,7 @@ export function createHandler<
     const result = await handler(
       ctx as TypedHandlerContext<HandlerSchemas<TResponse, TQuery, THeaders, TRequest>, TParams, TPlugin, TServiceConfig>
     );
-    // Runtime validation — catches any drift between TypeScript types and actual data.
+    // Runtime validation - catches any drift between TypeScript types and actual data.
     return schemas.response.parse(result) as Infer<TResponse>;
   };
 }

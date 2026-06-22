@@ -39,7 +39,7 @@ import {
 } from "./storage/index.js";
 import BetterportalConfigManagerClient from "../../.bsb/clients/service-betterportal-config-manager.js";
 
-/** Tenant service-instance id (UUIDv7) → pluginId, for the auth permission check. */
+/** Tenant service-instance id (UUIDv7) -> pluginId, for the auth permission check. */
 function buildServiceIdAliases(
   config: {
     tenants: Array<{ id: string; services: Array<{ id: string; serviceId?: string }> }>;
@@ -112,7 +112,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private readonly selfClient: BetterportalConfigManagerClient;
   /** CP-side signing keypair + issuer/audience info. Built on first init. */
   private cpState!: CpBootstrapState;
-  /** Cache of (tenantId, appId) → app.auth config + JWT verifier from synced storage. */
+  /** Cache of (tenantId, appId) -> app.auth config + JWT verifier from synced storage. */
   private readonly authConfigCache = new Map<string, { auth: AppAuthConfig; verifier: JwtVerifier; aliases: Record<string, string>; cachedAt: number }>();
   private readonly authCacheTtlMs = 60 * 1000;
 
@@ -135,7 +135,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   /**
    * CM uses its own storage as the source of app.auth config (it IS the CP).
-   * Loads sync — async load via cached promise to keep getJwtVerifier signature simple.
+   * Loads sync - async load via cached promise to keep getJwtVerifier signature simple.
    */
   protected getAppAuthConfig(tenantId: string, appId: string): AppAuthConfig | undefined {
     return this.readAuthCacheEntry(tenantId, appId)?.auth;
@@ -199,7 +199,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       }
       if (warmed > 0) obs?.log.debug("Warmed auth verifier cache for {count} app(s)", { count: warmed });
     } catch {
-      // Non-fatal — getJwtVerifier falls back to lazy refresh on demand.
+      // Non-fatal - getJwtVerifier falls back to lazy refresh on demand.
     }
   }
 
@@ -210,7 +210,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const app = config.apps.find((a) => a.id === appId && a.tenantId === tenantId);
       const auth = (app as unknown as { auth?: AppAuthConfig })?.auth;
       if (!auth) return;
-      // CM cannot reach services — must use the JWKS the auth service pushed at /install.
+      // CM cannot reach services - must use the JWKS the auth service pushed at /install.
       if (!auth.publicKeys || !Array.isArray(auth.publicKeys.keys) || auth.publicKeys.keys.length === 0) {
         return;
       }
@@ -222,7 +222,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       });
       this.authConfigCache.set(key, { auth, verifier, aliases: buildServiceIdAliases(config, tenantId), cachedAt: Date.now() });
     } catch {
-      // silent — next request retries
+      // silent - next request retries
     }
   }
 
@@ -277,7 +277,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     await this.selfClient.onPlatformConfigChanged(_obs, async (eventObs, event) => {
       if (event.sourceId === this.changeSourceId) return;
       this.storage.invalidate();
-      // A config change may carry a freshly-pushed auth JWKS — rebuild verifiers.
+      // A config change may carry a freshly-pushed auth JWKS - rebuild verifiers.
       await this.warmAuthCache(eventObs);
     });
 
@@ -305,7 +305,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     // Setup token mint + redeem endpoints (P4)
     registerSetupEndpoints({ app: this.app, storage: this.storage, cpState: this.cpState });
 
-    // Bootstrap detection + endpoint (P6) — opens vanilla HTML wizard on empty DB
+    // Bootstrap detection + endpoint (P6) - opens vanilla HTML wizard on empty DB
     await registerBootstrapEndpoint({
       app: this.app,
       storage: this.storage,

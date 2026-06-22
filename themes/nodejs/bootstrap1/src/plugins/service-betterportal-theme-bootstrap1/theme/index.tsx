@@ -291,7 +291,7 @@ export function renderNavItems(navItems: Bootstrap1NavItem[], dismissMobileMenu 
       <details class="bp-admin__nav-group" data-bp-nav-group="" open={(item.active || item.defaultExpanded) ? true : undefined}>
         <summary class="bp-admin__nav-group-toggle">
           <span class="bp-admin__nav-group-title">{item.title}</span>
-          <span class="bp-admin__nav-group-chevron">⌄</span>
+          <span class="bp-admin__nav-group-chevron"></span>
         </summary>
         <div class="bp-admin__nav-group-items">
           {item.items.map((child) => renderRouteLink(child, dismissMobileMenu))}
@@ -303,7 +303,7 @@ export function renderNavItems(navItems: Bootstrap1NavItem[], dismissMobileMenu 
 
 export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThemeConfig) {
   const surfaceConfig = mode === "dark" ? themeConfig.dark : themeConfig.light;
-  /* ── Neumorphic shadow tokens ── */
+  /* -- Neumorphic shadow tokens -- */
   const neu = mode === "dark" ? {
     bg: "#2c2c2e",
     surface: "#2c2c2e",
@@ -409,7 +409,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       gap: "1rem",
       alignItems: "start"
     },
-    /* ── Sidebar: lives ON the background, no card ── */
+    /* -- Sidebar: lives ON the background, no card -- */
     ".bp-admin__sidebar": {
       position: "sticky",
       top: "1rem",
@@ -425,7 +425,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       overflow: "visible"
     },
 
-    /* ── Workspace: raised glass card (topbar + content) ── */
+    /* -- Workspace: raised glass card (topbar + content) -- */
     ".bp-admin__workspace": {
       minHeight: "calc(100vh - 1.7rem)",
       borderRadius: "1.5rem",
@@ -444,7 +444,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       gap: 0
     },
 
-    /* ── Brand: text on background ── */
+    /* -- Brand: text on background -- */
     ".bp-admin__brand-row": {
       position: "relative",
       display: "flex",
@@ -473,7 +473,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       display: "none"
     },
 
-    /* ── Nav: clean text on background ── */
+    /* -- Nav: clean text on background -- */
     ".bp-admin__nav": {
       display: "grid",
       gap: "0.15rem"
@@ -522,7 +522,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       borderLeft: "none"
     },
 
-    /* ── Routes: uniform text, on background ── */
+    /* -- Routes: uniform text, on background -- */
     ".bp-admin__route": {
       display: "block",
       borderRadius: "0.6rem",
@@ -559,7 +559,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
     ".bp-admin__route--child.active": {
       boxShadow: "none"
     },
-    /* P14: service health degraded — clickable but visibly disabled */
+    /* P14: service health degraded - clickable but visibly disabled */
     ".bp-service-down": {
       opacity: 0.4,
       cursor: "not-allowed",
@@ -567,7 +567,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       position: "relative"
     },
     ".bp-service-down::after": {
-      content: '"●"',
+      content: '""',
       color: "var(--bp-accent-danger)",
       position: "absolute",
       top: "0.2rem",
@@ -576,7 +576,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       lineHeight: 1
     },
 
-    /* ── Topbar: inside glass card, no own card ── */
+    /* -- Topbar: inside glass card, no own card -- */
     ".bp-admin__topbar": {
       position: "relative",
       borderRadius: 0,
@@ -647,7 +647,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       display: "none"
     },
 
-    /* ── Content: inside glass card, fills remaining height ── */
+    /* -- Content: inside glass card, fills remaining height -- */
     ".bp-admin__content-frame": {
       position: "relative",
       overflow: "hidden",
@@ -763,7 +763,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       justifyContent: "center"
     },
 
-    /* ── Mobile menu ── */
+    /* -- Mobile menu -- */
     ".bp-admin__mobile-menu": {
       background: mode === "dark"
         ? "rgba(44,44,46,0.92)"
@@ -785,13 +785,13 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       alignContent: "start"
     },
 
-    /* ══════════════════════════════════════════════
+    /*
        Bootstrap Component Defaults (glass neumorphic)
        Scoped to content area so services/plugins
        use vanilla Bootstrap and get styled automatically
-       ══════════════════════════════════════════════ */
+        */
 
-    /* ── Cards ── */
+    /* -- Cards -- */
     ".bp-shell__main .card": {
       border: "none",
       borderRadius: "1rem",
@@ -825,7 +825,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
         : "1px solid rgba(0,0,0,0.05)"
     },
 
-    /* ── Buttons ── */
+    /* -- Buttons -- */
     /* Neumorphic feel: inner glow, soft shadow, no heavy transparency  */
     ".bp-shell__main .btn": {
       borderRadius: "0.6rem",
@@ -846,7 +846,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       pointerEvents: "none"
     },
 
-    /* ── Primary: opaque accent + inner glow ── */
+    /* -- Primary: opaque accent + inner glow -- */
     ".bp-shell__main .btn-primary": {
       background: "var(--bp-accent)",
       color: "#ffffff",
@@ -861,7 +861,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Secondary: soft neutral surface ── */
+    /* -- Secondary: soft neutral surface -- */
     ".bp-shell__main .btn-secondary": {
       background: mode === "dark"
         ? "rgba(255,255,255,0.10)"
@@ -881,7 +881,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Success ── */
+    /* -- Success -- */
     ".bp-shell__main .btn-success": {
       background: "var(--bp-accent-success)",
       color: "#ffffff",
@@ -896,7 +896,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Danger ── */
+    /* -- Danger -- */
     ".bp-shell__main .btn-danger": {
       background: "var(--bp-accent-danger)",
       color: "#ffffff",
@@ -911,7 +911,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Warning ── */
+    /* -- Warning -- */
     ".bp-shell__main .btn-warning": {
       background: "var(--bp-accent-warning)",
       color: "#1a1a1c",
@@ -926,7 +926,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Info ── */
+    /* -- Info -- */
     ".bp-shell__main .btn-info": {
       background: "var(--bp-accent-info)",
       color: "#ffffff",
@@ -941,7 +941,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Light: soft raised surface ── */
+    /* -- Light: soft raised surface -- */
     ".bp-shell__main .btn-light": {
       background: mode === "dark"
         ? "rgba(255,255,255,0.10)"
@@ -961,7 +961,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Dark: high-contrast inverted ── */
+    /* -- Dark: high-contrast inverted -- */
     ".bp-shell__main .btn-dark": {
       background: mode === "dark"
         ? "rgba(255,255,255,0.85)"
@@ -981,7 +981,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Outline variants: frosted glass shell, color text ── */
+    /* -- Outline variants: frosted glass shell, color text -- */
     ".bp-shell__main .btn-outline-primary": {
       color: "var(--bp-accent)",
       background: mode === "dark"
@@ -1173,7 +1173,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* ── Tables ── */
+    /* -- Tables -- */
     ".bp-shell__main .table": {
       "--bs-table-bg": "transparent",
       "--bs-table-hover-bg": mode === "dark"
@@ -1200,7 +1200,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       verticalAlign: "middle"
     },
 
-    /* ── Badges ── */
+    /* -- Badges -- */
     ".bp-shell__main .badge": {
       fontWeight: 600,
       fontSize: "0.74rem",
@@ -1258,7 +1258,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       color: mode === "dark" ? "#1a1a1c !important" : "#ffffff !important"
     },
 
-    /* ── Form controls ── */
+    /* -- Form controls -- */
     ".bp-shell__main .form-control, .bp-shell__main .form-select": {
       borderRadius: "0.6rem",
       border: mode === "dark"
@@ -1302,7 +1302,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       borderColor: "var(--bp-accent)"
     },
 
-    /* ── Alerts ── */
+    /* -- Alerts -- */
     ".bp-shell__main .alert": {
       borderRadius: "0.8rem",
       border: "none",
@@ -1339,7 +1339,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       color: mode === "dark" ? "#64d2ff" : "#0077b6"
     },
 
-    /* ── Dropdowns ── */
+    /* -- Dropdowns -- */
     ".bp-shell__main .dropdown-menu": {
       borderRadius: "0.8rem",
       border: mode === "dark"
@@ -1377,7 +1377,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       margin: "0.3rem 0"
     },
 
-    /* ── List groups ── */
+    /* -- List groups -- */
     ".bp-shell__main .list-group": {
       borderRadius: "0.8rem",
       overflow: "hidden"
@@ -1406,7 +1406,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       fontWeight: 600
     },
 
-    /* ── Navs & tabs ── */
+    /* -- Navs & tabs -- */
     ".bp-shell__main .nav-tabs": {
       borderBottomColor: mode === "dark"
         ? "rgba(255,255,255,0.06)"
@@ -1441,7 +1441,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       color: "#ffffff"
     },
 
-    /* ── Pagination ── */
+    /* -- Pagination -- */
     ".bp-shell__main .pagination": {
       gap: "0.2rem"
     },
@@ -1468,7 +1468,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       color: "#ffffff"
     },
 
-    /* ── Progress bars ── */
+    /* -- Progress bars -- */
     ".bp-shell__main .progress": {
       borderRadius: "999px",
       background: mode === "dark"
@@ -1482,7 +1482,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       background: "var(--bp-accent)"
     },
 
-    /* ── Modals ── */
+    /* -- Modals -- */
     ".modal-content": {
       borderRadius: "1.2rem",
       border: mode === "dark"
@@ -1531,7 +1531,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       "-webkit-backdrop-filter": "blur(4px)"
     },
 
-    /* ── Toasts ── */
+    /* -- Toasts -- */
     ".toast": {
       borderRadius: "0.8rem",
       border: mode === "dark"
@@ -1571,7 +1571,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       color: "var(--bp-text-soft)"
     },
 
-    /* ── Accordion ── */
+    /* -- Accordion -- */
     ".bp-shell__main .accordion": {
       "--bs-accordion-bg": "transparent",
       "--bs-accordion-border-color": mode === "dark"
@@ -1594,7 +1594,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       borderColor: "var(--bp-accent)"
     },
 
-    /* ── Offcanvas (content area) ── */
+    /* -- Offcanvas (content area) -- */
     ".bp-shell__main .offcanvas, .offcanvas": {
       background: mode === "dark"
         ? "rgba(44,44,46,0.92)"
@@ -1615,7 +1615,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       minHeight: 0
     },
 
-    /* ── bp-sidebar (HTML-first sidebar wrapper) ── */
+    /* -- bp-sidebar (HTML-first sidebar wrapper) -- */
     "[data-bp-sidebar]": {
       display: "none"
     },
@@ -1623,7 +1623,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       display: "block"
     },
 
-    /* ── Tooltips ── */
+    /* -- Tooltips -- */
     ".tooltip-inner": {
       borderRadius: "0.45rem",
       fontSize: "0.78rem",
@@ -1631,7 +1631,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       padding: "0.35rem 0.65rem"
     },
 
-    /* ── Popovers ── */
+    /* -- Popovers -- */
     ".popover": {
       borderRadius: "0.8rem",
       border: mode === "dark"
@@ -1657,7 +1657,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       color: "var(--bp-text-soft)"
     },
 
-    /* ── Input groups ── */
+    /* -- Input groups -- */
     ".bp-shell__main .input-group-text": {
       border: mode === "dark"
         ? "1px solid rgba(255,255,255,0.1)"
@@ -1670,7 +1670,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       borderRadius: "0.6rem"
     },
 
-    /* ── Breadcrumbs ── */
+    /* -- Breadcrumbs -- */
     ".bp-shell__main .breadcrumb": {
       fontSize: "0.85rem",
       marginBottom: 0
@@ -1686,7 +1686,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       color: "var(--bp-text-soft)"
     },
 
-    /* ── Kbd ── */
+    /* -- Kbd -- */
     ".bp-shell__main kbd": {
       background: mode === "dark"
         ? "rgba(255,255,255,0.08)"
@@ -1704,7 +1704,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
         : "0 1px 2px rgba(0,0,0,0.06)"
     },
 
-    /* ── Split-pane detail panel ── */
+    /* -- Split-pane detail panel -- */
     ".bp-split-pane": {
       display: "grid",
       gridTemplateColumns: "1fr",
@@ -1737,7 +1737,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       display: "block"
     },
 
-    /* ── Misc utilities ── */
+    /* -- Misc utilities -- */
     ".bp-shell__main .text-body-secondary": {
       color: "var(--bp-text-soft) !important"
     },
@@ -1757,7 +1757,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
         : "0 2px 8px rgba(0,0,0,0.04) !important"
     },
 
-    /* ── Close buttons ── */
+    /* -- Close buttons -- */
     ".bp-shell__main .btn-close": {
       filter: mode === "dark" ? "invert(1) grayscale(100%) brightness(200%)" : "none",
       opacity: 0.5,
@@ -1767,7 +1767,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       opacity: 1
     },
 
-    /* ── Form range ── */
+    /* -- Form range -- */
     ".bp-shell__main .form-range::-webkit-slider-thumb": {
       background: "var(--bp-accent)",
       border: "none",
@@ -1791,7 +1791,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       borderRadius: "999px"
     },
 
-    /* ── Placeholders / Skeletons ── */
+    /* -- Placeholders / Skeletons -- */
     ".bp-shell__main .placeholder": {
       background: mode === "dark"
         ? "rgba(255,255,255,0.08)"
@@ -1799,12 +1799,12 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       borderRadius: "0.35rem"
     },
 
-    /* ── Spinner colors ── */
+    /* -- Spinner colors -- */
     ".bp-shell__main .spinner-border.text-primary, .bp-shell__main .spinner-grow.text-primary": {
       color: "var(--bp-accent) !important"
     },
 
-    /* ── Mark / highlight ── */
+    /* -- Mark / highlight -- */
     ".bp-shell__main mark": {
       background: mode === "dark"
         ? "rgba(255,214,10,0.20)"
@@ -1814,7 +1814,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       padding: "0.05em 0.25em"
     },
 
-    /* ── Fragment loading overlay ── */
+    /* -- Fragment loading overlay -- */
     ".bp-fragment-loading": {
       position: "relative",
       pointerEvents: "none"
@@ -1847,7 +1847,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       animation: "bp-spinner 0.65s linear infinite"
     },
 
-    /* ── Keyframes ── */
+    /* -- Keyframes -- */
     "@keyframes bp-shimmer": {
       "0%": { transform: "translateX(-100%)" },
       "100%": { transform: "translateX(100%)" }
@@ -1865,7 +1865,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       "to": { transform: "rotate(360deg)" }
     },
 
-    /* ── Nav loading: shimmer on clicked route ── */
+    /* -- Nav loading: shimmer on clicked route -- */
     ".bp-admin__route.htmx-request": {
       position: "relative",
       overflow: "hidden",
@@ -1884,7 +1884,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       background: "linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--bp-accent) 12%, transparent) 50%, transparent 100%)"
     },
 
-    /* ── Topbar progress bar ── */
+    /* -- Topbar progress bar -- */
     ".bp-admin__topbar-progress": {
       position: "absolute",
       bottom: 0,
@@ -1911,7 +1911,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       animation: "bp-progress-slide 1.6s ease infinite"
     },
 
-    /* ── Content skeleton loader ── */
+    /* -- Content skeleton loader -- */
     ".bp-shell__loading-skeleton": {
       display: "grid",
       gap: "0.75rem",
@@ -1959,7 +1959,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       height: "0.5rem"
     },
 
-    /* ── Content overlay: top progress bar ── */
+    /* -- Content overlay: top progress bar -- */
     ".bp-admin__content-overlay-bar": {
       position: "absolute",
       top: 0,
@@ -1977,7 +1977,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       borderRadius: "inherit"
     },
 
-    /* ── Profile mirror (mobile offcanvas) ── */
+    /* -- Profile mirror (mobile offcanvas) -- */
     ".bp-admin__profile-mirror": {
       display: "none"
     },
@@ -2071,7 +2071,7 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
         <link href={`${context.assetBaseUrl}/bootstrap.min.css`} rel="stylesheet" />
         {/* Single-request core bundle (htmx + shell + sse): separate
             tags can race on load order; htmx must exist before anything
-            registers against it. Bootstrap stays separate — independent of htmx. */}
+            registers against it. Bootstrap stays separate - independent of htmx. */}
         <script src={`${context.assetBaseUrl}/bootstrap1-core.js`} defer></script>
         <script src={`${context.assetBaseUrl}/bootstrap.bundle.min.js`} defer></script>
         <style
@@ -2105,7 +2105,7 @@ function appendFragmentKey(url: string, fragmentKey: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}_f=${fragmentKey}`;
 }
 
-// Mirrors fragmentTriggerSpec in ../index.ts — fragments listen for
+// Mirrors fragmentTriggerSpec in ../index.ts - fragments listen for
 // conventional reload events (fired via HX-Trigger, e.g. auth login/logout).
 function fragmentTriggerSpec(fragmentKey: string, pluginId?: string): string {
   const triggers = ["load", `bp:fragment:${fragmentKey} from:body`];

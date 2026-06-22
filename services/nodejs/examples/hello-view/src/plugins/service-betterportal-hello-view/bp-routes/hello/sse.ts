@@ -2,7 +2,7 @@ import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import type { SSEHandlerContext } from "@betterportal/framework";
 
-// ── Tick schema (validated per yielded value) ────────────────────────
+// -- Tick schema (validated per yielded value) ------------------------
 
 export const tickSchema = av.object({
   time: av.string().minLength(1),
@@ -11,14 +11,14 @@ export const tickSchema = av.object({
 
 export type Tick = Infer<typeof tickSchema>;
 
-// ── Helpers ──────────────────────────────────────────────────────────
+// -- Helpers ----------------------------------------------------------
 
 function formatTime(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-// ── Handler — async generator. Framework drives the SSE stream ──────
+// -- Handler - async generator. Framework drives the SSE stream ------
 
 export async function* handleSSE(_ctx: SSEHandlerContext): AsyncGenerator<Tick> {
   while (true) {

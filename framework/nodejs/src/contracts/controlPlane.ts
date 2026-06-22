@@ -7,7 +7,7 @@ import type {
   SharedServiceDefinition
 } from "./platformConfig.js";
 
-// ── Scoped config (what a service receives via sync) ─────────────────
+// -- Scoped config (what a service receives via sync) -----------------
 
 export interface ScopedServiceConfig {
   readonly managementOrigins: ReadonlyArray<string>;
@@ -62,7 +62,7 @@ export interface ScopedConfigApp {
   readonly title: string;
 }
 
-// ── Platform config store interface ──────────────────────────────────
+// -- Platform config store interface ----------------------------------
 
 export interface PlatformConfigStore {
   loadConfig(): Promise<BetterPortalConfig>;

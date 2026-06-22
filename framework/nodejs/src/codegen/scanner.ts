@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import ts from "typescript";
 
-// ── Scanned types ────────────────────────────────────────────────────
+// -- Scanned types ----------------------------------------------------
 
 export interface ScannedThemeRenderer {
   themeId: string;
@@ -18,7 +18,7 @@ export interface ScannedThemeRenderer {
   sseRendererPath?: string;
 }
 
-/** Streaming frame renderers for one theme — from `_theme.<id>/index.stream.tsx`. */
+/** Streaming frame renderers for one theme - from `_theme.<id>/index.stream.tsx`. */
 export interface ScannedStreamRenderer {
   themeId: string;
   relativePath: string;
@@ -55,7 +55,7 @@ export interface ScanResult {
   pluginExports: string[];
 }
 
-// ── Path helpers ─────────────────────────────────────────────────────
+// -- Path helpers -----------------------------------------------------
 
 /** Normalize a filesystem path to posix (forward slashes). */
 function toPosix(p: string): string {
@@ -76,7 +76,7 @@ function toJsImport(relativePath: string): string {
   return relativePath.replace(/\.tsx?$/, ".js");
 }
 
-// ── Handler / export detection ───────────────────────────────────────
+// -- Handler / export detection ---------------------------------------
 
 const HANDLER_NAMES = [
   "handleGet",
@@ -116,7 +116,7 @@ const WELL_KNOWN_EXPORTS = [
 
 const ALL_DETECTABLE = [...HANDLER_NAMES, ...WELL_KNOWN_EXPORTS] as const;
 
-/** Map handler function name → HTTP method(s). */
+/** Map handler function name -> HTTP method(s). */
 function handlerToMethods(handlerName: string): string[] {
   switch (handlerName) {
     case "handleGet": return ["GET"];
@@ -133,7 +133,7 @@ function handlerToMethods(handlerName: string): string[] {
 /**
  * Parse a TypeScript source file with the compiler API and detect
  * exported identifiers that match the well-known set.
- * This uses `ts.createSourceFile` — no full program compilation needed.
+ * This uses `ts.createSourceFile` - no full program compilation needed.
  */
 function detectExports(filePath: string): string[] {
   const source = fs.readFileSync(filePath, "utf-8");
@@ -270,7 +270,7 @@ function hasExportModifier(node: ts.Node): boolean {
   return mods?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
 }
 
-// ── Route path construction ──────────────────────────────────────────
+// -- Route path construction ------------------------------------------
 
 /**
  * Convert a directory path relative to bp-routes/ into one or more HTTP paths
@@ -318,7 +318,7 @@ function buildRoutePaths(segments: string[]): Array<{ httpPath: string; paramNam
  * Build a viewId from path segments.
  * Param segments become `$`, and `.index` is appended.
  *
- * Example: ["users", "[userId]"] → "users.$userId.index"
+ * Example: ["users", "[userId]"] -> "users.$userId.index"
  */
 function buildViewId(segments: string[]): string {
   const parts = segments.map((seg) => {
@@ -328,17 +328,17 @@ function buildViewId(segments: string[]): string {
   return [...parts, "index"].join(".");
 }
 
-// ── Theme renderer scanning ─────────────────────────────────────────
+// -- Theme renderer scanning -----------------------------------------
 
 /**
  * Parse a theme file name to determine renderer type and attributes.
  *
  * Patterns:
- *  - index.tsx          → page, rendererId = "default"
- *  - index.GET.tsx      → page, rendererId = "default", method = "GET"
- *  - name.tsx           → component, rendererId = name
- *  - name.POST.tsx      → component, rendererId = name, method = "POST"
- *  - _location.id.tsx   → fragment, fragmentLocation = location, fragmentId = id
+ *  - index.tsx          -> page, rendererId = "default"
+ *  - index.GET.tsx      -> page, rendererId = "default", method = "GET"
+ *  - name.tsx           -> component, rendererId = name
+ *  - name.POST.tsx      -> component, rendererId = name, method = "POST"
+ *  - _location.id.tsx   -> fragment, fragmentLocation = location, fragmentId = id
  */
 function parseThemeFile(
   fileName: string,
@@ -355,7 +355,7 @@ function parseThemeFile(
 
   let base = fileName.slice(0, -4); // strip .tsx
 
-  // Skip *.sse.tsx files — paired with fragment renderers separately
+  // Skip *.sse.tsx files - paired with fragment renderers separately
   if (base.endsWith(".sse")) return null;
 
   // Extract trailing .NNN status code (3 digits, 100-599) if present.
@@ -395,7 +395,7 @@ function parseThemeFile(
     return { type: "page", rendererId: "default", method, statusCode };
   }
 
-  // name.tsx or name.METHOD.tsx → component
+  // name.tsx or name.METHOD.tsx -> component
   const method = parts.length === 2 && HTTP_METHODS.has(parts[1]) ? parts[1] : undefined;
   if (parts.length > 2) return null;
   if (parts.length === 2 && !method) return null;
@@ -420,7 +420,7 @@ function scanThemeDirectory(
 
   const entries = fs.readdirSync(themeDirPath, { withFileTypes: true });
 
-  // Streaming frame renderers: index.stream.tsx (spec/streaming.md § 4)
+  // Streaming frame renderers: index.stream.tsx (spec/streaming.md section 4)
   const streamFile = entries.find((e) => e.isFile() && e.name === "index.stream.tsx");
   if (streamFile && streamRenderers) {
     const filePath = path.join(themeDirPath, streamFile.name);
@@ -479,7 +479,7 @@ function scanThemeDirectory(
   return renderers;
 }
 
-// ── Recursive route scanner ──────────────────────────────────────────
+// -- Recursive route scanner ------------------------------------------
 
 function scanDirectory(
   currentDir: string,
@@ -586,7 +586,7 @@ function scanDirectory(
   }
 }
 
-// ── Public API ───────────────────────────────────────────────────────
+// -- Public API -------------------------------------------------------
 
 /**
  * Scan the `bp-routes/` directory tree and build a data structure

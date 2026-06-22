@@ -38,7 +38,7 @@ export interface CreateLocalVerifierOptions {
 }
 
 export interface CreateStaticJwksVerifierOptions {
-  /** JWKS document — keys pushed by the auth service at /install. */
+  /** JWKS document - keys pushed by the auth service at /install. */
   jwks: { keys: ReadonlyArray<Record<string, unknown>> };
   expectedIssuer: string;
   expectedAudience: string;
@@ -48,7 +48,7 @@ export interface CreateStaticJwksVerifierOptions {
 
 /**
  * Build a JwtVerifier that resolves signing keys from an in-memory JWKS doc.
- * Use when the CP cannot reach the issuer for live JWKS fetches — keys are
+ * Use when the CP cannot reach the issuer for live JWKS fetches - keys are
  * pushed by the auth service at /install (and on rotation) and cached in
  * app.auth.publicKeys.
  */

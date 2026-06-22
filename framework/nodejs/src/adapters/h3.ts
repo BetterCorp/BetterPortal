@@ -40,7 +40,7 @@ import {
   statusForbidsBody
 } from "../runtime/statusViews.js";
 
-// ── Helpers ──────────────────────────────────────────────────────────
+// -- Helpers ----------------------------------------------------------
 
 type MethodRegistrar = (path: string, handler: (event: BetterPortalEvent) => Response | Promise<Response>) => void;
 
@@ -83,7 +83,7 @@ export interface H3AuthContext {
   readonly appId: string;
   readonly appAuthConfig?: AppAuthConfig;
   /**
-   * Service-id alias map: tenant service-instance id (UUIDv7) → pluginId.
+   * Service-id alias map: tenant service-instance id (UUIDv7) -> pluginId.
    * Role grants in app.auth reference instance ids; route auth requirements
    * are authored against pluginIds. The permission check accepts either.
    */
@@ -222,7 +222,7 @@ function htmlContentType(themeId: string, mode: string, chrome?: BetterPortalRou
   return `text/html; theme=${themeId}; mode=${mode}${chromeContentTypeParams(chrome)}`;
 }
 
-// ── Router registration ──────────────────────────────────────────────
+// -- Router registration ----------------------------------------------
 
 /**
  * Register all routes from a BetterPortalRegistry onto an H3 app.
@@ -244,7 +244,7 @@ export function createH3Router(
         const response = await withRequestObservability(event, route, method, options, (obs) =>
           handleRouteRequest(registry.routes, route, method, event, obs, options)
         );
-        // h3 only merges event.res.headers into 2xx responses — error responses
+        // h3 only merges event.res.headers into 2xx responses - error responses
         // would otherwise lose CORS and BP-SetHeader/RemoveHeader headers, which
         // makes cross-origin 4xx unreadable by the browser entirely.
         if (response instanceof Response && !response.ok) {
@@ -257,7 +257,7 @@ export function createH3Router(
     }
 
     // Streaming routes (createStreamHandler) expose their frame stream at
-    // `{path}/__sse` (spec/streaming.md § 2.3). A hand-written sse.ts wins if
+    // `{path}/__sse` (spec/streaming.md section 2.3). A hand-written sse.ts wins if
     // both exist.
     const streamGetHandler = route.handlers.GET;
     if (!route.sse && isStreamHandler(streamGetHandler)) {
@@ -291,7 +291,7 @@ export function createH3Router(
           ...(obs ? { obs } : {})
         });
 
-        // Legacy path: handler manages its own stream → returns Promise<BodyInit> | BodyInit
+        // Legacy path: handler manages its own stream -> returns Promise<BodyInit> | BodyInit
         if (
           typeof result === "string"
           || result instanceof ReadableStream
@@ -304,7 +304,7 @@ export function createH3Router(
         // Generator path: framework drives the stream.
         if (typeof result === "object" && result !== null && Symbol.asyncIterator in (result as object)) {
           // Resolve theme renderer if `?_f=loc.frag` provided. The theme MUST be
-          // disambiguated — with multiple themes registered, picking the first
+          // disambiguated - with multiple themes registered, picking the first
           // match would silently render another theme's fragment. Prefer the
           // theme resolved from request context (__bpThemeId), then an explicit
           // `?_theme=` pin; only fall back to a cross-theme scan when exactly one
@@ -355,7 +355,7 @@ export function createH3Router(
                 await stream.push({ data: payload });
               }
             } catch {
-              // generator errored — close stream
+              // generator errored - close stream
             }
             await stream.close().catch(() => {});
           })();
@@ -363,7 +363,7 @@ export function createH3Router(
           return stream.send();
         }
 
-        // Unknown result shape — treat as legacy
+        // Unknown result shape - treat as legacy
         return result as BodyInit;
         }, { "bp.route.sse": true });
       });
@@ -683,7 +683,7 @@ async function handleRouteRequest(
     return jsonResponse({ error: `No handler for ${method} ${route.path}` }, 405);
   }
 
-  // ── Parse inputs ─────────────────────────────────────────────────
+  // -- Parse inputs -------------------------------------------------
 
   const url = getRequestURL(event);
   const rawQuery = queryFromUrl(url);
@@ -714,7 +714,7 @@ async function handleRouteRequest(
     }
   }
 
-  // ── Validate against schemas ─────────────────────────────────────
+  // -- Validate against schemas -------------------------------------
   // RequestSchema is only enforced for methods that carry a body. GET/DELETE/OPTIONS
   // pass rawBody (empty {}) through unparsed so routes with both GET + POST handlers
   // don't fail GET because POST's RequestSchema has required fields.
@@ -728,7 +728,7 @@ async function handleRouteRequest(
     ? route.schemas.multipart.parse(rawMultipart ?? { fields: {}, files: {} })
     : undefined;
 
-  // Path params — H3 populates event.context.params for `:paramName` routes
+  // Path params - H3 populates event.context.params for `:paramName` routes
   const params: Record<string, string> = (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
 
   const extraContext = await resolveRequiredHandlerContext(event, routerOptions);
@@ -742,7 +742,7 @@ async function handleRouteRequest(
     return rejectUnallowedAppRoute(obs, route, method, extraContext, routeAllowance.reason ?? "route_not_mounted_for_app");
   }
 
-  // ── Auth resolution (per spec section 0.5) ──────────────────────
+  // -- Auth resolution (per spec section 0.5) ----------------------
 
   const apiAuth: ApiAuthRequirement = route.auth;
   const authResolved = await loadAuthContext(event, routerOptions, obs);
@@ -751,7 +751,7 @@ async function handleRouteRequest(
     return renderAuthError(route, event, authResult.status, authResult.error);
   }
 
-  // ── Tenant/app activation check (validateTenantApp hook → 426) ─────
+  // -- Tenant/app activation check (validateTenantApp hook -> 426) -----
 
   const tenantApp = readTenantAppFromEvent(event);
   if (tenantApp && routerOptions.validateTenantApp) {
@@ -775,7 +775,7 @@ async function handleRouteRequest(
     }
   }
 
-  // ── Build context and invoke handler ─────────────────────────────
+  // -- Build context and invoke handler -----------------------------
 
   const bpHeaders = createBpHeadersCollector();
   const ctx: RouteHandlerContext = {
@@ -824,7 +824,7 @@ async function handleRouteRequest(
     }, () => (handler as RouteHandler)(ctx));
   }
 
-  // ── Emit BP-managed headers ─────────────────────────────────────
+  // -- Emit BP-managed headers -------------------------------------
 
   applyBpHeadersToEvent(event, bpHeaders);
 
@@ -832,11 +832,11 @@ async function handleRouteRequest(
     return rawData;
   }
 
-  // ── Status decision ─────────────────────────────────────────────
+  // -- Status decision ---------------------------------------------
 
   const handlerStatus = event.res.status && event.res.status !== 0 ? event.res.status : 200;
 
-  // ── Content negotiation ──────────────────────────────────────────
+  // -- Content negotiation ------------------------------------------
 
   const acceptHeader = acceptHeaderFromEvent(event);
   const representation = resolveRequestedRepresentation(acceptHeader);
@@ -861,7 +861,7 @@ async function handleRouteRequest(
     return new Response(null, { status: handlerStatus });
   }
 
-  // ── Validate response against schema (all representations) ──────
+  // -- Validate response against schema (all representations) ------
   // Skipped when status indicates no body is expected.
   if (!route.schemas.response) {
     return jsonResponse({ error: `Route "${route.viewId}" has no ResponseSchema and did not return a raw Response` }, 500);
@@ -878,12 +878,12 @@ async function handleRouteRequest(
     return jsonResponse({ error: "NDJSON streaming is not supported by this view" }, 406);
   }
 
-  // JSON — already validated above, no redundant parse
+  // JSON - already validated above, no redundant parse
   if (representation.kind === "json") {
     return jsonResponse(data as JsonValue, handlerStatus);
   }
 
-  // HTML — resolve theme from request context (hostname → app config), Accept header as fallback
+  // HTML - resolve theme from request context (hostname -> app config), Accept header as fallback
   const themeId =
     (event as unknown as { __bpThemeId?: string }).__bpThemeId
     ?? representation.theme;
@@ -916,10 +916,10 @@ async function handleRouteRequest(
     }
     // No specific renderer found.
     if (!shouldFallThroughToDefaultRenderer(handlerStatus)) {
-      // 4xx/5xx without a specific renderer → empty body with status.
+      // 4xx/5xx without a specific renderer -> empty body with status.
       return new Response(null, { status: handlerStatus });
     }
-    // 2xx without specific → fall through to default renderer, but keep handlerStatus.
+    // 2xx without specific -> fall through to default renderer, but keep handlerStatus.
   }
 
   // Fragment request via `_f` query param or Accept header
@@ -970,7 +970,7 @@ async function handleRouteRequest(
     return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
   }
 
-  // Page request — only page renderers allowed
+  // Page request - only page renderers allowed
   const resolved = resolveRenderer(route, themeId, "page", method);
   if (!resolved) {
     logNegotiationFailure(obs, route, method, "page_renderer_not_found", {
@@ -992,7 +992,7 @@ async function handleRouteRequest(
   return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(themeId, mode, route.chrome));
 }
 
-// ── Streaming routes (spec/streaming.md) ────────────────────────────
+// -- Streaming routes (spec/streaming.md) ----------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyStreamHandler = BpStreamHandler<any, any, any, any, any>;
@@ -1030,7 +1030,7 @@ async function handleStreamRepresentation(
   const streamSet = route.themeRenderers[themeId]?.stream;
   if (!streamSet) return null;
 
-  // Full-page request with a page renderer available → buffered render of the
+  // Full-page request with a page renderer available -> buffered render of the
   // complete data set (crawlers, no-SSE clients). Fragment swaps stream.
   if (representation.mode === "page" && resolveRenderer(route, themeId, "page", method)) {
     return null;
@@ -1052,7 +1052,7 @@ async function handleStreamRepresentation(
 /**
  * SSE delivery of the frame stream at `{path}/__sse`. With a theme context and
  * stream renderers, event payloads are server-rendered HTML; otherwise frame
- * JSON (spec/streaming.md § 2.3, § 4.1). Runs the generator itself — no stream
+ * JSON (spec/streaming.md section 2.3, section 4.1). Runs the generator itself - no stream
  * state is shared with the shell request.
  */
 async function handleStreamSse(
@@ -1069,7 +1069,7 @@ async function handleStreamSse(
   const params: Record<string, string> =
     (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
 
-  // The frame stream carries the same data as the view route — enforce the
+  // The frame stream carries the same data as the view route - enforce the
   // same auth requirement.
   const authResolved = await loadAuthContext(event, routerOptions, obs);
   const authResult = await resolveRequestAuth(route.auth, event, authResolved, obs);
@@ -1143,7 +1143,7 @@ async function handleStreamSse(
         }
       });
     } catch (error) {
-      // client disconnected mid-stream or push failed — nothing left to report
+      // client disconnected mid-stream or push failed - nothing left to report
       obs?.logger.warn("BP stream SSE aborted: {msg}", { msg: (error as Error).message });
     }
     await stream.close().catch(() => {});
@@ -1152,7 +1152,7 @@ async function handleStreamSse(
   return stream.send();
 }
 
-// ── Auth resolver ────────────────────────────────────────────────────
+// -- Auth resolver ----------------------------------------------------
 
 interface AuthResult {
   user?: ValidatedUserClaims;
@@ -1310,9 +1310,9 @@ function renderAuthError(
   const corsHeaders = corsHeadersFromEvent(event);
 
   // Auth errors NEVER emit navigation headers (HX-Location / HX-Redirect). A
-  // service has no reliable knowledge of where the auth provider lives — it only
+  // service has no reliable knowledge of where the auth provider lives - it only
   // knows the JWKS for token *validation*, not a URL the browser should navigate
-  // to — and letting it drive a whole-page redirect corrupts the host shell.
+  // to - and letting it drive a whole-page redirect corrupts the host shell.
   // Login routing belongs to the theme, which resolves the auth service URL from
   // app.auth config and redirects on seeing this 401. Services just report status.
 
@@ -1395,7 +1395,7 @@ function applyBpHeadersToEvent(
   }
 }
 
-// ── Well-known routes ────────────────────────────────────────────────
+// -- Well-known routes ------------------------------------------------
 
 /**
  * Register BetterPortal well-known discovery and health endpoints.

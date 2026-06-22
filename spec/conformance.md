@@ -19,7 +19,7 @@ A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the
 
 | Test | Pass criteria |
 |---|---|
-| `OPTIONS <any-view-path>` with `Origin` and `Access-Control-Request-Method: POST` | 204, returns the headers listed in `protocol.md` § 2. |
+| `OPTIONS <any-view-path>` with `Origin` and `Access-Control-Request-Method: POST` | 204, returns the headers listed in `protocol.md` section 2. |
 | `GET <view-path>` cross-origin | Response includes `Access-Control-Allow-Origin` and `Access-Control-Expose-Headers` including the HX-* family. |
 
 ### 1.3 Content negotiation
@@ -49,7 +49,7 @@ A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the
 
 | Test | Pass criteria |
 |---|---|
-| All 4xx/5xx responses | `application/json` body matches `protocol.md` § 4 shape. |
+| All 4xx/5xx responses | `application/json` body matches `protocol.md` section 4 shape. |
 
 ## 2. Service with dynamic config
 
@@ -57,7 +57,7 @@ Add these tests if the service declares `mode: dynamic` or `mode: hybrid` in `/.
 
 | Test | Pass criteria |
 |---|---|
-| `GET /.well-known/bp/config/schema` | 200, body matches `config.md` § 2.1. |
+| `GET /.well-known/bp/config/schema` | 200, body matches `config.md` section 2.1. |
 | `GET /.well-known/bp/config` without ticket | 401. |
 | `GET /.well-known/bp/config` with expired ticket | 401. |
 | `GET /.well-known/bp/config` with valid ticket, scope mismatch | 403. |
@@ -98,7 +98,7 @@ Add these tests if any view declares a `streaming` block in the manifest (see `s
 | Test | Pass criteria |
 |---|---|
 | `GET <view-path>` with `Accept: application/json` | 200, body is `{ items: [...], summary? }` matching the derived `jsonResponseSchema`. |
-| `GET <view-path>` with `Accept: application/x-ndjson` | 200, `application/x-ndjson`; one frame per line; legal order (items → summary? → terminal). |
+| `GET <view-path>` with `Accept: application/x-ndjson` | 200, `application/x-ndjson`; one frame per line; legal order (items -> summary? -> terminal). |
 | Every `item` frame payload | Validates against the view's `itemSchema`. |
 | Terminal frame | Exactly one `end` (with correct `count`) or `error`; nothing after it. |
 | Mid-stream failure | `error` frame emitted in-band; stream closes; no `end`. |
@@ -121,14 +121,14 @@ Add these tests if the manifest declares the `search.v1` capability (see `search
 
 ## 5. Theme conformance
 
-In addition to § 1, themes:
+In addition to section 1, themes:
 
 | Test | Pass criteria |
 |---|---|
 | Serve `/.well-known/bp/theme/nav` | 200, HTML; emits only relative URLs. |
 | Serve `/.well-known/bp/theme/fragments?location=<loc>` | 200, HTML; emits relative URLs. |
 | Serve `/.well-known/bp/theme/style` (if reloadable) | 200, CSS or `<style>` element. |
-| Page response includes `data-bp-services="{...}"` on shell root | JSON map of `bindingId → origin`. |
+| Page response includes `data-bp-services="{...}"` on shell root | JSON map of `bindingId -> origin`. |
 | Page response includes `<meta name="htmx-config" content="...">` with `selfRequestsOnly:false` | Allows cross-origin HTMX requests. |
 | Page response loads htmx + any required extensions | Including `hx-sse` if any view uses SSE. |
 
@@ -149,9 +149,9 @@ Beyond servicing the wire protocol, an SDK SHOULD:
 |---|---|
 | Codegen for file-based routing | Optional but RECOMMENDED. Match the Node SDK's `bp-routes/` convention. |
 | Manifest auto-derivation | Build the manifest from declared route handlers; avoid hand-written manifests. |
-| Schema mapping | Map the language's native schema lib (Zod, anyvali, pydantic, etc.) to the JSON descriptor in `manifest.md` § 4. |
+| Schema mapping | Map the language's native schema lib (Zod, anyvali, pydantic, etc.) to the JSON descriptor in `manifest.md` section 4. |
 | Bearer auth middleware | Provide a helper that wraps `JwksVerifier`-equivalent for the language. |
-| Encrypted config store | AES-256-GCM with scrypt key derivation per `config.md` § 4. |
+| Encrypted config store | AES-256-GCM with scrypt key derivation per `config.md` section 4. |
 | `BPService` base | A language-idiomatic base class / interface that hides h3/express/etc. plumbing. |
 
 ## 8. Filing claims
@@ -163,7 +163,7 @@ BetterPortal-Protocol-Version: 1
 BetterPortal-Conformance: service, dynamic-config, view-auth, sse
 ```
 
-…in its README and on its `User-Agent` header. The list is comma-separated and matches the section headers above.
+...in its README and on its `User-Agent` header. The list is comma-separated and matches the section headers above.
 
 ## 9. Out of scope (for now)
 

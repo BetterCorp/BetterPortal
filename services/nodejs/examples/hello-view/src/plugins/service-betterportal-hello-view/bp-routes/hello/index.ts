@@ -7,7 +7,7 @@ import {
   type CacheHints
 } from "@betterportal/framework";
 
-// ── Schemas ─────────────────────────────────────────────────────────
+// -- Schemas ---------------------------------------------------------
 
 export const QuerySchema = av.object({
   name: av.string().minLength(1).default("World")
@@ -22,7 +22,7 @@ export const ResponseSchema = av.object({
 }, { unknownKeys: "strip" });
 export type ResponseData = Infer<typeof ResponseSchema>;
 
-// ── Metadata ────────────────────────────────────────────────────────
+// -- Metadata --------------------------------------------------------
 
 export const title = "Hello View";
 export const description = "Example BetterPortal view with JSON, HTML, and metadata representations.";
@@ -48,7 +48,7 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
   }
 ];
 
-// ── Handler ─────────────────────────────────────────────────────────
+// -- Handler ---------------------------------------------------------
 
 export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema },

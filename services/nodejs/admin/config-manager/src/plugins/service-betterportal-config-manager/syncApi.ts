@@ -61,7 +61,7 @@ export function getManifestCache(): ReadonlyMap<string, CachedManifest> {
 /**
  * Inject resolvedServicePath onto each app route using the manifest cache.
  * Routes whose target service hasn't published a manifest yet are left
- * with resolvedServicePath undefined — client treats as unresolved.
+ * with resolvedServicePath undefined - client treats as unresolved.
  */
 function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceConfig {
   const serviceManifestKeys = new Map<string, string>();

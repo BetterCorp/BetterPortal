@@ -27,7 +27,7 @@ function cloneBucket(bucket: TenantConfigBucket | undefined): ServiceConfigState
   };
 }
 
-// ── Interface ────────────────────────────────────────────────────────
+// -- Interface --------------------------------------------------------
 
 export interface ServiceConfigStore {
   read(ticket: ServiceConfigTicketClaims): ServiceConfigState;
@@ -45,7 +45,7 @@ export interface ServiceConfigStore {
   ): ServiceConfigState;
 }
 
-// ── In-memory (dev) ──────────────────────────────────────────────────
+// -- In-memory (dev) --------------------------------------------------
 
 export class InMemoryServiceConfigStore implements ServiceConfigStore {
   private state: PersistedServiceConfigState = { tenants: {} };
@@ -103,7 +103,7 @@ export class InMemoryServiceConfigStore implements ServiceConfigStore {
   }
 }
 
-// ── Encryption helpers ───────────────────────────────────────────────
+// -- Encryption helpers -----------------------------------------------
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
@@ -172,7 +172,7 @@ function decryptSecrets(
   );
 }
 
-// ── File-backed (persistent, encrypted secrets) ──────────────────────
+// -- File-backed (persistent, encrypted secrets) ----------------------
 
 export interface FileBackedServiceConfigStoreOptions {
   filePath: string;

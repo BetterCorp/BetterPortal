@@ -30,7 +30,7 @@ export const ResponseSchema = av.object({
   }, { unknownKeys: "strip" }).describe("Created first-admin user summary.")),
   // GET state for the theme renderer: registrations are closed once any user
   // exists; loginUrl (self-origin, absolute) is where the renderer sends the
-  // browser in that case — and after a successful first-admin creation.
+  // browser in that case - and after a successful first-admin creation.
   registrationOpen: av.optional(av.bool()).describe("True while the auth service has zero users; once false, the renderer should send the browser to login."),
   loginUrl: av.optional(av.string()).describe("Absolute self-origin URL of this auth service's login view, used when registration is closed and after successful first-admin creation.")
 }, { unknownKeys: "strip" });

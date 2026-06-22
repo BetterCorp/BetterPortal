@@ -33,13 +33,13 @@ export const cacheHints: CacheHints = {
 export const handlePost = createHandler(
   { response: ResponseSchema },
   (ctx) => {
-    // Always emit BP-RemoveHeader so the client shim drops the stored token —
+    // Always emit BP-RemoveHeader so the client shim drops the stored token -
     // logout must clear state even when called with a dead or missing token.
     ctx.bpHeaders?.remove("Authorization");
     ctx.bpHeaders?.remove("X-BP-Refresh");
     // Compatibility shim: current UI uses /login?action=logout.
     ctx.responseHeaders?.set("HX-Location", "/login?action=logout");
-    // Auth state changed — reload this service's fragments (nav profile etc.).
+    // Auth state changed - reload this service's fragments (nav profile etc.).
     if (ctx.serviceId) {
       ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
     }

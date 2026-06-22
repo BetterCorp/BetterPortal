@@ -50,7 +50,7 @@ export function render(data: ResponseData): HtmlRenderable {
         ) : null}
       </div>
 
-      {/* ── App selector ── */}
+      {/* -- App selector -- */}
       <div class="mb-4">
         <label class="form-label">App</label>
         <select
@@ -78,7 +78,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       ) : (
         <div class="row g-4">
-          {/* ── Roles column ── */}
+          {/* -- Roles column -- */}
           <div class="col-lg-7">
             <div class="card border-0 shadow-sm">
               <div class="card-body">
@@ -107,7 +107,7 @@ export function render(data: ResponseData): HtmlRenderable {
                                   hx-confirm={`Delete role ${r.id}?`}
                                   hx-target="#bp-main"
                                   hx-swap="innerHTML"
-                                >×</button>
+                                >x</button>
                               </div>
                             </td>
                           </tr>
@@ -120,7 +120,7 @@ export function render(data: ResponseData): HtmlRenderable {
             </div>
           </div>
 
-          {/* ── Service catalog column ── */}
+          {/* -- Service catalog column -- */}
           <div class="col-lg-5">
             <div class="card border-0 shadow-sm">
               <div class="card-body">
@@ -133,7 +133,7 @@ export function render(data: ResponseData): HtmlRenderable {
                       <div class="fw-semibold">{s.title}</div>
                       <div class="font-monospace small text-secondary mb-1">
                         {s.serviceId}
-                        {s.manifestVersion ? ` · v${s.manifestVersion}` : " · manifest pending"}
+                        {s.manifestVersion ? ` - v${s.manifestVersion}` : " - manifest pending"}
                       </div>
                       {s.views.length === 0 ? (
                         <div class="small text-secondary fst-italic">No views in manifest cache.</div>
@@ -157,7 +157,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       )}
 
-      {/* ── Add role offcanvas ── */}
+      {/* -- Add role offcanvas -- */}
       {selectedApp && data.authConfigured ? (
         <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-add-role-panel">
           <div class="offcanvas-header">
@@ -187,7 +187,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       ) : null}
 
-      {/* ── Edit role offcanvas with per-view grant checkboxes ── */}
+      {/* -- Edit role offcanvas with per-view grant checkboxes -- */}
       {selectedApp && data.authConfigured ? (
         <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-edit-role-panel" style="--bs-offcanvas-width: 600px;">
           <div class="offcanvas-header">
