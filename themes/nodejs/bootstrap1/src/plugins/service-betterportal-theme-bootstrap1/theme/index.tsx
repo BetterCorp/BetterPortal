@@ -20,15 +20,20 @@ export interface Bootstrap1RouteLink {
 export interface Bootstrap1ShellContext {
   title: string;
   brandName: string;
+  logoUrl?: string;
   themeMode: "light" | "dark";
   themeConfig: BetterPortalThemeConfig;
   assetBaseUrl: string;
   bodyHtml: HtmlRenderable;
+  aiManifestUrl?: string;
+  automationCatalogUrl?: string;
+  managementDiscoveryUrl?: string;
 }
 
 export interface Bootstrap1HostPageContext {
   title: string;
   brandName: string;
+  logoUrl?: string;
   themeMode: "light" | "dark";
   themeConfig: BetterPortalThemeConfig;
   assetBaseUrl: string;
@@ -36,16 +41,22 @@ export interface Bootstrap1HostPageContext {
   initialRouteUrl?: string;
   initialServiceId?: string;
   initialRouteError?: string;
+  initialRouteStatus?: number;
   routeLinks: Bootstrap1RouteLink[];
   navItems?: Bootstrap1NavItem[];
   resolvedFragments: Record<string, Array<{
     fragmentId: string;
     serviceId: string;
+    pluginId?: string;
     url: string;
     fragmentKey: string;
   }>>;
   loginUrl?: string;
   logoutUrl?: string;
+  fullScreen?: boolean;
+  aiManifestUrl?: string;
+  automationCatalogUrl?: string;
+  managementDiscoveryUrl?: string;
 }
 
 export const Bootstrap1Manifest: PluginManifest = createPluginManifest({
@@ -86,6 +97,7 @@ export interface Bootstrap1NavGroup {
   title: string;
   items: Bootstrap1NavLeaf[];
   active: boolean;
+  defaultExpanded?: boolean;
 }
 
 export type Bootstrap1NavItem = Bootstrap1NavLeaf | Bootstrap1NavGroup;
@@ -276,7 +288,7 @@ export function renderNavItems(navItems: Bootstrap1NavItem[], dismissMobileMenu 
     }
 
     return (
-      <details class="bp-admin__nav-group" data-bp-nav-group="" open={item.active ? true : undefined}>
+      <details class="bp-admin__nav-group" data-bp-nav-group="" open={(item.active || item.defaultExpanded) ? true : undefined}>
         <summary class="bp-admin__nav-group-toggle">
           <span class="bp-admin__nav-group-title">{item.title}</span>
           <span class="bp-admin__nav-group-chevron">⌄</span>
@@ -359,6 +371,36 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       minHeight: "100vh",
       padding: "0.85rem"
     },
+    ".bp-shell--auth": {
+      display: "grid",
+      placeItems: "center",
+      padding: "1.5rem"
+    },
+    ".bp-shell[data-bp-chrome-full-screen='true']": {
+      padding: "0"
+    },
+    ".bp-shell[data-bp-chrome-full-screen='true'] .bp-admin": {
+      maxWidth: "none",
+      display: "block"
+    },
+    ".bp-shell[data-bp-chrome-full-screen='true'] .bp-admin__sidebar, .bp-shell[data-bp-chrome-full-screen='true'] .bp-admin__topbar, .bp-shell[data-bp-chrome-full-screen='true'] .bp-admin__footer": {
+      display: "none"
+    },
+    ".bp-shell[data-bp-chrome-full-screen='true'] .bp-admin__workspace": {
+      minHeight: "100vh",
+      borderRadius: 0,
+      background: "transparent",
+      border: "none",
+      boxShadow: "none",
+      display: "block",
+      overflow: "visible"
+    },
+    ".bp-shell[data-bp-chrome-full-screen='true'] .bp-admin__content-frame, .bp-shell[data-bp-chrome-full-screen='true'] .bp-shell__main, .bp-shell[data-bp-chrome-full-screen='true'] #bp-main": {
+      minHeight: "100vh"
+    },
+    ".bp-shell[data-bp-chrome-full-screen='true'] .bp-shell__main": {
+      padding: 0
+    },
     ".bp-admin": {
       maxWidth: 1540,
       margin: "0 auto",
@@ -416,6 +458,12 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       fontWeight: 700,
       letterSpacing: "-0.03em",
       color: "var(--bp-text)"
+    },
+    ".bp-admin__brand-logo": {
+      width: 32,
+      height: 32,
+      objectFit: "contain",
+      flex: "0 0 32px"
     },
     ".bp-admin__sidebar-nav": {
       position: "relative",
@@ -510,6 +558,22 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
     },
     ".bp-admin__route--child.active": {
       boxShadow: "none"
+    },
+    /* P14: service health degraded — clickable but visibly disabled */
+    ".bp-service-down": {
+      opacity: 0.4,
+      cursor: "not-allowed",
+      filter: "grayscale(0.7)",
+      position: "relative"
+    },
+    ".bp-service-down::after": {
+      content: '"●"',
+      color: "var(--bp-accent-danger)",
+      position: "absolute",
+      top: "0.2rem",
+      right: "0.3rem",
+      fontSize: "0.5rem",
+      lineHeight: 1
     },
 
     /* ── Topbar: inside glass card, no own card ── */
@@ -649,6 +713,11 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       position: "relative",
       zIndex: 1,
       padding: "0.85rem 1.25rem 1.25rem"
+    },
+    ".bp-shell__main--auth": {
+      width: "100%",
+      maxWidth: 520,
+      padding: 0
     },
     ".bp-shell__loading": {
       minHeight: 320,
@@ -1456,7 +1525,8 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
         : "1px solid rgba(0,0,0,0.05)",
       padding: "1rem 1.25rem"
     },
-    ".modal-backdrop": {
+    ".modal-backdrop, .offcanvas-backdrop": {
+      backgroundColor: mode === "dark" ? "rgba(0,0,0,0.62)" : "rgba(15,23,42,0.38)",
       backdropFilter: "blur(4px)",
       "-webkit-backdrop-filter": "blur(4px)"
     },
@@ -1991,14 +2061,19 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":0,"mode":"cors","extensions":"bp-shell, preload, sse"}' />
+        <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":20,"mode":"cors","timeout":15000,"extensions":"bp-shell, sse"}' />
+        <link rel="llms" href="/llms.txt" />
+        <link rel="alternate" type="application/json" title="BetterPortal AI Manifest" href={context.aiManifestUrl ?? "/.well-known/bp/ai.json"} />
+        <meta name="betterportal:ai-manifest" content={context.aiManifestUrl ?? "/.well-known/bp/ai.json"} />
+        {context.automationCatalogUrl ? <meta name="betterportal:automation-catalog" content={context.automationCatalogUrl} /> : ""}
+        {context.managementDiscoveryUrl ? <meta name="betterportal:management-discovery" content={context.managementDiscoveryUrl} /> : ""}
         <title>{context.title}</title>
         <link href={`${context.assetBaseUrl}/bootstrap.min.css`} rel="stylesheet" />
-        <script src={`${context.assetBaseUrl}/htmx.min.js`} defer></script>
-        <script src={`${context.assetBaseUrl}/hx-preload.min.js`} defer></script>
+        {/* Single-request core bundle (htmx + shell + sse): separate
+            tags can race on load order; htmx must exist before anything
+            registers against it. Bootstrap stays separate — independent of htmx. */}
+        <script src={`${context.assetBaseUrl}/bootstrap1-core.js`} defer></script>
         <script src={`${context.assetBaseUrl}/bootstrap.bundle.min.js`} defer></script>
-        <script src={`${context.assetBaseUrl}/bootstrap1-shell.js`} defer></script>
-        <script src={`${context.assetBaseUrl}/hx-sse.min.js`} defer></script>
         <style
           id="bp-theme-style"
           hx-get="/.well-known/bp/theme/style"
@@ -2007,7 +2082,7 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
           data-bp-no-route=""
         >{shellStyles(context.themeMode, context.themeConfig)}</style>
       </head>
-      <body>{context.bodyHtml}</body>
+      <body hx-history-elt="">{context.bodyHtml}</body>
     </html>
   );
 }
@@ -2030,33 +2105,51 @@ function appendFragmentKey(url: string, fragmentKey: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}_f=${fragmentKey}`;
 }
 
+// Mirrors fragmentTriggerSpec in ../index.ts — fragments listen for
+// conventional reload events (fired via HX-Trigger, e.g. auth login/logout).
+function fragmentTriggerSpec(fragmentKey: string, pluginId?: string): string {
+  const triggers = ["load", `bp:fragment:${fragmentKey} from:body`];
+  if (pluginId) triggers.push(`bp:fragments:${pluginId} from:body`);
+  return triggers.join(", ");
+}
+
+export function renderBrand(brandName: string, logoUrl?: string, id?: string): HtmlRenderable {
+  return (
+    <div
+      class="bp-admin__brand-row"
+      id={id}
+      hx-get="/.well-known/bp/theme/brand"
+      hx-trigger="bp:theme-changed from:body"
+      hx-swap="outerHTML"
+      data-bp-no-route=""
+    >
+      {logoUrl ? <img class="bp-admin__brand-logo" src={logoUrl} alt="" width="32" height="32" loading="eager" decoding="async" /> : null}
+      <div class="bp-admin__brand-name">{brandName}</div>
+    </div>
+  );
+}
+
 function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderable {
   const navItems = context.navItems ?? buildNavItems(context.routeLinks);
   const activeRoute = context.routeLinks.find((route) => route.active);
   const currentBreadcrumb = activeBreadcrumb(navItems);
   const serviceMap = buildServiceMap(context.routeLinks);
   const hasInitialRouteError = Boolean(context.initialRouteError);
+  const initialRouteErrorTitle = context.initialRouteStatus === 404 ? "Route Not Found" : "Route Configuration Error";
   return (
     <div
       class="bp-shell"
       data-bp-shell-root=""
       data-bp-services={JSON.stringify(serviceMap)}
+      data-bp-routes={JSON.stringify(context.routeLinks)}
       data-bp-dev-reload="auto"
       data-bp-login-url={context.loginUrl}
       data-bp-logout-url={context.logoutUrl}
+      data-bp-chrome-full-screen={context.fullScreen ? "true" : "false"}
     >
       <div class="offcanvas offcanvas-start bp-admin__mobile-menu" tabindex={-1} id="bp-mobile-menu" aria-labelledby="bp-mobile-menu-title">
         <div class="offcanvas-header">
-          <div>
-            <div
-              class="bp-admin__brand-name"
-              id="bp-mobile-menu-title"
-              hx-get="/.well-known/bp/theme/brand"
-              hx-trigger="bp:theme-changed from:body"
-              hx-swap="innerHTML"
-              data-bp-no-route=""
-            >{context.brandName}</div>
-          </div>
+          {renderBrand(context.brandName, context.logoUrl, "bp-mobile-menu-title")}
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
@@ -2073,17 +2166,10 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
           </div>
         </div>
       </div>
+      <div data-bp-background-fragments="" hidden></div>
       <div class="bp-admin">
         <aside class="bp-admin__sidebar">
-          <div class="bp-admin__brand-row">
-            <div
-              class="bp-admin__brand-name"
-              hx-get="/.well-known/bp/theme/brand"
-              hx-trigger="bp:theme-changed from:body"
-              hx-swap="innerHTML"
-              data-bp-no-route=""
-            >{context.brandName}</div>
-          </div>
+          {renderBrand(context.brandName, context.logoUrl)}
           <section class="bp-admin__sidebar-nav">
             <nav
               class="bp-admin__nav"
@@ -2128,7 +2214,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                   data-bp-fragment-location="nav"
                   data-bp-service={frag.serviceId}
                   hx-get={appendFragmentKey(frag.url, frag.fragmentKey)}
-                  hx-trigger="load"
+                  hx-trigger={fragmentTriggerSpec(frag.fragmentKey, frag.pluginId)}
                   hx-target="this"
                   hx-swap="innerHTML"
                 >
@@ -2162,7 +2248,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                 {hasInitialRouteError ? (
                   <div class="bp-shell__empty-state">
                     <div class="bp-shell__empty-card">
-                      <div class="bp-shell__empty-title">Route Configuration Error</div>
+                      <div class="bp-shell__empty-title">{initialRouteErrorTitle}</div>
                       <div class="bp-shell__empty-copy">{context.initialRouteError}</div>
                     </div>
                   </div>
@@ -2200,7 +2286,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                   data-bp-fragment-location="footer"
                   data-bp-service={frag.serviceId}
                   hx-get={appendFragmentKey(frag.url, frag.fragmentKey)}
-                  hx-trigger="load"
+                  hx-trigger={fragmentTriggerSpec(frag.fragmentKey, frag.pluginId)}
                   hx-target="this"
                   hx-swap="innerHTML"
                 >
@@ -2215,6 +2301,56 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
   );
 }
 
+function Bootstrap1AuthBody(context: Bootstrap1HostPageContext): HtmlRenderable {
+  const hasInitialRouteError = Boolean(context.initialRouteError);
+  const initialRouteErrorTitle = context.initialRouteStatus === 404 ? "Route Not Found" : "Route Configuration Error";
+  const serviceMap = buildServiceMap(context.routeLinks);
+  return (
+    <div
+      class="bp-shell bp-shell--auth"
+      data-bp-shell-root=""
+      data-bp-services={JSON.stringify(serviceMap)}
+      data-bp-routes={JSON.stringify(context.routeLinks)}
+      data-bp-dev-reload="auto"
+      data-bp-login-url={context.loginUrl}
+      data-bp-logout-url={context.logoutUrl}
+      data-bp-auth-mode="true"
+      data-bp-chrome-full-screen="true"
+    >
+      <div data-bp-background-fragments="" hidden></div>
+      <main class="bp-shell__main bp-shell__main--auth">
+        <div
+          id="bp-main"
+          data-bp-main-outlet=""
+          data-bp-service={context.initialServiceId}
+          hx-get={context.initialRouteUrl ?? ""}
+          hx-trigger={context.initialRouteUrl && !hasInitialRouteError ? "load" : undefined}
+          hx-target="#bp-main"
+          hx-swap="innerHTML"
+        >
+          {hasInitialRouteError ? (
+            <div class="bp-shell__empty-state">
+              <div class="bp-shell__empty-card">
+                <div class="bp-shell__empty-title">{initialRouteErrorTitle}</div>
+                <div class="bp-shell__empty-copy">{context.initialRouteError}</div>
+              </div>
+            </div>
+          ) : (
+            <div class="bp-shell__loading">
+              <div class="bp-shell__loading-skeleton">
+                <div class="bp-shell__skeleton-heading"></div>
+                <div class="bp-shell__skeleton-row"></div>
+                <div class="bp-shell__skeleton-row"></div>
+                <div class="bp-shell__skeleton-row"></div>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
 export function renderBootstrap1Shell(context: Bootstrap1ShellContext): string {
   return `<!DOCTYPE html>${Bootstrap1Document(context)}`;
 }
@@ -2223,9 +2359,13 @@ export function renderBootstrap1HostPage(context: Bootstrap1HostPageContext): st
   return renderBootstrap1Shell({
     title: context.title,
     brandName: context.brandName,
+    logoUrl: context.logoUrl,
     themeMode: context.themeMode,
     themeConfig: context.themeConfig,
     assetBaseUrl: context.assetBaseUrl,
-    bodyHtml: Bootstrap1LandingBody(context)
+    aiManifestUrl: context.aiManifestUrl,
+    automationCatalogUrl: context.automationCatalogUrl,
+    managementDiscoveryUrl: context.managementDiscoveryUrl,
+    bodyHtml: context.fullScreen ? Bootstrap1AuthBody(context) : Bootstrap1LandingBody(context)
   });
 }

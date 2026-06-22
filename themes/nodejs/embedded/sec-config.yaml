@@ -12,4 +12,7 @@ default:
     service-betterportal-theme-embedded:
       plugin: service-betterportal-theme-embedded
       enabled: true
-      config: {}
+      config:
+        host: 0.0.0.0
+        port: 3110
+        betterportal: {}
