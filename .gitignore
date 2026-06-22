@@ -2,14 +2,23 @@ node_modules/
 **/node_modules/
 
 # Build / generated outputs
+.tmp-run/
 **/lib/
 **/dist/
 **/.bsb/
 **/.bsbdevwatch
 **/.bp-generated/
 **/.betterportal/
+**/.bp-bootstrap/
+**/.bp-cp-state/
+**/.bp-sync-cache/
+**/.bp-auth-state/
+**/.bp-authress-state/
+**/.bp-webhook-deliveries.json
 **/bsb-plugin.json
 **/bsb-tests.json
+bp-config.yaml.old
+services/nodejs/admin/config-manager/bp-config.yaml
 
 # Logs
 *.log
