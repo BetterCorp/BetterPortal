@@ -1,15 +1,16 @@
 {
-  "name": "@betterportal/auth",
-  "version": "1.0.0",
-  "description": "BetterPortal v10 auth plugin for Node.js",
+  "name": "@betterportal/auth-default",
+  "version": "1.0.2",
+  "description": "BetterPortal v10 default auth service for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
   "scripts": {
+    "bp-codegen": "bp-codegen",
     "build": "bsb-plugin-cli build",
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
-    "test": "bsb-plugin-cli test",
+    "test": "tsx --test tests/*.test.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -23,14 +24,18 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
-    "@bsb/base": "^9.3.1",
+    "@bsb/base": "^9.5.0",
+    "@types/bcrypt": "^5.0.2",
     "@types/node": "^24.12.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "anyvali": "^0.3.1",
-    "@betterportal/framework": "1.0.0"
+    "@betterportal/framework": "1.0.3",
+    "@betterportal/plugin-bsb": "1.0.3",
+    "anyvali": "^1.0.6",
+    "bcrypt": "^5.1.1",
+    "jsx-htmx": "4.0.0-beta2"
   },
   "files": [
     "lib/**/*",
@@ -38,12 +43,21 @@
     "bsb-plugin.json",
     "bsb-tests.json"
   ],
-  "bsb": {},
+  "bsb": {
+    "hooks": {
+      "afterSchemas": "bp-codegen"
+    }
+  },
+  "betterportal": {
+    "routes": [
+      "src/plugins/service-betterportal-auth-default/bp-routes/"
+    ]
+  },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BetterCorp/BetterPortal.git",
-    "directory": "auth/nodejs"
+    "directory": "services/nodejs/auth-default"
   },
   "bugs": {
     "url": "https://github.com/BetterCorp/BetterPortal/issues"

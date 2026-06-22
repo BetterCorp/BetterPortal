@@ -10,7 +10,7 @@ import {
 } from "@betterportal/framework";
 
 export const RuntimeTokenConfigSchema = av.object({
-  idTokenSeconds: av.int().min(1).default(60 * 30),
+  accessTokenSeconds: av.int().min(1).default(60 * 15),
   refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7),
   runtimeAudiences: av.array(av.string().minLength(1)).minItems(1),
   controlPlaneAudiences: av.array(av.string().minLength(1)).minItems(1)
