@@ -37,7 +37,7 @@
     "anyvali": "^1.0.6",
     "h3": "^2.0.1-rc.20",
     "jsonwebtoken": "^9.0.2",
-    "jwks-rsa": "^3.1.0",
+    "jwks-rsa": "^4.1.0",
     "typescript": "^5.9.3",
     "yaml": "^2.8.3"
   },
