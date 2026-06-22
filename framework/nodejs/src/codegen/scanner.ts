@@ -9,11 +9,21 @@ export interface ScannedThemeRenderer {
   rendererId: string;
   type: "page" | "component" | "fragment";
   method?: string;
+  /** HTTP status code this renderer handles (e.g., 401, 404, 500). Undefined = default (200/success). */
+  statusCode?: number;
   fragmentLocation?: string;
   fragmentId?: string;
   relativePath: string;
   /** Path to `_<location>.<id>.sse.tsx` (sibling SSE renderer for this fragment). */
   sseRendererPath?: string;
+}
+
+/** Streaming frame renderers for one theme — from `_theme.<id>/index.stream.tsx`. */
+export interface ScannedStreamRenderer {
+  themeId: string;
+  relativePath: string;
+  /** Render exports found in the file (renderShell/renderItem/renderSummary/renderError). */
+  exports: string[];
 }
 
 export interface ScannedRoute {
@@ -24,15 +34,25 @@ export interface ScannedRoute {
   handlerExports: string[];
   methods: string[];
   themeRenderers: ScannedThemeRenderer[];
+  /** Per-theme streaming renderers (streaming views only). */
+  streamRenderers: ScannedStreamRenderer[];
   sseRelativePath?: string;
   hasSseHandler: boolean;
   /** Whether sse.ts exports a `tickSchema` for SSE message validation. */
   sseHasTickSchema?: boolean;
+  /** Whether index.ts exports an `ItemSchema` (streaming view, see spec/streaming.md). */
+  hasItemSchema: boolean;
+  /** Whether index.ts exports a `SummarySchema`. */
+  hasSummarySchema: boolean;
+  /** Whether any route handler is created with createRawHandler(). */
+  isRaw: boolean;
 }
 
 export interface ScanResult {
   routes: ScannedRoute[];
   generatedDir: string;
+  pluginImportPath: string;
+  pluginExports: string[];
 }
 
 // ── Path helpers ─────────────────────────────────────────────────────
@@ -52,6 +72,10 @@ function relativeFromGenerated(generatedDir: string, targetPath: string): string
   return posix.startsWith(".") ? posix : `./${posix}`;
 }
 
+function toJsImport(relativePath: string): string {
+  return relativePath.replace(/\.tsx?$/, ".js");
+}
+
 // ── Handler / export detection ───────────────────────────────────────
 
 const HANDLER_NAMES = [
@@ -69,13 +93,25 @@ const WELL_KNOWN_EXPORTS = [
   "QuerySchema",
   "HeadersSchema",
   "RequestSchema",
+  "MultipartSchema",
+  "ItemSchema",
+  "SummarySchema",
+  "viewId",
   "title",
   "description",
   "auth",
+  "role",
+  "dependencies",
+  "chrome",
   "cacheHints",
   "demoScenarios",
   "handleSSE",
   "tickSchema",
+  // stream renderer exports (index.stream.tsx)
+  "renderShell",
+  "renderItem",
+  "renderSummary",
+  "renderError",
 ] as const;
 
 const ALL_DETECTABLE = [...HANDLER_NAMES, ...WELL_KNOWN_EXPORTS] as const;
@@ -149,6 +185,86 @@ function detectExports(filePath: string): string[] {
   return [...new Set(found)];
 }
 
+function detectRawHandler(filePath: string): boolean {
+  return fs.readFileSync(filePath, "utf-8").includes("createRawHandler(");
+}
+
+function detectNamedExports(filePath: string, names: ReadonlyArray<string>): string[] {
+  if (!fs.existsSync(filePath)) return [];
+  const source = fs.readFileSync(filePath, "utf-8");
+  const sourceFile = ts.createSourceFile(
+    path.basename(filePath),
+    source,
+    ts.ScriptTarget.ES2022,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const wanted = new Set(names);
+  const found: string[] = [];
+
+  function add(name: string): void {
+    if (wanted.has(name) && !found.includes(name)) found.push(name);
+  }
+
+  function visit(node: ts.Node): void {
+    if (hasExportModifier(node)) {
+      if ((ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isFunctionDeclaration(node)) && node.name) {
+        add(node.name.text);
+      }
+      if (ts.isVariableStatement(node)) {
+        for (const decl of node.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name)) add(decl.name.text);
+        }
+      }
+    }
+
+    if (ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause)) {
+      for (const spec of node.exportClause.elements) {
+        add((spec.name ?? spec.propertyName).text);
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return found;
+}
+
+function detectLiteralViewId(filePath: string): string | undefined {
+  const source = fs.readFileSync(filePath, "utf-8");
+  const sourceFile = ts.createSourceFile(
+    path.basename(filePath),
+    source,
+    ts.ScriptTarget.ES2022,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let viewId: string | undefined;
+
+  function visit(node: ts.Node): void {
+    if (viewId || !ts.isVariableStatement(node) || !hasExportModifier(node)) {
+      ts.forEachChild(node, visit);
+      return;
+    }
+    for (const decl of node.declarationList.declarations) {
+      if (
+        ts.isIdentifier(decl.name)
+        && decl.name.text === "viewId"
+        && decl.initializer
+        && ts.isStringLiteral(decl.initializer)
+      ) {
+        viewId = decl.initializer.text;
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return viewId;
+}
+
 function hasExportModifier(node: ts.Node): boolean {
   const mods = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
   return mods?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
@@ -157,28 +273,45 @@ function hasExportModifier(node: ts.Node): boolean {
 // ── Route path construction ──────────────────────────────────────────
 
 /**
- * Convert a directory path relative to bp-routes/ into an HTTP path
- * and extract param names.
+ * Convert a directory path relative to bp-routes/ into one or more HTTP paths
+ * and extract param names. Required params use [name]; optional params use [[name]].
  *
- * Example: "users/[userId]/posts" → { httpPath: "/users/:userId/posts", paramNames: ["userId"] }
+ * Example: "users/[userId]/posts" -> [{ httpPath: "/users/:userId/posts", paramNames: ["userId"] }]
+ * Example: "tenants/[[tenantId]]/services" -> "/tenants/services" and "/tenants/:tenantId/services"
  */
-function buildRoutePath(segments: string[]): { httpPath: string; paramNames: string[] } {
-  const paramNames: string[] = [];
-  const httpSegments: string[] = [];
+function buildRoutePaths(segments: string[]): Array<{ httpPath: string; paramNames: string[] }> {
+  let variants: Array<{ segments: string[]; paramNames: string[] }> = [
+    { segments: [], paramNames: [] }
+  ];
 
   for (const seg of segments) {
-    const paramMatch = seg.match(/^\[(\w+)]$/);
-    if (paramMatch) {
-      const paramName = paramMatch[1];
-      paramNames.push(paramName);
-      httpSegments.push(`:${paramName}`);
-    } else {
-      httpSegments.push(seg);
+    const optionalParamMatch = seg.match(/^\[\[(\w+)]]$/);
+    if (optionalParamMatch) {
+      const paramName = optionalParamMatch[1];
+      variants = variants.flatMap((variant) => [
+        variant,
+        {
+          segments: [...variant.segments, `:${paramName}`],
+          paramNames: [...variant.paramNames, paramName]
+        }
+      ]);
+      continue;
     }
+
+    const paramMatch = seg.match(/^\[(\w+)]$/);
+    const httpSegment = paramMatch ? `:${paramMatch[1]}` : seg;
+    const paramName = paramMatch?.[1];
+
+    variants = variants.map((variant) => ({
+      segments: [...variant.segments, httpSegment],
+      paramNames: paramName ? [...variant.paramNames, paramName] : variant.paramNames
+    }));
   }
 
-  const httpPath = "/" + httpSegments.join("/");
-  return { httpPath, paramNames };
+  return variants.map((variant) => ({
+    httpPath: "/" + variant.segments.join("/"),
+    paramNames: variant.paramNames
+  }));
 }
 
 /**
@@ -189,7 +322,7 @@ function buildRoutePath(segments: string[]): { httpPath: string; paramNames: str
  */
 function buildViewId(segments: string[]): string {
   const parts = segments.map((seg) => {
-    const paramMatch = seg.match(/^\[(\w+)]$/);
+    const paramMatch = seg.match(/^\[\[?(\w+)]]?$/);
     return paramMatch ? `$${paramMatch[1]}` : seg;
   });
   return [...parts, "index"].join(".");
@@ -213,16 +346,25 @@ function parseThemeFile(
   type: "page" | "component" | "fragment";
   rendererId: string;
   method?: string;
+  statusCode?: number;
   fragmentLocation?: string;
   fragmentId?: string;
 } | null {
   // Must be .tsx
   if (!fileName.endsWith(".tsx")) return null;
 
-  const base = fileName.slice(0, -4); // strip .tsx
+  let base = fileName.slice(0, -4); // strip .tsx
 
   // Skip *.sse.tsx files — paired with fragment renderers separately
   if (base.endsWith(".sse")) return null;
+
+  // Extract trailing .NNN status code (3 digits, 100-599) if present.
+  const statusMatch = base.match(/\.([1-5]\d{2})$/);
+  let statusCode: number | undefined;
+  if (statusMatch) {
+    statusCode = Number(statusMatch[1]);
+    base = base.slice(0, base.length - statusMatch[0].length);
+  }
 
   // Fragment: starts with underscore (but NOT _theme)
   if (base.startsWith("_") && !base.startsWith("_theme")) {
@@ -237,6 +379,7 @@ function parseThemeFile(
       rendererId: `${location}.${id}`,
       fragmentLocation: location,
       fragmentId: id,
+      statusCode,
     };
   }
 
@@ -249,7 +392,7 @@ function parseThemeFile(
     const method = parts.length === 2 && HTTP_METHODS.has(parts[1]) ? parts[1] : undefined;
     if (parts.length > 2) return null;
     if (parts.length === 2 && !method) return null;
-    return { type: "page", rendererId: "default", method };
+    return { type: "page", rendererId: "default", method, statusCode };
   }
 
   // name.tsx or name.METHOD.tsx → component
@@ -257,7 +400,7 @@ function parseThemeFile(
   if (parts.length > 2) return null;
   if (parts.length === 2 && !method) return null;
   const rendererId = parts[0];
-  return { type: "component", rendererId, method };
+  return { type: "component", rendererId, method, statusCode };
 }
 
 /**
@@ -267,6 +410,7 @@ function scanThemeDirectory(
   themeDirPath: string,
   themeId: string,
   generatedDir: string,
+  streamRenderers?: ScannedStreamRenderer[],
 ): ScannedThemeRenderer[] {
   const renderers: ScannedThemeRenderer[] = [];
 
@@ -275,6 +419,20 @@ function scanThemeDirectory(
   }
 
   const entries = fs.readdirSync(themeDirPath, { withFileTypes: true });
+
+  // Streaming frame renderers: index.stream.tsx (spec/streaming.md § 4)
+  const streamFile = entries.find((e) => e.isFile() && e.name === "index.stream.tsx");
+  if (streamFile && streamRenderers) {
+    const filePath = path.join(themeDirPath, streamFile.name);
+    const exports = detectExports(filePath).filter((name) => name.startsWith("render"));
+    if (exports.includes("renderShell") && exports.includes("renderItem")) {
+      streamRenderers.push({
+        themeId,
+        relativePath: relativeFromGenerated(generatedDir, filePath),
+        exports,
+      });
+    }
+  }
 
   // Collect SSE renderer files by their `rendererId` (location.fragmentId)
   // so we can pair them with their fragment renderer.
@@ -310,6 +468,7 @@ function scanThemeDirectory(
       rendererId: parsed.rendererId,
       type: parsed.type,
       method: parsed.method,
+      statusCode: parsed.statusCode,
       fragmentLocation: parsed.fragmentLocation,
       fragmentId: parsed.fragmentId,
       relativePath: relativeFromGenerated(generatedDir, filePath),
@@ -338,9 +497,10 @@ function scanDirectory(
 
   if (hasIndex && segments.length > 0) {
     const indexPath = path.join(currentDir, "index.ts");
-    const { httpPath, paramNames } = buildRoutePath(segments);
-    const viewId = buildViewId(segments);
+    const routePaths = buildRoutePaths(segments);
+    const viewId = detectLiteralViewId(indexPath) ?? buildViewId(segments);
     const handlerExports = detectExports(indexPath);
+    const isRaw = detectRawHandler(indexPath);
 
     // Derive HTTP methods from handler functions
     const methods: string[] = [];
@@ -364,6 +524,7 @@ function scanDirectory(
 
     // Scan theme renderers
     const themeRenderers: ScannedThemeRenderer[] = [];
+    const streamRenderers: ScannedStreamRenderer[] = [];
 
     for (const entry of entries) {
       // Theme directory: _theme.{themeId}/
@@ -373,7 +534,7 @@ function scanDirectory(
           const themeId = themeMatch[1];
           const themeDirPath = path.join(currentDir, entry.name);
           themeRenderers.push(
-            ...scanThemeDirectory(themeDirPath, themeId, generatedDir),
+            ...scanThemeDirectory(themeDirPath, themeId, generatedDir, streamRenderers),
           );
         }
       }
@@ -394,18 +555,24 @@ function scanDirectory(
       }
     }
 
-    routes.push({
-      viewId,
-      path: httpPath,
-      paramNames,
-      relativePath: relativeFromGenerated(generatedDir, currentDir),
-      handlerExports,
-      methods,
-      themeRenderers,
-      sseRelativePath,
-      hasSseHandler,
-      sseHasTickSchema,
-    });
+    for (const { httpPath, paramNames } of routePaths) {
+      routes.push({
+        viewId,
+        path: httpPath,
+        paramNames,
+        relativePath: relativeFromGenerated(generatedDir, currentDir),
+        handlerExports,
+        methods,
+        themeRenderers,
+        streamRenderers,
+        sseRelativePath,
+        hasSseHandler,
+        sseHasTickSchema,
+        hasItemSchema: handlerExports.includes("ItemSchema"),
+        hasSummarySchema: handlerExports.includes("SummarySchema"),
+        isRaw,
+      });
+    }
   }
 
   // Recurse into child directories (excluding theme dirs)
@@ -431,9 +598,12 @@ function scanDirectory(
 export function scanRoutes(baseDir: string): ScanResult {
   const routesDir = path.resolve(baseDir, "bp-routes");
   const generatedDir = path.resolve(baseDir, ".bp-generated");
+  const pluginIndexPath = path.resolve(baseDir, "index.ts");
+  const pluginImportPath = toJsImport(relativeFromGenerated(generatedDir, pluginIndexPath));
+  const pluginExports = detectNamedExports(pluginIndexPath, ["Plugin", "ServiceConfig"]);
 
   if (!fs.existsSync(routesDir)) {
-    return { routes: [], generatedDir };
+    return { routes: [], generatedDir, pluginImportPath, pluginExports };
   }
 
   const routes: ScannedRoute[] = [];
@@ -458,5 +628,5 @@ export function scanRoutes(baseDir: string): ScanResult {
     return aSeg.length - bSeg.length;
   });
 
-  return { routes, generatedDir };
+  return { routes, generatedDir, pluginImportPath, pluginExports };
 }

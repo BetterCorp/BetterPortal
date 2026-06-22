@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
  */
 export function uuidv7(): string {
   const now = Date.now();
-  const rand = randomBytes(10);
+  const rand = randomBytes(16);
 
   // 48-bit timestamp
   const tsHigh = Math.floor(now / 0x10000) & 0xffff_ffff;

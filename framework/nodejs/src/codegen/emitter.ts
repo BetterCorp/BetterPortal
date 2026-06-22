@@ -1,4 +1,4 @@
-import type { ScanResult, ScannedRoute, ScannedThemeRenderer } from "./scanner.js";
+import type { ScanResult, ScannedRoute, ScannedStreamRenderer, ScannedThemeRenderer } from "./scanner.js";
 
 // ── Naming helpers ───────────────────────────────────────────────────
 
@@ -54,29 +54,30 @@ function themeImportName(
 ): string {
   const base = viewIdToCamel(viewId);
   const theme = capitalize(sanitizeIdentifier(renderer.themeId));
+  const statusSuffix = renderer.statusCode !== undefined ? `S${renderer.statusCode}` : "";
 
   if (renderer.type === "page") {
     if (renderer.method) {
-      return `${base}${theme}Page${renderer.method}`;
+      return `${base}${theme}Page${renderer.method}${statusSuffix}`;
     }
-    return `${base}${theme}Page`;
+    return `${base}${theme}Page${statusSuffix}`;
   }
 
   if (renderer.type === "fragment") {
     const loc = capitalize(sanitizeIdentifier(renderer.fragmentLocation ?? ""));
     const id = capitalize(sanitizeIdentifier(renderer.fragmentId ?? ""));
     if (renderer.method) {
-      return `${base}${theme}${loc}${id}${renderer.method}`;
+      return `${base}${theme}${loc}${id}${renderer.method}${statusSuffix}`;
     }
-    return `${base}${theme}${loc}${id}`;
+    return `${base}${theme}${loc}${id}${statusSuffix}`;
   }
 
   // component
   const rendererName = capitalize(sanitizeIdentifier(renderer.rendererId));
   if (renderer.method) {
-    return `${base}${theme}${rendererName}${renderer.method}`;
+    return `${base}${theme}${rendererName}${renderer.method}${statusSuffix}`;
   }
-  return `${base}${theme}${rendererName}`;
+  return `${base}${theme}${rendererName}${statusSuffix}`;
 }
 
 /**
@@ -112,23 +113,35 @@ const SCHEMA_EXPORTS: ReadonlyArray<{ exportName: string; key: string }> = [
   { exportName: "QuerySchema", key: "query" },
   { exportName: "HeadersSchema", key: "headers" },
   { exportName: "RequestSchema", key: "request" },
+  { exportName: "MultipartSchema", key: "multipart" },
 ];
 
 function emitSchemas(route: ScannedRoute, importAlias: string): string {
-  const lines: string[] = [];
-  const detectedSchemas = SCHEMA_EXPORTS.filter(
-    (s) => route.handlerExports.includes(s.exportName),
-  );
+  const entries: string[] = SCHEMA_EXPORTS
+    .filter((s) => route.handlerExports.includes(s.exportName))
+    .map((s) => `${s.key}: ${importAlias}.${s.exportName}`);
 
-  if (detectedSchemas.length === 0) {
+  // Streaming views (ItemSchema export): the buffered response schema is
+  // derived by createStreamHandler — never hand-authored.
+  if (route.hasItemSchema) {
+    const streamHandler = route.handlerExports.find((e) => e.startsWith("handle") && e !== "handleSSE");
+    if (streamHandler && !route.handlerExports.includes("ResponseSchema")) {
+      entries.unshift(`response: ${importAlias}.${streamHandler}.responseSchema`);
+    }
+    entries.push(`item: ${importAlias}.ItemSchema`);
+    if (route.hasSummarySchema) {
+      entries.push(`summary: ${importAlias}.SummarySchema`);
+    }
+  }
+
+  if (entries.length === 0) {
     return "{}";
   }
 
-  lines.push("{");
-  for (let i = 0; i < detectedSchemas.length; i++) {
-    const schema = detectedSchemas[i];
-    const comma = i < detectedSchemas.length - 1 ? "," : "";
-    lines.push(`        ${schema.key}: ${importAlias}.${schema.exportName}${comma}`);
+  const lines: string[] = ["{"];
+  for (let i = 0; i < entries.length; i++) {
+    const comma = i < entries.length - 1 ? "," : "";
+    lines.push(`        ${entries[i]}${comma}`);
   }
   lines.push("      }");
   return lines.join("\n");
@@ -163,6 +176,14 @@ interface RenderersByTheme {
   pages: Array<{ renderer: ScannedThemeRenderer; importName: string }>;
   components: Array<{ renderer: ScannedThemeRenderer; importName: string }>;
   fragments: Array<{ renderer: ScannedThemeRenderer; importName: string; sseImportName?: string }>;
+  /** Streaming frame renderers from index.stream.tsx. */
+  stream?: { renderer: ScannedStreamRenderer; importName: string };
+  /** statusCode → { page?, components: id → ..., fragments: loc.id → ... } */
+  statusRenderers: Map<number, {
+    page?: { renderer: ScannedThemeRenderer; importName: string };
+    components: Map<string, { renderer: ScannedThemeRenderer; importName: string }>;
+    fragments: Map<string, { renderer: ScannedThemeRenderer; importName: string }>;
+  }>;
 }
 
 function emitThemeRenderers(
@@ -180,12 +201,81 @@ function emitThemeRenderers(
     themeLines.push(`        ${JSON.stringify(themeId)}: {`);
     themeLines.push(`          pages: [${emitRendererArray(sets.pages)}],`);
     themeLines.push(`          components: [${emitRendererArray(sets.components)}],`);
-    themeLines.push(`          fragments: [${emitRendererArray(sets.fragments)}]`);
+    themeLines.push(`          fragments: [${emitRendererArray(sets.fragments)}]${sets.stream ? "," : ""}`);
+    if (sets.stream) {
+      const props = [
+        `renderShell: ${sets.stream.importName}.renderShell`,
+        `renderItem: ${sets.stream.importName}.renderItem`
+      ];
+      if (sets.stream.renderer.exports.includes("renderSummary")) {
+        props.push(`renderSummary: ${sets.stream.importName}.renderSummary`);
+      }
+      if (sets.stream.renderer.exports.includes("renderError")) {
+        props.push(`renderError: ${sets.stream.importName}.renderError`);
+      }
+      themeLines.push(`          stream: { ${props.join(", ")} }`);
+    }
     themeLines.push(`        }${themeComma}`);
   }
 
   themeLines.push("      }");
   return themeLines.join("\n");
+}
+
+function emitStatusRenderers(
+  renderersByTheme: Map<string, RenderersByTheme>,
+): string | null {
+  const themesWithStatus = [...renderersByTheme.entries()].filter(
+    ([, sets]) => sets.statusRenderers.size > 0
+  );
+  if (themesWithStatus.length === 0) return null;
+
+  const lines: string[] = ["{"];
+  for (let t = 0; t < themesWithStatus.length; t++) {
+    const [themeId, sets] = themesWithStatus[t];
+    const themeComma = t < themesWithStatus.length - 1 ? "," : "";
+
+    lines.push(`        ${JSON.stringify(themeId)}: {`);
+    const codes = [...sets.statusRenderers.entries()];
+    for (let c = 0; c < codes.length; c++) {
+      const [code, bucket] = codes[c];
+      const codeComma = c < codes.length - 1 ? "," : "";
+      const props: string[] = [];
+      if (bucket.page) {
+        props.push(`page: ${emitRendererLiteral(bucket.page)}`);
+      }
+      if (bucket.components.size > 0) {
+        const compEntries = [...bucket.components.entries()].map(
+          ([id, item]) => `${JSON.stringify(id)}: ${emitRendererLiteral(item)}`
+        );
+        props.push(`components: { ${compEntries.join(", ")} }`);
+      }
+      if (bucket.fragments.size > 0) {
+        const fragEntries = [...bucket.fragments.entries()].map(
+          ([id, item]) => `${JSON.stringify(id)}: ${emitRendererLiteral(item)}`
+        );
+        props.push(`fragments: { ${fragEntries.join(", ")} }`);
+      }
+      lines.push(`          ${code}: { ${props.join(", ")} }${codeComma}`);
+    }
+    lines.push(`        }${themeComma}`);
+  }
+  lines.push("      }");
+  return lines.join("\n");
+}
+
+function emitRendererLiteral(item: { renderer: ScannedThemeRenderer; importName: string }): string {
+  const props: string[] = [
+    `rendererId: ${JSON.stringify(item.renderer.rendererId)}`,
+    `type: ${JSON.stringify(item.renderer.type)}`
+  ];
+  if (item.renderer.method) props.push(`method: ${JSON.stringify(item.renderer.method)}`);
+  // statusCode is NOT emitted — RegisteredThemeRenderer has no such field; the
+  // status code is already the key of the enclosing statusRenderers map.
+  if (item.renderer.fragmentLocation) props.push(`fragmentLocation: ${JSON.stringify(item.renderer.fragmentLocation)}`);
+  if (item.renderer.fragmentId) props.push(`fragmentId: ${JSON.stringify(item.renderer.fragmentId)}`);
+  props.push(`render: ${item.importName}.render`);
+  return `{ ${props.join(", ")} }`;
 }
 
 function emitRendererArray(
@@ -258,7 +348,12 @@ export function emitRegistry(scanResult: ScanResult): string {
 
     for (const renderer of route.themeRenderers) {
       if (!byTheme.has(renderer.themeId)) {
-        byTheme.set(renderer.themeId, { pages: [], components: [], fragments: [] });
+        byTheme.set(renderer.themeId, {
+          pages: [],
+          components: [],
+          fragments: [],
+          statusRenderers: new Map()
+        });
       }
       const set = byTheme.get(renderer.themeId)!;
 
@@ -267,6 +362,27 @@ export function emitRegistry(scanResult: ScanResult): string {
         alias: importName,
         path: toJsImport(renderer.relativePath),
       });
+
+      // Status-specific renderer goes into statusRenderers, not the default arrays.
+      if (renderer.statusCode !== undefined) {
+        let bucket = set.statusRenderers.get(renderer.statusCode);
+        if (!bucket) {
+          bucket = { components: new Map(), fragments: new Map() };
+          set.statusRenderers.set(renderer.statusCode, bucket);
+        }
+        switch (renderer.type) {
+          case "page":
+            bucket.page = { renderer, importName };
+            break;
+          case "component":
+            bucket.components.set(renderer.rendererId, { renderer, importName });
+            break;
+          case "fragment":
+            bucket.fragments.set(renderer.rendererId, { renderer, importName });
+            break;
+        }
+        continue;
+      }
 
       switch (renderer.type) {
         case "page":
@@ -290,11 +406,33 @@ export function emitRegistry(scanResult: ScanResult): string {
       }
     }
 
+    // Streaming frame renderers (index.stream.tsx) — one per theme
+    for (const streamRenderer of route.streamRenderers) {
+      if (!byTheme.has(streamRenderer.themeId)) {
+        byTheme.set(streamRenderer.themeId, {
+          pages: [],
+          components: [],
+          fragments: [],
+          statusRenderers: new Map()
+        });
+      }
+      const importName = `${viewIdToCamel(route.viewId)}${capitalize(sanitizeIdentifier(streamRenderer.themeId))}Stream`;
+      imports.push({
+        alias: importName,
+        path: toJsImport(streamRenderer.relativePath),
+      });
+      byTheme.get(streamRenderer.themeId)!.stream = { renderer: streamRenderer, importName };
+    }
+
     routeThemeImports.set(route, byTheme);
   }
 
   // Emit import statements
+  const emittedImports = new Set<string>();
   for (const imp of imports) {
+    const key = `${imp.alias}\0${imp.path}`;
+    if (emittedImports.has(key)) continue;
+    emittedImports.add(key);
     lines.push(`import * as ${imp.alias} from ${JSON.stringify(imp.path)};`);
   }
 
@@ -314,6 +452,9 @@ export function emitRegistry(scanResult: ScanResult): string {
     const hasTitle = route.handlerExports.includes("title");
     const hasDescription = route.handlerExports.includes("description");
     const hasAuth = route.handlerExports.includes("auth");
+    const hasRole = route.handlerExports.includes("role");
+    const hasDependencies = route.handlerExports.includes("dependencies");
+    const hasChrome = route.handlerExports.includes("chrome");
     const hasCacheHints = route.handlerExports.includes("cacheHints");
     const hasDemoScenarios = route.handlerExports.includes("demoScenarios");
 
@@ -331,12 +472,28 @@ export function emitRegistry(scanResult: ScanResult): string {
     lines.push(`      paramNames: ${JSON.stringify(route.paramNames)},`);
     lines.push(`      schemas: ${emitSchemas(route, alias)},`);
     lines.push(`      handlers: ${emitHandlers(route, alias)},`);
+    if (route.isRaw) {
+      lines.push(`      raw: true,`);
+    }
     lines.push(`      title: ${hasTitle ? `${alias}.title` : JSON.stringify(fallbackTitle)},`);
     lines.push(`      description: ${hasDescription ? `${alias}.description` : `""`},`);
-    lines.push(`      auth: ${hasAuth ? `${alias}.auth` : `{ required: false, realm: "runtime", minimumTier: "public", audiences: [], permissions: [] }`},`);
+    lines.push(`      auth: ${hasAuth ? `${alias}.auth` : `{ required: false, permissions: [] }`},`);
+    if (hasRole) {
+      lines.push(`      role: ${alias}.role,`);
+    }
+    if (hasDependencies) {
+      lines.push(`      dependencies: ${alias}.dependencies,`);
+    }
+    if (hasChrome) {
+      lines.push(`      chrome: ${alias}.chrome,`);
+    }
     lines.push(`      cacheHints: ${hasCacheHints ? `${alias}.cacheHints` : `{ ttlSeconds: 0, varyBy: [] }`},`);
     lines.push(`      demoScenarios: ${hasDemoScenarios ? `${alias}.demoScenarios` : `[]`},`);
-    lines.push(`      themeRenderers: ${emitThemeRenderers(byTheme)}${route.hasSseHandler ? "," : ""}`);
+    const statusBlock = emitStatusRenderers(byTheme);
+    lines.push(`      themeRenderers: ${emitThemeRenderers(byTheme)}${(statusBlock || route.hasSseHandler) ? "," : ""}`);
+    if (statusBlock) {
+      lines.push(`      statusRenderers: ${statusBlock}${route.hasSseHandler ? "," : ""}`);
+    }
     if (route.hasSseHandler) {
       const sseAlias = `${viewIdToCamel(route.viewId)}Sse`;
       const props = [`handler: ${sseAlias}.handleSSE`];
@@ -348,6 +505,41 @@ export function emitRegistry(scanResult: ScanResult): string {
 
   lines.push("  ]");
   lines.push("};");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+export function emitRouteRuntime(scanResult: ScanResult): string {
+  const hasPlugin = scanResult.pluginExports.includes("Plugin");
+  const hasServiceConfig = scanResult.pluginExports.includes("ServiceConfig");
+  const lines: string[] = [
+    "// AUTO-GENERATED by BetterPortal codegen - DO NOT EDIT",
+    `import {`,
+    `  createHandler as baseCreateHandler,`,
+    `  createRawHandler as baseCreateRawHandler,`,
+    `  createStreamHandler as baseCreateStreamHandler`,
+    `} from "@betterportal/framework";`
+  ];
+
+  const importedTypes: string[] = [];
+  if (hasPlugin) importedTypes.push("Plugin");
+  if (hasServiceConfig) importedTypes.push("ServiceConfig");
+
+  if (importedTypes.length > 0) {
+    lines.push(`import type { ${importedTypes.join(", ")} } from ${JSON.stringify(scanResult.pluginImportPath)};`);
+  }
+  if (!hasPlugin) {
+    lines.push("type Plugin = unknown;");
+  }
+  if (!hasServiceConfig) {
+    lines.push("type ServiceConfig = Record<string, unknown>;");
+  }
+
+  lines.push("");
+  lines.push("export const createHandler = baseCreateHandler.forContext<Plugin, ServiceConfig>();");
+  lines.push("export const createRawHandler = baseCreateRawHandler.forContext<Plugin, ServiceConfig>();");
+  lines.push("export const createStreamHandler = baseCreateStreamHandler.forContext<Plugin, ServiceConfig>();");
   lines.push("");
 
   return lines.join("\n");

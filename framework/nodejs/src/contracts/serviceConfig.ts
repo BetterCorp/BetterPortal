@@ -21,7 +21,6 @@ export const ServiceConfigTicketClaimsSchema = av.object({
   jti: NonEmptyStringSchema,
   realm: av.literal("control-plane"),
   tenantId: NonEmptyStringSchema,
-  appId: av.optional(NonEmptyStringSchema),
   serviceId: NonEmptyStringSchema,
   bindingId: av.optional(NonEmptyStringSchema),
   actions: av.array(ServiceConfigActionSchema).minItems(1)
@@ -37,7 +36,8 @@ export type ServiceConfigState = Infer<typeof ServiceConfigStateSchema>;
 export const ServiceConfigWriteRequestSchema = av.object({
   tenantId: NonEmptyStringSchema,
   appId: av.optional(NonEmptyStringSchema),
-  values: JsonObjectSchema
+  values: JsonObjectSchema,
+  clearKeys: av.array(NonEmptyStringSchema).default([])
 }, { unknownKeys: "strip" });
 export type ServiceConfigWriteRequest = Infer<typeof ServiceConfigWriteRequestSchema>;
 

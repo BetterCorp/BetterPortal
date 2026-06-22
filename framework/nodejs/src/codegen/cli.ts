@@ -3,7 +3,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { scanRoutes } from "./scanner.js";
-import { emitRegistry } from "./emitter.js";
+import { emitRegistry, emitRouteRuntime } from "./emitter.js";
 import { validateScanResult } from "./validate.js";
 
 interface BetterPortalConfig {
@@ -71,22 +71,27 @@ function run(): void {
 
     // Generate
     const registryContent = emitRegistry(scanResult);
+    const routeRuntimeContent = emitRouteRuntime(scanResult);
     const outputDir = scanResult.generatedDir;
 
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    const outputPath = path.join(outputDir, "registry.ts");
+    const outputs = [
+      { path: path.join(outputDir, "registry.ts"), content: registryContent },
+      { path: path.join(outputDir, "route-runtime.ts"), content: routeRuntimeContent }
+    ];
 
-    // Atomic write: write to temp file then rename
-    const tmpPath = outputPath + ".tmp";
-    fs.writeFileSync(tmpPath, registryContent, "utf-8");
-    fs.renameSync(tmpPath, outputPath);
+    for (const output of outputs) {
+      const tmpPath = output.path + ".tmp";
+      fs.writeFileSync(tmpPath, output.content, "utf-8");
+      fs.renameSync(tmpPath, output.path);
+    }
 
     totalRoutes += scanResult.routes.length;
     console.log(
-      `[bp-codegen] Generated ${outputPath} (${scanResult.routes.length} routes)`
+      `[bp-codegen] Generated ${outputs[0].path} (${scanResult.routes.length} routes)`
     );
   }
 

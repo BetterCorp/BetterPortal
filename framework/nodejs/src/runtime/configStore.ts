@@ -7,6 +7,25 @@ import type { JsonValue } from "../contracts/json.js";
 import type { ServiceConfigState, ServiceConfigTicketClaims } from "../contracts/serviceConfig.js";
 
 const ValuesSchema = av.record(av.any());
+type ConfigValues = Record<string, JsonValue>;
+type TenantConfigBucket = { tenant: ConfigValues; app: Record<string, ConfigValues> };
+type PersistedServiceConfigState = {
+  tenants: Record<string, TenantConfigBucket>;
+  legacy?: TenantConfigBucket;
+};
+
+function emptyBucket(): TenantConfigBucket {
+  return { tenant: {}, app: {} };
+}
+
+function cloneBucket(bucket: TenantConfigBucket | undefined): ServiceConfigState {
+  return {
+    tenant: { ...(bucket?.tenant ?? {}) },
+    app: Object.fromEntries(
+      Object.entries(bucket?.app ?? {}).map(([appId, values]) => [appId, { ...values }])
+    )
+  };
+}
 
 // ── Interface ────────────────────────────────────────────────────────
 
@@ -29,15 +48,10 @@ export interface ServiceConfigStore {
 // ── In-memory (dev) ──────────────────────────────────────────────────
 
 export class InMemoryServiceConfigStore implements ServiceConfigStore {
-  private state: ServiceConfigState = { tenant: {}, app: {} };
+  private state: PersistedServiceConfigState = { tenants: {} };
 
   read(ticket: ServiceConfigTicketClaims): ServiceConfigState {
-    return {
-      tenant: this.state.tenant,
-      app: ticket.appId
-        ? { [ticket.appId]: this.state.app[ticket.appId] ?? {} }
-        : this.state.app
-    };
+    return cloneBucket(this.state.tenants[ticket.tenantId]);
   }
 
   write(
@@ -46,27 +60,22 @@ export class InMemoryServiceConfigStore implements ServiceConfigStore {
     values: Record<string, unknown>,
     ticket: ServiceConfigTicketClaims
   ): ServiceConfigState {
-    const parsed = ValuesSchema.parse(values) as ServiceConfigState["tenant"];
-    if (tenantId !== ticket.tenantId || appId !== ticket.appId) {
-      return this.state;
+    const parsed = ValuesSchema.parse(values) as ConfigValues;
+    if (tenantId !== ticket.tenantId) {
+      return this.read(ticket);
     }
+    const current = this.state.tenants[tenantId] ?? emptyBucket();
 
     if (appId) {
-      this.state = {
-        tenant: this.state.tenant,
-        app: {
-          ...this.state.app,
-          [appId]: { ...(this.state.app[appId] ?? {}), ...parsed }
-        }
+      this.state.tenants[tenantId] = {
+        tenant: current.tenant,
+        app: { ...current.app, [appId]: { ...(current.app[appId] ?? {}), ...parsed } }
       };
     } else {
-      this.state = {
-        tenant: { ...this.state.tenant, ...parsed },
-        app: this.state.app
-      };
+      this.state.tenants[tenantId] = { tenant: { ...current.tenant, ...parsed }, app: current.app };
     }
 
-    return this.state;
+    return this.read(ticket);
   }
 
   clearKey(
@@ -75,21 +84,22 @@ export class InMemoryServiceConfigStore implements ServiceConfigStore {
     key: string,
     ticket: ServiceConfigTicketClaims
   ): ServiceConfigState {
-    if (tenantId !== ticket.tenantId || appId !== ticket.appId) return this.state;
+    if (tenantId !== ticket.tenantId) return this.read(ticket);
+    const current = this.state.tenants[tenantId] ?? emptyBucket();
 
     if (appId) {
-      const current = { ...(this.state.app[appId] ?? {}) };
-      delete current[key];
-      this.state = {
-        tenant: this.state.tenant,
-        app: { ...this.state.app, [appId]: current }
+      const appValues = { ...(current.app[appId] ?? {}) };
+      delete appValues[key];
+      this.state.tenants[tenantId] = {
+        tenant: current.tenant,
+        app: { ...current.app, [appId]: appValues }
       };
     } else {
-      const current = { ...this.state.tenant };
-      delete current[key];
-      this.state = { tenant: current, app: this.state.app };
+      const tenantValues = { ...current.tenant };
+      delete tenantValues[key];
+      this.state.tenants[tenantId] = { tenant: tenantValues, app: current.app };
     }
-    return this.state;
+    return this.read(ticket);
   }
 }
 
@@ -171,7 +181,7 @@ export interface FileBackedServiceConfigStoreOptions {
 }
 
 export class FileBackedServiceConfigStore implements ServiceConfigStore {
-  private state: ServiceConfigState;
+  private state: PersistedServiceConfigState;
   private readonly key: Buffer;
   private readonly secretKeys: Set<string>;
   private readonly filePath: string;
@@ -184,14 +194,7 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
   }
 
   read(ticket: ServiceConfigTicketClaims): ServiceConfigState {
-    return {
-      tenant: this.decryptRecord(this.state.tenant),
-      app: ticket.appId
-        ? { [ticket.appId]: this.decryptRecord(this.state.app[ticket.appId] ?? {}) }
-        : Object.fromEntries(
-            Object.entries(this.state.app).map(([id, vals]) => [id, this.decryptRecord(vals)])
-          )
-    };
+    return this.readBucket(ticket.tenantId);
   }
 
   write(
@@ -200,55 +203,89 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
     values: Record<string, unknown>,
     ticket: ServiceConfigTicketClaims
   ): ServiceConfigState {
-    const parsed = ValuesSchema.parse(values) as ServiceConfigState["tenant"];
-    if (tenantId !== ticket.tenantId || appId !== ticket.appId) {
-      return this.readAll();
+    const parsed = ValuesSchema.parse(values) as ConfigValues;
+    if (tenantId !== ticket.tenantId) {
+      return this.read(ticket);
     }
 
     const encrypted = encryptSecrets(parsed, this.secretKeys, this.key);
+    const current = this.ensureTenantBucket(tenantId);
 
     if (appId) {
-      this.state = {
-        tenant: this.state.tenant,
-        app: {
-          ...this.state.app,
-          [appId]: { ...(this.state.app[appId] ?? {}), ...encrypted }
-        }
+      this.state.tenants[tenantId] = {
+        tenant: current.tenant,
+        app: { ...current.app, [appId]: { ...(current.app[appId] ?? {}), ...encrypted } }
       };
     } else {
-      this.state = {
-        tenant: { ...this.state.tenant, ...encrypted },
-        app: this.state.app
-      };
+      this.state.tenants[tenantId] = { tenant: { ...current.tenant, ...encrypted }, app: current.app };
     }
 
     this.saveToDisk();
-    return this.readAll();
+    return this.read(ticket);
   }
 
-  private readAll(): ServiceConfigState {
+  clearKey(
+    tenantId: string,
+    appId: string | undefined,
+    key: string,
+    ticket: ServiceConfigTicketClaims
+  ): ServiceConfigState {
+    if (tenantId !== ticket.tenantId) return this.read(ticket);
+    const current = this.ensureTenantBucket(tenantId);
+
+    if (appId) {
+      const appValues = { ...(current.app[appId] ?? {}) };
+      delete appValues[key];
+      this.state.tenants[tenantId] = {
+        tenant: current.tenant,
+        app: { ...current.app, [appId]: appValues }
+      };
+    } else {
+      const tenantValues = { ...current.tenant };
+      delete tenantValues[key];
+      this.state.tenants[tenantId] = { tenant: tenantValues, app: current.app };
+    }
+
+    this.saveToDisk();
+    return this.read(ticket);
+  }
+
+  private readBucket(tenantId: string): ServiceConfigState {
+    const bucket = this.ensureTenantBucket(tenantId);
     return {
-      tenant: this.decryptRecord(this.state.tenant),
+      tenant: this.decryptRecord(bucket.tenant),
       app: Object.fromEntries(
-        Object.entries(this.state.app).map(([id, vals]) => [id, this.decryptRecord(vals)])
+        Object.entries(bucket.app).map(([id, vals]) => [id, this.decryptRecord(vals)])
       )
     };
+  }
+
+  private ensureTenantBucket(tenantId: string): TenantConfigBucket {
+    if (!this.state.tenants[tenantId] && this.state.legacy) {
+      this.state.tenants[tenantId] = this.state.legacy;
+      delete this.state.legacy;
+      this.saveToDisk();
+    }
+    if (!this.state.tenants[tenantId]) {
+      this.state.tenants[tenantId] = emptyBucket();
+    }
+    return this.state.tenants[tenantId];
   }
 
   private decryptRecord(values: Record<string, JsonValue>): Record<string, JsonValue> {
     return decryptSecrets(values, this.secretKeys, this.key);
   }
 
-  private loadFromDisk(): ServiceConfigState {
+  private loadFromDisk(): PersistedServiceConfigState {
     if (!existsSync(this.filePath)) {
-      return { tenant: {}, app: {} };
+      return { tenants: {} };
     }
     const raw = readFileSync(this.filePath, "utf8");
     const parsed = JSON.parse(raw);
-    return {
-      tenant: parsed.tenant ?? {},
-      app: parsed.app ?? {}
-    };
+    if (parsed && typeof parsed === "object" && parsed.tenants && typeof parsed.tenants === "object") {
+      return { tenants: parsed.tenants };
+    }
+    return { tenants: {}, legacy: { tenant: parsed.tenant ?? {}, app: parsed.app ?? {} } };
   }
 
   private saveToDisk(): void {
@@ -256,6 +293,6 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(this.filePath, JSON.stringify(this.state, null, 2), "utf8");
+    writeFileSync(this.filePath, JSON.stringify({ tenants: this.state.tenants }, null, 2), "utf8");
   }
 }

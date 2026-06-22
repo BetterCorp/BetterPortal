@@ -157,9 +157,11 @@ export interface ManifestBaseFields {
   description: string;
   category?: PluginManifest["category"];
   deploymentModes?: ReadonlyArray<PluginManifest["deploymentModes"][number]>;
+  capabilities?: ReadonlyArray<string>;
   configSchemas?: PluginManifest["configSchemas"];
   permissions?: PluginManifest["permissions"];
   adminApis?: PluginManifest["adminApis"];
+  webhooks?: PluginManifest["webhooks"];
   cacheHints?: PluginManifest["cacheHints"];
 }
 
@@ -195,10 +197,19 @@ export function buildManifestFromRegistry(
   const renderModes = new Set<string>();
   const capabilities = new Set<string>();
 
+  for (const capability of base.capabilities ?? []) {
+    capabilities.add(capability);
+  }
+
   capabilities.add("view.json");
   capabilities.add("view.metadata");
 
   for (const route of registry.routes) {
+    // Streaming views (spec/streaming.md § 5)
+    if (route.schemas.item) {
+      capabilities.add("stream.ndjson");
+    }
+
     for (const [themeId, rendererSet] of Object.entries(route.themeRenderers)) {
       themes.add(themeId);
       capabilities.add(`theme.${themeId}`);
@@ -208,14 +219,23 @@ export function buildManifestFromRegistry(
       if (rendererSet.pages.length > 0 || rendererSet.components.length > 0) {
         capabilities.add("view.html");
       }
+      if (rendererSet.stream) {
+        capabilities.add("view.sse-render");
+        capabilities.add("view.html");
+        renderModes.add("fragment");
+      }
     }
   }
 
+  const seenViewIds = new Set<string>();
   const views: ViewMetadata[] = registry.routes
     .filter((route) => {
+      if (seenViewIds.has(route.viewId)) return false;
+      seenViewIds.add(route.viewId);
+
       // Exclude fragment-only routes (routes that have fragment renderers but no pages)
       const hasAnyPage = Object.values(route.themeRenderers).some(
-        (set) => set.pages.length > 0
+        (set) => set.pages.length > 0 || set.stream !== undefined
       );
       return hasAnyPage || Object.keys(route.themeRenderers).length === 0;
     })
@@ -235,6 +255,7 @@ export function buildManifestFromRegistry(
     configSchemas: base.configSchemas ?? [],
     permissions: base.permissions ?? [],
     adminApis: deriveAdminApis(base),
+    webhooks: base.webhooks ?? [],
     cacheHints: base.cacheHints ?? { metadataTtlSeconds: 1800 }
   };
 }
@@ -252,7 +273,7 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
     const renderers: Array<{ id: string; title: string; slotId: string; renderModes: RenderMode[] }> = [];
 
     if (set.pages.length > 0) modes.push("page");
-    if (set.fragments.length > 0) modes.push("fragment");
+    if (set.fragments.length > 0 || set.stream) modes.push("fragment");
 
     for (const page of set.pages) {
       renderers.push({
@@ -283,6 +304,12 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
     };
   }
 
+  const renderable = route.raw === true
+    ? false
+    : Object.values(route.themeRenderers).some((set) =>
+      set.pages.length > 0 || set.components.length > 0 || set.fragments.length > 0 || Boolean(set.stream)
+    );
+
   return {
     viewId: route.viewId,
     title: route.title,
@@ -292,11 +319,24 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
     paramsSchema: {},
     querySchema: route.schemas.query ? toJsonSchemaDocument(route.schemas.query) : {},
     headersSchema: route.schemas.headers ? toJsonSchemaDocument(route.schemas.headers) : {},
-    bodySchema: route.schemas.request ? toJsonSchemaDocument(route.schemas.request) : {},
-    jsonResponseSchema: toJsonSchemaDocument(route.schemas.response),
+    bodySchema: route.schemas.multipart
+      ? toJsonSchemaDocument(route.schemas.multipart)
+      : route.schemas.request ? toJsonSchemaDocument(route.schemas.request) : {},
+    jsonResponseSchema: route.schemas.response ? toJsonSchemaDocument(route.schemas.response) : {},
     metadataResponseSchema: {},
+    renderable,
+    ...(route.raw === true ? { raw: true } : {}),
+    ...(route.schemas.item ? {
+      streaming: {
+        itemSchema: toJsonSchemaDocument(route.schemas.item),
+        ...(route.schemas.summary ? { summarySchema: toJsonSchemaDocument(route.schemas.summary) } : {})
+      }
+    } : {}),
     html: { themeRenderers },
     auth: route.auth,
+    ...(route.role ? { role: route.role } : {}),
+    dependencies: [...(route.dependencies ?? [])],
+    ...(route.chrome ? { chrome: route.chrome } : {}),
     demoScenarios: route.demoScenarios.map((s) => ({
       id: s.id,
       title: s.title,

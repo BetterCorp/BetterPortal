@@ -31,11 +31,25 @@ export type BetterPortalResource = Infer<typeof BetterPortalResourceSchema>;
 export type MetricLabelValue = string | number | boolean;
 export type MetricLabels<TLabel extends string = string> = Partial<Record<TLabel, MetricLabelValue>>;
 
+export type LogAttributeKeys<TMessage extends string> = string extends TMessage
+  ? never
+  : TMessage extends `${string}{${infer TKey}}${infer TRest}`
+    ? TKey | LogAttributeKeys<TRest>
+    : never;
+
+export type LogAttributes<TMessage extends string> = ObservabilityAttributes
+  & Record<LogAttributeKeys<TMessage>, ObservabilityValue>;
+
+export type LogAttributeArgs<TMessage extends string> = [LogAttributeKeys<TMessage>] extends [never]
+  ? [attributes?: ObservabilityAttributes]
+  : [attributes: LogAttributes<TMessage>];
+
 export interface BetterPortalLogger {
-  debug(message: string, attributes?: ObservabilityAttributes): void;
-  info(message: string, attributes?: ObservabilityAttributes): void;
-  warn(message: string, attributes?: ObservabilityAttributes): void;
-  error(message: string | Error, attributes?: ObservabilityAttributes): void;
+  debug<const TMessage extends string>(message: TMessage, ...args: LogAttributeArgs<TMessage>): void;
+  info<const TMessage extends string>(message: TMessage, ...args: LogAttributeArgs<TMessage>): void;
+  warn<const TMessage extends string>(message: TMessage, ...args: LogAttributeArgs<TMessage>): void;
+  error<const TMessage extends string>(message: TMessage, ...args: LogAttributeArgs<TMessage>): void;
+  error(message: Error, attributes?: ObservabilityAttributes): void;
 }
 
 export interface BetterPortalCounter<TLabel extends string = string> {

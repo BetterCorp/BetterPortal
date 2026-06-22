@@ -11,7 +11,13 @@ import {
   BetterPortalResolvedServiceBinding,
   BetterPortalRouteMount
 } from "../contracts/platformConfig.js";
-import { HeaderMap, resolveEmbeddedSourceHeader, resolveThemeSourceHeader } from "./http.js";
+import {
+  type BetterPortalHeaderTrustOptions,
+  HeaderMap,
+  hostFromHeaderValue,
+  resolveEmbeddedSourceHeader,
+  resolveThemeSourceHeader
+} from "./http.js";
 
 export interface BetterPortalConfigProvider {
   loadConfig(): Promise<BetterPortalConfig>;
@@ -20,14 +26,27 @@ export interface BetterPortalConfigProvider {
 export type BetterPortalConfigProviderOptions =
   | { readonly backend?: "file"; readonly configPath: string };
 
+const EMPTY_CONFIG: BetterPortalConfig = BetterPortalConfigSchema.parse({
+  configManagement: { auth: { mechanism: "none", requiredPermissions: [] } }
+});
+
 export class FileBackedBetterPortalConfigProvider implements BetterPortalConfigProvider {
   constructor(private readonly configPath: string) {}
 
   async loadConfig(): Promise<BetterPortalConfig> {
     const resolvedConfigPath = resolvePath(this.configPath);
-    const fileContent = await readFile(resolvedConfigPath, "utf8");
-    const parsed = parse(fileContent) as unknown;
-    return BetterPortalConfigSchema.parse(parsed);
+    try {
+      const fileContent = await readFile(resolvedConfigPath, "utf8");
+      const parsed = parse(fileContent) as unknown;
+      return BetterPortalConfigSchema.parse(parsed);
+    } catch (err) {
+      // Pre-bootstrap: file may not exist yet. Return empty config so the caller
+      // can decide how to handle (typically returns 503 or empty UI).
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return EMPTY_CONFIG;
+      }
+      throw err;
+    }
   }
 }
 
@@ -35,30 +54,12 @@ export function createBetterPortalConfigProvider(options: BetterPortalConfigProv
   return new FileBackedBetterPortalConfigProvider(options.configPath);
 }
 
-function normalizeUrlCandidate(value: string): URL | null {
-  try {
-    return new URL(value);
-  } catch {
-    return null;
-  }
-}
-
 function hostFromUrlValue(value?: string): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsedUrl = normalizeUrlCandidate(value);
-  return parsedUrl?.host ?? null;
+  return hostFromHeaderValue(value);
 }
 
 function hostFromHostHeader(host?: string): string | null {
-  if (!host || host.trim().length === 0) {
-    return null;
-  }
-
-  const normalized = host.includes("://") ? host : `https://${host}`;
-  return hostFromUrlValue(normalized);
+  return hostFromHeaderValue(host);
 }
 
 function findAppByHost(config: BetterPortalConfig, requestHost: string | null) {
@@ -78,6 +79,28 @@ function findAppByHost(config: BetterPortalConfig, requestHost: string | null) {
 
     return appHost.split(":")[0] === requestHost.split(":")[0];
   })) ?? null;
+}
+
+export function describeEmbeddedContextResolution(
+  config: BetterPortalConfig,
+  headers: HeaderMap,
+  headerTrust: BetterPortalHeaderTrustOptions = {}
+): {
+  candidates: string[];
+  appHosts: Array<{ appId: string; hosts: string[] }>;
+} {
+  const refererHost = hostFromUrlValue(resolveEmbeddedSourceHeader(headers, headerTrust));
+  const originHost = hostFromUrlValue(resolveThemeSourceHeader(headers, headerTrust));
+  const candidates = [...new Set([refererHost, originHost].filter((value): value is string => !!value))];
+  return {
+    candidates,
+    appHosts: config.apps.map((app) => ({
+      appId: app.id,
+      hosts: app.hostnames
+        .map((hostname) => hostFromHostHeader(hostname))
+        .filter((value): value is string => !!value)
+    }))
+  };
 }
 
 function buildResolvedContext(config: BetterPortalConfig, appId: string | null): BetterPortalResolvedRequestContext | null {
@@ -101,10 +124,11 @@ function buildResolvedContext(config: BetterPortalConfig, appId: string | null):
 export function resolveThemeRequestContext(
   config: BetterPortalConfig,
   headers: HeaderMap,
-  requestHost?: string
+  requestHost?: string,
+  headerTrust: BetterPortalHeaderTrustOptions = {}
 ): BetterPortalResolvedRequestContext | null {
-  const originHostname = hostFromUrlValue(resolveThemeSourceHeader(headers));
-  const refererHostname = hostFromUrlValue(resolveEmbeddedSourceHeader(headers));
+  const originHostname = hostFromUrlValue(resolveThemeSourceHeader(headers, headerTrust));
+  const refererHostname = hostFromUrlValue(resolveEmbeddedSourceHeader(headers, headerTrust));
   const hostHostname = hostFromHostHeader(requestHost);
 
   const app =
@@ -117,10 +141,11 @@ export function resolveThemeRequestContext(
 
 export function resolveEmbeddedRequestContext(
   config: BetterPortalConfig,
-  headers: HeaderMap
+  headers: HeaderMap,
+  headerTrust: BetterPortalHeaderTrustOptions = {}
 ): BetterPortalResolvedRequestContext | null {
-  const refererHostname = hostFromUrlValue(resolveEmbeddedSourceHeader(headers));
-  const originHostname = hostFromUrlValue(resolveThemeSourceHeader(headers));
+  const refererHostname = hostFromUrlValue(resolveEmbeddedSourceHeader(headers, headerTrust));
+  const originHostname = hostFromUrlValue(resolveThemeSourceHeader(headers, headerTrust));
   const app =
     findAppByHost(config, refererHostname) ??
     findAppByHost(config, originHostname);
@@ -154,6 +179,7 @@ export function resolveServiceForTenant(
           hostname: platformService.hostname,
           apiKeyHash: platformService.apiKeyHash,
           serviceId: platformService.serviceId,
+          capabilities: platformService.capabilities,
           title: platformService.title,
           description: platformService.description,
           deploymentMode: "bp-hosted" as const,
@@ -223,6 +249,14 @@ function splitRoutePath(pathname: string): string[] {
   return pathname.replace(/^\/+|\/+$/g, "").split("/").filter((segment) => segment.length > 0);
 }
 
+function routeParamName(segment: string): string | null {
+  if (segment.startsWith(":") && segment.length > 1) {
+    return segment.slice(1);
+  }
+  const braceMatch = segment.match(/^\{([A-Za-z_][A-Za-z0-9_]*)\}$/);
+  return braceMatch?.[1] ?? null;
+}
+
 function routePatternMatches(routePath: string, pathname: string): boolean {
   if (routePath === pathname) {
     return true;
@@ -234,7 +268,7 @@ function routePatternMatches(routePath: string, pathname: string): boolean {
     return false;
   }
 
-  return routeSegments.every((segment, index) => segment.startsWith(":") || segment === pathSegments[index]);
+  return routeSegments.every((segment, index) => routeParamName(segment) !== null || segment === pathSegments[index]);
 }
 
 export function resolveAppRoute(app: BetterPortalApp, pathname: string): BetterPortalRouteMount | null {
@@ -247,19 +281,40 @@ export function inferServicePathFromViewId(viewId: string): string {
   return normalized.startsWith("/") ? normalized : `/${normalized}`;
 }
 
-function interpolatePath(pathTemplate: string, currentPath: string): string {
-  const templateSegments = splitRoutePath(pathTemplate);
+function extractRouteParams(routePath: string, currentPath: string): Record<string, string> | null {
+  const routeSegments = splitRoutePath(routePath);
   const currentSegments = splitRoutePath(currentPath);
 
-  if (templateSegments.length !== currentSegments.length) {
-    return currentPath;
+  if (routeSegments.length !== currentSegments.length) {
+    return null;
   }
 
-  const resolvedSegments = templateSegments.map((segment, index) =>
-    segment.startsWith(":") ? currentSegments[index] : segment
+  const params: Record<string, string> = {};
+  for (let i = 0; i < routeSegments.length; i++) {
+    const paramName = routeParamName(routeSegments[i]);
+    if (paramName) {
+      params[paramName] = currentSegments[i];
+    } else if (routeSegments[i] !== currentSegments[i]) {
+      return null;
+    }
+  }
+  return params;
+}
+
+function interpolatePath(pathTemplate: string, params: Record<string, string>): string {
+  const [pathPart, queryPart] = pathTemplate.split("?", 2);
+  const resolvedSegments = splitRoutePath(pathPart).map((segment) => {
+    const paramName = routeParamName(segment);
+    return paramName ? (params[paramName] ?? segment) : segment;
+  });
+
+  const resolvedPath = resolvedSegments.length === 0 ? "/" : `/${resolvedSegments.join("/")}`;
+  const resolvedQuery = queryPart?.replace(
+    /(?::([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})/g,
+    (match, colonName: string | undefined, braceName: string | undefined) => params[colonName ?? braceName ?? ""] ?? match
   );
 
-  return resolvedSegments.length === 0 ? "/" : `/${resolvedSegments.join("/")}`;
+  return resolvedQuery ? `${resolvedPath}?${resolvedQuery}` : resolvedPath;
 }
 
 export function buildServiceViewUrl(
@@ -268,10 +323,12 @@ export function buildServiceViewUrl(
   currentPath: string
 ): string {
   const baseUrl = serviceBaseUrl(binding);
-  const resolvedPath = route.targetPath
-    ? (route.targetPath.includes(":") ? interpolatePath(route.targetPath, currentPath) : route.targetPath)
-    : route.path.includes(":")
-      ? interpolatePath(route.path, currentPath)
+  const params = extractRouteParams(route.path, currentPath) ?? {};
+  const servicePath = route.resolvedServicePath ?? route.targetPath;
+  const resolvedPath = servicePath
+    ? interpolatePath(servicePath, params)
+    : Object.keys(params).length > 0
+      ? interpolatePath(route.path, params)
       : inferServicePathFromViewId(route.viewId);
 
   return `${baseUrl}${resolvedPath}`;

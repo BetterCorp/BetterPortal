@@ -28,6 +28,30 @@ function checkHandlerExports(route: ScannedRoute, errors: ValidationError[]): vo
 }
 
 function checkResponseSchema(route: ScannedRoute, errors: ValidationError[]): void {
+  if (route.isRaw) {
+    if (route.handlerExports.includes("ResponseSchema")) {
+      errors.push({
+        file: route.relativePath + "/index.ts",
+        message: `Raw route "${route.viewId}" must not export a ResponseSchema.`,
+        severity: "error",
+      });
+    }
+    return;
+  }
+
+  // Streaming routes (spec/streaming.md) export ItemSchema instead; the
+  // buffered response schema is derived by createStreamHandler.
+  if (route.hasItemSchema) {
+    if (route.handlerExports.includes("ResponseSchema")) {
+      errors.push({
+        file: route.relativePath + "/index.ts",
+        message: `Route "${route.viewId}" exports both ItemSchema and ResponseSchema. Streaming routes derive their response schema — remove ResponseSchema.`,
+        severity: "error",
+      });
+    }
+    return;
+  }
+
   if (!route.handlerExports.includes("ResponseSchema")) {
     errors.push({
       file: route.relativePath + "/index.ts",
@@ -35,6 +59,16 @@ function checkResponseSchema(route: ScannedRoute, errors: ValidationError[]): vo
       severity: "error",
     });
   }
+}
+
+function checkRawRenderers(route: ScannedRoute, errors: ValidationError[]): void {
+  if (!route.isRaw) return;
+  if (route.themeRenderers.length === 0 && route.streamRenderers.length === 0) return;
+  errors.push({
+    file: route.relativePath + "/index.ts",
+    message: `Raw route "${route.viewId}" cannot have theme renderers.`,
+    severity: "error",
+  });
 }
 
 function checkFragmentFileNames(route: ScannedRoute, errors: ValidationError[]): void {
@@ -117,6 +151,7 @@ function checkThemeRendererOrphans(route: ScannedRoute, errors: ValidationError[
 }
 
 function checkMissingThemeRenderers(route: ScannedRoute, errors: ValidationError[]): void {
+  if (route.isRaw) return;
   if (route.themeRenderers.length === 0) {
     const hasHandler = route.handlerExports.some((e) => e.startsWith("handle"));
     if (hasHandler) {
@@ -148,6 +183,7 @@ export function validateScanResult(result: ScanResult): ValidationError[] {
   for (const route of result.routes) {
     checkHandlerExports(route, errors);
     checkResponseSchema(route, errors);
+    checkRawRenderers(route, errors);
     checkFragmentFileNames(route, errors);
     checkThemeRendererOrphans(route, errors);
     checkMissingThemeRenderers(route, errors);

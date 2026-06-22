@@ -5,10 +5,10 @@ import { JsonValue } from "../contracts/json.js";
 import {
   CacheHints,
   HtmlRepresentationSupport,
-  ViewAuthRequirement,
   ViewMetadata,
   ViewMetadataSchema
 } from "../contracts/view.js";
+import type { ApiAuthRequirement } from "../contracts/route.js";
 import { RequestedRepresentation, resolveRequestedRepresentation } from "./media.js";
 import { toJsonSchemaDocument } from "./jsonSchema.js";
 
@@ -46,7 +46,7 @@ export interface CreateViewDefinitionInput<
   methods: ReadonlyArray<"GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS">;
   schemas: ViewSchemas<ParamsSchema, QuerySchema, HeadersSchema, BodySchema, ResponseSchema>;
   html: HtmlRepresentationSupport;
-  auth: ViewAuthRequirement;
+  auth: ApiAuthRequirement;
   demoScenarios?: ReadonlyArray<{
     id: string;
     title: string;
@@ -143,6 +143,18 @@ export function negotiateViewResponse<ResponseSchema extends AnySchema>(
       status: 200,
       contentType: "application/json",
       body: validatedJsonBody
+    };
+  }
+
+  // NDJSON streaming is only supported by streaming routes (spec/streaming.md),
+  // which negotiate in the adapter — never through this buffered path.
+  if (requested.kind === "ndjson") {
+    return {
+      status: 406,
+      contentType: "application/json",
+      body: {
+        error: "NDJSON streaming is not supported by this view"
+      }
     };
   }
 

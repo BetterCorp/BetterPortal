@@ -1,6 +1,6 @@
 {
   "name": "betterportal",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "BetterPortal v10 workspace",
   "private": true,
   "scripts": {
@@ -13,11 +13,15 @@
   "workspaces": [
     "framework/nodejs",
     "plugins/nodejs/betterportal-bsb",
-    "auth/nodejs",
+    "services/nodejs/auth-default",
+    "services/nodejs/auth-authress-io",
     "themes/nodejs/bootstrap1",
     "themes/nodejs/embedded",
     "services/nodejs/admin/config-manager",
     "services/nodejs/docs-site",
     "services/nodejs/examples/hello-view"
-  ]
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
 }

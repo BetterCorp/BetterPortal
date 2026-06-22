@@ -27,9 +27,18 @@ export interface ServiceConfigRouteOptions {
   customUiPath?: string;
   basePath?: string;
   validateTicket?: (ticketValue: string | null, event: BetterPortalEvent, action: ServiceConfigAction) => Promise<ServiceConfigTicketClaims | null> | ServiceConfigTicketClaims | null;
+  validateScope?: (
+    scope: { tenantId: string; appId?: string; action: ServiceConfigAction; ticket: ServiceConfigTicketClaims },
+    event: BetterPortalEvent
+  ) => Promise<boolean> | boolean;
   readConfig?: (context: ServiceConfigAccessContext, event: BetterPortalEvent) => Promise<ServiceConfigState | null> | ServiceConfigState | null;
   writeConfig?: (
     values: { tenantId: string; appId?: string; values: Record<string, unknown> },
+    context: ServiceConfigAccessContext,
+    event: BetterPortalEvent
+  ) => Promise<ServiceConfigState | null> | ServiceConfigState | null;
+  clearConfigKey?: (
+    values: { tenantId: string; appId?: string; key: string },
     context: ServiceConfigAccessContext,
     event: BetterPortalEvent
   ) => Promise<ServiceConfigState | null> | ServiceConfigState | null;
@@ -56,6 +65,11 @@ async function resolveTicket(
   }
 
   const parsed = ServiceConfigTicketClaimsSchema.parse(resolved);
+  const now = Math.floor(Date.now() / 1000);
+  if (parsed.exp <= now) {
+    return null;
+  }
+
   if (parsed.serviceId !== options.serviceId || !parsed.actions.includes(action)) {
     return null;
   }
@@ -110,20 +124,32 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
       }, 501);
     }
 
+    const requestedAppId = event.req.headers.get("x-bp-app-id") ?? undefined;
+    if (options.validateScope && !(await options.validateScope({
+      tenantId: ticket.tenantId,
+      ...(requestedAppId ? { appId: requestedAppId } : {}),
+      action: "config.read",
+      ticket
+    }, event))) {
+      return jsonResponse({
+        error: "Config read scope is not allowed for this ticket"
+      }, 403);
+    }
+
     const state = await options.readConfig({
       ticket,
       action: "config.read"
     }, event);
 
     const parsedState = ServiceConfigStateSchema.parse(state ?? { tenant: {}, app: {} });
-    const rawValues = ticket.appId
-      ? parsedState.app[ticket.appId] ?? {}
+    const rawValues = requestedAppId
+      ? parsedState.app[requestedAppId] ?? {}
       : parsedState.tenant;
 
     const response = ServiceConfigReadResponseSchema.parse({
       serviceId: options.serviceId,
       tenantId: ticket.tenantId,
-      ...(ticket.appId ? { appId: ticket.appId } : {}),
+      ...(requestedAppId ? { appId: requestedAppId } : {}),
       values: redactSecretValues(options.configSchemas, rawValues) as JsonObject
     });
 
@@ -157,13 +183,38 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
       }, 400);
     }
 
-    if (parsedWrite.data.tenantId !== ticket.tenantId || parsedWrite.data.appId !== ticket.appId) {
+    if (parsedWrite.data.tenantId !== ticket.tenantId) {
       return jsonResponse({
-        error: "Config write scope does not match the ticket scope"
+        error: "Config write tenant does not match the ticket tenant"
       }, 403);
     }
 
-    const state = await options.writeConfig({
+    if (options.validateScope && !(await options.validateScope({
+      tenantId: parsedWrite.data.tenantId,
+      ...(parsedWrite.data.appId ? { appId: parsedWrite.data.appId } : {}),
+      action: "config.write",
+      ticket
+    }, event))) {
+      return jsonResponse({
+        error: "Config write scope is not allowed for this ticket"
+      }, 403);
+    }
+
+    let state: ServiceConfigState | null = null;
+    for (const key of parsedWrite.data.clearKeys) {
+      state = options.clearConfigKey
+        ? await options.clearConfigKey({
+            tenantId: parsedWrite.data.tenantId,
+            appId: parsedWrite.data.appId,
+            key
+          }, {
+            ticket,
+            action: "config.write"
+          }, event)
+        : state;
+    }
+
+    state = await options.writeConfig({
       tenantId: parsedWrite.data.tenantId,
       appId: parsedWrite.data.appId,
       values: parsedWrite.data.values as Record<string, unknown>
@@ -177,10 +228,10 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
       ok: true,
       serviceId: options.serviceId,
       tenantId: ticket.tenantId,
-      ...(ticket.appId ? { appId: ticket.appId } : {}),
+      ...(parsedWrite.data.appId ? { appId: parsedWrite.data.appId } : {}),
       values: redactSecretValues(
         options.configSchemas,
-        ticket.appId ? parsedState.app[ticket.appId] ?? {} : parsedState.tenant
+        parsedWrite.data.appId ? parsedState.app[parsedWrite.data.appId] ?? {} : parsedState.tenant
       ) as JsonObject
     }, 200, options.writeSuccessHeaders);
   });

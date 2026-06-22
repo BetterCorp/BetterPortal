@@ -218,4 +218,10 @@ export function createBsbLogger(observable: Observable): BetterPortalLogger {
   return new BsbLoggerAdapter(observable);
 }
 
-export { BPService, type BPServiceConfig, type BPServiceDefinition } from "./service.js";
+export {
+  BPService,
+  BetterPortalConfigSchema,
+  type BetterPortalConfig,
+  type BPServiceConfig,
+  type BPServiceDefinition
+} from "./service.js";

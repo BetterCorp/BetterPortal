@@ -8,6 +8,7 @@ export interface AcceptEntry {
 
 export type RequestedRepresentation =
   | { kind: "json" }
+  | { kind: "ndjson" }
   | { kind: "metadata" }
   | { kind: "html"; theme?: string; mode?: RenderMode };
 
@@ -70,6 +71,10 @@ export function resolveRequestedRepresentation(headerValue?: string): RequestedR
   for (const entry of entries) {
     if (entry.mediaType === "application/vnd.betterportal.metadata+json") {
       return { kind: "metadata" };
+    }
+
+    if (entry.mediaType === "application/x-ndjson") {
+      return { kind: "ndjson" };
     }
 
     if (entry.mediaType === "application/json" || entry.mediaType === "*/*") {
