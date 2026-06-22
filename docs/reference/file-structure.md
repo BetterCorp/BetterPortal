@@ -42,3 +42,17 @@ services/nodejs/<category>/<service-name>
 Small platform integration packages belong under `plugins/nodejs`.
 
 Themes belong under `themes/nodejs`.
+
+## Package output
+
+Published service and theme packages include runtime build output and plugin metadata only:
+
+```json
+"files": [
+  "lib/**/*",
+  "README.md",
+  "bsb-plugin.json"
+]
+```
+
+Tests stay in source only. Exclude `tests/` and `*.test.ts` from `tsconfig.json`; packages that want shared BSB checks add `@bsb/tests` as a dev dependency and run them through `bsb-plugin-cli test`.

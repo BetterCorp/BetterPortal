@@ -103,6 +103,7 @@ These are non-negotiable. The whole architecture is built on them.
 - **Live-refresh via `HX-Trigger` events.** Mutations emit an event header; passive regions subscribe via `hx-trigger="event from:body"`. No websockets needed for typical UI.
 - **SSE for server-push.** WebSockets only if bidirectional. SSE handler convention is `sse.ts` + `_<loc>.<frag>.sse.tsx` (see section 18b).
 - **Codegen is mandatory.** Route registration is file-system driven through `bp-codegen`. Hand-written registries are not supported.
+- **BSB package shape.** Runnable services/themes are BSB plugins: `@bsb/base`, `@betterportal/framework`, and `@betterportal/plugin-bsb` are runtime dependencies. `@bsb/tests` is dev-only and used through `"test": "bsb-plugin-cli test"` for packages that want shared BSB plugin checks. Keep `tests/`, `*.test.ts`, and `bsb-tests.json` out of published package `files`.
 - **Strict separation of admin and tenant data.** Tenant-scoped operations only see their tenant's services + apps. Platform admin operations are gated behind config-manager.
 
 If a tempting feature requires breaking any of these (e.g., "let's just iframe an external site"), the answer is: no, build a service binding or a fragment.

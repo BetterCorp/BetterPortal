@@ -2082,7 +2082,7 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
           data-bp-no-route=""
         >{shellStyles(context.themeMode, context.themeConfig)}</style>
       </head>
-      <body hx-history-elt="">{context.bodyHtml}</body>
+      <body hx-history-elt={true}>{context.bodyHtml}</body>
     </html>
   );
 }

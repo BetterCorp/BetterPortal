@@ -9,7 +9,7 @@
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
-    "test": "node -e \"process.exit(0)\"",
+    "test": "bsb-plugin-cli test",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -21,23 +21,23 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
-    "@bsb/base": "^9.5.0",
+    "@bsb/tests": "^9.5.6",
+    "@types/node": "^26.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@bsb/base": "^9.5.6",
     "@betterportal/framework": "10.0.0",
     "@betterportal/plugin-bsb": "10.0.0",
-    "@types/node": "^24.12.2",
     "anyvali": "^1.0.6",
     "htmx.org": "^4.0.0-beta2",
-    "jsx-htmx": "4.0.0-beta2"
+    "jsx-htmx": "4.0.0-beta4"
   },
   "files": [
     "lib/**/*",
     "README.md",
-    "bsb-plugin.json",
-    "bsb-tests.json"
+    "bsb-plugin.json"
   ],
   "bsb": {},
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",

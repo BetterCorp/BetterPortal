@@ -24,16 +24,14 @@
     "README.md"
   ],
   "dependencies": {
+    "@bsb/base": "^9.5.6",
     "@betterportal/framework": "10.0.0",
     "anyvali": "^1.0.6"
   },
   "devDependencies": {
-    "@bsb/base": "^9.5.0",
+    "@types/node": "^26.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
-  },
-  "peerDependencies": {
-    "@bsb/base": "^9.5.0"
+    "typescript": "^6.0.3"
   },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
   "repository": {
