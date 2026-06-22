@@ -10,7 +10,7 @@ Every BetterPortal service MUST expose these paths under `/.well-known/bp/`. The
 | Path | Method | Purpose | Auth |
 |---|---|---|---|
 | `/.well-known/bp/manifest` | GET | Plugin manifest JSON. | none |
-| `/.well-known/bp/health` | GET | Liveness probe. | none |
+| `/.well-known/bp/health` | GET | Liveness/readiness probe. | none |
 | `/.well-known/bp/schema.json` | GET | Flattened route catalog (manifest + routes). | none |
 | `/.well-known/bp/config/schema` | GET | Per-service config schema descriptor. | none |
 | `/.well-known/bp/config` | GET | Read tenant/app config values. | Bearer ticket |
@@ -20,18 +20,33 @@ Services MAY expose additional well-known paths under `/.well-known/bp/` for SDK
 
 ### 1.1 Health response
 
-`GET /.well-known/bp/health` returns a 200 with JSON:
+`GET /.well-known/bp/health` returns JSON. A service that is ready to receive normal view traffic returns `200`:
 
 ```json
 {
   "ok": true,
-  "plugin": "<pluginId>",
-  "port": <integer>,
-  "protocolVersion": 1
+  "ready": true,
+  "pluginId": "<pluginId>",
+  "protocolVersion": 1,
+  "setupMode": false,
+  "config": {
+    "synced": true,
+    "localConfig": false,
+    "tenants": 1,
+    "apps": 1
+  },
+  "sync": {
+    "mode": "control-plane",
+    "state": "synced"
+  }
 }
 ```
 
-`port` MAY be omitted when behind a load balancer. `protocolVersion` MUST match the manifest.
+`protocolVersion` MUST match the manifest when present. A service that has started but has not received scoped tenant/app config yet returns `503` with the same shape and `"ready": false`, normally with `"sync.state": "awaiting-sync"`. Load balancers SHOULD use health readiness, not only process liveness, before passing user traffic.
+
+Setup mode is the exception: a service with no sync credentials is ready for bootstrap/install traffic and MAY return `200` with `"setupMode": true` and `"sync.state": "awaiting-install"`. Normal view routes still MUST NOT be served until the service is installed/adopted and receives config.
+
+Before a service has synced or loaded local config, only core bootstrap/discovery paths should respond normally: health, manifest, schema, install/adoption, bootstrap, service redemption, and JWKS. View routes and tenant/app config endpoints SHOULD return `503`.
 
 ### 1.2 Service routes
 
@@ -55,11 +70,13 @@ Access-Control-Allow-Methods:     GET, POST, PUT, PATCH, DELETE, OPTIONS
 Access-Control-Allow-Headers:     Accept, Authorization, Content-Type,
                                   HX-Current-URL, HX-Request, HX-Target,
                                   HX-Trigger, HX-Trigger-Name,
-                                  X-BP-Tenant-Id, X-BP-App-Id
+                                  X-BP-Tenant-Id, X-BP-App-Id,
+                                  BP-SetHeader, BP-RemoveHeader
 Access-Control-Expose-Headers:    HX-Trigger, HX-Trigger-After-Swap,
                                   HX-Trigger-After-Settle, HX-Location,
                                   HX-Push-Url, HX-Redirect, HX-Refresh,
-                                  HX-Replace-Url, HX-Reswap, HX-Retarget
+                                  HX-Replace-Url, HX-Reswap, HX-Retarget,
+                                  BP-SetHeader, BP-RemoveHeader
 Access-Control-Max-Age:           86400 (recommended)
 ```
 
@@ -80,6 +97,7 @@ A view route inspects the `Accept` header (RFC 7231 § 5.3.2):
 - `application/json` → JSON response per the view's `ResponseSchema`.
 - `text/html` → HTML response (themed; see § 3.3).
 - `application/vnd.betterportal.metadata+json` → metadata about the view (optional).
+- `application/x-ndjson` → streamed frame-per-line response, streaming views only (see `streaming.md`). Non-streaming views return `406`.
 - Multiple types → highest q-weight wins; ties broken by the order above.
 - No `Accept` header or `*/*` → service default (RECOMMENDED: JSON).
 
@@ -150,6 +168,7 @@ Status codes follow HTTP conventions:
 | 406 | Accept type or theme unsupported. |
 | 409 | Resource conflict (e.g., tenant already exists). |
 | 422 | Semantically invalid (vs. 400 for shape failures). |
+| 503 | Service is not ready, commonly because scoped config has not synced yet. |
 | 500 | Unhandled server error; SHOULD log the cause server-side. |
 | 501 | Endpoint exists but feature is not implemented (e.g., config write on a read-only service). |
 
@@ -220,7 +239,7 @@ Clients SHOULD send `BP-Protocol-Version: 1` on requests. If absent, servers ass
 
 These are not protocol-level requirements but every conformant service is expected to follow them:
 
-- Routes serving fragment HTML MUST include a `data-bp-service="<serviceBindingId>"` ancestor in the response so the client URL rewriter can resolve relative paths (see `fragment-html.md`).
+- Routes serving fragment HTML MUST provide service context, normally via a `data-bp-service="<serviceBindingId>"` ancestor, so the client URL rewriter can resolve relative paths (see `fragment-html.md`).
 - Routes that emit `HX-Trigger` cross-origin MUST have the trigger name in `Access-Control-Expose-Headers`.
 - Routes that perform mutations and want to trigger live-refresh on the page MUST emit `HX-Trigger: <event>` on success.
 

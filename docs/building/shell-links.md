@@ -8,7 +8,7 @@ Services should normally render simple links:
 <a href="/docs/getting-started/quick-start">Quick Start</a>
 ```
 
-The shell resolves the owning service, rewrites the request to that service origin, adds HTMX attributes, and keeps the visible browser URL on the BP app route.
+The shell resolves the owning service, rewrites the request to that service origin, adds HTMX attributes, and keeps the visible browser URL on the BP app route. Service-owned relative URLs are resolved against the service that rendered the HTML, not against the theme origin.
 
 If a rewritten anchor is inserted by a later fragment and HTMX misses its normal click initialization, the shell still catches the click and dispatches the same HTMX request. This prevents BP-routed links from falling back to a full browser navigation.
 
@@ -72,6 +72,8 @@ data-bp-config="preload"
 | `rewrite=false` or `no-rewrite` | Leaves URLs untouched, but still allows preload unless disabled. |
 | `ignore` | Completely skips shell processing for this element. |
 
+`bp-service-id="<id>"` and `data-bp-service-id="<id>"` are shorthand for `data-bp-config="service=<id>"`. Use them when a specific element or subtree must issue requests directly to another service. For normal navigation links, prefer root-relative public paths and let the route map choose the destination service.
+
 ## Examples
 
 Disable preload for a link:
@@ -83,9 +85,18 @@ Disable preload for a link:
 Link to a route owned by another service:
 
 ```html
-<a href="/admin-services" data-bp-config="service=config-manager">
+<a href="/services" data-bp-config="service=config-manager">
   Service registry
 </a>
+```
+
+Direct a widget subtree to another service:
+
+```html
+<section bp-service-id="docs-site">
+  <button hx-get="/docs/status" hx-target="#docs-status">Refresh</button>
+  <div id="docs-status"></div>
+</section>
 ```
 
 Leave a URL alone:
@@ -109,8 +120,8 @@ Config applies from ancestors down to children. Child elements can override pare
 ```html
 <section data-bp-config="service=docs-site">
   <a href="/docs">Docs</a>
-  <a href="/admin-services" data-bp-config="service=config-manager">Admin services</a>
+  <a href="/services" data-bp-config="service=config-manager">Admin services</a>
 </section>
 ```
 
-Use this sparingly. Most service content should rely on the normal `data-bp-service` context and root-relative URLs.
+Use this sparingly. Most service content should rely on the normal service context and root-relative URLs.

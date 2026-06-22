@@ -140,6 +140,16 @@ GET <control-plane-origin>/.well-known/bp/sync
 
 Auth: `Authorization: Bearer <service-api-key>` (the calling service's `apiKeyHash` round-tripped through a token exchange; the simplest impl uses the raw API key as the bearer).
 
+Node BSB services should place sync credentials under their nested BetterPortal config block:
+
+```yaml
+betterportal:
+  controlPlaneUrl: http://localhost:3300
+  serviceApiKey: <raw-service-api-key>
+```
+
+The raw key is shown once during service registration; the platform config stores only `apiKeyHash`.
+
 ### 2.2 Wire format
 
 The control plane emits one event per refresh:
@@ -179,12 +189,21 @@ Only tenants/apps that bind this service (per `bp-config.yaml`) are included. Th
 
 The connecting service is responsible for reconnecting on close (with a 5-second delay or backoff). The control plane MAY close idle connections after a long timeout.
 
+Startup readiness is tied to the first scoped config snapshot. A service in control-plane sync mode SHOULD return `503` for view routes and tenant/app config endpoints until one of these is true:
+
+- a scoped config snapshot has been applied from bootstrap poll or SSE
+- a local file config provider is explicitly configured
+- the service is in setup mode and is only serving bootstrap/install endpoints
+
+The long-lived SSE log should make the state obvious. Log the bootstrap poll result, log when config is applied, and log the SSE connection as an update stream that is connected and awaiting changes. A final "connecting" line without a later "connected/awaiting updates" line is ambiguous and should be avoided.
+
 ### 2.4 Conformance
 
 A service consuming control-plane sync:
 
 - MUST treat the stream as advisory; the authoritative `bp-config.yaml` is still the source of truth.
 - MUST handle `ScopedServiceConfig` updates atomically (no partial state visible to handlers).
+- SHOULD expose sync/readiness state through `/.well-known/bp/health`.
 
 A control plane emitting the stream:
 

@@ -10,6 +10,8 @@ The config manager provides a UI for editing tenants, apps, services, routes, me
 |---|---|
 | `themes` | Available themes and theme hostnames. |
 | `platformServices` | Shared services that tenants can activate. |
+| `sharedServiceCatalog` | Platform-managed service definitions that can be activated for tenants/apps. |
+| `sharedServiceActivations` | Concrete shared-service instance bindings referenced by apps. |
 | `tenants` | Tenant records, branding, and registered services. |
 | `apps` | User-facing apps with hostnames, routes, menu, fragments, and theme config. |
 
@@ -29,6 +31,38 @@ configManagement:
 ```
 
 `adminTenantId` identifies the tenant that owns the admin experience. `auth` records the intended admin authentication mechanism. Today this is configuration metadata for deployments and future enforcement; it does not by itself make the current admin routes multi-tenant isolated.
+
+## Shared services
+
+Tenant services live under `tenants[].services[]` and are owned by one tenant. Shared services are split into:
+
+- `sharedServiceCatalog[]`: the shared provider definition, including plugin id, browser-visible base URL, API key hash, category, and tags.
+- `sharedServiceActivations[]`: the tenant/app binding. The activation `id` is the service instance id used by `app.shell.serviceId`, `app.auth.serviceId`, routes, fragments, slots, and role grants.
+
+The bootstrap process keeps config-manager as a direct tenant service because it is the control plane. It creates the default auth service and Bootstrap1 theme as shared catalog entries with activations for the admin tenant/app.
+
+The Services UI can convert an existing tenant service to a shared service. The migration creates or reuses a catalog entry, creates an activation, rewrites app references from the tenant service id to the activation id, then removes the old tenant service only when no references remain.
+
+Service config has two layers. Tenant scope stores the service defaults for that tenant. App scope stores overrides for a specific app and is allowed even before the app uses the service in routes, shell, fragments, or auth. Unchecked app override fields fall back to tenant scope.
+
+Service config schemas can group fields with `groups[]` and `field.groupId`. Use `field.order` for stable display order and `field.defaultValue` for visible defaults when no tenant/app value exists. Optional groups allow the generic app-scope editor to enable or clear a related set of overrides together.
+
+Fields can also provide generic UI hints. These only affect the generated editor; validation still belongs to the service schema.
+
+```ts
+{
+  key: "brandColor",
+  title: "Brand color",
+  scope: "tenant",
+  visibility: "protected",
+  ownership: "bp",
+  sourceOfTruth: "bp",
+  defaultValue: "#2563eb",
+  ui: { control: "color" }
+}
+```
+
+Supported `field.ui.control` values use native browser controls: `text`, `textarea`, `password`, `number`, `checkbox`, `select`, `multiselect`, `color`, `date`, `time`, `datetime-local`, `url`, and `email`. `ui.options` supplies `{ value, label }` entries for selects. `ui.placeholder`, `ui.min`, `ui.max`, `ui.step`, and `ui.rows` are passed through where the control supports them.
 
 ## Platform config storage
 
@@ -89,7 +123,7 @@ Common fields:
 | `host` | Bind host. Usually `0.0.0.0` locally. |
 | `port` | Service port. |
 | `storage` | Config-manager storage backend. Defaults to `backend: file` and `configPath: ./bp-config.yaml` relative to the BSB service cwd. Use `backend: postgres` with `connectionString` for PostgreSQL. |
-| `configApiToken` | Token used for config API calls. |
+| `configApiToken` | **Dev only.** Static bearer for the local config-API fallback. Inert unless `BP_ALLOW_DEV_CONFIG_TOKEN=true` is also set in the environment. Production verifies CP-signed tickets via the CP JWKS and needs no token — do **not** set this in production. |
 | `configEncryptionKey` | Key for encrypted service config values. |
 
 ## Common mistakes

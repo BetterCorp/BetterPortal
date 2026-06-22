@@ -72,6 +72,10 @@ Each entry in `views[]`:
   "bodySchema": { ... },
   "jsonResponseSchema": { ... },
   "metadataResponseSchema": { ... },  // optional
+  "streaming": {                      // optional — streaming views only, see streaming.md
+    "itemSchema": { ... },
+    "summarySchema": { ... }
+  },
   "html": {
     "themeRenderers": {
       "bootstrap1": {
@@ -129,6 +133,15 @@ Per-service descriptors for the config UI. Each schema describes a settings surf
   "description": "Tenant-scoped settings for the hello service.",
   "scope": "tenant" | "app",
   "jsonSchema": { ... },              // flat key→type map (informational)
+  "groups": [
+    {
+      "id": "connection",
+      "title": "Connection",
+      "description": "...",
+      "order": 10,
+      "optional": false
+    }
+  ],
   "fields": [
     {
       "key": "apiKey",
@@ -138,6 +151,9 @@ Per-service descriptors for the config UI. Each schema describes a settings surf
       "visibility": "secret" | "protected" | "public",
       "ownership": "plugin" | "bp" | "mixed",
       "sourceOfTruth": "plugin" | "bp",
+      "groupId": "connection",
+      "order": 10,
+      "defaultValue": "",
       "required": false
     }
   ]
@@ -152,6 +168,10 @@ Per-service descriptors for the config UI. Each schema describes a settings surf
 | `ownership: plugin` | The service controls the value; bp-config holds a reference only. |
 | `ownership: bp` | bp-config is the source of truth; the service mirrors it. |
 | `ownership: mixed` | Either side can write. |
+| `groups[]` | Optional UI grouping metadata. Unknown `field.groupId` values are rendered as their own group. |
+| `group.optional` | Admin UIs MAY expose one control that enables/disables app overrides for every field in the group. |
+| `field.order` | Optional deterministic display order within its group. |
+| `field.defaultValue` | Optional UI/default fallback when no tenant/app value exists. |
 
 See `config.md` for the read/write protocol.
 

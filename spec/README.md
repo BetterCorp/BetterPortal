@@ -17,6 +17,8 @@ If you are writing a service in a language other than TypeScript, this is your s
 | [config.md](config.md) | `bp-config.yaml` (platform), per-service config schemas, `/.well-known/bp/config*` endpoints. |
 | [auth.md](auth.md) | View auth (OIDC-compliant JWT + JWKS), config ticket claims, `ViewAuthRequirement` semantics. |
 | [sse.md](sse.md) | Server-Sent Events conventions: per-view streams (`/__sse`), per-theme tick renderers, control-plane config sync. |
+| [streaming.md](streaming.md) | Partial responses: frame envelope, NDJSON streaming, per-frame validation, streamed HTML rendering, deferred components. |
+| [search.md](search.md) | Federated search: `search.v1` capability, provider endpoint, pinned result schema, aggregator rules (viewId link resolution, hiding, custom result HTML). |
 | [conformance.md](conformance.md) | Minimum surface an SDK or service must implement to claim `bp-protocol/1` compliance. |
 | [contracts/media-types.md](contracts/media-types.md) | Negotiated media types and the rules between them (existing v10 doc, still normative). |
 
@@ -38,7 +40,7 @@ These rules constrain every spec in this directory:
 - **Each service is its own origin.** Browsers call services directly, not through a proxy. CORS-correctness is mandatory.
 - **Schema-first.** Every input and output is validated against a declared schema. Schemas are language-neutral (JSON Schema-style); SDKs map them to their native validators.
 - **No client framework.** The protocol assumes HTMX as the client runtime. If your SDK emits markup that does not work in plain HTMX, it is non-conformant.
-- **Server emits relative URLs.** All `href`, `hx-get`, `hx-post`, `hx-sse:connect`, etc. are root-relative. The client rewrites them to absolute service origins using `data-bp-service` ancestor lookups.
+- **Server emits relative URLs.** All `href`, `hx-get`, `hx-post`, `hx-sse:connect`, etc. are root-relative. The client rewrites them to absolute service origins using service context (`data-bp-service`, `bp-service-id`, or `data-bp-config="service=<id>"`).
 - **Cookies are theme-origin only.** Cross-origin auth uses bearer tokens via `hx-headers`. See `auth.md`.
 - **No iframes.** Composition is fragment swaps. Iframes break theming, navigation, accessibility, CSS variables, and the URL bar.
 

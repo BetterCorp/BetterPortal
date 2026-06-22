@@ -11,7 +11,8 @@ A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the
 | Test | Pass criteria |
 |---|---|
 | `GET /.well-known/bp/manifest` | 200, `application/json`, body matches `manifest.md`. |
-| `GET /.well-known/bp/health` | 200, `application/json`, body has `{ "ok": true, "plugin": "<pluginId>" }`. |
+| `GET /.well-known/bp/health` after ready | 200, `application/json`, body has `{ "ok": true, "ready": true, "pluginId": "<pluginId>" }`. |
+| `GET /.well-known/bp/health` before first sync | 503, `application/json`, body has `{ "ok": false, "ready": false }`, unless the service is in setup mode. |
 | `GET /.well-known/bp/schema.json` | 200, `application/json`, body matches `schema-json.md`. |
 
 ### 1.2 CORS
@@ -89,6 +90,34 @@ Add these tests if the service declares an SSE endpoint:
 | `GET <route.path>/__sse` (no `_f`) | `data:` payload is JSON matching `tickSchema`. |
 | Tick renderer throws | Stream stays open; `event: error` emitted. |
 | Client disconnects | Server releases resources (verify with metrics). |
+
+## 4a. Streaming views
+
+Add these tests if any view declares a `streaming` block in the manifest (see `streaming.md`):
+
+| Test | Pass criteria |
+|---|---|
+| `GET <view-path>` with `Accept: application/json` | 200, body is `{ items: [...], summary? }` matching the derived `jsonResponseSchema`. |
+| `GET <view-path>` with `Accept: application/x-ndjson` | 200, `application/x-ndjson`; one frame per line; legal order (items → summary? → terminal). |
+| Every `item` frame payload | Validates against the view's `itemSchema`. |
+| Terminal frame | Exactly one `end` (with correct `count`) or `error`; nothing after it. |
+| Mid-stream failure | `error` frame emitted in-band; stream closes; no `end`. |
+| `GET <view-path>/__sse?<query>` with theme context | Named events `item`/`summary`/`end`; `data:` payloads are rendered HTML per `fragment-html.md`. |
+| `GET <view-path>/__sse?<query>` without theme context | `data:` payloads are frame JSON. |
+| `GET <non-streaming-view>` with `Accept: application/x-ndjson` | 406. |
+
+## 4b. Search provider (`search.v1`)
+
+Add these tests if the manifest declares the `search.v1` capability (see `search.md`):
+
+| Test | Pass criteria |
+|---|---|
+| `GET /.well-known/bp/search?q=ab` | 200, results match the pinned item schema. |
+| `GET /.well-known/bp/search?q=a` | 400. |
+| `GET /.well-known/bp/search` (no `q`) | 400. |
+| Results with `Authorization` forwarded | Only results the bearer may see. |
+| Results without `Authorization` | Only anonymous-visible results. |
+| Every result | Canonical fields complete; meaningful without `html`. |
 
 ## 5. Theme conformance
 

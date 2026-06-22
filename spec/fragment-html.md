@@ -18,9 +18,11 @@ In every HTML response, all of the following MUST be root-relative paths (starti
 
 The client rewriter resolves them to absolute service-origin URLs at swap time.
 
-### 1.2 Every interactive element MUST have a `data-bp-service` ancestor
+### 1.2 Every interactive element MUST have service context
 
-The client rewriter looks up the closest ancestor with `data-bp-service="<bindingId>"` and uses the `data-bp-services="{...}"` JSON on the shell root to resolve `bindingId → origin`.
+The client rewriter resolves root-relative URLs against the service that produced the HTML. The service URL is the authority; the theme origin is never the fallback target for service-owned HTML.
+
+For normal service-rendered HTML, the theme wraps the response with a service context such as `data-bp-service="<bindingId>"`. The rewriter uses that context and the `data-bp-services="{...}"` JSON on the shell root to resolve `bindingId -> origin`.
 
 Services do not control the shell root. They control fragment HTML. Therefore:
 
@@ -29,7 +31,17 @@ Services do not control the shell root. They control fragment HTML. Therefore:
 
 When in doubt, set `data-bp-service` on the outermost element of the fragment.
 
-### 1.3 Cross-service links
+If an element or subtree intentionally talks to another registered service, set an explicit service override:
+
+```html
+<section bp-service-id="service.betterportal.docs-site">
+  <a href="/docs">Docs</a>
+</section>
+```
+
+`bp-service-id`, `data-bp-service-id`, and `data-bp-config="service=<id>"` are equivalent service-context overrides. Use them for direct cross-service fragments/forms/widgets. Do not make the URL absolute by hand.
+
+### 1.3 Cross-service route links
 
 A link to another service's view (e.g., a hello-view fragment containing a Settings link to config-manager) uses the destination's **public path**, with no special hint:
 
@@ -38,6 +50,8 @@ A link to another service's view (e.g., a hello-view fragment containing a Setti
 ```
 
 The rewriter matches the path against the known route map and rewrites both the `href` (to the tenant path) and adds `hx-get` (to the service URL). The author does not need to know which service serves `/settings`.
+
+Use route-map resolution for navigation links. Use `bp-service-id`/`data-bp-config="service=<id>"` when the element is not route navigation and the request should be executed directly against a specific service.
 
 ## 2. Shell elements (theme-owned)
 

@@ -16,6 +16,8 @@ A multi-tenant portal platform composed of independent services unified by a the
 > | [`spec/config.md`](spec/config.md) | `bp-config.yaml` + per-service config endpoints. |
 > | [`spec/auth.md`](spec/auth.md) | OIDC + JWT + JWKS + config tickets. |
 > | [`spec/sse.md`](spec/sse.md) | `/__sse` convention + control-plane sync. |
+> | [`spec/streaming.md`](spec/streaming.md) | Partial responses: frame envelope, NDJSON, per-frame validation, streamed HTML. Node SDK: `createStreamHandler` + `index.stream.tsx` (example: hello-view `bp-routes/delayed/`). |
+> | [`spec/search.md`](spec/search.md) | Federated search: `search.v1` provider endpoint, pinned result schema, aggregator rules. |
 > | [`spec/conformance.md`](spec/conformance.md) | Test matrix. |
 >
 > This document covers everything the Node SDK adds on top: file-based routing, codegen, BPService base class, theme runtime, admin tooling. Most of it is implementation guidance, not protocol.
@@ -58,7 +60,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 - **Config Manager** (`services/nodejs/admin/config-manager`): special service. Mutates `bp-config.yaml` via REST. Hosts admin views (services registry, tenants, routes, menu editor, fragments editor, theme designer dispatch).
 - **Node SDK** (`framework/nodejs/`, npm: `@betterportal/framework`): TypeScript implementation of `bp-protocol/1`. Contracts, runtime helpers, codegen (`bp-codegen`), h3 adapter, schema validation. Imported by all Node services and themes. **Other-language SDKs would live as sibling packages** (`@betterportal/sdk-php`, etc.) — none exist yet.
 - **BSB integration plugin** (`plugins/nodejs/betterportal-bsb`, npm: `@betterportal/plugin-bsb`): wires h3 + CORS + observability into BSB. Provides `BPService` base class for service plugins. Node-only by definition.
-- **Auth** (`auth/nodejs/`): optional platform service that issues JWT ID + refresh tokens with JWKS. Activated per-tenant via `activatedPlatformServices`. Theme/services integrate via framework helpers — they are not wired by default.
+- **Auth services** (`services/nodejs/auth-default/`, `services/nodejs/auth-authress-io/`): optional shared auth provider services. Apps choose a provider through `app.auth.serviceId`, which points at a tenant service id or shared-service activation id, never directly at a plugin id.
 
 ### Communication rules
 
@@ -66,7 +68,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 - **Browser → Service**: HTMX requests for content swaps and fragments. CORS allows methods `GET, POST, PUT, PATCH, DELETE, OPTIONS` and exposes HX-* headers.
 - **Theme → Service**: only during server-side resolution (manifest lookups, schema discovery) — never to fetch page content. Theme renders the shell only.
 - **Service → Service**: not standard. Use platform services or events.
-- **Config Manager → Service**: allowed for admin operations (manifest verify, schema fetch, config read/write proxy).
+- **Config Manager → Service**: not allowed as an architectural assumption. Config-manager cannot assume network reachability to services. Service metadata arrives via service → config-manager sync; config read/write/schema UI uses browser → service requests with CP-signed config tickets.
 
 ---
 
@@ -81,9 +83,23 @@ These are non-negotiable. The whole architecture is built on them.
 - **No client-side state library.** No Redux, Zustand, etc. State lives in: (a) the server, (b) URL/query, (c) HTML attributes on DOM elements. That is enough.
 - **No client-side data-fetching library.** No fetch wrappers, no SWR, no React Query. HTMX is the network layer.
 - **HTML-as-API.** Services emit HTML fragments. The browser inserts them. No client code re-parses or transforms response bodies.
+- **Service-declared route chrome.** Routes may export flat primitive `chrome`, e.g. `export const chrome = { fullScreen: true }`. Values must be `string | number | boolean`. Codegen emits it into the view manifest; service sync copies it onto app routes unless the app route explicitly overrides it. The framework also serializes chrome onto HTML response content types as `bp-chrome-*` params (`bp-chrome-full-screen=true`), so themes can react after HTMX swaps. Themes should read route/response chrome, not infer full-screen state from auth service ids.
+- **Route dependencies and API-only views.** Keep one route model: use `apps[].routes[]` for renderable views and API/dependency views. A route file may export `dependencies = ["other.viewId"]`; codegen emits it to the manifest, and config-manager auto-adds those dependency routes when the parent is mounted. Non-renderable/API routes are managed in Route Designer with UI-only fields disabled. Do not add a separate endpoint mount model unless this route model is proven insufficient.
+- **Stable view ids.** Routes may export `viewId = "stable.id"`. Use explicit view ids for anything referenced by app config, permissions, dependencies, or code. File-derived ids are defaults only and change when route files move. Codegen/build must reject duplicate view ids.
+- **Manifest-owned route metadata.** Route `methods`, service path (`targetPath`/resolved path), renderability, dependencies, and default chrome come from the service manifest. Config-manager sync reconciles those fields and disables routes whose viewId disappeared. Do not make HTTP methods editable in the UI; users control mount path/title/query only for renderable routes.
+- **Route URL helpers.** In handlers, use `ctx.routeUrl(viewId, { params, query, absolute })` for service-facing URLs; absolute URLs use the service hostname/base URL. Use `ctx.uiRouteUrl(viewId, { params, query, absolute })` for browser-visible app routes; absolute URLs use the app hostname/base URL. Do not manually scan `ctx.app.routes` against `ctx.serviceId`; app routes store tenant-service/shared-activation UUIDs while handlers usually know the plugin id.
+- **Authenticated downloads.** Use `hx-download="/service/path"` for BP-authenticated file/binary downloads. The active theme rewrites the URL to the owning service, attaches fresh BP headers at request time, fetches the blob, applies BP header directives, and saves using `Content-Disposition` or the `download` attribute. Do not put static `hx-headers` in service HTML for downloads.
+- **Raw/file routes.** Use `createRawHandler()` for API-only endpoints that return `Response`/files/streams. Raw routes must not export `ResponseSchema` or theme renderers; codegen forces them non-renderable. Use `ctx.response(body, init)` for custom responses and `ctx.file(body, { filename, contentType, size, disposition })` for downloads. Raw routes still run auth, app allowlist, input validation, tracing, `routeUrl`, and BP header directives.
+- **Multipart uploads.** Multipart is opt-in via exported `MultipartSchema` and `createRawHandler({ multipart: MultipartSchema }, ...)`. `ctx.multipart.fields` contains string fields, `ctx.multipart.files` contains buffered `{ fieldName, filename, contentType, size, data }` files; repeated keys become arrays. Buffered multipart is capped at 25 MiB total file bytes and returns `413` when exceeded; add streaming/resumable protocols only for proven large upload needs.
+- **Automation discovery.** Themes expose `GET /.well-known/bp/public` with `protocol`, `tenantId`, `appId`, `tenantUrl`, `configManagerUrl`, and `catalogUrl`. Config-manager exposes `GET /.well-known/bp/automation/catalog?tenantUrl=...` returning services, cached config schemas, and cached service actions from manifest sync. Config-manager must not fetch services server-side for automation discovery. Node-RED, n8n, and Zapier scaffolds live under `automations/` and share `automations/shared/bp-client.js`.
+- **AI discovery.** Themes expose `GET /.well-known/bp/ai.json`, `GET /llms.txt`, and HTML discovery tags (`rel="llms"`, `betterportal:ai-manifest`). Start from the tenant app URL, read the AI manifest, then use the automation catalog for business/service actions. For app management tasks, use the discovered management app URL and config-manager `/.well-known/bp/manage/*` endpoints. Platform admin is operator-only and AI agents must not use it for user tasks.
+- **Management API.** Config-manager exposes `GET /.well-known/bp/management` plus `/.well-known/bp/manage/current`, `services`, `services/activate`, `routes`, `fragments`, and `theme`. These endpoints resolve the current app from explicit `appId`/`tenantUrl` first, then `Referer`/`Origin` context. Raw UUIDv7 ids are intentionally visible for API, automation, and AI use.
+- **Webhooks.** Services declare webhook events in their manifest; users never edit payload schemas. Handlers emit with `await ctx.webhook?.("event.id", payload)`. Config-manager stores delivery targets, receives service events at `POST /.well-known/bp/webhooks/events`, signs JSON POST deliveries, skips disabled tenants, and retries up to target `maxAttempts`. User/app management uses `/.well-known/bp/manage/webhooks/events` and `/.well-known/bp/manage/webhooks/targets`; platform admin uses `/.well-known/bp/admin/webhooks/*`. File delivery is single-process; add Postgres claiming only for real multi-container delivery.
+- **BP header directives.** Clients, automation tools, and AI agents must process `BP-SetHeader` and `BP-RemoveHeader`. Store BP headers until expiry, remove them when directed, and send fresh live headers on later BP API calls. `Referer` and `Origin` help context resolution but are not auth; prefer discovered URLs, `tenantUrl`, `appId`, and BP headers.
+- **Shared service sync metadata.** Scoped sync exposes shared activations in `tenant.services` with public data only: activation id, plugin/catalog service id, hostname/baseUrl, title/description, capabilities/tags, logo/category, deployment mode, and `source: "shared"`. Never put shared service secrets in scoped sync.
 - **Each service is its own origin.** Browser hits services directly (`http://localhost:3200`, etc.). Theme does not proxy traffic. This forces CORS-correctness and enforces service isolation.
 - **All cross-service request validation is schema-first.** Inputs validated on entry; outputs validated on exit. `anyvali` everywhere.
-- **Cookies are theme-origin only.** See section 15. Cross-origin cookies do not work for service requests — auth uses tokens injected via `hx-headers`, not browser cookies.
+- **Cookies are theme-origin only.** See section 15. Cross-origin cookies do not work for service requests. Browser-managed BP headers are set with `BP-SetHeader` / `BP-RemoveHeader` and owned by the shell.
 - **Live-refresh via `HX-Trigger` events.** Mutations emit an event header; passive regions subscribe via `hx-trigger="event from:body"`. No websockets needed for typical UI.
 - **SSE for server-push.** WebSockets only if bidirectional. SSE handler convention is `sse.ts` + `_<loc>.<frag>.sse.tsx` (see section 18b).
 - **Codegen is mandatory.** Route registration is file-system driven through `bp-codegen`. Hand-written registries are not supported.
@@ -103,8 +119,9 @@ BetterPortal/
 ├── themes/nodejs/
 │   ├── bootstrap1/                   # full Bootstrap 5 + HTMX theme
 │   └── embedded/                     # lightweight embedded theme
-├── auth/nodejs/                      # default JWT auth service
 ├── services/nodejs/
+│   ├── auth-default/                 # default JWT auth provider service
+│   ├── auth-authress-io/             # Authress provider service
 │   ├── examples/hello-view/          # example business service
 │   └── admin/config-manager/         # admin service (mutates bp-config.yaml)
 └── docs/                             # architecture + decision records
@@ -121,8 +138,8 @@ Each service / theme is a BSB plugin published as an npm package and run indepen
 | **Tenant**          | Top-level isolation boundary. Owns its own services + branding.                                                                                              |
 | **App**             | A site/product under a tenant. Has theme, routes, menu, fragments. Tied to one or more hostnames.                                                            |
 | **Route**           | Maps a public URL path to a service+view. Has `path`, `serviceId`, `viewId`, `targetPath` (service-side URL).                                                |
-| **Service**         | BSB plugin exposing views + manifest. Registered under a tenant (or as a platform service).                                                                  |
-| **Platform service**| Shared cross-tenant service (e.g., auth). Tenants opt-in via `activatedPlatformServices`.                                                                    |
+| **Service**         | BSB plugin exposing views + manifest. Registered as a direct tenant service or activated from the shared service catalog.                                     |
+| **Shared service**  | Platform-managed provider registered in `sharedServiceCatalog` and bound through `sharedServiceActivations`. Apps reference the activation id.                |
 | **View**            | A file under `bp-routes/<dir>/index.ts`. Defines schemas, metadata, and `handleGet`/`handlePost` handlers.                                                   |
 | **Theme renderer**  | A file under `bp-routes/<dir>/_theme.<themeId>/index.tsx`. Renders HTML for that view+theme combination.                                                     |
 | **Fragment**        | HTML island rendered inline at a named location. File: `bp-routes/<dir>/_theme.<themeId>/_<location>.<fragmentId>.tsx`. Pulled via `?_f=location.fragmentId`. |
@@ -130,6 +147,12 @@ Each service / theme is a BSB plugin published as an npm package and run indepen
 | **Menu**            | Tree of `{type, title, routeId|href, children}` per app. Drives sidebar nav. Items: `link`, `group`, `external`, `section`, `divider`.                       |
 | **Slot**            | Legacy fragment binding (deprecated — use `app.fragments` instead).                                                                                          |
 | **Config schema**   | Per-service descriptor declaring tenant- or app-scoped config fields. Surfaced via `/.well-known/bp/config/schema`.                                          |
+
+Bootstrap registers config-manager as the direct control-plane tenant service. Default auth and Bootstrap1 are shared catalog entries with activations for the admin tenant/app. App references (`shell.serviceId`, `auth.serviceId`, routes, fragments, slots, role grants) use tenant service ids or shared activation ids only. When migrating a tenant service to shared, rewrite references from the old tenant service id to the activation id; never point app references at a plugin id or shared catalog id.
+
+Service configuration is independent from service usage. A tenant service or shared activation can be configured for the tenant before routes, shell, fragments, or auth bindings use it. The config editor defaults to tenant values; app scope is an override layer where unchecked fields fall back to tenant defaults. Runtime scoped apps may stay usage-filtered, but scoped config must include `configApps` for every app that may be configured.
+
+Shared service creation is URL-first like normal service registration. The browser loads `/.well-known/bp/manifest` from the service and posts the derived plugin id/title/category/capabilities/deployment modes to config-manager. Config-manager must not fetch service manifests server-side.
 
 ---
 
@@ -184,11 +207,15 @@ bp-routes/
 ```
 
 Rules:
-- Directory name → URL path (use `[param]` for params, `_theme.X` is special).
+- Directory name → URL path (use `[param]` for required params, `[[param]]` for optional params, `_theme.X` is special).
 - `index.ts` is required at the leaf.
 - Each theme that supports the view needs its own `_theme.<themeId>/index.tsx`.
 - Fragments: filename `_<location>.<fragmentId>.tsx` (underscore prefix).
 - Components: any other `.tsx` filename in the theme dir.
+
+Path params have two layers. Service route files use bracketed folders, e.g. `bp-routes/tenants/[tenantId]/services/index.ts`, which codegen registers as `/tenants/:tenantId/services` and exposes as `ctx.params.tenantId`. Optional folders use double brackets, e.g. `bp-routes/tenants/[[tenantId]]/services/index.ts`, which registers both `/tenants/services` and `/tenants/:tenantId/services`; `ctx.params.tenantId` is absent on the list route. App route config may use `{tenantId}` in `path` and `targetPath` (legacy `:tenantId` also works); the theme/app route layer matches the visible UI path and interpolates those params into the service target path. Do not re-derive these values from `event.req.url` inside view files.
+
+HTMX lane rule: service-rendered content must not expand its swap target outside its lane. Main content may target `#bp-main` or content-owned overlays; fragment content may target only itself or descendants inside its own `data-bp-fragment` container. Never let service HTML target `body`, theme nav/menu, or unrelated fragments. The bootstrap shell sanitizes incoming `hx-target` values, blocks request-time escapes, and normalizes service `HX-Location` targets to `#bp-main`.
 
 After **adding/removing** files, run codegen to regenerate the registry:
 
@@ -224,14 +251,14 @@ services/nodejs/examples/hello-view/
 ```ts
 import { type BSBServiceConstructor, createConfigSchema, createEventSchemas } from "@bsb/base";
 import * as av from "anyvali";
-import { BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
+import { BetterPortalConfigSchema, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
 import { registry } from "./.bp-generated/registry.js";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3200),
-  bpConfigPath: av.string().minLength(1),
-  configApiToken: av.string().minLength(1).default("bp-dev-config-token")
+  // Optional: omit for setup-mode/control-plane bootstrap.
+  betterportal: BetterPortalConfigSchema
 }, { unknownKeys: "strip" });
 
 const Config = createConfigSchema(
@@ -270,6 +297,8 @@ export { Config, EventSchemas };
 ```
 
 `BPService` from `@betterportal/plugin-bsb` handles: HTTP server, h3 routing, CORS, observability wiring, registering all routes from `registry`, and the well-known endpoints.
+
+`this.config` is fully typed from `PluginConfigSchema` (inferred through `BPService<InstanceType<typeof Config>, ...>`) — access fields directly, never cast it. Use `av.x().default(v)` for fields with defaults (type stays required); reserve `av.optional(...)` for fields that may genuinely be absent (type becomes `T | undefined`).
 
 For services that need custom endpoints beyond routes, extend `BSBService` directly or call `this.app.get/post/...` inside `onRegistered`.
 
@@ -324,6 +353,15 @@ export const handleGet = createHandler(
 - Return type matches `Infer<ResponseSchema>` (TS-checked)
 - Runtime: re-parses output through `ResponseSchema` (belt + braces)
 
+Typed handler context:
+- Route files that only need validated input/output can import `createHandler`, `createRawHandler`, or `createStreamHandler` from `@betterportal/framework`.
+- Route files that need `ctx.plugin` or BP service config should import factories from the generated local runtime, e.g. `../.bp-generated/route-runtime.js` with the correct relative path.
+- Codegen types that runtime from the plugin `index.ts`: `export class Plugin` becomes the `ctx.plugin` type, and `export type ServiceConfig = ...` becomes the `ctx.config` type.
+- `ctx.config` is BetterPortal-managed service config resolved for the current tenant/app scope. It is not the BSB plugin startup config (`this.config`).
+- Do not cast `ctx.plugin` or `ctx.config` in route files when the generated runtime can provide the type.
+
+View files are service API boundaries. They validate inputs, build typed response models, and stay independent of browser-facing theme state. Do not infer UI paths, selected tabs/tenants, or public hostnames inside `bp-routes/<dir>/index.ts` from `event.req.url` or `Host`; UI path/query state belongs in `_theme.<themeId>/index.tsx` or must be passed as explicit schema data. UI paths are not service paths, and the UI hostname is not the service hostname.
+
 Content negotiation is automatic:
 - `Accept: application/json` → returns JSON body
 - `Accept: text/html` → invokes the theme renderer for the negotiated theme
@@ -334,7 +372,7 @@ For mutations, `handlePost`, `handlePut`, `handleDelete`, `handlePatch`.
 For population from h3 middleware (e.g., injecting platform state):
 
 ```ts
-this.app.use("/admin-services", (event) => this.populateContext(event));
+this.app.use("/services", (event) => this.populateContext(event));
 ```
 
 Inside the populate, set `(event as any).__bpResponseModel = data`. The handler reads it back via `ctx.rawEvent.__bpResponseModel`.
@@ -418,7 +456,22 @@ tenants:
         serviceId: service.betterportal.hello-view
         deploymentMode: self-hosted
         enabled: true
-    activatedPlatformServices: [bp-auth]
+    activatedPlatformServices: []            # legacy platformServices[] only
+
+sharedServiceCatalog:
+  - id: service.betterportal.auth.default
+    serviceId: service.betterportal.auth.default
+    title: BetterPortal Default Auth
+    baseUrl: http://localhost:3210
+    apiKeyHash: <sha256>
+    category: auth
+    tags: [auth]
+    enabled: true
+sharedServiceActivations:
+  - id: auth-default-admin
+    tenantId: betterportal
+    sharedServiceId: service.betterportal.auth.default
+    enabled: true
 
 apps:
   - id: betterportal-web
@@ -484,12 +537,18 @@ default:
       config:
         host: 0.0.0.0
         port: 3200
-        bpConfigPath: ../../../../bp-config.yaml
-        configApiToken: bp-dev-config-token
-        configEncryptionKey: bp-dev-encryption-key-min16chars
+        betterportal:
+          bpConfigPath: ../../../../bp-config.yaml
+          # Dev only: static config-API fallback secret. Inert unless the env var
+          # BP_ALLOW_DEV_CONFIG_TOKEN=true is also set. In normal (CP-synced)
+          # operation, services verify CP-signed config tickets via the CP JWKS
+          # and need no token. Never set this (or the env var) in production.
+          configApiToken: bp-dev-config-token
+          configEncryptionKey: bp-dev-encryption-key-min16chars
 ```
 
 `config` fields must match the `PluginConfigSchema` declared in the service's `index.ts`. BSB validates on startup.
+Use `betterportal.bpConfigPath` for local development. For control-plane sync, use `betterportal.controlPlaneUrl` and `betterportal.serviceApiKey`; if neither a sync pair nor a local path is configured, `BPService` fails startup.
 
 ---
 
@@ -621,18 +680,26 @@ Each service can declare `configSchemas: ConfigSchemaDescriptor[]` in its manife
   title: "Tenant Config",
   scope: "tenant",                 // or "app"
   jsonSchema: { ... },
+  groups: [
+    { id: "connection", title: "Connection", order: 10, optional: false }
+  ],
   fields: [
     { key: "apiKey", title: "API Key",
       scope: "tenant",
       visibility: "secret",        // "secret" | "protected" | "public"
       ownership: "plugin",         // "plugin" | "bp" | "mixed"
       sourceOfTruth: "plugin",     // "plugin" | "bp"
+      groupId: "connection",
+      order: 10,
+      defaultValue: "",
       required: false }
   ]
 }
 ```
 
-Surfaced at `GET /.well-known/bp/config/schema`. Editable from `/settings/services` (config-manager admin view).
+Surfaced by each service at `GET /.well-known/bp/config/schema`. Editable from `/settings/services` through a browser-mediated flow: config-manager mints a short-lived CP-signed config ticket, then the browser calls the target service directly for schema/read/write. Do **not** implement config-manager server-side fetch/proxy calls to service config/schema endpoints; remote/private services may be reachable from the browser but not from config-manager.
+
+Config field metadata is service-declared and generic. Use `groups[]` + `field.groupId` for grouped fields, `field.order` for deterministic display, `field.defaultValue` for schema defaults, and `group.optional` when app-scope UI should allow clearing/enabling a related set of overrides together. Use optional `field.ui` hints for generated controls: `control` can be `text`, `textarea`, `password`, `number`, `checkbox`, `select`, `multiselect`, `color`, `date`, `time`, `datetime-local`, `url`, or `email`; `options` supplies select choices; `placeholder`, `min`, `max`, `step`, and `rows` are native input hints. UI hints are not validation. Do not hardcode provider-specific config forms in config-manager when manifest metadata can express the layout.
 
 For custom UI (full-page editor instead of generated form):
 ```ts
@@ -660,18 +727,18 @@ Auth in BetterPortal is **opt-in** per tenant and built on **bearer tokens, not 
 
 Each service runs on its own origin (`localhost:3200`, `localhost:3300`, etc.). The theme runs on yet another (`localhost:3100`). Browser cookies do not cross origins — a cookie set by the theme is not sent to a service. SameSite=None+Secure only widens 3rd-party context for embedded scenarios, never solves cross-origin same-document calls cleanly, and it forces HTTPS + couples deployment.
 
-Since browser → service is a direct HTMX call from a different origin, **auth tokens must travel as request headers**, not cookies. HTMX delivers tokens via `hx-headers='{"Authorization":"Bearer ..."}'` — declared per element, inherited from ancestors. The theme can render the shell with the token attached to the root, so every descendant fragment request carries it.
+Since browser to service is a direct HTMX call from a different origin, **auth tokens must travel as request headers**, not cookies. Services set browser-managed request headers by returning `BP-SetHeader` / `BP-RemoveHeader`. The shell stores those headers, expires them, attaches live headers to BP-managed requests, and refreshes headers that advertise `refresh=/path` before expiry.
 
-### The auth platform service (`auth/nodejs/`)
+### Auth provider services
 
-Standalone BSB plugin published as a platform service. When activated (`tenant.activatedPlatformServices` includes it), it provides:
+Auth providers are standalone BSB services. Current implementations live at `services/nodejs/auth-default/` and `services/nodejs/auth-authress-io/`. An app selects one by setting `app.auth.serviceId` to a tenant service id or shared-service activation id. A provider typically exposes:
 
 - `POST /token` — exchange credentials → ID + refresh tokens (RS256 JWTs)
 - `POST /refresh` — exchange refresh token → new ID token
 - `GET /.well-known/openid-configuration` — discovery
 - `GET /.well-known/jwks.json` — public keys for ID-token verification
 
-The service is just an endpoint server. It does not maintain sessions, render UI, or talk to the theme.
+The auth provider is just an endpoint server. It does not maintain browser sessions, render the theme shell, or talk to the theme.
 
 ### Framework helpers
 
@@ -681,7 +748,7 @@ The service is just an endpoint server. It does not maintain sessions, render UI
 | ------------------------- | ----------------------------------------------------------------------- |
 | `authLogin(opts)`         | Call the auth service's `/token` endpoint and parse the response.       |
 | `authLogout(opts)`        | Call `/revoke` (when supported).                                        |
-| `discoverAuthService(...)`| Resolve the auth platform service from `bp-config` for a request.       |
+| `discoverAuthService(...)`| Resolve the app's auth provider from `bp-config` for a request.        |
 | `JwksVerifier`            | Caches JWKS and verifies an ID token's signature + claims.              |
 | `AuthClientError`         | Error class thrown by `authLogin` / `authLogout` for typed handling.    |
 | `JwtClaims`               | Type describing the verified claim shape.                               |
@@ -718,15 +785,16 @@ this.app.use("/protected/**", (event) => {
 
 ### Recommended wiring
 
-1. **Theme login route** — server-rendered form on the theme. POST handler calls `authLogin`, returns the token to the browser (either in a same-origin cookie scoped to the theme for refresh, or in a hidden form field, or as `HX-Trigger` payload that JS reads into `localStorage`).
-2. **Token storage** — `localStorage` on the theme origin works; or a same-origin theme cookie holding the token. Either way: the **theme** holds it, services do not see it stored.
-3. **Token attach** — theme's shell renders the root with `hx-headers='{"Authorization":"Bearer ${token}"}'` so every service request inherits it. Token refresh on 401 (intercept via `htmx:before-request` extension hook → call `/refresh` → retry).
-4. **Service verification** — each service uses `JwksVerifier` in middleware. Pull JWKS from the auth platform service (discoverable via `discoverAuthService` + `bp-config`).
-5. **Route policy** — flip `auth.required = true` on protected routes. Manifests advertise this so gateways and admin tools can reason about it.
+1. **Auth service login route** - server-rendered form/API on the auth provider service. POST returns `BP-SetHeader: Authorization=...` and any provider-specific refresh header.
+2. **Header storage** - the shell owns `localStorage["bp.headers"]`; fragments and service views must not manipulate it directly.
+3. **Header attach** - the shell attaches live BP headers to HTMX/fetch requests after route/service-origin rewrite and scope checks.
+4. **Header refresh** - headers can include `refresh=/refresh; refreshBefore=60`. The shell POSTs the owning service with current live BP headers, applies returned BP header directives, and retries one main-content GET after a 401.
+5. **Service verification** - each service uses the configured JWT verifier/middleware from app auth metadata.
+6. **Route policy** - flip `auth.required = true` on protected routes. Manifests advertise this so gateways and admin tools can reason about it.
 
 ### Current state of the bootstrap1 theme
 
-Imports the helpers; **no finished login UI**. Routes default to `required: false`. The plumbing is yours to write — the framework intentionally does not pick a token-storage strategy for you.
+Bootstrap1 contains the shell header manager. Routes default to `required: false`; auth provider services own login/refresh/logout views and emit BP header directives.
 
 ---
 
@@ -736,12 +804,12 @@ Routes mounted by config-manager:
 
 | Path                          | Purpose                                                      |
 | ----------------------------- | ------------------------------------------------------------ |
-| `/admin-services`             | Tenant service registry + wizard.                            |
-| `/admin-tenants`              | Tenants + apps CRUD.                                         |
-| `/admin-routes`               | Per-app route designer (path → service/view binding).        |
-| `/admin-menu`                 | Tree menu editor (drag-reorder, nest, inline edit, live refresh). |
-| `/admin-fragments`            | Topbar/footer fragments editor.                              |
-| `/admin-preview`              | Component preview (per-service view inspector).              |
+| `/services`             | Tenant service registry + wizard.                            |
+| `/tenants`              | Tenants + apps CRUD.                                         |
+| `/routes`               | Per-app route designer (path → service/view binding).        |
+| `/menu`                 | Tree menu editor (drag-reorder, nest, inline edit, live refresh). |
+| `/fragments`            | Topbar/footer fragments editor.                              |
+| `/preview`              | Component preview (per-service view inspector).              |
 
 Backed by:
 - `.../adminApi.ts` — REST CRUD for tenants/apps/routes/menu/etc. (JSON)

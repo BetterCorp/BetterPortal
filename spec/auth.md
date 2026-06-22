@@ -105,6 +105,7 @@ A view's `minimumTier` MUST be satisfied by the token's `tier` (or implicitly in
 | Token signature invalid | 401 | `{ "error": "invalid_token", "message": "Signature verification failed" }` |
 | Token expired | 401 | `{ "error": "invalid_token", "message": "Token expired" }` |
 | Audience mismatch | 401 | `{ "error": "invalid_token", "message": "Audience mismatch" }` |
+| Auth context unavailable because scoped config has not synced | 503 | `{ "error": "service_unavailable", "message": "Auth context unavailable" }` |
 | Insufficient tier | 403 | `{ "error": "forbidden", "message": "Required tier: admin" }` |
 | Missing permission | 403 | `{ "error": "forbidden", "message": "Missing permission: orders.refund" }` |
 
@@ -118,7 +119,7 @@ Services MAY return a hint header to nudge clients to refresh:
 HX-Trigger: bp:auth-refresh-needed
 ```
 
-The theme is responsible for refreshing the token (via the IdP's refresh endpoint) and retrying. The protocol does not specify a refresh flow; use OIDC's refresh-token grant or your IdP's equivalent.
+The theme is responsible for refreshing the token and retrying. For BetterPortal-managed auth, the auth service URL is authoritative: derive the refresh request from the configured auth/login service origin, not from the theme origin or the service that returned 401. If refresh succeeds, retry the original safe request once; if it fails, clear the stored access token and show login.
 
 ---
 
@@ -135,17 +136,17 @@ Summary:
 
 ---
 
-## 3. The optional auth platform service (`@betterportal/auth`)
+## 3. Optional auth provider services
 
-A reference auth service is provided in `auth/nodejs/`. It is an OIDC-compliant identity provider that:
+Reference auth services are provided under `services/nodejs/auth-default/` and `services/nodejs/auth-authress-io/`. `auth-default` is an OIDC-compliant identity provider that:
 
 - Issues ID + refresh tokens (RS256 JWT).
 - Exposes `POST /token` (credentials → tokens), `POST /refresh` (refresh → ID), `POST /revoke` (token → 204).
 - Exposes `GET /.well-known/openid-configuration` and `GET /.well-known/jwks.json`.
 
-Tenants activate it via `bp-config.yaml` `activatedPlatformServices`. The theme then targets it for login.
+Apps bind an auth provider through `app.auth.serviceId`. That value points at a tenant service id or shared-service activation id. Shared providers are registered in `sharedServiceCatalog` and bound through `sharedServiceActivations`; app config should not point directly at a plugin id or shared catalog id.
 
-**It is not part of the protocol.** A BetterPortal deployment that uses Auth0 or Keycloak instead is fully conformant.
+Auth provider implementations are not part of the protocol. A BetterPortal deployment that uses Authress, Auth0, Keycloak, or another provider is fully conformant when tokens and JWKS validation satisfy the app's auth metadata.
 
 ### 3.1 Custom claim shape (when using the reference auth service)
 

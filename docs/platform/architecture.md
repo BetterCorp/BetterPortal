@@ -32,12 +32,16 @@ BetterPortal instead makes the browser the composition point. The shell stays st
 - themes
 - tenants
 - tenant services
+- shared service catalog entries
+- shared service activations
 - apps
 - routes
 - menu
 - fragments
 
 The config manager can edit this file through BetterPortal APIs.
+
+Tenant services are direct one-tenant bindings. Shared services are registered once in the shared catalog and activated into tenants/apps. Apps reference the activation id for shell, auth, routes, fragments, slots, and role grants. This keeps a shared provider such as auth or a theme reusable while preserving a concrete per-tenant/app service instance id.
 
 ## Runtime contracts
 

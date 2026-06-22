@@ -80,22 +80,33 @@ themes:
     enabled: true
 ```
 
-### 1.4 Platform service
+### 1.4 Shared services
 
-A shared service offered to multiple tenants. Activated per-tenant via `activatedPlatformServices`.
+`sharedServiceCatalog` defines platform-managed services that can be activated for tenants or apps. `sharedServiceActivations` creates the concrete service instance ids that apps reference.
+
+The catalog id is stable for the shared provider. The activation id is the service instance id used by `app.shell.serviceId`, `app.auth.serviceId`, routes, slots, fragments, and role grants.
 
 ```yaml
-platformServices:
-  - id: bp-auth                              # opaque
-    hostname: http://localhost:3400
-    apiKeyHash: <sha256 hex>                 # empty string allowed in dev
-    serviceId: service.betterportal.auth-default   # pluginId
-    title: BetterPortal Auth
-    description: ...
+sharedServiceCatalog:
+  - id: service.betterportal.auth.default       # shared provider id
+    serviceId: service.betterportal.auth.default # pluginId
+    title: BetterPortal Default Auth
+    baseUrl: http://localhost:3210
+    apiKeyHash: <sha256 hex>                    # filled by install/redeem
     category: auth
-    createdAt: 2026-05-20T00:00:00.000Z
+    tags: [auth]
+    enabled: true
+
+sharedServiceActivations:
+  - id: 019...                                  # activation/service instance id
+    tenantId: betterportal
+    appId: 019...                               # optional; absent = tenant-wide
+    sharedServiceId: service.betterportal.auth.default
+    activatedAt: 2026-05-20T00:00:00.000Z
     enabled: true
 ```
+
+Legacy `platformServices` and `tenant.activatedPlatformServices` still exist for older platform bindings, but new shared auth/theme-style services SHOULD use `sharedServiceCatalog` plus `sharedServiceActivations`.
 
 ### 1.5 Tenant
 
@@ -117,7 +128,7 @@ tenants:
         createdAt: <iso>
         lastSeenAt: <iso>                    # optional
         enabled: true
-    activatedPlatformServices: [bp-auth]     # binding ids from platformServices[]
+    activatedPlatformServices: []            # legacy platformServices[] binding ids
 ```
 
 ### 1.6 App
@@ -139,7 +150,7 @@ apps:
     routes:                                  # public path → service.view binding
       - id: hello                            # opaque
         path: /
-        serviceId: hello-view                # tenant.services[].id (binding id)
+        serviceId: hello-view                # tenant.services[].id or sharedServiceActivations[].id
         viewId: hello.index                  # pluginId-scoped viewId
         targetPath: /hello                   # path on the service
         title: Hello
@@ -199,6 +210,8 @@ Returns the service's config surface:
 | `supportsWrite` | If `false`, the POST endpoint returns `501`. |
 
 `ConfigSchemaDescriptor` is defined in `manifest.md` § 3.
+
+Config schema descriptors MAY include `groups[]` plus per-field `groupId`, `order`, and `defaultValue` metadata. These fields are UI metadata and do not change storage semantics: writes still persist only declared `fields[].key` values. Admin UIs SHOULD use `field.order` for deterministic display, render grouped fields together, and use `field.defaultValue` as the visible fallback when neither tenant nor app scope has a value. For app scope, `group.optional` MAY be rendered as a group-level override toggle that clears all fields in that group when disabled.
 
 ### 2.2 `GET /.well-known/bp/config`
 
@@ -325,7 +338,9 @@ Any failure → `401` (signature/exp/iat/aud) or `403` (scope mismatch).
 
 ### 3.3 Dev tokens
 
-In development, a service MAY accept a static bearer string instead of a real JWT. The default token name in the reference SDKs is `bp-dev-config-token`. Production deployments MUST disable this path.
+Config tickets are RS256 JWTs signed by the control plane's key and verified against its JWKS (§3.1). There is no shared signing secret — only the control plane can mint a ticket.
+
+For local development a service MAY additionally accept a static bearer string equal to a configured `configApiToken`. This path is OFF by default and MUST be explicitly enabled with the environment variable `BP_ALLOW_DEV_CONFIG_TOKEN=true`; with it disabled (the default) the service rejects every request until it has been provisioned by the control plane. Because the static token lets the caller name an arbitrary tenant via `X-BP-Tenant-Id`, production deployments MUST NOT set `BP_ALLOW_DEV_CONFIG_TOKEN`. The reference SDKs ship no default `configApiToken`; the legacy world-known value `bp-dev-config-token` is no longer a signing key and grants nothing on its own.
 
 ---
 

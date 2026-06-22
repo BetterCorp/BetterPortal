@@ -4,7 +4,7 @@ BetterPortal has a small vocabulary. Understanding these terms makes the rest of
 
 ## Tenant
 
-A tenant is the isolation boundary. It owns service registrations, branding, activated platform services, config, and apps.
+A tenant is the isolation boundary. It owns direct service registrations, shared-service activations, branding, config, and apps.
 
 Tenants are defined in `bp-config.yaml` under `tenants`.
 
@@ -24,7 +24,7 @@ The default theme is `bootstrap1`. It uses Bootstrap 5 and HTMX. It does not pro
 
 A service is an independently running BSB plugin that exposes BetterPortal views. Each service has its own manifest, handlers, schemas, and theme renderers.
 
-Services are registered under a tenant in `bp-config.yaml`.
+Services are registered directly under a tenant or registered once in `sharedServiceCatalog` and activated through `sharedServiceActivations`.
 
 ## Route
 
