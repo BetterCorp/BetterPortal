@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/hello-view",
-  "version": "0.0.1",
+  "version": "10.0.0",
   "description": "BetterPortal v10 example service plugin for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
@@ -29,8 +29,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@betterportal/framework": "0.0.1",
-    "@betterportal/plugin-bsb": "0.0.1",
+    "@betterportal/framework": "10.0.0",
+    "@betterportal/plugin-bsb": "10.0.0",
     "anyvali": "^1.0.6",
     "jsx-htmx": "4.0.0-beta2"
   },
