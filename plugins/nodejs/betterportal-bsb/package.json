@@ -30,7 +30,7 @@
   "devDependencies": {
     "@bsb/base": "^9.5.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "peerDependencies": {
     "@bsb/base": "^9.5.0"
