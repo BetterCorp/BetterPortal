@@ -1,0 +1,23 @@
+default:
+  observable:
+    observable-default:
+      plugin: observable-default
+      enabled: true
+      config: {}
+  events:
+    events-default:
+      plugin: events-default
+      enabled: true
+  services:
+    service-betterportal-auth-authress-io:
+      plugin: service-betterportal-auth-authress-io
+      enabled: true
+      config:
+        host: 0.0.0.0
+        port: 3212
+        issuer: https://authress.betterportal.local
+        audience: betterportal-runtime
+        accessTokenSeconds: 900
+        refreshTokenSeconds: 604800
+        keyStorePath: ./.bp-authress-state/keys.json
+        betterportal: {}
