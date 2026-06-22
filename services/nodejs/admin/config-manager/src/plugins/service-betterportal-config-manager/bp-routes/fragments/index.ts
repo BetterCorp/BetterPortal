@@ -3,7 +3,7 @@ import type { Infer } from "anyvali";
 import {
   createHandler,
   type DemoScenario,
-  type ViewAuthRequirement,
+  type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
 
@@ -25,8 +25,11 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Fragments";
 export const description = "Manage topbar/footer fragments per app.";
 
-export const auth: ViewAuthRequirement = {
-  required: false, realm: "runtime", minimumTier: "public", audiences: [], permissions: []
+export const auth: ApiAuthRequirement = {
+  required: true,
+  permissions: [
+    { serviceId: "service.betterportal.config-manager", viewId: "fragments.index", permissions: ["read","create","update","delete"] }
+  ]
 };
 
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin"] };
@@ -38,8 +41,7 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
 export const handleGet = createHandler(
   { response: ResponseSchema },
   (ctx) => {
-    const event = ctx.rawEvent as { __bpResponseModel?: ResponseData } | undefined;
-    if (event?.__bpResponseModel) return event.__bpResponseModel;
+    if (ctx.responseModel) return ctx.responseModel as ResponseData;
     return { title: "Fragments", apps: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "" };
   }
 );

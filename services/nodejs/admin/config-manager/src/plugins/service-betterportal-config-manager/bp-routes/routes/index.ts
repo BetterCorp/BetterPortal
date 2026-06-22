@@ -3,7 +3,7 @@ import type { Infer } from "anyvali";
 import {
   createHandler,
   type DemoScenario,
-  type ViewAuthRequirement,
+  type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
 
@@ -12,8 +12,9 @@ const RouteItemSchema = av.object({
   path: av.string().minLength(1),
   serviceId: av.string().minLength(1),
   viewId: av.string().minLength(1),
-  targetPath: av.optional(av.string()),
+  query: av.optional(av.string()),
   title: av.optional(av.string()),
+  renderable: av.bool().default(true),
   enabled: av.bool()
 }, { unknownKeys: "strip" });
 
@@ -26,12 +27,17 @@ const AppSummarySchema = av.object({
 const AvailableViewSchema = av.object({
   viewId: av.string().minLength(1),
   title: av.string(),
-  path: av.string()
+  path: av.string(),
+  methods: av.array(av.string()).default([]),
+  renderable: av.bool().default(true),
+  dependencies: av.array(av.string()).default([])
 }, { unknownKeys: "strip" });
 
 const AvailableServiceSchema = av.object({
   id: av.string().minLength(1),
   title: av.string(),
+  hostname: av.string().format("url"),
+  serviceId: av.optional(av.string()),
   views: av.array(AvailableViewSchema).default([])
 }, { unknownKeys: "strip" });
 
@@ -49,8 +55,11 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Route Designer";
 export const description = "Design navigation routes for apps.";
 
-export const auth: ViewAuthRequirement = {
-  required: false, realm: "runtime", minimumTier: "public", audiences: [], permissions: []
+export const auth: ApiAuthRequirement = {
+  required: true,
+  permissions: [
+    { serviceId: "service.betterportal.config-manager", viewId: "routes.index", permissions: ["read","create","update","delete"] }
+  ]
 };
 
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin"] };
@@ -62,8 +71,7 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
 export const handleGet = createHandler(
   { response: ResponseSchema },
   (ctx) => {
-    const event = ctx.rawEvent as { __bpResponseModel?: ResponseData } | undefined;
-    if (event?.__bpResponseModel) return event.__bpResponseModel;
+    if (ctx.responseModel) return ctx.responseModel as ResponseData;
     return { title: "Route Designer", apps: [], routes: [], availableServices: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "" };
   }
 );

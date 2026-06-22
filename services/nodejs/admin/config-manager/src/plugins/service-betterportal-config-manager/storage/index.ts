@@ -26,10 +26,14 @@ export const PostgresPlatformConfigStorageSchema = av.object({
 export const PlatformConfigStorageSchema = av.union([
   FilePlatformConfigStorageSchema,
   PostgresPlatformConfigStorageSchema
-]).default({
-  backend: "file",
-  configPath: "./bp-config.yaml"
-});
+]).default(defaultStorageConfig());
+
+export function defaultStorageConfig(): { backend: "file"; configPath: string } {
+  return {
+    backend: "file",
+    configPath: "./bp-config.yaml"
+  };
+}
 
 export type PlatformConfigStorage = typeof PlatformConfigStorageSchema["_output"];
 
@@ -42,13 +46,15 @@ export function createStorage(options: StorageOptions): PlatformConfigStore {
 }
 
 export function createStorageFromConfig(
-  storage: PlatformConfigStorage,
+  storage: PlatformConfigStorage | undefined,
   cwd: string
 ): { store: PlatformConfigStore; backend: "file" | "postgres" } {
-  if (storage.backend === "postgres") {
+  const resolvedStorage = storage ?? defaultStorageConfig();
+
+  if (resolvedStorage.backend === "postgres") {
     return {
       backend: "postgres",
-      store: createStorage(storage)
+      store: createStorage(resolvedStorage)
     };
   }
 
@@ -56,9 +62,9 @@ export function createStorageFromConfig(
     backend: "file",
     store: createStorage({
       backend: "file",
-      configPath: path.isAbsolute(storage.configPath)
-        ? storage.configPath
-        : path.resolve(cwd, storage.configPath)
+      configPath: path.isAbsolute(resolvedStorage.configPath)
+        ? resolvedStorage.configPath
+        : path.resolve(cwd, resolvedStorage.configPath)
     })
   };
 }

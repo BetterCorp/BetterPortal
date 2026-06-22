@@ -18,11 +18,12 @@ export class FileStorage extends BaseStorage {
     const raw = existsSync(this.configPath)
       ? readFileSync(this.configPath, "utf8")
       : EMPTY_CONFIG_YAML;
-    return BetterPortalConfigSchema.parse(yaml.parse(raw));
+    return this.canonicalizeConfig(BetterPortalConfigSchema.parse(yaml.parse(raw)));
   }
 
   async saveConfig(config: BetterPortalConfig): Promise<void> {
-    const validated = BetterPortalConfigSchema.parse(config);
+    const validated = this.canonicalizeConfig(BetterPortalConfigSchema.parse(config));
+    this.validateConfigReferences(validated);
     const yamlStr = yaml.stringify(validated, { indent: 2, lineWidth: 120 });
     writeFileSync(this.configPath, yamlStr, "utf8");
     this.notifyListeners();

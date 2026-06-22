@@ -3,7 +3,7 @@ import type { Infer } from "anyvali";
 import {
   createHandler,
   type DemoScenario,
-  type ViewAuthRequirement,
+  type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
 
@@ -19,7 +19,8 @@ const MenuItemSchema = av.object({
   title: av.optional(av.string()),
   routeId: av.optional(av.string()),
   href: av.optional(av.string()),
-  enabled: av.bool()
+  enabled: av.bool(),
+  defaultExpanded: av.optional(av.bool())
 }, { unknownKeys: "strip" });
 
 const AppSummarySchema = av.object({
@@ -42,8 +43,11 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Menu Designer";
 export const description = "Design app navigation menu.";
 
-export const auth: ViewAuthRequirement = {
-  required: false, realm: "runtime", minimumTier: "public", audiences: [], permissions: []
+export const auth: ApiAuthRequirement = {
+  required: true,
+  permissions: [
+    { serviceId: "service.betterportal.config-manager", viewId: "menu.index", permissions: ["read","create","update","delete"] }
+  ]
 };
 
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin"] };
@@ -55,8 +59,7 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
 export const handleGet = createHandler(
   { response: ResponseSchema },
   (ctx) => {
-    const event = ctx.rawEvent as { __bpResponseModel?: ResponseData } | undefined;
-    if (event?.__bpResponseModel) return event.__bpResponseModel;
+    if (ctx.responseModel) return ctx.responseModel as ResponseData;
     return { title: "Menu Designer", apps: [], menu: [], routes: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "" };
   }
 );

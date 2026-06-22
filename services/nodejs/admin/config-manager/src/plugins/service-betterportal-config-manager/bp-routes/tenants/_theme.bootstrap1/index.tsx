@@ -4,42 +4,24 @@ import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
 function tenantsScript(apiBase: string, serviceUrl: string): HtmlRenderable {
-  return js(`{
+  return js(`(() => {
     const apiBase = ${JSON.stringify(apiBase)};
     const serviceUrl = ${JSON.stringify(serviceUrl)};
 
-    const reloadContent = () => {
-      const target = document.getElementById("bp-main") || document.querySelector("[data-bp-main-outlet]");
-      if (target && window.htmx) window.htmx.ajax("GET", serviceUrl + "/admin-tenants", { target, swap: "innerHTML" });
-    };
-
-    const closeOffcanvas = (id) => {
-      const el = document.getElementById(id);
-      if (el && window.bootstrap) {
-        const oc = window.bootstrap.Offcanvas.getInstance(el);
-        if (oc) oc.hide();
-      }
-    };
-
-    // ── Add tenant ──
-    document.getElementById("bp-add-tenant-form")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const title = fd.get("title");
-      if (!title) return;
-      const slug = title.toString().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
-      const res = await fetch(apiBase + "/tenants", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: slug, slug, title, active: true, branding: {}, services: [], activatedPlatformServices: [] })
+    const filterTenantScopedOptions = (form, tenantId) => {
+      form.querySelectorAll("select[data-bp-tenant-scoped]").forEach((select) => {
+        select.querySelectorAll("option[data-bp-tenant-id]").forEach((option) => {
+          option.hidden = option.getAttribute("data-bp-tenant-id") !== tenantId;
+        });
       });
+    };
 
-      if (res.ok) { closeOffcanvas("bp-add-tenant-panel"); reloadContent(); }
-      else { const err = document.getElementById("bp-tenant-error"); if (err) { err.textContent = (await res.json()).error; err.classList.remove("d-none"); } }
+    const addAppForm = document.getElementById("bp-add-app-form");
+    const addTenantSelect = addAppForm?.querySelector("[name=tenantId]");
+    addTenantSelect?.addEventListener("change", () => {
+      filterTenantScopedOptions(addAppForm, addTenantSelect.value);
     });
 
-    // ── Edit tenant ──
     document.querySelectorAll("[data-bp-edit-tenant]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const data = JSON.parse(btn.dataset.bpEditTenant);
@@ -49,55 +31,10 @@ function tenantsScript(apiBase: string, serviceUrl: string): HtmlRenderable {
         form.querySelector("[name=title]").value = data.title;
         form.querySelector("[name=slug]").value = data.slug;
         form.querySelector("[name=active]").checked = data.active;
+        if (window.htmx) window.htmx.process(form);
       });
     });
 
-    document.getElementById("bp-edit-tenant-form")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const tenantId = fd.get("tenantId");
-      const res = await fetch(apiBase + "/tenants/" + tenantId, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: fd.get("title"),
-          slug: fd.get("slug"),
-          active: e.target.querySelector("[name=active]").checked
-        })
-      });
-      if (res.ok) { closeOffcanvas("bp-edit-tenant-panel"); reloadContent(); }
-      else { const err = document.getElementById("bp-edit-tenant-error"); if (err) { err.textContent = (await res.json()).error; err.classList.remove("d-none"); } }
-    });
-
-    // ── Add app ──
-    document.getElementById("bp-add-app-form")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const title = fd.get("title");
-      const tenantId = fd.get("tenantId");
-      const hostname = fd.get("hostname");
-      const themeId = fd.get("themeId") || "bootstrap1";
-      if (!title || !tenantId || !hostname) return;
-
-      const slug = title.toString().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      const id = tenantId + "-" + slug;
-
-      const res = await fetch(apiBase + "/apps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id, tenantId, slug, title,
-          hostnames: [hostname], themeId,
-          themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
-          defaultRoute: "/", routes: [], slots: [], fragments: {}
-        })
-      });
-
-      if (res.ok) { closeOffcanvas("bp-add-app-panel"); reloadContent(); }
-      else { const err = document.getElementById("bp-app-error"); if (err) { err.textContent = (await res.json()).error; err.classList.remove("d-none"); } }
-    });
-
-    // ── Edit app ──
     document.querySelectorAll("[data-bp-edit-app]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const data = JSON.parse(btn.dataset.bpEditApp);
@@ -107,51 +44,21 @@ function tenantsScript(apiBase: string, serviceUrl: string): HtmlRenderable {
         form.querySelector("[name=title]").value = data.title;
         form.querySelector("[name=slug]").value = data.slug;
         form.querySelector("[name=hostnames]").value = data.hostnames.join(", ");
-        form.querySelector("[name=themeId]").value = data.themeId;
+        filterTenantScopedOptions(form, data.tenantId);
+        const shellSelect = form.querySelector("[name=shellServiceId]");
+        shellSelect.value = data.shellServiceId || "";
+        const authSelect = form.querySelector("[name=authServiceId]");
+        authSelect.value = data.authServiceId || "";
+        if (window.htmx) window.htmx.process(form);
       });
     });
-
-    document.getElementById("bp-edit-app-form")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const appId = fd.get("appId");
-      const hostnames = fd.get("hostnames").toString().split(",").map((h) => h.trim()).filter(Boolean);
-      const res = await fetch(apiBase + "/apps/" + appId, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: fd.get("title"),
-          slug: fd.get("slug"),
-          hostnames,
-          themeId: fd.get("themeId")
-        })
-      });
-      if (res.ok) { closeOffcanvas("bp-edit-app-panel"); reloadContent(); }
-      else { const err = document.getElementById("bp-edit-app-error"); if (err) { err.textContent = (await res.json()).error; err.classList.remove("d-none"); } }
-    });
-
-    // ── Delete ──
-    document.querySelectorAll("[data-bp-delete-tenant]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Delete tenant " + btn.dataset.bpDeleteTenant + " and all its apps?")) return;
-        await fetch(apiBase + "/tenants/" + btn.dataset.bpDeleteTenant, { method: "DELETE" });
-        reloadContent();
-      });
-    });
-
-    document.querySelectorAll("[data-bp-delete-app]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        if (!confirm("Delete app " + btn.dataset.bpDeleteApp + "?")) return;
-        await fetch(apiBase + "/apps/" + btn.dataset.bpDeleteApp, { method: "DELETE" });
-        reloadContent();
-      });
-    });
-  }`);
+  })()`);
 }
 
 export function render(data: ResponseData): HtmlRenderable {
   const serviceUrl = data.serviceBaseUrl ?? "";
   const apiBase = serviceUrl + data.adminApiBase;
+  const tenantsPath = `${serviceUrl}/tenants`;
 
   return (
     <div class="container-fluid px-0">
@@ -185,7 +92,13 @@ export function render(data: ResponseData): HtmlRenderable {
                         data-bs-target="#bp-edit-tenant-panel"
                         data-bp-edit-tenant={JSON.stringify(t)}
                       >Edit</button>
-                      <button class="btn btn-outline-danger" data-bp-delete-tenant={t.id}>×</button>
+                      <button
+                        class="btn btn-outline-danger"
+                        hx-delete={`${tenantsPath}?entity=tenant&id=${encodeURIComponent(t.id)}`}
+                        hx-confirm={`Delete tenant ${t.id} and all its apps?`}
+                        hx-target="#bp-main"
+                        hx-swap="innerHTML"
+                      >×</button>
                     </div>
                   </td>
                 </tr>
@@ -214,11 +127,15 @@ export function render(data: ResponseData): HtmlRenderable {
                       <h5 class="mb-0">{app.title}</h5>
                       <div class="small text-secondary font-monospace">{app.id}</div>
                     </div>
-                    <span class="badge text-bg-secondary">{app.themeId}</span>
+                    <div class="d-flex gap-1">
+                      <span class="badge text-bg-secondary">{app.shellServiceId ? "shell" : "no shell"}</span>
+                      <span class="badge text-bg-secondary">{app.authServiceId ? "auth" : "no auth"}</span>
+                    </div>
                   </div>
                   <div class="small mb-1"><strong>Tenant:</strong> {app.tenantId}</div>
                   <div class="small mb-1"><strong>Hostnames:</strong> {app.hostnames.join(", ")}</div>
-                  <div class="small mb-1"><strong>Theme:</strong> {app.themeId}</div>
+                  <div class="small mb-1"><strong>Shell:</strong> <span class="font-monospace">{app.shellServiceId ?? "not selected"}</span></div>
+                  <div class="small mb-1"><strong>Auth:</strong> <span class="font-monospace">{app.authServiceId ?? "not selected"}</span></div>
                   <div class="small mb-2"><strong>Routes:</strong> {app.routeCount}</div>
                   <div class="btn-group btn-group-sm">
                     <button
@@ -227,7 +144,13 @@ export function render(data: ResponseData): HtmlRenderable {
                       data-bs-target="#bp-edit-app-panel"
                       data-bp-edit-app={JSON.stringify(app)}
                     >Edit</button>
-                    <button class="btn btn-outline-danger" data-bp-delete-app={app.id}>Delete</button>
+                    <button
+                      class="btn btn-outline-danger"
+                      hx-delete={`${tenantsPath}?entity=app&id=${encodeURIComponent(app.id)}`}
+                      hx-confirm={`Delete app ${app.id}?`}
+                      hx-target="#bp-main"
+                      hx-swap="innerHTML"
+                    >Delete</button>
                   </div>
                 </div>
               </div>
@@ -243,11 +166,12 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-add-tenant-form">
+          <form id="bp-add-tenant-form" hx-post={tenantsPath} hx-target="#bp-main" hx-swap="innerHTML">
+            <input type="hidden" name="entity" value="tenant" />
             <div class="mb-3">
               <label class="form-label">Tenant Name</label>
               <input type="text" class="form-control" name="title" placeholder="My Organization" required />
-              <div class="form-text">ID and slug auto-derived from name.</div>
+              <div class="form-text">ID is generated automatically.</div>
             </div>
             <div class="alert alert-danger d-none" id="bp-tenant-error"></div>
             <button type="submit" class="btn btn-primary w-100">Create Tenant</button>
@@ -262,7 +186,8 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-edit-tenant-form">
+          <form id="bp-edit-tenant-form" hx-put={tenantsPath} hx-target="#bp-main" hx-swap="innerHTML">
+            <input type="hidden" name="entity" value="tenant" />
             <input type="hidden" name="tenantId" />
             <div class="mb-3">
               <label class="form-label">Title</label>
@@ -273,7 +198,8 @@ export function render(data: ResponseData): HtmlRenderable {
               <input type="text" class="form-control font-monospace" name="slug" required />
             </div>
             <div class="form-check form-switch mb-3">
-              <input class="form-check-input" type="checkbox" name="active" id="bp-tenant-active" />
+              <input type="hidden" name="active" value="false" />
+              <input class="form-check-input" type="checkbox" name="active" value="true" id="bp-tenant-active" />
               <label class="form-check-label" for="bp-tenant-active">Active</label>
             </div>
             <div class="alert alert-danger d-none" id="bp-edit-tenant-error"></div>
@@ -289,7 +215,8 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-add-app-form">
+          <form id="bp-add-app-form" hx-post={tenantsPath} hx-target="#bp-main" hx-swap="innerHTML">
+            <input type="hidden" name="entity" value="app" />
             <div class="mb-3">
               <label class="form-label">Tenant</label>
               <select class="form-select" name="tenantId" required>
@@ -306,10 +233,21 @@ export function render(data: ResponseData): HtmlRenderable {
               <input type="text" class="form-control" name="hostname" placeholder="localhost:3100" required />
             </div>
             <div class="mb-3">
-              <label class="form-label">Theme</label>
-              <select class="form-select" name="themeId">
-                <option value="bootstrap1" selected>Bootstrap 1</option>
-                <option value="embedded">Embedded</option>
+              <label class="form-label">Shell service</label>
+              <select class="form-select" name="shellServiceId" data-bp-tenant-scoped="">
+                <option value="">No shell selected</option>
+                {data.shellServices.map((service) => (
+                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title}</option>
+                ))}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Auth provider</label>
+              <select class="form-select" name="authServiceId" data-bp-tenant-scoped="">
+                <option value="">No auth provider</option>
+                {data.authServices.map((service) => (
+                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title}</option>
+                ))}
               </select>
             </div>
             <div class="alert alert-danger d-none" id="bp-app-error"></div>
@@ -325,7 +263,8 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-edit-app-form">
+          <form id="bp-edit-app-form" hx-put={tenantsPath} hx-target="#bp-main" hx-swap="innerHTML">
+            <input type="hidden" name="entity" value="app" />
             <input type="hidden" name="appId" />
             <div class="mb-3">
               <label class="form-label">Title</label>
@@ -340,11 +279,24 @@ export function render(data: ResponseData): HtmlRenderable {
               <input type="text" class="form-control" name="hostnames" placeholder="localhost:3100, example.com" required />
             </div>
             <div class="mb-3">
-              <label class="form-label">Theme</label>
-              <select class="form-select" name="themeId">
-                <option value="bootstrap1">Bootstrap 1</option>
-                <option value="embedded">Embedded</option>
+              <label class="form-label">Shell service</label>
+              <select class="form-select" name="shellServiceId" data-bp-tenant-scoped="">
+                <option value="">No shell selected</option>
+                {data.shellServices.map((service) => (
+                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title}</option>
+                ))}
               </select>
+              <div class="form-text">Only theme-capable services registered for this app's tenant should be selected.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Auth provider</label>
+              <select class="form-select" name="authServiceId" data-bp-tenant-scoped="">
+                <option value="">No auth provider</option>
+                {data.authServices.map((service) => (
+                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title}</option>
+                ))}
+              </select>
+              <div class="form-text">Only auth-capable services registered for this app's tenant should be selected.</div>
             </div>
             <div class="alert alert-danger d-none" id="bp-edit-app-error"></div>
             <button type="submit" class="btn btn-primary w-100">Save</button>

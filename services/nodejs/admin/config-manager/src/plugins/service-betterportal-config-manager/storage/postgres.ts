@@ -35,17 +35,18 @@ export class PostgresStorage extends BaseStorage {
     );
 
     if (result.rows.length === 0) {
-      const empty = BetterPortalConfigSchema.parse({});
+      const empty = this.canonicalizeConfig(BetterPortalConfigSchema.parse({}));
       await this.saveConfig(empty);
       return empty;
     }
 
-    return BetterPortalConfigSchema.parse(result.rows[0].config);
+    return this.canonicalizeConfig(BetterPortalConfigSchema.parse(result.rows[0].config));
   }
 
   async saveConfig(config: BetterPortalConfig): Promise<void> {
     await this.ensureSchema();
-    const validated = BetterPortalConfigSchema.parse(config);
+    const validated = this.canonicalizeConfig(BetterPortalConfigSchema.parse(config));
+    this.validateConfigReferences(validated);
     const pool = await this.getPool();
     await pool.query(
       `insert into ${this.tableName} (id, config)

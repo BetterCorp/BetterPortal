@@ -15,6 +15,9 @@ default:
       config:
         host: 0.0.0.0
         port: 3300
+        storage:
+          backend: file
+          configPath: ./bp-config.yaml
         # storage:
         #   backend: postgres
         #   connectionString: postgres://betterportal:betterportal@localhost:5432/betterportal

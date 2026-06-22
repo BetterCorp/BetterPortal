@@ -3,7 +3,7 @@ import type { Infer } from "anyvali";
 import {
   createHandler,
   type DemoScenario,
-  type ViewAuthRequirement,
+  type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
 
@@ -39,12 +39,11 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Config Manager";
 export const description = "Admin service that discovers BetterPortal service config surfaces.";
 
-export const auth: ViewAuthRequirement = {
-  required: false,
-  realm: "runtime",
-  minimumTier: "public",
-  audiences: [],
-  permissions: []
+export const auth: ApiAuthRequirement = {
+  required: true,
+  permissions: [
+    { serviceId: "service.betterportal.config-manager", viewId: "config.index", permissions: ["read","update"] }
+  ]
 };
 
 export const cacheHints: CacheHints = {
@@ -72,13 +71,12 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
 export const handleGet = createHandler(
   { response: ResponseSchema },
   (ctx) => {
-    // The actual data is injected by the main plugin via the rawEvent context.
+    // The actual data is injected by the main plugin via the handler context.
     // This handler is a passthrough — the plugin builds the response model
     // from config/bindings and attaches it to the event before the H3 adapter
     // calls this handler.
-    const event = ctx.rawEvent as { __bpResponseModel?: ResponseData } | undefined;
-    if (event?.__bpResponseModel) {
-      return event.__bpResponseModel;
+    if (ctx.responseModel) {
+      return ctx.responseModel as ResponseData;
     }
 
     // Fallback: return empty state (should not happen in normal flow)

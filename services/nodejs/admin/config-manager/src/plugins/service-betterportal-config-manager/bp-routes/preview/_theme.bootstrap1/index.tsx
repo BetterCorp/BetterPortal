@@ -4,7 +4,7 @@ import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
 function previewScript(): HtmlRenderable {
-  return js(`{
+  return js(`(() => {
     document.querySelectorAll("[data-bp-preview-btn]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const url = btn.dataset.bpPreviewUrl;
@@ -22,7 +22,7 @@ function previewScript(): HtmlRenderable {
         .catch(() => { previewFrame.innerHTML = '<div class="alert alert-danger">Failed to load preview</div>'; });
       });
     });
-  }`);
+  })()`);
 }
 
 export function render(data: ResponseData): HtmlRenderable {

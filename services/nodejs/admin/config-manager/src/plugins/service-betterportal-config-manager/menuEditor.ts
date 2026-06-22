@@ -8,6 +8,7 @@ import {
   jsonResponse,
   uuidv7
 } from "@betterportal/framework";
+import { getManifestCache } from "./syncApi.js";
 
 const API_BASE = "/.well-known/bp/admin";
 
@@ -21,6 +22,7 @@ interface MenuItem {
   routeId?: string;
   href?: string;
   enabled: boolean;
+  defaultExpanded?: boolean;
   children?: MenuItem[];
 }
 
@@ -114,28 +116,23 @@ function getServicesForApp(config: any, appDef: any): Array<{ id: string; title:
   return [...tenantSvcs, ...platformSvcs];
 }
 
-async function fetchServiceViews(hostname: string): Promise<Array<{ viewId: string; title: string; path: string }>> {
-  if (!hostname) return [];
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1500);
-    const resp = await fetch(`${hostname.replace(/\/+$/, "")}/.well-known/bp/schema.json`, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    if (!resp.ok) return [];
-    const schema = await resp.json() as {
-      routes?: Array<{ viewId: string; path: string }>;
-      manifest?: { views?: Array<{ viewId: string; title: string }> };
-    };
-    const meta = new Map((schema.manifest?.views ?? []).map((v) => [v.viewId, v.title]));
-    return (schema.routes ?? []).map((r) => ({
-      viewId: r.viewId,
-      title: meta.get(r.viewId) ?? r.viewId,
-      path: r.path
+/**
+ * Read views for a service from the local manifest cache. CM cannot reach
+ * services, so all editor dropdowns come from the cache that services pushed
+ * via /sync/poll. If a service hasn't synced yet, returns empty.
+ */
+function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: string; path: string }> {
+  if (!serviceId) return [];
+  const cache = getManifestCache();
+  const entry = cache.get(serviceId);
+  if (!entry) return [];
+  return Object.values(entry.viewIndex)
+    .filter((v) => v.renderable)
+    .map((v) => ({
+      viewId: v.viewId,
+      title: v.viewId,
+      path: v.path
     }));
-  } catch { return []; }
 }
 
 // ── Row renderer (3 modes per item) ──────────────────────────────────
@@ -217,7 +214,17 @@ function actionButtons(item: MenuItem, appId: string): string {
       <button type="submit" class="btn btn-sm ${btnClass}" title="${escapeHtml(title)}">${label}</button>
     </form>`;
 
+  const expandedBtn = item.type === "group"
+    ? btn(
+      "toggle-expanded",
+      item.defaultExpanded ? "expanded" : "collapsed",
+      item.defaultExpanded ? "btn-info" : "btn-outline-secondary",
+      item.defaultExpanded ? "Default state: expanded (click to collapse)" : "Default state: collapsed (click to expand)"
+    )
+    : "";
+
   return `<div class="btn-group btn-group-sm" role="group">
+    ${expandedBtn}
     ${btn("toggle", item.enabled ? "on" : "off", item.enabled ? "btn-success" : "btn-outline-secondary", item.enabled ? "Disable" : "Enable")}
     ${btn("remove", "×", "btn-outline-danger", "Remove")}
   </div>`;
@@ -292,8 +299,8 @@ function renderViewOptions(views: Array<{ viewId: string; title: string; path: s
 async function renderEditLink(item: MenuItem, route: Route | null, depth: number, config: any, appDef: any, appId: string): Promise<string> {
   const typeBadgeClass = "text-bg-primary";
   const services = getServicesForApp(config, appDef);
-  const currentServiceHostname = route?.serviceId ? getServiceHostname(config, route.serviceId) : null;
-  const views = currentServiceHostname ? await fetchServiceViews(currentServiceHostname) : [];
+  // Views come from the local manifest cache, not a fetch (CM cannot reach services).
+  const views = route?.serviceId ? lookupServiceViews(route.serviceId) : [];
   const serviceOpts = [`<option value="">Select service...</option>`,
     ...services.map((s) => `<option value="${escapeHtml(s.id)}"${s.id === route?.serviceId ? " selected" : ""}>${escapeHtml(s.title)}</option>`)
   ].join("");
@@ -600,15 +607,12 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     });
   });
 
-  // Cascade: serviceId change → view options
+  // Cascade: serviceId change → view options (sourced from local manifest cache)
   app.get(`${API_BASE}/menu-editor/views`, async (event) => {
     const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
     const serviceId = url.searchParams.get("serviceId") ?? "";
     if (!serviceId) return htmlResponse(`<option value="">Select view...</option>`, 200, "text/html; mode=fragment");
-    const config = await store.loadConfig();
-    const hostname = getServiceHostname(config, serviceId);
-    if (!hostname) return htmlResponse(`<option value="">No service</option>`, 200, "text/html; mode=fragment");
-    const views = await fetchServiceViews(hostname);
+    const views = lookupServiceViews(serviceId);
     return htmlResponse(renderViewOptions(views, ""), 200, "text/html; mode=fragment");
   });
 
@@ -619,12 +623,8 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const viewId = url.searchParams.get("viewId") ?? "";
     let defaultPath = "";
     if (serviceId && viewId) {
-      const config = await store.loadConfig();
-      const hostname = getServiceHostname(config, serviceId);
-      if (hostname) {
-        const views = await fetchServiceViews(hostname);
-        defaultPath = views.find((v) => v.viewId === viewId)?.path ?? "";
-      }
+      const views = lookupServiceViews(serviceId);
+      defaultPath = views.find((v) => v.viewId === viewId)?.path ?? "";
     }
     return htmlResponse(
       `<input type="text" name="targetPath" class="form-control form-control-sm font-monospace" value="${escapeHtml(defaultPath)}" placeholder="/path?param=value" />`,
@@ -662,7 +662,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
 
     const type = (f.type as MenuItem["type"]) ?? "link";
     const newItem: MenuItem = {
-      id: `m-${uuidv7()}`,
+      id: uuidv7(),
       type,
       title: f.title || undefined,
       routeId: f.routeId || undefined,
@@ -709,6 +709,21 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const menu = getMenu(appDef);
     const found = locate(menu, f.itemId);
     if (found) found.item.enabled = !found.item.enabled;
+    appDef.menu = menu;
+    await store.saveConfig(config);
+    return respondEditor(f.appId);
+  });
+
+  app.post(`${API_BASE}/menu-editor/toggle-expanded`, async (event) => {
+    const f = await readFormBody(event);
+    const config = await store.loadConfig();
+    const appDef = getApp(config, f.appId);
+    if (!appDef) return jsonResponse({ error: "App not found" }, 404);
+    const menu = getMenu(appDef);
+    const found = locate(menu, f.itemId);
+    if (found && found.item.type === "group") {
+      found.item.defaultExpanded = !found.item.defaultExpanded;
+    }
     appDef.menu = menu;
     await store.saveConfig(config);
     return respondEditor(f.appId);

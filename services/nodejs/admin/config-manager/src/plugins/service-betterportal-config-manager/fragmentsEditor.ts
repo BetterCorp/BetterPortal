@@ -33,23 +33,43 @@ function getApp(config: any, appId: string): any | null {
   return config.apps.find((a: any) => a.id === appId) ?? null;
 }
 
-function getServicesForApp(config: any, appDef: any): Array<{ id: string; title: string }> {
+function getServicesForApp(config: any, appDef: any): Array<{ id: string; title: string; hostname: string }> {
   const tenant = (config.tenants ?? []).find((t: any) => t.id === appDef.tenantId);
   if (!tenant) return [];
   const tenantSvcs = (tenant.services ?? []).filter((s: any) => s.enabled).map((s: any) => ({
-    id: s.id, title: s.title || s.serviceId || s.id
+    id: s.id, title: s.title || s.serviceId || s.id, hostname: s.hostname
   }));
   const platformSvcs = (tenant.activatedPlatformServices ?? [])
     .map((psId: string) => (config.platformServices ?? []).find((p: any) => p.id === psId && p.enabled))
     .filter(Boolean)
-    .map((p: any) => ({ id: p.id, title: `${p.title || p.id} (platform)` }));
-  return [...tenantSvcs, ...platformSvcs];
+    .map((p: any) => ({ id: p.id, title: `${p.title || p.id} (platform)`, hostname: p.hostname }));
+  const sharedSvcs = (config.sharedServiceActivations ?? [])
+    .filter((activation: any) =>
+      activation.enabled
+      && activation.tenantId === appDef.tenantId
+      && (!activation.appId || activation.appId === appDef.id)
+    )
+    .map((activation: any) => {
+      const shared = (config.sharedServiceCatalog ?? []).find((s: any) => s.id === activation.sharedServiceId && s.enabled);
+      return shared ? {
+        id: activation.id,
+        title: `${shared.title || shared.id} (shared)`,
+        hostname: shared.baseUrl
+      } : null;
+    })
+    .filter(Boolean);
+  return [...tenantSvcs, ...platformSvcs, ...sharedSvcs];
 }
 
 function getServiceTitle(config: any, serviceId: string): string {
   for (const t of config.tenants ?? []) {
     const s = (t.services ?? []).find((x: any) => x.id === serviceId);
     if (s) return s.title || s.serviceId || s.id;
+  }
+  const activation = (config.sharedServiceActivations ?? []).find((x: any) => x.id === serviceId);
+  if (activation) {
+    const shared = (config.sharedServiceCatalog ?? []).find((x: any) => x.id === activation.sharedServiceId);
+    if (shared) return `${shared.title || shared.id} (shared)`;
   }
   const ps = (config.platformServices ?? []).find((x: any) => x.id === serviceId);
   return ps ? (ps.title || ps.id) : serviceId;
@@ -60,6 +80,11 @@ function getServiceHostname(config: any, serviceId: string): string | null {
     const s = (t.services ?? []).find((x: any) => x.id === serviceId);
     if (s) return s.hostname ?? null;
   }
+  const activation = (config.sharedServiceActivations ?? []).find((x: any) => x.id === serviceId);
+  if (activation) {
+    const shared = (config.sharedServiceCatalog ?? []).find((x: any) => x.id === activation.sharedServiceId);
+    if (shared) return shared.baseUrl ?? null;
+  }
   const ps = (config.platformServices ?? []).find((x: any) => x.id === serviceId);
   return ps?.hostname ?? null;
 }
@@ -68,31 +93,6 @@ interface AvailableFragment {
   fragmentLocation: string;
   fragmentId: string;
   viewPath: string;
-}
-
-async function fetchServiceFragments(hostname: string, location?: string): Promise<AvailableFragment[]> {
-  if (!hostname) return [];
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1500);
-    const resp = await fetch(`${hostname.replace(/\/+$/, "")}/.well-known/bp/schema.json`, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    if (!resp.ok) return [];
-    const schema = await resp.json() as {
-      routes?: Array<{ path: string; fragments?: Array<{ fragmentLocation: string; fragmentId: string }> }>;
-    };
-    const out: AvailableFragment[] = [];
-    for (const r of schema.routes ?? []) {
-      for (const f of r.fragments ?? []) {
-        if (location && f.fragmentLocation !== location) continue;
-        out.push({ fragmentLocation: f.fragmentLocation, fragmentId: f.fragmentId, viewPath: r.path });
-      }
-    }
-    return out;
-  } catch { return []; }
 }
 
 function getFragments(appDef: any, location: string): Fragment[] {
@@ -141,7 +141,10 @@ function renderFragmentRow(frag: Fragment, idx: number, location: string, appId:
 function renderLocationSection(location: string, label: string, frags: Fragment[], appId: string, config: any, appDef: any): string {
   const services = getServicesForApp(config, appDef);
   const serviceOpts = ["<option value=\"\">Select service...</option>",
-    ...services.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.title)}</option>`)
+    ...services.map((s) => {
+      const schemaUrl = `${s.hostname.replace(/\/+$/, "")}/.well-known/bp/schema.json`;
+      return `<option value="${escapeHtml(s.id)}" data-schema-url="${escapeHtml(schemaUrl)}">${escapeHtml(s.title)}</option>`;
+    })
   ].join("");
 
   const rows = frags.length === 0
@@ -161,20 +164,18 @@ function renderLocationSection(location: string, label: string, frags: Fragment[
           <select name="serviceId" class="form-select form-select-sm" required
             hx-get="${API_BASE}/fragments-editor/fragments"
             hx-target="#bp-frag-select-${location}"
-            hx-swap="innerHTML"
+            hx-swap="outerHTML"
             hx-trigger="change"
             hx-include="closest form">${serviceOpts}</select>
         </div>
         <div class="col-md-3">
           <label class="form-label small mb-0">Fragment</label>
           <select id="bp-frag-select-${location}" name="fragmentId" class="form-select form-select-sm" required
-            hx-get="${API_BASE}/fragments-editor/fragment-target"
-            hx-target="#bp-frag-target-${location}"
-            hx-swap="outerHTML"
-            hx-trigger="change"
-            hx-include="closest form">
+            data-bp-frag-select
+            data-location="${escapeHtml(location)}">
             <option value="">Pick service first...</option>
           </select>
+          <div id="bp-frag-status-${location}" class="form-text small text-secondary"></div>
         </div>
         <div class="col-md-4">
           <label class="form-label small mb-0">Target Path</label>
@@ -188,12 +189,98 @@ function renderLocationSection(location: string, label: string, frags: Fragment[
   </div>`;
 }
 
+function renderFragmentEditorScript(): string {
+  return `<script>
+(() => {
+  const root = document.getElementById("bp-fragments-editor");
+  if (!root) return;
+
+  const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+
+  const loadFragments = async (fragmentSelect) => {
+    const location = fragmentSelect.dataset.location || "";
+    const schemaUrl = fragmentSelect.dataset.schemaUrl || "";
+    const targetInput = root.querySelector("#bp-frag-target-" + CSS.escape(location));
+    const status = root.querySelector("#bp-frag-status-" + CSS.escape(location));
+    if (targetInput) targetInput.value = "";
+    try {
+      if (status) status.textContent = "Loading service schema from " + schemaUrl;
+      const response = await fetch(schemaUrl, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      const schema = (response.headers.get("content-type") || "").includes("application/json") ? await response.json() : null;
+      if (!schema) throw new Error("service schema returned non-JSON");
+      const fragments = [];
+      for (const route of schema.routes || []) {
+        for (const fragment of route.fragments || []) {
+          if (location && fragment.fragmentLocation !== location) continue;
+          fragments.push({
+            fragmentId: fragment.fragmentId,
+            viewPath: route.path || ""
+          });
+        }
+      }
+
+      if (fragments.length === 0) {
+        fragmentSelect.innerHTML = '<option value="">No fragments at "' + escapeHtml(location) + '"</option>';
+        return;
+      }
+
+      fragmentSelect.innerHTML = '<option value="">Select fragment...</option>' + fragments
+        .map((fragment) => '<option value="' + escapeHtml(fragment.fragmentId) + '" data-view-path="' + escapeHtml(fragment.viewPath) + '">' + escapeHtml(fragment.fragmentId) + ' (' + escapeHtml(fragment.viewPath) + ')</option>')
+        .join("");
+      if (status) status.textContent = "Loaded " + fragments.length + " fragment" + (fragments.length === 1 ? "" : "s") + " from service.";
+    } catch {
+      fragmentSelect.innerHTML = '<option value="">Unable to load fragments from browser</option>';
+      if (status) status.textContent = "Failed to load service schema from " + schemaUrl;
+    }
+  };
+
+  if (root.dataset.bpFragmentsBound !== "1") {
+    root.dataset.bpFragmentsBound = "1";
+    root.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLSelectElement)) return;
+
+      if (target.matches("[data-bp-frag-select]")) {
+        const location = target.dataset.location || "";
+        const targetInput = root.querySelector("#bp-frag-target-" + CSS.escape(location));
+        const selected = target.selectedOptions && target.selectedOptions[0];
+        if (targetInput) targetInput.value = selected ? (selected.dataset.viewPath || "") : "";
+      }
+    });
+  }
+
+  root.querySelectorAll("[data-bp-frag-select][data-schema-url]").forEach((select) => {
+    if (select.dataset.loaded === "1") return;
+    select.dataset.loaded = "1";
+    loadFragments(select);
+  });
+})();
+</script>`;
+}
+
+function renderFragmentSelect(location: string, schemaUrl: string): string {
+  return `<select id="bp-frag-select-${escapeHtml(location)}" name="fragmentId" class="form-select form-select-sm" required
+    data-bp-frag-select
+    data-location="${escapeHtml(location)}"
+    data-schema-url="${escapeHtml(schemaUrl)}">
+    <option value="">Loading fragments...</option>
+  </select>
+  ${renderFragmentEditorScript()}`;
+}
+
 function renderEditor(config: any, appDef: any, appId: string): string {
   const sections = LOCATIONS.map((loc) =>
     renderLocationSection(loc.id, loc.label, getFragments(appDef, loc.id), appId, config, appDef)
   ).join("");
 
-  return `<div id="bp-fragments-editor">${sections}</div>`;
+  return `<div id="bp-fragments-editor">${sections}${renderFragmentEditorScript()}</div>`;
 }
 
 export function registerFragmentsEditorRoutes(app: BetterPortalH3App, store: PlatformConfigStore): void {
@@ -281,13 +368,18 @@ export function registerFragmentsEditorRoutes(app: BetterPortalH3App, store: Pla
     if (!serviceId) return htmlResponse(`<option value="">Pick service first...</option>`, 200, "text/html; mode=fragment");
     const config = await store.loadConfig();
     const hostname = getServiceHostname(config, serviceId);
-    if (!hostname) return htmlResponse(`<option value="">No service</option>`, 200, "text/html; mode=fragment");
-    const frags = await fetchServiceFragments(hostname, location || undefined);
-    if (frags.length === 0) return htmlResponse(`<option value="">No fragments at "${escapeHtml(location)}"</option>`, 200, "text/html; mode=fragment");
-    return htmlResponse([
-      `<option value="">Select fragment...</option>`,
-      ...frags.map((f) => `<option value="${escapeHtml(f.fragmentId)}" data-view-path="${escapeHtml(f.viewPath)}">${escapeHtml(f.fragmentId)} (${escapeHtml(f.viewPath)})</option>`)
-    ].join(""), 200, "text/html; mode=fragment");
+    if (!hostname) {
+      return htmlResponse(
+        `<select id="bp-frag-select-${escapeHtml(location)}" name="fragmentId" class="form-select form-select-sm" required><option value="">No service</option></select>`,
+        200,
+        "text/html; mode=fragment"
+      );
+    }
+    return htmlResponse(
+      renderFragmentSelect(location, `${hostname.replace(/\/+$/, "")}/.well-known/bp/schema.json`),
+      200,
+      "text/html; mode=fragment"
+    );
   });
 
   app.get(`${API_BASE}/fragments-editor/fragment-target`, async (event) => {
@@ -295,15 +387,7 @@ export function registerFragmentsEditorRoutes(app: BetterPortalH3App, store: Pla
     const serviceId = url.searchParams.get("serviceId") ?? "";
     const fragmentId = url.searchParams.get("fragmentId") ?? "";
     const location = url.searchParams.get("location") ?? "";
-    let targetPath = "";
-    if (serviceId && fragmentId) {
-      const config = await store.loadConfig();
-      const hostname = getServiceHostname(config, serviceId);
-      if (hostname) {
-        const frags = await fetchServiceFragments(hostname, location || undefined);
-        targetPath = frags.find((f) => f.fragmentId === fragmentId)?.viewPath ?? "";
-      }
-    }
+    const targetPath = url.searchParams.get("targetPath") ?? "";
     return htmlResponse(
       `<input id="bp-frag-target-${escapeHtml(location)}" type="text" name="targetPath" class="form-control form-control-sm font-monospace" value="${escapeHtml(targetPath)}" placeholder="auto-filled" required />`,
       200,

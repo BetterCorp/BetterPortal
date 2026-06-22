@@ -4,7 +4,7 @@ import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../index.js";
 
 function configManagerRuntimeSource(timeoutMs: number): HtmlRenderable {
-  return js(`{
+  return js(`(() => {
     const timeoutValue = ${timeoutMs};
 
     const setCardStatus = (card, values) => {
@@ -43,7 +43,8 @@ function configManagerRuntimeSource(timeoutMs: number): HtmlRenderable {
           return;
         }
 
-        const payload = await schemaResponse.json();
+        const payload = (schemaResponse.headers.get("content-type") || "").includes("application/json") ? await schemaResponse.json() : null;
+        if (!payload) throw new Error("Schema returned non-JSON");
         const schemaCount = Array.isArray(payload.configSchemas) ? payload.configSchemas.length : 0;
         setCardStatus(card, { statusText: "available", statusClass: "text-bg-success", modeText: payload.mode || "unknown", schemaCountText: String(schemaCount), writeText: payload.supportsWrite === true ? "write enabled" : "read only" });
       } catch {
@@ -55,7 +56,7 @@ function configManagerRuntimeSource(timeoutMs: number): HtmlRenderable {
 
     const run = () => { document.querySelectorAll("[data-bp-config-card]").forEach((card) => { inspectCard(card); }); };
     if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", run, { once: true }); } else { run(); }
-  }`);
+  })()`);
 }
 
 export function render(data: ResponseData): HtmlRenderable {
