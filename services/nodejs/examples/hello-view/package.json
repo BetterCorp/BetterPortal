@@ -23,7 +23,7 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
-    "@bsb/base": "^9.5.0",
+    "@bsb/base": "^9.5.5",
     "@types/node": "^24.12.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"

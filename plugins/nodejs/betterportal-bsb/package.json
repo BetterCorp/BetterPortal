@@ -28,12 +28,12 @@
     "anyvali": "^1.0.6"
   },
   "devDependencies": {
-    "@bsb/base": "^9.5.0",
+    "@bsb/base": "^9.5.5",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
-    "@bsb/base": "^9.5.0"
+    "@bsb/base": "^9.5.5"
   },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
   "repository": {
