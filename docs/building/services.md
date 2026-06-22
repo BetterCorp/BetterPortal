@@ -53,7 +53,7 @@ Runnable BetterPortal services are BSB plugins. They need `@bsb/base` at runtime
 ```json
 {
   "dependencies": {
-    "@bsb/base": "^9.5.6",
+    "@bsb/base": "^9.5.8",
     "@betterportal/framework": "10.0.0",
     "@betterportal/plugin-bsb": "10.0.0"
   }
@@ -65,7 +65,7 @@ Packages that want the shared BSB plugin lifecycle checks add `@bsb/tests` as a 
 ```json
 {
   "devDependencies": {
-    "@bsb/tests": "^9.5.6"
+    "@bsb/tests": "^9.5.8"
   },
   "scripts": {
     "test": "bsb-plugin-cli test"
