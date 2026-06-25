@@ -38,7 +38,7 @@ npm run bp-codegen
 
 ## Coolify
 
-Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the workspace, then runs each process on the BSB runtime image (`BSB_IMAGE`, default `betterweb/service-base:node`). BSB Docker tags are runtime-prefixed (`node`, `node-latest`, `node-<version>`).
+Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the workspace, then runs each process on the BSB runtime image `betterweb/service-base:node`.
 
 The compose includes PostgreSQL 18 for config-manager production storage. Set `BP_POSTGRES_PASSWORD`; optional `BP_POSTGRES_DB` and `BP_POSTGRES_USER` default to `betterportal`.
 

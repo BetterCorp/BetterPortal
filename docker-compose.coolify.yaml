@@ -1,8 +1,6 @@
 x-bp-build: &bp-build
   context: .
   dockerfile: Dockerfile.coolify
-  args:
-    BSB_IMAGE: ${BSB_IMAGE:-betterweb/service-base:node}
 
 x-bp-common: &bp-common
   image: betterportal:${BP_IMAGE_TAG:-coolify}

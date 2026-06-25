@@ -21,8 +21,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-ARG BSB_IMAGE=betterweb/service-base:node
-FROM ${BSB_IMAGE}
+FROM betterweb/service-base:node
 
 WORKDIR /bp
 
