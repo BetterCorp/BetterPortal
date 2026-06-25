@@ -33,9 +33,12 @@ RUN set -eu; \
     stage_plugin /app/themes/nodejs/bootstrap1 @betterportal/theme-bootstrap1; \
     stage_plugin /app/themes/nodejs/embedded @betterportal/theme-embedded
 
+RUN mkdir /bp-runtime && cp -RL /app/node_modules /bp-runtime/node_modules
+
 FROM betterweb/service-base:node-latest
 
 COPY --from=builder --chown=node:node /bp-plugins /bp
+COPY --from=builder --chown=node:node /bp-runtime/node_modules /bp/node_modules
 
 ENV NODE_ENV=production \
     BSB_CONTAINER=true \
