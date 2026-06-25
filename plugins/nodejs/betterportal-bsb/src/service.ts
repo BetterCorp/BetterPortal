@@ -62,6 +62,10 @@ import { createBsbObservability } from "./index.js";
 
 // Config constraint
 
+const DEFAULT_BP_STATE_ROOT = process.env.BSB_CONTAINER === "true" ? "/data" : ".";
+const DEFAULT_BOOTSTRAP_STATE_PATH = `${DEFAULT_BP_STATE_ROOT}/.bp-bootstrap/state.enc`;
+const DEFAULT_SCOPED_CONFIG_CACHE_PATH = `${DEFAULT_BP_STATE_ROOT}/.bp-sync-cache/scoped.json`;
+
 export interface BPServiceConfig {
   host: string;
   port: number;
@@ -107,8 +111,8 @@ export const BetterPortalConfigSchema = av.optional(av.object({
   configEncryptionKey: av.optional(av.string().minLength(16)),
   controlPlaneUrl: av.optional(av.string().minLength(1)),
   serviceApiKey: av.optional(av.string().minLength(1)),
-  bootstrapStatePath: av.string().minLength(1).default("./.bp-bootstrap/state.enc"),
-  scopedConfigCachePath: av.string().minLength(1).default("./.bp-sync-cache/scoped.json"),
+  bootstrapStatePath: av.string().minLength(1).default(DEFAULT_BOOTSTRAP_STATE_PATH),
+  scopedConfigCachePath: av.string().minLength(1).default(DEFAULT_SCOPED_CONFIG_CACHE_PATH),
   trustedProxyHeaders: av.bool().default(false),
   cfProxy: av.bool().default(false),
   // Proxy-supplied host headers (X-Forwarded-Host, Forwarded, CF-*) are only
@@ -355,12 +359,12 @@ export abstract class BPService<
     try {
 
     this.bootstrapState = new BootstrapStateStore({
-      filePath: this.bp.bootstrapStatePath ?? "./.bp-bootstrap/state.enc",
+      filePath: this.bp.bootstrapStatePath ?? DEFAULT_BOOTSTRAP_STATE_PATH,
       encryptionKey: this.bp.configEncryptionKey
     });
 
     this.scopedConfigCache = new ScopedConfigCache({
-      filePath: this.bp.scopedConfigCachePath ?? "./.bp-sync-cache/scoped.json"
+      filePath: this.bp.scopedConfigCachePath ?? DEFAULT_SCOPED_CONFIG_CACHE_PATH
     });
     // Pre-load cached scoped config so the service can serve requests
     // immediately on restart, before the first sync push from the CP completes.
@@ -1461,7 +1465,7 @@ export abstract class BPService<
     if (this.bp.bpConfigPath) {
       return resolve(dirname(this.bp.bpConfigPath), ".bp-config-state", `${pluginId}.json`);
     }
-    return resolve(dirname(this.bp.bootstrapStatePath ?? "./.bp-bootstrap/state.enc"), "config.json");
+    return resolve(dirname(this.bp.bootstrapStatePath ?? DEFAULT_BOOTSTRAP_STATE_PATH), "config.json");
   }
 
   private deriveOwnUrl(event: BetterPortalEvent): string {

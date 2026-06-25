@@ -58,7 +58,7 @@ BP_HELLO_BSB_CONFIG_JSON
 
 Each value is passed through as `BSB_CONFIG_JSON` for that one BSB process. Port envs such as `BP_BOOTSTRAP1_PORT` only control Docker port publishing and health checks; the matching plugin `config.port` still belongs inside that service's JSON.
 
-Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout; use absolute paths under `/data` in each service's `BSB_CONFIG_JSON` for persistent files.
+Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout. BP defaults bootstrap/install state and scoped config cache to `/data/.bp-bootstrap/state.enc` and `/data/.bp-sync-cache/scoped.json` when `BSB_CONTAINER=true`; use absolute paths under `/data` in service JSON for any other persistent files.
 
 The image also stages built BP packages into the BSB external plugin layout:
 
@@ -88,7 +88,7 @@ Persistent data lives in named volumes:
 
 - `bp-postgres`: PostgreSQL data.
 - `bp-config-manager`: platform config, CP signing keys, webhook delivery state.
-- service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users. Point those paths at `/data/...` in the relevant service JSON.
+- service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users. BP state uses `/data` automatically in BSB containers; point service-specific stores at `/data/...` in the relevant service JSON.
 
 ## Operational checks
 
