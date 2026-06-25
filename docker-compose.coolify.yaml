@@ -27,7 +27,6 @@ services:
     <<: *bp-common
     environment:
       BSB_CONFIG_PLUGIN: config-env
-      BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_CONFIG_MANAGER_BSB_CONFIG_JSON:?Set BP_CONFIG_MANAGER_BSB_CONFIG_JSON for the config-manager service}
     volumes:
@@ -47,7 +46,6 @@ services:
     <<: *bp-common
     environment:
       BSB_CONFIG_PLUGIN: config-env
-      BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_BOOTSTRAP1_BSB_CONFIG_JSON:?Set BP_BOOTSTRAP1_BSB_CONFIG_JSON for the bootstrap1 service}
     volumes:
@@ -66,7 +64,6 @@ services:
     <<: *bp-common
     environment:
       BSB_CONFIG_PLUGIN: config-env
-      BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_EMBEDDED_BSB_CONFIG_JSON:?Set BP_EMBEDDED_BSB_CONFIG_JSON for the embedded service}
     volumes:
@@ -80,7 +77,6 @@ services:
     <<: *bp-common
     environment:
       BSB_CONFIG_PLUGIN: config-env
-      BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_AUTH_DEFAULT_BSB_CONFIG_JSON:?Set BP_AUTH_DEFAULT_BSB_CONFIG_JSON for the auth-default service}
     volumes:
@@ -94,7 +90,6 @@ services:
     <<: *bp-common
     environment:
       BSB_CONFIG_PLUGIN: config-env
-      BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_AUTHRESS_BSB_CONFIG_JSON:?Set BP_AUTHRESS_BSB_CONFIG_JSON for the auth-authress-io service}
     volumes:
@@ -108,7 +103,6 @@ services:
     <<: *bp-common
     environment:
       BSB_CONFIG_PLUGIN: config-env
-      BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_DOCS_BSB_CONFIG_JSON:?Set BP_DOCS_BSB_CONFIG_JSON for the docs-site service}
     volumes:
@@ -122,7 +116,6 @@ services:
     <<: *bp-common
     environment:
       BSB_CONFIG_PLUGIN: config-env
-      BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_HELLO_BSB_CONFIG_JSON:?Set BP_HELLO_BSB_CONFIG_JSON for the hello-view service}
     volumes:

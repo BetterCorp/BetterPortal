@@ -42,7 +42,7 @@ Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the works
 
 The compose includes PostgreSQL 18 for config-manager production storage. Set `BP_POSTGRES_PASSWORD`; optional `BP_POSTGRES_DB` and `BP_POSTGRES_USER` default to `betterportal`.
 
-Coolify services use BSB's `config-env` plugin instead of writing `sec-config.yaml` at startup. Each service sets `BSB_CONFIG_PLUGIN=config-env`, `BSB_CONFIG_PLUGIN_PACKAGE=@bsb/base`, and a `BSB_CONFIG_JSON` value with the same profile shape as `sec-config.yaml`.
+Coolify services use BSB's core `config-env` plugin instead of writing `sec-config.yaml` at startup. Each service sets `BSB_CONFIG_PLUGIN=config-env` and a `BSB_CONFIG_JSON` value with the same profile shape as `sec-config.yaml`. Do not set `BSB_CONFIG_PLUGIN_PACKAGE` for core BSB config plugins.
 
 Override service config by setting the service-specific JSON env in Coolify:
 
