@@ -16,7 +16,7 @@ COPY automations/n8n/package.json automations/n8n/package.json
 COPY automations/node-red/package.json automations/node-red/package.json
 COPY automations/zapier/package.json automations/zapier/package.json
 
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 COPY . .
 RUN npm run build
