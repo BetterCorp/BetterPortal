@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN npm ci --ignore-scripts
+RUN npm ci --foreground-scripts
 
 RUN npm run build -w @betterportal/framework
 RUN npm run build -w @betterportal/plugin-bsb
