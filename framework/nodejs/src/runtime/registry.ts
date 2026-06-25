@@ -95,10 +95,7 @@ export interface ResolvedRenderer {
   readonly themeId: string;
 }
 
-/**
- * Resolve a theme renderer for a route.
- * Method-specific renderers have priority over default (no method).
- */
+/** Resolve a theme renderer for a route. Success renderers must match the request method. */
 export function resolveRenderer(
   route: RegisteredRoute,
   themeId: string,
@@ -138,15 +135,9 @@ export function resolveRenderer(
 
   if (candidates.length === 0) return null;
 
-  // Method-specific wins over generic
-  if (method) {
-    const methodSpecific = candidates.find((r) => r.method === method);
-    if (methodSpecific) return { renderer: methodSpecific, themeId };
-  }
-
-  // Fallback to no-method renderer
-  const generic = candidates.find((r) => r.method === undefined);
-  return generic ? { renderer: generic, themeId } : null;
+  if (!method) return null;
+  const methodSpecific = candidates.find((r) => r.method === method);
+  return methodSpecific ? { renderer: methodSpecific, themeId } : null;
 }
 
 // -- Manifest builder --------------------------------------------------
@@ -162,6 +153,8 @@ export interface ManifestBaseFields {
   permissions?: PluginManifest["permissions"];
   adminApis?: PluginManifest["adminApis"];
   webhooks?: PluginManifest["webhooks"];
+  apiContracts?: PluginManifest["apiContracts"];
+  m2mRequests?: PluginManifest["m2mRequests"];
   cacheHints?: PluginManifest["cacheHints"];
 }
 
@@ -196,6 +189,7 @@ export function buildManifestFromRegistry(
   const themes = new Set<string>();
   const renderModes = new Set<string>();
   const capabilities = new Set<string>();
+  const apiContracts: PluginManifest["apiContracts"] = [...(base.apiContracts ?? [])];
 
   for (const capability of base.capabilities ?? []) {
     capabilities.add(capability);
@@ -205,6 +199,14 @@ export function buildManifestFromRegistry(
   capabilities.add("view.metadata");
 
   for (const route of registry.routes) {
+    for (const contract of route.apiContracts ?? []) {
+      apiContracts.push({
+        ...contract,
+        viewId: route.viewId,
+        methods: contract.methods ? [...contract.methods] : [...route.methods]
+      });
+    }
+
     // Streaming views (spec/streaming.md section 5)
     if (route.schemas.item) {
       capabilities.add("stream.ndjson");
@@ -256,6 +258,8 @@ export function buildManifestFromRegistry(
     permissions: base.permissions ?? [],
     adminApis: deriveAdminApis(base),
     webhooks: base.webhooks ?? [],
+    apiContracts,
+    m2mRequests: base.m2mRequests ?? [],
     cacheHints: base.cacheHints ?? { metadataTtlSeconds: 1800 }
   };
 }
@@ -337,6 +341,11 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
     ...(route.role ? { role: route.role } : {}),
     dependencies: [...(route.dependencies ?? [])],
     ...(route.chrome ? { chrome: route.chrome } : {}),
+    apiContracts: (route.apiContracts ?? []).map((contract) => ({
+      ...contract,
+      viewId: route.viewId,
+      methods: contract.methods ? [...contract.methods] : [...route.methods]
+    })),
     demoScenarios: route.demoScenarios.map((s) => ({
       id: s.id,
       title: s.title,

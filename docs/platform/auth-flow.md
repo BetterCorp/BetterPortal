@@ -525,10 +525,10 @@ Files:
 
 - `service.ts` - extends BPService, calls `registerAsAuthProvider`, mounts user db + login/logout/refresh views.
 - `userStore.ts` - file-backed user store with bcrypt password hashing. Pluggable via service config.
-- `bp-routes/login/index.ts` + `view.tsx` - POST handler: lookup user, bcrypt compare, sign JWT, return via `BP-SetHeader`. GET returns login form.
-- `bp-routes/logout/index.ts` + `view.tsx` - clears `Authorization` via `BP-RemoveHeader`.
-- `bp-routes/refresh/index.ts` - POST handler: verifies refresh token, issues new access token.
-- `bp-routes/nav-profile/_theme.bootstrap1/index.tsx` - nav fragment with user display + JS auto-refresh scheduler.
+- `bp-routes/login/index.ts` metadata, `GET.ts` login form model, `POST.ts` login submit handler, `_theme.bootstrap1/GET.tsx` renderer.
+- `bp-routes/logout/index.ts` metadata plus `GET.ts`/`POST.ts` handlers clearing `Authorization` via `BP-RemoveHeader`.
+- `bp-routes/refresh/index.ts` metadata plus `POST.ts` handler verifying refresh token and issuing a new access token.
+- `bp-routes/login/_theme.bootstrap1/_nav.profile.GET.tsx` - nav fragment with user display.
 
 Tests:
 

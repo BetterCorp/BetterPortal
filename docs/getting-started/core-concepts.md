@@ -34,9 +34,9 @@ For example, the app route `/docs` can map to the docs service route `/docs`.
 
 ## View
 
-A view is a typed endpoint under `bp-routes/<route>/index.ts`. It declares schemas, metadata, auth policy, cache hints, and handlers.
+A view is a typed endpoint under `bp-routes/<route>/`. `index.ts` declares metadata; `GET.ts`, `POST.ts`, and other method files declare schemas and handlers.
 
-Theme-specific HTML renderers live beside the view in `_theme.<themeId>/`.
+Theme-specific HTML renderers live beside the view in `_theme.<themeId>/` as method/status files such as `GET.tsx` or `POST.422.tsx`.
 
 ## Fragment
 

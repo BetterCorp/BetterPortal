@@ -3,6 +3,7 @@ import type { HttpMethod, RenderMode } from "./common.js";
 import type { CacheHints } from "./view.js";
 import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, SSEHandler } from "./route.js";
 import type { BetterPortalRouteChrome } from "./platformConfig.js";
+import type { ApiContractDescriptor } from "./m2m.js";
 import type { BpStreamHandler, StreamRendererSet } from "./streaming.js";
 import type { HtmlRenderable } from "../runtime/view.js";
 
@@ -52,6 +53,7 @@ export interface ThemeRendererSet {
  */
 export interface StatusRenderersByKind {
   readonly page?: RegisteredThemeRenderer;
+  readonly pages?: ReadonlyArray<RegisteredThemeRenderer>;
   readonly components?: Readonly<Record<string, RegisteredThemeRenderer>>;
   readonly fragments?: Readonly<Record<string, RegisteredThemeRenderer>>;
 }
@@ -71,6 +73,14 @@ export interface RouteSchemas {
   readonly summary?: BaseSchema<unknown, unknown>;
 }
 
+export interface RegisteredMethodRoute {
+  readonly method: HttpMethod;
+  readonly schemas: RouteSchemas;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly handler: RouteHandler<any, any, any, any, any, any, any> | RawRouteHandler<any, any, any, any, any, any> | BpStreamHandler<any, any, any, any, any>;
+  readonly raw?: boolean;
+}
+
 // -- Registered route --------------------------------------------------
 
 /** A fully resolved route from the registry. */
@@ -83,6 +93,7 @@ export interface RegisteredRoute {
   /** Parameter names derived from [param] directory names. */
   readonly paramNames: ReadonlyArray<string>;
   readonly schemas: RouteSchemas;
+  readonly methodRoutes?: Readonly<Partial<Record<HttpMethod, RegisteredMethodRoute>>>;
   /** Handler functions keyed by HTTP method. Streaming routes register a branded BpStreamHandler object instead of a function. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly handlers: Readonly<Partial<Record<HttpMethod, RouteHandler<any, any, any, any, any, any, any> | RawRouteHandler<any, any, any, any, any, any> | BpStreamHandler<any, any, any, any, any>>>>;
@@ -96,6 +107,8 @@ export interface RegisteredRoute {
   readonly dependencies?: ReadonlyArray<string>;
   /** Optional shell chrome hints declared by the service route. */
   readonly chrome?: BetterPortalRouteChrome;
+  /** API contracts implemented by this route for M2M binding. */
+  readonly apiContracts?: ReadonlyArray<Omit<ApiContractDescriptor, "viewId" | "methods"> & { methods?: ReadonlyArray<HttpMethod> }>;
   /**
    * Status code -> renderer map (per theme), broken down by renderer kind.
    * Adapter looks up by (themeId, statusCode, kind, optional rendererKey).

@@ -1,6 +1,6 @@
 /** @jsxImportSource jsx-htmx */
 import type { HtmlRenderable, StreamErrorFrame, StreamShellContext } from "@betterportal/framework";
-import type { DelayedItem, DelayedSummary } from "../index.js";
+import type { DelayedItem, DelayedSummary } from "../route.impl.js";
 
 /**
  * Streaming renderers (spec/streaming.md section 4). The shell returns instantly with

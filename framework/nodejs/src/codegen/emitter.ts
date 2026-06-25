@@ -1,4 +1,4 @@
-import type { ScanResult, ScannedRoute, ScannedStreamRenderer, ScannedThemeRenderer } from "./scanner.js";
+import type { ScanResult, ScannedMethodModule, ScannedRoute, ScannedStreamRenderer, ScannedThemeRenderer } from "./scanner.js";
 
 // -- Naming helpers ---------------------------------------------------
 
@@ -38,6 +38,10 @@ function capitalize(s: string): string {
  */
 function routeImportName(viewId: string): string {
   return `${viewIdToCamel(viewId)}Route`;
+}
+
+function methodImportName(viewId: string, method: string): string {
+  return `${viewIdToCamel(viewId)}${method}Route`;
 }
 
 /**
@@ -106,6 +110,10 @@ function routeImportPath(route: ScannedRoute): string {
   return toJsImport(`${route.relativePath}/index.ts`);
 }
 
+function methodImportPath(methodModule: ScannedMethodModule): string {
+  return toJsImport(methodModule.relativePath);
+}
+
 // -- Schema emission --------------------------------------------------
 
 const SCHEMA_EXPORTS: ReadonlyArray<{ exportName: string; key: string }> = [
@@ -117,19 +125,25 @@ const SCHEMA_EXPORTS: ReadonlyArray<{ exportName: string; key: string }> = [
 ];
 
 function emitSchemas(route: ScannedRoute, importAlias: string): string {
+  const firstMethod = route.methodModules[0];
+  if (firstMethod) {
+    return emitSchemasFromExports(firstMethod.exports, methodImportName(route.viewId, firstMethod.method));
+  }
+
+  return emitSchemasFromExports(route.handlerExports, importAlias);
+}
+
+function emitSchemasFromExports(exports: ReadonlyArray<string>, importAlias: string): string {
   const entries: string[] = SCHEMA_EXPORTS
-    .filter((s) => route.handlerExports.includes(s.exportName))
+    .filter((s) => exports.includes(s.exportName))
     .map((s) => `${s.key}: ${importAlias}.${s.exportName}`);
 
-  // Streaming views (ItemSchema export): the buffered response schema is
-  // derived by createStreamHandler - never hand-authored.
-  if (route.hasItemSchema) {
-    const streamHandler = route.handlerExports.find((e) => e.startsWith("handle") && e !== "handleSSE");
-    if (streamHandler && !route.handlerExports.includes("ResponseSchema")) {
-      entries.unshift(`response: ${importAlias}.${streamHandler}.responseSchema`);
+  if (exports.includes("ItemSchema")) {
+    if (!exports.includes("ResponseSchema")) {
+      entries.unshift(`response: ${importAlias}.default.responseSchema`);
     }
     entries.push(`item: ${importAlias}.ItemSchema`);
-    if (route.hasSummarySchema) {
+    if (exports.includes("SummarySchema")) {
       entries.push(`summary: ${importAlias}.SummarySchema`);
     }
   }
@@ -149,24 +163,27 @@ function emitSchemas(route: ScannedRoute, importAlias: string): string {
 
 // -- Handler emission -------------------------------------------------
 
-function emitHandlers(route: ScannedRoute, importAlias: string): string {
-  const handlerExports = route.handlerExports.filter((e) =>
-    e.startsWith("handle"),
+function emitHandlers(route: ScannedRoute): string {
+  if (route.methodModules.length === 0) return "{}";
+  const entries = route.methodModules.map((module) =>
+    `${module.method}: ${methodImportName(route.viewId, module.method)}.default`
   );
 
-  if (handlerExports.length === 0) return "{}";
+  return `{ ${entries.join(", ")} }`;
+}
 
-  const entries: string[] = [];
-  for (const handler of handlerExports) {
-    if (handler === "handleGetPost") {
-      entries.push(`GET: ${importAlias}.${handler}`);
-      entries.push(`POST: ${importAlias}.${handler}`);
-    } else {
-      const method = handler.replace("handle", "").toUpperCase();
-      entries.push(`${method}: ${importAlias}.${handler}`);
-    }
-  }
-
+function emitMethodRoutes(route: ScannedRoute): string {
+  if (route.methodModules.length === 0) return "{}";
+  const entries = route.methodModules.map((module) => {
+    const alias = methodImportName(route.viewId, module.method);
+    const props = [
+      `method: ${JSON.stringify(module.method)}`,
+      `schemas: ${emitSchemasFromExports(module.exports, alias)}`,
+      `handler: ${alias}.default`,
+    ];
+    if (module.isRaw) props.push("raw: true");
+    return `${module.method}: { ${props.join(", ")} }`;
+  });
   return `{ ${entries.join(", ")} }`;
 }
 
@@ -180,7 +197,7 @@ interface RenderersByTheme {
   stream?: { renderer: ScannedStreamRenderer; importName: string };
   /** statusCode -> { page?, components: id -> ..., fragments: loc.id -> ... } */
   statusRenderers: Map<number, {
-    page?: { renderer: ScannedThemeRenderer; importName: string };
+    pages: Array<{ renderer: ScannedThemeRenderer; importName: string }>;
     components: Map<string, { renderer: ScannedThemeRenderer; importName: string }>;
     fragments: Map<string, { renderer: ScannedThemeRenderer; importName: string }>;
   }>;
@@ -241,8 +258,8 @@ function emitStatusRenderers(
       const [code, bucket] = codes[c];
       const codeComma = c < codes.length - 1 ? "," : "";
       const props: string[] = [];
-      if (bucket.page) {
-        props.push(`page: ${emitRendererLiteral(bucket.page)}`);
+      if (bucket.pages.length > 0) {
+        props.push(`pages: [${bucket.pages.map((item) => emitRendererLiteral(item)).join(", ")}]`);
       }
       if (bucket.components.size > 0) {
         const compEntries = [...bucket.components.entries()].map(
@@ -334,6 +351,12 @@ export function emitRegistry(scanResult: ScanResult): string {
   for (const route of scanResult.routes) {
     const alias = routeImportName(route.viewId);
     imports.push({ alias, path: routeImportPath(route) });
+    for (const methodModule of route.methodModules) {
+      imports.push({
+        alias: methodImportName(route.viewId, methodModule.method),
+        path: methodImportPath(methodModule),
+      });
+    }
 
     // SSE handler import
     if (route.hasSseHandler && route.sseRelativePath) {
@@ -367,12 +390,12 @@ export function emitRegistry(scanResult: ScanResult): string {
       if (renderer.statusCode !== undefined) {
         let bucket = set.statusRenderers.get(renderer.statusCode);
         if (!bucket) {
-          bucket = { components: new Map(), fragments: new Map() };
+          bucket = { pages: [], components: new Map(), fragments: new Map() };
           set.statusRenderers.set(renderer.statusCode, bucket);
         }
         switch (renderer.type) {
           case "page":
-            bucket.page = { renderer, importName };
+            bucket.pages.push({ renderer, importName });
             break;
           case "component":
             bucket.components.set(renderer.rendererId, { renderer, importName });
@@ -449,14 +472,15 @@ export function emitRegistry(scanResult: ScanResult): string {
     const byTheme = routeThemeImports.get(route)!;
     const routeComma = r < scanResult.routes.length - 1 ? "," : "";
 
-    const hasTitle = route.handlerExports.includes("title");
-    const hasDescription = route.handlerExports.includes("description");
-    const hasAuth = route.handlerExports.includes("auth");
-    const hasRole = route.handlerExports.includes("role");
-    const hasDependencies = route.handlerExports.includes("dependencies");
-    const hasChrome = route.handlerExports.includes("chrome");
-    const hasCacheHints = route.handlerExports.includes("cacheHints");
-    const hasDemoScenarios = route.handlerExports.includes("demoScenarios");
+    const hasTitle = route.metadataExports.includes("title");
+    const hasDescription = route.metadataExports.includes("description");
+    const hasAuth = route.metadataExports.includes("auth");
+    const hasRole = route.metadataExports.includes("role");
+    const hasDependencies = route.metadataExports.includes("dependencies");
+    const hasChrome = route.metadataExports.includes("chrome");
+    const hasApiContracts = route.metadataExports.includes("apiContracts");
+    const hasCacheHints = route.metadataExports.includes("cacheHints");
+    const hasDemoScenarios = route.metadataExports.includes("demoScenarios");
 
     // Derive a fallback title from the viewId
     const fallbackTitle = route.viewId
@@ -471,7 +495,8 @@ export function emitRegistry(scanResult: ScanResult): string {
     lines.push(`      methods: ${JSON.stringify(route.methods)},`);
     lines.push(`      paramNames: ${JSON.stringify(route.paramNames)},`);
     lines.push(`      schemas: ${emitSchemas(route, alias)},`);
-    lines.push(`      handlers: ${emitHandlers(route, alias)},`);
+    lines.push(`      methodRoutes: ${emitMethodRoutes(route)},`);
+    lines.push(`      handlers: ${emitHandlers(route)},`);
     if (route.isRaw) {
       lines.push(`      raw: true,`);
     }
@@ -482,10 +507,19 @@ export function emitRegistry(scanResult: ScanResult): string {
       lines.push(`      role: ${alias}.role,`);
     }
     if (hasDependencies) {
-      lines.push(`      dependencies: ${alias}.dependencies,`);
+      if (route.autoDependencies.length > 0) {
+        lines.push(`      dependencies: [...new Set([...${alias}.dependencies, ...${JSON.stringify(route.autoDependencies)}])],`);
+      } else {
+        lines.push(`      dependencies: ${alias}.dependencies,`);
+      }
+    } else if (route.autoDependencies.length > 0) {
+      lines.push(`      dependencies: ${JSON.stringify(route.autoDependencies)},`);
     }
     if (hasChrome) {
       lines.push(`      chrome: ${alias}.chrome,`);
+    }
+    if (hasApiContracts) {
+      lines.push(`      apiContracts: ${alias}.apiContracts,`);
     }
     lines.push(`      cacheHints: ${hasCacheHints ? `${alias}.cacheHints` : `{ ttlSeconds: 0, varyBy: [] }`},`);
     lines.push(`      demoScenarios: ${hasDemoScenarios ? `${alias}.demoScenarios` : `[]`},`);

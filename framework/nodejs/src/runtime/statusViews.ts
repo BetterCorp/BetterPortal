@@ -21,14 +21,18 @@ export function resolveStatusRenderer(
   themeId: string,
   statusCode: number,
   kind: StatusRendererKind,
-  rendererKey?: string
+  rendererKey?: string,
+  method?: RegisteredThemeRenderer["method"]
 ): RegisteredThemeRenderer | undefined {
   const bucket: StatusRenderersByKind | undefined = route.statusRenderers?.[themeId]?.[statusCode];
   if (!bucket) return undefined;
 
   switch (kind) {
-    case "page":
-      return bucket.page;
+    case "page": {
+      const pages = bucket.pages ?? (bucket.page ? [bucket.page] : []);
+      return pages.find((renderer) => renderer.method === method)
+        ?? pages.find((renderer) => renderer.method === undefined);
+    }
     case "component":
       return rendererKey ? bucket.components?.[rendererKey] : undefined;
     case "fragment":
@@ -44,9 +48,6 @@ export function resolveStatusRenderer(
  * - 4xx, 5xx: try specific renderer; if absent, return status with empty body.
  */
 export function shouldFallThroughToDefaultRenderer(statusCode: number): boolean {
-  if (statusCode === 200 || statusCode === 201 || statusCode === 202) return true;
-  // Other 2xx that allow a body (203, 207, 208, 226) - fall through too.
-  if (statusCode >= 200 && statusCode <= 299 && ![204, 205, 206].includes(statusCode)) return true;
   return false;
 }
 

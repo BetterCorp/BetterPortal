@@ -559,6 +559,28 @@ function createServiceRouteUrlBuilder(routes: ReadonlyArray<RegisteredRoute>, ex
   };
 }
 
+const BP_ROUTE_TOKEN_ATTRS = ["href", "action", "hx-get", "hx-post", "hx-put", "hx-patch", "hx-delete", "hx-download"] as const;
+
+function rewriteServiceRouteTokens(
+  html: string,
+  routeUrl: RouteHandlerContext["routeUrl"],
+  obs?: BetterPortalObservability
+): string {
+  let rewritten = html;
+  for (const attr of BP_ROUTE_TOKEN_ATTRS) {
+    const attrRe = new RegExp(`\\b${attr}=([\"'])\\{([A-Za-z0-9_$.-]+)\\}\\1`, "g");
+    rewritten = rewritten.replace(attrRe, (match, quote: string, viewId: string) => {
+      const resolved = routeUrl?.(viewId);
+      if (!resolved) {
+        obs?.logger.warn("BP route token unresolved: attr={attr} viewId={viewId}", { attr, viewId });
+        return match;
+      }
+      return `${attr}=${quote}${resolved}${quote}`;
+    });
+  }
+  return rewritten;
+}
+
 function createUiRouteUrlBuilder(extraContext: RequiredHandlerContext, currentServiceId?: string): RouteHandlerContext["uiRouteUrl"] {
   return (viewId, options = {}) => {
     const targetServiceId = options.serviceId ?? currentServiceId;
@@ -678,7 +700,9 @@ async function handleRouteRequest(
   obs?: BetterPortalObservability,
   routerOptions: H3RouterObservabilityOptions = {}
 ): Promise<Response> {
-  const handler = route.handlers[method];
+  const methodRoute = route.methodRoutes?.[method];
+  const handler = methodRoute?.handler ?? route.handlers[method];
+  const schemas = methodRoute?.schemas ?? route.schemas;
   if (!handler) {
     return jsonResponse({ error: `No handler for ${method} ${route.path}` }, 405);
   }
@@ -719,13 +743,13 @@ async function handleRouteRequest(
   // pass rawBody (empty {}) through unparsed so routes with both GET + POST handlers
   // don't fail GET because POST's RequestSchema has required fields.
 
-  const query = route.schemas.query ? route.schemas.query.parse(rawQuery) : rawQuery;
-  const headers = route.schemas.headers ? route.schemas.headers.parse(rawHeaders) : rawHeaders;
-  const request = (route.schemas.request && METHOD_WRITE_BODY.has(method))
-    ? route.schemas.request.parse(rawBody)
+  const query = schemas.query ? schemas.query.parse(rawQuery) : rawQuery;
+  const headers = schemas.headers ? schemas.headers.parse(rawHeaders) : rawHeaders;
+  const request = (schemas.request && METHOD_WRITE_BODY.has(method))
+    ? schemas.request.parse(rawBody)
     : rawBody;
-  const multipart = route.schemas.multipart
-    ? route.schemas.multipart.parse(rawMultipart ?? { fields: {}, files: {} })
+  const multipart = schemas.multipart
+    ? schemas.multipart.parse(rawMultipart ?? { fields: {}, files: {} })
     : undefined;
 
   // Path params - H3 populates event.context.params for `:paramName` routes
@@ -863,10 +887,10 @@ async function handleRouteRequest(
 
   // -- Validate response against schema (all representations) ------
   // Skipped when status indicates no body is expected.
-  if (!route.schemas.response) {
+  if (!schemas.response) {
     return jsonResponse({ error: `Route "${route.viewId}" has no ResponseSchema and did not return a raw Response` }, 500);
   }
-  const data = route.schemas.response.parse(rawData);
+  const data = schemas.response.parse(rawData);
 
   // NDJSON only exists for streaming views; those were handled before
   // negotiation, so reaching here means the view does not stream.
@@ -904,7 +928,7 @@ async function handleRouteRequest(
 
   // Status-specific renderer lookup (any non-undefined status code)
   if (handlerStatus !== 200) {
-    const statusRenderer = resolveStatusRenderer(route, themeId, handlerStatus, requestedKind, requestedKey);
+    const statusRenderer = resolveStatusRenderer(route, themeId, handlerStatus, requestedKind, requestedKey, method);
     if (statusRenderer) {
       const html = await withSpan(obs, "bp.view.render", {
         "bp.route.view_id": route.viewId,
@@ -912,7 +936,7 @@ async function handleRouteRequest(
         "bp.view.kind": requestedKind,
         "bp.view.status": handlerStatus
       }, () => statusRenderer.render(data));
-      return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(themeId, "status", route.chrome));
+      return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "status", route.chrome));
     }
     // No specific renderer found.
     if (!shouldFallThroughToDefaultRenderer(handlerStatus)) {
@@ -943,7 +967,7 @@ async function handleRouteRequest(
       "bp.view.kind": "fragment",
       "bp.view.key": fragmentKey
     }, () => resolved.renderer.render(data));
-    return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
+    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
   }
 
   // Component request via `_c` query param
@@ -967,7 +991,7 @@ async function handleRouteRequest(
       "bp.view.kind": "component",
       "bp.view.key": componentId
     }, () => resolved.renderer.render(data));
-    return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
+    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
   }
 
   // Page request - only page renderers allowed
@@ -989,7 +1013,7 @@ async function handleRouteRequest(
     "bp.view.kind": "page"
   }, () => resolved.renderer.render(data));
   const mode = representation.mode ?? "page";
-  return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(themeId, mode, route.chrome));
+  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, mode, route.chrome));
 }
 
 // -- Streaming routes (spec/streaming.md) ----------------------------
@@ -1046,7 +1070,7 @@ async function handleStreamRepresentation(
     "bp.view.theme_id": themeId,
     "bp.view.kind": "stream-shell"
   }, () => streamSet.renderShell(shellCtx));
-  return htmlResponse(toHtmlString(html), 200, htmlContentType(themeId, "fragment", route.chrome));
+  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), 200, htmlContentType(themeId, "fragment", route.chrome));
 }
 
 /**
@@ -1065,7 +1089,8 @@ async function handleStreamSse(
 ): Promise<Response | BodyInit> {
   const url = getRequestURL(event);
   const rawQuery = queryFromUrl(url);
-  const query = route.schemas.query ? route.schemas.query.parse(rawQuery) : rawQuery;
+  const sseSchemas = route.methodRoutes?.GET?.schemas ?? route.schemas;
+  const query = sseSchemas.query ? sseSchemas.query.parse(rawQuery) : rawQuery;
   const params: Record<string, string> =
     (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
 
@@ -1114,7 +1139,7 @@ async function handleStreamSse(
           await stream.push({
             event: "item",
             data: streamSet
-              ? toHtmlString(streamSet.renderItem(item))
+              ? rewriteServiceRouteTokens(toHtmlString(streamSet.renderItem(item)), ctx.routeUrl, obs)
               : JSON.stringify({ kind: "item", data: item })
           });
         },
@@ -1123,7 +1148,7 @@ async function handleStreamSse(
           await stream.push({
             event: "summary",
             data: streamSet?.renderSummary
-              ? toHtmlString(streamSet.renderSummary(summary))
+              ? rewriteServiceRouteTokens(toHtmlString(streamSet.renderSummary(summary)), ctx.routeUrl, obs)
               : JSON.stringify({ kind: "summary", data: summary })
           });
         },
@@ -1131,7 +1156,7 @@ async function handleStreamSse(
           await stream.push({
             event: "error",
             data: streamSet?.renderError
-              ? toHtmlString(streamSet.renderError(frame))
+              ? rewriteServiceRouteTokens(toHtmlString(streamSet.renderError(frame)), ctx.routeUrl, obs)
               : JSON.stringify(frame)
           });
         },
@@ -1319,7 +1344,7 @@ function renderAuthError(
   // Prefer a route/theme status view so the body swaps cleanly into the htmx
   // target as a fragment rather than replacing the shell.
   if (themeId && (representation.kind === "html")) {
-    const statusRenderer = resolveStatusRenderer(route, themeId, status, "page");
+    const statusRenderer = resolveStatusRenderer(route, themeId, status, "page", undefined, "GET");
     if (statusRenderer) {
       try {
         const html = statusRenderer.render({ error: message, status });
@@ -1359,7 +1384,7 @@ function renderUpgradeRequired(
   }
 
   if (themeId && representation.kind === "html") {
-    const statusRenderer = resolveStatusRenderer(route, themeId, status, "page");
+    const statusRenderer = resolveStatusRenderer(route, themeId, status, "page", undefined, "GET");
     if (statusRenderer) {
       try {
         const html = statusRenderer.render({

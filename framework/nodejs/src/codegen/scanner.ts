@@ -16,6 +16,7 @@ export interface ScannedThemeRenderer {
   relativePath: string;
   /** Path to `_<location>.<id>.sse.tsx` (sibling SSE renderer for this fragment). */
   sseRendererPath?: string;
+  renderParamWarning?: "missing" | "any" | "unknown";
 }
 
 /** Streaming frame renderers for one theme - from `_theme.<id>/index.stream.tsx`. */
@@ -26,17 +27,29 @@ export interface ScannedStreamRenderer {
   exports: string[];
 }
 
+export interface ScannedMethodModule {
+  method: string;
+  relativePath: string;
+  exports: string[];
+  isRaw: boolean;
+  looseSchemas: string[];
+}
+
 export interface ScannedRoute {
   viewId: string;
   path: string;
   paramNames: string[];
   relativePath: string;
+  metadataExports: string[];
+  methodModules: ScannedMethodModule[];
+  /** @deprecated use metadataExports or methodModules. */
   handlerExports: string[];
   methods: string[];
   themeRenderers: ScannedThemeRenderer[];
   /** Per-theme streaming renderers (streaming views only). */
   streamRenderers: ScannedStreamRenderer[];
   sseRelativePath?: string;
+  sseMethod?: string;
   hasSseHandler: boolean;
   /** Whether sse.ts exports a `tickSchema` for SSE message validation. */
   sseHasTickSchema?: boolean;
@@ -46,6 +59,9 @@ export interface ScannedRoute {
   hasSummarySchema: boolean;
   /** Whether any route handler is created with createRawHandler(). */
   isRaw: boolean;
+  /** Exported schema names that use loose anyvali validators. */
+  looseSchemas: string[];
+  autoDependencies: string[];
 }
 
 export interface ScanResult {
@@ -88,6 +104,8 @@ const HANDLER_NAMES = [
   "handleOptions",
 ] as const;
 
+const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
+
 const WELL_KNOWN_EXPORTS = [
   "ResponseSchema",
   "QuerySchema",
@@ -103,6 +121,7 @@ const WELL_KNOWN_EXPORTS = [
   "role",
   "dependencies",
   "chrome",
+  "apiContracts",
   "cacheHints",
   "demoScenarios",
   "handleSSE",
@@ -128,6 +147,18 @@ function handlerToMethods(handlerName: string): string[] {
     case "handleOptions": return ["OPTIONS"];
     default: return [];
   }
+}
+
+function methodFromFileName(fileName: string): string | undefined {
+  const match = fileName.match(/^([A-Z]+)\.ts$/);
+  if (!match) return undefined;
+  return HTTP_METHODS.has(match[1]) ? match[1] : undefined;
+}
+
+function sseMethodFromFileName(fileName: string): string | undefined {
+  const match = fileName.match(/^([A-Z]+)\.sse\.ts$/);
+  if (!match) return undefined;
+  return HTTP_METHODS.has(match[1]) ? match[1] : undefined;
 }
 
 /**
@@ -187,6 +218,121 @@ function detectExports(filePath: string): string[] {
 
 function detectRawHandler(filePath: string): boolean {
   return fs.readFileSync(filePath, "utf-8").includes("createRawHandler(");
+}
+
+function detectDefaultExport(filePath: string): boolean {
+  const source = fs.readFileSync(filePath, "utf-8");
+  const sourceFile = ts.createSourceFile(path.basename(filePath), source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  let found = false;
+
+  function visit(node: ts.Node): void {
+    if (found) return;
+    if (ts.isExportAssignment(node) && !node.isExportEquals) {
+      found = true;
+      return;
+    }
+    if (ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause)) {
+      if (node.exportClause.elements.some((spec) => spec.name.text === "default")) {
+        found = true;
+        return;
+      }
+    }
+    const mods = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
+    if (mods?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return found;
+}
+
+const ROUTE_SCHEMA_EXPORTS = new Set([
+  "ResponseSchema",
+  "QuerySchema",
+  "HeadersSchema",
+  "RequestSchema",
+  "MultipartSchema",
+]);
+
+function detectLooseSchemas(filePath: string): string[] {
+  const source = fs.readFileSync(filePath, "utf-8");
+  const sourceFile = ts.createSourceFile(
+    path.basename(filePath),
+    source,
+    ts.ScriptTarget.ES2022,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const loose: string[] = [];
+
+  function isLooseAnyvaliCall(node: ts.Node | undefined): boolean {
+    if (!node || !ts.isCallExpression(node)) return false;
+    const expression = node.expression;
+    return ts.isPropertyAccessExpression(expression)
+      && ts.isIdentifier(expression.expression)
+      && expression.expression.text === "av"
+      && (expression.name.text === "any" || expression.name.text === "unknown");
+  }
+
+  function visit(node: ts.Node): void {
+    if (ts.isVariableStatement(node) && hasExportModifier(node)) {
+      for (const decl of node.declarationList.declarations) {
+        if (
+          ts.isIdentifier(decl.name)
+          && ROUTE_SCHEMA_EXPORTS.has(decl.name.text)
+          && isLooseAnyvaliCall(decl.initializer)
+        ) {
+          loose.push(decl.name.text);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return loose;
+}
+
+function detectRouteTokens(filePath: string): string[] {
+  const source = fs.readFileSync(filePath, "utf-8");
+  const tokens = new Set<string>();
+  const tokenRe = /["'`]\{([A-Za-z0-9_$.-]+)\}["'`]/g;
+  for (const match of source.matchAll(tokenRe)) {
+    tokens.add(match[1]);
+  }
+  return [...tokens];
+}
+
+function detectRenderParamWarning(filePath: string): ScannedThemeRenderer["renderParamWarning"] {
+  const source = fs.readFileSync(filePath, "utf-8");
+  const sourceFile = ts.createSourceFile(path.basename(filePath), source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
+  let warning: ScannedThemeRenderer["renderParamWarning"];
+
+  function checkFunction(node: ts.FunctionDeclaration): void {
+    if (warning || !node.name || node.name.text !== "render" || !hasExportModifier(node)) return;
+    const param = node.parameters[0];
+    if (!param) {
+      warning = "missing";
+      return;
+    }
+    if (!param.type) {
+      warning = "missing";
+      return;
+    }
+    if (param.type.kind === ts.SyntaxKind.AnyKeyword) warning = "any";
+    if (param.type.kind === ts.SyntaxKind.UnknownKeyword) warning = "unknown";
+  }
+
+  function visit(node: ts.Node): void {
+    if (ts.isFunctionDeclaration(node)) checkFunction(node);
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return warning;
 }
 
 function detectNamedExports(filePath: string, names: ReadonlyArray<string>): string[] {
@@ -358,6 +504,10 @@ function parseThemeFile(
   // Skip *.sse.tsx files - paired with fragment renderers separately
   if (base.endsWith(".sse")) return null;
 
+  if (/^[1-5]\d{2}$/.test(base)) {
+    return { type: "page", rendererId: "default", statusCode: Number(base) };
+  }
+
   // Extract trailing .NNN status code (3 digits, 100-599) if present.
   const statusMatch = base.match(/\.([1-5]\d{2})$/);
   let statusCode: number | undefined;
@@ -369,36 +519,37 @@ function parseThemeFile(
   // Fragment: starts with underscore (but NOT _theme)
   if (base.startsWith("_") && !base.startsWith("_theme")) {
     const withoutUnderscore = base.slice(1);
-    const dotIdx = withoutUnderscore.indexOf(".");
-    if (dotIdx === -1) return null; // must have location.id
-    const location = withoutUnderscore.slice(0, dotIdx);
-    const id = withoutUnderscore.slice(dotIdx + 1);
+    const parts = withoutUnderscore.split(".");
+    if (parts.length < 2 || parts.length > 3) return null;
+    const method = parts.length === 3 && HTTP_METHODS.has(parts[2]) ? parts[2] : undefined;
+    if (parts.length === 3 && !method) return null;
+    const [location, id] = parts;
     if (!location || !id) return null;
     return {
       type: "fragment",
       rendererId: `${location}.${id}`,
       fragmentLocation: location,
       fragmentId: id,
+      method,
       statusCode,
     };
   }
 
   // Split remaining by dots to detect method-specific files
   const parts = base.split(".");
-  const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
 
-  if (parts[0] === "index") {
-    // index.tsx or index.METHOD.tsx
-    const method = parts.length === 2 && HTTP_METHODS.has(parts[1]) ? parts[1] : undefined;
-    if (parts.length > 2) return null;
-    if (parts.length === 2 && !method) return null;
-    return { type: "page", rendererId: "default", method, statusCode };
+  if (parts.length === 1 && HTTP_METHODS.has(parts[0])) {
+    return { type: "page", rendererId: "default", method: parts[0], statusCode };
+  }
+
+  if (parts.length === 1 && statusCode !== undefined) {
+    return { type: "page", rendererId: "default", statusCode };
   }
 
   // name.tsx or name.METHOD.tsx -> component
   const method = parts.length === 2 && HTTP_METHODS.has(parts[1]) ? parts[1] : undefined;
   if (parts.length > 2) return null;
-  if (parts.length === 2 && !method) return null;
+  if (parts.length !== 2 || !method) return null;
   const rendererId = parts[0];
   return { type: "component", rendererId, method, statusCode };
 }
@@ -434,7 +585,7 @@ function scanThemeDirectory(
     }
   }
 
-  // Collect SSE renderer files by their `rendererId` (location.fragmentId)
+  // Collect SSE renderer files by their `rendererId` and method.
   // so we can pair them with their fragment renderer.
   const sseRendererPaths = new Map<string, string>();
   for (const entry of entries) {
@@ -442,14 +593,14 @@ function scanThemeDirectory(
     if (!entry.name.endsWith(".sse.tsx")) continue;
     const base = entry.name.slice(0, -".sse.tsx".length);
     if (!base.startsWith("_") || base.startsWith("_theme")) continue;
-    const withoutUnderscore = base.slice(1);
-    const dotIdx = withoutUnderscore.indexOf(".");
-    if (dotIdx === -1) continue;
-    const location = withoutUnderscore.slice(0, dotIdx);
-    const id = withoutUnderscore.slice(dotIdx + 1);
+    const parts = base.slice(1).split(".");
+    if (parts.length < 2 || parts.length > 3) continue;
+    const method = parts.length === 3 && HTTP_METHODS.has(parts[2]) ? parts[2] : undefined;
+    if (parts.length === 3 && !method) continue;
+    const [location, id] = parts;
     if (!location || !id) continue;
     const filePath = path.join(themeDirPath, entry.name);
-    sseRendererPaths.set(`${location}.${id}`, relativeFromGenerated(generatedDir, filePath));
+    sseRendererPaths.set(`${location}.${id}:${method ?? ""}`, relativeFromGenerated(generatedDir, filePath));
   }
 
   for (const entry of entries) {
@@ -460,7 +611,7 @@ function scanThemeDirectory(
 
     const filePath = path.join(themeDirPath, entry.name);
     const sseRendererPath = parsed.type === "fragment"
-      ? sseRendererPaths.get(parsed.rendererId)
+      ? sseRendererPaths.get(`${parsed.rendererId}:${parsed.method ?? ""}`)
       : undefined;
 
     renderers.push({
@@ -473,6 +624,7 @@ function scanThemeDirectory(
       fragmentId: parsed.fragmentId,
       relativePath: relativeFromGenerated(generatedDir, filePath),
       sseRendererPath,
+      renderParamWarning: detectRenderParamWarning(filePath),
     });
   }
 
@@ -499,24 +651,36 @@ function scanDirectory(
     const indexPath = path.join(currentDir, "index.ts");
     const routePaths = buildRoutePaths(segments);
     const viewId = detectLiteralViewId(indexPath) ?? buildViewId(segments);
-    const handlerExports = detectExports(indexPath);
-    const isRaw = detectRawHandler(indexPath);
+    const metadataExports = detectExports(indexPath);
+    const legacyHandlerExports = metadataExports.filter((exp) => HANDLER_NAMES.includes(exp as typeof HANDLER_NAMES[number]));
 
-    // Derive HTTP methods from handler functions
-    const methods: string[] = [];
-    for (const exp of handlerExports) {
-      for (const m of handlerToMethods(exp)) {
-        if (!methods.includes(m)) {
-          methods.push(m);
-        }
+    const methodModules: ScannedMethodModule[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const method = methodFromFileName(entry.name);
+      if (!method) continue;
+      const filePath = path.join(currentDir, entry.name);
+      const exports = detectExports(filePath);
+      if (detectDefaultExport(filePath)) {
+        exports.push("default");
       }
+      methodModules.push({
+        method,
+        relativePath: relativeFromGenerated(generatedDir, filePath),
+        exports: [...new Set(exports)],
+        isRaw: detectRawHandler(filePath),
+        looseSchemas: detectLooseSchemas(filePath),
+      });
     }
+    const methods = methodModules.map((module) => module.method);
+    const handlerExports = [...new Set([...legacyHandlerExports, ...methodModules.flatMap((module) => module.exports)])];
 
-    // Detect SSE handler (sse.ts)
-    const hasSse = entries.some((e) => e.isFile() && e.name === "sse.ts");
-    const ssePath = hasSse ? path.join(currentDir, "sse.ts") : undefined;
+    // Detect method-scoped SSE handler (GET.sse.ts)
+    const sseEntry = entries.find((e) => e.isFile() && sseMethodFromFileName(e.name));
+    const sseMethod = sseEntry ? sseMethodFromFileName(sseEntry.name) : undefined;
+    const ssePath = sseEntry ? path.join(currentDir, sseEntry.name) : undefined;
     const sseExports = ssePath ? detectExports(ssePath) : [];
-    const hasSseHandler = hasSse && sseExports.includes("handleSSE");
+    const hasSseHandler = Boolean(ssePath) && sseExports.includes("handleSSE");
     const sseRelativePath = hasSseHandler && ssePath
       ? relativeFromGenerated(generatedDir, ssePath)
       : undefined;
@@ -525,6 +689,7 @@ function scanDirectory(
     // Scan theme renderers
     const themeRenderers: ScannedThemeRenderer[] = [];
     const streamRenderers: ScannedStreamRenderer[] = [];
+    const autoDependencies = new Set<string>();
 
     for (const entry of entries) {
       // Theme directory: _theme.{themeId}/
@@ -536,6 +701,13 @@ function scanDirectory(
           themeRenderers.push(
             ...scanThemeDirectory(themeDirPath, themeId, generatedDir, streamRenderers),
           );
+          for (const rendererFile of fs.readdirSync(themeDirPath, { withFileTypes: true })) {
+            if (rendererFile.isFile() && rendererFile.name.endsWith(".tsx")) {
+              for (const token of detectRouteTokens(path.join(themeDirPath, rendererFile.name))) {
+                if (token !== viewId) autoDependencies.add(token);
+              }
+            }
+          }
         }
       }
 
@@ -545,11 +717,15 @@ function scanDirectory(
         if (themeFileMatch) {
           const themeId = themeFileMatch[1];
           const filePath = path.join(currentDir, entry.name);
+          for (const token of detectRouteTokens(filePath)) {
+            if (token !== viewId) autoDependencies.add(token);
+          }
           themeRenderers.push({
             themeId,
             rendererId: "default",
             type: "page",
             relativePath: relativeFromGenerated(generatedDir, filePath),
+            renderParamWarning: detectRenderParamWarning(filePath),
           });
         }
       }
@@ -561,16 +737,21 @@ function scanDirectory(
         path: httpPath,
         paramNames,
         relativePath: relativeFromGenerated(generatedDir, currentDir),
+        metadataExports,
+        methodModules,
         handlerExports,
         methods,
         themeRenderers,
         streamRenderers,
         sseRelativePath,
+        sseMethod,
         hasSseHandler,
         sseHasTickSchema,
         hasItemSchema: handlerExports.includes("ItemSchema"),
         hasSummarySchema: handlerExports.includes("SummarySchema"),
-        isRaw,
+        isRaw: methodModules.some((module) => module.isRaw),
+        looseSchemas: [...new Set(methodModules.flatMap((module) => module.looseSchemas))],
+        autoDependencies: [...autoDependencies],
       });
     }
   }

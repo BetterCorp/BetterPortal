@@ -25,10 +25,12 @@ Each service view chooses which themes it supports by adding renderer folders:
 
 ```text
 _theme.bootstrap1/
-  index.tsx
+  GET.tsx
+  POST.tsx
+  POST.422.tsx
 ```
 
-If a view does not provide a renderer for the active app theme, the service returns a 406 response.
+Renderers are method/status-specific. If a view does not provide a matching renderer for the active app theme and request method/status, the service returns JSON/API output or a JSON error.
 
 ## Navigation belongs to the app
 
@@ -36,8 +38,12 @@ Service pages should not create their own persistent side navigation when the BP
 
 Use the app menu in `bp-config.yaml` for product-level navigation, and keep service pages focused on content and workflows.
 
-## Root-relative URLs
+## Service route links
 
-Service HTML should emit root-relative links and HTMX paths. The shell runtime rewrites service links based on `data-bp-service`.
+Service HTML should use `{view.id}` tokens for service-owned links and HTMX paths:
 
-Do not emit absolute service URLs from renderers.
+```html
+<a hx-get="{profile.summary}">Profile</a>
+```
+
+The framework rewrites those tokens to service route paths before sending HTML. Do not emit absolute service URLs from renderers.
