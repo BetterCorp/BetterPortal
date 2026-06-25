@@ -183,6 +183,8 @@ function automationServiceCatalog(config: BetterPortalConfig, appDef: BetterPort
         capabilities: manifest?.capabilities ?? [],
         configSchemas: manifest?.configSchemas ?? [],
         webhooks: manifest?.webhooks ?? [],
+        apiContracts: manifest?.apiContracts ?? [],
+        m2mRequests: manifest?.m2mRequests ?? [],
         actions: Object.values(manifest?.viewIndex ?? {}).map((view) => ({
           viewId: view.viewId,
           path: view.path,
@@ -195,6 +197,7 @@ function automationServiceCatalog(config: BetterPortalConfig, appDef: BetterPort
           dependencies: view.dependencies,
           schemas: view.schemas,
           raw: view.raw === true,
+          apiContracts: view.apiContracts,
           demoScenarios: view.demoScenarios
         }))
       };

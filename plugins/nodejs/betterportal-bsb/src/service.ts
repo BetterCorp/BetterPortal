@@ -595,6 +595,7 @@ export abstract class BPService<
         renderable: boolean;
         schemas?: Record<string, unknown>;
         raw?: boolean;
+        apiContracts?: unknown[];
         demoScenarios?: unknown[];
       }> = {};
       for (const view of this.manifest.views) {
@@ -610,6 +611,7 @@ export abstract class BPService<
           bodySchema?: unknown;
           jsonResponseSchema?: unknown;
           metadataResponseSchema?: unknown;
+          apiContracts?: unknown[];
         };
         const themeRenderers = viewWithAuth.html?.themeRenderers ?? {};
         const renderable = Object.keys(themeRenderers).length > 0;
@@ -634,6 +636,7 @@ export abstract class BPService<
           renderable,
           ...(Object.keys(schemas).length ? { schemas } : {}),
           ...(viewWithAuth.raw === true ? { raw: true } : {}),
+          ...(Array.isArray(viewWithAuth.apiContracts) && viewWithAuth.apiContracts.length ? { apiContracts: viewWithAuth.apiContracts } : {}),
           ...(view.demoScenarios.length ? { demoScenarios: [...view.demoScenarios] } : {})
         };
       }
@@ -650,6 +653,8 @@ export abstract class BPService<
           capabilities: this.manifest.capabilities,
           configSchemas: this.manifest.configSchemas,
           webhooks: this.manifest.webhooks,
+          apiContracts: this.manifest.apiContracts,
+          m2mRequests: this.manifest.m2mRequests,
           viewIndex
         })
       });

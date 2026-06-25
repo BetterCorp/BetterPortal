@@ -36,6 +36,8 @@ export interface CachedManifestView {
   schemas?: Record<string, JsonValue>;
   /** True when the service route returns a raw/file Response and is API-only. */
   raw?: boolean;
+  /** API contracts implemented by this view. */
+  apiContracts: JsonValue[];
   /** Example payloads advertised by the service route. */
   demoScenarios: JsonValue[];
 }
@@ -45,6 +47,8 @@ export interface CachedManifest {
   manifestVersion: string;
   title?: string;
   capabilities: string[];
+  apiContracts: JsonValue[];
+  m2mRequests: JsonValue[];
   viewIndex: Record<string, CachedManifestView>;
   configSchemas: ConfigSchemaDescriptor[];
   webhooks: WebhookEventDescriptor[];
@@ -201,6 +205,8 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
         capabilities?: string[];
         configSchemas?: ConfigSchemaDescriptor[];
         webhooks?: WebhookEventDescriptor[];
+        apiContracts?: JsonValue[];
+        m2mRequests?: JsonValue[];
         viewIndex?: Record<string, {
           viewId: string;
           path: string;
@@ -211,6 +217,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           renderable?: boolean;
           schemas?: Record<string, JsonValue>;
           raw?: boolean;
+          apiContracts?: JsonValue[];
           demoScenarios?: JsonValue[];
           permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
         }>;
@@ -229,6 +236,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
             renderable: v.renderable ?? true,
             ...(v.schemas && typeof v.schemas === "object" ? { schemas: v.schemas } : {}),
             ...(v.raw === true ? { raw: true } : {}),
+            apiContracts: Array.isArray(v.apiContracts) ? v.apiContracts : [],
             demoScenarios: Array.isArray(v.demoScenarios) ? v.demoScenarios : []
           };
         }
@@ -237,6 +245,8 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           manifestVersion: body.manifestVersion ?? "unknown",
           title: body.title,
           capabilities: Array.isArray(body.capabilities) ? body.capabilities.filter((value): value is string => typeof value === "string") : [],
+          apiContracts: Array.isArray(body.apiContracts) ? body.apiContracts : [],
+          m2mRequests: Array.isArray(body.m2mRequests) ? body.m2mRequests : [],
           viewIndex: normalizedViews,
           configSchemas: Array.isArray(body.configSchemas) ? body.configSchemas : [],
           webhooks: Array.isArray(body.webhooks) ? body.webhooks : [],

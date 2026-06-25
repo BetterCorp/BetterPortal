@@ -1,0 +1,318 @@
+x-bp-build: &bp-build
+  context: .
+  dockerfile: Dockerfile.coolify
+  args:
+    BSB_IMAGE: ${BSB_IMAGE:-betterweb/service-base:node}
+
+x-bp-common: &bp-common
+  image: betterportal:${BP_IMAGE_TAG:-coolify}
+  build: *bp-build
+  restart: unless-stopped
+
+services:
+  config-manager:
+    <<: *bp-common
+    working_dir: /bp/services/nodejs/admin/config-manager
+    environment:
+      BP_CONFIG_MANAGER_PORT: ${BP_CONFIG_MANAGER_PORT:-3300}
+      BP_CONFIG_PATH: ${BP_CONFIG_PATH:-/data/bp-config.yaml}
+      BP_CP_KEYSTORE_PATH: ${BP_CP_KEYSTORE_PATH:-/data/cp-keys.json}
+      BP_CP_ISSUER: ${BP_CP_ISSUER:?Set BP_CP_ISSUER to the public config-manager URL}
+      BP_CP_AUDIENCE: ${BP_CP_AUDIENCE:-betterportal-control-plane}
+      BP_REQUEST_TIMEOUT_MS: ${BP_REQUEST_TIMEOUT_MS:-2000}
+      BSB_CONFIG_FILE: /bp/services/nodejs/admin/config-manager/sec-config.yaml
+    command: >
+      sh -c 'printf "%s\n"
+      "default:"
+      "  observable:"
+      "    observable-default:"
+      "      plugin: observable-default"
+      "      enabled: true"
+      "      config: {}"
+      "  events:"
+      "    events-default:"
+      "      plugin: events-default"
+      "      enabled: true"
+      "  services:"
+      "    service-betterportal-config-manager:"
+      "      plugin: service-betterportal-config-manager"
+      "      enabled: true"
+      "      config:"
+      "        host: 0.0.0.0"
+      "        port: $${BP_CONFIG_MANAGER_PORT}"
+      "        storage:"
+      "          backend: file"
+      "          configPath: $${BP_CONFIG_PATH}"
+      "        requestTimeoutMs: $${BP_REQUEST_TIMEOUT_MS}"
+      "        cpKeyStorePath: $${BP_CP_KEYSTORE_PATH}"
+      "        cpIssuer: $${BP_CP_ISSUER}"
+      "        cpAudience: $${BP_CP_AUDIENCE}" > sec-config.yaml
+      && ln -sf /data/webhook-deliveries.json .bp-webhook-deliveries.json'
+    volumes:
+      - bp-config-manager:/data
+    ports:
+      - "${BP_CONFIG_MANAGER_PORT:-3300}:${BP_CONFIG_MANAGER_PORT:-3300}"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:' + process.env.BP_CONFIG_MANAGER_PORT + '/.well-known/bp/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  bootstrap1:
+    <<: *bp-common
+    working_dir: /bp/themes/nodejs/bootstrap1
+    environment:
+      BP_BOOTSTRAP1_PORT: ${BP_BOOTSTRAP1_PORT:-3100}
+      BP_THEME_DEFAULT_MODE: ${BP_THEME_DEFAULT_MODE:-system}
+      BP_THEME_BRAND_NAME: ${BP_THEME_BRAND_NAME:-BetterPortal}
+      BP_THEME_GREETING_NAME: ${BP_THEME_GREETING_NAME:-World}
+      BSB_CONFIG_FILE: /bp/themes/nodejs/bootstrap1/sec-config.yaml
+    command: >
+      sh -c 'printf "%s\n"
+      "default:"
+      "  observable:"
+      "    observable-default:"
+      "      plugin: observable-default"
+      "      enabled: true"
+      "      config: {}"
+      "  events:"
+      "    events-default:"
+      "      plugin: events-default"
+      "      enabled: true"
+      "  services:"
+      "    service-betterportal-theme-bootstrap1:"
+      "      plugin: service-betterportal-theme-bootstrap1"
+      "      enabled: true"
+      "      config:"
+      "        host: 0.0.0.0"
+      "        port: $${BP_BOOTSTRAP1_PORT}"
+      "        betterportal: {}"
+      "        defaultMode: $${BP_THEME_DEFAULT_MODE}"
+      "        brandName: $${BP_THEME_BRAND_NAME}"
+      "        defaultGreetingName: $${BP_THEME_GREETING_NAME}" > sec-config.yaml
+      '
+    volumes:
+      - bp-bootstrap1-state:/bp/themes/nodejs/bootstrap1/.bp-bootstrap
+      - bp-bootstrap1-sync:/bp/themes/nodejs/bootstrap1/.bp-sync-cache
+    ports:
+      - "${BP_BOOTSTRAP1_PORT:-3100}:${BP_BOOTSTRAP1_PORT:-3100}"
+    depends_on:
+      - config-manager
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:' + process.env.BP_BOOTSTRAP1_PORT + '/.well-known/bp/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  embedded:
+    <<: *bp-common
+    working_dir: /bp/themes/nodejs/embedded
+    environment:
+      BP_EMBEDDED_PORT: ${BP_EMBEDDED_PORT:-3110}
+      BSB_CONFIG_FILE: /bp/themes/nodejs/embedded/sec-config.yaml
+    command: >
+      sh -c 'printf "%s\n"
+      "default:"
+      "  observable:"
+      "    observable-default:"
+      "      plugin: observable-default"
+      "      enabled: true"
+      "      config: {}"
+      "  events:"
+      "    events-default:"
+      "      plugin: events-default"
+      "      enabled: true"
+      "  services:"
+      "    service-betterportal-theme-embedded:"
+      "      plugin: service-betterportal-theme-embedded"
+      "      enabled: true"
+      "      config:"
+      "        host: 0.0.0.0"
+      "        port: $${BP_EMBEDDED_PORT}"
+      "        betterportal: {}" > sec-config.yaml
+      '
+    volumes:
+      - bp-embedded-state:/bp/themes/nodejs/embedded/.bp-bootstrap
+      - bp-embedded-sync:/bp/themes/nodejs/embedded/.bp-sync-cache
+    ports:
+      - "${BP_EMBEDDED_PORT:-3110}:${BP_EMBEDDED_PORT:-3110}"
+    depends_on:
+      - config-manager
+
+  auth-default:
+    <<: *bp-common
+    working_dir: /bp/services/nodejs/auth-default
+    environment:
+      BP_AUTH_DEFAULT_PORT: ${BP_AUTH_DEFAULT_PORT:-3210}
+      BP_AUTH_DEFAULT_ISSUER: ${BP_AUTH_DEFAULT_ISSUER:-https://auth.betterportal.local}
+      BP_AUTH_DEFAULT_AUDIENCE: ${BP_AUTH_DEFAULT_AUDIENCE:-betterportal-runtime}
+      BP_ACCESS_TOKEN_SECONDS: ${BP_ACCESS_TOKEN_SECONDS:-900}
+      BP_REFRESH_TOKEN_SECONDS: ${BP_REFRESH_TOKEN_SECONDS:-604800}
+      BSB_CONFIG_FILE: /bp/services/nodejs/auth-default/sec-config.yaml
+    command: >
+      sh -c 'printf "%s\n"
+      "default:"
+      "  observable:"
+      "    observable-default:"
+      "      plugin: observable-default"
+      "      enabled: true"
+      "      config: {}"
+      "  events:"
+      "    events-default:"
+      "      plugin: events-default"
+      "      enabled: true"
+      "  services:"
+      "    service-betterportal-auth-default:"
+      "      plugin: service-betterportal-auth-default"
+      "      enabled: true"
+      "      config:"
+      "        host: 0.0.0.0"
+      "        port: $${BP_AUTH_DEFAULT_PORT}"
+      "        issuer: $${BP_AUTH_DEFAULT_ISSUER}"
+      "        audience: $${BP_AUTH_DEFAULT_AUDIENCE}"
+      "        accessTokenSeconds: $${BP_ACCESS_TOKEN_SECONDS}"
+      "        refreshTokenSeconds: $${BP_REFRESH_TOKEN_SECONDS}"
+      "        keyStorePath: /data/keys.json"
+      "        userStorePath: /data/users.json"
+      "        betterportal: {}" > sec-config.yaml
+      '
+    volumes:
+      - bp-auth-default-data:/data
+      - bp-auth-default-state:/bp/services/nodejs/auth-default/.bp-bootstrap
+      - bp-auth-default-sync:/bp/services/nodejs/auth-default/.bp-sync-cache
+    ports:
+      - "${BP_AUTH_DEFAULT_PORT:-3210}:${BP_AUTH_DEFAULT_PORT:-3210}"
+    depends_on:
+      - config-manager
+
+  auth-authress-io:
+    <<: *bp-common
+    working_dir: /bp/services/nodejs/auth-authress-io
+    environment:
+      BP_AUTHRESS_PORT: ${BP_AUTHRESS_PORT:-3212}
+      BP_AUTHRESS_ISSUER: ${BP_AUTHRESS_ISSUER:-https://authress.betterportal.local}
+      BP_AUTHRESS_AUDIENCE: ${BP_AUTHRESS_AUDIENCE:-betterportal-runtime}
+      BP_ACCESS_TOKEN_SECONDS: ${BP_ACCESS_TOKEN_SECONDS:-900}
+      BP_REFRESH_TOKEN_SECONDS: ${BP_REFRESH_TOKEN_SECONDS:-604800}
+      BSB_CONFIG_FILE: /bp/services/nodejs/auth-authress-io/sec-config.yaml
+    command: >
+      sh -c 'printf "%s\n"
+      "default:"
+      "  observable:"
+      "    observable-default:"
+      "      plugin: observable-default"
+      "      enabled: true"
+      "      config: {}"
+      "  events:"
+      "    events-default:"
+      "      plugin: events-default"
+      "      enabled: true"
+      "  services:"
+      "    service-betterportal-auth-authress-io:"
+      "      plugin: service-betterportal-auth-authress-io"
+      "      enabled: true"
+      "      config:"
+      "        host: 0.0.0.0"
+      "        port: $${BP_AUTHRESS_PORT}"
+      "        issuer: $${BP_AUTHRESS_ISSUER}"
+      "        audience: $${BP_AUTHRESS_AUDIENCE}"
+      "        accessTokenSeconds: $${BP_ACCESS_TOKEN_SECONDS}"
+      "        refreshTokenSeconds: $${BP_REFRESH_TOKEN_SECONDS}"
+      "        keyStorePath: /data/keys.json"
+      "        betterportal: {}" > sec-config.yaml
+      '
+    volumes:
+      - bp-authress-data:/data
+      - bp-authress-state:/bp/services/nodejs/auth-authress-io/.bp-bootstrap
+      - bp-authress-sync:/bp/services/nodejs/auth-authress-io/.bp-sync-cache
+    ports:
+      - "${BP_AUTHRESS_PORT:-3212}:${BP_AUTHRESS_PORT:-3212}"
+    depends_on:
+      - config-manager
+
+  docs-site:
+    <<: *bp-common
+    working_dir: /bp/services/nodejs/docs-site
+    environment:
+      BP_DOCS_PORT: ${BP_DOCS_PORT:-3400}
+      BSB_CONFIG_FILE: /bp/services/nodejs/docs-site/sec-config.yaml
+    command: >
+      sh -c 'printf "%s\n"
+      "default:"
+      "  observable:"
+      "    observable-default:"
+      "      plugin: observable-default"
+      "      enabled: true"
+      "      config: {}"
+      "  events:"
+      "    events-default:"
+      "      plugin: events-default"
+      "      enabled: true"
+      "  services:"
+      "    service-betterportal-docs-site:"
+      "      plugin: service-betterportal-docs-site"
+      "      enabled: true"
+      "      config:"
+      "        host: 0.0.0.0"
+      "        port: $${BP_DOCS_PORT}"
+      "        betterportal: {}" > sec-config.yaml
+      '
+    volumes:
+      - bp-docs-state:/bp/services/nodejs/docs-site/.bp-bootstrap
+      - bp-docs-sync:/bp/services/nodejs/docs-site/.bp-sync-cache
+    ports:
+      - "${BP_DOCS_PORT:-3400}:${BP_DOCS_PORT:-3400}"
+    depends_on:
+      - config-manager
+
+  hello-view:
+    <<: *bp-common
+    working_dir: /bp/services/nodejs/examples/hello-view
+    environment:
+      BP_HELLO_PORT: ${BP_HELLO_PORT:-3205}
+      BSB_CONFIG_FILE: /bp/services/nodejs/examples/hello-view/sec-config.yaml
+    command: >
+      sh -c 'printf "%s\n"
+      "default:"
+      "  observable:"
+      "    observable-default:"
+      "      plugin: observable-default"
+      "      enabled: true"
+      "      config: {}"
+      "  events:"
+      "    events-default:"
+      "      plugin: events-default"
+      "      enabled: true"
+      "  services:"
+      "    service-betterportal-hello-view:"
+      "      plugin: service-betterportal-hello-view"
+      "      enabled: true"
+      "      config:"
+      "        host: 0.0.0.0"
+      "        port: $${BP_HELLO_PORT}"
+      "        betterportal: {}" > sec-config.yaml
+      '
+    volumes:
+      - bp-hello-state:/bp/services/nodejs/examples/hello-view/.bp-bootstrap
+      - bp-hello-sync:/bp/services/nodejs/examples/hello-view/.bp-sync-cache
+    ports:
+      - "${BP_HELLO_PORT:-3205}:${BP_HELLO_PORT:-3205}"
+    depends_on:
+      - config-manager
+
+volumes:
+  bp-config-manager:
+  bp-bootstrap1-state:
+  bp-bootstrap1-sync:
+  bp-embedded-state:
+  bp-embedded-sync:
+  bp-auth-default-data:
+  bp-auth-default-state:
+  bp-auth-default-sync:
+  bp-authress-data:
+  bp-authress-state:
+  bp-authress-sync:
+  bp-docs-state:
+  bp-docs-sync:
+  bp-hello-state:
+  bp-hello-sync:

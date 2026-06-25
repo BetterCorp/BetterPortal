@@ -255,12 +255,46 @@ export const TenantSharedServiceActivationSchema = av.object({
 }, { unknownKeys: "strip" });
 export type TenantSharedServiceActivation = Infer<typeof TenantSharedServiceActivationSchema>;
 
+export const M2MBindingSchema = av.object({
+  id: UuidV7Schema,
+  tenantId: NonEmptyStringSchema,
+  appId: av.optional(NonEmptyStringSchema),
+  sourceServiceId: UuidV7Schema,
+  requestId: NonEmptyStringSchema,
+  contractId: NonEmptyStringSchema,
+  targetServiceId: UuidV7Schema,
+  targetViewId: NonEmptyStringSchema,
+  enabled: av.bool().default(true),
+  createdAt: av.string().format("date-time")
+}, { unknownKeys: "strip" });
+export type M2MBinding = Infer<typeof M2MBindingSchema>;
+
+export const M2MGrantSchema = av.object({
+  id: UuidV7Schema,
+  tenantId: NonEmptyStringSchema,
+  appId: av.optional(NonEmptyStringSchema),
+  bindingId: UuidV7Schema,
+  methods: av.array(HttpMethodSchema).minItems(1),
+  permissions: av.array(NonEmptyStringSchema).default([]),
+  enabled: av.bool().default(true),
+  createdAt: av.string().format("date-time")
+}, { unknownKeys: "strip" });
+export type M2MGrant = Infer<typeof M2MGrantSchema>;
+
+export const M2MConfigSchema = av.object({
+  bindings: av.array(M2MBindingSchema).default([]),
+  grants: av.array(M2MGrantSchema).default([])
+}, { unknownKeys: "strip" }).default({ bindings: [], grants: [] });
+export type M2MConfig = Infer<typeof M2MConfigSchema>;
+
 // -- Manifest cache (CP-side per spec section P8) --------------------
 
 export const ServiceManifestCacheEntrySchema = av.object({
   serviceId: NonEmptyStringSchema,
   manifestVersion: NonEmptyStringSchema,
   fetchedAt: av.string().format("date-time"),
+  m2mRequests: av.array(av.any()).default([]),
+  apiContracts: av.array(av.any()).default([]),
   viewIndex: av.record(av.object({
     viewId: NonEmptyStringSchema,
     path: NonEmptyStringSchema,
@@ -276,6 +310,7 @@ export const ServiceManifestCacheEntrySchema = av.object({
     renderable: av.bool().default(true),
     schemas: av.optional(av.record(av.any())),
     raw: av.optional(av.bool()),
+    apiContracts: av.array(av.any()).default([]),
     demoScenarios: av.array(av.any()).default([])
   }, { unknownKeys: "strip" })).default({})
 }, { unknownKeys: "strip" });
@@ -303,6 +338,7 @@ export const BetterPortalConfigSchema = av.object({
   sharedServiceCatalog: av.array(SharedServiceDefinitionSchema).default([]),
   sharedServiceActivations: av.array(TenantSharedServiceActivationSchema).default([]),
   manifestCache: av.array(ServiceManifestCacheEntrySchema).default([]),
+  m2m: M2MConfigSchema,
   webhooks: av.object({
     targets: av.array(WebhookTargetSchema).default([])
   }, { unknownKeys: "strip" }).default({ targets: [] })

@@ -13,7 +13,7 @@ Themes also expose `GET <tenantUrl>/llms.txt` and HTML discovery tags:
 - `<link rel="alternate" type="application/json" title="BetterPortal AI manifest" href="/.well-known/bp/ai.json">`
 - `<meta name="betterportal:ai-manifest" content="/.well-known/bp/ai.json">`
 
-The catalog is read-only and action-focused. It returns tenant/app ids, services, cached config schemas, and cached service view/action metadata from config-manager. Config-manager does not fetch services server-side; services must sync their manifests through control-plane sync/poll. Synced action metadata includes service path, methods, renderability, permissions, role hint, chrome, dependencies, JSON schemas, raw/API-only status, and demo scenarios when the service declares them.
+The catalog is read-only and action-focused. It returns tenant/app ids, services, cached config schemas, and cached service view/action metadata from config-manager. Config-manager does not fetch services server-side; services must sync their manifests through control-plane sync/poll. Synced action metadata includes service path, methods, renderability, permissions, role hint, chrome, dependencies, JSON schemas, raw/API-only status, M2M API contracts/requests, and demo scenarios when the service declares them.
 
 For app management tasks, automation clients should read `GET <configManagerUrl>/.well-known/bp/management`, then use the `/.well-known/bp/manage/*` endpoints or the discovered management app URL. Platform admin is operator-only and must not be used for user-owned tenant/app tasks.
 

@@ -126,6 +126,62 @@ export abstract class BaseStorage implements PlatformConfigStore {
       }
     }
 
+    const serviceIdsForTenant = (tenantId: string, appId?: string): Set<string> => {
+      const tenant = tenantsById.get(tenantId);
+      return new Set([
+        ...(tenant?.services.filter((service) => service.enabled).map((service) => service.id) ?? []),
+        ...(tenant?.activatedPlatformServices.filter((serviceId) => activePlatformServiceIds.has(serviceId)) ?? []),
+        ...config.sharedServiceActivations
+          .filter((activation) =>
+            activation.enabled
+            && activation.tenantId === tenantId
+            && (!activation.appId || !appId || activation.appId === appId)
+            && activeSharedServiceIds.has(activation.sharedServiceId)
+          )
+          .map((activation) => activation.id)
+      ]);
+    };
+
+    seen("m2m binding", config.m2m.bindings.map((binding) => binding.id));
+    for (const binding of config.m2m.bindings) {
+      const tenant = tenantsById.get(binding.tenantId);
+      if (!tenant || !tenant.active) {
+        errors.push(`m2m binding ${binding.id} references missing or disabled tenant: ${binding.tenantId}`);
+        continue;
+      }
+      if (binding.appId) {
+        const app = appsById.get(binding.appId);
+        if (!app) {
+          errors.push(`m2m binding ${binding.id} references missing app: ${binding.appId}`);
+        } else if (app.tenantId !== binding.tenantId) {
+          errors.push(`m2m binding ${binding.id} app ${binding.appId} does not belong to tenant ${binding.tenantId}`);
+        }
+      }
+      const serviceIds = serviceIdsForTenant(binding.tenantId, binding.appId);
+      if (!serviceIds.has(binding.sourceServiceId)) {
+        errors.push(`m2m binding ${binding.id} references unavailable source service: ${binding.sourceServiceId}`);
+      }
+      if (!serviceIds.has(binding.targetServiceId)) {
+        errors.push(`m2m binding ${binding.id} references unavailable target service: ${binding.targetServiceId}`);
+      }
+    }
+
+    const bindingsById = new Map(config.m2m.bindings.map((binding) => [binding.id, binding]));
+    seen("m2m grant", config.m2m.grants.map((grant) => grant.id));
+    for (const grant of config.m2m.grants) {
+      const binding = bindingsById.get(grant.bindingId);
+      if (!binding) {
+        errors.push(`m2m grant ${grant.id} references missing binding: ${grant.bindingId}`);
+        continue;
+      }
+      if (binding.tenantId !== grant.tenantId) {
+        errors.push(`m2m grant ${grant.id} tenant ${grant.tenantId} does not match binding tenant ${binding.tenantId}`);
+      }
+      if (grant.appId && binding.appId && grant.appId !== binding.appId) {
+        errors.push(`m2m grant ${grant.id} app ${grant.appId} does not match binding app ${binding.appId}`);
+      }
+    }
+
     for (const app of config.apps) {
       const tenant = tenantsById.get(app.tenantId);
       if (!tenant) {

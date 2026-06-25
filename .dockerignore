@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+**/node_modules
+**/lib
+**/.bp-bootstrap
+**/.bp-sync-cache
+**/.bp-auth-state
+**/.bp-authress-state
+**/.bp-cp-state
+old_project
+bp-config.yaml
+*.log
+npm-debug.log*

@@ -4,6 +4,7 @@ export * from "./contracts/common.js";
 export * from "./contracts/config.js";
 export * from "./contracts/json.js";
 export * from "./contracts/manifest.js";
+export * from "./contracts/m2m.js";
 export * from "./contracts/observability.js";
 export * from "./contracts/platformConfig.js";
 export * from "./contracts/registry.js";

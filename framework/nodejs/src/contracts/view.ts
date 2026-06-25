@@ -4,6 +4,7 @@ import { HttpMethodSchema, RenderModeSchema } from "./common.js";
 import { JsonObjectSchema, JsonValueSchema } from "./json.js";
 import { BetterPortalRouteChromeSchema } from "./platformConfig.js";
 import { ApiAuthRequirementSchema } from "./route.js";
+import { ApiContractDescriptorSchema } from "./m2m.js";
 
 const NonEmptyStringSchema = av.string().minLength(1);
 
@@ -89,6 +90,7 @@ export const ViewMetadataSchema = av.object({
   role: av.optional(ViewRoleSchema),
   dependencies: av.array(NonEmptyStringSchema).default([]),
   chrome: av.optional(BetterPortalRouteChromeSchema),
+  apiContracts: av.array(ApiContractDescriptorSchema).default([]),
   demoScenarios: av.array(ViewDemoScenarioSchema).default([]),
   cacheHints: CacheHintsSchema
 }, { unknownKeys: "strip" });

@@ -3,6 +3,7 @@ import type { Infer } from "anyvali";
 import { ConfigSchemaDescriptorSchema } from "./config.js";
 import { DeploymentModeSchema, PluginCategorySchema, RenderModeSchema } from "./common.js";
 import { JsonObjectSchema } from "./json.js";
+import { ApiContractDescriptorSchema, M2MRequestDescriptorSchema } from "./m2m.js";
 import { ViewMetadataSchema, ViewPermissionDefinitionSchema } from "./view.js";
 
 const AdminMethodSchema = av.enum_(["GET", "POST", "PUT", "PATCH", "DELETE"] as const);
@@ -40,6 +41,8 @@ export const PluginManifestSchema = av.object({
   permissions: av.array(ViewPermissionDefinitionSchema).default([]),
   adminApis: av.array(AdminApiDescriptorSchema).default([]),
   webhooks: av.array(WebhookEventDescriptorSchema).default([]),
+  apiContracts: av.array(ApiContractDescriptorSchema).default([]),
+  m2mRequests: av.array(M2MRequestDescriptorSchema).default([]),
   cacheHints: av.object({
     metadataTtlSeconds: av.int().min(0).default(1800)
   }, { unknownKeys: "strip" }).default({ metadataTtlSeconds: 1800 })

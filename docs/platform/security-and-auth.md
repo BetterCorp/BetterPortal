@@ -23,6 +23,19 @@ Auth is optional at the platform layer. `auth-default` provides a JWT-based prov
 
 Services declare route-level auth requirements in view metadata.
 
+## Service-to-service auth
+
+Provisioning creates service identity only. A service key/public key lets config-manager know which service is talking; it does not grant arbitrary API access.
+
+M2M access is explicit and denied by default:
+
+- Providers declare `apiContracts` in route or manifest metadata.
+- Callers declare `m2mRequests` by contract id, version, capabilities, methods, and permissions.
+- Config-manager stores tenant/app `m2m.bindings` to choose the concrete target service/view.
+- Config-manager stores `m2m.grants` to approve methods/permissions for that binding.
+
+Runtime token issuing/enforcement should use these bindings/grants. Do not let a newly provisioned service call arbitrary tenant services just because it has a bootstrap identity.
+
 ## Route policy
 
 Each view can declare:

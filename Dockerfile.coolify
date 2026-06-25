@@ -1,0 +1,38 @@
+FROM node:24-bookworm-slim AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY framework/nodejs/package.json framework/nodejs/package.json
+COPY plugins/nodejs/betterportal-bsb/package.json plugins/nodejs/betterportal-bsb/package.json
+COPY services/nodejs/auth-default/package.json services/nodejs/auth-default/package.json
+COPY services/nodejs/auth-authress-io/package.json services/nodejs/auth-authress-io/package.json
+COPY services/nodejs/admin/config-manager/package.json services/nodejs/admin/config-manager/package.json
+COPY services/nodejs/docs-site/package.json services/nodejs/docs-site/package.json
+COPY services/nodejs/examples/hello-view/package.json services/nodejs/examples/hello-view/package.json
+COPY themes/nodejs/bootstrap1/package.json themes/nodejs/bootstrap1/package.json
+COPY themes/nodejs/embedded/package.json themes/nodejs/embedded/package.json
+COPY automations/n8n/package.json automations/n8n/package.json
+COPY automations/node-red/package.json automations/node-red/package.json
+COPY automations/zapier/package.json automations/zapier/package.json
+
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+ARG BSB_IMAGE=betterweb/service-base:node
+FROM ${BSB_IMAGE}
+
+WORKDIR /bp
+
+COPY --from=builder --chown=node:node /app /bp
+COPY --chown=node:node docker/bp-entrypoint.sh /usr/local/bin/bp-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/bp-entrypoint.sh
+
+ENV NODE_ENV=production \
+    BSB_CONTAINER=true \
+    BSB_LIVE=true
+
+ENTRYPOINT ["/usr/local/bin/bp-entrypoint.sh"]

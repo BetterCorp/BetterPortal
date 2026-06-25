@@ -36,6 +36,21 @@ For services with route changes, make sure codegen has run:
 npm run bp-codegen
 ```
 
+## Coolify
+
+Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the workspace, then runs each process on the BSB runtime image (`BSB_IMAGE`, default `betterweb/service-base:node`). BSB Docker tags are runtime-prefixed (`node`, `node-latest`, `node-<version>`).
+
+The BP image writes each service's generated `sec-config.yaml` first, then hands off to the BSB image entrypoint through `docker/bp-entrypoint.sh`. `BSB_CONFIG_FILE` points at that generated config file.
+
+Set `BP_CP_ISSUER` to the public config-manager URL. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
+
+Persistent data lives in named volumes:
+
+- `bp-config-manager`: platform config, CP signing keys, webhook delivery state.
+- `*-state`: service bootstrap/install state.
+- `*-sync`: last scoped config snapshot.
+- auth data volumes: auth signing keys and user stores.
+
 ## Operational checks
 
 Every service should expose:
