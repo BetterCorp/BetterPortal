@@ -19,7 +19,15 @@ COPY automations/zapier/package.json automations/zapier/package.json
 RUN npm ci --ignore-scripts
 
 COPY . .
-RUN npm run build
+RUN npm run build -w @betterportal/framework \
+    && npm run build -w @betterportal/plugin-bsb \
+    && npm run build -w @betterportal/auth-default \
+    && npm run build -w @betterportal/auth-authress-io \
+    && npm run build -w @betterportal/theme-bootstrap1 \
+    && npm run build -w @betterportal/theme-embedded \
+    && npm run build -w @betterportal/config-manager \
+    && npm run build -w @betterportal/docs-site \
+    && npm run build -w @betterportal/hello-view
 
 FROM betterweb/service-base:node
 
