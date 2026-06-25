@@ -1,55 +1,41 @@
-FROM node:24-bookworm-slim AS builder
+FROM node:24 AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-COPY framework/nodejs/package.json framework/nodejs/package.json
-COPY plugins/nodejs/betterportal-bsb/package.json plugins/nodejs/betterportal-bsb/package.json
-COPY services/nodejs/auth-default/package.json services/nodejs/auth-default/package.json
-COPY services/nodejs/auth-authress-io/package.json services/nodejs/auth-authress-io/package.json
-COPY services/nodejs/admin/config-manager/package.json services/nodejs/admin/config-manager/package.json
-COPY services/nodejs/docs-site/package.json services/nodejs/docs-site/package.json
-COPY services/nodejs/examples/hello-view/package.json services/nodejs/examples/hello-view/package.json
-COPY themes/nodejs/bootstrap1/package.json themes/nodejs/bootstrap1/package.json
-COPY themes/nodejs/embedded/package.json themes/nodejs/embedded/package.json
-COPY automations/n8n/package.json automations/n8n/package.json
-COPY automations/node-red/package.json automations/node-red/package.json
-COPY automations/zapier/package.json automations/zapier/package.json
+COPY . .
 
 RUN npm ci --ignore-scripts
 
-COPY . .
-RUN npm run build -w @betterportal/framework \
-    && npm run build -w @betterportal/plugin-bsb \
-    && npm run build -w @betterportal/auth-default \
-    && npm run build -w @betterportal/auth-authress-io \
-    && npm run build -w @betterportal/theme-bootstrap1 \
-    && npm run build -w @betterportal/theme-embedded \
-    && npm run build -w @betterportal/config-manager \
-    && npm run build -w @betterportal/docs-site \
-    && npm run build -w @betterportal/hello-view
+RUN npm run build -w @betterportal/framework
+RUN npm run build -w @betterportal/plugin-bsb
+RUN npm run build -w @betterportal/auth-default
+RUN npm run build -w @betterportal/auth-authress-io
+RUN npm run build -w @betterportal/theme-bootstrap1
+RUN npm run build -w @betterportal/theme-embedded
+RUN npm run build -w @betterportal/config-manager
+RUN npm run build -w @betterportal/docs-site
+RUN npm run build -w @betterportal/hello-view
 
-FROM betterweb/service-base:node
-
-WORKDIR /bp
-
-COPY --from=builder --chown=node:node /app /bp
-
+RUN mkdir /bp-plugins
 RUN set -eu; \
-    version="$(node -p "require('/bp/package.json').version")"; \
+    version="$(node -p "require('/app/package.json').version")"; \
     major="${version%%.*}"; rest="${version#*.}"; minor="${rest%%.*}"; patch="${version##*.}"; \
     stage_plugin() { \
-      src="$1"; pkg="$2"; dest="/bp/plugins/${pkg}/${major}/${minor}/${patch}"; \
+      src="$1"; pkg="$2"; dest="/bp-plugins/plugins/${pkg}/${major}/${minor}/${patch}"; \
       mkdir -p "$dest"; \
       cp -R "$src/package.json" "$src/README.md" "$src/bsb-plugin.json" "$src/lib" "$dest/"; \
     }; \
-    stage_plugin /bp/services/nodejs/admin/config-manager @betterportal/config-manager; \
-    stage_plugin /bp/services/nodejs/auth-default @betterportal/auth-default; \
-    stage_plugin /bp/services/nodejs/auth-authress-io @betterportal/auth-authress-io; \
-    stage_plugin /bp/services/nodejs/docs-site @betterportal/docs-site; \
-    stage_plugin /bp/services/nodejs/examples/hello-view @betterportal/hello-view; \
-    stage_plugin /bp/themes/nodejs/bootstrap1 @betterportal/theme-bootstrap1; \
-    stage_plugin /bp/themes/nodejs/embedded @betterportal/theme-embedded
+    stage_plugin /app/services/nodejs/admin/config-manager @betterportal/config-manager; \
+    stage_plugin /app/services/nodejs/auth-default @betterportal/auth-default; \
+    stage_plugin /app/services/nodejs/auth-authress-io @betterportal/auth-authress-io; \
+    stage_plugin /app/services/nodejs/docs-site @betterportal/docs-site; \
+    stage_plugin /app/services/nodejs/examples/hello-view @betterportal/hello-view; \
+    stage_plugin /app/themes/nodejs/bootstrap1 @betterportal/theme-bootstrap1; \
+    stage_plugin /app/themes/nodejs/embedded @betterportal/theme-embedded
+
+FROM betterweb/service-base:node-latest
+
+COPY --from=builder --chown=node:node /bp-plugins /bp
 
 ENV NODE_ENV=production \
     BSB_CONTAINER=true \
