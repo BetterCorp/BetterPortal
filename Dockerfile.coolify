@@ -23,7 +23,8 @@ RUN set -eu; \
     stage_plugin() { \
       src="$1"; pkg="$2"; dest="/bp-plugins/plugins/${pkg}/${major}/${minor}/${patch}"; \
       mkdir -p "$dest"; \
-      cp -R "$src/package.json" "$src/README.md" "$src/bsb-plugin.json" "$src/lib" "$dest/"; \
+      cp -R "$src/package.json" "$src/bsb-plugin.json" "$src/lib" "$dest/"; \
+      if [ -f "$src/README.md" ]; then cp "$src/README.md" "$dest/"; fi; \
     }; \
     stage_plugin /app/services/nodejs/admin/config-manager @betterportal/config-manager; \
     stage_plugin /app/services/nodejs/auth-default @betterportal/auth-default; \
