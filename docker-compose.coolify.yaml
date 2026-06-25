@@ -10,19 +10,35 @@ x-bp-common: &bp-common
   restart: unless-stopped
 
 services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${BP_POSTGRES_DB:-betterportal}
+      POSTGRES_USER: ${BP_POSTGRES_USER:-betterportal}
+      POSTGRES_PASSWORD: ${BP_POSTGRES_PASSWORD:?Set BP_POSTGRES_PASSWORD for BetterPortal Postgres}
+    volumes:
+      - bp-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   config-manager:
     <<: *bp-common
-    working_dir: /data
     environment:
       BSB_CONFIG_PLUGIN: config-env
       BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
-      APP_DIR: /bp
       BSB_CONFIG_JSON: ${BP_CONFIG_MANAGER_BSB_CONFIG_JSON:?Set BP_CONFIG_MANAGER_BSB_CONFIG_JSON for the config-manager service}
     volumes:
       - bp-config-manager:/data
     ports:
       - "${BP_CONFIG_MANAGER_PORT:-3300}:${BP_CONFIG_MANAGER_PORT:-3300}"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:${BP_CONFIG_MANAGER_PORT:-3300}/.well-known/bp/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
@@ -31,15 +47,13 @@ services:
 
   bootstrap1:
     <<: *bp-common
-    working_dir: /bp
     environment:
       BSB_CONFIG_PLUGIN: config-env
       BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_BOOTSTRAP1_BSB_CONFIG_JSON:?Set BP_BOOTSTRAP1_BSB_CONFIG_JSON for the bootstrap1 service}
     volumes:
-      - bp-bootstrap1-state:/bp/.bp-bootstrap
-      - bp-bootstrap1-sync:/bp/.bp-sync-cache
+      - bp-bootstrap1-data:/data
     ports:
       - "${BP_BOOTSTRAP1_PORT:-3100}:${BP_BOOTSTRAP1_PORT:-3100}"
     depends_on:
@@ -52,15 +66,13 @@ services:
 
   embedded:
     <<: *bp-common
-    working_dir: /bp
     environment:
       BSB_CONFIG_PLUGIN: config-env
       BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_EMBEDDED_BSB_CONFIG_JSON:?Set BP_EMBEDDED_BSB_CONFIG_JSON for the embedded service}
     volumes:
-      - bp-embedded-state:/bp/.bp-bootstrap
-      - bp-embedded-sync:/bp/.bp-sync-cache
+      - bp-embedded-data:/data
     ports:
       - "${BP_EMBEDDED_PORT:-3110}:${BP_EMBEDDED_PORT:-3110}"
     depends_on:
@@ -68,7 +80,6 @@ services:
 
   auth-default:
     <<: *bp-common
-    working_dir: /bp
     environment:
       BSB_CONFIG_PLUGIN: config-env
       BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
@@ -83,7 +94,6 @@ services:
 
   auth-authress-io:
     <<: *bp-common
-    working_dir: /bp
     environment:
       BSB_CONFIG_PLUGIN: config-env
       BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
@@ -98,7 +108,6 @@ services:
 
   docs-site:
     <<: *bp-common
-    working_dir: /bp
     environment:
       BSB_CONFIG_PLUGIN: config-env
       BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
@@ -113,7 +122,6 @@ services:
 
   hello-view:
     <<: *bp-common
-    working_dir: /bp
     environment:
       BSB_CONFIG_PLUGIN: config-env
       BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/base"
@@ -127,11 +135,10 @@ services:
       - config-manager
 
 volumes:
+  bp-postgres:
   bp-config-manager:
-  bp-bootstrap1-state:
-  bp-bootstrap1-sync:
-  bp-embedded-state:
-  bp-embedded-sync:
+  bp-bootstrap1-data:
+  bp-embedded-data:
   bp-auth-default-data:
   bp-authress-data:
   bp-docs-data:

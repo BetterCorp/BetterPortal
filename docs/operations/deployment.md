@@ -40,6 +40,8 @@ npm run bp-codegen
 
 Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the workspace, then runs each process on the BSB runtime image (`BSB_IMAGE`, default `betterweb/service-base:node`). BSB Docker tags are runtime-prefixed (`node`, `node-latest`, `node-<version>`).
 
+The compose includes PostgreSQL 18 for config-manager production storage. Set `BP_POSTGRES_PASSWORD`; optional `BP_POSTGRES_DB` and `BP_POSTGRES_USER` default to `betterportal`.
+
 Coolify services use BSB's `config-env` plugin instead of writing `sec-config.yaml` at startup. Each service sets `BSB_CONFIG_PLUGIN=config-env`, `BSB_CONFIG_PLUGIN_PACKAGE=@bsb/base`, and a `BSB_CONFIG_JSON` value with the same profile shape as `sec-config.yaml`.
 
 Override service config by setting the service-specific JSON env in Coolify:
@@ -56,6 +58,8 @@ BP_HELLO_BSB_CONFIG_JSON
 
 Each value is passed through as `BSB_CONFIG_JSON` for that one BSB process. Port envs such as `BP_BOOTSTRAP1_PORT` only control Docker port publishing and health checks; the matching plugin `config.port` still belongs inside that service's JSON.
 
+Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout; use absolute paths under `/data` in each service's `BSB_CONFIG_JSON` for persistent files.
+
 The image also stages built BP packages into the BSB external plugin layout:
 
 ```text
@@ -69,11 +73,22 @@ Each `BSB_CONFIG_JSON` service entry sets `package: "@betterportal/..."` and the
 
 Set the config-manager issuer/public URL inside `BP_CONFIG_MANAGER_BSB_CONFIG_JSON`. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
 
+For the bundled database, config-manager storage should use the `postgres` compose hostname:
+
+```json
+{
+  "storage": {
+    "backend": "postgres",
+    "connectionString": "postgres://betterportal:<BP_POSTGRES_PASSWORD>@postgres:5432/betterportal"
+  }
+}
+```
+
 Persistent data lives in named volumes:
 
+- `bp-postgres`: PostgreSQL data.
 - `bp-config-manager`: platform config, CP signing keys, webhook delivery state.
-- theme state volumes: theme bootstrap/install state and last scoped config snapshot.
-- service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users.
+- service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users. Point those paths at `/data/...` in the relevant service JSON.
 
 ## Operational checks
 
