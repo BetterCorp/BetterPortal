@@ -27,12 +27,24 @@ FROM ${BSB_IMAGE}
 WORKDIR /bp
 
 COPY --from=builder --chown=node:node /app /bp
-COPY --chown=node:node docker/bp-entrypoint.sh /usr/local/bin/bp-entrypoint.sh
 
-RUN chmod +x /usr/local/bin/bp-entrypoint.sh
+RUN set -eu; \
+    version="$(node -p "require('/bp/package.json').version")"; \
+    major="${version%%.*}"; rest="${version#*.}"; minor="${rest%%.*}"; patch="${version##*.}"; \
+    stage_plugin() { \
+      src="$1"; pkg="$2"; dest="/bp/plugins/${pkg}/${major}/${minor}/${patch}"; \
+      mkdir -p "$dest"; \
+      cp -R "$src/package.json" "$src/README.md" "$src/bsb-plugin.json" "$src/lib" "$dest/"; \
+    }; \
+    stage_plugin /bp/services/nodejs/admin/config-manager @betterportal/config-manager; \
+    stage_plugin /bp/services/nodejs/auth-default @betterportal/auth-default; \
+    stage_plugin /bp/services/nodejs/auth-authress-io @betterportal/auth-authress-io; \
+    stage_plugin /bp/services/nodejs/docs-site @betterportal/docs-site; \
+    stage_plugin /bp/services/nodejs/examples/hello-view @betterportal/hello-view; \
+    stage_plugin /bp/themes/nodejs/bootstrap1 @betterportal/theme-bootstrap1; \
+    stage_plugin /bp/themes/nodejs/embedded @betterportal/theme-embedded
 
 ENV NODE_ENV=production \
     BSB_CONTAINER=true \
-    BSB_LIVE=true
-
-ENTRYPOINT ["/usr/local/bin/bp-entrypoint.sh"]
+    BSB_LIVE=true \
+    BSB_PLUGIN_DIRS=/bp/plugins

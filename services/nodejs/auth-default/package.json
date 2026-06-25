@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@betterportal/framework": "10.0.1",
-    "@bsb/base": "^9.5.8",
+    "@bsb/base": "^9.5.11",
     "@betterportal/plugin-bsb": "10.0.1",
     "anyvali": "^1.0.6",
     "bcrypt": "^6.0.0",

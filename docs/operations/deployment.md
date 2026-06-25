@@ -40,16 +40,40 @@ npm run bp-codegen
 
 Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the workspace, then runs each process on the BSB runtime image (`BSB_IMAGE`, default `betterweb/service-base:node`). BSB Docker tags are runtime-prefixed (`node`, `node-latest`, `node-<version>`).
 
-The BP image writes each service's generated `sec-config.yaml` first, then hands off to the BSB image entrypoint through `docker/bp-entrypoint.sh`. `BSB_CONFIG_FILE` points at that generated config file.
+Coolify services use BSB's `config-env` plugin instead of writing `sec-config.yaml` at startup. Each service sets `BSB_CONFIG_PLUGIN=config-env`, `BSB_CONFIG_PLUGIN_PACKAGE=@bsb/base`, and a `BSB_CONFIG_JSON` value with the same profile shape as `sec-config.yaml`.
 
-Set `BP_CP_ISSUER` to the public config-manager URL. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
+Override service config by setting the service-specific JSON env in Coolify:
+
+```text
+BP_CONFIG_MANAGER_BSB_CONFIG_JSON
+BP_BOOTSTRAP1_BSB_CONFIG_JSON
+BP_EMBEDDED_BSB_CONFIG_JSON
+BP_AUTH_DEFAULT_BSB_CONFIG_JSON
+BP_AUTHRESS_BSB_CONFIG_JSON
+BP_DOCS_BSB_CONFIG_JSON
+BP_HELLO_BSB_CONFIG_JSON
+```
+
+Each value is passed through as `BSB_CONFIG_JSON` for that one BSB process. Port envs such as `BP_BOOTSTRAP1_PORT` only control Docker port publishing and health checks; the matching plugin `config.port` still belongs inside that service's JSON.
+
+The image also stages built BP packages into the BSB external plugin layout:
+
+```text
+/bp/plugins/@betterportal/<package>/<major>/<minor>/<patch>/
+  package.json
+  bsb-plugin.json
+  lib/plugins/<plugin>/index.js
+```
+
+Each `BSB_CONFIG_JSON` service entry sets `package: "@betterportal/..."` and the container sets `BSB_PLUGIN_DIRS=/bp/plugins`. Do not point `BSB_PLUGIN_DIRS` at `src/plugins`, an unversioned workspace package, or a flat plugin folder; BSB resolves package plugins from the versioned package root and then loads `lib/plugins/<plugin>`.
+
+Set the config-manager issuer/public URL inside `BP_CONFIG_MANAGER_BSB_CONFIG_JSON`. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
 
 Persistent data lives in named volumes:
 
 - `bp-config-manager`: platform config, CP signing keys, webhook delivery state.
-- `*-state`: service bootstrap/install state.
-- `*-sync`: last scoped config snapshot.
-- auth data volumes: auth signing keys and user stores.
+- theme state volumes: theme bootstrap/install state and last scoped config snapshot.
+- service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users.
 
 ## Operational checks
 

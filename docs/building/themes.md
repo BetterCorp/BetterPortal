@@ -32,6 +32,8 @@ _theme.bootstrap1/
 
 Renderers are method/status-specific. If a view does not provide a matching renderer for the active app theme and request method/status, the service returns JSON/API output or a JSON error.
 
+For Bootstrap1, the shell already provides the route header context. Service renderers should not add duplicate top-level page headings such as `<h1 class="h4 mb-3">Templates</h1>` unless that heading is part of the service content itself.
+
 ## Navigation belongs to the app
 
 Service pages should not create their own persistent side navigation when the BP shell already provides navigation.

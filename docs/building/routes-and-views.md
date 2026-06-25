@@ -192,6 +192,7 @@ Rules:
 - `422.tsx` renders a generic 422 response for any method.
 - If no matching renderer exists, BP returns JSON/API output.
 - Shared UI is explicit: import or re-export a helper from both renderers.
+- Bootstrap1 already renders the shell/header context for the active route. Do not add duplicate top-level page headings like `<h1 class="h4 mb-3">...</h1>` in Bootstrap1 renderers unless the heading is part of the service content itself.
 
 ```tsx
 import type { HtmlRenderable } from "@betterportal/framework";

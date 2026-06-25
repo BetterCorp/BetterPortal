@@ -23,7 +23,7 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
-    "@bsb/tests": "^9.5.8",
+    "@bsb/tests": "^9.5.11",
     "@types/node": "^26.0.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
@@ -31,7 +31,7 @@
   "dependencies": {
     "@betterportal/framework": "10.0.1",
     "@betterportal/plugin-bsb": "10.0.1",
-    "@bsb/base": "^9.5.8",
+    "@bsb/base": "^9.5.11",
     "anyvali": "^1.0.6",
     "jsx-htmx": "4.0.0-beta4"
   },

@@ -404,6 +404,7 @@ Rules:
 - Use `{view.id}` route tokens for service routes. The framework rewrites supported attributes server-side. UI/app routes remain the theme/shell's responsibility.
 - To opt **out** of URL rewriting (rare - theme-shell elements only), add `data-bp-no-route=""`.
 - For SPA-style links, use anchor tags with relative `href`. The shell upgrades them to HTMX boosted nav automatically when in-tenant.
+- Bootstrap1 already provides shell/header context for the active route. Do not add duplicate top-level page headings like `<h1 class="h4 mb-3">Templates</h1>` in Bootstrap1 service renderers unless the heading is actual service content.
 
 ---
 
@@ -549,7 +550,7 @@ default:
 `config` fields must match the `PluginConfigSchema` declared in the service's `index.ts`. BSB validates on startup.
 Use `betterportal.bpConfigPath` for local development only. In production, services should normally start without `betterportal.controlPlaneUrl` or `betterportal.serviceApiKey`; they enter setup mode and learn/persist control-plane bootstrap state during browser-driven install. Do not put service API keys in compose by default.
 
-Coolify deploys use `docker-compose.coolify.yaml`: config-manager needs `BP_CP_ISSUER` set to its public URL, while non-CM services persist `.bp-bootstrap` and `.bp-sync-cache` in volumes after install.
+Coolify deploys use `docker-compose.coolify.yaml`: each service receives its own full BSB profile JSON through a service-specific env such as `BP_CONFIG_MANAGER_BSB_CONFIG_JSON`, `BP_BOOTSTRAP1_BSB_CONFIG_JSON`, `BP_AUTH_DEFAULT_BSB_CONFIG_JSON`, or `BP_AUTHRESS_BSB_CONFIG_JSON`; the compose file passes that value to `BSB_CONFIG_JSON` for that one process. Put config-manager issuer/public URL inside `BP_CONFIG_MANAGER_BSB_CONFIG_JSON`; do not patch service config with field-level helper envs. Port envs only control Docker port publishing and health checks, while plugin `config.port` still belongs in the service JSON. Non-CM services persist `.bp-bootstrap` and `.bp-sync-cache` in volumes after install. Coolify uses BSB `config-env` (`BSB_CONFIG_PLUGIN=config-env`, `BSB_CONFIG_PLUGIN_PACKAGE=@bsb/base`) instead of generating `sec-config.yaml`. The Coolify image stages built BP packages under `/bp/plugins/@betterportal/<package>/<major>/<minor>/<patch>/` and sets `BSB_PLUGIN_DIRS=/bp/plugins`; service configs must include `package: "@betterportal/..."` so BSB loads `lib/plugins/<plugin>` from the versioned package root. Do not point `BSB_PLUGIN_DIRS` at `src/plugins` or a flat unversioned workspace folder.
 
 ---
 
