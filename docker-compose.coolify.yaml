@@ -26,6 +26,7 @@ services:
   config-manager:
     <<: *bp-common
     environment:
+      BSB_WRITABLE_PATHS: /data
       BSB_CONFIG_PLUGIN: config-env
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_CONFIG_MANAGER_BSB_CONFIG_JSON:?Set BP_CONFIG_MANAGER_BSB_CONFIG_JSON for the config-manager service}
@@ -45,6 +46,7 @@ services:
   bootstrap1:
     <<: *bp-common
     environment:
+      BSB_WRITABLE_PATHS: /data
       BSB_CONFIG_PLUGIN: config-env
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_BOOTSTRAP1_BSB_CONFIG_JSON:?Set BP_BOOTSTRAP1_BSB_CONFIG_JSON for the bootstrap1 service}
@@ -63,6 +65,7 @@ services:
   embedded:
     <<: *bp-common
     environment:
+      BSB_WRITABLE_PATHS: /data
       BSB_CONFIG_PLUGIN: config-env
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_EMBEDDED_BSB_CONFIG_JSON:?Set BP_EMBEDDED_BSB_CONFIG_JSON for the embedded service}
@@ -76,6 +79,7 @@ services:
   auth-default:
     <<: *bp-common
     environment:
+      BSB_WRITABLE_PATHS: /data
       BSB_CONFIG_PLUGIN: config-env
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_AUTH_DEFAULT_BSB_CONFIG_JSON:?Set BP_AUTH_DEFAULT_BSB_CONFIG_JSON for the auth-default service}
@@ -89,6 +93,7 @@ services:
   auth-authress-io:
     <<: *bp-common
     environment:
+      BSB_WRITABLE_PATHS: /data
       BSB_CONFIG_PLUGIN: config-env
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_AUTHRESS_BSB_CONFIG_JSON:?Set BP_AUTHRESS_BSB_CONFIG_JSON for the auth-authress-io service}
@@ -102,6 +107,7 @@ services:
   docs-site:
     <<: *bp-common
     environment:
+      BSB_WRITABLE_PATHS: /data
       BSB_CONFIG_PLUGIN: config-env
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_DOCS_BSB_CONFIG_JSON:?Set BP_DOCS_BSB_CONFIG_JSON for the docs-site service}
@@ -115,6 +121,7 @@ services:
   hello-view:
     <<: *bp-common
     environment:
+      BSB_WRITABLE_PATHS: /data
       BSB_CONFIG_PLUGIN: config-env
       BSB_PLUGIN_DIRS: /bp/plugins
       BSB_CONFIG_JSON: ${BP_HELLO_BSB_CONFIG_JSON:?Set BP_HELLO_BSB_CONFIG_JSON for the hello-view service}

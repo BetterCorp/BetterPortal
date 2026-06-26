@@ -42,7 +42,7 @@ Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the works
 
 The compose includes PostgreSQL 18 for config-manager production storage. Set `BP_POSTGRES_PASSWORD`; optional `BP_POSTGRES_DB` and `BP_POSTGRES_USER` default to `betterportal`.
 
-Coolify services use BSB's core `config-env` plugin instead of writing `sec-config.yaml` at startup. Each service sets `BSB_CONFIG_PLUGIN=config-env` and a `BSB_CONFIG_JSON` value with the same profile shape as `sec-config.yaml`. Do not set `BSB_CONFIG_PLUGIN_PACKAGE` for core BSB config plugins.
+Coolify services use BSB's core `config-env` plugin instead of writing `sec-config.yaml` at startup. Each service sets `BSB_CONFIG_PLUGIN=config-env`, `BSB_WRITABLE_PATHS=/data`, and a `BSB_CONFIG_JSON` value with the same profile shape as `sec-config.yaml`. Do not set `BSB_CONFIG_PLUGIN_PACKAGE` for core BSB config plugins.
 
 Override service config by setting the service-specific JSON env in Coolify:
 
@@ -58,7 +58,7 @@ BP_HELLO_BSB_CONFIG_JSON
 
 Each value is passed through as `BSB_CONFIG_JSON` for that one BSB process. Port envs such as `BP_BOOTSTRAP1_PORT` only control Docker port publishing and health checks; the matching plugin `config.port` still belongs inside that service's JSON.
 
-Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout. BP defaults bootstrap/install state and scoped config cache to `/data/.bp-bootstrap/state.enc` and `/data/.bp-sync-cache/scoped.json` when `BSB_CONTAINER=true`; use absolute paths under `/data` in service JSON for any other persistent files.
+Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout. Set `betterportal.bootstrapStatePath` and `betterportal.scopedConfigCachePath` explicitly under `/data` in each service's `BSB_CONFIG_JSON`.
 
 The image also stages built BP packages into the BSB external plugin layout:
 
@@ -88,7 +88,7 @@ Persistent data lives in named volumes:
 
 - `bp-postgres`: PostgreSQL data.
 - `bp-config-manager`: platform config, CP signing keys, webhook delivery state.
-- service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users. BP state uses `/data` automatically in BSB containers; point service-specific stores at `/data/...` in the relevant service JSON.
+- service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users. Point BP state and service-specific stores at `/data/...` in the relevant service JSON.
 
 ## Operational checks
 

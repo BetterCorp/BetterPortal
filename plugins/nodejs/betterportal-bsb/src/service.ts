@@ -62,9 +62,8 @@ import { createBsbObservability } from "./index.js";
 
 // Config constraint
 
-const DEFAULT_BP_STATE_ROOT = process.env.BSB_CONTAINER === "true" ? "/data" : ".";
-const DEFAULT_BOOTSTRAP_STATE_PATH = `${DEFAULT_BP_STATE_ROOT}/.bp-bootstrap/state.enc`;
-const DEFAULT_SCOPED_CONFIG_CACHE_PATH = `${DEFAULT_BP_STATE_ROOT}/.bp-sync-cache/scoped.json`;
+const DEFAULT_BOOTSTRAP_STATE_PATH = "./.bp-bootstrap/state.enc";
+const DEFAULT_SCOPED_CONFIG_CACHE_PATH = "./.bp-sync-cache/scoped.json";
 
 export interface BPServiceConfig {
   host: string;
