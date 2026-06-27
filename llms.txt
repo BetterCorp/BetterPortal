@@ -129,7 +129,7 @@ BetterPortal/
 +-- docs/                             # architecture + decision records
 ```
 
-Each service / theme is a BSB plugin published as an npm package and run independently. Multiple services run concurrently on different ports.
+Each service / theme is a BSB plugin published as an npm package and run independently. Multiple services run concurrently on different ports. Publishable BetterPortal plugin packages use npm scope `@betterportal/...` and BSB registry org `betterportal` via `package.json` `bsb.orgId`. Release tags publish npm packages first, then run `npm run publish:client` for every workspace with `bsb-plugin.json` using the GitHub `BSB_REGISTRY_TOKEN` secret, which publishes schemas under `betterportal/<plugin-id>`.
 
 ---
 

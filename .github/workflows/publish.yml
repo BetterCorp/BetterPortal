@@ -60,3 +60,22 @@ jobs:
       - name: Publish
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry-run == false)
         run: npm publish --workspaces --access public
+
+      - name: Publish BSB registry schemas
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry-run == false)
+        env:
+          BSB_REGISTRY_TOKEN: ${{ secrets.BSB_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BSB_REGISTRY_TOKEN:-}" ]; then
+            echo "::error::BSB_REGISTRY_TOKEN secret is required to publish BetterPortal plugin schemas"
+            exit 1
+          fi
+
+          for ws in $(node -p "JSON.stringify(require('./package.json').workspaces || [])" | jq -r '.[]'); do
+            if [ -f "$ws/bsb-plugin.json" ]; then
+              echo "::group::Publish BSB registry schema: $ws"
+              (cd "$ws" && npm run publish:client)
+              echo "::endgroup::"
+            fi
+          done

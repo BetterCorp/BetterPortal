@@ -36,6 +36,22 @@ For services with route changes, make sure codegen has run:
 npm run bp-codegen
 ```
 
+## Release publishing
+
+Tag releases publish npm packages and then publish BSB registry schemas for every workspace that contains `bsb-plugin.json`.
+
+Each publishable BetterPortal plugin package must set:
+
+```json
+{
+  "bsb": {
+    "orgId": "betterportal"
+  }
+}
+```
+
+The BSB registry uses that `orgId` as the namespace, so BetterPortal plugins publish under `betterportal/<plugin-id>`. This intentionally matches the npm package scope `@betterportal/...`. The GitHub release workflow requires `BSB_REGISTRY_TOKEN` and runs `npm run publish:client` from each plugin package after the npm publish step.
+
 ## Coolify
 
 Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the workspace, then runs each process on the BSB runtime image `betterweb/service-base:node`.

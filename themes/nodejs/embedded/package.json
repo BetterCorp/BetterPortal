@@ -10,7 +10,8 @@
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
     "test": "bsb-plugin-cli test",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "publish:client": "bsb-client-cli publish"
   },
   "keywords": [
     "betterportal",
@@ -39,7 +40,9 @@
     "README.md",
     "bsb-plugin.json"
   ],
-  "bsb": {},
+  "bsb": {
+    "orgId": "betterportal"
+  },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
   "repository": {
     "type": "git",
