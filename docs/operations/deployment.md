@@ -38,7 +38,7 @@ npm run bp-codegen
 
 ## Release publishing
 
-Tag releases publish npm packages and then publish BSB registry schemas for every workspace that contains `bsb-plugin.json`.
+Tag releases publish npm packages and then publish BSB registry schemas for every workspace that contains `bsb-plugin.json`. The tag is the release version: pushing `v10.0.2` makes CI set every workspace package to `10.0.2` before build/publish. Master builds and tests only; it does not publish.
 
 Each publishable BetterPortal plugin package must set:
 
@@ -50,7 +50,7 @@ Each publishable BetterPortal plugin package must set:
 }
 ```
 
-The BSB registry uses that `orgId` as the namespace, so BetterPortal plugins publish under `betterportal/<plugin-id>`. This intentionally matches the npm package scope `@betterportal/...`. The GitHub release workflow requires `BSB_REGISTRY_TOKEN` and runs `npm run publish:client` from each plugin package after the npm publish step.
+The BSB registry uses that `orgId` as the namespace, so BetterPortal plugins publish under `betterportal/<plugin-id>`. This intentionally matches the npm package scope `@betterportal/...`. The GitHub release workflow publishes core packages first, then publishes each plugin package in a matrix and runs `npm run publish:client` for plugin workspaces after their npm publish step.
 
 ## Coolify
 
@@ -86,6 +86,8 @@ The image also stages built BP packages into the BSB external plugin layout:
 ```
 
 Each `BSB_CONFIG_JSON` service entry sets `package: "@betterportal/..."` and the container sets `BSB_PLUGIN_DIRS=/bp/plugins`. Do not point `BSB_PLUGIN_DIRS` at `src/plugins`, an unversioned workspace package, or a flat plugin folder; BSB resolves package plugins from the versioned package root and then loads `lib/plugins/<plugin>`.
+
+The Coolify image also installs the BSB observable packages declared in the root workspace dependencies, currently `@bsb/observable-opentelemetry` and `@bsb/observable-axiom`. They are copied into `/bp/node_modules` with the rest of runtime dependencies so service `BSB_CONFIG_JSON` profiles can opt into either observable plugin without rebuilding the image.
 
 Set the config-manager issuer/public URL inside `BP_CONFIG_MANAGER_BSB_CONFIG_JSON`. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
 

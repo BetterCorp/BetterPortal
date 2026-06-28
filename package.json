@@ -26,5 +26,9 @@
   ],
   "devDependencies": {
     "@playwright/test": "^1.60.0"
+  },
+  "dependencies": {
+    "@bsb/observable-axiom": "^1.1.3",
+    "@bsb/observable-opentelemetry": "^9.1.3"
   }
 }

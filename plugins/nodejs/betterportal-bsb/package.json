@@ -24,7 +24,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@bsb/base": "^9.5.11",
+    "@bsb/base": "^9.6.12",
     "@betterportal/framework": "10.0.1",
     "anyvali": "^1.0.6"
   },
