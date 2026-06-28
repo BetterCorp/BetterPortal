@@ -19,7 +19,8 @@ const Config = createConfigSchema(
     name: "service-betterportal-hello-view",
     description: "Hello view example service for BetterPortal v10",
     tags: ["betterportal", "service", "example", "htmx"],
-    documentation: ["./README.md"]
+    documentation: ["./README.md"],
+    image: "./betterportal-logo.svg"
   },
   PluginConfigSchema
 );

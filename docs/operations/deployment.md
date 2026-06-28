@@ -52,6 +52,14 @@ Each publishable BetterPortal plugin package must set:
 
 The BSB registry uses that `orgId` as the namespace, so BetterPortal plugins publish under `betterportal/<plugin-id>`. This intentionally matches the npm package scope `@betterportal/...`. The GitHub release workflow publishes core packages first, then publishes each plugin package in a matrix and runs `npm run publish:client` for plugin workspaces after their npm publish step.
 
+BetterPortal BSB plugins should declare the registry logo in their `createConfigSchema()` metadata:
+
+```ts
+image: "./betterportal-logo.svg"
+```
+
+Keep that SVG at the package root and include it in `package.json` `files`. `bsb-plugin.json` is generated during build, so do not hand-edit it to add registry imagery.
+
 ## Coolify
 
 Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the workspace, then runs each process on the BSB runtime image `betterweb/service-base:node`.

@@ -83,7 +83,8 @@ const Config = createConfigSchema(
     name: "service-betterportal-config-manager",
     description: "BetterPortal config management admin service",
     tags: ["betterportal", "service", "admin", "config"],
-    documentation: ["./README.md"]
+    documentation: ["./README.md"],
+    image: "./betterportal-logo.svg"
   },
   PluginConfigSchema
 );

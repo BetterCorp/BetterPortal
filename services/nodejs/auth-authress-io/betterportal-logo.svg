@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="BetterPortal logo">
+  <rect width="256" height="256" rx="48" fill="#111827"/>
+  <path fill="#38bdf8" d="M54 61h74c28 0 48 16 48 40 0 14-7 26-19 33 18 7 29 22 29 42 0 28-22 47-56 47H54V61Zm44 36v26h25c9 0 15-5 15-13s-6-13-15-13H98Zm0 60v30h29c11 0 17-6 17-15s-7-15-18-15H98Z"/>
+  <path fill="#f8fafc" d="M158 61h44v162h-44v-42h-29c-12 0-23-3-32-8v-45c7 10 17 15 30 15h31V61Z" opacity=".92"/>
+</svg>

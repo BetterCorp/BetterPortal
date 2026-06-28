@@ -129,7 +129,8 @@ const Config = createConfigSchema(
     name: "service-betterportal-theme-embedded",
     description: "Embedded BetterPortal theme",
     tags: ["betterportal", "theme", "embedded", "htmx"],
-    documentation: ["./README.md"]
+    documentation: ["./README.md"],
+    image: "./betterportal-logo.svg"
   },
   PluginConfigSchema
 );

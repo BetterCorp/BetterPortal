@@ -129,7 +129,7 @@ BetterPortal/
 +-- docs/                             # architecture + decision records
 ```
 
-Each service / theme is a BSB plugin published as an npm package and run independently. Multiple services run concurrently on different ports. Publishable BetterPortal plugin packages use npm scope `@betterportal/...` and BSB registry org `betterportal` via `package.json` `bsb.orgId`. Release tags are authoritative: pushing `vX.Y.Z` makes CI set all workspace versions to `X.Y.Z`, publish core packages first, then publish plugin packages in a matrix. Workspaces with `bsb-plugin.json` run `npm run publish:client` with `BSB_REGISTRY_TOKEN`, publishing schemas under `betterportal/<plugin-id>`.
+Each service / theme is a BSB plugin published as an npm package and run independently. Multiple services run concurrently on different ports. Publishable BetterPortal plugin packages use npm scope `@betterportal/...` and BSB registry org `betterportal` via `package.json` `bsb.orgId`. Release tags are authoritative: pushing `vX.Y.Z` makes CI set all workspace versions to `X.Y.Z`, publish core packages first, then publish plugin packages in a matrix. Workspaces with `bsb-plugin.json` run `npm run publish:client` with `BSB_REGISTRY_TOKEN`, publishing schemas under `betterportal/<plugin-id>`. BSB registry metadata comes from `createConfigSchema()`; BetterPortal plugins declare `image: "./betterportal-logo.svg"` there, keep the SVG at the package root, and include it in package `files`. `bsb-plugin.json` is generated and ignored.
 
 ---
 

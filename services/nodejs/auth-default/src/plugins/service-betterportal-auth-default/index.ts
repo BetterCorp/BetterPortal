@@ -41,7 +41,8 @@ const Config = createConfigSchema(
     name: "service-betterportal-auth-default",
     description: "Default BetterPortal v10 auth service: JWKS, login/logout/refresh, bcrypt user store",
     tags: ["betterportal", "auth", "jwt", "jwks"],
-    documentation: ["./README.md"]
+    documentation: ["./README.md"],
+    image: "./betterportal-logo.svg"
   },
   PluginConfigSchema
 );
