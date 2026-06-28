@@ -7,6 +7,13 @@ x-bp-common: &bp-common
   build: *bp-build
   restart: unless-stopped
 
+x-bp-vault-env: &bp-vault-env
+  BSB_WRITABLE_PATHS: /data
+  BSB_CONFIG_PLUGIN: config-vault
+  BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/config-vault"
+  BSB_PLUGIN_DIRS: /bp/plugins
+  vaultUrl: ${BP_VAULT_URL:-https://vault.eu.core.betterportal.net}
+
 services:
   postgres:
     image: postgres:18
@@ -26,10 +33,9 @@ services:
   config-manager:
     <<: *bp-common
     environment:
-      BSB_WRITABLE_PATHS: /data
-      BSB_CONFIG_PLUGIN: config-env
-      BSB_PLUGIN_DIRS: /bp/plugins
-      BSB_CONFIG_JSON: ${BP_CONFIG_MANAGER_BSB_CONFIG_JSON:?Set BP_CONFIG_MANAGER_BSB_CONFIG_JSON for the config-manager service}
+      <<: *bp-vault-env
+      apiKeyId: ${BP_CONFIG_MANAGER_VAULT_API_KEY_ID:?Set BP_CONFIG_MANAGER_VAULT_API_KEY_ID for the config-manager service}
+      apiSecret: ${BP_CONFIG_MANAGER_VAULT_API_SECRET:?Set BP_CONFIG_MANAGER_VAULT_API_SECRET for the config-manager service}
     volumes:
       - bp-config-manager:/data
     ports:
@@ -46,10 +52,9 @@ services:
   bootstrap1:
     <<: *bp-common
     environment:
-      BSB_WRITABLE_PATHS: /data
-      BSB_CONFIG_PLUGIN: config-env
-      BSB_PLUGIN_DIRS: /bp/plugins
-      BSB_CONFIG_JSON: ${BP_BOOTSTRAP1_BSB_CONFIG_JSON:?Set BP_BOOTSTRAP1_BSB_CONFIG_JSON for the bootstrap1 service}
+      <<: *bp-vault-env
+      apiKeyId: ${BP_BOOTSTRAP1_VAULT_API_KEY_ID:?Set BP_BOOTSTRAP1_VAULT_API_KEY_ID for the bootstrap1 service}
+      apiSecret: ${BP_BOOTSTRAP1_VAULT_API_SECRET:?Set BP_BOOTSTRAP1_VAULT_API_SECRET for the bootstrap1 service}
     volumes:
       - bp-bootstrap1-data:/data
     ports:
@@ -65,10 +70,9 @@ services:
   embedded:
     <<: *bp-common
     environment:
-      BSB_WRITABLE_PATHS: /data
-      BSB_CONFIG_PLUGIN: config-env
-      BSB_PLUGIN_DIRS: /bp/plugins
-      BSB_CONFIG_JSON: ${BP_EMBEDDED_BSB_CONFIG_JSON:?Set BP_EMBEDDED_BSB_CONFIG_JSON for the embedded service}
+      <<: *bp-vault-env
+      apiKeyId: ${BP_EMBEDDED_VAULT_API_KEY_ID:?Set BP_EMBEDDED_VAULT_API_KEY_ID for the embedded service}
+      apiSecret: ${BP_EMBEDDED_VAULT_API_SECRET:?Set BP_EMBEDDED_VAULT_API_SECRET for the embedded service}
     volumes:
       - bp-embedded-data:/data
     ports:
@@ -79,10 +83,9 @@ services:
   auth-default:
     <<: *bp-common
     environment:
-      BSB_WRITABLE_PATHS: /data
-      BSB_CONFIG_PLUGIN: config-env
-      BSB_PLUGIN_DIRS: /bp/plugins
-      BSB_CONFIG_JSON: ${BP_AUTH_DEFAULT_BSB_CONFIG_JSON:?Set BP_AUTH_DEFAULT_BSB_CONFIG_JSON for the auth-default service}
+      <<: *bp-vault-env
+      apiKeyId: ${BP_AUTH_DEFAULT_VAULT_API_KEY_ID:?Set BP_AUTH_DEFAULT_VAULT_API_KEY_ID for the auth-default service}
+      apiSecret: ${BP_AUTH_DEFAULT_VAULT_API_SECRET:?Set BP_AUTH_DEFAULT_VAULT_API_SECRET for the auth-default service}
     volumes:
       - bp-auth-default-data:/data
     ports:
@@ -93,10 +96,9 @@ services:
   auth-authress-io:
     <<: *bp-common
     environment:
-      BSB_WRITABLE_PATHS: /data
-      BSB_CONFIG_PLUGIN: config-env
-      BSB_PLUGIN_DIRS: /bp/plugins
-      BSB_CONFIG_JSON: ${BP_AUTHRESS_BSB_CONFIG_JSON:?Set BP_AUTHRESS_BSB_CONFIG_JSON for the auth-authress-io service}
+      <<: *bp-vault-env
+      apiKeyId: ${BP_AUTHRESS_VAULT_API_KEY_ID:?Set BP_AUTHRESS_VAULT_API_KEY_ID for the auth-authress-io service}
+      apiSecret: ${BP_AUTHRESS_VAULT_API_SECRET:?Set BP_AUTHRESS_VAULT_API_SECRET for the auth-authress-io service}
     volumes:
       - bp-authress-data:/data
     ports:
@@ -107,10 +109,9 @@ services:
   docs-site:
     <<: *bp-common
     environment:
-      BSB_WRITABLE_PATHS: /data
-      BSB_CONFIG_PLUGIN: config-env
-      BSB_PLUGIN_DIRS: /bp/plugins
-      BSB_CONFIG_JSON: ${BP_DOCS_BSB_CONFIG_JSON:?Set BP_DOCS_BSB_CONFIG_JSON for the docs-site service}
+      <<: *bp-vault-env
+      apiKeyId: ${BP_DOCS_VAULT_API_KEY_ID:?Set BP_DOCS_VAULT_API_KEY_ID for the docs-site service}
+      apiSecret: ${BP_DOCS_VAULT_API_SECRET:?Set BP_DOCS_VAULT_API_SECRET for the docs-site service}
     volumes:
       - bp-docs-data:/data
     ports:
@@ -121,10 +122,9 @@ services:
   hello-view:
     <<: *bp-common
     environment:
-      BSB_WRITABLE_PATHS: /data
-      BSB_CONFIG_PLUGIN: config-env
-      BSB_PLUGIN_DIRS: /bp/plugins
-      BSB_CONFIG_JSON: ${BP_HELLO_BSB_CONFIG_JSON:?Set BP_HELLO_BSB_CONFIG_JSON for the hello-view service}
+      <<: *bp-vault-env
+      apiKeyId: ${BP_HELLO_VAULT_API_KEY_ID:?Set BP_HELLO_VAULT_API_KEY_ID for the hello-view service}
+      apiSecret: ${BP_HELLO_VAULT_API_SECRET:?Set BP_HELLO_VAULT_API_SECRET for the hello-view service}
     volumes:
       - bp-hello-data:/data
     ports:
