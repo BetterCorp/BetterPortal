@@ -20,7 +20,7 @@ const Config = createConfigSchema(
     description: "Hello view example service for BetterPortal v10",
     tags: ["betterportal", "service", "example", "htmx"],
     documentation: ["./README.md"],
-    image: "./betterportal-logo.svg"
+    image: "./betterportal-logo.png"
   },
   PluginConfigSchema
 );

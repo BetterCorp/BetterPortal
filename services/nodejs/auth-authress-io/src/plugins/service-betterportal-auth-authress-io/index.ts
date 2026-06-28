@@ -45,7 +45,7 @@ const Config = createConfigSchema(
     description: "BetterPortal Authress.io auth service",
     tags: ["betterportal", "auth", "authress"],
     documentation: ["./README.md"],
-    image: "./betterportal-logo.svg"
+    image: "./betterportal-logo.png"
   },
   PluginConfigSchema
 );

@@ -189,7 +189,7 @@ const Config = createConfigSchema(
     description: "Bootstrap 5 and HTMX based BetterPortal theme",
     tags: ["betterportal", "theme", "bootstrap", "htmx"],
     documentation: ["./README.md"],
-    image: "./betterportal-logo.svg"
+    image: "./betterportal-logo.png"
   },
   PluginConfigSchema
 );

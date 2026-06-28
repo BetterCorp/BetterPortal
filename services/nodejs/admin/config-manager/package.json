@@ -41,7 +41,7 @@
     "lib/**/*",
     "README.md",
     "bsb-plugin.json",
-    "betterportal-logo.svg"
+    "betterportal-logo.png"
   ],
   "bsb": {
     "orgId": "betterportal",

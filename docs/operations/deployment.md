@@ -55,10 +55,10 @@ The BSB registry uses that `orgId` as the namespace, so BetterPortal plugins pub
 BetterPortal BSB plugins should declare the registry logo in their `createConfigSchema()` metadata:
 
 ```ts
-image: "./betterportal-logo.svg"
+image: "./betterportal-logo.png"
 ```
 
-Keep that SVG at the package root and include it in `package.json` `files`. `bsb-plugin.json` is generated during build, so do not hand-edit it to add registry imagery.
+Keep that PNG at the package root and include it in `package.json` `files`. The BSB registry image upload path accepts PNG assets. `bsb-plugin.json` is generated during build, so do not hand-edit it to add registry imagery.
 
 ## Coolify
 

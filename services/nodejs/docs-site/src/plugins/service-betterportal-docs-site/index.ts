@@ -27,7 +27,7 @@ const Config = createConfigSchema(
     description: "Documentation site service for BetterPortal",
     tags: ["betterportal", "service", "docs"],
     documentation: ["./README.md"],
-    image: "./betterportal-logo.svg"
+    image: "./betterportal-logo.png"
   },
   PluginConfigSchema
 );
