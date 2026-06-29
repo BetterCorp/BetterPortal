@@ -1,12 +1,11 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
-// Infer used at runtime cast for typed body access.
 import {
-  createHandler,
   type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
-import type { AuthRuntime } from "../../index.js";
+import { createHandler } from "../../.bp-generated/route-runtime.js";
+import type { Plugin } from "../../index.js";
 
 export const QuerySchema = av.object({}, { unknownKeys: "strip" });
 export const HeadersSchema = av.object({
@@ -39,8 +38,8 @@ export const cacheHints: CacheHints = {
   varyBy: []
 };
 
-function runtimeFrom(ctx: { plugin?: unknown }): AuthRuntime {
-  const runtime = (ctx.plugin as { runtime?: AuthRuntime } | undefined)?.runtime;
+function runtimeFrom(ctx: { plugin?: Pick<Plugin, "runtime"> }): Plugin["runtime"] {
+  const runtime = ctx.plugin?.runtime;
   if (!runtime) throw new Error("Auth runtime not available on handler context");
   return runtime;
 }

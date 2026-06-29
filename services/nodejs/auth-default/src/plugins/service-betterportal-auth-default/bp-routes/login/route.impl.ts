@@ -1,12 +1,12 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
-  createHandler,
   type ApiAuthRequirement,
   type CacheHints,
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
-import type { AuthRuntime } from "../../index.js";
+import { createHandler } from "../../.bp-generated/route-runtime.js";
+import type { Plugin } from "../../index.js";
 import { resolveDefaultAuthAppConfig } from "../../index.js";
 
 export const QuerySchema = av.object({
@@ -68,8 +68,8 @@ export const cacheHints: CacheHints = {
   varyBy: []
 };
 
-function runtimeFrom(ctx: { plugin?: unknown }): AuthRuntime {
-  const runtime = (ctx.plugin as { runtime?: AuthRuntime } | undefined)?.runtime;
+function runtimeFrom(ctx: { plugin?: Pick<Plugin, "runtime"> }): Plugin["runtime"] {
+  const runtime = ctx.plugin?.runtime;
   if (!runtime) throw new Error("Auth runtime not available on handler context");
   return runtime;
 }
@@ -115,19 +115,18 @@ export const handleGet = createHandler(
           email: ctx.user.email,
           name: ctx.user.name
         },
-        logoutUrl: "/login?action=logout",
+        logoutUrl: ctx.routeUrl?.("login.index", { query: { action: "logout" } }) ?? "/login?action=logout",
         ...(next ? { nextUrl: next } : {})
       };
     }
 
     let firstAdminUrl: string | undefined;
     if (requiresFirstAdmin) {
-      const host = ctx.headers.host;
-      if (host) {
-        const proto = ctx.headers["x-forwarded-proto"] ?? "http";
-        const next = (ctx.query as { next?: string }).next;
-        firstAdminUrl = `${proto}://${host}/register${next ? `?next=${encodeURIComponent(next)}` : ""}`;
-      }
+      const next = (ctx.query as { next?: string }).next;
+      const query = next ? { next } : undefined;
+      firstAdminUrl = ctx.routeUrl?.("register.index", { absolute: true, query })
+        ?? ctx.routeUrl?.("register.index", { query })
+        ?? undefined;
     }
     return {
       status: "ok" as const,

@@ -1,10 +1,10 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
-  createHandler,
   type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
+import { createHandler } from "../../.bp-generated/route-runtime.js";
 
 export const QuerySchema = av.object({}, { unknownKeys: "strip" });
 export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
@@ -37,8 +37,10 @@ export const handlePost = createHandler(
     // logout must clear state even when called with a dead or missing token.
     ctx.bpHeaders?.remove("Authorization");
     ctx.bpHeaders?.remove("X-BP-Refresh");
-    // Compatibility shim: current UI uses /login?action=logout.
-    ctx.responseHeaders?.set("HX-Location", "/login?action=logout");
+    ctx.responseHeaders?.set(
+      "HX-Location",
+      ctx.routeUrl?.("login.index", { query: { action: "logout" } }) ?? "/login?action=logout"
+    );
     // Auth state changed - reload this service's fragments (nav profile etc.).
     if (ctx.serviceId) {
       ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);

@@ -1,12 +1,12 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
-  createHandler,
   type ApiAuthRequirement,
   type CacheHints,
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
-import type { AuthRuntime } from "../../index.js";
+import { createHandler } from "../../.bp-generated/route-runtime.js";
+import type { Plugin } from "../../index.js";
 
 export const QuerySchema = av.object({
   next: av.optional(av.string()).describe("The view path to pass through to login after first-admin registration.")
@@ -53,18 +53,10 @@ export const cacheHints: CacheHints = {
   varyBy: []
 };
 
-/** Self-origin absolute URL for a path, derived from the request Host header. */
-function runtimeFrom(ctx: { plugin?: unknown }): AuthRuntime {
-  const runtime = (ctx.plugin as { runtime?: AuthRuntime } | undefined)?.runtime;
+function runtimeFrom(ctx: { plugin?: Pick<Plugin, "runtime"> }): Plugin["runtime"] {
+  const runtime = ctx.plugin?.runtime;
   if (!runtime) throw new Error("Auth runtime not available on handler context");
   return runtime;
-}
-
-function selfUrl(ctx: { headers: Record<string, string> }, path: string, next?: string): string | undefined {
-  const host = ctx.headers.host;
-  if (!host) return undefined;
-  const proto = ctx.headers["x-forwarded-proto"] ?? "http";
-  return `${proto}://${host}${path}${next ? `?next=${encodeURIComponent(next)}` : ""}`;
 }
 
 export const handleGet = createHandler(
@@ -72,10 +64,13 @@ export const handleGet = createHandler(
   (ctx) => {
     const runtime = runtimeFrom(ctx);
     const next = (ctx.query as { next?: string }).next;
+    const query = next ? { next } : undefined;
     return {
       status: "ok" as const,
       registrationOpen: runtime.userStore.hasNoUsers(),
-      loginUrl: selfUrl(ctx, "/login", next)
+      loginUrl: ctx.routeUrl?.("login.index", { absolute: true, query })
+        ?? ctx.routeUrl?.("login.index", { query })
+        ?? undefined
     };
   }
 );
@@ -107,6 +102,8 @@ export const handlePost = createHandler(
         tenantId,
         appRoles: { [appId]: ["admin"] }
       });
+      const next = (ctx.query as { next?: string }).next;
+      const query = next ? { next } : undefined;
       return {
         status: "ok" as const,
         message: "First admin created.",
@@ -116,7 +113,9 @@ export const handlePost = createHandler(
           isFirstAdmin: true
         },
         // For the themed success view: where to send the browser to sign in.
-        loginUrl: selfUrl(ctx, "/login", (ctx.query as { next?: string }).next)
+        loginUrl: ctx.routeUrl?.("login.index", { absolute: true, query })
+          ?? ctx.routeUrl?.("login.index", { query })
+          ?? undefined
       };
     } catch (err) {
       ctx.setStatus?.(400);
