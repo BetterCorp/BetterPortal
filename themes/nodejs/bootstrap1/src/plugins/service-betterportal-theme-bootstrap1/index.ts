@@ -342,11 +342,20 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private resolveConfigManagerUrl(portalConfig: PlatformConfig, tenantId: string): string | undefined {
-    const tenant = portalConfig.tenants.find((entry) => entry.id === tenantId);
-    const direct = tenant?.services.find((service) => service.enabled && service.serviceId === "service.betterportal.config-manager");
+    const tenants = Array.isArray(portalConfig.tenants) ? portalConfig.tenants : [];
+    const sharedServiceActivations = Array.isArray(portalConfig.sharedServiceActivations)
+      ? portalConfig.sharedServiceActivations
+      : [];
+    const sharedServiceCatalog = Array.isArray(portalConfig.sharedServiceCatalog)
+      ? portalConfig.sharedServiceCatalog
+      : [];
+
+    const tenant = tenants.find((entry) => entry.id === tenantId);
+    const tenantServices = Array.isArray(tenant?.services) ? tenant.services : [];
+    const direct = tenantServices.find((service) => service.enabled && service.serviceId === "service.betterportal.config-manager");
     if (direct) return direct.hostname;
-    for (const activation of portalConfig.sharedServiceActivations.filter((entry) => entry.tenantId === tenantId && entry.enabled)) {
-      const shared = portalConfig.sharedServiceCatalog.find((service) =>
+    for (const activation of sharedServiceActivations.filter((entry) => entry.tenantId === tenantId && entry.enabled)) {
+      const shared = sharedServiceCatalog.find((service) =>
         service.id === activation.sharedServiceId && service.enabled && service.serviceId === "service.betterportal.config-manager"
       );
       if (shared) return shared.baseUrl;
@@ -361,8 +370,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private resolveManagementApp(portalConfig: PlatformConfig): { appId?: string; tenantId?: string; url?: string } {
-    const appId = portalConfig.configManagement.managementAppId;
-    const app = appId ? portalConfig.apps.find((entry) => entry.id === appId) : undefined;
+    const appId = portalConfig.configManagement?.managementAppId;
+    const apps = Array.isArray(portalConfig.apps) ? portalConfig.apps : [];
+    const app = appId ? apps.find((entry) => entry.id === appId) : undefined;
     return { appId, tenantId: app?.tenantId, url: this.appPublicUrl(app) };
   }
 
@@ -940,8 +950,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private async computeEffectiveAndStored(tenantId: string, appId: string): Promise<{ eff: any; storedKeys: Set<string>; valid: boolean }> {
     const portalConfig = this.requirePortalConfig();
-    const appDef = portalConfig.apps.find((a) => a.id === appId);
-    const tenant = portalConfig.tenants.find((t) => t.id === tenantId);
+    const apps = Array.isArray(portalConfig.apps) ? portalConfig.apps : [];
+    const tenants = Array.isArray(portalConfig.tenants) ? portalConfig.tenants : [];
+    const appDef = apps.find((a) => a.id === appId);
+    const tenant = tenants.find((t) => t.id === tenantId);
     if (!appDef || !tenant) return { eff: {}, storedKeys: new Set(), valid: false };
 
     const storedValues = this.readStoredThemeValues(tenantId, appId);
