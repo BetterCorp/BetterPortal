@@ -1,48 +1,24 @@
-FROM node:24 AS builder
-
-WORKDIR /app
-
-COPY . .
-
-RUN npm ci --foreground-scripts
-
-RUN npm run build -w @betterportal/framework
-RUN npm run build -w @betterportal/plugin-bsb
-RUN npm run build -w @betterportal/auth-default
-RUN npm run build -w @betterportal/auth-authress-io
-RUN npm run build -w @betterportal/theme-bootstrap1
-RUN npm run build -w @betterportal/theme-embedded
-RUN npm run build -w @betterportal/config-manager
-RUN npm run build -w @betterportal/docs-site
-RUN npm run build -w @betterportal/hello-view
-
-RUN mkdir /bp-plugins
-RUN set -eu; \
-    version="$(node -p "require('/app/package.json').version")"; \
-    major="${version%%.*}"; rest="${version#*.}"; minor="${rest%%.*}"; patch="${version##*.}"; \
-    stage_plugin() { \
-      src="$1"; pkg="$2"; dest="/bp-plugins/plugins/${pkg}/${major}/${minor}/${patch}"; \
-      mkdir -p "$dest"; \
-      cp -R "$src/package.json" "$src/bsb-plugin.json" "$src/lib" "$dest/"; \
-    }; \
-    stage_plugin /app/services/nodejs/admin/config-manager @betterportal/config-manager; \
-    stage_plugin /app/services/nodejs/auth-default @betterportal/auth-default; \
-    stage_plugin /app/services/nodejs/auth-authress-io @betterportal/auth-authress-io; \
-    stage_plugin /app/services/nodejs/docs-site @betterportal/docs-site; \
-    stage_plugin /app/services/nodejs/examples/hello-view @betterportal/hello-view; \
-    stage_plugin /app/themes/nodejs/bootstrap1 @betterportal/theme-bootstrap1; \
-    stage_plugin /app/themes/nodejs/embedded @betterportal/theme-embedded
-
-RUN mkdir /bp-runtime && cp -RL /app/node_modules /bp-runtime/node_modules
-
 FROM betterweb/service-base:node-latest
 
-COPY --from=builder --chown=node:node /bp-plugins /bp
-COPY --from=builder --chown=node:node /bp-runtime/node_modules /bp/node_modules
+ARG BP_PACKAGE_VERSION=latest
+
+USER root
+WORKDIR /home/bsb
+
+RUN npm install --omit=dev --no-audit --no-fund \
+    "@betterportal/config-manager@${BP_PACKAGE_VERSION}" \
+    "@betterportal/theme-bootstrap1@${BP_PACKAGE_VERSION}" \
+    "@betterportal/theme-embedded@${BP_PACKAGE_VERSION}" \
+    "@betterportal/auth-default@${BP_PACKAGE_VERSION}" \
+    "@betterportal/auth-authress-io@${BP_PACKAGE_VERSION}" \
+    "@bsb/observable-opentelemetry@latest" \
+    "@bsb/observable-axiom@latest" \
+  && chown -R node:node /home/bsb
+
+USER node
 
 ENV NODE_ENV=production \
     BSB_CONTAINER=true \
-    BSB_LIVE=true \
-    BSB_PLUGIN_DIRS=/bp/plugins
+    BSB_LIVE=true
 
 EXPOSE 80

@@ -62,7 +62,7 @@ Keep that PNG at the package root and include it in `package.json` `files`. The 
 
 ## Coolify
 
-Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds the workspace, then runs each process on the BSB runtime image `betterweb/service-base:node`.
+Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds a small image from the BSB runtime image and installs published BetterPortal packages from npm. It does not build the local workspace inside Coolify.
 
 The compose includes PostgreSQL 18 for config-manager production storage. Set `BP_POSTGRES_PASSWORD`; optional `BP_POSTGRES_DB` and `BP_POSTGRES_USER` default to `betterportal`.
 
@@ -94,18 +94,21 @@ The compose file maps those envs into the names expected by the BSB vault config
 
 Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout. Set `betterportal.bootstrapStatePath` and `betterportal.scopedConfigCachePath` explicitly under `/data` in each vault-backed service profile. Config-manager accepts this same `betterportal` block even though its primary platform storage is configured separately under `storage`.
 
-The image also stages built BP packages into the BSB external plugin layout:
+The Coolify image installs these packages into the BSB runtime `node_modules`:
 
 ```text
-/bp/plugins/@betterportal/<package>/<major>/<minor>/<patch>/
-  package.json
-  bsb-plugin.json
-  lib/plugins/<plugin>/index.js
+@betterportal/config-manager
+@betterportal/theme-bootstrap1
+@betterportal/theme-embedded
+@betterportal/auth-default
+@betterportal/auth-authress-io
+@bsb/observable-opentelemetry
+@bsb/observable-axiom
 ```
 
-Each vault-backed service profile sets `package: "@betterportal/..."` and the container sets `BSB_PLUGIN_DIRS=/bp/plugins`. Do not point `BSB_PLUGIN_DIRS` at `src/plugins`, an unversioned workspace package, or a flat plugin folder; BSB resolves package plugins from the versioned package root and then loads `lib/plugins/<plugin>`.
+`BP_PACKAGE_VERSION` controls the BetterPortal package version installed by the Docker build. It defaults to `latest` so Coolify can consume the newest published release without a compose edit. Set `BP_PACKAGE_VERSION=10.0.x` when a deployment must be pinned. Each vault-backed service profile still sets `package: "@betterportal/..."`; BSB resolves that package from runtime `node_modules`. Do not set `BSB_PLUGIN_DIRS` for this image unless you intentionally mount a separate curated external plugin repository.
 
-The BSB runtime image provides its built-in config plugins. The Coolify image only adds the BetterPortal packages and the observable packages declared in the root workspace dependencies, currently `@bsb/observable-opentelemetry` and `@bsb/observable-axiom`.
+The BSB runtime image provides its built-in config plugins, including config-vault. The Coolify image only adds BetterPortal service/theme packages and the observable packages listed above.
 
 Set the config-manager issuer/public URL inside the config-manager vault profile. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
 

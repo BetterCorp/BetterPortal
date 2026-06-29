@@ -1,6 +1,8 @@
 x-bp-build: &bp-build
   context: .
   dockerfile: Dockerfile.coolify
+  args:
+    BP_PACKAGE_VERSION: ${BP_PACKAGE_VERSION:-latest}
 
 x-bp-common: &bp-common
   image: betterportal:${BP_IMAGE_TAG:-coolify}
@@ -11,7 +13,6 @@ x-bp-vault-env: &bp-vault-env
   BSB_WRITABLE_PATHS: /data
   BSB_CONFIG_PLUGIN: config-vault
   BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/config-vault"
-  BSB_PLUGIN_DIRS: /bp/plugins
   vaultUrl: ${BP_VAULT_URL:-https://vault.eu.core.betterportal.net}
 
 services:
