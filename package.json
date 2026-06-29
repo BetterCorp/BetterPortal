@@ -29,6 +29,6 @@
   },
   "dependencies": {
     "@bsb/observable-axiom": "^9.6.22",
-    "@bsb/observable-opentelemetry": "^9.6.22"
+    "@bsb/observable-opentelemetry": "^9.6.26"
   }
 }
