@@ -92,7 +92,7 @@ BP_AUTHRESS_VAULT_API_SECRET
 
 The compose file maps those envs into the names expected by the BSB vault config plugin: `apiKeyId` and `apiSecret`. The Coolify image exposes container port `80` and the compose file does not declare host port mappings; set each bundled service profile's plugin `config.port` to `80` for Coolify deployments.
 
-Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout. Set `betterportal.bootstrapStatePath` and `betterportal.scopedConfigCachePath` explicitly under `/data` in each vault-backed service profile.
+Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout. Set `betterportal.bootstrapStatePath` and `betterportal.scopedConfigCachePath` explicitly under `/data` in each vault-backed service profile. Config-manager accepts this same `betterportal` block even though its primary platform storage is configured separately under `storage`.
 
 The image also stages built BP packages into the BSB external plugin layout:
 

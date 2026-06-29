@@ -6,7 +6,7 @@ import {
   type Observable
 } from "@bsb/base";
 import * as av from "anyvali";
-import { BPService } from "@betterportal/plugin-bsb";
+import { BPService, BetterPortalConfigSchema } from "@betterportal/plugin-bsb";
 import { resolve } from "node:path";
 import { createStaticJwksVerifier } from "@betterportal/framework";
 import type { JwtVerifier, AppAuthConfig } from "@betterportal/framework";
@@ -63,6 +63,7 @@ function buildServiceIdAliases(
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3300),
+  betterportal: BetterPortalConfigSchema,
   storage: PlatformConfigStorageSchema,
   requestTimeoutMs: av.int().min(1).default(2000),
   /** Path to RSA keypair JSON used to sign envelope/setup tokens. Auto-generated on first boot. */
