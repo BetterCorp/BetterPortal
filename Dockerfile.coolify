@@ -44,3 +44,5 @@ ENV NODE_ENV=production \
     BSB_CONTAINER=true \
     BSB_LIVE=true \
     BSB_PLUGIN_DIRS=/bp/plugins
+
+EXPOSE 80

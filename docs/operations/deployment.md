@@ -88,13 +88,9 @@ BP_AUTH_DEFAULT_VAULT_API_KEY_ID
 BP_AUTH_DEFAULT_VAULT_API_SECRET
 BP_AUTHRESS_VAULT_API_KEY_ID
 BP_AUTHRESS_VAULT_API_SECRET
-BP_DOCS_VAULT_API_KEY_ID
-BP_DOCS_VAULT_API_SECRET
-BP_HELLO_VAULT_API_KEY_ID
-BP_HELLO_VAULT_API_SECRET
 ```
 
-The compose file maps those envs into the names expected by the BSB vault config plugin: `apiKeyId` and `apiSecret`. Port envs such as `BP_BOOTSTRAP1_PORT` only control Docker port publishing and health checks; the matching plugin `config.port` belongs in the vault-backed service profile.
+The compose file maps those envs into the names expected by the BSB vault config plugin: `apiKeyId` and `apiSecret`. The Coolify image exposes container port `80` and the compose file does not declare host port mappings; set each bundled service profile's plugin `config.port` to `80` for Coolify deployments.
 
 Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout. Set `betterportal.bootstrapStatePath` and `betterportal.scopedConfigCachePath` explicitly under `/data` in each vault-backed service profile.
 

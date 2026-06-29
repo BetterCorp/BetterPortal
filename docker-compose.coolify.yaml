@@ -38,13 +38,11 @@ services:
       apiSecret: ${BP_CONFIG_MANAGER_VAULT_API_SECRET:?Set BP_CONFIG_MANAGER_VAULT_API_SECRET for the config-manager service}
     volumes:
       - bp-config-manager:/data
-    ports:
-      - "${BP_CONFIG_MANAGER_PORT:-3300}:${BP_CONFIG_MANAGER_PORT:-3300}"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:${BP_CONFIG_MANAGER_PORT:-3300}/.well-known/bp/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:80/.well-known/bp/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -57,12 +55,10 @@ services:
       apiSecret: ${BP_BOOTSTRAP1_VAULT_API_SECRET:?Set BP_BOOTSTRAP1_VAULT_API_SECRET for the bootstrap1 service}
     volumes:
       - bp-bootstrap1-data:/data
-    ports:
-      - "${BP_BOOTSTRAP1_PORT:-3100}:${BP_BOOTSTRAP1_PORT:-3100}"
     depends_on:
       - config-manager
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:${BP_BOOTSTRAP1_PORT:-3100}/.well-known/bp/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:80/.well-known/bp/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -75,8 +71,6 @@ services:
       apiSecret: ${BP_EMBEDDED_VAULT_API_SECRET:?Set BP_EMBEDDED_VAULT_API_SECRET for the embedded service}
     volumes:
       - bp-embedded-data:/data
-    ports:
-      - "${BP_EMBEDDED_PORT:-3110}:${BP_EMBEDDED_PORT:-3110}"
     depends_on:
       - config-manager
 
@@ -88,8 +82,6 @@ services:
       apiSecret: ${BP_AUTH_DEFAULT_VAULT_API_SECRET:?Set BP_AUTH_DEFAULT_VAULT_API_SECRET for the auth-default service}
     volumes:
       - bp-auth-default-data:/data
-    ports:
-      - "${BP_AUTH_DEFAULT_PORT:-3210}:${BP_AUTH_DEFAULT_PORT:-3210}"
     depends_on:
       - config-manager
 
@@ -101,34 +93,6 @@ services:
       apiSecret: ${BP_AUTHRESS_VAULT_API_SECRET:?Set BP_AUTHRESS_VAULT_API_SECRET for the auth-authress-io service}
     volumes:
       - bp-authress-data:/data
-    ports:
-      - "${BP_AUTHRESS_PORT:-3212}:${BP_AUTHRESS_PORT:-3212}"
-    depends_on:
-      - config-manager
-
-  docs-site:
-    <<: *bp-common
-    environment:
-      <<: *bp-vault-env
-      apiKeyId: ${BP_DOCS_VAULT_API_KEY_ID:?Set BP_DOCS_VAULT_API_KEY_ID for the docs-site service}
-      apiSecret: ${BP_DOCS_VAULT_API_SECRET:?Set BP_DOCS_VAULT_API_SECRET for the docs-site service}
-    volumes:
-      - bp-docs-data:/data
-    ports:
-      - "${BP_DOCS_PORT:-3400}:${BP_DOCS_PORT:-3400}"
-    depends_on:
-      - config-manager
-
-  hello-view:
-    <<: *bp-common
-    environment:
-      <<: *bp-vault-env
-      apiKeyId: ${BP_HELLO_VAULT_API_KEY_ID:?Set BP_HELLO_VAULT_API_KEY_ID for the hello-view service}
-      apiSecret: ${BP_HELLO_VAULT_API_SECRET:?Set BP_HELLO_VAULT_API_SECRET for the hello-view service}
-    volumes:
-      - bp-hello-data:/data
-    ports:
-      - "${BP_HELLO_PORT:-3205}:${BP_HELLO_PORT:-3205}"
     depends_on:
       - config-manager
 
@@ -139,5 +103,3 @@ volumes:
   bp-embedded-data:
   bp-auth-default-data:
   bp-authress-data:
-  bp-docs-data:
-  bp-hello-data:
