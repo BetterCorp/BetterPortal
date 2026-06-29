@@ -13,9 +13,8 @@ RUN npm install --omit=dev --no-audit --no-fund \
     "@betterportal/auth-authress-io@${BP_PACKAGE_VERSION}" \
     "@bsb/observable-opentelemetry@latest" \
     "@bsb/observable-axiom@latest" \
-  && chown -R node:node /home/bsb
-
-USER node
+  && mkdir -p /mnt/.temp \
+  && chown -R node:node /home/bsb /mnt/.temp
 
 ENV NODE_ENV=production \
     BSB_CONTAINER=true \
