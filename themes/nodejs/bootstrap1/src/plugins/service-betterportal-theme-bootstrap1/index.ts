@@ -60,7 +60,7 @@ const THEME_CONFIG_SCHEMAS: ConfigSchemaDescriptor[] = [
     description: "Per-app branding, palette, and mode for the bootstrap1 theme.",
     scope: "app",
     jsonSchema: {
-      brandName: "string", lightLogoUrl: "string", darkLogoUrl: "string", mode: "string",
+      brandName: "string", lightLogoUrl: "string", darkLogoUrl: "string", faviconUrl: "string", mode: "string",
       primary: "string", secondary: "string", success: "string",
       info: "string", warning: "string", danger: "string"
     },
@@ -68,6 +68,7 @@ const THEME_CONFIG_SCHEMAS: ConfigSchemaDescriptor[] = [
       { key: "brandName", title: "Brand Name", description: "Name shown in the top bar.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false },
       { key: "lightLogoUrl", title: "Light Logo URL", description: "Logo used in light mode.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, ui: { control: "url" } },
       { key: "darkLogoUrl", title: "Dark Logo URL", description: "Logo used in dark mode. Falls back to light logo when empty.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, ui: { control: "url" } },
+      { key: "faviconUrl", title: "Favicon URL", description: "Browser tab icon. Falls back to the BetterPortal favicon when empty.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, ui: { control: "url" } },
       { key: "mode", title: "Default Mode", description: "Theme mode.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, defaultValue: "system", ui: { control: "select", options: [{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }, { value: "system", label: "System" }] } },
       { key: "primary", title: "Primary Color", description: "Bootstrap primary palette color (hex).", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, defaultValue: "#3b82f6", ui: { control: "color" } },
       { key: "secondary", title: "Secondary Color", description: "Bootstrap secondary palette color (hex).", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, defaultValue: "#64748b", ui: { control: "color" } },
@@ -78,6 +79,11 @@ const THEME_CONFIG_SCHEMAS: ConfigSchemaDescriptor[] = [
     ]
   }
 ];
+
+const BOOTSTRAP1_ASSET_BASE_URL = "/_themes/bootstrap1/assets";
+const DEFAULT_BOOTSTRAP1_LOGO_URL = `${BOOTSTRAP1_ASSET_BASE_URL}/betterportal-logo.png`;
+const DEFAULT_BOOTSTRAP1_FAVICON_16_URL = `${BOOTSTRAP1_ASSET_BASE_URL}/betterportal-favicon-16.png`;
+const DEFAULT_BOOTSTRAP1_FAVICON_URL = `${BOOTSTRAP1_ASSET_BASE_URL}/betterportal-favicon-32.png`;
 
 type SafeServiceTarget =
   | { ok: true; origin: string; path: string; url: string }
@@ -299,6 +305,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     if (typeof values.brandName === "string") next.brandName = values.brandName;
     if (typeof values.lightLogoUrl === "string") next.lightLogoUrl = values.lightLogoUrl;
     if (typeof values.darkLogoUrl === "string") next.darkLogoUrl = values.darkLogoUrl;
+    if (typeof values.faviconUrl === "string") next.faviconUrl = values.faviconUrl;
     if (values.mode === "light" || values.mode === "dark" || values.mode === "system") next.mode = values.mode;
     for (const colorKey of ["primary", "secondary", "success", "info", "warning", "danger"] as const) {
       if (typeof values[colorKey] === "string") next.bootstrap[colorKey] = values[colorKey];
@@ -487,7 +494,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     });
   }
 
-  private async resolveEffectiveTheme(event: BetterPortalEvent): Promise<{ brandName: string; logoUrl?: string; mode: "light" | "dark"; themeConfig: any; tenantId: string; appId: string } | null> {
+  private async resolveEffectiveTheme(event: BetterPortalEvent): Promise<{ brandName: string; logoUrl?: string; faviconUrl: string; mode: "light" | "dark"; themeConfig: any; tenantId: string; appId: string } | null> {
     const portalConfig = this.requirePortalConfig();
     const reqCtx = resolveThemeRequestContext(
       portalConfig,
@@ -518,6 +525,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       logoUrl: effectiveMode === "dark"
         ? base.darkLogoUrl ?? base.lightLogoUrl
         : base.lightLogoUrl ?? base.darkLogoUrl,
+      faviconUrl: base.faviconUrl ?? DEFAULT_BOOTSTRAP1_FAVICON_URL,
       mode: effectiveMode,
       themeConfig,
       tenantId: reqCtx.tenant.id,
@@ -665,7 +673,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(input.title)} - ${escapeHtml(brandName)}</title>
-  <link rel="stylesheet" href="/_themes/bootstrap1/assets/bootstrap.min.css">
+  <link rel="icon" type="image/png" sizes="16x16" href="${DEFAULT_BOOTSTRAP1_FAVICON_16_URL}">
+  <link rel="icon" type="image/png" sizes="32x32" href="${DEFAULT_BOOTSTRAP1_FAVICON_URL}">
+  <link rel="stylesheet" href="${BOOTSTRAP1_ASSET_BASE_URL}/bootstrap.min.css">
   <style>
     :root {
       color-scheme: light dark;
@@ -712,15 +722,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       font-weight: 700;
       letter-spacing: 0;
     }
-    .bp-error-mark {
+    .bp-error-logo {
       width: 2rem;
       height: 2rem;
       border-radius: 0.5rem;
-      background: var(--bp-error-accent);
-      color: #fff;
-      display: inline-grid;
-      place-items: center;
-      font-weight: 800;
+      display: block;
+      object-fit: contain;
     }
     .bp-error-status {
       color: var(--bp-error-accent);
@@ -751,7 +758,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   <main class="bp-error-shell">
     <section class="bp-error-card" aria-labelledby="bp-error-title">
       <div class="bp-error-brand">
-        <span class="bp-error-mark">BP</span>
+        <img class="bp-error-logo" src="${DEFAULT_BOOTSTRAP1_LOGO_URL}" alt="" width="32" height="32" loading="eager" decoding="async">
         <span>${escapeHtml(brandName)}</span>
       </div>
       <div class="bp-error-status">${input.status}</div>
@@ -830,7 +837,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     return buildTree(menu) as Bootstrap1NavItem[];
   }
 
-  private renderConfigUiForm(adminApiBase: string, tenantId: string, appId: string, eff: { brandName: string; lightLogoUrl: string; darkLogoUrl: string; mode: string; primary: string; secondary: string; success: string; info: string; warning: string; danger: string }, storedKeys: Set<string>, savedFlash = false): string {
+  private renderConfigUiForm(adminApiBase: string, tenantId: string, appId: string, eff: { brandName: string; lightLogoUrl: string; darkLogoUrl: string; faviconUrl: string; mode: string; primary: string; secondary: string; success: string; info: string; warning: string; danger: string }, storedKeys: Set<string>, savedFlash = false): string {
     const safeAttr = (v: string) => String(v).replace(/"/g, "&quot;");
     const isStored = (k: string) => storedKeys.has(k);
     const saveUrl = `${adminApiBase.replace(/\/+$/, "")}/apps/${encodeURIComponent(appId)}/theme-config/bootstrap1`;
@@ -905,6 +912,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               <input type="url" class="form-control" name="darkLogoUrl" value="${safeAttr(eff.darkLogoUrl)}" />
               <div class="form-text">Falls back to the light logo when empty.</div>
             </div>
+            <div class="mb-3">
+              <label class="form-label d-flex justify-content-between align-items-center">
+                <span>Favicon URL</span>
+                ${resetForm("faviconUrl")}
+              </label>
+              <input type="url" class="form-control" name="faviconUrl" value="${safeAttr(eff.faviconUrl)}" />
+              <div class="form-text">Falls back to the BetterPortal favicon when empty.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -962,6 +977,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       brandName: base.brandName ?? tenant.branding.brandName ?? this.config.brandName,
       lightLogoUrl: base.lightLogoUrl ?? "",
       darkLogoUrl: base.darkLogoUrl ?? "",
+      faviconUrl: base.faviconUrl ?? "",
       mode: base.mode ?? "system",
       primary: base.bootstrap.primary ?? "#3b82f6",
       secondary: base.bootstrap.secondary ?? "#64748b",
@@ -1075,12 +1091,16 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         }, 404);
       }
 
-      return htmlResponse(asset.body, 200, asset.contentType, {
-        // The shell runtime (standalone or inside the core bundle) changes with
-        // theme deploys - never let browsers serve a stale copy.
-        "cache-control": assetPath === "bootstrap1-shell.js" || assetPath === "bootstrap1-core.js"
-          ? "no-store"
-          : "public, max-age=3600"
+      return new Response(asset.body, {
+        status: 200,
+        headers: {
+          "content-type": asset.contentType,
+          // The shell runtime (standalone or inside the core bundle) changes with
+          // theme deploys - never let browsers serve a stale copy.
+          "cache-control": assetPath === "bootstrap1-shell.js" || assetPath === "bootstrap1-core.js"
+            ? "no-store"
+            : "public, max-age=3600"
+        }
       });
     });
   }
@@ -1324,6 +1344,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           logoUrl: effectiveMode === "dark"
             ? baseTheme.darkLogoUrl ?? baseTheme.lightLogoUrl
             : baseTheme.lightLogoUrl ?? baseTheme.darkLogoUrl,
+          faviconUrl: baseTheme.faviconUrl ?? DEFAULT_BOOTSTRAP1_FAVICON_URL,
           themeMode: effectiveMode,
           themeConfig: mergedThemeConfig,
           assetBaseUrl: "/_themes/bootstrap1/assets",

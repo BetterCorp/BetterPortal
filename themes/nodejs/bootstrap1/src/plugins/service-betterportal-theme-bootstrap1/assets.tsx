@@ -1,10 +1,11 @@
 /** @jsxImportSource jsx-htmx */
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { js } from "jsx-htmx";
 
 export interface ThemeAssetResponse {
-  body: string;
+  body: BodyInit;
   contentType: string;
 }
 
@@ -19,6 +20,14 @@ const AssetCache = new Map<string, Promise<ThemeAssetResponse>>();
 
 function readTextAsset(filePath: string, contentType: string): Promise<ThemeAssetResponse> {
   return readFile(filePath, "utf8").then((body) => ({ body, contentType }));
+}
+
+function readBinaryAsset(filePath: string, contentType: string): Promise<ThemeAssetResponse> {
+  return readFile(filePath).then((body) => ({ body, contentType }));
+}
+
+function readLocalPluginAsset(assetName: string, contentType: string): Promise<ThemeAssetResponse> {
+  return readBinaryAsset(fileURLToPath(new URL(`./${assetName}`, import.meta.url)), contentType);
 }
 
 function shellRuntimeSource(): string {
@@ -2084,6 +2093,30 @@ export async function loadBootstrap1Asset(assetPath: string): Promise<ThemeAsset
     const cacheKey = normalized;
     if (!AssetCache.has(cacheKey)) {
       AssetCache.set(cacheKey, readTextAsset(HtmxPreloadPath, "application/javascript; charset=utf-8"));
+    }
+    return AssetCache.get(cacheKey) ?? null;
+  }
+
+  if (normalized === "betterportal-logo.png") {
+    const cacheKey = normalized;
+    if (!AssetCache.has(cacheKey)) {
+      AssetCache.set(cacheKey, readLocalPluginAsset("betterportal-logo.png", "image/png"));
+    }
+    return AssetCache.get(cacheKey) ?? null;
+  }
+
+  if (normalized === "betterportal-favicon-32.png") {
+    const cacheKey = normalized;
+    if (!AssetCache.has(cacheKey)) {
+      AssetCache.set(cacheKey, readLocalPluginAsset("betterportal-favicon-32.png", "image/png"));
+    }
+    return AssetCache.get(cacheKey) ?? null;
+  }
+
+  if (normalized === "betterportal-favicon-16.png") {
+    const cacheKey = normalized;
+    if (!AssetCache.has(cacheKey)) {
+      AssetCache.set(cacheKey, readLocalPluginAsset("betterportal-favicon-16.png", "image/png"));
     }
     return AssetCache.get(cacheKey) ?? null;
   }

@@ -21,6 +21,7 @@ export interface Bootstrap1ShellContext {
   title: string;
   brandName: string;
   logoUrl?: string;
+  faviconUrl?: string;
   themeMode: "light" | "dark";
   themeConfig: BetterPortalThemeConfig;
   assetBaseUrl: string;
@@ -34,6 +35,7 @@ export interface Bootstrap1HostPageContext {
   title: string;
   brandName: string;
   logoUrl?: string;
+  faviconUrl?: string;
   themeMode: "light" | "dark";
   themeConfig: BetterPortalThemeConfig;
   assetBaseUrl: string;
@@ -2068,6 +2070,8 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
         {context.automationCatalogUrl ? <meta name="betterportal:automation-catalog" content={context.automationCatalogUrl} /> : ""}
         {context.managementDiscoveryUrl ? <meta name="betterportal:management-discovery" content={context.managementDiscoveryUrl} /> : ""}
         <title>{context.title}</title>
+        <link rel="icon" type="image/png" sizes="16x16" href={context.faviconUrl ?? `${context.assetBaseUrl}/betterportal-favicon-16.png`} />
+        <link rel="icon" type="image/png" sizes="32x32" href={context.faviconUrl ?? `${context.assetBaseUrl}/betterportal-favicon-32.png`} />
         <link href={`${context.assetBaseUrl}/bootstrap.min.css`} rel="stylesheet" />
         {/* Single-request core bundle (htmx + shell + sse): separate
             tags can race on load order; htmx must exist before anything
@@ -2360,6 +2364,7 @@ export function renderBootstrap1HostPage(context: Bootstrap1HostPageContext): st
     title: context.title,
     brandName: context.brandName,
     logoUrl: context.logoUrl,
+    faviconUrl: context.faviconUrl,
     themeMode: context.themeMode,
     themeConfig: context.themeConfig,
     assetBaseUrl: context.assetBaseUrl,
