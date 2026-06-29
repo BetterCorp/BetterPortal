@@ -85,7 +85,7 @@ jobs:
         run: npm run build -w "${{ matrix.workspace }}" --if-present
 
   publish-core:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     needs: build-plugins
     steps:
       - name: Checkout
@@ -119,7 +119,7 @@ jobs:
           npm publish -w @betterportal/plugin-bsb --access public
 
   publish-plugin-packages:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     needs: publish-core
     strategy:
       fail-fast: false
@@ -168,7 +168,7 @@ jobs:
         run: npm publish -w "${{ matrix.workspace }}" --access public
 
   publish-bsb-schemas:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     needs: publish-plugin-packages
     strategy:
       fail-fast: false
