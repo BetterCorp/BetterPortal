@@ -60,12 +60,13 @@ const THEME_CONFIG_SCHEMAS: ConfigSchemaDescriptor[] = [
     description: "Per-app branding, palette, and mode for the bootstrap1 theme.",
     scope: "app",
     jsonSchema: {
-      brandName: "string", lightLogoUrl: "string", darkLogoUrl: "string", faviconUrl: "string", mode: "string",
+      brandName: "string", documentTitle: "string", lightLogoUrl: "string", darkLogoUrl: "string", faviconUrl: "string", mode: "string",
       primary: "string", secondary: "string", success: "string",
       info: "string", warning: "string", danger: "string"
     },
     fields: [
       { key: "brandName", title: "Brand Name", description: "Name shown in the top bar.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false },
+      { key: "documentTitle", title: "Browser Title", description: "Title shown in the browser tab. Falls back to the app title when empty.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false },
       { key: "lightLogoUrl", title: "Light Logo URL", description: "Logo used in light mode.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, ui: { control: "url" } },
       { key: "darkLogoUrl", title: "Dark Logo URL", description: "Logo used in dark mode. Falls back to light logo when empty.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, ui: { control: "url" } },
       { key: "faviconUrl", title: "Favicon URL", description: "Browser tab icon. Falls back to the BetterPortal favicon when empty.", scope: "app", visibility: "protected", ownership: "mixed", sourceOfTruth: "bp", required: false, ui: { control: "url" } },
@@ -303,6 +304,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       dark: { ...base.dark }
     };
     if (typeof values.brandName === "string") next.brandName = values.brandName;
+    if (typeof values.documentTitle === "string") next.documentTitle = values.documentTitle;
     if (typeof values.lightLogoUrl === "string") next.lightLogoUrl = values.lightLogoUrl;
     if (typeof values.darkLogoUrl === "string") next.darkLogoUrl = values.darkLogoUrl;
     if (typeof values.faviconUrl === "string") next.faviconUrl = values.faviconUrl;
@@ -837,7 +839,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     return buildTree(menu) as Bootstrap1NavItem[];
   }
 
-  private renderConfigUiForm(adminApiBase: string, tenantId: string, appId: string, eff: { brandName: string; lightLogoUrl: string; darkLogoUrl: string; faviconUrl: string; mode: string; primary: string; secondary: string; success: string; info: string; warning: string; danger: string }, storedKeys: Set<string>, savedFlash = false): string {
+  private renderConfigUiForm(adminApiBase: string, tenantId: string, appId: string, eff: { brandName: string; documentTitle: string; lightLogoUrl: string; darkLogoUrl: string; faviconUrl: string; mode: string; primary: string; secondary: string; success: string; info: string; warning: string; danger: string }, storedKeys: Set<string>, savedFlash = false): string {
     const safeAttr = (v: string) => String(v).replace(/"/g, "&quot;");
     const isStored = (k: string) => storedKeys.has(k);
     const saveUrl = `${adminApiBase.replace(/\/+$/, "")}/apps/${encodeURIComponent(appId)}/theme-config/bootstrap1`;
@@ -896,6 +898,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               </label>
               <input type="text" class="form-control" name="brandName" value="${safeAttr(eff.brandName)}" />
               <div class="form-text">Shown in the top bar.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label d-flex justify-content-between align-items-center">
+                <span>Browser Title</span>
+                ${resetForm("documentTitle")}
+              </label>
+              <input type="text" class="form-control" name="documentTitle" value="${safeAttr(eff.documentTitle)}" />
+              <div class="form-text">Falls back to the app title when empty.</div>
             </div>
             <div class="mb-3">
               <label class="form-label d-flex justify-content-between align-items-center">
@@ -975,6 +985,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const base = this.applyThemeServiceConfig(appDef.themeConfig, storedValues);
     const eff = {
       brandName: base.brandName ?? tenant.branding.brandName ?? this.config.brandName,
+      documentTitle: base.documentTitle ?? "",
       lightLogoUrl: base.lightLogoUrl ?? "",
       darkLogoUrl: base.darkLogoUrl ?? "",
       faviconUrl: base.faviconUrl ?? "",
@@ -1339,7 +1350,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
       return new Response(
         renderBootstrap1HostPage({
-          title: requestContext.app.title,
+          title: typeof baseTheme.documentTitle === "string" && baseTheme.documentTitle.trim() !== ""
+            ? baseTheme.documentTitle
+            : requestContext.app.title,
           brandName: baseTheme.brandName ?? requestContext.tenant.branding.brandName ?? this.config.brandName,
           logoUrl: effectiveMode === "dark"
             ? baseTheme.darkLogoUrl ?? baseTheme.lightLogoUrl
