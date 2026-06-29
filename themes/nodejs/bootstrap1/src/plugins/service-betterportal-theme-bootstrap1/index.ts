@@ -41,6 +41,9 @@ import { renderBootstrap1HostPage, renderNavItems, shellStyles, renderBrand, typ
 import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap1Asset } from "./assets.js";
 
+// Parse-only base for relative request URLs. Never emit this origin.
+const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
+
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3100),
@@ -370,7 +373,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const context = resolveThemeRequestContext(
       portalConfig,
       eventHeaders(activeEvent),
-      activeEvent.req.headers.get("host") ?? undefined,
+      resolveThemeHostname(eventHeaders(activeEvent), this.headerTrustOptions()) ?? undefined,
       this.headerTrustOptions()
     );
     if (!context) return null;
@@ -470,7 +473,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const reqCtx = resolveThemeRequestContext(
       portalConfig,
       eventHeaders(event),
-      event.req.headers.get("host") ?? undefined,
+      resolveThemeHostname(eventHeaders(event), this.headerTrustOptions()) ?? undefined,
       this.headerTrustOptions()
     );
     if (!reqCtx) {
@@ -527,14 +530,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async handleThemeNav(event: BetterPortalEvent): Promise<Response> {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const mobile = url.searchParams.get("mobile") === "1";
 
     const portalConfig = this.requirePortalConfig();
     const requestContext = resolveThemeRequestContext(
       portalConfig,
       eventHeaders(event),
-      event.req.headers.get("host") ?? undefined,
+      resolveThemeHostname(eventHeaders(event), this.headerTrustOptions()) ?? undefined,
       this.headerTrustOptions()
     );
     if (!requestContext) {
@@ -581,13 +584,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async handleThemeFragments(event: BetterPortalEvent): Promise<Response> {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const location = url.searchParams.get("location") ?? "nav";
     const portalConfig = this.requirePortalConfig();
     const requestContext = resolveThemeRequestContext(
       portalConfig,
       eventHeaders(event),
-      event.req.headers.get("host") ?? undefined,
+      resolveThemeHostname(eventHeaders(event), this.headerTrustOptions()) ?? undefined,
       this.headerTrustOptions()
     );
     if (!requestContext) {
@@ -698,6 +701,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       ? `<form hx-post="${saveUrl}" hx-target="#bp-theme-save-status" hx-swap="outerHTML" class="d-inline">
            <input type="hidden" name="tenantId" value="${safeAttr(tenantId)}" />
            <input type="hidden" name="appId" value="${safeAttr(appId)}" />
+           <input type="hidden" name="adminApiBase" value="${safeAttr(adminApiBase)}" />
            <input type="hidden" name="resetKey" value="${safeAttr(key)}" />
            <button type="submit" class="btn btn-sm btn-link p-0">Reset to default</button>
          </form>`
@@ -720,6 +724,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     return `<div id="bp-theme-designer" class="container-fluid px-0">
   <form hx-post="${saveUrl}" hx-target="#bp-theme-save-status" hx-swap="outerHTML">
+    <input type="hidden" name="adminApiBase" value="${safeAttr(adminApiBase)}" />
     <input type="hidden" name="tenantId" value="${safeAttr(tenantId)}" />
     <input type="hidden" name="appId" value="${safeAttr(appId)}" />
 
@@ -835,14 +840,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     };
   }
 
-  private themeBaseUrl(event: BetterPortalEvent): string {
-    const proto = event.req.headers.get("x-forwarded-proto") ?? "http";
-    const host = event.req.headers.get("host") ?? `localhost:${this.config.port}`;
-    return `${proto}://${host}`;
-  }
-
   private async handleConfigUi(event: BetterPortalEvent): Promise<Response> {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
     const adminApiBase = url.searchParams.get("adminApiBase") ?? "/.well-known/bp/admin";
@@ -862,6 +861,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const formData = await event.req.formData();
     const tenantId = String(formData.get("tenantId") ?? "");
     const appId = String(formData.get("appId") ?? "");
+    const adminApiBase = String(formData.get("adminApiBase") ?? "/.well-known/bp/admin");
     if (!tenantId || !appId) {
       return htmlResponse(`<div class="alert alert-danger">Missing tenantId or appId.</div>`, 200, "text/html; mode=fragment");
     }
@@ -871,7 +871,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     const values: Record<string, unknown> = {};
     formData.forEach((v, k) => {
-      if (k === "tenantId" || k === "appId") return;
+      if (k === "tenantId" || k === "appId" || k === "adminApiBase") return;
       if (typeof v === "string" && v !== "") values[k] = v;
     });
 
@@ -886,7 +886,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     const { eff, storedKeys } = await this.computeEffectiveAndStored(tenantId, appId);
     return htmlResponse(
-      this.renderConfigUiForm(this.themeBaseUrl(event), tenantId, appId, eff, storedKeys, true),
+      this.renderConfigUiForm(adminApiBase, tenantId, appId, eff, storedKeys, true),
       200,
       "text/html; mode=fragment",
       { "HX-Trigger": "bp:theme-changed" }
@@ -898,6 +898,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const tenantId = String(formData.get("tenantId") ?? "");
     const appId = String(formData.get("appId") ?? "");
     const key = String(formData.get("key") ?? "");
+    const adminApiBase = String(formData.get("adminApiBase") ?? "/.well-known/bp/admin");
     if (!tenantId || !appId || !key) {
       return htmlResponse(`<div class="alert alert-danger">Missing fields.</div>`, 200, "text/html; mode=fragment");
     }
@@ -917,7 +918,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     const { eff, storedKeys } = await this.computeEffectiveAndStored(tenantId, appId);
     return htmlResponse(
-      this.renderConfigUiForm(this.themeBaseUrl(event), tenantId, appId, eff, storedKeys, true),
+      this.renderConfigUiForm(adminApiBase, tenantId, appId, eff, storedKeys, true),
       200,
       "text/html; mode=fragment",
       { "HX-Trigger": "bp:theme-changed" }
@@ -964,7 +965,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const requestContext = resolveThemeRequestContext(
         portalConfig,
         eventHeaders(activeEvent),
-        activeEvent.req.headers.get("host") ?? undefined,
+        resolveThemeHostname(eventHeaders(activeEvent), this.headerTrustOptions()) ?? undefined,
         this.headerTrustOptions()
       );
 

@@ -52,6 +52,15 @@ function buildDefaultAdminMenu(routes: Array<{ id: string; title: string }>): Ar
   }));
 }
 
+function issuerFromServiceUrl(serviceUrl: string): string {
+  const normalized = serviceUrl.replace(/\/+$/, "");
+  try {
+    return new URL(normalized).origin;
+  } catch {
+    return normalized;
+  }
+}
+
 const BOOTSTRAP_KEY_TTL_MS = 15 * 60 * 1000;
 
 interface BootstrapKeyState {
@@ -146,6 +155,14 @@ export async function registerBootstrapEndpoint(input: {
     if (!body.adminTenant?.title || !body.adminApp?.title || !body.adminApp?.hostname) {
       return jsonResponse({ error: "adminTenant.title + adminApp.title + adminApp.hostname required" }, 400);
     }
+    const authHostFromBody = body.authService?.hostname?.replace(/\/+$/, "");
+    const themeHostFromBody = body.themeService?.hostname?.replace(/\/+$/, "");
+    if (!authHostFromBody) {
+      return jsonResponse({ error: "authService.hostname is required" }, 400);
+    }
+    if (!themeHostFromBody) {
+      return jsonResponse({ error: "themeService.hostname is required" }, 400);
+    }
 
     // Generate stable IDs (uuidv7 - time-sortable).
     const adminTenantId = uuidv7();
@@ -199,7 +216,6 @@ export async function registerBootstrapEndpoint(input: {
 
     // Auth/theme are shared services. Browser install redeems into shared catalog entries.
     // Admin app references shared activation ids.
-    const authHostFromBody = body.authService?.hostname?.replace(/\/+$/, "") ?? "http://localhost:3210";
     const authSharedService = {
       id: authSharedServiceId,
       serviceId: authSharedServiceId,
@@ -216,7 +232,6 @@ export async function registerBootstrapEndpoint(input: {
 
     // Same placeholder pattern for the theme service. Theme is a BPService and
     // syncs scoped config from the CP just like auth.
-    const themeHostFromBody = body.themeService?.hostname?.replace(/\/+$/, "") ?? "http://localhost:3100";
     const themeSharedService = {
       id: themeSharedServiceId,
       serviceId: themeSharedServiceId,
@@ -269,7 +284,7 @@ export async function registerBootstrapEndpoint(input: {
       loginViewId: "/login",
       logoutViewId: "/logout",
       refreshViewId: "/refresh",
-      expectedIssuer: "https://auth.betterportal.local",
+      expectedIssuer: issuerFromServiceUrl(authHostFromBody),
       expectedAudience: "betterportal-runtime",
       jwksUri: `${authHostFromBody}/.well-known/jwks.json`,
       roles: []

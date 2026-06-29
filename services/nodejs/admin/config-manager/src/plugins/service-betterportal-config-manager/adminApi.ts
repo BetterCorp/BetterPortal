@@ -17,6 +17,8 @@ import { getManifestCache } from "./syncApi.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
+// Parse-only base for relative request URLs. Never emit this origin.
+const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
 async function readFormBody(event: BetterPortalEvent): Promise<Record<string, string>> {
   const fd = await event.req.formData().catch(() => null);
@@ -107,7 +109,7 @@ function appPublicUrl(app: BetterPortalApp | undefined): string | undefined {
 }
 
 function currentAppFromRequest(config: BetterPortalConfig, event: BetterPortalEvent): BetterPortalApp | undefined {
-  const url = new URL(event.req.url, `http://${event.req.headers.get("host") ?? "localhost"}`);
+  const url = new URL(event.req.url, RELATIVE_URL_PARSE_BASE);
   const appId = url.searchParams.get("appId") ?? event.req.headers.get("x-bp-app-id") ?? "";
   const tenantUrl = url.searchParams.get("tenantUrl") ?? event.req.headers.get("referer") ?? event.req.headers.get("origin") ?? "";
   return appId
@@ -115,12 +117,11 @@ function currentAppFromRequest(config: BetterPortalConfig, event: BetterPortalEv
     : config.apps.find((entry) => tenantUrl && appMatchesTenantUrl(entry, tenantUrl));
 }
 
-function managementDiscovery(config: BetterPortalConfig, event: BetterPortalEvent): JsonValue {
+function managementDiscovery(config: BetterPortalConfig, cpState: CpBootstrapState): JsonValue {
   const managementApp = config.configManagement.managementAppId
     ? config.apps.find((app) => app.id === config.configManagement.managementAppId)
     : undefined;
-  const base = new URL(event.req.url, `http://${event.req.headers.get("host") ?? "localhost"}`);
-  const origin = base.origin;
+  const origin = cpState.issuer.replace(/\/+$/, "");
   return {
     protocol: "betterportal-management.v1",
     managementApp: {
@@ -694,9 +695,8 @@ function parseWizardManifest(raw: string): WizardServiceManifest {
     : {};
 }
 
-function adminApiBaseFromEvent(event: BetterPortalEvent): string {
-  const requestUrl = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
-  return new URL(API_BASE, requestUrl).toString().replace(/\/+$/, "");
+function adminApiBaseFromControlPlane(cpState: CpBootstrapState): string {
+  return `${cpState.issuer.replace(/\/+$/, "")}${API_BASE}`;
 }
 
 export function registerAdminApiRoutes(
@@ -706,11 +706,11 @@ export function registerAdminApiRoutes(
 ): void {
   app.get("/.well-known/bp/management", async (event) => {
     const config = await store.loadConfig();
-    return jsonResponse(managementDiscovery(config, event));
+    return jsonResponse(managementDiscovery(config, cpState));
   });
 
   app.get("/.well-known/bp/automation/catalog", async (event) => {
-    const url = new URL(event.req.url, `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url, RELATIVE_URL_PARSE_BASE);
     const tenantUrl = url.searchParams.get("tenantUrl") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
     const config = await store.loadConfig();
@@ -1005,7 +1005,7 @@ export function registerAdminApiRoutes(
   app.delete(`${API_BASE}/shared-services/:sharedServiceId/activations`, async (event) => {
     const sharedServiceId = getParam(event, "sharedServiceId");
     if (!sharedServiceId) return jsonResponse({ error: "sharedServiceId required" }, 400);
-    const url = new URL(event.req.url ?? "", "http://localhost");
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? undefined;
     if (!tenantId) return wantsHtmx(event) ? htmxError("tenantId required") : jsonResponse({ error: "tenantId required" }, 400);
@@ -1098,7 +1098,7 @@ export function registerAdminApiRoutes(
     const serviceId = getParam(event, "serviceId");
     if (!tenantId || !serviceId) return jsonResponse({ error: "tenantId and serviceId required" }, 400);
 
-    const url = new URL(event.req.url ?? "", "http://localhost");
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const appId = url.searchParams.get("appId") ?? undefined;
     const sharedServiceId = url.searchParams.get("sharedServiceId") ?? undefined;
     const config = await store.loadConfig();
@@ -1480,7 +1480,7 @@ export function registerAdminApiRoutes(
     const config = await store.loadConfig();
     const appDef = config.apps.find((a) => a.id === appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-    return jsonResponse(((appDef as any).menu ?? []) as unknown as JsonValue);
+    return jsonResponse((appDef.menu ?? []) as unknown as JsonValue);
   });
 
   app.put(`${API_BASE}/apps/:appId/menu`, async (event) => {
@@ -1491,16 +1491,19 @@ export function registerAdminApiRoutes(
     const config = await store.loadConfig();
     const appDef = config.apps.find((a) => a.id === appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-    (appDef as any).menu = items.map((m: any) => ({
-      id: m.id ?? uuidv7(),
-      type: m.type ?? "link",
-      title: m.title,
-      icon: m.icon,
-      routeId: m.routeId,
-      href: m.href,
-      enabled: m.enabled !== false,
-      children: m.children ?? []
-    }));
+    appDef.menu = items.map((raw) => {
+      const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      return {
+        id: typeof item.id === "string" ? item.id : uuidv7(),
+        type: item.type === "group" ? "group" : "link",
+        title: typeof item.title === "string" ? item.title : undefined,
+        icon: typeof item.icon === "string" ? item.icon : undefined,
+        routeId: typeof item.routeId === "string" ? item.routeId : undefined,
+        href: typeof item.href === "string" ? item.href : undefined,
+        enabled: item.enabled !== false,
+        children: Array.isArray(item.children) ? item.children : []
+      };
+    });
     await store.saveConfig(config);
     return jsonResponse({ ok: true });
   });
@@ -1517,7 +1520,7 @@ export function registerAdminApiRoutes(
   // (CM cannot reach services) and POSTs the parsed payload here.
 
   app.post(`${API_BASE}/wizard/verify`, async (event) => {
-    const adminApiBase = adminApiBaseFromEvent(event);
+    const adminApiBase = adminApiBaseFromControlPlane(cpState);
     const form = await readFormBody(event);
     const tenantId = form.tenantId ?? "";
     const hostname = normalizeHostname(form.hostname);
@@ -1637,7 +1640,7 @@ export function registerAdminApiRoutes(
             title: routeTitle,
             enabled: true,
             methods: ["GET"]
-          } as any);
+          });
           existingPaths.add(mountPath);
           groupChildren.push({
             id: uuidv7(),
@@ -1649,7 +1652,7 @@ export function registerAdminApiRoutes(
         }
 
         if (groupChildren.length > 0) {
-          const menu = ((appDef as any).menu ?? []) as Array<Record<string, unknown>>;
+          const menu = (appDef.menu ?? []) as Array<Record<string, unknown>>;
           menu.push({
             id: groupId,
             type: "group",
@@ -1657,13 +1660,13 @@ export function registerAdminApiRoutes(
             enabled: true,
             children: groupChildren
           });
-          (appDef as any).menu = menu;
+          appDef.menu = menu as typeof appDef.menu;
         }
       }
     }
 
     await store.saveConfig(config);
-    const adminApiBase = adminApiBaseFromEvent(event);
+    const adminApiBase = adminApiBaseFromControlPlane(cpState);
     return htmlResponse(renderWizardStep3({
       apiKey: "",
       deploymentMode: service.deploymentMode,
@@ -1690,23 +1693,23 @@ export function registerAdminApiRoutes(
   });
 
   app.get(`${API_BASE}/wizard/step1`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const tenantId = url.searchParams.get("tenantId") ?? undefined;
     const hostname = url.searchParams.get("hostname") ?? undefined;
     const config = await store.loadConfig();
-    return htmlResponse(renderWizardStep1(config, undefined, { tenantId, hostname }, adminApiBaseFromEvent(event)), 200, "text/html; mode=fragment");
+    return htmlResponse(renderWizardStep1(config, undefined, { tenantId, hostname }, adminApiBaseFromControlPlane(cpState)), 200, "text/html; mode=fragment");
   });
 
   // HTMX configure: load form
 
   app.get(`${API_BASE}/configure`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const serviceInstanceId = url.searchParams.get("serviceInstanceId") ?? undefined;
     const hostname = (url.searchParams.get("hostname") ?? "").replace(/\/+$/, "");
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
     const serviceTitle = url.searchParams.get("title") ?? "Service";
-    const adminApiBase = url.searchParams.get("adminApiBase") || new URL(API_BASE, url).toString();
+    const adminApiBase = url.searchParams.get("adminApiBase") || adminApiBaseFromControlPlane(cpState);
     if (!hostname || !tenantId) {
       return htmlResponse(`<div class="alert alert-danger">Missing hostname or tenantId</div>`, 200, "text/html; mode=fragment");
     }

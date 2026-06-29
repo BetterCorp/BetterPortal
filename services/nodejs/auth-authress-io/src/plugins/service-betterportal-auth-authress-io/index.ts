@@ -30,7 +30,7 @@ import { resolve } from "node:path";
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3211),
-  issuer: av.string().minLength(1).default("https://authress.betterportal.local"),
+  issuer: av.string().minLength(1),
   audience: av.string().minLength(1).default("betterportal-runtime"),
   accessTokenSeconds: av.int().min(1).default(60 * 15),
   refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7),

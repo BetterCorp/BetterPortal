@@ -541,7 +541,7 @@ function serviceOrigin(extraContext: RequiredHandlerContext, serviceId: string, 
 }
 
 function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absoluteOrigin?: string): string {
-  const url = new URL(path, absoluteOrigin ?? "http://bp.local");
+  const url = new URL(path, absoluteOrigin ?? "http://betterportal.invalid");
   for (const [key, value] of Object.entries(query)) {
     if (value !== null && value !== undefined) url.searchParams.set(key, String(value));
   }

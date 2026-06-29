@@ -11,6 +11,8 @@ import {
 import { getManifestCache } from "./syncApi.js";
 
 const API_BASE = "/.well-known/bp/admin";
+// Parse-only base for relative request URLs. Never emit this origin.
+const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
 // -- Types ------------------------------------------------------------
 
@@ -533,14 +535,14 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
   };
 
   app.get(`${API_BASE}/menu-editor`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const appId = url.searchParams.get("appId") ?? "";
     if (!appId) return htmlResponse(`<div class="alert alert-secondary">Select an app</div>`, 200, "text/html; mode=fragment");
     return respondEditor(appId);
   });
 
   app.get(`${API_BASE}/menu-editor/item`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const appId = url.searchParams.get("appId") ?? "";
     const itemId = url.searchParams.get("itemId") ?? "";
     const mode = (url.searchParams.get("mode") ?? "display") as RowMode;
@@ -609,7 +611,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
 
   // Cascade: serviceId change -> view options (sourced from local manifest cache)
   app.get(`${API_BASE}/menu-editor/views`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const serviceId = url.searchParams.get("serviceId") ?? "";
     if (!serviceId) return htmlResponse(`<option value="">Select view...</option>`, 200, "text/html; mode=fragment");
     const views = lookupServiceViews(serviceId);
@@ -618,7 +620,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
 
   // View change -> returns new targetPath input pre-filled with view's default path
   app.get(`${API_BASE}/menu-editor/default-target`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const serviceId = url.searchParams.get("serviceId") ?? "";
     const viewId = url.searchParams.get("viewId") ?? "";
     let defaultPath = "";

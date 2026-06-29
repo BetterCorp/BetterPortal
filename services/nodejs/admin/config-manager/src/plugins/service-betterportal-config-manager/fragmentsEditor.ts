@@ -9,6 +9,8 @@ import {
 } from "@betterportal/framework";
 
 const API_BASE = "/.well-known/bp/admin";
+// Parse-only base for relative request URLs. Never emit this origin.
+const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
 interface Fragment {
   serviceId: string;
@@ -295,7 +297,7 @@ export function registerFragmentsEditorRoutes(app: BetterPortalH3App, store: Pla
   };
 
   app.get(`${API_BASE}/fragments-editor`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const appId = url.searchParams.get("appId") ?? "";
     if (!appId) return htmlResponse(`<div class="alert alert-secondary">Select an app</div>`, 200, "text/html; mode=fragment");
     return respondEditor(appId);
@@ -362,7 +364,7 @@ export function registerFragmentsEditorRoutes(app: BetterPortalH3App, store: Pla
   });
 
   app.get(`${API_BASE}/fragments-editor/fragments`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const serviceId = url.searchParams.get("serviceId") ?? "";
     const location = url.searchParams.get("location") ?? "";
     if (!serviceId) return htmlResponse(`<option value="">Pick service first...</option>`, 200, "text/html; mode=fragment");
@@ -383,7 +385,7 @@ export function registerFragmentsEditorRoutes(app: BetterPortalH3App, store: Pla
   });
 
   app.get(`${API_BASE}/fragments-editor/fragment-target`, async (event) => {
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const serviceId = url.searchParams.get("serviceId") ?? "";
     const fragmentId = url.searchParams.get("fragmentId") ?? "";
     const location = url.searchParams.get("location") ?? "";

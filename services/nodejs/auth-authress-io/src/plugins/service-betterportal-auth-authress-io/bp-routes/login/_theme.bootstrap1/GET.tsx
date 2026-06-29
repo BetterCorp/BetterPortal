@@ -78,11 +78,25 @@ export function render(data: ResponseData): HtmlRenderable {
           };
 
           const softNavigate = (target: string) => {
-            if (browserWindow.htmx && target && !target.startsWith("http://") && !target.startsWith("https://")) {
-              browserWindow.htmx.ajax("GET", target, { target: "#bp-main", swap: "innerHTML", push: target });
-              return;
+            const href = target || "/";
+            const link = document.createElement("a");
+            link.href = href;
+            if (browserWindow.htmx && !href.startsWith("http://") && !href.startsWith("https://")) {
+              link.setAttribute("hx-get", href);
+              link.setAttribute("hx-target", "#bp-main");
+              link.setAttribute("hx-swap", "innerHTML");
+              link.setAttribute("hx-push-url", href);
+              link.setAttribute("data-bp-shell-route", "page");
+              document.body.appendChild(link);
+              browserWindow.htmx.process(link);
+              link.click();
+              link.remove();
+            } else {
+              link.rel = "noreferrer";
+              document.body.appendChild(link);
+              link.click();
+              link.remove();
             }
-            window.location.assign(target || "/");
           };
 
           const waitForAuthress = async () => {

@@ -362,7 +362,7 @@ function shellRuntimeSource(): string {
         try { return JSON.parse(shellRoot()?.getAttribute("data-bp-services") || "{}"); }
         catch { return {}; }
       })();
-      const unresolvedServiceOrigin = "https://never.betterportal.cloud";
+      const unresolvedServiceOrigin = "https://betterportal.invalid";
 
       const loadBackgroundFragments = async () => {
         const outlet = document.querySelector("[data-bp-background-fragments]");

@@ -242,7 +242,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const context = resolveThemeRequestContext(
       portalConfig,
       eventHeaders(activeEvent),
-      activeEvent.req.headers.get("host") ?? undefined,
+      resolveThemeHostname(eventHeaders(activeEvent), this.headerTrustOptions()) ?? undefined,
       this.headerTrustOptions()
     );
     if (!context) return null;
@@ -390,7 +390,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const requestContext = resolveThemeRequestContext(
         portalConfig,
         eventHeaders(activeEvent),
-        activeEvent.req.headers.get("host") ?? undefined,
+        resolveThemeHostname(eventHeaders(activeEvent), this.headerTrustOptions()) ?? undefined,
         this.headerTrustOptions()
       );
 

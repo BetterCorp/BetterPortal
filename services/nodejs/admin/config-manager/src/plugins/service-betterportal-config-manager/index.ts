@@ -39,6 +39,9 @@ import {
 } from "./storage/index.js";
 import BetterportalConfigManagerClient from "../../.bsb/clients/service-betterportal-config-manager.js";
 
+// Parse-only base for relative request URLs. Never emit this origin.
+const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
+
 /** Tenant service-instance id (UUIDv7) -> pluginId, for the auth permission check. */
 function buildServiceIdAliases(
   config: {
@@ -68,8 +71,8 @@ const PluginConfigSchema = av.object({
   requestTimeoutMs: av.int().min(1).default(2000),
   /** Path to RSA keypair JSON used to sign envelope/setup tokens. Auto-generated on first boot. */
   cpKeyStorePath: av.string().minLength(1).default("./.bp-cp-state/keys.json"),
-  /** Public issuer URL (matches token `iss` claim). Default: derived from host:port. */
-  cpIssuer: av.optional(av.string().minLength(1)),
+  /** Public issuer URL (matches token `iss` claim). Must be externally reachable by services and browsers. */
+  cpIssuer: av.string().minLength(1),
   /** Required audience for tokens issued by this CP. */
   cpAudience: av.string().minLength(1).default("betterportal-control-plane")
 }, { unknownKeys: "strip" });
@@ -286,7 +289,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     setConfigManagerRouteContext({
       storage: this.storage,
       cpState: this.cpState,
-      serviceBaseUrl: `http://${this.config.host === "0.0.0.0" ? "localhost" : this.config.host}:${this.config.port}`
+      serviceBaseUrl: this.cpState.issuer
     });
 
     this.app.use("/config", (event) => this.populateConfigAdminContext(event));
@@ -404,7 +407,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private async populateServicesContext(event: BetterPortalEvent): Promise<void> {
     const config = await this.storage.loadConfig();
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const requestedTenantId = url.searchParams.get("tenantId") ?? undefined;
     const selectedTenantId = config.tenants.some((tenant) => tenant.id === requestedTenantId)
       ? requestedTenantId
@@ -497,13 +500,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       apps: config.apps.map((a) => ({ id: a.id, tenantId: a.tenantId, title: a.title })),
       tenantApps,
       adminApiBase: "/.well-known/bp/admin",
-      serviceBaseUrl: `http://${this.config.host === "0.0.0.0" ? "localhost" : this.config.host}:${this.config.port}`
+      serviceBaseUrl: this.cpState.issuer
     };
   }
 
   private async populateRoutesContext(event: BetterPortalEvent): Promise<void> {
     const config = await this.storage.loadConfig();
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId ? config.apps.find((a) => a.id === selectedAppId) : undefined;
     const selectedTenant = selectedApp ? config.tenants.find((t) => t.id === selectedApp.tenantId) : undefined;
@@ -570,13 +573,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       })),
       availableServices,
       adminApiBase: "/.well-known/bp/admin",
-      serviceBaseUrl: `http://${this.config.host === "0.0.0.0" ? "localhost" : this.config.host}:${this.config.port}`
+      serviceBaseUrl: this.cpState.issuer
     };
   }
 
   private async populateMenuContext(event: BetterPortalEvent): Promise<void> {
     const config = await this.storage.loadConfig();
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId ? config.apps.find((a) => a.id === selectedAppId) : undefined;
 
@@ -584,7 +587,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       title: "Menu Designer",
       apps: config.apps.map((a) => ({ id: a.id, title: a.title, tenantId: a.tenantId })),
       selectedAppId,
-      menu: ((selectedApp as any)?.menu ?? []).map((m: any) => ({
+      menu: (selectedApp?.menu ?? []).map((m) => ({
         id: m.id, type: m.type, title: m.title,
         routeId: m.routeId, href: m.href, enabled: m.enabled !== false
       })),
@@ -592,13 +595,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         id: r.id, path: r.path, title: r.title ?? r.path
       })),
       adminApiBase: "/.well-known/bp/admin",
-      serviceBaseUrl: `http://${this.config.host === "0.0.0.0" ? "localhost" : this.config.host}:${this.config.port}`
+      serviceBaseUrl: this.cpState.issuer
     };
   }
 
   private async populateFragmentsContext(event: BetterPortalEvent): Promise<void> {
     const config = await this.storage.loadConfig();
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
 
     (event as unknown as { __bpResponseModel: unknown }).__bpResponseModel = {
@@ -606,7 +609,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       apps: config.apps.map((a) => ({ id: a.id, title: a.title, tenantId: a.tenantId })),
       selectedAppId,
       adminApiBase: "/.well-known/bp/admin",
-      serviceBaseUrl: `http://${this.config.host === "0.0.0.0" ? "localhost" : this.config.host}:${this.config.port}`
+      serviceBaseUrl: this.cpState.issuer
     };
   }
 
@@ -651,7 +654,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private async populateAdminAuthContext(event: BetterPortalEvent): Promise<void> {
     const config = await this.storage.loadConfig();
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId
       ? config.apps.find((a) => a.id === selectedAppId)
@@ -742,13 +745,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       servicePermissions,
       currentRoles,
       adminApiBase: "/.well-known/bp/admin",
-      serviceBaseUrl: `http://${this.config.host === "0.0.0.0" ? "localhost" : this.config.host}:${this.config.port}`
+      serviceBaseUrl: this.cpState.issuer
     };
   }
 
   private async populateSettingsContext(event: BetterPortalEvent): Promise<void> {
     const config = await this.storage.loadConfig();
-    const url = new URL(event.req.url ?? "", `http://${event.req.headers.get("host") ?? "localhost"}`);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const requestContext = resolveEmbeddedRequestContext(config, eventHeaders(event));
     const requestedAppId = url.searchParams.get("appId") ?? undefined;
     const app = requestContext?.app

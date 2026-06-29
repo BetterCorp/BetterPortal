@@ -16,6 +16,8 @@ import { eventObservability } from "@betterportal/framework";
 import { getManifestCache } from "./syncApi.js";
 
 const API_BASE = "/.well-known/bp";
+// Parse-only base for relative request URLs. Never emit this origin.
+const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
 type DeliveryStatus = "pending" | "delivered" | "failed";
 
@@ -100,7 +102,7 @@ function appMatchesTenantUrl(app: BetterPortalApp, tenantUrl: string): boolean {
 }
 
 function currentAppFromRequest(config: BetterPortalConfig, event: BetterPortalEvent): BetterPortalApp | undefined {
-  const url = new URL(event.req.url, `http://${event.req.headers.get("host") ?? "localhost"}`);
+  const url = new URL(event.req.url, RELATIVE_URL_PARSE_BASE);
   const appId = url.searchParams.get("appId") ?? event.req.headers.get("x-bp-app-id") ?? "";
   const tenantUrl = url.searchParams.get("tenantUrl") ?? event.req.headers.get("referer") ?? event.req.headers.get("origin") ?? "";
   return appId

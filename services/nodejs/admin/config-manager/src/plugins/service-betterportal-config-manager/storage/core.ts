@@ -49,9 +49,6 @@ export abstract class BaseStorage implements PlatformConfigStore {
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
     for (const app of config.apps) {
       if (app.auth?.provider?.kind !== "authress.io") continue;
-      if (app.auth.expectedIssuer === "https://authress.io") {
-        app.auth.expectedIssuer = "https://authress.betterportal.local";
-      }
       if (app.auth.expectedAudience === "authress") {
         app.auth.expectedAudience = "betterportal-runtime";
       }

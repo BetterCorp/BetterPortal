@@ -313,7 +313,13 @@ document.getElementById("wizard").addEventListener("submit", async (evt) => {
     //    context resolves naturally.
     const okStep = step("done", "Bootstrap complete - redirecting to " + payload.adminApp.hostname + " to create the first admin");
     okStep.done();
-    setTimeout(() => { window.location.href = payload.adminApp.hostname; }, 2000);
+        setTimeout(() => {
+          const link = document.createElement("a");
+          link.href = payload.adminApp.hostname;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }, 2000);
   } catch (e) {
     const note = document.createElement("div");
     note.className = "alert-err";

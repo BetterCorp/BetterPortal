@@ -3,11 +3,8 @@ import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 
-function tenantsScript(apiBase: string, serviceUrl: string): HtmlRenderable {
+function tenantsScript(): HtmlRenderable {
   return js(`(() => {
-    const apiBase = ${JSON.stringify(apiBase)};
-    const serviceUrl = ${JSON.stringify(serviceUrl)};
-
     const filterTenantScopedOptions = (form, tenantId) => {
       form.querySelectorAll("select[data-bp-tenant-scoped]").forEach((select) => {
         select.querySelectorAll("option[data-bp-tenant-id]").forEach((option) => {
@@ -56,9 +53,7 @@ function tenantsScript(apiBase: string, serviceUrl: string): HtmlRenderable {
 }
 
 export function render(data: ResponseData): HtmlRenderable {
-  const serviceUrl = data.serviceBaseUrl ?? "";
-  const apiBase = serviceUrl + data.adminApiBase;
-  const tenantsPath = `${serviceUrl}/tenants`;
+  const tenantsPath = data.tenantsPath;
 
   return (
     <div class="container-fluid px-0">
@@ -304,7 +299,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       </div>
 
-      <script>{tenantsScript(apiBase, serviceUrl)}</script>
+      <script>{tenantsScript()}</script>
     </div>
   );
 }

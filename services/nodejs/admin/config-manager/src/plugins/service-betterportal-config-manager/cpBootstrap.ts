@@ -40,7 +40,10 @@ export function cpBootstrap(input: {
   const keyPath = resolve(input.keyStorePath);
   const keyPair = loadOrGenerateKeyPair(keyPath);
 
-  const issuer = input.issuer ?? `http://${input.host === "0.0.0.0" ? "localhost" : input.host}:${input.port}`;
+  if (!input.issuer) {
+    throw new Error("Config manager cpIssuer is required and must be the public control-plane issuer URL.");
+  }
+  const issuer = input.issuer;
   const jwksUri = `${issuer.replace(/\/+$/, "")}/.well-known/jwks.json`;
   const cpId = `cp-${keyPair.kid.slice(0, 12)}`;
 

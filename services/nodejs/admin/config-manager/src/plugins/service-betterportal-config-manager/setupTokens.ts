@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
-import type { PlatformConfigStore } from "@betterportal/framework";
+import type { AppAuthConfig, BetterPortalConfig, PlatformConfigStore, PlatformService, TenantServiceRegistration } from "@betterportal/framework";
 import { signSetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 
@@ -201,6 +201,9 @@ async function registerServiceInPlatformConfig(input: {
     existing.title = existing.title || input.pluginId;
     existing.tags = [...new Set([...(existing.tags ?? []), ...defaultCapabilities(input.pluginId)])];
     existing.enabled = true;
+    if (input.jwks && isAuthPlugin(input.pluginId)) {
+      attachSharedAuthJwks(config, input.sharedServiceId, input.jwks);
+    }
   } else if (input.tenantScope?.tenantId) {
     const tenant = config.tenants.find((t) => t.id === input.tenantScope!.tenantId);
     if (!tenant) throw new Error(`Tenant ${input.tenantScope.tenantId} not found`);
@@ -220,14 +223,14 @@ async function registerServiceInPlatformConfig(input: {
     if (existing) {
       existing.hostname = input.serviceUrl;
       existing.apiKeyHash = apiKeyHash;
-      (existing as any).publicKeyPem = input.publicKeyPem;
-      (existing as any).keyId = input.keyId;
+      existing.publicKeyPem = input.publicKeyPem;
+      existing.keyId = input.keyId;
       existing.serviceId = input.pluginId;
       existing.capabilities = existing.capabilities?.length ? existing.capabilities : defaultCapabilities(input.pluginId);
       existing.lastSeenAt = now;
       existing.enabled = true;
     } else {
-      tenant.services.push({
+      const service: TenantServiceRegistration = {
         id,
         hostname: input.serviceUrl,
         apiKeyHash,
@@ -241,20 +244,21 @@ async function registerServiceInPlatformConfig(input: {
         createdAt: now,
         lastSeenAt: undefined,
         enabled: true
-      } as any);
+      };
+      tenant.services.push(service);
     }
   } else {
     const existing = config.platformServices.find((s) => s.id === id);
     if (existing) {
       existing.hostname = input.serviceUrl;
       existing.apiKeyHash = apiKeyHash;
-      (existing as any).publicKeyPem = input.publicKeyPem;
-      (existing as any).keyId = input.keyId;
+      existing.publicKeyPem = input.publicKeyPem;
+      existing.keyId = input.keyId;
       existing.serviceId = input.pluginId;
       existing.capabilities = existing.capabilities?.length ? existing.capabilities : defaultCapabilities(input.pluginId);
       existing.enabled = true;
     } else {
-      config.platformServices.push({
+      const service: PlatformService = {
         id,
         hostname: input.serviceUrl,
         apiKeyHash,
@@ -267,7 +271,8 @@ async function registerServiceInPlatformConfig(input: {
         category: undefined,
         createdAt: now,
         enabled: true
-      } as any);
+      };
+      config.platformServices.push(service);
     }
   }
   await input.storage.saveConfig(config);
@@ -278,6 +283,32 @@ function defaultCapabilities(pluginId: string): string[] {
   if (pluginId.includes(".auth.")) return ["auth"];
   if (pluginId.includes(".config-manager")) return ["config"];
   return [];
+}
+
+function isAuthPlugin(pluginId: string): boolean {
+  return defaultCapabilities(pluginId).includes("auth");
+}
+
+function attachSharedAuthJwks(
+  config: BetterPortalConfig,
+  sharedServiceId: string,
+  jwks: { keys: ReadonlyArray<Record<string, unknown>> }
+): void {
+  const publicKeys: NonNullable<AppAuthConfig["publicKeys"]> = {
+    keys: jwks.keys.map((key) => ({ ...key }))
+  };
+  const activationIds = new Set(
+    config.sharedServiceActivations
+      .filter((activation) => activation.enabled && activation.sharedServiceId === sharedServiceId)
+      .map((activation) => activation.id)
+  );
+  if (activationIds.size === 0) return;
+
+  for (const app of config.apps) {
+    if (app.auth && activationIds.has(app.auth.serviceId)) {
+      app.auth.publicKeys = publicKeys;
+    }
+  }
 }
 
 async function hashApiKey(apiKey: string): Promise<string> {

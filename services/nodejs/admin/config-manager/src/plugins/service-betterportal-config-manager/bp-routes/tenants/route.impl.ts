@@ -6,7 +6,8 @@ import {
   type DemoScenario,
   type ApiAuthRequirement,
   type BetterPortalRouteMount,
-  type CacheHints
+  type CacheHints,
+  type RouteHandlerContext
 } from "@betterportal/framework";
 import type { AppAuthConfig, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
 import { getConfigManagerRouteContext } from "../../routeContext.js";
@@ -45,6 +46,7 @@ export const ResponseSchema = av.object({
   shellServices: av.array(ShellServiceSchema).default([]),
   authServices: av.array(ShellServiceSchema).default([]),
   adminApiBase: av.string().minLength(1),
+  tenantsPath: av.string().minLength(1),
   serviceBaseUrl: av.optional(av.string())
 }, { unknownKeys: "strip" });
 export type ResponseData = Infer<typeof ResponseSchema>;
@@ -62,12 +64,12 @@ export const auth: ApiAuthRequirement = {
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin"] };
 
 export const demoScenarios: DemoScenario<ResponseData>[] = [
-  { id: "default", title: "Default", response: { title: "Tenants & Apps", tenants: [], apps: [], shellServices: [], authServices: [], adminApiBase: "/.well-known/bp/admin" } }
+  { id: "default", title: "Default", response: { title: "Tenants & Apps", tenants: [], apps: [], shellServices: [], authServices: [], adminApiBase: "/.well-known/bp/admin", tenantsPath: "/tenants" } }
 ];
 
 export const handleGet = createHandler(
   { response: ResponseSchema },
-  () => buildResponseModel()
+  (ctx) => buildResponseModel(tenantsPathFromContext(ctx))
 );
 
 export const handlePost = createHandler(
@@ -79,7 +81,7 @@ export const handlePost = createHandler(
     } else {
       await createTenant(body);
     }
-    return buildResponseModel();
+    return buildResponseModel(tenantsPathFromContext(ctx));
   }
 );
 
@@ -92,7 +94,7 @@ export const handlePut = createHandler(
     } else {
       await updateTenant(body);
     }
-    return buildResponseModel();
+    return buildResponseModel(tenantsPathFromContext(ctx));
   }
 );
 
@@ -106,11 +108,17 @@ export const handleDelete = createHandler(
     } else {
       await deleteTenant(id);
     }
-    return buildResponseModel();
+    return buildResponseModel(tenantsPathFromContext(ctx));
   }
 );
 
-async function buildResponseModel(): Promise<ResponseData> {
+function tenantsPathFromContext(ctx: Pick<RouteHandlerContext, "routeUrl">): string {
+  return ctx.routeUrl?.("tenants.index", { absolute: true })
+    ?? ctx.routeUrl?.("tenants.index")
+    ?? "/tenants";
+}
+
+async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseData> {
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
   return {
@@ -135,6 +143,7 @@ async function buildResponseModel(): Promise<ResponseData> {
     shellServices: config.tenants.flatMap((tenant) => themeShellServicesForTenant(config, tenant.id)),
     authServices: config.tenants.flatMap((tenant) => authServicesForTenant(config, tenant.id)),
     adminApiBase: "/.well-known/bp/admin",
+    tenantsPath,
     serviceBaseUrl: routeContext.serviceBaseUrl
   };
 }
@@ -388,12 +397,22 @@ function buildAppAuthConfig(
         ? { kind: "authress.io", roleClaimPath: "roles", subjectClaimPath: "sub" }
         : { kind: "betterportal.default" }
     ),
-    expectedIssuer: expectedIssuer ?? (providerKind === "authress.io" ? "https://authress.betterportal.local" : "https://auth.betterportal.local"),
+    expectedIssuer: expectedIssuer ?? issuerFromAuthService(authService?.hostname),
     expectedAudience: expectedAudience ?? "betterportal-runtime",
     jwksUri: existing?.jwksUri ?? `${(authService?.hostname ?? "").replace(/\/+$/, "")}/.well-known/jwks.json`,
     ...(publicKeys ? { publicKeys } : {}),
     roles: existing?.roles ?? []
   };
+}
+
+function issuerFromAuthService(hostname: string | undefined): string {
+  const normalized = (hostname ?? "").replace(/\/+$/, "");
+  if (!normalized) return "";
+  try {
+    return new URL(normalized).origin;
+  } catch {
+    return normalized;
+  }
 }
 
 function numberedPath(basePath: string, usedPaths: Set<string>): string {

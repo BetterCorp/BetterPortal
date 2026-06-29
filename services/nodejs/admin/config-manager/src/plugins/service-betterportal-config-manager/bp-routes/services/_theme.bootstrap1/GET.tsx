@@ -453,7 +453,11 @@ export function render(data: ResponseData): HtmlRenderable {
     if (window.htmx) {
       window.htmx.ajax("GET", (serviceBaseUrl || "") + "/services", { target: "#bp-main", swap: "innerHTML" });
     } else {
-      window.location.reload();
+      const link = document.createElement("a");
+      link.href = ${JSON.stringify(selectedServicesPath)};
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
   };
   document.addEventListener("click", async (event) => {
