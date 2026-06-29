@@ -5,7 +5,7 @@ ARG BP_PACKAGE_VERSION=latest
 USER root
 WORKDIR /home/bsb
 
-RUN npm install --omit=dev --no-audit --no-fund \
+RUN npm install --no-audit --no-fund --no-save --package-lock=false \
     "@betterportal/config-manager@${BP_PACKAGE_VERSION}" \
     "@betterportal/theme-bootstrap1@${BP_PACKAGE_VERSION}" \
     "@betterportal/theme-embedded@${BP_PACKAGE_VERSION}" \
