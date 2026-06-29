@@ -112,6 +112,15 @@ function resolveConcreteMode(mode: unknown, fallback: unknown): "light" | "dark"
   return "light";
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function resolveSafeServiceTarget(
   service: { hostname: string } | { endpointBaseUrl: string },
   path: string,
@@ -630,6 +639,125 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     (event as unknown as { __bpTenantId?: string; __bpAppId?: string }).__bpAppId = appId;
   }
 
+  private renderBootstrapErrorPage(input: {
+    status: number;
+    title: string;
+    heading: string;
+    message: string;
+    detail?: string;
+    requestUrl?: URL;
+  }): Response {
+    const brandName = this.config.brandName || "BetterPortal";
+    const path = input.requestUrl ? `${input.requestUrl.pathname}${input.requestUrl.search}` : "";
+    const html = `<!doctype html>
+<html lang="en" data-bs-theme="${this.config.defaultMode === "dark" ? "dark" : "light"}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(input.title)} - ${escapeHtml(brandName)}</title>
+  <link rel="stylesheet" href="/_themes/bootstrap1/assets/bootstrap.min.css">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bp-error-bg: #f6f8fb;
+      --bp-error-card: #ffffff;
+      --bp-error-border: rgba(15, 23, 42, 0.1);
+      --bp-error-text: #0f172a;
+      --bp-error-muted: #64748b;
+      --bp-error-accent: #2563eb;
+    }
+    [data-bs-theme="dark"] {
+      --bp-error-bg: #0f172a;
+      --bp-error-card: #111827;
+      --bp-error-border: rgba(148, 163, 184, 0.22);
+      --bp-error-text: #e5e7eb;
+      --bp-error-muted: #94a3b8;
+      --bp-error-accent: #60a5fa;
+    }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: var(--bp-error-bg);
+      color: var(--bp-error-text);
+    }
+    .bp-error-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+    }
+    .bp-error-card {
+      width: min(100%, 44rem);
+      background: var(--bp-error-card);
+      border: 1px solid var(--bp-error-border);
+      border-radius: 0.75rem;
+      box-shadow: 0 24px 80px rgba(15, 23, 42, 0.14);
+      padding: clamp(1.5rem, 4vw, 2.5rem);
+    }
+    .bp-error-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+    .bp-error-mark {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.5rem;
+      background: var(--bp-error-accent);
+      color: #fff;
+      display: inline-grid;
+      place-items: center;
+      font-weight: 800;
+    }
+    .bp-error-status {
+      color: var(--bp-error-accent);
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .bp-error-message {
+      color: var(--bp-error-muted);
+      font-size: 1.05rem;
+      max-width: 36rem;
+    }
+    .bp-error-detail {
+      margin-top: 1.5rem;
+      padding: 0.875rem 1rem;
+      border-radius: 0.5rem;
+      background: color-mix(in srgb, var(--bp-error-muted) 10%, transparent);
+      color: var(--bp-error-muted);
+      font-size: 0.9rem;
+    }
+    .bp-error-path {
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="bp-error-shell">
+    <section class="bp-error-card" aria-labelledby="bp-error-title">
+      <div class="bp-error-brand">
+        <span class="bp-error-mark">BP</span>
+        <span>${escapeHtml(brandName)}</span>
+      </div>
+      <div class="bp-error-status">${input.status}</div>
+      <h1 id="bp-error-title" class="h3 mb-3">${escapeHtml(input.heading)}</h1>
+      <p class="bp-error-message mb-0">${escapeHtml(input.message)}</p>
+      ${input.detail || path ? `<div class="bp-error-detail">
+        ${input.detail ? `<div>${escapeHtml(input.detail)}</div>` : ""}
+        ${path ? `<div class="bp-error-path mt-2">${escapeHtml(path)}</div>` : ""}
+      </div>` : ""}
+    </section>
+  </main>
+</body>
+</html>`;
+    return htmlResponse(html, input.status, "text/html", { "cache-control": "no-store" });
+  }
+
   private buildAppNavItems(
     portalConfig: any,
     requestContext: any,
@@ -952,15 +1080,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       // hasn't completed yet (fresh service, CP unreachable), surface a friendly hint.
       const portalConfig = this.getPortalConfig();
       if (!portalConfig) {
-        return new Response(
-          "<!doctype html><html><body style=\"font-family:sans-serif;padding:2rem;max-width:600px;margin:0 auto;\">" +
-          "<h2>BetterPortal not yet bootstrapped</h2>" +
-          "<p>The theme has not received its config from the control plane yet.</p>" +
-          "<p>If this is a fresh install, open the config-manager bootstrap wizard and complete setup, then return here.</p>" +
-          "<p>Otherwise check the control-plane URL + API key in this service's logs.</p>" +
-          "</body></html>",
-          { status: 503, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }
-        );
+        return this.renderBootstrapErrorPage({
+          status: 503,
+          title: "Portal unavailable",
+          heading: "BetterPortal is not ready yet",
+          message: "The theme has not received app configuration from the control plane.",
+          detail: "Complete bootstrap in config-manager or check the control-plane sync for this service.",
+          requestUrl: activeEvent.url
+        });
       }
       const requestContext = resolveThemeRequestContext(
         portalConfig,
@@ -971,9 +1098,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
       if (!requestContext) {
         this.logThemeContextResolutionFailure(activeEvent);
-        return jsonResponse({
-          error: "Unable to resolve tenant/app context for theme request"
-        }, 404);
+        return this.renderBootstrapErrorPage({
+          status: 404,
+          title: "Portal not found",
+          heading: "This portal is not configured",
+          message: "The request hostname, origin, or referer did not match an active BetterPortal tenant app.",
+          detail: "Check that this domain is configured on the app and that the app and tenant are enabled.",
+          requestUrl: activeEvent.url
+        });
       }
       this.tagRequestContext(activeEvent, requestContext.tenant.id, requestContext.app.id);
 
