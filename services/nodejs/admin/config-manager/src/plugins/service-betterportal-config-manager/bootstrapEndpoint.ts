@@ -17,7 +17,7 @@ import { renderBootstrapWizardHtml } from "./bootstrapWizardHtml.js";
 function buildDefaultAdminRoutes(cmInstanceId: string, authServiceInstanceId: string): BetterPortalRouteMount[] {
   return [
     { id: uuidv7(), path: "/", serviceId: cmInstanceId, viewId: "services.index", title: "Services", icon: "grid", enabled: true, methods: ["GET"] },
-    { id: uuidv7(), path: "/tenants", serviceId: cmInstanceId, viewId: "tenants.index", title: "Tenants & Apps", icon: "building", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), path: "/tenants", serviceId: cmInstanceId, viewId: "tenants.index", title: "Tenants & Apps", icon: "building", enabled: true, methods: ["GET", "POST", "PUT", "DELETE"] },
     { id: uuidv7(), path: "/routes", serviceId: cmInstanceId, viewId: "routes.index", title: "Routes", icon: "map", enabled: true, methods: ["GET"] },
     { id: uuidv7(), path: "/menu", serviceId: cmInstanceId, viewId: "menu.index", title: "Menu", icon: "list", enabled: true, methods: ["GET"] },
     { id: uuidv7(), path: "/fragments", serviceId: cmInstanceId, viewId: "fragments.index", title: "Fragments", icon: "puzzle", enabled: true, methods: ["GET"] },

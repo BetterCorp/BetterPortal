@@ -21,7 +21,7 @@ import { registerAdminApiRoutes } from "./adminApi.js";
 import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
-import { getManifestCache, registerSyncEndpoint } from "./syncApi.js";
+import { getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
 import { setConfigManagerRouteContext } from "./routeContext.js";
 import {
   describeEmbeddedContextResolution,
@@ -290,6 +290,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       storage: this.storage,
       cpState: this.cpState,
       serviceBaseUrl: this.cpState.issuer
+    });
+
+    await reconcileServiceRegistry(this.storage, this.manifest.pluginId, registry, {
+      manifestVersion: "local",
+      title: "BetterPortal Config Manager",
+      capabilities: ["config", "view.json", "view.metadata", "view.html", "theme.bootstrap1"]
     });
 
     this.app.use("/config", (event) => this.populateConfigAdminContext(event));
