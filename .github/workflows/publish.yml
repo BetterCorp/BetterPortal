@@ -228,7 +228,12 @@ jobs:
             exit 1
           fi
           for attempt in 1 2 3; do
-            if (cd "$ws" && npm run publish:client); then
+            log_file="$(mktemp)"
+            if (cd "$ws" && npm run publish:client 2>&1 | tee "$log_file"); then
+              exit 0
+            fi
+            if grep -q "Version .* already exists" "$log_file"; then
+              echo "BSB registry version already exists for $ws; treating publish as complete"
               exit 0
             fi
             if [ "$attempt" = "3" ]; then
