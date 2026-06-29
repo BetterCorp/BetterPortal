@@ -2471,7 +2471,7 @@ function renderConfigClientShell(d: {
       });
       const schema = await readJson(schemaResponse, "schema");
       if (!schemaResponse.ok) throw new Error(schema.error || schema.message || "schema HTTP " + schemaResponse.status);
-      await renderForm(schema, token, "tenant", "");
+      await renderForm(schema, token, cfg.appId ? "app" : "tenant", cfg.appId || "");
     } catch (error) {
       setStatus("error", error instanceof Error ? error.message : String(error));
     }

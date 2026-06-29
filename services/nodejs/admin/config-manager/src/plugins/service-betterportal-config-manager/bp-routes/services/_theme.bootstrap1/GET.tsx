@@ -105,25 +105,26 @@ function renderServiceCard(
           <div class="small mb-1"><strong>Status:</strong> <span class={`badge ${service.enabled ? "text-bg-success" : "text-bg-secondary"}`}>{service.enabled ? "active" : "disabled"}</span></div>
           <div class="small mb-2"><strong>Created:</strong> {service.createdAt}{service.lastSeenAt ? ` - Last seen: ${service.lastSeenAt}` : ""}</div>
           <div class="d-flex gap-2 flex-wrap align-items-center">
-            {apps.length > 1 ? (
+            {apps.length > 0 && service.hasConfigurableOptions ? (
               <div class="btn-group btn-group-sm">
-                {service.hasConfigurableOptions ? (
-                  <>
-                    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">Configure</button>
-                    <ul class="dropdown-menu">
-                      {apps.map((app) => (
-                        <li>
-                          <button type="button" class="dropdown-item" {...configureAttrs(service, app.id, `${title} - ${app.title}`, adminApiBase)}>
-                            {app.title}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                ) : configureButton(service, undefined, title, adminApiBase, "Configure", "btn btn-outline-primary")}
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">Configure</button>
+                <ul class="dropdown-menu">
+                  <li>
+                    <button type="button" class="dropdown-item" {...configureAttrs(service, undefined, `${title} - Tenant defaults`, adminApiBase)}>
+                      Tenant defaults
+                    </button>
+                  </li>
+                  {apps.map((app) => (
+                    <li>
+                      <button type="button" class="dropdown-item" {...configureAttrs(service, app.id, `${title} - ${app.title}`, adminApiBase)}>
+                        {app.title}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ) : (
-              configureButton(service, apps[0]?.id, title, adminApiBase)
+              configureButton(service, undefined, title, adminApiBase)
             )}
             {service.scope === "shared" && service.tenantId ? (
               <button class="btn btn-sm btn-outline-secondary"
