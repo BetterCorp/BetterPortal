@@ -62,7 +62,7 @@ Keep that PNG at the package root and include it in `package.json` `files`. The 
 
 ## Coolify
 
-Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds a small image from the BSB runtime image and installs published BetterPortal packages from npm. It does not build the local workspace inside Coolify. The default BSB base image is `code.bettercorp.dev/bettercorp/service-base:node-latest`; set `BSB_IMAGE` to override it.
+Use `docker-compose.coolify.yaml` for repo-sync deployments. It runs the BSB runtime image directly and lets BSB install the required BetterPortal plugin packages at startup. It does not build the local workspace inside Coolify. The default BSB image is `code.bettercorp.dev/bettercorp/service-base:node-latest`; set `BSB_IMAGE` to override it.
 
 The compose includes PostgreSQL 18 for config-manager production storage. Set `BP_POSTGRES_PASSWORD`; optional `BP_POSTGRES_DB` and `BP_POSTGRES_USER` default to `betterportal`.
 
@@ -71,6 +71,9 @@ Coolify services use the BSB runtime-provided vault config plugin instead of wri
 ```text
 vaultUrl=${BP_VAULT_URL:-https://vault.eu.core.betterportal.net}
 BSB_WRITABLE_PATHS=/data
+BSB_PLUGIN_DIRS=/mnt/plugins
+BSB_PLUGIN_UPDATE=${BSB_PLUGIN_UPDATE:-false}
+BSB_SHOW_PACKAGES=${BSB_SHOW_PACKAGES:-false}
 ```
 
 `BP_VAULT_URL` is optional and defaults to the BetterPortal EU core vault URL. Each service must have its own vault API credentials in Coolify; do not reuse one key across containers unless that is an intentional vault policy decision.
@@ -94,7 +97,7 @@ The compose file maps those envs into the names expected by the BSB vault config
 
 Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB image owns its cwd/runtime layout. Set `betterportal.bootstrapStatePath` and `betterportal.scopedConfigCachePath` explicitly under `/data` in each vault-backed service profile. Config-manager accepts this same `betterportal` block even though its primary platform storage is configured separately under `storage`.
 
-The Coolify image installs these packages into the BSB runtime `node_modules`:
+Each service sets `BSB_PLUGINS` for the package it actually runs:
 
 ```text
 @betterportal/config-manager
@@ -102,13 +105,13 @@ The Coolify image installs these packages into the BSB runtime `node_modules`:
 @betterportal/theme-embedded
 @betterportal/auth-default
 @betterportal/auth-authress-io
-@bsb/observable-opentelemetry
-@bsb/observable-axiom
 ```
 
-`BP_PACKAGE_VERSION` controls the BetterPortal package version installed by the Docker build. It defaults to `latest` so Coolify can consume the newest published release without a compose edit. Set `BP_PACKAGE_VERSION=10.0.x` when a deployment must be pinned. Each vault-backed service profile still sets `package: "@betterportal/..."`; BSB resolves that package from runtime `node_modules`. Do not set `BSB_PLUGIN_DIRS` for this image unless you intentionally mount a separate curated external plugin repository.
+Each container also includes the shared observable plugins in its own `BSB_PLUGINS`: `@bsb/observable-opentelemetry@latest` and `@bsb/observable-axiom@latest`.
 
-The BSB runtime image provides its built-in config plugins, including config-vault. The Coolify image only adds BetterPortal service/theme packages and the observable packages listed above.
+`BP_PACKAGE_VERSION` controls the BetterPortal package version installed by BSB. It defaults to `latest` so Coolify can consume the newest published release without a compose edit. Set `BP_PACKAGE_VERSION=10.0.x` when a deployment must be pinned. BSB installs packages into the shared `bp-plugins` volume mounted at `/mnt/plugins`; this cache survives restarts and avoids reinstalling packages every boot. `BSB_PLUGIN_UPDATE` defaults to `false`; set it to `true` in Coolify when you intentionally want BSB to refresh already-installed plugin packages. `BSB_SHOW_PACKAGES` defaults to `false`; set it to `true` only when debugging package resolution/startup in Coolify logs.
+
+Each vault-backed service profile still sets `package: "@betterportal/..."`; BSB resolves that package from `/mnt/plugins` first, then runtime `node_modules`. The BSB runtime image provides its built-in config plugins, including config-vault.
 
 Set the config-manager issuer/public URL inside the config-manager vault profile. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
 
@@ -126,6 +129,7 @@ For the bundled database, config-manager storage should use the `postgres` compo
 Persistent data lives in named volumes:
 
 - `bp-postgres`: PostgreSQL data.
+- `bp-plugins`: shared BSB plugin package cache.
 - `bp-config-manager`: platform config, CP signing keys, webhook delivery state.
 - service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users. Point BP state and service-specific stores at `/data/...` in the relevant service JSON.
 
