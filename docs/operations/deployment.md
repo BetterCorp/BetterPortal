@@ -107,7 +107,7 @@ Each service sets `BSB_PLUGINS` for the package it actually runs:
 @betterportal/auth-authress-io
 ```
 
-Each container also includes the shared observable plugins in its own `BSB_PLUGINS`: `@bsb/observable-opentelemetry@latest` and `@bsb/observable-axiom@latest`.
+Each container also includes the shared observable plugins in its own `BSB_PLUGINS`: `@bsb/observable-opentelemetry` and `@bsb/observable-axiom`.
 
 `BP_PACKAGE_VERSION` controls the BetterPortal package version installed by BSB. It defaults to `latest` so Coolify can consume the newest published release without a compose edit. Set `BP_PACKAGE_VERSION=10.0.x` when a deployment must be pinned. BSB installs packages into the shared `bp-plugins` volume mounted at `/mnt/plugins`; this cache survives restarts and avoids reinstalling packages every boot. `BSB_PLUGIN_UPDATE` defaults to `false`; set it to `true` in Coolify when you intentionally want BSB to refresh already-installed plugin packages. `BSB_SHOW_PACKAGES` defaults to `false`; set it to `true` only when debugging package resolution/startup in Coolify logs.
 

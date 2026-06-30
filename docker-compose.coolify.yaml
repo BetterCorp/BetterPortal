@@ -31,7 +31,7 @@ services:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/config-manager@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry@latest,@bsb/observable-axiom@latest"
+      BSB_PLUGINS: "@betterportal/config-manager@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_CONFIG_MANAGER_VAULT_API_KEY_ID:?Set BP_CONFIG_MANAGER_VAULT_API_KEY_ID for the config-manager service}
       apiSecret: ${BP_CONFIG_MANAGER_VAULT_API_SECRET:?Set BP_CONFIG_MANAGER_VAULT_API_SECRET for the config-manager service}
     volumes:
@@ -50,7 +50,7 @@ services:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/theme-bootstrap1@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry@latest,@bsb/observable-axiom@latest"
+      BSB_PLUGINS: "@betterportal/theme-bootstrap1@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_BOOTSTRAP1_VAULT_API_KEY_ID:?Set BP_BOOTSTRAP1_VAULT_API_KEY_ID for the bootstrap1 service}
       apiSecret: ${BP_BOOTSTRAP1_VAULT_API_SECRET:?Set BP_BOOTSTRAP1_VAULT_API_SECRET for the bootstrap1 service}
     volumes:
@@ -68,7 +68,7 @@ services:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/theme-embedded@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry@latest,@bsb/observable-axiom@latest"
+      BSB_PLUGINS: "@betterportal/theme-embedded@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_EMBEDDED_VAULT_API_KEY_ID:?Set BP_EMBEDDED_VAULT_API_KEY_ID for the embedded service}
       apiSecret: ${BP_EMBEDDED_VAULT_API_SECRET:?Set BP_EMBEDDED_VAULT_API_SECRET for the embedded service}
     volumes:
@@ -81,7 +81,7 @@ services:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/auth-default@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry@latest,@bsb/observable-axiom@latest"
+      BSB_PLUGINS: "@betterportal/auth-default@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_AUTH_DEFAULT_VAULT_API_KEY_ID:?Set BP_AUTH_DEFAULT_VAULT_API_KEY_ID for the auth-default service}
       apiSecret: ${BP_AUTH_DEFAULT_VAULT_API_SECRET:?Set BP_AUTH_DEFAULT_VAULT_API_SECRET for the auth-default service}
     volumes:
@@ -94,7 +94,7 @@ services:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/auth-authress-io@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry@latest,@bsb/observable-axiom@latest"
+      BSB_PLUGINS: "@betterportal/auth-authress-io@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_AUTHRESS_VAULT_API_KEY_ID:?Set BP_AUTHRESS_VAULT_API_KEY_ID for the auth-authress-io service}
       apiSecret: ${BP_AUTHRESS_VAULT_API_SECRET:?Set BP_AUTHRESS_VAULT_API_SECRET for the auth-authress-io service}
     volumes:
