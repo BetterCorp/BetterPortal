@@ -2,6 +2,7 @@ x-bp-build: &bp-build
   context: .
   dockerfile: Dockerfile.coolify
   args:
+    BSB_IMAGE: ${BSB_IMAGE:-code.bettercorp.dev/bettercorp/better-service-base:node-latest}
     BP_PACKAGE_VERSION: ${BP_PACKAGE_VERSION:-latest}
 
 x-bp-common: &bp-common

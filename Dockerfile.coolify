@@ -1,9 +1,7 @@
-FROM betterweb/service-base:node-latest
+ARG BSB_IMAGE=code.bettercorp.dev/bettercorp/better-service-base:node-latest
+FROM ${BSB_IMAGE}
 
 ARG BP_PACKAGE_VERSION=latest
-
-USER root
-WORKDIR /home/bsb
 
 RUN npm install --no-audit --no-fund --no-save --package-lock=false \
     "@betterportal/config-manager@${BP_PACKAGE_VERSION}" \
@@ -12,12 +10,8 @@ RUN npm install --no-audit --no-fund --no-save --package-lock=false \
     "@betterportal/auth-default@${BP_PACKAGE_VERSION}" \
     "@betterportal/auth-authress-io@${BP_PACKAGE_VERSION}" \
     "@bsb/observable-opentelemetry@latest" \
-    "@bsb/observable-axiom@latest" \
-  && mkdir -p /mnt/.temp \
-  && chown -R node:node /home/bsb /mnt/.temp
+    "@bsb/observable-axiom@latest"
 
-ENV NODE_ENV=production \
-    BSB_CONTAINER=true \
-    BSB_LIVE=true
+RUN node /home/bsb/lib/scripts/list-plugin-search-paths.js
 
 EXPOSE 80
