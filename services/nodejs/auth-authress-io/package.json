@@ -31,7 +31,7 @@
   "dependencies": {
     "@betterportal/framework": "10.0.1",
     "@betterportal/plugin-bsb": "10.0.1",
-    "@bsb/base": "^9.6.22",
+    "@bsb/base": "^9.6.41",
     "anyvali": "^1.0.6",
     "jsonwebtoken": "^9.0.2",
     "jsx-htmx": "4.0.0-beta4"
