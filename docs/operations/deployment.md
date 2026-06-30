@@ -62,7 +62,7 @@ Keep that PNG at the package root and include it in `package.json` `files`. The 
 
 ## Coolify
 
-Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds a small image from the BSB runtime image and installs published BetterPortal packages from npm. It does not build the local workspace inside Coolify. The default BSB base image is `code.bettercorp.dev/bettercorp/better-service-base:node-latest`; set `BSB_IMAGE` to override it.
+Use `docker-compose.coolify.yaml` for repo-sync deployments. It builds a small image from the BSB runtime image and installs published BetterPortal packages from npm. It does not build the local workspace inside Coolify. The default BSB base image is `code.bettercorp.dev/bettercorp/service-base:node-latest`; set `BSB_IMAGE` to override it.
 
 The compose includes PostgreSQL 18 for config-manager production storage. Set `BP_POSTGRES_PASSWORD`; optional `BP_POSTGRES_DB` and `BP_POSTGRES_USER` default to `betterportal`.
 

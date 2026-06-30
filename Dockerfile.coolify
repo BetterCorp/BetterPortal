@@ -1,4 +1,4 @@
-ARG BSB_IMAGE=code.bettercorp.dev/bettercorp/better-service-base:node-latest
+ARG BSB_IMAGE=code.bettercorp.dev/bettercorp/service-base:node-latest
 FROM ${BSB_IMAGE}
 
 ARG BP_PACKAGE_VERSION=latest
