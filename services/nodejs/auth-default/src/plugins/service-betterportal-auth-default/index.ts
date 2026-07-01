@@ -18,7 +18,8 @@ import {
   type BpTokenIssuer,
   type ConfigSchemaDescriptor,
   type JwtVerifier,
-  type RsaKeyPair
+  type RsaKeyPair,
+  type TenantAppValidation
 } from "@betterportal/framework";
 import { UserStore } from "../../userStore.js";
 import { registry } from "./.bp-generated/registry.js";
@@ -156,6 +157,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
    */
   protected getJwtVerifier(_tenantId: string, _appId: string): JwtVerifier | undefined {
     return this.tokenIssuer().verifier("access");
+  }
+
+  protected async validateTenantApp(tenantId: string, appId: string): Promise<TenantAppValidation> {
+    if (await this.validateConfigScope(tenantId, appId)) return { allowed: true };
+    return {
+      allowed: false,
+      reason: `Default auth service is not activated for tenant ${tenantId} app ${appId}.`
+    };
   }
 
   private tokenIssuer(): BpTokenIssuer {

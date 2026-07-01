@@ -22,7 +22,8 @@ import {
   type JwtClaims,
   type JwtVerifier,
   type RsaKeyPair,
-  type ServiceConfigTicketClaims
+  type ServiceConfigTicketClaims,
+  type TenantAppValidation
 } from "@betterportal/framework";
 import { registry } from "./.bp-generated/registry.js";
 import { resolve } from "node:path";
@@ -212,6 +213,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     void tenantId;
     void appId;
     return this.tokenIssuer().verifier("access");
+  }
+
+  protected async validateTenantApp(tenantId: string, appId: string): Promise<TenantAppValidation> {
+    if (await this.validateConfigScope(tenantId, appId)) return { allowed: true };
+    return {
+      allowed: false,
+      reason: `Authress auth service is not activated for tenant ${tenantId} app ${appId}.`
+    };
   }
 
   signAccessToken(input: {
