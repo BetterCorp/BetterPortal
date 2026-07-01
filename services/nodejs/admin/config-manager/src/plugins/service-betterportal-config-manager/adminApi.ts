@@ -5,8 +5,10 @@ import type {
   JsonValue
 } from "@betterportal/framework";
 import {
+  eventHeaders,
   htmlResponse,
   jsonResponse,
+  resolveEmbeddedRequestContext,
   signServiceConfigTicket,
   uuidv7
 } from "@betterportal/framework";
@@ -111,10 +113,9 @@ function appPublicUrl(app: BetterPortalApp | undefined): string | undefined {
 function currentAppFromRequest(config: BetterPortalConfig, event: BetterPortalEvent): BetterPortalApp | undefined {
   const url = new URL(event.req.url, RELATIVE_URL_PARSE_BASE);
   const appId = url.searchParams.get("appId") ?? event.req.headers.get("x-bp-app-id") ?? "";
-  const tenantUrl = url.searchParams.get("tenantUrl") ?? event.req.headers.get("referer") ?? event.req.headers.get("origin") ?? "";
   return appId
     ? config.apps.find((entry) => entry.id === appId)
-    : config.apps.find((entry) => tenantUrl && appMatchesTenantUrl(entry, tenantUrl));
+    : resolveEmbeddedRequestContext(config, eventHeaders(event))?.app;
 }
 
 function managementDiscovery(config: BetterPortalConfig, cpState: CpBootstrapState): JsonValue {

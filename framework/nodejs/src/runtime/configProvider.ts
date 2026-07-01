@@ -12,11 +12,10 @@ import {
   BetterPortalRouteMount
 } from "../contracts/platformConfig.js";
 import {
+  buildHostCandidates,
   type BetterPortalHeaderTrustOptions,
   HeaderMap,
-  hostFromHeaderValue,
-  resolveEmbeddedSourceHeader,
-  resolveThemeSourceHeader
+  hostFromHeaderValue
 } from "./http.js";
 
 export interface BetterPortalConfigProvider {
@@ -54,10 +53,6 @@ export function createBetterPortalConfigProvider(options: BetterPortalConfigProv
   return new FileBackedBetterPortalConfigProvider(options.configPath);
 }
 
-function hostFromUrlValue(value?: string): string | null {
-  return hostFromHeaderValue(value);
-}
-
 function hostFromHostHeader(host?: string): string | null {
   return hostFromHeaderValue(host);
 }
@@ -89,9 +84,7 @@ export function describeEmbeddedContextResolution(
   candidates: string[];
   appHosts: Array<{ appId: string; hosts: string[] }>;
 } {
-  const refererHost = hostFromUrlValue(resolveEmbeddedSourceHeader(headers, headerTrust));
-  const originHost = hostFromUrlValue(resolveThemeSourceHeader(headers, headerTrust));
-  const candidates = [...new Set([refererHost, originHost].filter((value): value is string => !!value))];
+  const candidates = buildHostCandidates(headers, "service", headerTrust).map((candidate) => candidate.host);
   return {
     candidates,
     appHosts: config.apps.map((app) => ({
@@ -121,22 +114,62 @@ function buildResolvedContext(config: BetterPortalConfig, appId: string | null):
   return { tenant, app };
 }
 
+export interface BetterPortalContextResolutionCandidate {
+  source: string;
+  host: string;
+  matchedAppId?: string;
+}
+
+export interface BetterPortalContextResolutionResult {
+  context: BetterPortalResolvedRequestContext | null;
+  candidates: BetterPortalContextResolutionCandidate[];
+  matchedBy?: string;
+}
+
+export function resolveRequestContextDetailed(
+  config: BetterPortalConfig,
+  headers: HeaderMap,
+  mode: "theme" | "service",
+  headerTrust: BetterPortalHeaderTrustOptions = {}
+): BetterPortalContextResolutionResult {
+  const candidates = buildHostCandidates(headers, mode, headerTrust);
+  const attempts: BetterPortalContextResolutionCandidate[] = [];
+
+  for (const candidate of candidates) {
+    const app = findAppByHost(config, candidate.host);
+    attempts.push({
+      source: candidate.source,
+      host: candidate.host,
+      ...(app ? { matchedAppId: app.id } : {})
+    });
+    const context = buildResolvedContext(config, app?.id ?? null);
+    if (context) {
+      return { context, candidates: attempts, matchedBy: candidate.source };
+    }
+  }
+
+  return { context: null, candidates: attempts };
+}
+
 export function resolveThemeRequestContext(
   config: BetterPortalConfig,
   headers: HeaderMap,
   requestHost?: string,
   headerTrust: BetterPortalHeaderTrustOptions = {}
 ): BetterPortalResolvedRequestContext | null {
-  const originHostname = hostFromUrlValue(resolveThemeSourceHeader(headers, headerTrust));
-  const refererHostname = hostFromUrlValue(resolveEmbeddedSourceHeader(headers, headerTrust));
-  const hostHostname = hostFromHostHeader(requestHost);
-
-  const app =
-    findAppByHost(config, hostHostname) ??
-    findAppByHost(config, originHostname) ??
-    findAppByHost(config, refererHostname);
-
-  return buildResolvedContext(config, app?.id ?? null);
+  const requestHostHeaders = requestHost
+    ? headers instanceof Headers
+      ? new Headers(headers)
+      : { ...headers }
+    : headers;
+  if (requestHost) {
+    if (requestHostHeaders instanceof Headers) {
+      requestHostHeaders.set("host", requestHost);
+    } else {
+      requestHostHeaders.host = requestHost;
+    }
+  }
+  return resolveRequestContextDetailed(config, requestHostHeaders, "theme", headerTrust).context;
 }
 
 export function resolveEmbeddedRequestContext(
@@ -144,13 +177,7 @@ export function resolveEmbeddedRequestContext(
   headers: HeaderMap,
   headerTrust: BetterPortalHeaderTrustOptions = {}
 ): BetterPortalResolvedRequestContext | null {
-  const refererHostname = hostFromUrlValue(resolveEmbeddedSourceHeader(headers, headerTrust));
-  const originHostname = hostFromUrlValue(resolveThemeSourceHeader(headers, headerTrust));
-  const app =
-    findAppByHost(config, refererHostname) ??
-    findAppByHost(config, originHostname);
-
-  return buildResolvedContext(config, app?.id ?? null);
+  return resolveRequestContextDetailed(config, headers, "service", headerTrust).context;
 }
 
 export function resolveServiceForTenant(

@@ -13,6 +13,7 @@ import {
   htmlResponse,
   jsonResponse,
   resolveAppRoute,
+  resolveRequestContextDetailed,
   resolveServiceForTenant,
   resolveThemeHostname,
   resolveThemeRequestContext,
@@ -358,12 +359,21 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     if (!obs) return;
 
     const normalizedError = error instanceof Error ? error : null;
+    const portalConfig = this.getPortalConfig();
+    const resolution = portalConfig
+      ? resolveRequestContextDetailed(portalConfig, eventHeaders(event), "theme", this.headerTrustOptions())
+      : null;
     obs.logger.warn(
-      "BetterPortal embedded context not resolved for request host={host} origin={origin} referer={referer}: {reason}",
+      "BetterPortal embedded context not resolved: host={host} authority={authority} origin={origin} referer={referer} altUsed={altUsed} candidates={candidates}: {reason}",
       {
         host: event.req.headers.get("host") ?? "",
+        authority: event.req.headers.get(":authority") ?? event.req.headers.get("authority") ?? "",
         origin: event.req.headers.get("origin") ?? "",
         referer: event.req.headers.get("referer") ?? "",
+        altUsed: event.req.headers.get("alt-used") ?? "",
+        candidates: resolution?.candidates.map((candidate) =>
+          `${candidate.source}:${candidate.host}${candidate.matchedAppId ? `->${candidate.matchedAppId}` : ""}`
+        ).join(",") ?? "",
         reason: normalizedError?.message ?? "no active app matched request host/origin/referer"
       }
     );

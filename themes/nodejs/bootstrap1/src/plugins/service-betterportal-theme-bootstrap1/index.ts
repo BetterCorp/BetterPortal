@@ -14,6 +14,7 @@ import {
   registerServiceConfigRoutes,
   resolveServiceForTenant,
   resolveAppRoute,
+  resolveRequestContextDetailed,
   resolveThemeRequestContext,
   serviceBaseUrl,
   eventObservability,
@@ -643,12 +644,21 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     if (!obs) return;
 
     const normalizedError = error instanceof Error ? error : null;
+    const portalConfig = this.getPortalConfig();
+    const resolution = portalConfig
+      ? resolveRequestContextDetailed(portalConfig, eventHeaders(event), "theme", this.headerTrustOptions())
+      : null;
     obs.logger.warn(
-      "BetterPortal theme context not resolved for request host={host} origin={origin} referer={referer}: {reason}",
+      "BetterPortal theme context not resolved: host={host} authority={authority} origin={origin} referer={referer} altUsed={altUsed} candidates={candidates}: {reason}",
       {
         host: event.req.headers.get("host") ?? "",
+        authority: event.req.headers.get(":authority") ?? event.req.headers.get("authority") ?? "",
         origin: event.req.headers.get("origin") ?? "",
         referer: event.req.headers.get("referer") ?? "",
+        altUsed: event.req.headers.get("alt-used") ?? "",
+        candidates: resolution?.candidates.map((candidate) =>
+          `${candidate.source}:${candidate.host}${candidate.matchedAppId ? `->${candidate.matchedAppId}` : ""}`
+        ).join(",") ?? "",
         reason: normalizedError?.message ?? "no active app matched request host/origin/referer"
       }
     );
@@ -665,10 +675,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     heading: string;
     message: string;
     detail?: string;
-    requestUrl?: URL;
   }): Response {
     const brandName = this.config.brandName || "BetterPortal";
-    const path = input.requestUrl ? `${input.requestUrl.pathname}${input.requestUrl.search}` : "";
     const html = `<!doctype html>
 <html lang="en" data-bs-theme="${this.config.defaultMode === "dark" ? "dark" : "light"}">
 <head>
@@ -749,11 +757,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       color: var(--bp-error-muted);
       font-size: 0.9rem;
     }
-    .bp-error-path {
-      overflow-wrap: anywhere;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.85rem;
-    }
   </style>
 </head>
 <body>
@@ -766,9 +769,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       <div class="bp-error-status">${input.status}</div>
       <h1 id="bp-error-title" class="h3 mb-3">${escapeHtml(input.heading)}</h1>
       <p class="bp-error-message mb-0">${escapeHtml(input.message)}</p>
-      ${input.detail || path ? `<div class="bp-error-detail">
+      ${input.detail ? `<div class="bp-error-detail">
         ${input.detail ? `<div>${escapeHtml(input.detail)}</div>` : ""}
-        ${path ? `<div class="bp-error-path mt-2">${escapeHtml(path)}</div>` : ""}
       </div>` : ""}
     </section>
   </main>
@@ -1128,8 +1130,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           title: "Portal unavailable",
           heading: "BetterPortal is not ready yet",
           message: "The theme has not received app configuration from the control plane.",
-          detail: "Complete bootstrap in config-manager or check the control-plane sync for this service.",
-          requestUrl: activeEvent.url
+          detail: "Complete bootstrap in config-manager or check the control-plane sync for this service."
         });
       }
       const requestContext = resolveThemeRequestContext(
@@ -1145,9 +1146,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           status: 404,
           title: "Portal not found",
           heading: "This portal is not configured",
-          message: "The request hostname, origin, or referer did not match an active BetterPortal tenant app.",
-          detail: "Check that this domain is configured on the app and that the app and tenant are enabled.",
-          requestUrl: activeEvent.url
+          message: "No active BetterPortal app matched this request.",
+          detail: "Check that the public domain is configured on the app and that the app and tenant are enabled."
         });
       }
       this.tagRequestContext(activeEvent, requestContext.tenant.id, requestContext.app.id);

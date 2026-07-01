@@ -7,7 +7,28 @@ export interface BetterPortalHeaderTrustOptions {
   cfProxy?: boolean;
 }
 
-function headerLookup(headers: HeaderMap, key: string): string | undefined {
+export type BetterPortalHostCandidateSource =
+  | "host"
+  | "authority"
+  | "forwarded"
+  | "x-forwarded-host"
+  | "x-original-host"
+  | "original-host"
+  | "cf-connecting-host"
+  | "cf-original-host"
+  | "origin"
+  | "referer"
+  | "alt-used";
+
+export type BetterPortalHostResolutionMode = "theme" | "service";
+
+export interface BetterPortalHostCandidate {
+  source: BetterPortalHostCandidateSource;
+  value: string;
+  host: string;
+}
+
+export function headerLookup(headers: HeaderMap, key: string): string | undefined {
   if (headers instanceof Headers) {
     return headers.get(key) ?? undefined;
   }
@@ -96,6 +117,56 @@ function trustedProxyHeaderCandidates(options: BetterPortalHeaderTrustOptions = 
   return candidates;
 }
 
+const PROXY_HOST_SOURCES: BetterPortalHostCandidateSource[] = [
+  "forwarded",
+  "x-forwarded-host",
+  "x-original-host",
+  "original-host"
+];
+
+const CF_HOST_SOURCES: BetterPortalHostCandidateSource[] = [
+  "cf-connecting-host",
+  "cf-original-host"
+];
+
+function trustedProxyCandidateSources(options: BetterPortalHeaderTrustOptions = {}): BetterPortalHostCandidateSource[] {
+  return [
+    ...(options.trustedProxyHeaders ? PROXY_HOST_SOURCES : []),
+    ...(options.cfProxy ? CF_HOST_SOURCES : [])
+  ];
+}
+
+function hostCandidate(headers: HeaderMap, source: BetterPortalHostCandidateSource): BetterPortalHostCandidate | null {
+  const raw = source === "authority"
+    ? headerLookup(headers, ":authority") ?? headerLookup(headers, "authority")
+    : headerLookup(headers, source === "host" ? "host" : source);
+  const host = hostFromHeaderValue(raw);
+  return raw && host ? { source, value: raw, host } : null;
+}
+
+function dedupeHostCandidates(candidates: Array<BetterPortalHostCandidate | null>): BetterPortalHostCandidate[] {
+  const seen = new Set<string>();
+  const out: BetterPortalHostCandidate[] = [];
+  for (const candidate of candidates) {
+    if (!candidate || seen.has(candidate.host)) continue;
+    seen.add(candidate.host);
+    out.push(candidate);
+  }
+  return out;
+}
+
+export function buildHostCandidates(
+  headers: HeaderMap,
+  mode: BetterPortalHostResolutionMode,
+  options: BetterPortalHeaderTrustOptions = {}
+): BetterPortalHostCandidate[] {
+  const proxySources = trustedProxyCandidateSources(options);
+  const orderedSources: BetterPortalHostCandidateSource[] = mode === "theme"
+    ? ["host", "authority", ...proxySources, "origin", "referer", "alt-used"]
+    : ["origin", "referer", "host", "authority", ...proxySources, "alt-used"];
+  return dedupeHostCandidates(orderedSources.map((source) => hostCandidate(headers, source)));
+}
+
 export function resolveEmbeddedSourceHeader(headers: HeaderMap, options: BetterPortalHeaderTrustOptions = {}): string | undefined {
   // NOTE: hx-current-url is deliberately NOT trusted - it is set by client-side
   // JS (HTMX) and is fully attacker-controllable, so it must never drive
@@ -123,11 +194,11 @@ export function resolveThemeSourceHeader(headers: HeaderMap, options: BetterPort
 }
 
 export function resolveEmbeddedHostname(headers: HeaderMap, options: BetterPortalHeaderTrustOptions = {}): string | null {
-  return hostFromHeaderValue(resolveEmbeddedSourceHeader(headers, options));
+  return buildHostCandidates(headers, "service", options)[0]?.host ?? null;
 }
 
 export function resolveThemeHostname(headers: HeaderMap, options: BetterPortalHeaderTrustOptions = {}): string | null {
-  return hostFromHeaderValue(resolveThemeSourceHeader(headers, options));
+  return buildHostCandidates(headers, "theme", options)[0]?.host ?? null;
 }
 
 export function toHtmlString(body: HtmlRenderable): string {

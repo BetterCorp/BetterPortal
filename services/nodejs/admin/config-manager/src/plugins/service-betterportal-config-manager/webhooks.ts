@@ -2,10 +2,11 @@ import { createHmac, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  eventHeaders,
   jsonResponse,
+  resolveEmbeddedRequestContext,
   uuidv7,
   type BetterPortalConfig,
-  type BetterPortalApp,
   type BetterPortalEvent,
   type BetterPortalH3App,
   type JsonValue,
@@ -16,7 +17,6 @@ import { eventObservability } from "@betterportal/framework";
 import { getManifestCache } from "./syncApi.js";
 
 const API_BASE = "/.well-known/bp";
-// Parse-only base for relative request URLs. Never emit this origin.
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
 type DeliveryStatus = "pending" | "delivered" | "failed";
@@ -83,31 +83,12 @@ function stringValue(body: Record<string, unknown>, key: string): string | undef
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function appMatchesTenantUrl(app: BetterPortalApp, tenantUrl: string): boolean {
-  let host = "";
-  try {
-    host = new URL(tenantUrl).host.toLowerCase();
-  } catch {
-    host = tenantUrl.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-  }
-  return app.hostnames.some((hostname) => {
-    const value = hostname.toLowerCase();
-    if (value === host) return true;
-    try {
-      return new URL(value).host.toLowerCase() === host;
-    } catch {
-      return false;
-    }
-  });
-}
-
-function currentAppFromRequest(config: BetterPortalConfig, event: BetterPortalEvent): BetterPortalApp | undefined {
+function currentAppFromRequest(config: BetterPortalConfig, event: BetterPortalEvent) {
   const url = new URL(event.req.url, RELATIVE_URL_PARSE_BASE);
   const appId = url.searchParams.get("appId") ?? event.req.headers.get("x-bp-app-id") ?? "";
-  const tenantUrl = url.searchParams.get("tenantUrl") ?? event.req.headers.get("referer") ?? event.req.headers.get("origin") ?? "";
   return appId
     ? config.apps.find((entry) => entry.id === appId)
-    : config.apps.find((entry) => tenantUrl && appMatchesTenantUrl(entry, tenantUrl));
+    : resolveEmbeddedRequestContext(config, eventHeaders(event))?.app;
 }
 
 function matchingTargets(config: BetterPortalConfig, serviceId: string, eventId: string, tenantId: string, appId?: string): WebhookTarget[] {
