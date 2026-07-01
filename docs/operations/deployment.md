@@ -91,6 +91,8 @@ BP_AUTH_DEFAULT_VAULT_API_KEY_ID
 BP_AUTH_DEFAULT_VAULT_API_SECRET
 BP_AUTHRESS_VAULT_API_KEY_ID
 BP_AUTHRESS_VAULT_API_SECRET
+BP_HELLO_VIEW_VAULT_API_KEY_ID
+BP_HELLO_VIEW_VAULT_API_SECRET
 ```
 
 The compose file maps those envs into the names expected by the BSB vault config plugin: `apiKeyId` and `apiSecret`. The Coolify image exposes container port `80` and the compose file does not declare host port mappings; set each bundled service profile's plugin `config.port` to `80` for Coolify deployments.
@@ -105,6 +107,7 @@ Each service sets `BSB_PLUGINS` for the package it actually runs:
 @betterportal/theme-embedded
 @betterportal/auth-default
 @betterportal/auth-authress-io
+@betterportal/hello-view
 ```
 
 Each container also includes the shared observable plugins in its own `BSB_PLUGINS`: `@bsb/observable-opentelemetry` and `@bsb/observable-axiom`.

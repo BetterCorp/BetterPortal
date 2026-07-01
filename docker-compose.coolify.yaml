@@ -103,6 +103,19 @@ services:
     depends_on:
       - config-manager
 
+  hello-view:
+    <<: *bp-common
+    environment:
+      <<: *bp-vault-env
+      BSB_PLUGINS: "@betterportal/hello-view@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
+      apiKeyId: ${BP_HELLO_VIEW_VAULT_API_KEY_ID:?Set BP_HELLO_VIEW_VAULT_API_KEY_ID for the hello-view service}
+      apiSecret: ${BP_HELLO_VIEW_VAULT_API_SECRET:?Set BP_HELLO_VIEW_VAULT_API_SECRET for the hello-view service}
+    volumes:
+      - bp-plugins:/mnt/plugins
+      - bp-hello-view-data:/data
+    depends_on:
+      - config-manager
+
 volumes:
   bp-postgres:
   bp-plugins:
@@ -111,3 +124,4 @@ volumes:
   bp-embedded-data:
   bp-auth-default-data:
   bp-authress-data:
+  bp-hello-view-data:
