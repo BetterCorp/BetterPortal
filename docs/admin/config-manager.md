@@ -90,3 +90,5 @@ Config Manager itself remains a direct tenant service during bootstrap because i
 The menu editor controls the BP shell navigation.
 
 Prefer shell menu entries over building persistent inner menus inside services.
+
+Menus should link only to app page routes backed by service page renderers. API, raw, dependency, and fragment-only routes can exist in app route allowlists, but they should not be generated or selected as menu entries.

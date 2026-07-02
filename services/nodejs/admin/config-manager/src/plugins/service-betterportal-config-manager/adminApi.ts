@@ -87,6 +87,26 @@ function routeMethodsFromManifest(methods?: string[]): BetterPortalRouteMount["m
   return normalized.length ? normalized : ["GET"];
 }
 
+type WizardManifestView = {
+  viewId: string;
+  title: string;
+  renderable?: boolean;
+  methods?: unknown[];
+  html?: {
+    themeRenderers?: Record<string, {
+      renderModes?: unknown[];
+    }>;
+  };
+};
+
+function hasPageRenderer(view: WizardManifestView): boolean {
+  const renderers = view.html?.themeRenderers;
+  if (!renderers) return view.renderable !== false;
+  return Object.values(renderers).some((renderer) =>
+    Array.isArray(renderer.renderModes) && renderer.renderModes.includes("page")
+  );
+}
+
 function appMatchesTenantUrl(app: BetterPortalApp, tenantUrl: string): boolean {
   let host = "";
   try {
@@ -1704,7 +1724,7 @@ export function registerAdminApiRoutes(
     let serviceId: string | undefined;
     let capabilities: string[] = [];
     let serviceRoutes: Array<{ viewId: string; path: string; renderable?: boolean; methods?: string[] }> = [];
-    let viewMeta = new Map<string, { title: string; renderable: boolean; methods: string[] }>();
+    let viewMeta = new Map<string, { title: string; renderable: boolean; pageRenderable: boolean; methods: string[] }>();
     const schemaText = typeof body.schema === "string" ? body.schema : "";
     if (schemaText) {
       try {
@@ -1712,7 +1732,7 @@ export function registerAdminApiRoutes(
           manifest?: {
             pluginId?: string;
             capabilities?: string[];
-            views?: Array<{ viewId: string; title: string; renderable?: boolean; methods?: unknown[] }>;
+            views?: WizardManifestView[];
           };
           routes?: Array<{ viewId: string; path: string; renderable?: boolean; methods?: string[] }>;
         };
@@ -1722,6 +1742,7 @@ export function registerAdminApiRoutes(
         viewMeta = new Map((schema.manifest?.views ?? []).map((v) => [v.viewId, {
           title: v.title,
           renderable: v.renderable !== false,
+          pageRenderable: hasPageRenderer(v),
           methods: Array.isArray(v.methods)
             ? v.methods.filter((value): value is string => typeof value === "string")
             : []
@@ -1779,7 +1800,7 @@ export function registerAdminApiRoutes(
             methods: routeMethodsFromManifest(r.methods)
           });
           existingPaths.add(mountPath);
-          if (renderable) {
+          if (meta?.pageRenderable === true && !isApiRoute({ kind: renderable ? "page" : "api", path: mountPath }, renderable)) {
             groupChildren.push({
               id: uuidv7(),
               type: "link",
