@@ -80,17 +80,17 @@ BSB_SHOW_PACKAGES=${BSB_SHOW_PACKAGES:-false}
 The `bsb-plugin-watcher` service is the only container that sets `BSB_PLUGINS` and `BSB_PLUGIN_UPDATE`. It mounts `bp-plugins` read/write, runs with `BSB_PLUGIN_WATCHER=true`, and syncs these packages into `/mnt/plugins`:
 
 ```text
-@betterportal/config-manager
-@betterportal/theme-bootstrap1
-@betterportal/theme-embedded
-@betterportal/auth-default
-@betterportal/auth-authress-io
-@betterportal/hello-view
-@bsb/observable-opentelemetry
-@bsb/observable-axiom
+@betterportal/config-manager@10.0
+@betterportal/theme-bootstrap1@10.0
+@betterportal/theme-embedded@10.0
+@betterportal/auth-default@10.0
+@betterportal/auth-authress-io@10.0
+@betterportal/hello-view@10.0
+@bsb/observable-opentelemetry@9.6
+@bsb/observable-axiom@9.6
 ```
 
-`BP_PACKAGE_VERSION` controls the BetterPortal package selector installed by the watcher. When unset, the compose emits bare package names and BSB installs the current npm latest. Set `BP_PACKAGE_VERSION=10.0.x` when a deployment must be pinned. `BSB_PLUGIN_UPDATE` defaults to `false`; set it to `true` only on the watcher when intentionally refreshing already-installed plugin packages. `BSB_PLUGIN_WATCH_INTERVAL_SECONDS` defaults to `3600`. `BSB_SHOW_PACKAGES` defaults to `false`; set it to `true` only when debugging package resolution/startup in Coolify logs.
+The plugin selectors are hardcoded in compose because releases update this file alongside package publishing. Do not use bare/latest selectors in Coolify; the BSB watcher expects explicit `major.minor` or `major.minor.patch` selectors. `BSB_PLUGIN_UPDATE` is defined only on the watcher and defaults to `true` there. Runtime service containers must not set `BSB_PLUGIN_UPDATE`. `BSB_PLUGIN_WATCH_INTERVAL_SECONDS` defaults to `3600`. `BSB_SHOW_PACKAGES` defaults to `false`; set it to `true` only when debugging package resolution/startup in Coolify logs.
 
 Required per-service secret envs:
 
