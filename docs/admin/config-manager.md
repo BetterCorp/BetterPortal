@@ -75,7 +75,7 @@ The test endpoint sends a config-manager generated `{ "test": true }` payload di
 
 Tenant services are direct bindings under one tenant. Shared services are platform-managed providers activated into tenants/apps. App references point at the activation id, not the shared catalog id.
 
-Adding a shared service is URL-first. The browser loads `/.well-known/bp/manifest` from the service, derives plugin id, title, category, capabilities/tags, and deployment modes, then posts that metadata to config-manager. Config-manager must not fetch the manifest itself.
+Adding tenant services and shared services is URL-first and browser-mediated. The browser loads `/.well-known/bp/manifest` and `/.well-known/bp/schema.json` from the service, posts metadata to config-manager, asks config-manager for a setup token with `begin-install`, then calls the service `/.well-known/bp/install` directly. Config-manager must not fetch manifests/schema server-side, and rendered UI must not use the control-plane issuer as a browser form/action URL.
 
 Scoped sync includes shared service activations as entries in `tenant.services` with public metadata only: activation `id`, `serviceId`, `hostname`/`baseUrl`, title, description, capabilities/tags, logo/category, deployment mode, and `source: "shared"`. Secrets stay out of scoped sync.
 

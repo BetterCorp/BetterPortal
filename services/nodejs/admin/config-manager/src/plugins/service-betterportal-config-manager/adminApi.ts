@@ -1635,7 +1635,7 @@ export function registerAdminApiRoutes(
   // (CM cannot reach services) and POSTs the parsed payload here.
 
   app.post(`${API_BASE}/wizard/verify`, async (event) => {
-    const adminApiBase = adminApiBaseFromControlPlane(cpState);
+    const adminApiBase = API_BASE;
     const form = await readFormBody(event);
     const tenantId = form.tenantId ?? "";
     const hostname = normalizeHostname(form.hostname);
@@ -1679,18 +1679,24 @@ export function registerAdminApiRoutes(
   // HTMX wizard: register service
 
   app.post(`${API_BASE}/wizard/register`, async (event) => {
-    const form = await readFormBody(event);
-    const tenantId = form.tenantId ?? "";
-    const hostname = (form.hostname ?? "").replace(/\/+$/, "");
-    const title = form.title || hostname;
+    const body = await readFormOrJsonBody(event);
+    const jsonMode = (event.req.headers.get("accept") ?? "").includes("application/json")
+      || (event.req.headers.get("content-type") ?? "").includes("application/json");
+    const registerError = (message: string, status = 400): Response =>
+      jsonMode
+        ? jsonResponse({ error: message }, status)
+        : htmlResponse(`<div class="alert alert-danger">${escapeHtml(message)}</div>`, 200, "text/html; mode=fragment");
+    const tenantId = typeof body.tenantId === "string" ? body.tenantId : "";
+    const hostname = (typeof body.hostname === "string" ? body.hostname : "").replace(/\/+$/, "");
+    const title = (typeof body.title === "string" && body.title.trim().length > 0 ? body.title.trim() : hostname);
     if (!tenantId || !hostname) {
-      return htmlResponse(`<div class="alert alert-danger">Missing tenantId or hostname</div>`, 200, "text/html; mode=fragment");
+      return registerError("Missing tenantId or hostname");
     }
 
     const config = await store.loadConfig();
     const tenant = config.tenants.find((t) => t.id === tenantId);
     if (!tenant) {
-      return htmlResponse(`<div class="alert alert-danger">Tenant not found</div>`, 200, "text/html; mode=fragment");
+      return registerError("Tenant not found", 404);
     }
 
     // Schema is fetched by the browser from the service (CM cannot reach services)
@@ -1699,9 +1705,10 @@ export function registerAdminApiRoutes(
     let capabilities: string[] = [];
     let serviceRoutes: Array<{ viewId: string; path: string; renderable?: boolean; methods?: string[] }> = [];
     let viewMeta = new Map<string, { title: string; renderable: boolean; methods: string[] }>();
-    if (form.schema) {
+    const schemaText = typeof body.schema === "string" ? body.schema : "";
+    if (schemaText) {
       try {
-        const schema = JSON.parse(form.schema) as {
+        const schema = JSON.parse(schemaText) as {
           manifest?: {
             pluginId?: string;
             capabilities?: string[];
@@ -1724,7 +1731,7 @@ export function registerAdminApiRoutes(
 
     const duplicate = duplicateTenantService(tenant, hostname, serviceId);
     if (duplicate) {
-      return htmlResponse(`<div class="alert alert-warning">${escapeHtml(duplicate)}</div>`, 200, "text/html; mode=fragment");
+      return registerError(duplicate, 409);
     }
 
     const newServiceId = uuidv7();
@@ -1798,7 +1805,17 @@ export function registerAdminApiRoutes(
     }
 
     await store.saveConfig(config);
-    const adminApiBase = adminApiBaseFromControlPlane(cpState);
+    if (jsonMode) {
+      return jsonResponse({
+        ok: true,
+        tenantId,
+        serviceInstanceId: newServiceId,
+        serviceUrl: hostname,
+        title,
+        deploymentMode: service.deploymentMode
+      } as JsonValue);
+    }
+    const adminApiBase = API_BASE;
     return htmlResponse(renderWizardStep3({
       apiKey: "",
       deploymentMode: service.deploymentMode,
@@ -1829,7 +1846,7 @@ export function registerAdminApiRoutes(
     const tenantId = url.searchParams.get("tenantId") ?? undefined;
     const hostname = url.searchParams.get("hostname") ?? undefined;
     const config = await store.loadConfig();
-    return htmlResponse(renderWizardStep1(config, undefined, { tenantId, hostname }, adminApiBaseFromControlPlane(cpState)), 200, "text/html; mode=fragment");
+    return htmlResponse(renderWizardStep1(config, undefined, { tenantId, hostname }, API_BASE), 200, "text/html; mode=fragment");
   });
 
   // HTMX configure: load form

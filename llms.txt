@@ -69,7 +69,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 - **Browser -> Service**: HTMX requests for content swaps and fragments. CORS allows methods `GET, POST, PUT, PATCH, DELETE, OPTIONS` and exposes HX-* headers.
 - **Theme -> Service**: only during server-side resolution (manifest lookups, schema discovery) - never to fetch page content. Theme renders the shell only.
 - **Service -> Service**: not standard. Use platform services or events.
-- **Config Manager -> Service**: not allowed as an architectural assumption. Config-manager cannot assume network reachability to services. Service metadata arrives via service -> config-manager sync; config read/write/schema UI uses browser -> service requests with CP-signed config tickets.
+- **Config Manager -> Service**: not allowed as an architectural assumption. Config-manager cannot assume network reachability to services. Service metadata arrives via service -> config-manager sync; config read/write/schema UI uses browser -> service requests with CP-signed config tickets. Add-service flows are also browser-mediated: the services page fetches the target manifest/schema, posts metadata to config-manager, calls `begin-install`, then calls the service `/.well-known/bp/install`. Do not render browser form actions from the control-plane issuer.
 
 ---
 

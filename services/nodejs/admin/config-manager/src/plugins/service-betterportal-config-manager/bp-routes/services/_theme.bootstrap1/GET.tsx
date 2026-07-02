@@ -288,8 +288,7 @@ export function render(data: ResponseData): HtmlRenderable {
               <option value={tenant.id} selected={tenant.id === selectedTenantId}>{tenant.title}</option>
             ))}
           </select>
-          <button class="btn btn-primary text-nowrap" id="bp-register-service-btn" data-bs-toggle="offcanvas" data-bs-target="#bp-add-service-panel"
-            hx-get={selectedTenantId ? `${adminApiBase}/wizard/step1?tenantId=${encodeURIComponent(selectedTenantId)}` : `${adminApiBase}/wizard/step1`} hx-target="#bp-wizard-step" hx-swap="outerHTML">
+          <button class="btn btn-primary text-nowrap" id="bp-register-service-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#bp-add-service-panel">
             + Register Service
           </button>
           <button class="btn btn-outline-primary text-nowrap" type="button" data-bs-toggle="offcanvas" data-bs-target="#bp-shared-service-panel">
@@ -372,9 +371,27 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-          <div id="bp-wizard-step">
-            <div class="text-center py-4 text-secondary">Loading...</div>
-          </div>
+          <form id="bp-tenant-service-form">
+            <div class="mb-3">
+              <label class="form-label">Tenant</label>
+              <select class="form-select" name="tenantId" required>
+                <option value="">Select tenant...</option>
+                {data.tenants.map((tenant) => (
+                  <option value={tenant.id} selected={tenant.id === selectedTenantId}>{tenant.title}</option>
+                ))}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Service URL</label>
+              <input class="form-control" type="url" name="baseUrl" placeholder="http://localhost:3200" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Display Name</label>
+              <input class="form-control" type="text" name="title" placeholder="Auto-filled from manifest" />
+            </div>
+            <div class="alert alert-secondary small" id="bp-tenant-service-preview">Manifest details are loaded from the service before it is added.</div>
+            <button type="submit" class="btn btn-primary w-100">Register Service</button>
+          </form>
         </div>
       </div>
 
@@ -418,17 +435,28 @@ export function render(data: ResponseData): HtmlRenderable {
           <script>
             {`
 (() => {
-  const form = document.getElementById("bp-shared-service-form");
+  const tenantForm = document.getElementById("bp-tenant-service-form");
+  const sharedForm = document.getElementById("bp-shared-service-form");
   const alerts = document.getElementById("bp-services-alerts");
-  const preview = document.getElementById("bp-shared-service-preview");
+  const tenantPreview = document.getElementById("bp-tenant-service-preview");
+  const sharedPreview = document.getElementById("bp-shared-service-preview");
   const serviceBaseUrl = ${JSON.stringify(serviceBaseUrl)}.replace(/\\/+$/, "");
   const adminApiBase = serviceBaseUrl + ${JSON.stringify(adminApiBase)};
+  const selectedServicesPath = ${JSON.stringify(selectedServicesPath)};
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (ch) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[ch]);
   const setAlert = (kind, message) => {
     if (!alerts) return;
     alerts.innerHTML = '<div class="alert alert-' + kind + '">' + escapeHtml(message) + '</div>';
+  };
+  const setPreview = (preview, manifest) => {
+    if (!preview) return;
+    const capabilities = Array.isArray(manifest.capabilities) ? manifest.capabilities.join(", ") : "";
+    preview.className = "alert alert-info small";
+    preview.innerHTML = '<div><strong>' + escapeHtml(manifest.title) + '</strong></div>' +
+      '<div class="font-monospace">' + escapeHtml(manifest.pluginId) + '</div>' +
+      (capabilities ? '<div>' + escapeHtml(capabilities) + '</div>' : "");
   };
   const postJson = async (url, body) => {
     const response = await fetch(url, {
@@ -440,37 +468,17 @@ export function render(data: ResponseData): HtmlRenderable {
     if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
     return data;
   };
-  const installShared = async (id, baseUrl) => {
-    setAlert("secondary", "Installing shared service...");
-    const install = await postJson(adminApiBase + "/services/begin-install", {
-      serviceUrl: baseUrl,
-      sharedServiceId: id
-    });
-    await postJson(baseUrl + "/.well-known/bp/install", {
-      setupToken: install.setupToken,
-      cpUrl: install.cpUrl
-    });
-    setAlert("success", "Shared service installed. Waiting for sync...");
+  const refreshServices = async () => {
+    const url = (serviceBaseUrl || "") + selectedServicesPath;
     if (window.htmx) {
-      window.htmx.ajax("GET", (serviceBaseUrl || "") + "/services", { target: "#bp-main", swap: "innerHTML" });
-    } else {
-      const link = document.createElement("a");
-      link.href = ${JSON.stringify(selectedServicesPath)};
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      window.htmx.ajax("GET", url, { target: "#bp-main", swap: "innerHTML" });
+      return;
     }
+    const response = await fetch(url, { headers: { Accept: "text/html" }, cache: "no-store" });
+    const html = await response.text();
+    const main = document.getElementById("bp-main");
+    if (response.ok && main) main.innerHTML = html;
   };
-  document.addEventListener("click", async (event) => {
-    const button = event.target?.closest?.("[data-bp-install-shared]");
-    if (!button) return;
-    event.preventDefault();
-    try {
-      await installShared(button.dataset.bpInstallShared, button.dataset.bpInstallUrl);
-    } catch (error) {
-      setAlert("danger", error instanceof Error ? error.message : String(error));
-    }
-  });
   const loadManifest = async (baseUrl) => {
     const response = await fetch(baseUrl + "/.well-known/bp/manifest", {
       method: "GET",
@@ -483,24 +491,114 @@ export function render(data: ResponseData): HtmlRenderable {
     }
     return manifest;
   };
-  form?.addEventListener("submit", async (event) => {
+  const loadSchema = async (baseUrl, manifest) => {
+    try {
+      const response = await fetch(baseUrl + "/.well-known/bp/schema.json", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store"
+      });
+      if (response.ok) return await response.json();
+    } catch { /* manifest-only fallback */ }
+    return { manifest, routes: [] };
+  };
+  const installShared = async (id, baseUrl) => {
+    setAlert("secondary", "Installing shared service...");
+    const install = await postJson(adminApiBase + "/services/begin-install", {
+      serviceUrl: baseUrl,
+      sharedServiceId: id
+    });
+    await postJson(baseUrl + "/.well-known/bp/install", {
+      setupToken: install.setupToken,
+      cpUrl: install.cpUrl
+    });
+    setAlert("success", "Shared service installed. Waiting for sync...");
+    await refreshServices();
+  };
+  const installTenant = async (registered) => {
+    setAlert("secondary", "Installing service...");
+    try {
+      const install = await postJson(adminApiBase + "/services/begin-install", {
+        serviceUrl: registered.serviceUrl,
+        tenantId: registered.tenantId,
+        instanceId: registered.serviceInstanceId
+      });
+      await postJson(registered.serviceUrl + "/.well-known/bp/install", {
+        setupToken: install.setupToken,
+        cpUrl: install.cpUrl
+      });
+      setAlert("success", "Service installed. Waiting for sync...");
+      await refreshServices();
+    } catch (error) {
+      try {
+        await postJson(adminApiBase + "/wizard/cleanup-provisional-service", {
+          tenantId: registered.tenantId,
+          serviceInstanceId: registered.serviceInstanceId
+        });
+      } catch { /* cleanup best effort */ }
+      throw error;
+    }
+  };
+  document.addEventListener("click", async (event) => {
+    const button = event.target?.closest?.("[data-bp-install-shared]");
+    if (!button) return;
     event.preventDefault();
-    const fd = new FormData(form);
+    try {
+      await installShared(button.dataset.bpInstallShared, button.dataset.bpInstallUrl);
+    } catch (error) {
+      setAlert("danger", error instanceof Error ? error.message : String(error));
+    }
+  });
+  tenantForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = tenantForm.querySelector('button[type="submit"]');
+    const fd = new FormData(tenantForm);
+    const tenantId = String(fd.get("tenantId") || "").trim();
+    const baseUrl = String(fd.get("baseUrl") || "").trim().replace(/\\/+$/, "");
+    if (!tenantId) {
+      setAlert("danger", "Tenant is required");
+      return;
+    }
+    if (!baseUrl) {
+      setAlert("danger", "Service URL is required");
+      return;
+    }
+    if (submit) submit.disabled = true;
+    try {
+      setAlert("secondary", "Loading service manifest...");
+      const manifest = await loadManifest(baseUrl);
+      setPreview(tenantPreview, manifest);
+      const titleInput = tenantForm.querySelector('input[name="title"]');
+      if (titleInput && !titleInput.value) titleInput.value = manifest.title;
+      const schema = await loadSchema(baseUrl, manifest);
+      setAlert("secondary", "Registering service...");
+      const registered = await postJson(adminApiBase + "/wizard/register", {
+        tenantId,
+        hostname: baseUrl,
+        title: String(fd.get("title") || manifest.title || baseUrl),
+        schema: JSON.stringify(schema)
+      });
+      await installTenant(registered);
+    } catch (error) {
+      setAlert("danger", error instanceof Error ? error.message : String(error));
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+  });
+  sharedForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = sharedForm.querySelector('button[type="submit"]');
+    const fd = new FormData(sharedForm);
     const baseUrl = String(fd.get("baseUrl") || "").trim().replace(/\\/+$/, "");
     if (!baseUrl) {
       setAlert("danger", "Base URL is required");
       return;
     }
+    if (submit) submit.disabled = true;
     try {
       setAlert("secondary", "Loading service manifest...");
       const manifest = await loadManifest(baseUrl);
-      if (preview) {
-        const capabilities = Array.isArray(manifest.capabilities) ? manifest.capabilities.join(", ") : "";
-        preview.className = "alert alert-info small";
-        preview.innerHTML = '<div><strong>' + escapeHtml(manifest.title) + '</strong></div>' +
-          '<div class="font-monospace">' + escapeHtml(manifest.pluginId) + '</div>' +
-          (capabilities ? '<div>' + escapeHtml(capabilities) + '</div>' : "");
-      }
+      setPreview(sharedPreview, manifest);
       setAlert("secondary", "Creating shared service...");
       const createBody = {
         baseUrl,
@@ -512,6 +610,8 @@ export function render(data: ResponseData): HtmlRenderable {
       await installShared(created.id || manifest.pluginId, baseUrl);
     } catch (error) {
       setAlert("danger", error instanceof Error ? error.message : String(error));
+    } finally {
+      if (submit) submit.disabled = false;
     }
   });
 })();
