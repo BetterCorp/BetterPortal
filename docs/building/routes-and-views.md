@@ -66,6 +66,10 @@ export const chrome = { fullScreen: false };
 export const dependencies = ["example.detail.index"];
 ```
 
+Keep `index.ts` declarative. It should export route metadata such as `viewId`, `title`, `description`, route-level `auth`, `chrome`, `dependencies`, `cacheHints`, `apiContracts`, and demos. Do not put handlers, schema parsing, JSX renderers, request URL parsing, or service calls in `index.ts`.
+
+`auth.permissions` is route-level. Every method file under the same route uses the same route auth requirement, so define action permissions as data on the route requirement, for example `["read"]`, `["create"]`, `["update"]`, or `["delete"]`. If two operations need materially different route identities, split them into separate route directories with separate `viewId`s.
+
 Each HTTP method has its own file and default-exports its handler:
 
 ```ts
@@ -84,6 +88,8 @@ export default createHandler(
 ```
 
 Method files are service API boundaries. They validate inputs, build typed response models, and return JSON/HTML-negotiable data through `createHandler`.
+
+Method files are named exactly by HTTP method: `GET.ts`, `POST.ts`, `PUT.ts`, `PATCH.ts`, `DELETE.ts`, and `OPTIONS.ts`. They may export `QuerySchema`, `HeadersSchema`, `RequestSchema`, `MultipartSchema`, `ResponseSchema`, and a default `createHandler`, `createRawHandler`, or `createStreamHandler`. They should not export route metadata such as `viewId`, `title`, `auth`, `chrome`, or `dependencies`; put those in `index.ts`.
 
 Route handlers can import handler factories from two places:
 
@@ -199,6 +205,7 @@ Rules:
 - `422.tsx` renders a generic 422 response for any method.
 - If no matching renderer exists, BP returns JSON/API output.
 - Shared UI is explicit: import or re-export a helper from both renderers.
+- `index.tsx` and `index.GET.tsx` are not valid page renderer names. Use `GET.tsx`, `POST.tsx`, or `METHOD.STATUS.tsx`.
 - Bootstrap1 already renders the shell/header context for the active route. Do not add duplicate top-level page headings like `<h1 class="h4 mb-3">...</h1>` in Bootstrap1 renderers unless the heading is part of the service content itself.
 
 ```tsx

@@ -215,9 +215,10 @@ bp-routes/
 
 Rules:
 - Directory name -> URL path (use `[param]` for required params, `[[param]]` for optional params, `_theme.X` is special).
-- `index.ts` is required at the leaf and is metadata-only.
-- Method handlers are `GET.ts`, `POST.ts`, `PUT.ts`, `PATCH.ts`, `DELETE.ts`, `OPTIONS.ts`; each default-exports a handler and exports its schemas.
-- Renderers are method/status-specific. No generic `index.tsx` fallback exists.
+- `index.ts` is required at the leaf and is metadata-only. Put `viewId`, `title`, `description`, route-level `auth`, `chrome`, `dependencies`, `cacheHints`, `apiContracts`, and demos there. Do not put handlers, schemas, JSX renderers, request URL parsing, or service calls in `index.ts`.
+- `auth.permissions` is route-level. Every method file under that route uses the same auth requirement; use permission actions such as `read`, `create`, `update`, and `delete`, or split materially different operations into separate route directories/view ids.
+- Method handlers are exactly `GET.ts`, `POST.ts`, `PUT.ts`, `PATCH.ts`, `DELETE.ts`, `OPTIONS.ts`; each default-exports a handler and exports method schemas (`QuerySchema`, `HeadersSchema`, `RequestSchema`, `MultipartSchema`, `ResponseSchema`). Do not export `viewId`, `title`, `auth`, `chrome`, or `dependencies` from method files.
+- Renderers are method/status-specific: `GET.tsx`, `POST.tsx`, `POST.422.tsx`, `422.tsx`. No generic `index.tsx` or `index.GET.tsx` page renderer fallback exists.
 - Fragments: `_<location>.<fragmentId>.METHOD.tsx`.
 - Components: `<componentId>.METHOD.tsx`.
 
@@ -326,6 +327,8 @@ export const cacheHints: CacheHints = { ttlSeconds: 60, varyBy: ["accept", "orig
 export const dependencies = ["hello.detail.index"];
 ```
 
+`index.ts` is declarative only. It owns route identity and route-level policy; it must not contain handlers, schemas, JSX renderers, request URL parsing, or runtime service calls. Route `auth.permissions` applies to every method under the route. If GET and POST need different route identities or independent grants, split them into separate route directories/view ids; otherwise use action names in the route permission requirement.
+
 ```ts
 // GET.ts - method schemas + default handler
 import * as av from "anyvali";
@@ -361,6 +364,8 @@ Typed handler context:
 - Do not cast `ctx.plugin` or `ctx.config` in route files when the generated runtime can provide the type.
 
 Method files are service API boundaries. They validate inputs, build typed response models, and stay independent of browser-facing theme state. Do not infer UI paths, selected tabs/tenants, or public hostnames inside method files from `event.req.url` or `Host`; UI path/query state belongs in method/status-specific renderers or must be passed as explicit schema data. UI paths are not service paths, and the UI hostname is not the service hostname.
+
+Method files are named by HTTP method only (`GET.ts`, `POST.ts`, `PUT.ts`, `PATCH.ts`, `DELETE.ts`, `OPTIONS.ts`). They should export method schemas and one default handler. Do not put route metadata in method files.
 
 Content negotiation is automatic:
 - `Accept: application/json` -> returns JSON body
