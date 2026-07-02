@@ -31,6 +31,20 @@ async function readFormBody(event: BetterPortalEvent): Promise<Record<string, st
   return out;
 }
 
+async function readFormBodyWithArrays(event: BetterPortalEvent): Promise<Record<string, unknown>> {
+  const fd = await event.req.formData().catch(() => null);
+  if (!fd) return {};
+  const out: Record<string, string | string[]> = {};
+  fd.forEach((v, k) => {
+    if (typeof v !== "string") return;
+    const existing = out[k];
+    if (Array.isArray(existing)) existing.push(v);
+    else if (typeof existing === "string") out[k] = [existing, v];
+    else out[k] = v;
+  });
+  return out;
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
@@ -45,7 +59,7 @@ async function readJsonBody(event: BetterPortalEvent): Promise<Record<string, un
 async function readFormOrJsonBody(event: BetterPortalEvent): Promise<Record<string, unknown>> {
   const contentType = event.req.headers.get("content-type") ?? "";
   if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
-    return readFormBody(event);
+    return readFormBodyWithArrays(event);
   }
   return readJsonBody(event);
 }

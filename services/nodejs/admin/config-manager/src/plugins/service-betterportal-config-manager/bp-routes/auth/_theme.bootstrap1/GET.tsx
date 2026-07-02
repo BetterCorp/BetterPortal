@@ -7,8 +7,105 @@ function permsScript(apiBase: string, serviceUrl: string, selectedAppId: string 
   return js(`(() => {
     const apiBase = ${JSON.stringify(apiBase)};
     const appId = ${JSON.stringify(selectedAppId ?? "")};
+    const PERMISSION_FLAGS = {
+      read: 1,
+      create: 2,
+      update: 4,
+      delete: 8
+    };
+    const ACTIONS = ["read", "create", "update", "delete"];
+
+    const permissionsToMask = (permission) => (
+      (permission?.read ? PERMISSION_FLAGS.read : 0) |
+      (permission?.create ? PERMISSION_FLAGS.create : 0) |
+      (permission?.update ? PERMISSION_FLAGS.update : 0) |
+      (permission?.delete ? PERMISSION_FLAGS.delete : 0)
+    );
+
+    const maskToPermissions = (mask) => ({
+      read: Boolean(mask & PERMISSION_FLAGS.read),
+      create: Boolean(mask & PERMISSION_FLAGS.create),
+      update: Boolean(mask & PERMISSION_FLAGS.update),
+      delete: Boolean(mask & PERMISSION_FLAGS.delete)
+    });
+
+    const grantToPermission = (grant) => {
+      const permission = { read: false, create: false, update: false, delete: false };
+      for (const action of grant?.permissions ?? []) {
+        if (Object.prototype.hasOwnProperty.call(permission, action)) permission[action] = true;
+      }
+      return permission;
+    };
+
+    const syncGrantInputs = (select) => {
+      const serviceId = select.dataset.bpServiceId;
+      const viewId = select.dataset.bpViewId;
+      const holder = select.closest("[data-bp-permission-row]")?.querySelector("[data-bp-grant-inputs]");
+      if (!serviceId || !viewId || !holder) return;
+      holder.replaceChildren();
+      const permission = maskToPermissions(Number(select.value || "0"));
+      for (const action of ACTIONS) {
+        if (!permission[action]) continue;
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "grant";
+        input.value = serviceId + "|" + viewId + "|" + action;
+        holder.appendChild(input);
+      }
+    };
+
+    const setRowMask = (select, mask) => {
+      select.value = String(mask);
+      syncGrantInputs(select);
+    };
+
+    const rowSelects = (root = document) => Array.from(root.querySelectorAll("[data-bp-permission-select]"));
+
+    const applyServiceMask = (serviceId, mask) => {
+      rowSelects().forEach((select) => {
+        if (select.dataset.bpServiceId === serviceId) setRowMask(select, mask);
+      });
+    };
+
+    const applyGlobalMask = (mask) => {
+      const serviceIds = new Set(rowSelects().map((select) => select.dataset.bpServiceId).filter(Boolean));
+      serviceIds.forEach((serviceId) => applyServiceMask(serviceId, mask));
+    };
 
     if (!appId) return;
+
+    rowSelects().forEach((select) => {
+      if (select.dataset.bpPermissionReady) return;
+      select.dataset.bpPermissionReady = "true";
+      select.addEventListener("change", () => syncGrantInputs(select));
+    });
+
+    document.querySelectorAll("[data-bp-service-permission-bulk]").forEach((select) => {
+      if (select.dataset.bpPermissionReady) return;
+      select.dataset.bpPermissionReady = "true";
+      select.addEventListener("change", () => {
+        if (select.value === "") return;
+        const mask = Number(select.value);
+        const serviceId = select.dataset.bpServiceId;
+        if (!Number.isFinite(mask) || !serviceId) {
+          select.value = "";
+          return;
+        }
+        applyServiceMask(serviceId, mask);
+        select.value = "";
+      });
+    });
+
+    document.querySelectorAll("[data-bp-global-permission-bulk]").forEach((select) => {
+      if (select.dataset.bpPermissionReady) return;
+      select.dataset.bpPermissionReady = "true";
+      select.addEventListener("change", () => {
+        if (select.value === "") return;
+        const mask = Number(select.value);
+        if (Number.isFinite(mask)) applyGlobalMask(mask);
+        select.value = "";
+      });
+    });
 
     document.querySelectorAll("[data-bp-edit-role]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -19,10 +116,11 @@ function permsScript(apiBase: string, serviceUrl: string, selectedAppId: string 
         form.querySelector("[name=roleId]").value = role.id;
         form.querySelector("[name=title]").value = role.title;
         form.querySelector("[name=description]").value = role.description || "";
-        form.querySelectorAll("[data-bp-grant]").forEach((box) => {
-          const [sid, vid, action] = box.dataset.bpGrant.split("|");
-          const grant = role.permissions.find((p) => p.serviceId === sid && p.viewId === vid);
-          box.checked = !!(grant && grant.permissions.includes(action));
+        form.querySelectorAll("[data-bp-permission-select]").forEach((select) => {
+          const sid = select.dataset.bpServiceId;
+          const vid = select.dataset.bpViewId;
+          const grant = (role.permissions ?? []).find((p) => p.serviceId === sid && p.viewId === vid);
+          setRowMask(select, permissionsToMask(grantToPermission(grant)));
         });
         if (window.htmx) window.htmx.process(form);
       });
@@ -30,7 +128,24 @@ function permsScript(apiBase: string, serviceUrl: string, selectedAppId: string 
   })()`);
 }
 
-const ACTIONS = ["read", "create", "update", "delete"] as const;
+const PERMISSION_OPTIONS = [
+  [0, "No access"],
+  [1, "Read"],
+  [2, "Create"],
+  [4, "Update"],
+  [8, "Delete"],
+  [3, "Read + Create"],
+  [5, "Read + Update"],
+  [9, "Read + Delete"],
+  [6, "Create + Update"],
+  [10, "Create + Delete"],
+  [12, "Update + Delete"],
+  [7, "Read + Create + Update"],
+  [11, "Read + Create + Delete"],
+  [13, "Read + Update + Delete"],
+  [14, "Create + Update + Delete"],
+  [15, "Read + Create + Update + Delete"]
+] as const;
 
 export function render(data: ResponseData): HtmlRenderable {
   const serviceUrl = data.serviceBaseUrl ?? "";
@@ -187,7 +302,7 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       ) : null}
 
-      {/* -- Edit role offcanvas with per-view grant checkboxes -- */}
+      {/* -- Edit role offcanvas with per-view grant selectors -- */}
       {selectedApp && data.authConfigured ? (
         <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-edit-role-panel" style="--bs-offcanvas-width: 600px;">
           <div class="offcanvas-header">
@@ -207,48 +322,79 @@ export function render(data: ResponseData): HtmlRenderable {
               </div>
 
               <h6 class="mt-4 mb-2">Permission grants</h6>
-              <p class="small text-secondary">Check actions this role grants for each service view.</p>
+              <p class="small text-secondary">Choose the actions this role grants for each service view.</p>
 
               {data.servicePermissions.length === 0 || data.servicePermissions.every((s) => s.views.length === 0) ? (
                 <div class="alert alert-secondary small mb-3">
                   No services or views in manifest cache yet. Services will appear here once they push their manifest (next poll cycle).
                 </div>
               ) : (
-                data.servicePermissions.map((s) => (
-                  s.views.length === 0 ? null : (
-                    <div class="mb-3">
-                      <div class="fw-semibold small">{s.title}</div>
+                <div>
+                  <div class="mb-3">
+                    <label class="form-label small" for="bp-global-permission-bulk">Bulk permissions</label>
+                    <select class="form-select form-select-sm" id="bp-global-permission-bulk" data-bp-global-permission-bulk="">
+                      <option value="">- Change all service permissions -</option>
+                      {PERMISSION_OPTIONS.map(([value, label]) => (
+                        <option value={String(value)}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {data.servicePermissions.map((s) => (
+                    s.views.length === 0 ? null : (
+                      <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                          <div>
+                            <div class="fw-semibold small">{s.title}</div>
+                            <div class="font-monospace text-secondary small">{s.serviceId}</div>
+                          </div>
+                          <select
+                            class="form-select form-select-sm w-auto"
+                            aria-label={`Change all permissions for ${s.title}`}
+                            data-bp-service-permission-bulk=""
+                            data-bp-service-id={s.serviceId}
+                          >
+                            <option value="">- Change all in this service -</option>
+                            {PERMISSION_OPTIONS.map(([value, label]) => (
+                              <option value={String(value)}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
                       <div class="table-responsive">
                         <table class="table table-sm align-middle mb-0">
                           <thead>
                             <tr>
                               <th class="small">View</th>
-                              {ACTIONS.map((a) => (<th class="text-center small">{a}</th>))}
+                              <th class="small">Permissions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {s.views.map((v) => (
-                              <tr>
+                              <tr data-bp-permission-row="">
                                 <td class="font-monospace small">{v.viewId}</td>
-                                {ACTIONS.map((a) => (
-                                  <td class="text-center">
-                                    <input
-                                      type="checkbox"
-                                      class="form-check-input"
-                                      name="grant"
-                                      value={`${s.serviceId}|${v.viewId}|${a}`}
-                                      data-bp-grant={`${s.serviceId}|${v.viewId}|${a}`}
-                                    />
-                                  </td>
-                                ))}
+                                <td>
+                                  <select
+                                    class="form-select form-select-sm"
+                                    aria-label={`Permissions for ${v.viewId}`}
+                                    data-bp-permission-select=""
+                                    data-bp-service-id={s.serviceId}
+                                    data-bp-view-id={v.viewId}
+                                  >
+                                    {PERMISSION_OPTIONS.map(([value, label]) => (
+                                      <option value={String(value)}>{label}</option>
+                                    ))}
+                                  </select>
+                                  <span data-bp-grant-inputs=""></span>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
                     </div>
-                  )
-                ))
+                    )
+                  ))}
+                </div>
               )}
 
               <div class="alert alert-danger d-none" id="bp-edit-role-error"></div>
