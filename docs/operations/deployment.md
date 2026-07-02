@@ -90,7 +90,7 @@ The `bsb-plugin-watcher` service is the only container that sets `BSB_PLUGINS` a
 @bsb/observable-axiom@9.6
 ```
 
-The plugin selectors are hardcoded in compose because releases update this file alongside package publishing. Do not use bare/latest selectors in Coolify; the BSB watcher expects explicit `major.minor` or `major.minor.patch` selectors. `BSB_PLUGIN_UPDATE` is defined only on the watcher and defaults to `true` there. Runtime service containers must not set `BSB_PLUGIN_UPDATE`. `BSB_PLUGIN_WATCH_INTERVAL_SECONDS` defaults to `3600`. `BSB_SHOW_PACKAGES` defaults to `false`; set it to `true` only when debugging package resolution/startup in Coolify logs.
+The plugin selectors are hardcoded in compose because releases update this file alongside package publishing. Do not use bare/latest selectors in Coolify; the BSB watcher expects explicit `major.minor` or `major.minor.patch` selectors. `BSB_PLUGIN_UPDATE` is defined only on the watcher and defaults to `true` there. Runtime service containers must not set `BSB_PLUGIN_UPDATE`. The watcher intentionally has no compose healthcheck; runtime services depend only on `service_started` for the watcher because package installation is owned by BSB itself. `BSB_PLUGIN_WATCH_INTERVAL_SECONDS` defaults to `3600`. `BSB_SHOW_PACKAGES` defaults to `false`; set it to `true` only when debugging package resolution/startup in Coolify logs.
 
 Required per-service secret envs:
 

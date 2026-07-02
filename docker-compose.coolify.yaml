@@ -22,11 +22,6 @@ services:
       BSB_PLUGINS: "@betterportal/config-manager@10.0,@betterportal/theme-bootstrap1@10.0,@betterportal/theme-embedded@10.0,@betterportal/auth-default@10.0,@betterportal/auth-authress-io@10.0,@betterportal/hello-view@10.0,@bsb/observable-opentelemetry@9.6,@bsb/observable-axiom@9.6"
     volumes:
       - bp-plugins:/mnt/plugins
-    healthcheck:
-      test: ["CMD-SHELL", "test -d /mnt/plugins/@betterportal/config-manager && test -d /mnt/plugins/@betterportal/theme-bootstrap1 && test -d /mnt/plugins/@betterportal/theme-embedded && test -d /mnt/plugins/@betterportal/auth-default && test -d /mnt/plugins/@betterportal/auth-authress-io && test -d /mnt/plugins/@betterportal/hello-view && test -d /mnt/plugins/@bsb/observable-opentelemetry && test -d /mnt/plugins/@bsb/observable-axiom"]
-      interval: 30s
-      timeout: 5s
-      retries: 20
 
   postgres:
     image: postgres:18
@@ -54,7 +49,7 @@ services:
       - bp-config-manager:/data
     depends_on:
       bsb-plugin-watcher:
-        condition: service_healthy
+        condition: service_started
       postgres:
         condition: service_healthy
     healthcheck:
@@ -74,7 +69,7 @@ services:
       - bp-bootstrap1-data:/data
     depends_on:
       bsb-plugin-watcher:
-        condition: service_healthy
+        condition: service_started
       config-manager:
         condition: service_started
     healthcheck:
@@ -94,7 +89,7 @@ services:
       - bp-embedded-data:/data
     depends_on:
       bsb-plugin-watcher:
-        condition: service_healthy
+        condition: service_started
       config-manager:
         condition: service_started
 
@@ -109,7 +104,7 @@ services:
       - bp-auth-default-data:/data
     depends_on:
       bsb-plugin-watcher:
-        condition: service_healthy
+        condition: service_started
       config-manager:
         condition: service_started
 
@@ -124,7 +119,7 @@ services:
       - bp-authress-data:/data
     depends_on:
       bsb-plugin-watcher:
-        condition: service_healthy
+        condition: service_started
       config-manager:
         condition: service_started
 
@@ -139,7 +134,7 @@ services:
       - bp-hello-view-data:/data
     depends_on:
       bsb-plugin-watcher:
-        condition: service_healthy
+        condition: service_started
       config-manager:
         condition: service_started
 
