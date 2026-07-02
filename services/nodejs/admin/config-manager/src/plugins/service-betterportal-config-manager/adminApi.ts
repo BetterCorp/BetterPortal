@@ -493,6 +493,65 @@ function collectServiceDeleteBlockers(config: BetterPortalConfig, tenantId: stri
   return blockers;
 }
 
+function purgeTenantServiceReferences(config: BetterPortalConfig, tenantId: string, serviceId: string): {
+  routesRemoved: number;
+  menuItemsRemoved: number;
+  slotsRemoved: number;
+  fragmentsRemoved: number;
+  roleGrantsRemoved: number;
+  shellCleared: number;
+  authCleared: number;
+} {
+  const summary = {
+    routesRemoved: 0,
+    menuItemsRemoved: 0,
+    slotsRemoved: 0,
+    fragmentsRemoved: 0,
+    roleGrantsRemoved: 0,
+    shellCleared: 0,
+    authCleared: 0
+  };
+
+  for (const app of config.apps.filter((candidate) => candidate.tenantId === tenantId)) {
+    if (app.shell?.serviceId === serviceId) {
+      delete app.shell;
+      summary.shellCleared += 1;
+    }
+    if (app.auth?.serviceId === serviceId) {
+      delete app.auth;
+      summary.authCleared += 1;
+    } else if (app.auth?.roles) {
+      for (const role of app.auth.roles) {
+        const before = role.permissions.length;
+        role.permissions = role.permissions.filter((grant) => grant.serviceId !== serviceId);
+        summary.roleGrantsRemoved += before - role.permissions.length;
+      }
+    }
+
+    const routeIds = new Set(app.routes.filter((route) => route.serviceId === serviceId).map((route) => route.id));
+    const routeCountBefore = app.routes.length;
+    app.routes = app.routes.filter((route) => route.serviceId !== serviceId);
+    summary.routesRemoved += routeCountBefore - app.routes.length;
+
+    const menuBefore = JSON.stringify(app.menu ?? []);
+    app.menu = removeMenuRoutes(app.menu, routeIds) as typeof app.menu;
+    if (menuBefore !== JSON.stringify(app.menu ?? [])) summary.menuItemsRemoved += routeIds.size;
+
+    const slotsBefore = app.slots.length;
+    app.slots = app.slots.filter((slot) => slot.serviceId !== serviceId);
+    summary.slotsRemoved += slotsBefore - app.slots.length;
+
+    for (const [location, fragments] of Object.entries(app.fragments)) {
+      const before = fragments.length;
+      app.fragments[location] = fragments.filter((fragment) => fragment.serviceId !== serviceId);
+      summary.fragmentsRemoved += before - app.fragments[location].length;
+      if (app.fragments[location].length === 0) delete app.fragments[location];
+    }
+  }
+
+  return summary;
+}
+
 function sharedServiceIdFor(service: TenantServiceRegistration, requested?: string): string {
   return (requested && requested.trim()) || service.serviceId || service.id;
 }
@@ -680,6 +739,24 @@ function migrateTenantServiceToShared(
 
 function linkedServiceError(blockers: string[]): string {
   return `Service is still linked and cannot be deleted. Remove these references first: ${blockers.slice(0, 8).join("; ")}${blockers.length > 8 ? `; and ${blockers.length - 8} more` : ""}`;
+}
+
+function linkedServiceHtmxError(tenantId: string, serviceId: string, blockers: string[]): Response {
+  const items = blockers.slice(0, 8).map((blocker) => `<li>${escapeHtml(blocker)}</li>`).join("");
+  const more = blockers.length > 8 ? `<li>${blockers.length - 8} more references</li>` : "";
+  return htmlResponse(`
+    <div class="alert alert-warning">
+      <div class="fw-semibold mb-2">Service is still linked and cannot be deleted.</div>
+      <ul class="mb-3">${items}${more}</ul>
+      <button
+        class="btn btn-sm btn-danger"
+        hx-post="${API_BASE}/tenants/${encodeURIComponent(tenantId)}/services/${encodeURIComponent(serviceId)}/purge"
+        hx-target="#bp-services-alerts"
+        hx-swap="innerHTML"
+        hx-confirm="Purge all routes, menu entries, fragments, slots, auth links and role grants for this service, then delete it?"
+      >Purge references and delete service</button>
+    </div>
+  `, 409, "text/html; mode=fragment");
 }
 
 type WizardServiceManifest = {
@@ -1078,7 +1155,7 @@ export function registerAdminApiRoutes(
     const blockers = collectServiceDeleteBlockers(config, tenantId, serviceId);
     if (blockers.length > 0) {
       const message = linkedServiceError(blockers);
-      return wantsHtmx(event) ? htmxError(message, 409) : jsonResponse({ error: message, blockers }, 409);
+      return wantsHtmx(event) ? linkedServiceHtmxError(tenantId, serviceId, blockers) : jsonResponse({ error: message, blockers }, 409);
     }
 
     tenant.services = tenant.services.filter((s) => s.id !== serviceId);
@@ -1090,6 +1167,33 @@ export function registerAdminApiRoutes(
       });
     }
     return jsonResponse({ ok: true });
+  });
+
+  app.post(`${API_BASE}/tenants/:tenantId/services/:serviceId/purge`, async (event) => {
+    const tenantId = getParam(event, "tenantId");
+    const serviceId = getParam(event, "serviceId");
+    if (!tenantId || !serviceId) return jsonResponse({ error: "tenantId and serviceId required" }, 400);
+
+    const config = await store.loadConfig();
+    const tenant = config.tenants.find((t) => t.id === tenantId);
+    if (!tenant) return wantsHtmx(event) ? htmxError("Tenant not found", 404) : jsonResponse({ error: "Tenant not found" }, 404);
+    const service = tenant.services.find((candidate) => candidate.id === serviceId);
+    if (!service) return wantsHtmx(event) ? htmxError("Service not found", 404) : jsonResponse({ error: "Service not found" }, 404);
+
+    const summary = purgeTenantServiceReferences(config, tenantId, serviceId);
+    tenant.services = tenant.services.filter((candidate) => candidate.id !== serviceId);
+    await store.saveConfig(config);
+
+    if (wantsHtmx(event)) {
+      return htmlResponse(`
+        <div class="alert alert-success">
+          Service deleted. Purged ${summary.routesRemoved} route(s), ${summary.slotsRemoved} slot(s), ${summary.fragmentsRemoved} fragment(s), ${summary.roleGrantsRemoved} role grant(s), ${summary.shellCleared} shell binding(s), and ${summary.authCleared} auth binding(s).
+        </div>
+        <div hx-get="/services?tenantId=${encodeURIComponent(tenantId)}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></div>
+      `, 200, "text/html; mode=fragment");
+    }
+
+    return jsonResponse({ ok: true, summary } as unknown as JsonValue);
   });
 
   // Activate/deactivate platform services for tenant
@@ -1885,7 +1989,7 @@ function renderWizardStep2(d: { tenantId: string; hostname: string; pluginId: st
       <div class="form-text">Auto-filled from manifest. Edit if needed.</div>
     </div>
     <div class="d-flex gap-2">
-      <button type="button" class="btn btn-outline-secondary" hx-get="/.well-known/bp/admin/wizard/step1" hx-target="#bp-wizard-step" hx-swap="outerHTML"><- Back</button>
+      <button type="button" class="btn btn-outline-secondary" hx-get="${escapeHtml(d.adminApiBase)}/wizard/step1" hx-target="#bp-wizard-step" hx-swap="outerHTML"><- Back</button>
       <button type="submit" class="btn btn-primary flex-grow-1">Register Service</button>
     </div>
   </form>

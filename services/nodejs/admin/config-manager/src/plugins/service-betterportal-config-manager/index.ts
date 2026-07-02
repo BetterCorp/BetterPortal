@@ -42,6 +42,26 @@ import BetterportalConfigManagerClient from "../../.bsb/clients/service-betterpo
 // Parse-only base for relative request URLs. Never emit this origin.
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
+function applyWellKnownCors(event: BetterPortalEvent): Response | undefined {
+  const origin = event.req.headers.get("origin") ?? "*";
+  event.res.headers.set("Access-Control-Allow-Origin", origin);
+  event.res.headers.set("Vary", "Origin");
+  event.res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  event.res.headers.set(
+    "Access-Control-Allow-Headers",
+    "Authorization,Content-Type,Accept,HX-Request,HX-Current-URL,HX-Target,HX-Trigger,HX-Trigger-Name,X-BP-Tenant-Id,X-BP-App-Id,X-BP-Trace-Id"
+  );
+  event.res.headers.set(
+    "Access-Control-Expose-Headers",
+    "HX-Location,HX-Redirect,HX-Refresh,HX-Push-Url,HX-Replace-Url,BP-SetHeader,BP-RemoveHeader"
+  );
+  event.res.headers.set("Access-Control-Max-Age", "600");
+  if (event.req.method === "OPTIONS") {
+    return new Response(null, { status: 204 });
+  }
+  return undefined;
+}
+
 /** Tenant service-instance id (UUIDv7) -> pluginId, for the auth permission check. */
 function buildServiceIdAliases(
   config: {
@@ -306,6 +326,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.use("/preview", (event) => this.populatePreviewContext(event));
     this.app.use("/auth", (event) => this.populateAdminAuthContext(event));
     this.app.use("/settings", (event) => this.populateSettingsContext(event));
+    this.app.use("/.well-known/bp", (event) => applyWellKnownCors(event));
 
     registerAdminApiRoutes(this.app, this.storage, this.cpState);
     registerMenuEditorRoutes(this.app, this.storage);

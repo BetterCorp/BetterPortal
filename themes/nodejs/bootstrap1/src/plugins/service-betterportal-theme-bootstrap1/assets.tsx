@@ -132,6 +132,7 @@ function shellRuntimeSource(): string {
       const teleportedModals = new Set<Element>();
       const teleportedOffcanvas = new Set<Element>();
       const bootstrap = window.bootstrap;
+      let overlaySyncQueued = false;
 
       const cleanupTeleportedModals = () => {
         teleportedModals.forEach((el) => {
@@ -155,7 +156,8 @@ function shellRuntimeSource(): string {
         teleportedOffcanvas.clear();
       };
 
-      const cleanupStaleBootstrapOverlays = () => {
+      const syncBootstrapOverlays = () => {
+        overlaySyncQueued = false;
         if (!bootstrap) return;
         const hasVisibleOverlay = !!document.querySelector(".modal.show, .modal.showing, .offcanvas.show, .offcanvas.showing");
         const hasActiveOverlay = Array.from(document.querySelectorAll(".modal, .offcanvas")).some((el) => {
@@ -174,6 +176,21 @@ function shellRuntimeSource(): string {
         document.body.style.removeProperty("overflow");
         document.body.style.removeProperty("padding-right");
       };
+
+      const scheduleBootstrapOverlaySync = () => {
+        if (overlaySyncQueued) return;
+        overlaySyncQueued = true;
+        requestAnimationFrame(syncBootstrapOverlays);
+      };
+
+      const overlayObserver = new MutationObserver(scheduleBootstrapOverlaySync);
+      overlayObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class", "style"]
+      });
+      scheduleBootstrapOverlaySync();
 
       const closeContainingOffcanvas = (source: Element | null | undefined) => {
         const panel = source?.closest?.(".offcanvas.show") as Element | null;
@@ -285,6 +302,24 @@ function shellRuntimeSource(): string {
           }
         });
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      };
+
+      const shouldScrollMainSwap = (detail: any): boolean => {
+        const request = detail?.ctx?.request;
+        if (!request) return false;
+        const method = String(request.method || "GET").toUpperCase();
+        const action = String(request.action || "");
+        if (!action) return false;
+        const current = window.location.pathname + window.location.search;
+        const tenantUrl = tenantUrlForServiceUrl(action);
+        try {
+          const resolved = new URL(tenantUrl, window.location.origin);
+          const next = resolved.pathname + resolved.search;
+          if (next !== current) return true;
+        } catch { /* fall through */ }
+        const hxLocation = detail?.ctx?.hx?.location;
+        if (typeof hxLocation === "string" && hxLocation) return true;
+        return method === "GET" && Boolean(detail?.ctx?.sourceElement?.getAttribute?.("hx-push-url"));
       };
 
       // -- Loading / error UI --
@@ -1624,7 +1659,7 @@ function shellRuntimeSource(): string {
       // -- DOM setup --
 
       document.addEventListener("DOMContentLoaded", () => {
-        cleanupStaleBootstrapOverlays();
+        scheduleBootstrapOverlaySync();
         setActiveRoute(window.location.pathname);
         resolveServiceLinks(document.body);
         initBootstrapComponents(document.body);
@@ -1825,7 +1860,6 @@ function shellRuntimeSource(): string {
           const target = detail.ctx?.target;
           if (requestTargetsMain(detail)) {
             closeContainingOffcanvas(detail.ctx?.sourceElement);
-            cleanupStaleBootstrapOverlays();
             if (isMainTarget(detail.ctx?.sourceElement)) disableInitialMainLoad();
             const action = detail.ctx?.request?.action || "";
             if (action && isThemeOriginUrl(action)) {
@@ -1916,7 +1950,7 @@ function shellRuntimeSource(): string {
         // pipeline builds task fragments, so hx-sse ext reads the absolute
         // service-origin URL once the new content is processed.
         htmx_after_request(_elt: any, detail: any) {
-          cleanupStaleBootstrapOverlays();
+          scheduleBootstrapOverlaySync();
           applyChromeFromResponse(detail);
           // Apply BP-SetHeader / BP-RemoveHeader directives from EVERY response
           // (success or error) before anything else - e.g. login's Authorization.
@@ -1980,10 +2014,10 @@ function shellRuntimeSource(): string {
             clearError();
             cleanupTeleportedModals();
             cleanupTeleportedOffcanvas();
-            cleanupStaleBootstrapOverlays();
             teleportModals(target);
             teleportOffcanvas(target);
-            scrollPageToTop();
+            if (shouldScrollMainSwap(detail)) scrollPageToTop();
+            scheduleBootstrapOverlaySync();
           } else if (target instanceof Element) {
             target.classList.remove("bp-fragment-loading");
           }
@@ -2001,7 +2035,7 @@ function shellRuntimeSource(): string {
         htmx_after_settle(elt: any) {
           if (isMainTarget(elt)) setLoading(false);
           else if (elt instanceof Element) elt.classList.remove("bp-fragment-loading");
-          cleanupStaleBootstrapOverlays();
+          scheduleBootstrapOverlaySync();
         },
 
         // Update sidebar active state on history navigation

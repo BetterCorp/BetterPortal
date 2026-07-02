@@ -146,7 +146,7 @@ function renderServiceCard(
                   </button>
                 ) : ""}
                 <button class="btn btn-sm btn-outline-danger"
-                  hx-delete={`/.well-known/bp/admin/tenants/${service.tenantId}/services/${service.id}`}
+                  hx-delete={`${data.adminApiBase}/tenants/${encodeURIComponent(service.tenantId)}/services/${encodeURIComponent(service.id)}`}
                   hx-target="#bp-services-alerts"
                   hx-swap="innerHTML"
                   hx-confirm="Remove this service registration?">
@@ -289,7 +289,7 @@ export function render(data: ResponseData): HtmlRenderable {
             ))}
           </select>
           <button class="btn btn-primary text-nowrap" id="bp-register-service-btn" data-bs-toggle="offcanvas" data-bs-target="#bp-add-service-panel"
-            hx-get={selectedTenantId ? `/.well-known/bp/admin/wizard/step1?tenantId=${encodeURIComponent(selectedTenantId)}` : "/.well-known/bp/admin/wizard/step1"} hx-target="#bp-wizard-step" hx-swap="outerHTML">
+            hx-get={selectedTenantId ? `${adminApiBase}/wizard/step1?tenantId=${encodeURIComponent(selectedTenantId)}` : `${adminApiBase}/wizard/step1`} hx-target="#bp-wizard-step" hx-swap="outerHTML">
             + Register Service
           </button>
           <button class="btn btn-outline-primary text-nowrap" type="button" data-bs-toggle="offcanvas" data-bs-target="#bp-shared-service-panel">
