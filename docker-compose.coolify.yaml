@@ -5,13 +5,29 @@ x-bp-common: &bp-common
 x-bp-vault-env: &bp-vault-env
   BSB_WRITABLE_PATHS: /data
   BSB_PLUGIN_DIRS: /mnt/plugins
-  BSB_PLUGIN_UPDATE: ${BSB_PLUGIN_UPDATE:-false}
   BSB_SHOW_PACKAGES: ${BSB_SHOW_PACKAGES:-false}
   BSB_CONFIG_PLUGIN: config-vault
   BSB_CONFIG_PLUGIN_PACKAGE: "@bsb/config-vault"
   vaultUrl: ${BP_VAULT_URL:-https://vault.eu.core.betterportal.net}
 
 services:
+  bsb-plugin-watcher:
+    <<: *bp-common
+    environment:
+      BSB_PLUGIN_DIRS: /mnt/plugins
+      BSB_PLUGIN_WATCHER: "true"
+      BSB_PLUGIN_UPDATE: ${BSB_PLUGIN_UPDATE:-false}
+      BSB_PLUGIN_WATCH_INTERVAL_SECONDS: ${BSB_PLUGIN_WATCH_INTERVAL_SECONDS:-3600}
+      BSB_SHOW_PACKAGES: ${BSB_SHOW_PACKAGES:-false}
+      BSB_PLUGINS: "@betterportal/config-manager${BP_PACKAGE_VERSION:+@${BP_PACKAGE_VERSION}},@betterportal/theme-bootstrap1${BP_PACKAGE_VERSION:+@${BP_PACKAGE_VERSION}},@betterportal/theme-embedded${BP_PACKAGE_VERSION:+@${BP_PACKAGE_VERSION}},@betterportal/auth-default${BP_PACKAGE_VERSION:+@${BP_PACKAGE_VERSION}},@betterportal/auth-authress-io${BP_PACKAGE_VERSION:+@${BP_PACKAGE_VERSION}},@betterportal/hello-view${BP_PACKAGE_VERSION:+@${BP_PACKAGE_VERSION}},@bsb/observable-opentelemetry,@bsb/observable-axiom"
+    volumes:
+      - bp-plugins:/mnt/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /mnt/plugins/@betterportal/config-manager && test -d /mnt/plugins/@betterportal/theme-bootstrap1 && test -d /mnt/plugins/@betterportal/theme-embedded && test -d /mnt/plugins/@betterportal/auth-default && test -d /mnt/plugins/@betterportal/auth-authress-io && test -d /mnt/plugins/@betterportal/hello-view && test -d /mnt/plugins/@bsb/observable-opentelemetry && test -d /mnt/plugins/@bsb/observable-axiom"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+
   postgres:
     image: postgres:18
     restart: unless-stopped
@@ -31,13 +47,14 @@ services:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/config-manager@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_CONFIG_MANAGER_VAULT_API_KEY_ID:?Set BP_CONFIG_MANAGER_VAULT_API_KEY_ID for the config-manager service}
       apiSecret: ${BP_CONFIG_MANAGER_VAULT_API_SECRET:?Set BP_CONFIG_MANAGER_VAULT_API_SECRET for the config-manager service}
     volumes:
-      - bp-plugins:/mnt/plugins
+      - bp-plugins:/mnt/plugins:ro
       - bp-config-manager:/data
     depends_on:
+      bsb-plugin-watcher:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     healthcheck:
@@ -50,14 +67,16 @@ services:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/theme-bootstrap1@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_BOOTSTRAP1_VAULT_API_KEY_ID:?Set BP_BOOTSTRAP1_VAULT_API_KEY_ID for the bootstrap1 service}
       apiSecret: ${BP_BOOTSTRAP1_VAULT_API_SECRET:?Set BP_BOOTSTRAP1_VAULT_API_SECRET for the bootstrap1 service}
     volumes:
-      - bp-plugins:/mnt/plugins
+      - bp-plugins:/mnt/plugins:ro
       - bp-bootstrap1-data:/data
     depends_on:
-      - config-manager
+      bsb-plugin-watcher:
+        condition: service_healthy
+      config-manager:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:80/.well-known/bp/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
@@ -68,53 +87,61 @@ services:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/theme-embedded@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_EMBEDDED_VAULT_API_KEY_ID:?Set BP_EMBEDDED_VAULT_API_KEY_ID for the embedded service}
       apiSecret: ${BP_EMBEDDED_VAULT_API_SECRET:?Set BP_EMBEDDED_VAULT_API_SECRET for the embedded service}
     volumes:
-      - bp-plugins:/mnt/plugins
+      - bp-plugins:/mnt/plugins:ro
       - bp-embedded-data:/data
     depends_on:
-      - config-manager
+      bsb-plugin-watcher:
+        condition: service_healthy
+      config-manager:
+        condition: service_started
 
   auth-default:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/auth-default@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_AUTH_DEFAULT_VAULT_API_KEY_ID:?Set BP_AUTH_DEFAULT_VAULT_API_KEY_ID for the auth-default service}
       apiSecret: ${BP_AUTH_DEFAULT_VAULT_API_SECRET:?Set BP_AUTH_DEFAULT_VAULT_API_SECRET for the auth-default service}
     volumes:
-      - bp-plugins:/mnt/plugins
+      - bp-plugins:/mnt/plugins:ro
       - bp-auth-default-data:/data
     depends_on:
-      - config-manager
+      bsb-plugin-watcher:
+        condition: service_healthy
+      config-manager:
+        condition: service_started
 
   auth-authress-io:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/auth-authress-io@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_AUTHRESS_VAULT_API_KEY_ID:?Set BP_AUTHRESS_VAULT_API_KEY_ID for the auth-authress-io service}
       apiSecret: ${BP_AUTHRESS_VAULT_API_SECRET:?Set BP_AUTHRESS_VAULT_API_SECRET for the auth-authress-io service}
     volumes:
-      - bp-plugins:/mnt/plugins
+      - bp-plugins:/mnt/plugins:ro
       - bp-authress-data:/data
     depends_on:
-      - config-manager
+      bsb-plugin-watcher:
+        condition: service_healthy
+      config-manager:
+        condition: service_started
 
   hello-view:
     <<: *bp-common
     environment:
       <<: *bp-vault-env
-      BSB_PLUGINS: "@betterportal/hello-view@${BP_PACKAGE_VERSION:-latest},@bsb/observable-opentelemetry,@bsb/observable-axiom"
       apiKeyId: ${BP_HELLO_VIEW_VAULT_API_KEY_ID:?Set BP_HELLO_VIEW_VAULT_API_KEY_ID for the hello-view service}
       apiSecret: ${BP_HELLO_VIEW_VAULT_API_SECRET:?Set BP_HELLO_VIEW_VAULT_API_SECRET for the hello-view service}
     volumes:
-      - bp-plugins:/mnt/plugins
+      - bp-plugins:/mnt/plugins:ro
       - bp-hello-view-data:/data
     depends_on:
-      - config-manager
+      bsb-plugin-watcher:
+        condition: service_healthy
+      config-manager:
+        condition: service_started
 
 volumes:
   bp-postgres:

@@ -30,6 +30,7 @@ export interface BetterPortalHostCandidate {
 
 export function headerLookup(headers: HeaderMap, key: string): string | undefined {
   if (headers instanceof Headers) {
+    if (key.startsWith(":")) return undefined;
     return headers.get(key) ?? undefined;
   }
 

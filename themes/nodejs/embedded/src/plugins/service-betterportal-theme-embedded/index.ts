@@ -367,7 +367,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       "BetterPortal embedded context not resolved: host={host} authority={authority} origin={origin} referer={referer} altUsed={altUsed} candidates={candidates}: {reason}",
       {
         host: event.req.headers.get("host") ?? "",
-        authority: event.req.headers.get(":authority") ?? event.req.headers.get("authority") ?? "",
+        authority: event.req.headers.get("authority") ?? "",
         origin: event.req.headers.get("origin") ?? "",
         referer: event.req.headers.get("referer") ?? "",
         altUsed: event.req.headers.get("alt-used") ?? "",
