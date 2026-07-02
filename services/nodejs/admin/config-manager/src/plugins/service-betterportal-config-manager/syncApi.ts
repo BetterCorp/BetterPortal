@@ -12,6 +12,7 @@ import type {
   WebhookEventDescriptor
 } from "@betterportal/framework";
 import { eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
+import { apiRoutePath, isApiRoute } from "./routeMounts.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
 
@@ -403,7 +404,8 @@ function addMissingDependencyRoutes(app: { routes: BetterPortalRouteMount[] }, s
     const methods = normalizeMethods(dependency.methods);
     app.routes.push({
       id: uuidv7(),
-      path: dependency.path,
+      kind: "api",
+      path: apiRoutePath(manifest.serviceId, dependency.path),
       serviceId: sourceRoute.serviceId,
       viewId: dependencyViewId,
       targetPath: dependency.path,
@@ -470,6 +472,25 @@ async function updateServiceMetadata(
       }
       if (route.targetPath !== view.path) {
         route.targetPath = view.path;
+        changed = true;
+      }
+      const routeIsApi = isApiRoute(route, view.renderable);
+      if (routeIsApi) {
+        const nextPath = apiRoutePath(manifest.serviceId, view.path);
+        if (route.kind !== "api") {
+          route.kind = "api";
+          changed = true;
+        }
+        if (route.path !== nextPath) {
+          route.path = nextPath;
+          changed = true;
+        }
+        if (route.query !== undefined) {
+          delete route.query;
+          changed = true;
+        }
+      } else if (route.kind !== "page") {
+        route.kind = "page";
         changed = true;
       }
       if (!route.title && view.viewId) {

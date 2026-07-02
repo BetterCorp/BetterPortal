@@ -16,6 +16,7 @@ import type { TenantServiceRegistration, PlatformService, BetterPortalThemeConfi
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { generateApiKey, hashApiKey } from "./storage/index.js";
 import { getManifestCache } from "./syncApi.js";
+import { apiRoutePath, isApiRoute } from "./routeMounts.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
@@ -214,8 +215,10 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   if (viewId.error) return { error: viewId.error };
   const manifestView = getManifestCache().get(serviceId.value!)?.viewIndex[viewId.value!];
   const renderable = manifestView?.renderable !== false;
+  const manifest = getManifestCache().get(serviceId.value!);
+  const serviceRoutePath = manifestView?.path ?? `/${viewId.value!}`;
 
-  const path = renderable ? requiredRouteString(body, "path", "Mount path") : { value: manifestView?.path ?? `/${viewId.value!}` };
+  const path = renderable ? requiredRouteString(body, "path", "Mount path") : { value: apiRoutePath(manifest?.serviceId ?? serviceId.value!, serviceRoutePath) };
   if (path.error) return { error: path.error };
   if (!path.value!.startsWith("/")) return { error: "Mount path must start with /." };
 
@@ -223,6 +226,7 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   if (title.error) return { error: title.error };
 
   const route: Omit<BetterPortalRouteMount, "id"> = {
+    kind: renderable ? "page" : "api",
     path: path.value!,
     serviceId: serviceId.value!,
     viewId: viewId.value!,
@@ -305,7 +309,8 @@ function addRouteDependencies(appDef: BetterPortalApp, route: BetterPortalRouteM
     if (appDef.routes.some((candidate) => candidate.serviceId === route.serviceId && candidate.viewId === dependencyViewId)) continue;
     appDef.routes.push({
       id: uuidv7(),
-      path: dependency.path,
+      kind: "api",
+      path: apiRoutePath(manifest.serviceId, dependency.path),
       serviceId: route.serviceId,
       viewId: dependencyViewId,
       targetPath: dependency.path,
@@ -1525,14 +1530,18 @@ export function registerAdminApiRoutes(
       if (!viewId) return validationError(event, "View is required.");
       route.viewId = viewId;
     }
-    const manifestView = getManifestCache().get(route.serviceId)?.viewIndex[route.viewId];
+    const manifest = getManifestCache().get(route.serviceId);
+    const manifestView = manifest?.viewIndex[route.viewId];
     if (manifestView) {
       route.methods = routeMethodsFromManifest(manifestView.methods);
       route.targetPath = manifestView.path;
       if (manifestView.renderable === false) {
-        route.path = manifestView.path;
+        route.kind = "api";
+        route.path = apiRoutePath(manifest?.serviceId ?? route.serviceId, manifestView.path);
         route.title = manifestView.viewId;
         delete route.query;
+      } else {
+        route.kind = "page";
       }
     }
     if (body.targetPath !== undefined) {
@@ -1542,13 +1551,14 @@ export function registerAdminApiRoutes(
     }
     if (body.query !== undefined) {
       const query = trimmedString(body, "query");
-      if (query) route.query = query.replace(/^\?+/, "");
+      if (isApiRoute(route, manifestView?.renderable)) delete route.query;
+      else if (query) route.query = query.replace(/^\?+/, "");
       else delete route.query;
     }
     if (body.title !== undefined) {
       const title = trimmedString(body, "title");
       if (!title) return validationError(event, "Display title is required.");
-      route.title = title;
+      if (!isApiRoute(route, manifestView?.renderable)) route.title = title;
     }
     if (body.enabled !== undefined) route.enabled = body.enabled === true || body.enabled === "true" || body.enabled === "on";
 
@@ -1687,18 +1697,28 @@ export function registerAdminApiRoutes(
     // and posted to us as a JSON string in form.schema.
     let serviceId: string | undefined;
     let capabilities: string[] = [];
-    let serviceRoutes: Array<{ viewId: string; path: string }> = [];
-    let viewMeta = new Map<string, string>();
+    let serviceRoutes: Array<{ viewId: string; path: string; renderable?: boolean; methods?: string[] }> = [];
+    let viewMeta = new Map<string, { title: string; renderable: boolean; methods: string[] }>();
     if (form.schema) {
       try {
         const schema = JSON.parse(form.schema) as {
-          manifest?: { pluginId?: string; capabilities?: string[]; views?: Array<{ viewId: string; title: string }> };
-          routes?: Array<{ viewId: string; path: string }>;
+          manifest?: {
+            pluginId?: string;
+            capabilities?: string[];
+            views?: Array<{ viewId: string; title: string; renderable?: boolean; methods?: unknown[] }>;
+          };
+          routes?: Array<{ viewId: string; path: string; renderable?: boolean; methods?: string[] }>;
         };
         serviceId = schema.manifest?.pluginId;
         capabilities = Array.isArray(schema.manifest?.capabilities) ? schema.manifest.capabilities.filter((value): value is string => typeof value === "string") : [];
         serviceRoutes = schema.routes ?? [];
-        viewMeta = new Map((schema.manifest?.views ?? []).map((v) => [v.viewId, v.title]));
+        viewMeta = new Map((schema.manifest?.views ?? []).map((v) => [v.viewId, {
+          title: v.title,
+          renderable: v.renderable !== false,
+          methods: Array.isArray(v.methods)
+            ? v.methods.filter((value): value is string => typeof value === "string")
+            : []
+        }]));
       } catch { /* malformed schema - register without routes */ }
     }
 
@@ -1730,30 +1750,37 @@ export function registerAdminApiRoutes(
         const existingPaths = new Set(appDef.routes.map((r) => r.path));
 
         for (const r of serviceRoutes) {
+          const meta = viewMeta.get(r.viewId);
+          const renderable = meta?.renderable ?? r.renderable !== false;
           // Default mounting path is the service's own path; skip collisions
-          const mountPath = existingPaths.has(r.path) ? `/${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}${r.path}` : r.path;
+          const mountPath = renderable
+            ? (existingPaths.has(r.path) ? `/${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}${r.path}` : r.path)
+            : apiRoutePath(serviceId ?? newServiceId, r.path);
           if (existingPaths.has(mountPath)) continue;
 
           const routeId = uuidv7();
-          const routeTitle = viewMeta.get(r.viewId) ?? r.viewId;
+          const routeTitle = meta?.title ?? r.viewId;
           appDef.routes.push({
             id: routeId,
+            kind: renderable ? "page" : "api",
             path: mountPath,
             serviceId: newServiceId,
             viewId: r.viewId,
             targetPath: r.path,
             title: routeTitle,
             enabled: true,
-            methods: ["GET"]
+            methods: routeMethodsFromManifest(r.methods)
           });
           existingPaths.add(mountPath);
-          groupChildren.push({
-            id: uuidv7(),
-            type: "link",
-            title: routeTitle,
-            routeId,
-            enabled: true
-          });
+          if (renderable) {
+            groupChildren.push({
+              id: uuidv7(),
+              type: "link",
+              title: routeTitle,
+              routeId,
+              enabled: true
+            });
+          }
         }
 
         if (groupChildren.length > 0) {

@@ -12,6 +12,7 @@ import {
 import type { AppAuthConfig, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
 import { getConfigManagerRouteContext } from "../../routeContext.js";
 import { getManifestCache } from "../../syncApi.js";
+import { apiRoutePath } from "../../routeMounts.js";
 
 const TenantItemSchema = av.object({
   id: av.string().minLength(1),
@@ -436,13 +437,15 @@ function ensureAuthRouteMounts(config: BetterPortalConfig, appDef: BetterPortalA
     if (!view) continue;
     if (appDef.routes.some((route) => route.serviceId === authServiceId && route.viewId === viewId)) continue;
 
-    const path = numberedPath(view.path, usedPaths);
+    const renderable = view.renderable !== false;
+    const path = renderable ? numberedPath(view.path, usedPaths) : apiRoutePath(manifest.serviceId, view.path);
     const methods = view.methods.filter((method): method is BetterPortalRouteMount["methods"][number] =>
       method === "GET" || method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE" || method === "OPTIONS"
     );
     usedPaths.add(path);
     appDef.routes.push({
       id: uuidv7(),
+      kind: renderable ? "page" : "api",
       path,
       serviceId: authServiceId,
       viewId,

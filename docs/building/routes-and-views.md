@@ -135,7 +135,14 @@ export function render(data: ResponseData): HtmlRenderable {
 
 Route chrome is service-declared metadata that themes may use before loading the route content and after HTMX responses. Use `export const chrome = { fullScreen: true }` for routes such as login/setup screens that should render without the normal app shell. Chrome is a flat object; values must be `string`, `number`, or `boolean`. The framework serializes those values onto HTML response content types as `bp-chrome-*` parameters, e.g. `text/html; theme=bootstrap1; mode=page; bp-chrome-full-screen=true; charset=utf-8`. The value is also emitted into the service manifest and copied into app route config during sync; an explicit `apps[].routes[].chrome` value overrides the service default.
 
-Route dependencies are service-declared view ids that must be mounted with a route for API/detail flows. Use `export const dependencies = ["clients.detail.index"]` when a rendered view calls another service view such as `/clients/:clientId`. Codegen also auto-detects literal `{view.id}` route tokens in renderer files and merges them into dependencies. Config-manager auto-adds dependency routes when the parent route is mounted. Dependency/API routes use the same `apps[].routes[]` model, but the Route Designer disables UI-only fields such as mount path, display title, and query string for non-renderable views.
+Route dependencies are service-declared view ids that must be mounted with a route for API/detail flows. Use `export const dependencies = ["clients.detail.index"]` when a rendered view calls another service view such as `/clients/:clientId`. Codegen also auto-detects literal `{view.id}` route tokens in renderer files and merges them into dependencies. Config-manager auto-adds dependency routes when the parent route is mounted.
+
+`apps[].routes[]` stores both browser-visible page routes and service/API allowlist routes:
+
+- `kind: "page"` routes are visual app routes. Their app path, title, query, chrome, and menu usage are app-owned.
+- `kind: "api"` routes are service-locked allowlist routes. Config-manager mounts them under `/_bp/service/{service-slug}/{service-path}` and keeps `targetPath`/`resolvedServicePath` pointed at the service-owned path from the manifest.
+
+Config-manager sync normalizes non-renderable/raw/dependency routes to `kind: "api"` on the next service sync. Existing API routes mounted at raw paths such as `/refresh` are rewritten to the deterministic `/_bp/service/...` path. Page routes are not rewritten unless the manifest now says the selected view is non-renderable. If a view disappears from a service manifest, config-manager disables matching app routes instead of deleting them.
 
 Routes can also declare API contracts they provide for service-to-service binding:
 
@@ -165,7 +172,7 @@ Handlers that need the browser-visible app route should use `ctx.uiRouteUrl(view
 
 Do not manually scan `ctx.app.routes` and `ctx.tenant.services` unless the framework helper cannot express the case. App routes store service-instance UUIDs; `ctx.serviceId` is usually the plugin id.
 
-HTTP methods are service manifest metadata. Do not make route methods user-editable; config-manager sync updates persisted route methods from the latest manifest. If a view disappears from a service manifest, config-manager disables matching app routes instead of deleting them.
+HTTP methods are service manifest metadata. Do not make route methods user-editable; config-manager sync updates persisted route methods from the latest manifest.
 
 ## UI renderers
 

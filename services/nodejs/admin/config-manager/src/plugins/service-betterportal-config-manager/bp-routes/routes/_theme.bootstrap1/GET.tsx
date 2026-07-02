@@ -56,9 +56,11 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
 
     for (const svc of byServiceId.values()) {
       for (const routeView of svc.views) {
+        if (routeView.renderable === false && !(svc.id === selectedService && routeView.viewId === selectedView)) continue;
         const option = new Option(routeView.title || routeView.viewId, routeView.viewId);
         option.dataset.serviceId = svc.id;
         option.dataset.renderable = routeView.renderable === false ? "false" : "true";
+        option.disabled = routeView.renderable === false && !(svc.id === selectedService && routeView.viewId === selectedView);
         option.selected = svc.id === selectedService && routeView.viewId === selectedView;
         view.appendChild(option);
       }
@@ -196,11 +198,12 @@ function routeFormFields(
         <label class="form-label">View</label>
         <select class="form-select" name="viewId" id={`${prefix}-view`} data-bp-route-view="" data-selected-view={selectedView} required>
           <option value="">Select view...</option>
-          {viewOptions.map((view) => (
+          {viewOptions.filter((view) => view.renderable !== false || view.viewId === selectedView).map((view) => (
             <option
               value={view.viewId}
               data-service-id={view.serviceId}
               data-renderable={view.renderable === false ? "false" : "true"}
+              disabled={view.renderable === false && view.viewId !== selectedView}
               selected={view.serviceId === selectedService && view.viewId === selectedView}
             >
               {view.renderable === false ? `[API] ${view.title}` : view.title}
@@ -238,6 +241,158 @@ function viewLabel(services: ResponseData["availableServices"], serviceId: strin
   return view?.title || viewId;
 }
 
+function methodsLabel(methods: string[] | undefined): string {
+  return ((methods && methods.length > 0 ? methods : ["GET"]) as string[]).join(", ");
+}
+
+function pathDepth(path: string): number {
+  return path.split("/").filter(Boolean).length;
+}
+
+function domId(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]/g, "-");
+}
+
+function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
+  const pageRoutes = data.routes
+    .filter((route) => route.kind !== "api" && route.renderable !== false)
+    .sort((a, b) => a.path.localeCompare(b.path));
+
+  if (pageRoutes.length === 0) {
+    return <div class="alert alert-secondary">No visual routes for this app yet</div>;
+  }
+
+  return (
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Mount path</th>
+            <th>Title</th>
+            <th>Service</th>
+            <th>View</th>
+            <th>Query</th>
+            <th>On</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {pageRoutes.map((route) => (
+            <tr class={route.enabled ? "" : "text-secondary"}>
+              <td class="font-monospace small fw-semibold">
+                <span style={`padding-left:${Math.max(0, pathDepth(route.path) - 1) * 1.25}rem`}>{route.path}</span>
+              </td>
+              <td>{route.title ?? ""}</td>
+              <td class="small" data-bp-route-service-label={route.serviceId}>{serviceLabel(data.availableServices, route.serviceId)}</td>
+              <td class="small" data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId}>{viewLabel(data.availableServices, route.serviceId, route.viewId)}</td>
+              <td class="small font-monospace">{(route as unknown as { query?: string }).query ?? ""}</td>
+              <td>
+                <button
+                  class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
+                  hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                  hx-vals={JSON.stringify({ enabled: !route.enabled })}
+                  hx-target="#bp-main"
+                  hx-swap="innerHTML"
+                >{route.enabled ? "on" : "off"}</button>
+              </td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <button
+                    class="btn btn-outline-primary"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target={`#bp-edit-route-panel-${route.id}`}
+                  >Edit</button>
+                  <button
+                    class="btn btn-outline-danger"
+                    hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                    hx-confirm="Delete route?"
+                    hx-target="#bp-routes-alerts"
+                    hx-swap="innerHTML"
+                  >x</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
+  const apiRoutes = data.routes
+    .filter((route) => route.kind === "api" || route.renderable === false)
+    .sort((a, b) => serviceLabel(data.availableServices, a.serviceId).localeCompare(serviceLabel(data.availableServices, b.serviceId)) || a.path.localeCompare(b.path));
+
+  if (apiRoutes.length === 0) {
+    return <div class="alert alert-secondary">No service/API routes mounted for this app</div>;
+  }
+
+  const serviceIds = [...new Set(apiRoutes.map((route) => route.serviceId))];
+  return (
+    <div class="accordion" id="bp-api-routes-accordion">
+      {serviceIds.map((serviceId, index) => {
+        const routes = apiRoutes.filter((route) => route.serviceId === serviceId);
+        const panelId = `bp-api-routes-${domId(serviceId)}`;
+        return (
+          <div class="accordion-item">
+            <h3 class="accordion-header">
+              <button class={`accordion-button ${index === 0 ? "" : "collapsed"}`} type="button" data-bs-toggle="collapse" data-bs-target={`#${panelId}`}>
+                <span>{serviceLabel(data.availableServices, serviceId)}</span>
+                <span class="badge text-bg-secondary ms-2">{routes.length}</span>
+              </button>
+            </h3>
+            <div id={panelId} class={`accordion-collapse collapse ${index === 0 ? "show" : ""}`} data-bs-parent="#bp-api-routes-accordion">
+              <div class="accordion-body p-0">
+                <table class="table table-sm mb-0 align-middle">
+                  <thead>
+                    <tr>
+                      <th>App allowlist path</th>
+                      <th>Service path</th>
+                      <th>View</th>
+                      <th>Methods</th>
+                      <th>On</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {routes.map((route) => (
+                      <tr class={route.enabled ? "" : "text-secondary"}>
+                        <td class="font-monospace small">{route.path}</td>
+                        <td class="font-monospace small">{route.targetPath ?? ""}</td>
+                        <td class="small">{viewLabel(data.availableServices, route.serviceId, route.viewId)}</td>
+                        <td class="small font-monospace">{methodsLabel(route.methods)}</td>
+                        <td>
+                          <button
+                            class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
+                            hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                            hx-vals={JSON.stringify({ enabled: !route.enabled })}
+                            hx-target="#bp-main"
+                            hx-swap="innerHTML"
+                          >{route.enabled ? "on" : "off"}</button>
+                        </td>
+                        <td>
+                          <button
+                            class="btn btn-sm btn-outline-danger"
+                            hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                            hx-confirm="Delete API route?"
+                            hx-target="#bp-routes-alerts"
+                            hx-swap="innerHTML"
+                          >x</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function noServicesBanner(serviceUrl: string): HtmlRenderable {
   return (
     <div class="alert alert-warning mb-3">
@@ -270,7 +425,7 @@ export function render(data: ResponseData): HtmlRenderable {
           data-bs-toggle="offcanvas"
           data-bs-target="#bp-add-route-panel"
           disabled={!canAddRoute}
-        >+ Add Route</button>
+        >+ Add Visual Route</button>
       </div>
 
       <div class="mb-4">
@@ -303,66 +458,32 @@ export function render(data: ResponseData): HtmlRenderable {
           {data.selectedAppId ? "No routes for this app yet" : "Select an app to view routes"}
         </div>
       ) : (
-        <div class="table-responsive">
-          <table class="table table-sm table-hover align-middle">
-            <thead>
-              <tr>
-                <th>Mount path</th>
-                <th>Title</th>
-                <th>Service</th>
-                <th>View</th>
-                <th>Query</th>
-                <th>On</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.routes.map((route) => (
-                <tr class={route.enabled ? "" : "text-secondary"}>
-                  <td class="font-monospace small fw-semibold">{route.path}</td>
-                  <td>
-                    {route.title ?? ""}
-                    {route.renderable === false ? <span class="badge text-bg-secondary ms-2">API</span> : ""}
-                  </td>
-                  <td class="small" data-bp-route-service-label={route.serviceId}>{serviceLabel(data.availableServices, route.serviceId)}</td>
-                  <td class="small" data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId}>{viewLabel(data.availableServices, route.serviceId, route.viewId)}</td>
-                  <td class="small font-monospace">{(route as unknown as { query?: string }).query ?? ""}</td>
-                  <td>
-                    <button
-                      class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
-                      hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                      hx-vals={JSON.stringify({ enabled: !route.enabled })}
-                      hx-target="#bp-main"
-                      hx-swap="innerHTML"
-                    >{route.enabled ? "on" : "off"}</button>
-                  </td>
-                  <td>
-                    <div class="btn-group btn-group-sm">
-                      <button
-                        class="btn btn-outline-primary"
-                        data-bs-toggle="offcanvas"
-                        data-bs-target={`#bp-edit-route-panel-${route.id}`}
-                      >Edit</button>
-                      <button
-                        class="btn btn-outline-danger"
-                        hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                        hx-confirm="Delete route?"
-                        hx-target="#bp-routes-alerts"
-                        hx-swap="innerHTML"
-                      >x</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div class="d-grid gap-4">
+          <section>
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+              <div>
+                <h3 class="h5 mb-0">Visual Routes</h3>
+                <div class="small text-secondary">Routes rendered as app pages and eligible for menus</div>
+              </div>
+            </div>
+            {renderPageRoutes(data, apiBase)}
+          </section>
+          <section>
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+              <div>
+                <h3 class="h5 mb-0">Service/API Routes</h3>
+                <div class="small text-secondary">Service-locked app allowlist routes mounted under /_bp/service</div>
+              </div>
+            </div>
+            {renderApiRoutes(data, apiBase)}
+          </section>
         </div>
       )}
 
       {/* Offcanvas: Add Route */}
       <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-add-route-panel">
         <div class="offcanvas-header">
-          <h5 class="offcanvas-title">Add Route</h5>
+          <h5 class="offcanvas-title">Add Visual Route</h5>
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
@@ -379,7 +500,7 @@ export function render(data: ResponseData): HtmlRenderable {
       </div>
 
       {/* Offcanvas: Edit Route */}
-      {data.routes.map((route) => (
+      {data.routes.filter((route) => route.kind !== "api" && route.renderable !== false).map((route) => (
         <div class="offcanvas offcanvas-end" tabindex={-1} id={`bp-edit-route-panel-${route.id}`}>
           <div class="offcanvas-header">
             <h5 class="offcanvas-title">Edit Route</h5>

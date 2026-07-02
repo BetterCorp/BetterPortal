@@ -128,6 +128,7 @@ export type BetterPortalRouteChrome = Infer<typeof BetterPortalRouteChromeSchema
 
 export const BetterPortalRouteMountSchema = av.object({
   id: UuidV7Schema,
+  kind: av.enum_(["page", "api"] as const).default("page"),
   path: NonEmptyStringSchema,
   serviceId: UuidV7Schema,
   viewId: NonEmptyStringSchema,

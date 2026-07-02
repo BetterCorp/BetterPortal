@@ -4,6 +4,7 @@ import { uuidv7, type BetterPortalRouteMount, type PlatformConfigStore } from "@
 import type { Observable } from "@bsb/base";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { renderBootstrapWizardHtml } from "./bootstrapWizardHtml.js";
+import { apiRoutePath } from "./routeMounts.js";
 
 /**
  * Default admin app route mounts - points each menu entry at a config-manager view.
@@ -16,21 +17,21 @@ import { renderBootstrapWizardHtml } from "./bootstrapWizardHtml.js";
  */
 function buildDefaultAdminRoutes(cmInstanceId: string, authServiceInstanceId: string): BetterPortalRouteMount[] {
   return [
-    { id: uuidv7(), path: "/", serviceId: cmInstanceId, viewId: "services.index", title: "Services", icon: "grid", enabled: true, methods: ["GET"] },
-    { id: uuidv7(), path: "/tenants", serviceId: cmInstanceId, viewId: "tenants.index", title: "Tenants & Apps", icon: "building", enabled: true, methods: ["GET", "POST", "PUT", "DELETE"] },
-    { id: uuidv7(), path: "/routes", serviceId: cmInstanceId, viewId: "routes.index", title: "Routes", icon: "map", enabled: true, methods: ["GET"] },
-    { id: uuidv7(), path: "/menu", serviceId: cmInstanceId, viewId: "menu.index", title: "Menu", icon: "list", enabled: true, methods: ["GET"] },
-    { id: uuidv7(), path: "/fragments", serviceId: cmInstanceId, viewId: "fragments.index", title: "Fragments", icon: "puzzle", enabled: true, methods: ["GET"] },
-    { id: uuidv7(), path: "/preview", serviceId: cmInstanceId, viewId: "preview.index", title: "Preview", icon: "eye", enabled: true, methods: ["GET"] },
-    { id: uuidv7(), path: "/auth", serviceId: cmInstanceId, viewId: "auth.index", title: "Permissions", icon: "shield", enabled: true, methods: ["GET"] },
-    { id: uuidv7(), path: "/config", serviceId: cmInstanceId, viewId: "config.index", title: "Config", icon: "settings", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/", serviceId: cmInstanceId, viewId: "services.index", title: "Services", icon: "grid", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/tenants", serviceId: cmInstanceId, viewId: "tenants.index", title: "Tenants & Apps", icon: "building", enabled: true, methods: ["GET", "POST", "PUT", "DELETE"] },
+    { id: uuidv7(), kind: "page", path: "/routes", serviceId: cmInstanceId, viewId: "routes.index", title: "Routes", icon: "map", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/menu", serviceId: cmInstanceId, viewId: "menu.index", title: "Menu", icon: "list", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/fragments", serviceId: cmInstanceId, viewId: "fragments.index", title: "Fragments", icon: "puzzle", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/preview", serviceId: cmInstanceId, viewId: "preview.index", title: "Preview", icon: "eye", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/auth", serviceId: cmInstanceId, viewId: "auth.index", title: "Permissions", icon: "shield", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/config", serviceId: cmInstanceId, viewId: "config.index", title: "Config", icon: "settings", enabled: true, methods: ["GET"] },
     // Login page (unauthenticated landing) - required for the /login redirect to land somewhere.
-    { id: uuidv7(), path: "/login", serviceId: authServiceInstanceId, viewId: "login.index", title: "Sign In", enabled: true, methods: ["GET", "POST"] },
-    { id: uuidv7(), path: "/logout", serviceId: authServiceInstanceId, viewId: "logout.index", title: "Sign Out", enabled: true, methods: ["GET", "POST"] },
-    { id: uuidv7(), path: "/refresh", serviceId: authServiceInstanceId, viewId: "refresh.index", title: "Refresh Session", enabled: true, methods: ["POST"] },
+    { id: uuidv7(), kind: "page", path: "/login", serviceId: authServiceInstanceId, viewId: "login.index", title: "Sign In", enabled: true, methods: ["GET", "POST"] },
+    { id: uuidv7(), kind: "page", path: "/logout", serviceId: authServiceInstanceId, viewId: "logout.index", title: "Sign Out", enabled: true, methods: ["GET", "POST"] },
+    { id: uuidv7(), kind: "api", path: apiRoutePath("service.betterportal.auth.default", "/refresh"), serviceId: authServiceInstanceId, viewId: "refresh.index", title: "Refresh Session", enabled: true, methods: ["POST"], targetPath: "/refresh" },
     // First-admin registration page. Only renders a form while the auth service
     // has zero users; once any user exists it redirects to /login.
-    { id: uuidv7(), path: "/register", serviceId: authServiceInstanceId, viewId: "register.index", title: "Create First Admin", enabled: true, methods: ["GET", "POST"] }
+    { id: uuidv7(), kind: "page", path: "/register", serviceId: authServiceInstanceId, viewId: "register.index", title: "Create First Admin", enabled: true, methods: ["GET", "POST"] }
   ];
 }
 

@@ -23,6 +23,7 @@ import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
 import { getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
 import { setConfigManagerRouteContext } from "./routeContext.js";
+import { isApiRoute } from "./routeMounts.js";
 import {
   describeEmbeddedContextResolution,
   eventHeaders,
@@ -587,17 +588,29 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         ]
       : [];
 
+    const routeModel = (selectedApp?.routes ?? []).map((r) => {
+      const view = cache.get(r.serviceId)?.viewIndex[r.viewId];
+      const renderable = view?.renderable ?? r.kind !== "api";
+      return {
+        id: r.id,
+        kind: isApiRoute(r, view?.renderable) ? "api" : "page",
+        path: r.path,
+        serviceId: r.serviceId,
+        viewId: r.viewId,
+        targetPath: r.targetPath ?? view?.path,
+        methods: r.methods,
+        query: r.query,
+        title: r.title,
+        renderable,
+        enabled: r.enabled
+      };
+    });
+
     (event as unknown as { __bpResponseModel: unknown }).__bpResponseModel = {
       title: "Route Designer",
       apps: config.apps.map((a) => ({ id: a.id, title: a.title, tenantId: a.tenantId })),
       selectedAppId,
-      routes: (selectedApp?.routes ?? []).map((r) => ({
-        id: r.id, path: r.path, serviceId: r.serviceId, viewId: r.viewId,
-        query: (r as unknown as { query?: string }).query,
-        title: r.title,
-        renderable: cache.get(r.serviceId)?.viewIndex[r.viewId]?.renderable ?? true,
-        enabled: r.enabled
-      })),
+      routes: routeModel,
       availableServices,
       adminApiBase: "/.well-known/bp/admin",
       serviceBaseUrl: this.cpState.issuer
@@ -618,9 +631,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         id: m.id, type: m.type, title: m.title,
         routeId: m.routeId, href: m.href, enabled: m.enabled !== false
       })),
-      routes: (selectedApp?.routes ?? []).filter((r) => r.enabled).map((r) => ({
-        id: r.id, path: r.path, title: r.title ?? r.path
-      })),
+      routes: (selectedApp?.routes ?? [])
+        .filter((r) => {
+          const view = getManifestCache().get(r.serviceId)?.viewIndex[r.viewId];
+          return r.enabled && !isApiRoute(r, view?.renderable);
+        })
+        .map((r) => ({
+          id: r.id, path: r.path, title: r.title ?? r.path
+        })),
       adminApiBase: "/.well-known/bp/admin",
       serviceBaseUrl: this.cpState.issuer
     };

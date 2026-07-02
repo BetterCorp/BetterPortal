@@ -9,6 +9,7 @@ import {
   uuidv7
 } from "@betterportal/framework";
 import { getManifestCache } from "./syncApi.js";
+import { isApiRoute } from "./routeMounts.js";
 
 const API_BASE = "/.well-known/bp/admin";
 // Parse-only base for relative request URLs. Never emit this origin.
@@ -30,6 +31,7 @@ interface MenuItem {
 
 interface Route {
   id: string;
+  kind?: "page" | "api";
   path: string;
   title?: string;
   serviceId?: string;
@@ -83,7 +85,12 @@ function getMenu(appDef: any): MenuItem[] {
 }
 
 function getRoutes(appDef: any): Route[] {
-  return (appDef.routes ?? []) as Route[];
+  return ((appDef.routes ?? []) as Route[]).filter((route) => {
+    const view = route.serviceId && route.viewId
+      ? getManifestCache().get(route.serviceId)?.viewIndex[route.viewId]
+      : undefined;
+    return !isApiRoute(route, view?.renderable);
+  });
 }
 
 function getServiceTitle(config: any, serviceId: string | undefined): string {

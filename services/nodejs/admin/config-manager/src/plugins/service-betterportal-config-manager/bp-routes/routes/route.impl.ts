@@ -9,9 +9,12 @@ import {
 
 const RouteItemSchema = av.object({
   id: av.string().minLength(1),
+  kind: av.enum_(["page", "api"] as const).default("page"),
   path: av.string().minLength(1),
   serviceId: av.string().minLength(1),
   viewId: av.string().minLength(1),
+  targetPath: av.optional(av.string()),
+  methods: av.array(av.string()).default([]),
   query: av.optional(av.string()),
   title: av.optional(av.string()),
   renderable: av.bool().default(true),
