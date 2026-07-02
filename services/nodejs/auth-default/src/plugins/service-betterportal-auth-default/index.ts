@@ -132,6 +132,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     const jwk = publicKeyToJwk(this.keyPair.publicKeyPem, this.keyPair.kid);
     this.registerAsAuthProvider({
+      issuer: cfg.issuer,
+      audience: cfg.audience,
+      jwksUri: `${cfg.issuer.replace(/\/+$/, "")}/.well-known/jwks.json`,
       jwks: { keys: [jwk as unknown as Record<string, unknown>] }
     });
 

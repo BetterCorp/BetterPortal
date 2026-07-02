@@ -23,6 +23,14 @@ Auth is optional at the platform layer. `auth-default` provides a JWT-based prov
 
 Services declare route-level auth requirements in view metadata.
 
+The selected auth service owns the BP runtime verifier metadata for the app:
+
+- `expectedIssuer`
+- `expectedAudience`
+- `jwksUri`
+
+Auth services publish those values with `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })` during install/redeem and service sync. Config-manager stores the non-secret metadata on the service registration/shared service and copies it onto app auth bindings. Users should choose the auth provider, not manually edit BP token issuer/audience/JWKS fields.
+
 ## Service-to-service auth
 
 Provisioning creates service identity only. A service key/public key lets config-manager know which service is talking; it does not grant arbitrary API access.

@@ -1,6 +1,7 @@
 import { createEventStream } from "h3";
 import type {
   ConfigSchemaDescriptor,
+  AuthProviderRuntimeMetadata,
   BetterPortalH3App,
   BetterPortalEvent,
   BetterPortalRegistry,
@@ -48,6 +49,7 @@ export interface CachedManifest {
   serviceId: string;
   manifestVersion: string;
   title?: string;
+  authProvider?: AuthProviderRuntimeMetadata;
   capabilities: string[];
   apiContracts: JsonValue[];
   m2mRequests: JsonValue[];
@@ -72,10 +74,24 @@ function toJsonValue(value: unknown): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
 }
 
+function normalizeAuthProviderMetadata(value: unknown): AuthProviderRuntimeMetadata | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.issuer !== "string" || raw.issuer.trim().length === 0) return undefined;
+  if (typeof raw.audience !== "string" || raw.audience.trim().length === 0) return undefined;
+  if (typeof raw.jwksUri !== "string" || raw.jwksUri.trim().length === 0) return undefined;
+  return {
+    issuer: raw.issuer.trim().replace(/\/+$/, ""),
+    audience: raw.audience.trim(),
+    jwksUri: raw.jwksUri.trim()
+  };
+}
+
 function normalizeManifest(input: {
   serviceId: string;
   manifestVersion?: string;
   title?: string;
+  authProvider?: AuthProviderRuntimeMetadata;
   capabilities?: string[];
   configSchemas?: ConfigSchemaDescriptor[];
   webhooks?: WebhookEventDescriptor[];
@@ -118,6 +134,7 @@ function normalizeManifest(input: {
     serviceId: input.serviceId,
     manifestVersion: input.manifestVersion ?? "unknown",
     title: input.title,
+    ...(input.authProvider ? { authProvider: normalizeAuthProviderMetadata(input.authProvider) } : {}),
     capabilities: Array.isArray(input.capabilities) ? input.capabilities.filter((value): value is string => typeof value === "string") : [],
     apiContracts: Array.isArray(input.apiContracts) ? input.apiContracts : [],
     m2mRequests: Array.isArray(input.m2mRequests) ? input.m2mRequests : [],
@@ -320,6 +337,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
       const body = await event.req.json().catch(() => null) as {
         manifestVersion?: string;
         title?: string;
+        authProvider?: AuthProviderRuntimeMetadata;
         capabilities?: string[];
         configSchemas?: ConfigSchemaDescriptor[];
         webhooks?: WebhookEventDescriptor[];
@@ -345,6 +363,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           serviceId,
           manifestVersion: body.manifestVersion,
           title: body.title,
+          authProvider: body.authProvider,
           capabilities: body.capabilities,
           apiContracts: body.apiContracts,
           m2mRequests: body.m2mRequests,
@@ -432,6 +451,7 @@ async function updateServiceMetadata(
     routeServiceIds.add(service.id);
     cacheManifest(service.id, manifest);
     service.capabilities = manifest.capabilities;
+    if (manifest.authProvider) service.authProvider = manifest.authProvider;
     if (manifest.title && (!service.title || service.title === service.serviceId)) service.title = manifest.title;
     changed = true;
   }
@@ -440,6 +460,7 @@ async function updateServiceMetadata(
     routeServiceIds.add(platform.id);
     cacheManifest(platform.id, manifest);
     platform.capabilities = manifest.capabilities;
+    if (manifest.authProvider) platform.authProvider = manifest.authProvider;
     if (manifest.title && (!platform.title || platform.title === platform.serviceId)) platform.title = manifest.title;
     changed = true;
   }
@@ -451,10 +472,15 @@ async function updateServiceMetadata(
       cacheManifest(activation.id, manifest);
     }
     shared.tags = [...new Set([...(shared.tags ?? []), ...manifest.capabilities])];
+    if (manifest.authProvider) shared.authProvider = manifest.authProvider;
     if (manifest.title && (!shared.title || shared.title === shared.id || shared.title === shared.serviceId)) shared.title = manifest.title;
     changed = true;
   }
   for (const app of config.apps) {
+    if (manifest.authProvider && app.auth && routeServiceIds.has(app.auth.serviceId)) {
+      applyAuthProviderMetadata(app.auth, manifest.authProvider);
+      changed = true;
+    }
     for (const route of app.routes.filter((candidate) => routeServiceIds.has(candidate.serviceId))) {
       const view = manifest.viewIndex[route.viewId];
       if (!view) {
@@ -501,4 +527,13 @@ async function updateServiceMetadata(
     }
   }
   if (changed) await store.saveConfig(config);
+}
+
+function applyAuthProviderMetadata(
+  appAuth: { expectedIssuer: string; expectedAudience: string; jwksUri: string },
+  authProvider: AuthProviderRuntimeMetadata
+): void {
+  appAuth.expectedIssuer = authProvider.issuer;
+  appAuth.expectedAudience = authProvider.audience;
+  appAuth.jwksUri = authProvider.jwksUri;
 }

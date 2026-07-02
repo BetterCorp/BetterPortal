@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
-import type { AppAuthConfig, BetterPortalConfig, PlatformConfigStore, PlatformService, TenantServiceRegistration } from "@betterportal/framework";
+import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, TenantServiceRegistration } from "@betterportal/framework";
 import { signSetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 
@@ -109,6 +109,7 @@ export function registerSetupEndpoints(input: {
       setupToken?: string;
       pluginId?: string;
       serviceUrl?: string;
+      authProvider?: AuthProviderRuntimeMetadata;
       publicKeyPem?: string;
       keyId?: string;
       jwks?: { keys: ReadonlyArray<Record<string, unknown>> };
@@ -142,6 +143,7 @@ export function registerSetupEndpoints(input: {
         instanceId: entry.instanceId,
         pluginId: body.pluginId,
         serviceUrl: entry.serviceUrl,
+        authProvider: normalizeAuthProviderMetadata(body.authProvider),
         apiKey,
         publicKeyPem: typeof body.publicKeyPem === "string" ? body.publicKeyPem : undefined,
         keyId: typeof body.keyId === "string" ? body.keyId : undefined,
@@ -177,6 +179,7 @@ async function registerServiceInPlatformConfig(input: {
   instanceId: string;
   pluginId: string;
   serviceUrl: string;
+  authProvider?: AuthProviderRuntimeMetadata;
   apiKey: string;
   publicKeyPem?: string;
   keyId?: string;
@@ -197,12 +200,16 @@ async function registerServiceInPlatformConfig(input: {
     }
     existing.serviceId = input.pluginId;
     existing.baseUrl = input.serviceUrl;
+    if (input.authProvider && isAuthPlugin(input.pluginId)) existing.authProvider = input.authProvider;
     existing.apiKeyHash = apiKeyHash;
     existing.title = existing.title || input.pluginId;
     existing.tags = [...new Set([...(existing.tags ?? []), ...defaultCapabilities(input.pluginId)])];
     existing.enabled = true;
     if (input.jwks && isAuthPlugin(input.pluginId)) {
       attachSharedAuthJwks(config, input.sharedServiceId, input.jwks);
+    }
+    if (input.authProvider && isAuthPlugin(input.pluginId)) {
+      attachSharedAuthProviderMetadata(config, input.sharedServiceId, input.authProvider);
     }
   } else if (input.tenantScope?.tenantId) {
     const tenant = config.tenants.find((t) => t.id === input.tenantScope!.tenantId);
@@ -217,6 +224,10 @@ async function registerServiceInPlatformConfig(input: {
         appAuth.publicKeys = input.jwks;
       }
     }
+    if (input.authProvider && input.tenantScope.appId) {
+      const app = config.apps.find((a) => a.id === input.tenantScope!.appId);
+      if (app?.auth?.serviceId === id) applyAuthProviderMetadata(app.auth, input.authProvider);
+    }
 
     // Update existing registration (bootstrap pre-creates the entry) or insert.
     const existing = tenant.services.find((s) => s.id === id);
@@ -226,6 +237,7 @@ async function registerServiceInPlatformConfig(input: {
       existing.publicKeyPem = input.publicKeyPem;
       existing.keyId = input.keyId;
       existing.serviceId = input.pluginId;
+      if (input.authProvider && isAuthPlugin(input.pluginId)) existing.authProvider = input.authProvider;
       existing.capabilities = existing.capabilities?.length ? existing.capabilities : defaultCapabilities(input.pluginId);
       existing.lastSeenAt = now;
       existing.enabled = true;
@@ -237,6 +249,7 @@ async function registerServiceInPlatformConfig(input: {
         publicKeyPem: input.publicKeyPem,
         keyId: input.keyId,
         serviceId: input.pluginId,
+        ...(input.authProvider && isAuthPlugin(input.pluginId) ? { authProvider: input.authProvider } : {}),
         capabilities: defaultCapabilities(input.pluginId),
         title: input.pluginId,
         description: undefined,
@@ -255,6 +268,7 @@ async function registerServiceInPlatformConfig(input: {
       existing.publicKeyPem = input.publicKeyPem;
       existing.keyId = input.keyId;
       existing.serviceId = input.pluginId;
+      if (input.authProvider && isAuthPlugin(input.pluginId)) existing.authProvider = input.authProvider;
       existing.capabilities = existing.capabilities?.length ? existing.capabilities : defaultCapabilities(input.pluginId);
       existing.enabled = true;
     } else {
@@ -265,6 +279,7 @@ async function registerServiceInPlatformConfig(input: {
         publicKeyPem: input.publicKeyPem,
         keyId: input.keyId,
         serviceId: input.pluginId,
+        ...(input.authProvider && isAuthPlugin(input.pluginId) ? { authProvider: input.authProvider } : {}),
         capabilities: defaultCapabilities(input.pluginId),
         title: input.pluginId,
         description: undefined,
@@ -309,6 +324,44 @@ function attachSharedAuthJwks(
       app.auth.publicKeys = publicKeys;
     }
   }
+}
+
+function attachSharedAuthProviderMetadata(
+  config: BetterPortalConfig,
+  sharedServiceId: string,
+  authProvider: AuthProviderRuntimeMetadata
+): void {
+  const activationIds = new Set(
+    config.sharedServiceActivations
+      .filter((activation) => activation.enabled && activation.sharedServiceId === sharedServiceId)
+      .map((activation) => activation.id)
+  );
+  if (activationIds.size === 0) return;
+
+  for (const app of config.apps) {
+    if (app.auth && activationIds.has(app.auth.serviceId)) {
+      applyAuthProviderMetadata(app.auth, authProvider);
+    }
+  }
+}
+
+function applyAuthProviderMetadata(appAuth: AppAuthConfig, authProvider: AuthProviderRuntimeMetadata): void {
+  appAuth.expectedIssuer = authProvider.issuer;
+  appAuth.expectedAudience = authProvider.audience;
+  appAuth.jwksUri = authProvider.jwksUri;
+}
+
+function normalizeAuthProviderMetadata(value: unknown): AuthProviderRuntimeMetadata | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.issuer !== "string" || raw.issuer.trim().length === 0) return undefined;
+  if (typeof raw.audience !== "string" || raw.audience.trim().length === 0) return undefined;
+  if (typeof raw.jwksUri !== "string" || raw.jwksUri.trim().length === 0) return undefined;
+  return {
+    issuer: raw.issuer.trim().replace(/\/+$/, ""),
+    audience: raw.audience.trim(),
+    jwksUri: raw.jwksUri.trim()
+  };
 }
 
 async function hashApiKey(apiKey: string): Promise<string> {

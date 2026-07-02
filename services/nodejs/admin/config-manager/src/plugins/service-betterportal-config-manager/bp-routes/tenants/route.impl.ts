@@ -9,7 +9,7 @@ import {
   type CacheHints,
   type RouteHandlerContext
 } from "@betterportal/framework";
-import type { AppAuthConfig, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
+import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
 import { getConfigManagerRouteContext } from "../../routeContext.js";
 import { getManifestCache } from "../../syncApi.js";
 import { apiRoutePath } from "../../routeMounts.js";
@@ -332,6 +332,7 @@ function authServicesForTenant(config: BetterPortalConfig, tenantId: string): Ar
   tenantId: string;
   title: string;
   serviceId?: string;
+  authProvider?: AuthProviderRuntimeMetadata;
   hostname: string;
 }> {
   const tenant = config.tenants.find((candidate) => candidate.id === tenantId);
@@ -342,6 +343,7 @@ function authServicesForTenant(config: BetterPortalConfig, tenantId: string): Ar
       tenantId,
       title: service.title ?? service.serviceId ?? service.hostname,
       serviceId: service.serviceId,
+      authProvider: service.authProvider,
       hostname: service.hostname
     }));
 
@@ -359,6 +361,7 @@ function authServicesForTenant(config: BetterPortalConfig, tenantId: string): Ar
         tenantId,
         title: shared.title,
         serviceId: shared.serviceId ?? shared.id,
+        authProvider: shared.authProvider,
         hostname: shared.baseUrl
       };
     })
@@ -398,9 +401,9 @@ function buildAppAuthConfig(
         ? { kind: "authress.io", roleClaimPath: "roles", subjectClaimPath: "sub" }
         : { kind: "betterportal.default" }
     ),
-    expectedIssuer: expectedIssuer ?? issuerFromAuthService(authService?.hostname),
-    expectedAudience: expectedAudience ?? "betterportal-runtime",
-    jwksUri: existing?.jwksUri ?? `${(authService?.hostname ?? "").replace(/\/+$/, "")}/.well-known/jwks.json`,
+    expectedIssuer: authService?.authProvider?.issuer ?? expectedIssuer ?? issuerFromAuthService(authService?.hostname),
+    expectedAudience: authService?.authProvider?.audience ?? expectedAudience ?? "betterportal-runtime",
+    jwksUri: authService?.authProvider?.jwksUri ?? existing?.jwksUri ?? `${(authService?.hostname ?? "").replace(/\/+$/, "")}/.well-known/jwks.json`,
     ...(publicKeys ? { publicKeys } : {}),
     roles: existing?.roles ?? []
   };

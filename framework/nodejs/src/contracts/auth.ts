@@ -87,6 +87,13 @@ export const AppAuthProviderConfigSchema = av.union([
 ]);
 export type AppAuthProviderConfig = Infer<typeof AppAuthProviderConfigSchema>;
 
+export const AuthProviderRuntimeMetadataSchema = av.object({
+  issuer: NonEmptyStringSchema,
+  audience: NonEmptyStringSchema,
+  jwksUri: NonEmptyStringSchema
+}, { unknownKeys: "strip" });
+export type AuthProviderRuntimeMetadata = Infer<typeof AuthProviderRuntimeMetadataSchema>;
+
 export const AppAuthConfigSchema = av.object({
   serviceId: UuidV7Schema,
   provider: av.optional(AppAuthProviderConfigSchema),

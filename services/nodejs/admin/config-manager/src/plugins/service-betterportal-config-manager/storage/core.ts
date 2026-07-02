@@ -11,7 +11,8 @@ import type {
   TenantServiceRegistration,
   PlatformService,
   BetterPortalApp,
-  SharedServiceDefinition
+  SharedServiceDefinition,
+  AuthProviderRuntimeMetadata
 } from "@betterportal/framework";
 
 export type StorageBackend = "file" | "postgres";
@@ -48,6 +49,14 @@ export abstract class BaseStorage implements PlatformConfigStore {
 
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
     for (const app of config.apps) {
+      if (app.auth) {
+        const authProvider = resolveAuthProviderRuntimeMetadata(config, app.auth.serviceId);
+        if (authProvider) {
+          app.auth.expectedIssuer = authProvider.issuer;
+          app.auth.expectedAudience = authProvider.audience;
+          app.auth.jwksUri = authProvider.jwksUri;
+        }
+      }
       if (app.auth?.provider?.kind !== "authress.io") continue;
       if (app.auth.expectedAudience === "authress") {
         app.auth.expectedAudience = "betterportal-runtime";
@@ -560,4 +569,25 @@ export abstract class BaseStorage implements PlatformConfigStore {
       auth: app.auth
     };
   }
+}
+
+function resolveAuthProviderRuntimeMetadata(
+  config: BetterPortalConfig,
+  serviceId: string
+): AuthProviderRuntimeMetadata | undefined {
+  const tenantService = config.tenants
+    .flatMap((tenant) => tenant.services)
+    .find((service) => service.id === serviceId);
+  if (tenantService?.authProvider) return tenantService.authProvider;
+
+  const platformService = config.platformServices.find((service) => service.id === serviceId);
+  if (platformService?.authProvider) return platformService.authProvider;
+
+  const activation = config.sharedServiceActivations.find((candidate) => candidate.id === serviceId && candidate.enabled);
+  if (activation) {
+    const sharedService = config.sharedServiceCatalog.find((service) => service.id === activation.sharedServiceId);
+    if (sharedService?.authProvider) return sharedService.authProvider;
+  }
+
+  return undefined;
 }

@@ -292,6 +292,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       port: this.config.port ?? 3300
     });
     this.registerAsAuthProvider({
+      issuer: this.cpState.issuer,
+      audience: this.cpState.audience,
+      jwksUri: this.cpState.jwksUri,
       jwks: { keys: [this.cpState.jwk] }
     });
     _obs.log.info("CP issuer={issuer} kid={kid} cpId={cpId}; JWKS exposed at /.well-known/jwks.json", {

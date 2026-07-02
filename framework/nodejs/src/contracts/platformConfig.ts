@@ -7,7 +7,7 @@ import {
   PluginIdSchema,
   UuidV7Schema
 } from "./common.js";
-import { AppAuthConfigSchema } from "./auth.js";
+import { AppAuthConfigSchema, AuthProviderRuntimeMetadataSchema } from "./auth.js";
 
 const NonEmptyStringSchema = av.string().minLength(1);
 
@@ -66,6 +66,7 @@ export const TenantServiceRegistrationSchema = av.object({
   publicKeyPem: av.optional(NonEmptyStringSchema),
   keyId: av.optional(NonEmptyStringSchema),
   serviceId: av.optional(PluginIdSchema),
+  authProvider: av.optional(AuthProviderRuntimeMetadataSchema),
   capabilities: av.array(NonEmptyStringSchema).default([]),
   title: av.optional(NonEmptyStringSchema),
   description: av.optional(NonEmptyStringSchema),
@@ -90,6 +91,7 @@ export const PlatformServiceSchema = av.object({
   publicKeyPem: av.optional(NonEmptyStringSchema),
   keyId: av.optional(NonEmptyStringSchema),
   serviceId: av.optional(PluginIdSchema),
+  authProvider: av.optional(AuthProviderRuntimeMetadataSchema),
   capabilities: av.array(NonEmptyStringSchema).default([]),
   title: NonEmptyStringSchema,
   description: av.optional(NonEmptyStringSchema),
@@ -235,6 +237,7 @@ export const SharedServiceDefinitionSchema = av.object({
   apiKeyHash: av.string().default(""),
   publicKeyPem: av.optional(NonEmptyStringSchema),
   keyId: av.optional(NonEmptyStringSchema),
+  authProvider: av.optional(AuthProviderRuntimeMetadataSchema),
   supportedDeploymentModes: av.array(DeploymentModeSchema).default([]),
   owner: av.enum_(["bp", "3p"] as const).default("bp"),
   upgradeUrlTemplate: av.optional(av.string()),
@@ -294,6 +297,7 @@ export const ServiceManifestCacheEntrySchema = av.object({
   serviceId: NonEmptyStringSchema,
   manifestVersion: NonEmptyStringSchema,
   fetchedAt: av.string().format("date-time"),
+  authProvider: av.optional(AuthProviderRuntimeMetadataSchema),
   m2mRequests: av.array(av.any()).default([]),
   apiContracts: av.array(av.any()).default([]),
   viewIndex: av.record(av.object({

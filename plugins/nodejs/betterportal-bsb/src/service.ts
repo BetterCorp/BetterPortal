@@ -29,6 +29,7 @@ import {
   verifySetupToken,
   verifyServiceConfigTicket,
   type AppAuthConfig,
+  type AuthProviderRuntimeMetadata,
   type BetterPortalResolvedRequestContext,
   type BetterPortalObservability,
   type BetterPortalRegistry,
@@ -323,17 +324,27 @@ export abstract class BPService<
    * Mounts `GET /.well-known/jwks.json` returning the supplied JWK set.
    * Call this from `init()` AFTER `super.init()` so the H3 app exists.
    */
-  /** JWKS published by this service when it acts as an auth provider; sent
-   *  to the CP at /redeem so verifiers can use static keys (no network fetch). */
+  /** Runtime auth metadata published when this service acts as an auth provider.
+   *  Sent during install and sync so config-manager can configure app verifiers
+   *  without guessing issuer/audience/JWKS from hostnames. */
   private publishedJwks: { keys: ReadonlyArray<Record<string, unknown>> } | null = null;
+  private publishedAuthProvider: AuthProviderRuntimeMetadata | null = null;
 
   protected registerAsAuthProvider(input: {
+    issuer: string;
+    audience: string;
+    jwksUri: string;
     jwks: { keys: ReadonlyArray<Record<string, unknown>> };
     cacheMaxAgeSeconds?: number;
   }): void {
     const cacheMaxAge = input.cacheMaxAgeSeconds ?? 600;
     const payload = JSON.stringify(input.jwks);
     this.publishedJwks = input.jwks;
+    this.publishedAuthProvider = {
+      issuer: input.issuer.replace(/\/+$/, ""),
+      audience: input.audience,
+      jwksUri: input.jwksUri
+    };
     this.app.get("/.well-known/jwks.json", () =>
       new Response(payload, {
         status: 200,
@@ -658,6 +669,7 @@ export abstract class BPService<
           webhooks: this.manifest.webhooks,
           apiContracts: this.manifest.apiContracts,
           m2mRequests: this.manifest.m2mRequests,
+          ...(this.publishedAuthProvider ? { authProvider: this.publishedAuthProvider } : {}),
           viewIndex
         })
       });
@@ -1404,6 +1416,7 @@ export abstract class BPService<
             setupToken,
             pluginId: this.manifest.pluginId,
             serviceUrl: this.deriveOwnUrl(event),
+            ...(this.publishedAuthProvider ? { authProvider: this.publishedAuthProvider } : {}),
             ...(this.publishedJwks ? { jwks: this.publishedJwks } : {})
           })
         });

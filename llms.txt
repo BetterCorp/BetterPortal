@@ -61,6 +61,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 - **Node SDK** (`framework/nodejs/`, npm: `@betterportal/framework`): TypeScript implementation of `bp-protocol/1`. Contracts, runtime helpers, codegen (`bp-codegen`), h3 adapter, schema validation. Imported by all Node services and themes. **Other-language SDKs would live as sibling packages** (`@betterportal/sdk-php`, etc.) - none exist yet.
 - **BSB integration plugin** (`plugins/nodejs/betterportal-bsb`, npm: `@betterportal/plugin-bsb`): wires h3 + CORS + observability into BSB. Provides `BPService` base class for service plugins. Node-only by definition.
 - **Auth services** (`services/nodejs/auth-default/`, `services/nodejs/auth-authress-io/`): optional shared auth provider services. Apps choose a provider through `app.auth.serviceId`, which points at a tenant service id or shared-service activation id, never directly at a plugin id.
+- **Auth provider runtime metadata**: auth services own their BP-token `issuer`, `audience`, and `jwksUri`. They publish this through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`; install/redeem and service sync push it to config-manager. Config-manager derives `app.auth.expectedIssuer`, `app.auth.expectedAudience`, and `app.auth.jwksUri` from the selected auth service. Users should not manually configure these internal verifier fields.
 
 ### Communication rules
 

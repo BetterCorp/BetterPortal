@@ -59,7 +59,7 @@ Required claims:
 | Claim | Type | Purpose |
 |-------|------|---------|
 | `iss` | string | Issuer URL. Verifier checks against app config `expectedIssuer`. |
-| `aud` | string \| string[] | Audience. Verifier checks against app config `expectedAudience` (typically the app id). |
+| `aud` | string \| string[] | Audience. Verifier checks against app config `expectedAudience`, which is derived from the selected BP auth service runtime metadata. |
 | `exp` | number (unix seconds) | Expiry. Verifier rejects if `exp <= now`. |
 | `iat` | number | Issued-at. |
 | `nbf` | number (optional) | Not-before. Verifier rejects if `nbf > now`. |
@@ -113,6 +113,8 @@ export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 `loginViewId` / `logoutViewId` / `refreshViewId` are **view ids**, not URL paths. The framework resolves them to paths at render time via the synced route registry. This is so admins can rename URLs without touching auth config. The view-id resolver is a separate refactor tracked outside this spec.
 
 Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Each permission entry binds a specific role grant to a specific API endpoint and CRUD action set. Services receive these via app config sync and use them to authorize requests.
+
+`expectedIssuer`, `expectedAudience`, and `jwksUri` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`, and config-manager writes them onto app auth bindings when the service is installed, synced, or selected. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL, application id, API keys, and external token settings, remain service config and are separate from BP runtime token verification.
 
 **Config-manager is dumb storage.** It does not understand permissions, roles, or users. It serializes the schema as-is. Mutations come from auth-service admin UI via HTTP POST to config-manager.
 
@@ -515,7 +517,7 @@ Tests:
 
 Files:
 
-- `plugins/nodejs/betterportal-bsb/src/service.ts` - add `registerAsAuthProvider({ issuer, privateKey, kid })` method. Exposes `/.well-known/jwks.json` route on the service's H3 app.
+- `plugins/nodejs/betterportal-bsb/src/service.ts` - `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })` publishes BP runtime verifier metadata and exposes `/.well-known/jwks.json` on the service's H3 app.
 
 ### Phase 5 - Basic auth service (reference implementation)
 
