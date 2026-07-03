@@ -10,6 +10,10 @@ import type {
 // -- Scoped config (what a service receives via sync) -----------------
 
 export interface ScopedServiceConfig {
+  readonly configManagement?: {
+    readonly adminTenantId?: string;
+    readonly managementAppId?: string;
+  };
   readonly managementOrigins: ReadonlyArray<string>;
   readonly tenants: ReadonlyArray<ScopedTenant>;
   /** Apps whose service config may be managed for this service. This can be broader than runtime apps. */

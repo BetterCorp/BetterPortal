@@ -287,6 +287,18 @@ export function render(data: ResponseData): HtmlRenderable {
               hx-swap="innerHTML"
             >
               <div class="mb-3">
+                <label class="form-label">Role ID</label>
+                <input
+                  type="text"
+                  class="form-control font-monospace"
+                  name="id"
+                  placeholder="admin"
+                  pattern="[A-Za-z0-9][A-Za-z0-9._:-]{0,63}"
+                  required
+                />
+                <div class="form-text">Must match the role value emitted by the auth provider. Reserved ids cannot be created here.</div>
+              </div>
+              <div class="mb-3">
                 <label class="form-label">Title</label>
                 <input type="text" class="form-control" name="title" placeholder="Administrator" required />
               </div>

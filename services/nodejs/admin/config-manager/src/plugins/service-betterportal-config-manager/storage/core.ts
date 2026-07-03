@@ -48,6 +48,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
   abstract saveConfig(config: BetterPortalConfig): Promise<void>;
 
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
+    this.ensurePlatformRootRole(config);
     for (const app of config.apps) {
       if (app.auth) {
         const authProvider = resolveAuthProviderRuntimeMetadata(config, app.auth.serviceId);
@@ -64,6 +65,27 @@ export abstract class BaseStorage implements PlatformConfigStore {
       app.auth.refreshViewId ??= "/refresh";
     }
     return config;
+  }
+
+  private ensurePlatformRootRole(config: BetterPortalConfig): void {
+    const adminTenantId = config.configManagement.adminTenantId;
+    const managementAppId = config.configManagement.managementAppId;
+    if (!adminTenantId || !managementAppId) return;
+    const app = config.apps.find((candidate) => candidate.id === managementAppId && candidate.tenantId === adminTenantId);
+    if (!app?.auth) return;
+    app.auth.roles ??= [];
+    const existing = app.auth.roles.find((role) => role.id === "*");
+    if (existing) {
+      existing.title ||= "Platform Root";
+      existing.description ||= "Reserved platform-root wildcard role. Only valid for the configured management tenant/app.";
+      return;
+    }
+    app.auth.roles.push({
+      id: "*",
+      title: "Platform Root",
+      description: "Reserved platform-root wildcard role. Only valid for the configured management tenant/app.",
+      permissions: []
+    });
   }
 
   protected validateConfigReferences(config: BetterPortalConfig): void {
@@ -87,6 +109,14 @@ export abstract class BaseStorage implements PlatformConfigStore {
     const activeSharedServiceIds = new Set(config.sharedServiceCatalog.filter((service) => service.enabled).map((service) => service.id));
     if (config.configManagement.adminTenantId && !tenantsById.has(config.configManagement.adminTenantId)) {
       errors.push(`configManagement.adminTenantId references missing tenant: ${config.configManagement.adminTenantId}`);
+    }
+    if (config.configManagement.managementAppId) {
+      const managementApp = appsById.get(config.configManagement.managementAppId);
+      if (!managementApp) {
+        errors.push(`configManagement.managementAppId references missing app: ${config.configManagement.managementAppId}`);
+      } else if (config.configManagement.adminTenantId && managementApp.tenantId !== config.configManagement.adminTenantId) {
+        errors.push(`configManagement.managementAppId must belong to adminTenantId: ${config.configManagement.managementAppId}`);
+      }
     }
 
     for (const tenant of config.tenants) {
@@ -347,7 +377,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
   ): ScopedServiceConfig {
     const tenant = config.tenants.find((t) => t.active && t.id === tenantId);
     const managementOrigins = this.managementOrigins(config);
-    if (!tenant) return { managementOrigins, tenants: [], apps: [] };
+    if (!tenant) return { configManagement: this.scopedConfigManagement(config), managementOrigins, tenants: [], apps: [] };
 
     const service = tenant.services.find(
       (s) => s.enabled && (s.id === serviceId || s.serviceId === serviceId)
@@ -357,7 +387,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
       && activation.tenantId === tenantId
       && (activation.id === serviceId || activation.sharedServiceId === serviceId)
     );
-    if (!service && !sharedActivation && !isThemeCaller) return { managementOrigins, tenants: [], apps: [] };
+    if (!service && !sharedActivation && !isThemeCaller) return { configManagement: this.scopedConfigManagement(config), managementOrigins, tenants: [], apps: [] };
 
     const serviceKeys = service
       ? [service.id, service.serviceId].filter((value): value is string => !!value)
@@ -375,6 +405,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
       .filter((a) => isThemeCaller || a.routes.length > 0 || Object.keys(a.fragments).length > 0);
 
     return {
+      configManagement: this.scopedConfigManagement(config),
       managementOrigins,
       tenants: [scopedTenant],
       configApps: this.configAppsForTenant(config, tenantId),
@@ -461,6 +492,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
     }
 
     return {
+      configManagement: this.scopedConfigManagement(config),
       managementOrigins: this.managementOrigins(config),
       tenants,
       configApps: tenants.flatMap((tenant) => this.configAppsForTenant(config, tenant.id)),
@@ -472,6 +504,13 @@ export abstract class BaseStorage implements PlatformConfigStore {
     return config.apps
       .filter((app) => app.tenantId === tenantId)
       .map((app) => ({ id: app.id, tenantId: app.tenantId, title: app.title }));
+  }
+
+  private scopedConfigManagement(config: BetterPortalConfig): NonNullable<ScopedServiceConfig["configManagement"]> {
+    return {
+      adminTenantId: config.configManagement.adminTenantId,
+      managementAppId: config.configManagement.managementAppId
+    };
   }
 
   private scopeTenant(tenant: BetterPortalTenant, config?: BetterPortalConfig): ScopedTenant {

@@ -116,6 +116,10 @@ Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Ea
 
 `expectedIssuer`, `expectedAudience`, and `jwksUri` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`, and config-manager writes them onto app auth bindings when the service is installed, synced, or selected. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL, application id, API keys, and external token settings, remain service config and are separate from BP runtime token verification.
 
+Role ids are the contract with external providers. The auth provider token `roles[]` values must match `app.auth.roles[].id` exactly. Config-manager role creation requires an explicit id using `[A-Za-z0-9][A-Za-z0-9._:-]{0,63}` and rejects reserved ids.
+
+`*` is reserved as the platform-root wildcard role. It is only honored when the request tenant/app exactly match `configManagement.adminTenantId` and `configManagement.managementAppId`; otherwise it is logged as misuse and ignored for grants. `root` is not a valid role id.
+
 **Config-manager is dumb storage.** It does not understand permissions, roles, or users. It serializes the schema as-is. Mutations come from auth-service admin UI via HTTP POST to config-manager.
 
 ---

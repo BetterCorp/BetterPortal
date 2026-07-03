@@ -85,6 +85,12 @@ Service configuration is independent from service usage. A tenant service or sha
 
 Config Manager itself remains a direct tenant service during bootstrap because it is the control plane. The default auth service and Bootstrap1 theme are bootstrapped as shared services.
 
+## Roles and permissions
+
+Role ids are explicit and should match the values emitted by the selected auth provider. For Authress, configure the Authress role claim so it contains BP role ids such as `admin`, `finance.viewer`, or `tenant-manager`; BP does not map Authress display names to BP role ids.
+
+The normal role API rejects reserved ids, including `root` and `*`. The reserved `*` role is maintained only on the configured management tenant/app as the platform-root wildcard. It grants every route permission only when the request is for `configManagement.adminTenantId` and `configManagement.managementAppId`; outside that exact scope, it is logged as misuse and does not grant access.
+
 ## Menu editor
 
 The menu editor controls the BP shell navigation.

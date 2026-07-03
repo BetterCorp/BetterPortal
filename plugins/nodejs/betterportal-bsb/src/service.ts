@@ -204,7 +204,11 @@ export abstract class BPService<
     const s = this.scopedConfig;
     if (!s) return null;
     return {
-      configManagement: { adminTenantId: undefined, auth: { mechanism: "none", requiredPermissions: [] } } as any,
+      configManagement: {
+        adminTenantId: s.configManagement?.adminTenantId,
+        managementAppId: s.configManagement?.managementAppId,
+        auth: { mechanism: "none", requiredPermissions: [] }
+      } as any,
       platformServices: [],
       sharedServiceCatalog: [],
       tenantSharedServiceActivations: [],
@@ -878,7 +882,15 @@ export abstract class BPService<
       tenantId: ctx.__bpTenantId,
       appId: ctx.__bpAppId,
       appAuthConfig: this.getAppAuthConfig(ctx.__bpTenantId, ctx.__bpAppId),
-      serviceIdAliases: this.getServiceIdAliases(ctx.__bpTenantId)
+      serviceIdAliases: this.getServiceIdAliases(ctx.__bpTenantId),
+      platformRoot: this.getPlatformRootAuthScope(ctx.__bpTenantId, ctx.__bpAppId)
+    };
+  }
+
+  protected getPlatformRootAuthScope(_tenantId: string, _appId: string): { tenantId?: string; appId?: string } | undefined {
+    return {
+      tenantId: this.scopedConfig?.configManagement?.adminTenantId,
+      appId: this.scopedConfig?.configManagement?.managementAppId
     };
   }
 

@@ -139,7 +139,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   /** CP-side signing keypair + issuer/audience info. Built on first init. */
   private cpState!: CpBootstrapState;
   /** Cache of (tenantId, appId) -> app.auth config + JWT verifier from synced storage. */
-  private readonly authConfigCache = new Map<string, { auth: AppAuthConfig; verifier: JwtVerifier; aliases: Record<string, string>; cachedAt: number }>();
+  private readonly authConfigCache = new Map<string, { auth: AppAuthConfig; verifier: JwtVerifier; aliases: Record<string, string>; root: { tenantId?: string; appId?: string }; cachedAt: number }>();
   private readonly authCacheTtlMs = 60 * 1000;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
@@ -176,6 +176,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       if (key.startsWith(`${tenantId}::`)) return entry.aliases;
     }
     return undefined;
+  }
+
+  protected getPlatformRootAuthScope(tenantId: string, appId: string): { tenantId?: string; appId?: string } | undefined {
+    return this.authConfigCache.get(`${tenantId}::${appId}`)?.root;
   }
 
   /**
@@ -219,6 +223,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
             expectedTokenType: "access"
           }),
           aliases: buildServiceIdAliases(config, app.tenantId),
+          root: {
+            tenantId: config.configManagement.adminTenantId,
+            appId: config.configManagement.managementAppId
+          },
           cachedAt: Date.now()
         });
         warmed += 1;
@@ -246,7 +254,16 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         expectedAudience: auth.expectedAudience,
         expectedTokenType: "access"
       });
-      this.authConfigCache.set(key, { auth, verifier, aliases: buildServiceIdAliases(config, tenantId), cachedAt: Date.now() });
+      this.authConfigCache.set(key, {
+        auth,
+        verifier,
+        aliases: buildServiceIdAliases(config, tenantId),
+        root: {
+          tenantId: config.configManagement.adminTenantId,
+          appId: config.configManagement.managementAppId
+        },
+        cachedAt: Date.now()
+      });
     } catch {
       // silent - next request retries
     }

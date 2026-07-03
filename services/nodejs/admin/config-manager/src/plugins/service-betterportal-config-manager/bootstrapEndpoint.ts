@@ -311,7 +311,8 @@ export async function registerBootstrapEndpoint(input: {
 
     freshConfig.configManagement = {
       ...(freshConfig.configManagement ?? { auth: { mechanism: "none", requiredPermissions: [] } }),
-      adminTenantId
+      adminTenantId,
+      managementAppId: adminAppId
     };
 
     await input.storage.saveConfig(freshConfig);

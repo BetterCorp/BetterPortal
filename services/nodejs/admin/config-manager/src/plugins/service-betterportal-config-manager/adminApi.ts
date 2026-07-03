@@ -22,6 +22,8 @@ const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
 // Parse-only base for relative request URLs. Never emit this origin.
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
+const ROLE_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,63}$/;
+const RESERVED_ROLE_IDS = new Set(["*", "root"]);
 
 async function readFormBody(event: BetterPortalEvent): Promise<Record<string, string>> {
   const fd = await event.req.formData().catch(() => null);
@@ -81,6 +83,15 @@ function htmxError(message: string, status = 400): Response {
 
 function validationError(event: BetterPortalEvent, message: string): Response {
   return wantsHtmx(event) ? htmxError(message, 400) : jsonResponse({ error: message }, 400);
+}
+
+function validateRoleId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const roleId = value.trim();
+  if (!roleId) return undefined;
+  if (!ROLE_ID_PATTERN.test(roleId)) return undefined;
+  if (RESERVED_ROLE_IDS.has(roleId.toLowerCase())) return undefined;
+  return roleId;
 }
 
 function trimmedString(body: Record<string, unknown>, key: string): string | undefined {
@@ -1435,13 +1446,18 @@ export function registerAdminApiRoutes(
     const body = await readFormOrJsonBody(event);
     const title = body.title as string;
     if (!title) return wantsHtmx(event) ? htmxError("title required") : jsonResponse({ error: "title required" }, 400);
+    const roleId = validateRoleId(body.id);
+    if (!roleId) {
+      const message = "role id must start with a letter or number, may contain letters, numbers, dot, underscore, colon, or dash, and cannot be reserved";
+      return wantsHtmx(event) ? htmxError(message) : jsonResponse({ error: message }, 400);
+    }
     const { config, appDef } = await getAppOr404(appId);
     if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
     const authResult = requireAuthBlock(event, appDef);
     if (authResult.response) return authResult.response;
     const auth = authResult.auth!;
     const role: AppAuthRoleEntry = {
-      id: (body.id as string) || uuidv7(),
+      id: roleId,
       title,
       description: body.description as string | undefined,
       permissions: Array.isArray(body.permissions) ? body.permissions as AppAuthRoleEntry["permissions"] : []

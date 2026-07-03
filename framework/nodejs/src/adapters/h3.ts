@@ -46,6 +46,7 @@ type MethodRegistrar = (path: string, handler: (event: BetterPortalEvent) => Res
 
 const METHOD_WRITE_BODY: ReadonlySet<string> = new Set(["POST", "PUT", "PATCH"]);
 const MAX_BUFFERED_MULTIPART_BYTES = 25 * 1024 * 1024;
+const PLATFORM_ROOT_PERMISSION_ROLE_ID = "*";
 
 class MultipartTooLargeError extends Error {
   constructor() {
@@ -88,6 +89,16 @@ export interface H3AuthContext {
    * are authored against pluginIds. The permission check accepts either.
    */
   readonly serviceIdAliases?: Readonly<Record<string, string>>;
+  readonly platformRoot?: {
+    readonly tenantId?: string;
+    readonly appId?: string;
+  };
+}
+
+interface RequiredPermissionDescriptor {
+  readonly serviceId: string;
+  readonly viewId: string;
+  readonly permissions: ReadonlyArray<string>;
 }
 
 function methodRegistrar(app: BetterPortalH3App, method: HttpMethod): MethodRegistrar {
@@ -772,7 +783,7 @@ async function handleRouteRequest(
   const authResolved = await loadAuthContext(event, routerOptions, obs);
   const authResult = await resolveRequestAuth(apiAuth, event, authResolved, obs);
   if (authResult.error) {
-    return renderAuthError(route, event, authResult.status, authResult.error);
+    return renderAuthError(route, event, authResult.status, authResult.error, authResult.requiredPermissions);
   }
 
   // -- Tenant/app activation check (validateTenantApp hook -> 426) -----
@@ -1183,6 +1194,7 @@ interface AuthResult {
   user?: ValidatedUserClaims;
   error?: string;
   status: number;
+  requiredPermissions?: ReadonlyArray<RequiredPermissionDescriptor>;
 }
 
 async function loadAuthContext(
@@ -1262,6 +1274,23 @@ async function resolveRequestAuth(
 
   // Step 7: permission check against app.auth.roles
   if (apiAuth.permissions.length > 0) {
+    const hasPlatformRootRole = claims.roles.includes(PLATFORM_ROOT_PERMISSION_ROLE_ID);
+    if (hasPlatformRootRole) {
+      const rootMatches = authContext.platformRoot?.tenantId === authContext.tenantId
+        && authContext.platformRoot?.appId === authContext.appId
+        && claims.tenantId === authContext.platformRoot.tenantId
+        && claims.appId === authContext.platformRoot.appId;
+      if (rootMatches) {
+        return { status: 200, user: claims };
+      }
+      obs?.logger.error("Reserved platform-root permission role used outside management app: tenant={tenantId} app={appId} rootTenant={rootTenantId} rootApp={rootAppId}", {
+        tenantId: claims.tenantId,
+        appId: claims.appId,
+        rootTenantId: authContext.platformRoot?.tenantId ?? "",
+        rootAppId: authContext.platformRoot?.appId ?? ""
+      });
+    }
+
     const granted = expandRolesToPermissions(claims.roles, authContext.appAuthConfig);
     // Grants reference tenant service-instance ids; route requirements are
     // authored against pluginIds. Treat them as equal via the alias map.
@@ -1280,7 +1309,13 @@ async function resolveRequestAuth(
       )
     );
     if (!ok) {
-      if (required) return { status: 403, error: "Insufficient permissions" };
+      if (required) {
+        return {
+          status: 403,
+          error: "Insufficient permissions",
+          requiredPermissions: apiAuth.permissions
+        };
+      }
       return { status: 200 };
     }
   }
@@ -1323,11 +1358,29 @@ function corsHeadersFromEvent(event: BetterPortalEvent): Record<string, string> 
   return out;
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[char]!));
+}
+
+function formatRequiredPermissions(requiredPermissions: ReadonlyArray<RequiredPermissionDescriptor> = []): string {
+  if (requiredPermissions.length === 0) return "";
+  return requiredPermissions
+    .map((requirement) => `${requirement.serviceId} / ${requirement.viewId} / ${requirement.permissions.join("+")}`)
+    .join("; ");
+}
+
 function renderAuthError(
   route: RegisteredRoute,
   event: BetterPortalEvent,
   status: number,
-  message: string
+  message: string,
+  requiredPermissions: ReadonlyArray<RequiredPermissionDescriptor> = []
 ): Response {
   const themeId = (event as unknown as { __bpThemeId?: string }).__bpThemeId;
   const acceptHeader = acceptHeaderFromEvent(event);
@@ -1347,7 +1400,7 @@ function renderAuthError(
     const statusRenderer = resolveStatusRenderer(route, themeId, status, "page", undefined, "GET");
     if (statusRenderer) {
       try {
-        const html = statusRenderer.render({ error: message, status });
+        const html = statusRenderer.render({ error: message, status, requiredPermissions });
         return new Response(toHtmlString(html), {
           status,
           headers: { ...corsHeaders, "content-type": htmlContentType(themeId, "status", route.chrome) }
@@ -1358,7 +1411,24 @@ function renderAuthError(
     }
   }
 
-  return jsonResponse({ error: message, status } as unknown as JsonValue, status, corsHeaders);
+  if (representation.kind === "html" && status === 403) {
+    const details = formatRequiredPermissions(requiredPermissions);
+    const html = `
+      <section class="container py-4">
+        <div class="alert alert-warning border-0 shadow-sm" role="alert">
+          <h2 class="h5 mb-2">Permission required</h2>
+          <p class="mb-2">${escapeHtml(message)}</p>
+          ${details ? `<p class="small mb-0"><strong>Required:</strong> <code>${escapeHtml(details)}</code></p>` : ""}
+        </div>
+      </section>
+    `;
+    return new Response(html, {
+      status,
+      headers: { ...corsHeaders, "content-type": themeId ? htmlContentType(themeId, "status", route.chrome) : "text/html; charset=utf-8" }
+    });
+  }
+
+  return jsonResponse({ error: message, status, requiredPermissions } as unknown as JsonValue, status, corsHeaders);
 }
 
 function readTenantAppFromEvent(event: BetterPortalEvent): { tenantId: string; appId: string } | undefined {
