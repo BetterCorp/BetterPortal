@@ -120,6 +120,8 @@ Role ids are the contract with external providers. The auth provider token `role
 
 `*` is reserved as the platform-root wildcard role. It is only honored when the request tenant/app exactly match `configManagement.adminTenantId` and `configManagement.managementAppId`; otherwise it is logged as misuse and ignored for grants. `root` is not a valid role id.
 
+Default-auth owns its local user store, so its first-admin registration assigns `*` to the current management app in `appRoles`. External providers such as Authress do not store BP users; their provider-side role assignment must emit `roles: ["*"]` only for the intended platform-root account.
+
 **Config-manager is dumb storage.** It does not understand permissions, roles, or users. It serializes the schema as-is. Mutations come from auth-service admin UI via HTTP POST to config-manager.
 
 ---

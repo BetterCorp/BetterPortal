@@ -100,7 +100,7 @@ export const handlePost = createHandler(
         email: body.email,
         name: body.name,
         tenantId,
-        appRoles: { [appId]: ["admin"] }
+        appRoles: { [appId]: ["*"] }
       });
       const next = (ctx.query as { next?: string }).next;
       const query = next ? { next } : undefined;

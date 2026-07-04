@@ -91,6 +91,8 @@ Role ids are explicit and should match the values emitted by the selected auth p
 
 The normal role API rejects reserved ids, including `root` and `*`. The reserved `*` role is maintained only on the configured management tenant/app as the platform-root wildcard. It grants every route permission only when the request is for `configManagement.adminTenantId` and `configManagement.managementAppId`; outside that exact scope, it is logged as misuse and does not grant access.
 
+Default-auth first-admin setup writes `appRoles[managementAppId] = ["*"]` for the local user. Authress and other external providers must assign a provider role whose emitted role claim is exactly `*`; config-manager does not manage external-provider user membership.
+
 ## Menu editor
 
 The menu editor controls the BP shell navigation.

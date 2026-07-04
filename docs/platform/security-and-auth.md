@@ -35,6 +35,8 @@ Role ids are provider-facing identifiers. For Authress, the value emitted in the
 
 `*` is a reserved platform-root role id. It is not creatable through the normal role UI/API. A token containing `roles: ["*"]` bypasses route permission grants only when the request tenant and app exactly match `configManagement.adminTenantId` and `configManagement.managementAppId`. If `*` appears on any other tenant/app, BP logs an error and treats it as non-granting.
 
+Default-auth assigns `*` to the first locally registered admin for the management app because it owns the local user store. External auth providers must assign the same provider-facing role id themselves; BP only verifies the emitted claim.
+
 When a service denies access with `403 Insufficient permissions`, HTML clients receive a rendered permission message that includes the required `serviceId`, `viewId`, and permission actions. JSON clients receive the same details in the response body.
 
 ## Service-to-service auth
