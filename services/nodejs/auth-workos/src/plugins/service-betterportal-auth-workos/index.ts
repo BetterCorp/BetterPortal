@@ -1,0 +1,667 @@
+import {
+  type BSBServiceConstructor,
+  createConfigSchema,
+  createEventSchemas,
+  type Observable
+} from "@bsb/base";
+import * as av from "anyvali";
+import {
+  BetterPortalConfigSchema,
+  BPService,
+  type BPServiceDefinition
+} from "@betterportal/plugin-bsb";
+import { WorkOS, type AuthenticationResponse } from "@workos-inc/node";
+import {
+  htmlResponse,
+  jsonResponse,
+  createBpTokenIssuer,
+  loadOrGenerateKeyPair,
+  publicKeyToJwk,
+  type AppAuthPermissionAction,
+  type AppAuthRole,
+  type BetterPortalApp,
+  type BetterPortalRouteMount,
+  type BpTokenIssuer,
+  type ConfigSchemaDescriptor,
+  type JsonValue,
+  type JwtClaims,
+  type JwtVerifier,
+  type RsaKeyPair,
+  type ServiceConfigTicketClaims,
+  type TenantAppValidation
+} from "@betterportal/framework";
+import { resolve } from "node:path";
+import { registry } from "./.bp-generated/registry.js";
+
+const SERVICE_ID = "service.betterportal.auth.workos";
+
+const PluginConfigSchema = av.object({
+  host: av.string().minLength(1).default("0.0.0.0"),
+  port: av.int().min(1).default(3213),
+  issuer: av.string().minLength(1),
+  audience: av.string().minLength(1).default("betterportal-runtime"),
+  accessTokenSeconds: av.int().min(1).default(60 * 15),
+  refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7),
+  keyStorePath: av.string().minLength(1).default("./.bp-workos-state/keys.json"),
+  betterportal: BetterPortalConfigSchema
+}, { unknownKeys: "strip" });
+export type WorkOSPluginConfig = av.Infer<typeof PluginConfigSchema>;
+
+const Config = createConfigSchema(
+  {
+    name: SERVICE_ID,
+    description: "BetterPortal WorkOS auth service",
+    tags: ["betterportal", "auth", "workos"],
+    documentation: ["./README.md"],
+    image: "./betterportal-logo.png"
+  },
+  PluginConfigSchema
+);
+
+const EventSchemas = createEventSchemas({
+  emitEvents: {},
+  onEvents: {},
+  emitReturnableEvents: {},
+  onReturnableEvents: {},
+  emitBroadcast: {},
+  onBroadcast: {}
+});
+
+export interface WorkOSAppConfig {
+  clientId: string;
+  apiKey: string;
+  provider?: string;
+  connectionId?: string;
+  organizationId?: string;
+  domainHint?: string;
+  scopes?: string;
+  loginRedirectPath?: string;
+  logoutRedirectPath?: string;
+  roleClaimPath?: string;
+  webhookSecret?: string;
+}
+
+export type WorkOSBrowserConfig = Omit<WorkOSAppConfig, "apiKey">;
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+export function resolveWorkOSAppConfig(raw: Record<string, unknown> | undefined): WorkOSAppConfig | null {
+  const clientId = nonEmptyString(raw?.clientId);
+  const apiKey = nonEmptyString(raw?.apiKey);
+  if (!clientId || !apiKey) return null;
+  return {
+    clientId,
+    apiKey,
+    provider: nonEmptyString(raw?.provider) ?? "authkit",
+    ...(nonEmptyString(raw?.connectionId) ? { connectionId: nonEmptyString(raw?.connectionId) } : {}),
+    ...(nonEmptyString(raw?.organizationId) ? { organizationId: nonEmptyString(raw?.organizationId) } : {}),
+    ...(nonEmptyString(raw?.domainHint) ? { domainHint: nonEmptyString(raw?.domainHint) } : {}),
+    ...(nonEmptyString(raw?.scopes) ? { scopes: nonEmptyString(raw?.scopes) } : {}),
+    ...(nonEmptyString(raw?.loginRedirectPath) ? { loginRedirectPath: nonEmptyString(raw?.loginRedirectPath) } : {}),
+    ...(nonEmptyString(raw?.logoutRedirectPath) ? { logoutRedirectPath: nonEmptyString(raw?.logoutRedirectPath) } : {}),
+    ...(nonEmptyString(raw?.roleClaimPath) ? { roleClaimPath: nonEmptyString(raw?.roleClaimPath) } : {}),
+    ...(nonEmptyString(raw?.webhookSecret) ? { webhookSecret: nonEmptyString(raw?.webhookSecret) } : {})
+  };
+}
+
+export function resolveWorkOSBrowserConfig(raw: Record<string, unknown> | undefined): WorkOSBrowserConfig | null {
+  const config = resolveWorkOSAppConfig(raw);
+  if (!config) return null;
+  const { apiKey: _apiKey, ...browserConfig } = config;
+  return browserConfig;
+}
+
+export const WorkOSConfigSchemas: ConfigSchemaDescriptor[] = [
+  {
+    id: "workos.app",
+    title: "WorkOS App Config",
+    description: "App-scoped WorkOS AuthKit settings.",
+    scope: "app",
+    jsonSchema: {
+      clientId: "string",
+      apiKey: "string",
+      provider: "string",
+      connectionId: "string",
+      organizationId: "string",
+      domainHint: "string",
+      scopes: "string",
+      loginRedirectPath: "string",
+      logoutRedirectPath: "string",
+      roleClaimPath: "string",
+      webhookSecret: "string"
+    },
+    groups: [
+      { id: "connection", title: "Connection", description: "WorkOS AuthKit application credentials.", order: 10, optional: false },
+      { id: "login", title: "Login", description: "Provider routing and post-login routes.", order: 20, optional: true },
+      { id: "claims", title: "Claims", description: "WorkOS access-token claim paths mapped into BP roles.", order: 30, optional: true },
+      { id: "sync", title: "Role Sync", description: "WorkOS webhook + BP role sync settings.", order: 40, optional: true }
+    ],
+    fields: [
+      { key: "clientId", title: "Client ID", description: "WorkOS client ID for this BP app.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "connection", order: 10, required: true },
+      { key: "apiKey", title: "API Key", description: "WorkOS API key used server-side for code exchange and refresh.", scope: "app", visibility: "secret", ownership: "bp", sourceOfTruth: "bp", groupId: "connection", order: 20, required: true },
+      { key: "provider", title: "Provider", description: "WorkOS provider, usually authkit.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 10, defaultValue: "authkit", required: false },
+      { key: "connectionId", title: "Connection ID", description: "Optional WorkOS connection to force.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 20, required: false },
+      { key: "organizationId", title: "Organization ID", description: "Optional WorkOS organization to force.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 30, required: false },
+      { key: "domainHint", title: "Domain Hint", description: "Optional WorkOS domain hint.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 40, required: false },
+      { key: "scopes", title: "Scopes", description: "Space-separated provider scopes.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 50, defaultValue: "openid profile email", required: false },
+      { key: "loginRedirectPath", title: "Logged In Route", description: "Tenant route shown after signing in when no next path is supplied.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 60, defaultValue: "/", ui: { control: "select", optionsSource: "app.routes" }, required: false },
+      { key: "logoutRedirectPath", title: "Logged Out Route", description: "Tenant route shown after signing out.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 70, defaultValue: "/", ui: { control: "select", optionsSource: "app.routes" }, required: false },
+      { key: "roleClaimPath", title: "Role Claim Path", description: "Dot path to roles in the WorkOS access token.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "claims", order: 10, defaultValue: "roles", required: false },
+      { key: "webhookSecret", title: "Webhook Secret", description: "WorkOS webhook signing secret for role sync events.", scope: "app", visibility: "secret", ownership: "bp", sourceOfTruth: "bp", groupId: "sync", order: 10, required: false }
+    ]
+  }
+];
+
+type WorkOSRole = {
+  slug: string;
+  name?: string;
+  description?: string | null;
+  permissions: string[];
+};
+
+type WorkOSPermission = {
+  slug: string;
+  name: string;
+  description?: string | null;
+};
+
+type BpPermissionCatalogEntry = {
+  slug: string;
+  serviceId: string;
+  viewId: string;
+  action: AppAuthPermissionAction;
+  title: string;
+  description: string;
+};
+
+const BP_PERMISSION_PREFIX = "bp:";
+const STALE_PERMISSION_PREFIX = "DEL: ";
+const ROLE_EVENTS = new Set([
+  "role.created",
+  "role.updated",
+  "role.deleted",
+  "organization_role.created",
+  "organization_role.updated",
+  "organization_role.deleted"
+]);
+
+export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventSchemas> {
+  static Config = Config;
+  static EventSchemas = EventSchemas;
+  private keyPair!: RsaKeyPair;
+
+  constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
+    super({ ...cfg, eventSchemas: EventSchemas });
+  }
+
+  async init(obs: Observable): Promise<void> {
+    this.keyPair = loadOrGenerateKeyPair(resolve(this.config.keyStorePath));
+    await super.init(obs);
+    const jwk = publicKeyToJwk(this.keyPair.publicKeyPem, this.keyPair.kid);
+    this.registerAsAuthProvider({
+      issuer: this.config.issuer,
+      audience: this.config.audience,
+      jwksUri: `${this.config.issuer.replace(/\/+$/, "")}/.well-known/jwks.json`,
+      jwks: { keys: [jwk as unknown as Record<string, unknown>] }
+    });
+  }
+
+  protected definition(): BPServiceDefinition {
+    return {
+      manifest: {
+        pluginId: SERVICE_ID,
+        title: "BetterPortal WorkOS",
+        description: "WorkOS-backed auth service for BetterPortal apps.",
+        capabilities: ["auth", "auth.roles.sync"],
+        configSchemas: WorkOSConfigSchemas
+      },
+      registry
+    };
+  }
+
+  protected onRegistered(): void {
+    this.app.get("/.well-known/bp/config/workos-role-sync", (event) => this.renderRoleSyncFragment(event));
+    this.app.post("/.well-known/bp/config/workos-role-sync/permissions", (event) => this.handlePermissionSync(event));
+    this.app.post("/.well-known/bp/config/workos-role-sync/roles", (event) => this.handleRoleSync(event));
+    this.app.post("/.well-known/workos/webhooks", (event) => this.handleWorkOSWebhook(event));
+  }
+
+  protected getJwtVerifier(tenantId: string, appId: string): JwtVerifier | undefined {
+    void tenantId;
+    void appId;
+    return this.tokenIssuer().verifier("access");
+  }
+
+  protected async validateTenantApp(tenantId: string, appId: string): Promise<TenantAppValidation> {
+    if (await this.validateConfigScope(tenantId, appId)) return { allowed: true };
+    return {
+      allowed: false,
+      reason: `WorkOS auth service is not activated for tenant ${tenantId} app ${appId}.`
+    };
+  }
+
+  getWorkOSAppConfig(tenantId: string, appId: string): WorkOSAppConfig | null {
+    return resolveWorkOSAppConfig(this.getWorkOSRawConfig(tenantId, appId));
+  }
+
+  getAuthorizationUrl(config: WorkOSAppConfig, input: { redirectUri: string; state: string }): string {
+    return this.client(config).userManagement.getAuthorizationUrl({
+      provider: config.provider ?? "authkit",
+      clientId: config.clientId,
+      redirectUri: input.redirectUri,
+      state: input.state,
+      ...(config.connectionId ? { connectionId: config.connectionId } : {}),
+      ...(config.organizationId ? { organizationId: config.organizationId } : {}),
+      ...(config.domainHint ? { domainHint: config.domainHint } : {}),
+      ...(config.scopes ? { providerScopes: splitScopes(config.scopes) } : {})
+    });
+  }
+
+  authenticateWithCode(config: WorkOSAppConfig, code: string): Promise<AuthenticationResponse> {
+    return this.client(config).userManagement.authenticateWithCode({
+      clientId: config.clientId,
+      code
+    });
+  }
+
+  refreshWorkOSToken(config: WorkOSAppConfig, refreshToken: string): Promise<AuthenticationResponse> {
+    return this.client(config).userManagement.authenticateWithRefreshToken({
+      clientId: config.clientId,
+      refreshToken
+    });
+  }
+
+  async syncPermissionsToWorkOS(tenantId: string, appId: string): Promise<{ created: number; updated: number; deleted: number; deprecated: number; current: number }> {
+    const config = this.getWorkOSAppConfig(tenantId, appId);
+    if (!config) throw new Error("WorkOS app config is missing clientId or apiKey.");
+    const catalog = this.bpPermissionCatalog(appId);
+    const currentSlugs = new Set(catalog.map((entry) => entry.slug));
+    const client = this.client(config);
+    const [permissions, roles] = await Promise.all([
+      client.authorization.listPermissions().then((list) => list.autoPagination()),
+      this.listWorkOSRoles(config)
+    ]);
+    const rolePermissionSlugs = new Set(roles.flatMap((role) => role.permissions));
+    const bySlug = new Map((permissions as WorkOSPermission[]).map((permission) => [permission.slug, permission]));
+    let created = 0;
+    let updated = 0;
+    let deleted = 0;
+    let deprecated = 0;
+
+    for (const entry of catalog) {
+      const existing = bySlug.get(entry.slug);
+      if (!existing) {
+        await client.authorization.createPermission({
+          slug: entry.slug,
+          name: entry.title,
+          description: entry.description
+        });
+        created++;
+      } else if (existing.name !== entry.title || existing.description !== entry.description) {
+        await client.authorization.updatePermission(entry.slug, {
+          name: entry.title,
+          description: entry.description
+        });
+        updated++;
+      }
+    }
+
+    for (const permission of permissions as WorkOSPermission[]) {
+      if (!permission.slug.startsWith(BP_PERMISSION_PREFIX) || currentSlugs.has(permission.slug)) continue;
+      if (rolePermissionSlugs.has(permission.slug)) {
+        const nextName = permission.name.startsWith(STALE_PERMISSION_PREFIX)
+          ? permission.name
+          : `${STALE_PERMISSION_PREFIX}${permission.name}`;
+        if (permission.name !== nextName) {
+          await client.authorization.updatePermission(permission.slug, {
+            name: nextName,
+            description: permission.description ?? "Removed BetterPortal permission; remove from roles before deletion."
+          });
+          deprecated++;
+        }
+      } else {
+        await client.authorization.deletePermission(permission.slug);
+        deleted++;
+      }
+    }
+
+    return { created, updated, deleted, deprecated, current: catalog.length };
+  }
+
+  async syncRolesFromWorkOS(tenantId: string, appId: string): Promise<{ roles: number; grants: number }> {
+    const config = this.getWorkOSAppConfig(tenantId, appId);
+    if (!config) throw new Error("WorkOS app config is missing clientId or apiKey.");
+    const currentSlugs = new Set(this.bpPermissionCatalog(appId).map((entry) => entry.slug));
+    const roles = (await this.listWorkOSRoles(config))
+      .map((role) => this.toBpRole(role, currentSlugs))
+      .filter((role): role is AppAuthRole => Boolean(role));
+    await this.pushRolesToConfigManager(appId, roles);
+    return {
+      roles: roles.length,
+      grants: roles.reduce((sum, role) => sum + role.permissions.length, 0)
+    };
+  }
+
+  issueTokenPair(input: {
+    sub: string;
+    tenantId: string;
+    appId: string;
+    roles: string[];
+    authProvider: string;
+    providerSubject: string;
+    provider?: JwtClaims["provider"];
+    name?: string;
+    email?: string;
+    picture?: string;
+  }, options?: { includeRefreshToken?: boolean }) {
+    return this.tokenIssuer().issueTokenPair(input, options);
+  }
+
+  private getWorkOSRawConfig(tenantId: string, appId: string): Record<string, unknown> {
+    const ticket = this.workosConfigReadTicket(tenantId);
+    const state = this.configStore.read(ticket);
+    return { ...state.tenant, ...(state.app[appId] ?? {}) };
+  }
+
+  private workosConfigReadTicket(tenantId: string): ServiceConfigTicketClaims {
+    const now = Math.floor(Date.now() / 1000);
+    return {
+      iss: SERVICE_ID,
+      aud: SERVICE_ID,
+      sub: SERVICE_ID,
+      iat: now,
+      exp: now + 60,
+      jti: `${tenantId}:${now}`,
+      realm: "control-plane",
+      tenantId,
+      serviceId: SERVICE_ID,
+      actions: ["config.read"]
+    };
+  }
+
+  private client(config: WorkOSAppConfig): WorkOS {
+    return new WorkOS({ apiKey: config.apiKey, clientId: config.clientId });
+  }
+
+  private async listWorkOSRoles(config: WorkOSAppConfig): Promise<WorkOSRole[]> {
+    const authorization = this.client(config).authorization;
+    if (config.organizationId) {
+      const list = await authorization.listOrganizationRoles(config.organizationId);
+      return (list.data ?? []) as WorkOSRole[];
+    }
+    const list = await authorization.listEnvironmentRoles();
+    return (list.data ?? []) as WorkOSRole[];
+  }
+
+  private bpPermissionCatalog(appId: string): BpPermissionCatalogEntry[] {
+    const portal = this.getPortalConfig();
+    const app = portal?.apps.find((candidate) => candidate.id === appId);
+    if (!app) return [];
+    return app.routes
+      .filter((route) => route.enabled !== false)
+      .flatMap((route) => permissionCatalogForRoute(route as BetterPortalRouteMount, app as BetterPortalApp));
+  }
+
+  private toBpRole(role: WorkOSRole, currentSlugs: Set<string>): AppAuthRole | null {
+    const byTarget = new Map<string, AppAuthRole["permissions"][number]>();
+    for (const slug of role.permissions) {
+      if (!currentSlugs.has(slug)) continue;
+      const parsed = parseBpPermissionSlug(slug);
+      if (!parsed) continue;
+      const key = `${parsed.serviceId}\n${parsed.viewId}`;
+      const grant = byTarget.get(key) ?? { serviceId: parsed.serviceId, viewId: parsed.viewId, permissions: [] };
+      if (!grant.permissions.includes(parsed.action)) grant.permissions.push(parsed.action);
+      byTarget.set(key, grant);
+    }
+    const permissions = Array.from(byTarget.values());
+    if (permissions.length === 0) return null;
+    return {
+      id: role.slug,
+      title: role.name ?? role.slug,
+      ...(role.description ? { description: role.description } : {}),
+      permissions
+    };
+  }
+
+  private async pushRolesToConfigManager(appId: string, roles: AppAuthRole[]): Promise<void> {
+    const cpUrl = this.bp.controlPlaneUrl?.replace(/\/+$/, "");
+    const apiKey = this.bp.serviceApiKey;
+    if (!cpUrl || !apiKey) throw new Error("BetterPortal controlPlaneUrl and serviceApiKey are required for role sync.");
+    const response = await fetch(`${cpUrl}/.well-known/bp/admin/apps/${encodeURIComponent(appId)}/auth/roles/sync`, {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        "content-type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({ roles })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Config Manager role sync failed: ${response.status} ${body}`);
+    }
+  }
+
+  private matchingConfiguredApps(event?: unknown): Array<{ tenantId: string; appId: string; config: WorkOSAppConfig }> {
+    const portal = this.getPortalConfig();
+    if (!portal) return [];
+    const eventOrgId = event && typeof event === "object"
+      ? readNestedString(event as Record<string, unknown>, ["data", "organizationId"]) ?? readNestedString(event as Record<string, unknown>, ["data", "organization_id"])
+      : undefined;
+    return portal.apps.flatMap((app) => {
+      const config = this.getWorkOSAppConfig(app.tenantId, app.id);
+      if (!config) return [];
+      if (eventOrgId && config.organizationId && config.organizationId !== eventOrgId) return [];
+      return [{ tenantId: app.tenantId, appId: app.id, config }];
+    });
+  }
+
+  private async renderRoleSyncFragment(event: { req: Request }): Promise<Response> {
+    const url = new URL(event.req.url, "http://betterportal.invalid");
+    const tenantId = url.searchParams.get("tenantId") ?? "";
+    const appId = url.searchParams.get("appId") ?? "";
+    if (!tenantId || !appId) return htmlResponse(`<div class="alert alert-danger">tenantId and appId are required.</div>`, 400, "text/html; mode=fragment");
+    const config = this.getWorkOSAppConfig(tenantId, appId);
+    if (!config) return htmlResponse(`<div class="alert alert-warning">WorkOS app config is missing clientId or apiKey.</div>`, 409, "text/html; mode=fragment");
+    const portal = this.getPortalConfig();
+    const app = portal?.apps.find((candidate) => candidate.id === appId);
+    const selfBase = requestBaseUrl(event.req);
+    const bpRoles = ((app?.auth?.roles ?? []) as AppAuthRole[]);
+    let workosRoles: WorkOSRole[] = [];
+    let error = "";
+    try {
+      workosRoles = await this.listWorkOSRoles(config);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    const currentSlugs = new Set(this.bpPermissionCatalog(appId).map((entry) => entry.slug));
+    const syncedIds = new Set(bpRoles.map((role) => role.id));
+    const roleRows = workosRoles
+      .filter((role) => role.permissions.some((permission) => currentSlugs.has(permission)))
+      .map((role) => `<tr><td><code>${escapeHtml(role.slug)}</code></td><td>${escapeHtml(role.name ?? role.slug)}</td><td>${role.permissions.filter((permission) => currentSlugs.has(permission)).length}</td><td>${syncedIds.has(role.slug) ? "Synced" : "Pending"}</td></tr>`)
+      .join("");
+    return htmlResponse(`
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h5 class="card-title mb-1">WorkOS Role Sync</h5>
+              <div class="text-secondary small">BP permissions sync to WorkOS; WorkOS roles mirror back to this app.</div>
+            </div>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-primary" hx-post="${selfBase}/.well-known/bp/config/workos-role-sync/permissions?tenantId=${encodeURIComponent(tenantId)}&appId=${encodeURIComponent(appId)}" hx-target="closest .card" hx-swap="outerHTML">Sync permissions</button>
+              <button class="btn btn-outline-primary" hx-post="${selfBase}/.well-known/bp/config/workos-role-sync/roles?tenantId=${encodeURIComponent(tenantId)}&appId=${encodeURIComponent(appId)}" hx-target="closest .card" hx-swap="outerHTML">Sync roles</button>
+            </div>
+          </div>
+          ${error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : ""}
+          <div class="mb-2 small"><strong>BP permissions:</strong> ${currentSlugs.size} <span class="text-secondary">|</span> <strong>Mirrored BP roles:</strong> ${bpRoles.length}</div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Role slug</th><th>Name</th><th>Current BP grants</th><th>Status</th></tr></thead>
+              <tbody>${roleRows || `<tr><td colspan="4" class="text-secondary">No WorkOS roles with current BP permissions.</td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `, 200, "text/html; mode=fragment");
+  }
+
+  private async handlePermissionSync(event: { req: Request }): Promise<Response> {
+    const url = new URL(event.req.url, "http://betterportal.invalid");
+    const tenantId = url.searchParams.get("tenantId") ?? "";
+    const appId = url.searchParams.get("appId") ?? "";
+    try {
+      const result = await this.syncPermissionsToWorkOS(tenantId, appId);
+      const fragment = await this.renderRoleSyncFragment(event);
+      fragment.headers.set("HX-Trigger", JSON.stringify({ "bp:toast": `WorkOS permissions synced (${result.created} created, ${result.updated} updated).` }));
+      return fragment;
+    } catch (err) {
+      return htmlResponse(`<div class="alert alert-danger">${escapeHtml(err instanceof Error ? err.message : String(err))}</div>`, 500, "text/html; mode=fragment");
+    }
+  }
+
+  private async handleRoleSync(event: { req: Request }): Promise<Response> {
+    const url = new URL(event.req.url, "http://betterportal.invalid");
+    const tenantId = url.searchParams.get("tenantId") ?? "";
+    const appId = url.searchParams.get("appId") ?? "";
+    try {
+      const result = await this.syncRolesFromWorkOS(tenantId, appId);
+      const fragment = await this.renderRoleSyncFragment(event);
+      fragment.headers.set("HX-Trigger", JSON.stringify({ "bp:toast": `WorkOS roles synced (${result.roles} roles).` }));
+      return fragment;
+    } catch (err) {
+      return htmlResponse(`<div class="alert alert-danger">${escapeHtml(err instanceof Error ? err.message : String(err))}</div>`, 500, "text/html; mode=fragment");
+    }
+  }
+
+  private async handleWorkOSWebhook(event: { req: Request }): Promise<Response> {
+    const payload = await event.req.text();
+    const sigHeader = event.req.headers.get("workos-signature");
+    if (!sigHeader) return jsonResponse({ error: "Missing WorkOS signature" }, 401);
+    for (const candidate of this.matchingConfiguredApps()) {
+      if (!candidate.config.webhookSecret) continue;
+      try {
+        const workosEvent = await this.client(candidate.config).webhooks.constructEvent({
+          payload,
+          sigHeader,
+          secret: candidate.config.webhookSecret
+        });
+        if (!ROLE_EVENTS.has(workosEvent.event)) return jsonResponse({ ok: true, ignored: true });
+        const apps = this.matchingConfiguredApps(workosEvent);
+        for (const app of apps) {
+          await this.syncRolesFromWorkOS(app.tenantId, app.appId);
+        }
+        return jsonResponse({ ok: true, synced: apps.length } as JsonValue);
+      } catch {
+        // Try the next configured webhook secret.
+      }
+    }
+    return jsonResponse({ error: "Invalid WorkOS signature" }, 401);
+  }
+
+  private tokenIssuer(): BpTokenIssuer {
+    return createBpTokenIssuer({
+      keyPair: this.keyPair,
+      issuer: this.config.issuer,
+      audience: this.config.audience,
+      accessTokenSeconds: this.config.accessTokenSeconds,
+      refreshTokenSeconds: this.config.refreshTokenSeconds
+    });
+  }
+}
+
+export { Config, EventSchemas };
+
+export function rolesFromWorkOSAccessToken(token: string, roleClaimPath = "roles"): string[] {
+  const [, payload] = token.split(".");
+  if (!payload) return [];
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+    return readStringArrayClaim(claims, roleClaimPath);
+  } catch {
+    return [];
+  }
+}
+
+export function secondsUntilJwtExpiry(token: string): number | undefined {
+  const [, payload] = token.split(".");
+  if (!payload) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown };
+    if (typeof parsed.exp !== "number") return undefined;
+    return Math.max(1, Math.floor(parsed.exp - Date.now() / 1000));
+  } catch {
+    return undefined;
+  }
+}
+
+function splitScopes(value: string): string[] {
+  return value.split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
+}
+
+function readStringArrayClaim(claims: Record<string, unknown>, path: string): string[] {
+  const value = path.split(".").reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, claims);
+  if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  return typeof value === "string" && value.length > 0 ? [value] : [];
+}
+
+function permissionCatalogForRoute(route: BetterPortalRouteMount, app: BetterPortalApp): BpPermissionCatalogEntry[] {
+  const title = route.title ?? route.viewId;
+  return (["read", "create", "update", "delete"] as const).map((action) => ({
+    slug: bpPermissionSlug(route.serviceId, route.viewId, action),
+    serviceId: route.serviceId,
+    viewId: route.viewId,
+    action,
+    title: `${title}: ${action}`,
+    description: `${app.title} ${title} ${action} permission`
+  }));
+}
+
+export function bpPermissionSlug(serviceId: string, viewId: string, action: AppAuthPermissionAction): string {
+  return `${BP_PERMISSION_PREFIX}${serviceId}:${viewId}:${action}`;
+}
+
+export function parseBpPermissionSlug(slug: string): { serviceId: string; viewId: string; action: AppAuthPermissionAction } | null {
+  if (!slug.startsWith(BP_PERMISSION_PREFIX)) return null;
+  const parts = slug.slice(BP_PERMISSION_PREFIX.length).split(":");
+  if (parts.length !== 3) return null;
+  const [serviceId, viewId, action] = parts;
+  if (!serviceId || !viewId || !isPermissionAction(action)) return null;
+  return { serviceId, viewId, action };
+}
+
+function isPermissionAction(value: string): value is AppAuthPermissionAction {
+  return value === "read" || value === "create" || value === "update" || value === "delete";
+}
+
+function readNestedString(value: Record<string, unknown>, path: string[]): string | undefined {
+  let current: unknown = value;
+  for (const segment of path) {
+    if (!current || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return typeof current === "string" && current.length > 0 ? current : undefined;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]!));
+}
+
+function requestBaseUrl(req: Request): string {
+  const url = new URL(req.url, "http://betterportal.invalid");
+  if (url.origin !== "http://betterportal.invalid") return url.origin;
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "betterportal.invalid";
+  const proto = req.headers.get("x-forwarded-proto") ?? "https";
+  return `${proto}://${host}`;
+}

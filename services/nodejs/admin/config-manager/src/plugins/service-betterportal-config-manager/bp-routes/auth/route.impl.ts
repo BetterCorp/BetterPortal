@@ -47,6 +47,11 @@ const AppSummarySchema = av.object({
   title: av.string().minLength(1)
 }, { unknownKeys: "strip" });
 
+const ExternalRoleSyncSchema = av.object({
+  serviceTitle: av.string().minLength(1),
+  fragmentUrl: av.string().minLength(1)
+}, { unknownKeys: "strip" });
+
 export const QuerySchema = av.object({
   appId: av.optional(av.string().minLength(1))
 }, { unknownKeys: "strip" });
@@ -63,6 +68,7 @@ export const ResponseSchema = av.object({
   authConfigured: av.bool().default(false),
   servicePermissions: av.array(ServiceWithViewsSchema).default([]),
   currentRoles: av.array(AppRoleSchema).default([]),
+  externalRoleSync: av.optional(ExternalRoleSyncSchema),
   adminApiBase: av.string().default("/.well-known/bp/admin"),
   serviceBaseUrl: av.optional(av.string())
 }, { unknownKeys: "strip" });

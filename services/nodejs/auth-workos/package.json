@@ -1,0 +1,69 @@
+{
+  "name": "@betterportal/auth-workos",
+  "version": "10.0.1",
+  "description": "BetterPortal WorkOS auth service for Node.js",
+  "main": "lib/index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "bp-codegen": "bp-codegen",
+    "build": "bsb-plugin-cli build",
+    "clean": "bsb-plugin-cli clean",
+    "start": "bsb-plugin-cli start",
+    "dev": "bsb-plugin-cli dev",
+    "test": "tsx --test tests/*.test.ts",
+    "prepublishOnly": "npm run build",
+    "publish:client": "bsb-client-cli publish"
+  },
+  "keywords": [
+    "betterportal",
+    "auth",
+    "workos",
+    "platform-service"
+  ],
+  "author": "BetterCorp",
+  "license": "(AGPL-3.0-only OR Commercial)",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@betterportal/framework": "10.0.1",
+    "@betterportal/plugin-bsb": "10.0.1",
+    "@bsb/base": "^9.6.41",
+    "@workos-inc/node": "^10.7.0",
+    "anyvali": "^1.0.6",
+    "jsonwebtoken": "^9.0.2",
+    "jsx-htmx": "4.0.0-beta4"
+  },
+  "files": [
+    "lib/**/*",
+    "README.md",
+    "bsb-plugin.json",
+    "betterportal-logo.png"
+  ],
+  "bsb": {
+    "orgId": "betterportal",
+    "hooks": {
+      "afterSchemas": "bp-codegen"
+    }
+  },
+  "betterportal": {
+    "routes": [
+      "src/plugins/service-betterportal-auth-workos/bp-routes/"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git",
+    "directory": "services/nodejs/auth-workos"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
+  "bugs": {
+    "url": "https://github.com/BetterCorp/BetterPortal/issues"
+  }
+}

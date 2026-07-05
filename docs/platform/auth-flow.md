@@ -114,13 +114,15 @@ export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 
 Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Each permission entry binds a specific role grant to a specific API endpoint and CRUD action set. Services receive these via app config sync and use them to authorize requests.
 
-`expectedIssuer`, `expectedAudience`, and `jwksUri` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`, and config-manager writes them onto app auth bindings when the service is installed, synced, or selected. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL, application id, API keys, and external token settings, remain service config and are separate from BP runtime token verification.
+`expectedIssuer`, `expectedAudience`, and `jwksUri` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`, and config-manager writes them onto app auth bindings when the service is installed, synced, or selected. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL/application id or WorkOS client id/API key, remain service config and are separate from BP runtime token verification.
 
 Role ids are the contract with external providers. The auth provider token `roles[]` values must match `app.auth.roles[].id` exactly. Config-manager role creation requires an explicit id using `[A-Za-z0-9][A-Za-z0-9._:-]{0,63}` and rejects reserved ids.
 
+WorkOS uses provider slugs as keys: WorkOS role `slug` is mirrored to `app.auth.roles[].id`, and WorkOS permission `slug` stores BP permission catalog entries as `bp:{serviceId}:{viewId}:{permission}`. BP syncs missing/current permissions up to WorkOS, but only WorkOS role webhook events sync roles back down. Do not subscribe to WorkOS permission webhook events; stale BP permission slugs are deleted when unassigned or renamed `DEL: ...` while still assigned.
+
 `*` is reserved as the platform-root wildcard role. It is only honored when the request tenant/app exactly match `configManagement.adminTenantId` and `configManagement.managementAppId`; otherwise it is logged as misuse and ignored for grants. `root` is not a valid role id.
 
-Default-auth owns its local user store, so its first-admin registration assigns `*` to the current management app in `appRoles`. External providers such as Authress do not store BP users; their provider-side role assignment must emit `roles: ["*"]` only for the intended platform-root account.
+Default-auth owns its local user store, so its first-admin registration assigns `*` to the current management app in `appRoles`. External providers such as Authress and WorkOS do not store BP users; their provider-side role assignment must emit `roles: ["*"]` only for the intended platform-root account.
 
 **Config-manager is dumb storage.** It does not understand permissions, roles, or users. It serializes the schema as-is. Mutations come from auth-service admin UI via HTTP POST to config-manager.
 

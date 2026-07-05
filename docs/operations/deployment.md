@@ -12,7 +12,7 @@ At minimum, a deployment needs a theme service and at least one business service
 | Admin service | `@betterportal/config-manager` |
 | Docs service | `@betterportal/docs-site` |
 | Business service | `@betterportal/hello-view` |
-| Auth service | `@betterportal/auth-default` or `@betterportal/auth-authress-io` |
+| Auth service | `@betterportal/auth-default`, `@betterportal/auth-authress-io`, or `@betterportal/auth-workos` |
 
 ## Hostnames
 
@@ -80,12 +80,13 @@ BSB_SHOW_PACKAGES=${BSB_SHOW_PACKAGES:-false}
 The `bsb-plugin-watcher` service is the only container that sets `BSB_PLUGINS` and `BSB_PLUGIN_UPDATE`. It mounts `bp-plugins` read/write, runs with `BSB_PLUGIN_WATCHER=true`, and syncs these packages into `/mnt/plugins`:
 
 ```text
-@betterportal/config-manager@10.0
-@betterportal/theme-bootstrap1@10.0
-@betterportal/theme-embedded@10.0
-@betterportal/auth-default@10.0
-@betterportal/auth-authress-io@10.0
-@betterportal/hello-view@10.0
+@betterportal/config-manager@10.1
+@betterportal/theme-bootstrap1@10.1
+@betterportal/theme-embedded@10.1
+@betterportal/auth-default@10.1
+@betterportal/auth-authress-io@10.1
+@betterportal/auth-workos@10.1
+@betterportal/hello-view@10.1
 @bsb/observable-opentelemetry@9.6
 @bsb/observable-axiom@9.6
 ```
@@ -105,6 +106,8 @@ BP_AUTH_DEFAULT_VAULT_API_KEY_ID
 BP_AUTH_DEFAULT_VAULT_API_SECRET
 BP_AUTHRESS_VAULT_API_KEY_ID
 BP_AUTHRESS_VAULT_API_SECRET
+BP_WORKOS_VAULT_API_KEY_ID
+BP_WORKOS_VAULT_API_SECRET
 BP_HELLO_VIEW_VAULT_API_KEY_ID
 BP_HELLO_VIEW_VAULT_API_SECRET
 ```

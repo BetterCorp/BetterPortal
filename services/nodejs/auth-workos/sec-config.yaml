@@ -1,0 +1,23 @@
+default:
+  observable:
+    observable-default:
+      plugin: observable-default
+      enabled: true
+      config: {}
+  events:
+    events-default:
+      plugin: events-default
+      enabled: true
+  services:
+    service-betterportal-auth-workos:
+      plugin: service-betterportal-auth-workos
+      enabled: true
+      config:
+        host: 0.0.0.0
+        port: 3213
+        issuer: https://workos.betterportal.local
+        audience: betterportal-runtime
+        accessTokenSeconds: 900
+        refreshTokenSeconds: 604800
+        keyStorePath: ./.bp-workos-state/keys.json
+        betterportal: {}

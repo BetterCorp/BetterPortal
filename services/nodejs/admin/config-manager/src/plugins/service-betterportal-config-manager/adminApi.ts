@@ -1431,6 +1431,21 @@ export function registerAdminApiRoutes(
     return { auth: withAuth.auth as { roles: AppAuthRoleEntry[] } };
   };
 
+  const requireServiceApiKeyForAppAuth = async (
+    event: BetterPortalEvent,
+    appDef: { auth?: { serviceId?: string } }
+  ): Promise<Response | undefined> => {
+    const authHeader = event.req.headers.get("authorization");
+    const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!apiKey) return jsonResponse({ error: "Bearer token required" }, 401);
+    const validated = await store.validateApiKey(apiKey);
+    if (!validated?.serviceId) return jsonResponse({ error: "Invalid service API key" }, 403);
+    if (validated.serviceId !== appDef.auth?.serviceId) {
+      return jsonResponse({ error: "Service API key does not match app auth service" }, 403);
+    }
+    return undefined;
+  };
+
   app.get(`${API_BASE}/apps/:appId/auth/roles`, async (event) => {
     const appId = getParam(event, "appId");
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
@@ -1438,6 +1453,55 @@ export function registerAdminApiRoutes(
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const auth = (appDef as { auth?: { roles?: AppAuthRoleEntry[] } }).auth;
     return jsonResponse((auth?.roles ?? []) as unknown as JsonValue);
+  });
+
+  app.put(`${API_BASE}/apps/:appId/auth/roles/sync`, async (event) => {
+    const appId = getParam(event, "appId");
+    if (!appId) return jsonResponse({ error: "appId required" }, 400);
+    const body = await readJsonBody(event);
+    const roles = Array.isArray(body.roles) ? body.roles : undefined;
+    if (!roles) return jsonResponse({ error: "roles array required" }, 400);
+
+    const { config, appDef } = await getAppOr404(appId);
+    if (!appDef) return jsonResponse({ error: "App not found" }, 404);
+    const serviceError = await requireServiceApiKeyForAppAuth(event, appDef as { auth?: { serviceId?: string } });
+    if (serviceError) return serviceError;
+    const authResult = requireAuthBlock(event, appDef);
+    if (authResult.response) return authResult.response;
+
+    const parsedRoles: AppAuthRoleEntry[] = [];
+    for (const rawRole of roles) {
+      if (!rawRole || typeof rawRole !== "object") continue;
+      const input = rawRole as Record<string, unknown>;
+      const roleId = validateRoleId(input.id);
+      const title = typeof input.title === "string" && input.title.trim() ? input.title.trim() : roleId;
+      if (!roleId || !title) continue;
+      const permissions = Array.isArray(input.permissions)
+        ? input.permissions.filter((grant): grant is AppAuthRoleEntry["permissions"][number] => {
+            if (!grant || typeof grant !== "object") return false;
+            const value = grant as Record<string, unknown>;
+            return typeof value.serviceId === "string"
+              && typeof value.viewId === "string"
+              && Array.isArray(value.permissions)
+              && value.permissions.every((action) => ["read", "create", "update", "delete"].includes(String(action)));
+          }).map((grant) => ({
+            serviceId: grant.serviceId,
+            viewId: grant.viewId,
+            permissions: [...new Set(grant.permissions)]
+          }))
+        : [];
+      if (permissions.length === 0) continue;
+      parsedRoles.push({
+        id: roleId,
+        title,
+        ...(typeof input.description === "string" ? { description: input.description } : {}),
+        permissions
+      });
+    }
+
+    authResult.auth!.roles = parsedRoles;
+    await store.saveConfig(config);
+    return jsonResponse({ ok: true, roles: parsedRoles.length });
   });
 
   app.post(`${API_BASE}/apps/:appId/auth/roles`, async (event) => {

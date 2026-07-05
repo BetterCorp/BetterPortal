@@ -152,6 +152,7 @@ export function render(data: ResponseData): HtmlRenderable {
   const apiBase = serviceUrl + data.adminApiBase;
   const authPath = `${serviceUrl}/auth`;
   const selectedApp = data.apps.find((a) => a.id === data.selectedAppId);
+  const externalRoleSync = data.externalRoleSync;
 
   return (
     <div class="container-fluid px-0">
@@ -160,7 +161,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <h2 class="mb-1">{data.title}</h2>
           <p class="text-secondary mb-0">Define roles + permission grants per app. Services advertise per-view requirements via manifest.</p>
         </div>
-        {selectedApp && data.authConfigured ? (
+        {selectedApp && data.authConfigured && !externalRoleSync ? (
           <button class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#bp-add-role-panel">+ Add Role</button>
         ) : null}
       </div>
@@ -190,6 +191,20 @@ export function render(data: ResponseData): HtmlRenderable {
       ) : !data.authConfigured ? (
         <div class="alert alert-warning">
           Configure an auth provider for this app before creating roles.
+        </div>
+      ) : externalRoleSync ? (
+        <div>
+          <div class="alert alert-info">
+            Roles for this app are managed by {externalRoleSync.serviceTitle}. Config Manager mirrors those roles for BP runtime permission checks.
+          </div>
+          <div
+            hx-get={externalRoleSync.fragmentUrl}
+            hx-trigger="load"
+            hx-target="this"
+            hx-swap="innerHTML"
+          >
+            <div class="text-secondary small">Loading WorkOS role sync status...</div>
+          </div>
         </div>
       ) : (
         <div class="row g-4">
@@ -273,7 +288,7 @@ export function render(data: ResponseData): HtmlRenderable {
       )}
 
       {/* -- Add role offcanvas -- */}
-      {selectedApp && data.authConfigured ? (
+      {selectedApp && data.authConfigured && !externalRoleSync ? (
         <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-add-role-panel">
           <div class="offcanvas-header">
             <h5 class="offcanvas-title">Add Role</h5>
@@ -315,7 +330,7 @@ export function render(data: ResponseData): HtmlRenderable {
       ) : null}
 
       {/* -- Edit role offcanvas with per-view grant selectors -- */}
-      {selectedApp && data.authConfigured ? (
+      {selectedApp && data.authConfigured && !externalRoleSync ? (
         <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-edit-role-panel" style="--bs-offcanvas-width: 600px;">
           <div class="offcanvas-header">
             <h5 class="offcanvas-title">Edit Role</h5>

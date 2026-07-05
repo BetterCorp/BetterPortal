@@ -19,7 +19,7 @@ Automation and AI clients must preserve these directives too: apply `BP-SetHeade
 
 ## Auth model
 
-Auth is optional at the platform layer. `auth-default` provides a JWT-based provider with JWKS discovery, and `auth-authress-io` integrates Authress. Apps bind a provider through `app.auth.serviceId`, which points at a tenant service id or shared-service activation id.
+Auth is optional at the platform layer. `auth-default` provides a JWT-based provider with JWKS discovery, `auth-authress-io` integrates Authress, and `auth-workos` integrates WorkOS AuthKit. Apps bind a provider through `app.auth.serviceId`, which points at a tenant service id or shared-service activation id.
 
 Services declare route-level auth requirements in view metadata.
 
@@ -74,7 +74,9 @@ Service config fields can be marked as public, protected, or secret.
 
 Secret values should be stored through service config APIs and encrypted with a configured `configEncryptionKey`.
 
-Provider credentials such as Authress API keys belong in the auth service's encrypted app-scoped service config. Platform config stores bindings and non-secret auth metadata, not provider secrets.
+Provider credentials such as Authress API keys or WorkOS API keys belong in the auth service's encrypted app-scoped service config. Platform config stores bindings and non-secret auth metadata, not provider secrets.
+
+For WorkOS, application/client credentials and webhook secrets are app-scoped service config. Tenant-level WorkOS defaults must not contain app/client credentials. WorkOS permission slugs may mirror BP permissions, but BP runtime authorization still reads mirrored `app.auth.roles`; WorkOS permission webhook events are not processed.
 
 ## CORS
 

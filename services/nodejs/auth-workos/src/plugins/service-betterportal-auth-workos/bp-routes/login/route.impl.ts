@@ -1,0 +1,177 @@
+import * as av from "anyvali";
+import type { Infer } from "anyvali";
+import {
+  createHandler,
+  type ApiAuthRequirement,
+  type BetterPortalRouteChrome,
+  type CacheHints
+} from "@betterportal/framework";
+import type { Plugin } from "../../index.js";
+import {
+  resolveWorkOSAppConfig,
+  rolesFromWorkOSAccessToken,
+  secondsUntilJwtExpiry
+} from "../../index.js";
+
+export const QuerySchema = av.object({
+  action: av.optional(av.string()),
+  code: av.optional(av.string()),
+  state: av.optional(av.string()),
+  next: av.optional(av.string()),
+  redirect: av.optional(av.string()),
+  error: av.optional(av.string()),
+  error_description: av.optional(av.string())
+}, { unknownKeys: "strip" });
+
+export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
+
+export const ResponseSchema = av.object({
+  status: av.enum_(["ok", "error"] as const),
+  message: av.optional(av.string()),
+  authorizationUrl: av.optional(av.string()),
+  alreadyLoggedIn: av.optional(av.bool()),
+  loggedOut: av.optional(av.bool()),
+  signedIn: av.optional(av.bool()),
+  nextUrl: av.optional(av.string()),
+  user: av.optional(av.object({
+    id: av.optional(av.string()),
+    name: av.optional(av.string()),
+    email: av.optional(av.string()),
+    picture: av.optional(av.string())
+  }, { unknownKeys: "strip" }))
+}, { unknownKeys: "strip" });
+export type ResponseData = Infer<typeof ResponseSchema>;
+
+export const title = "WorkOS Login";
+export const description = "Authenticate with WorkOS AuthKit and store BetterPortal auth headers.";
+export const role = "auth.login";
+export const dependencies = ["logout.index", "refresh.index"];
+export const chrome: BetterPortalRouteChrome = { fullScreen: true };
+export const auth: ApiAuthRequirement = { required: false, permissions: [] };
+export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: [] };
+
+function pluginFrom(ctx: { plugin?: unknown }): Plugin {
+  const plugin = ctx.plugin as Plugin | undefined;
+  if (!plugin) throw new Error("WorkOS plugin not available on handler context");
+  return plugin;
+}
+
+function normalizeRedirect(raw: string | undefined): string {
+  const redirect = raw?.trim();
+  if (!redirect) return "/";
+  if (redirect.startsWith("http://") || redirect.startsWith("https://")) return redirect;
+  return redirect.startsWith("/") ? redirect : `/${redirect}`;
+}
+
+function firstString(...values: Array<string | null | undefined>): string | undefined {
+  return values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
+}
+
+export const handleGet = createHandler(
+  { response: ResponseSchema, query: QuerySchema, headers: HeadersSchema },
+  async (ctx) => {
+    const query = ctx.query as Infer<typeof QuerySchema>;
+    const config = resolveWorkOSAppConfig(ctx.config);
+    const nextUrl = normalizeRedirect(query.state ?? query.next ?? query.redirect ?? config?.loginRedirectPath);
+
+    if (query.action === "logout") {
+      ctx.bpHeaders?.remove("Authorization");
+      ctx.bpHeaders?.remove("X-BP-Refresh");
+      if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
+      return {
+        status: "ok" as const,
+        message: "Signed out.",
+        loggedOut: true,
+        nextUrl: normalizeRedirect(config?.logoutRedirectPath)
+      };
+    }
+
+    if (!config) {
+      return { status: "error" as const, message: "WorkOS config is missing clientId or apiKey.", nextUrl };
+    }
+
+    if (query.error) {
+      return {
+        status: "error" as const,
+        message: query.error_description || query.error,
+        nextUrl
+      };
+    }
+
+    if (query.code) {
+      try {
+        const auth = await pluginFrom(ctx).authenticateWithCode(config, query.code);
+        const roles = rolesFromWorkOSAccessToken(auth.accessToken, config.roleClaimPath ?? "roles");
+        const issued = pluginFrom(ctx).issueTokenPair({
+          sub: auth.user.id,
+          tenantId: ctx.tenant.id,
+          appId: ctx.app.id,
+          roles,
+          authProvider: "workos",
+          providerSubject: auth.user.id,
+          provider: {
+            accountId: auth.user.id,
+            scope: auth.organizationId ? `organization:${auth.organizationId}` : undefined
+          },
+          name: firstString(auth.user.name, [auth.user.firstName, auth.user.lastName].filter(Boolean).join(" ")),
+          email: auth.user.email,
+          picture: auth.user.profilePictureUrl ?? undefined
+        }, { includeRefreshToken: false });
+        ctx.bpHeaders?.set("Authorization", `Bearer ${issued.accessToken}`, {
+          locked: true,
+          expiresInSeconds: issued.accessTokenExpiresInSeconds,
+          refreshPath: "/refresh",
+          refreshBeforeSeconds: 60
+        });
+        ctx.bpHeaders?.set("X-BP-Refresh", auth.refreshToken, {
+          locked: true,
+          scopeToOwner: true,
+          expiresInSeconds: secondsUntilJwtExpiry(auth.accessToken)
+        });
+        ctx.responseHeaders?.set("HX-Redirect", nextUrl);
+        if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
+        return {
+          status: "ok" as const,
+          message: "Signed in.",
+          signedIn: true,
+          nextUrl,
+          user: {
+            id: auth.user.id,
+            name: firstString(auth.user.name, [auth.user.firstName, auth.user.lastName].filter(Boolean).join(" ")),
+            email: auth.user.email,
+            picture: auth.user.profilePictureUrl ?? undefined
+          }
+        };
+      } catch (error: any) {
+        ctx.obs?.error(error);
+        return { status: "error" as const, message: `WorkOS sign in failed: ${(error as Error).message}`, nextUrl };
+      }
+    }
+
+    if (ctx.user) {
+      return {
+        status: "ok" as const,
+        message: "Already signed in.",
+        alreadyLoggedIn: true,
+        nextUrl,
+        user: {
+          id: ctx.user.sub,
+          name: ctx.user.name,
+          email: ctx.user.email,
+          picture: ctx.user.picture
+        }
+      };
+    }
+
+    const redirectUri =
+      ctx.uiRouteUrl?.("login.index", { absolute: true }) ??
+      ctx.routeUrl?.("login.index", { absolute: true }) ??
+      "/login";
+    return {
+      status: "ok" as const,
+      message: "Continue to WorkOS.",
+      authorizationUrl: pluginFrom(ctx).getAuthorizationUrl(config, { redirectUri, state: nextUrl }),
+      nextUrl
+    };
+  }
+);

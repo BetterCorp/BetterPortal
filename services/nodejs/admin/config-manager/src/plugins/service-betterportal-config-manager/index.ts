@@ -800,6 +800,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       && appWithAuth.auth.jwksUri
     );
     const currentRoles: AppRole[] = appWithAuth?.auth?.roles ?? [];
+    const authService = appWithAuth?.auth?.serviceId ? servicesById.get(appWithAuth.auth.serviceId) : undefined;
+    const authManifest = authService ? cache.get(authService.id) : undefined;
+    const externalRoleSync = selectedApp && selectedTenantId && authService && authManifest?.capabilities.includes("auth.roles.sync")
+      ? {
+          serviceTitle: authService.title,
+          fragmentUrl: `${authService.hostname.replace(/\/+$/, "")}/.well-known/bp/config/workos-role-sync?tenantId=${encodeURIComponent(selectedTenantId)}&appId=${encodeURIComponent(selectedApp.id)}`
+        }
+      : undefined;
 
     (event as unknown as { __bpResponseModel: unknown }).__bpResponseModel = {
       title: "Permission Manager",
@@ -809,6 +817,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       authConfigured,
       servicePermissions,
       currentRoles,
+      ...(externalRoleSync ? { externalRoleSync } : {}),
       adminApiBase: "/.well-known/bp/admin",
       serviceBaseUrl: this.cpState.issuer
     };
