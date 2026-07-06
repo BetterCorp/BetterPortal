@@ -753,7 +753,7 @@ Auth providers are standalone BSB services. Current implementations live at `ser
 
 The auth provider is just an endpoint server. It does not maintain browser sessions, render the theme shell, or talk to the theme.
 
-WorkOS role sync: WorkOS role `slug` is the BP role id. BP permissions are synced to WorkOS permission `slug`s as `bp:{serviceId}:{viewId}:{permission}`. Config Manager embeds the WorkOS role-sync fragment for WorkOS-backed apps and disables local role editing. Subscribe only to WorkOS role events (`role.*`, `organization_role.*`); never subscribe to WorkOS permission events or BP-created permission updates can loop. Removed BP permission slugs are deleted in WorkOS when unused, otherwise renamed with `DEL: ` while still assigned.
+WorkOS role sync: WorkOS role `slug` is the BP role id. BP permissions are synced to short WorkOS permission slugs as `bp_<shortId>_<permission>`; auth-workos stores the tenant/service/view mapping in its `workosStatePath` JSON file, defaulting to `./workos-state.json`. Config Manager embeds the WorkOS role-sync fragment for WorkOS-backed apps and disables local role editing. Subscribe only to WorkOS role events (`role.*`, `organization_role.*`); never subscribe to WorkOS permission events or BP-created permission updates can loop. Removed BP permission slugs are deleted in WorkOS when unused, otherwise renamed with `DEL: ` while still assigned. Auth-workos retries stale permission/role sync every `syncIntervalSeconds` seconds, default `21600`.
 
 ### Framework helpers
 

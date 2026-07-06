@@ -11,6 +11,7 @@ import {
   type BPServiceDefinition
 } from "@betterportal/plugin-bsb";
 import { WorkOS, type AuthenticationResponse } from "@workos-inc/node";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import {
   htmlResponse,
   jsonResponse,
@@ -21,7 +22,6 @@ import {
   type AppAuthPermissionAction,
   type AppAuthRole,
   type BetterPortalEvent,
-  type BetterPortalApp,
   type BetterPortalRouteMount,
   type BpTokenIssuer,
   type ConfigSchemaDescriptor,
@@ -32,7 +32,8 @@ import {
   type ServiceConfigTicketClaims,
   type TenantAppValidation
 } from "@betterportal/framework";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { randomBytes } from "node:crypto";
 import { registry } from "./.bp-generated/registry.js";
 
 const SERVICE_ID = "service.betterportal.auth.workos";
@@ -45,6 +46,8 @@ const PluginConfigSchema = av.object({
   accessTokenSeconds: av.int().min(1).default(60 * 15),
   refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7),
   keyStorePath: av.string().minLength(1).default("./.bp-workos-state/keys.json"),
+  workosStatePath: av.string().minLength(1).default("./workos-state.json"),
+  syncIntervalSeconds: av.int().min(60).default(60 * 60 * 6),
   betterportal: BetterPortalConfigSchema
 }, { unknownKeys: "strip" });
 export type WorkOSPluginConfig = av.Infer<typeof PluginConfigSchema>;
@@ -178,13 +181,43 @@ type BpPermissionCatalogEntry = {
   description: string;
 };
 
+type WorkOSPermissionMapping = {
+  shortId: string;
+  tenantId: string;
+  serviceId: string;
+  viewId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type WorkOSRoleMapping = {
+  tenantId: string;
+  appId: string;
+  workosRoleSlug: string;
+  updatedAt: string;
+};
+
+type WorkOSSyncAppState = {
+  tenantId: string;
+  appId: string;
+  lastPermissionSyncAt?: string;
+  lastRoleSyncAt?: string;
+};
+
+export type WorkOSState = {
+  permissionMappings: Record<string, WorkOSPermissionMapping>;
+  roleMappings: Record<string, WorkOSRoleMapping>;
+  appSync: Record<string, WorkOSSyncAppState>;
+};
+
 type SyncStatus = {
   level: "success" | "danger" | "warning" | "info";
   message: string;
   details?: string[];
 };
 
-const BP_PERMISSION_PREFIX = "bp:";
+const BP_PERMISSION_PREFIX = "bp_";
+const LEGACY_BP_PERMISSION_PREFIX = "bp:";
 const STALE_PERMISSION_PREFIX = "DEL: ";
 const ROLE_EVENTS = new Set([
   "role.created",
@@ -199,6 +232,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   static Config = Config;
   static EventSchemas = EventSchemas;
   private keyPair!: RsaKeyPair;
+  private syncTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
@@ -214,6 +248,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       jwksUri: `${this.config.issuer.replace(/\/+$/, "")}/.well-known/jwks.json`,
       jwks: { keys: [jwk as unknown as Record<string, unknown>] }
     });
+    this.syncTimer = setInterval(() => {
+      void this.syncStaleConfiguredApps();
+    }, this.config.syncIntervalSeconds * 1000);
+    this.syncTimer.unref?.();
   }
 
   protected definition(): BPServiceDefinition {
@@ -284,7 +322,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   async syncPermissionsToWorkOS(tenantId: string, appId: string): Promise<{ created: number; updated: number; deleted: number; deprecated: number; current: number }> {
     const config = this.getWorkOSAppConfig(tenantId, appId);
     if (!config) throw new Error("WorkOS app config is missing clientId or apiKey.");
-    const catalog = this.bpPermissionCatalog(appId);
+    const catalog = this.bpPermissionCatalog(tenantId);
     const currentSlugs = new Set(catalog.map((entry) => entry.slug));
     const client = this.client(config);
     const [permissions, roles] = await Promise.all([
@@ -317,7 +355,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     }
 
     for (const permission of permissions as WorkOSPermission[]) {
-      if (!permission.slug.startsWith(BP_PERMISSION_PREFIX) || currentSlugs.has(permission.slug)) continue;
+      if (!isBpOwnedPermissionSlug(permission.slug) || currentSlugs.has(permission.slug)) continue;
       if (rolePermissionSlugs.has(permission.slug)) {
         const nextName = permission.name.startsWith(STALE_PERMISSION_PREFIX)
           ? permission.name
@@ -335,17 +373,20 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       }
     }
 
+    this.markAppSync(tenantId, appId, { permissions: true });
     return { created, updated, deleted, deprecated, current: catalog.length };
   }
 
   async syncRolesFromWorkOS(tenantId: string, appId: string): Promise<{ roles: number; grants: number }> {
     const config = this.getWorkOSAppConfig(tenantId, appId);
     if (!config) throw new Error("WorkOS app config is missing clientId or apiKey.");
-    const currentSlugs = new Set(this.bpPermissionCatalog(appId).map((entry) => entry.slug));
+    const currentSlugs = new Set(this.bpPermissionCatalog(tenantId).map((entry) => entry.slug));
     const roles = (await this.listWorkOSRoles(config))
       .map((role) => this.toBpRole(role, currentSlugs))
       .filter((role): role is AppAuthRole => Boolean(role));
     await this.pushRolesToConfigManager(appId, roles);
+    this.markRoleMappings(tenantId, appId, roles.map((role) => role.id));
+    this.markAppSync(tenantId, appId, { roles: true });
     return {
       roles: roles.length,
       grants: roles.reduce((sum, role) => sum + role.permissions.length, 0)
@@ -403,20 +444,31 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     return (list.data ?? []) as WorkOSRole[];
   }
 
-  private bpPermissionCatalog(appId: string): BpPermissionCatalogEntry[] {
+  private bpPermissionCatalog(tenantId: string): BpPermissionCatalogEntry[] {
     const portal = this.getPortalConfig();
-    const app = portal?.apps.find((candidate) => candidate.id === appId);
-    if (!app) return [];
-    return app.routes
-      .filter((route) => route.enabled !== false)
-      .flatMap((route) => permissionCatalogForRoute(route as BetterPortalRouteMount, app as BetterPortalApp));
+    if (!portal) return [];
+    const state = this.loadWorkOSState();
+    const entries: BpPermissionCatalogEntry[] = [];
+    const seen = new Set<string>();
+    for (const app of portal.apps.filter((candidate) => candidate.tenantId === tenantId)) {
+      for (const route of app.routes.filter((candidate) => candidate.enabled !== false)) {
+        const key = permissionMappingKey(tenantId, route.serviceId, route.viewId);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const mapping = getOrCreatePermissionMapping(state, tenantId, route.serviceId, route.viewId);
+        entries.push(...permissionCatalogForRoute(route as BetterPortalRouteMount, mapping));
+      }
+    }
+    this.saveWorkOSState(state);
+    return entries;
   }
 
   private toBpRole(role: WorkOSRole, currentSlugs: Set<string>): AppAuthRole | null {
+    const state = this.loadWorkOSState();
     const byTarget = new Map<string, AppAuthRole["permissions"][number]>();
     for (const slug of role.permissions) {
       if (!currentSlugs.has(slug)) continue;
-      const parsed = parseBpPermissionSlug(slug);
+      const parsed = parseBpPermissionSlug(slug, state);
       if (!parsed) continue;
       const key = `${parsed.serviceId}\n${parsed.viewId}`;
       const grant = byTarget.get(key) ?? { serviceId: parsed.serviceId, viewId: parsed.viewId, permissions: [] };
@@ -452,6 +504,66 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     }
   }
 
+  private loadWorkOSState(): WorkOSState {
+    const path = resolve(this.config.workosStatePath);
+    if (!existsSync(path)) return emptyWorkOSState();
+    const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<WorkOSState>;
+    return {
+      permissionMappings: raw.permissionMappings ?? {},
+      roleMappings: raw.roleMappings ?? {},
+      appSync: raw.appSync ?? {}
+    };
+  }
+
+  private saveWorkOSState(state: WorkOSState): void {
+    const path = resolve(this.config.workosStatePath);
+    mkdirSync(dirname(path), { recursive: true });
+    const tmp = `${path}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+    renameSync(tmp, path);
+  }
+
+  private markAppSync(tenantId: string, appId: string, flags: { permissions?: boolean; roles?: boolean }): void {
+    const state = this.loadWorkOSState();
+    const key = appSyncKey(tenantId, appId);
+    const current = state.appSync[key] ?? { tenantId, appId };
+    const now = new Date().toISOString();
+    state.appSync[key] = {
+      ...current,
+      ...(flags.permissions ? { lastPermissionSyncAt: now } : {}),
+      ...(flags.roles ? { lastRoleSyncAt: now } : {})
+    };
+    this.saveWorkOSState(state);
+  }
+
+  private markRoleMappings(tenantId: string, appId: string, roleSlugs: string[]): void {
+    const state = this.loadWorkOSState();
+    const now = new Date().toISOString();
+    for (const roleSlug of roleSlugs) {
+      state.roleMappings[roleMappingKey(tenantId, appId, roleSlug)] = { tenantId, appId, workosRoleSlug: roleSlug, updatedAt: now };
+    }
+    this.saveWorkOSState(state);
+  }
+
+  private async syncStaleConfiguredApps(): Promise<void> {
+    const state = this.loadWorkOSState();
+    const cutoff = Date.now() - this.config.syncIntervalSeconds * 1000;
+    for (const app of this.matchingConfiguredApps()) {
+      const sync = state.appSync[appSyncKey(app.tenantId, app.appId)];
+      if (sync?.lastPermissionSyncAt && sync?.lastRoleSyncAt
+        && Date.parse(sync.lastPermissionSyncAt) >= cutoff
+        && Date.parse(sync.lastRoleSyncAt) >= cutoff) continue;
+      try {
+        this.observability.logger.info("WorkOS scheduled sync started tenant={tenantId} app={appId}", { tenantId: app.tenantId, appId: app.appId });
+        await this.syncPermissionsToWorkOS(app.tenantId, app.appId);
+        await this.syncRolesFromWorkOS(app.tenantId, app.appId);
+        this.observability.logger.info("WorkOS scheduled sync completed tenant={tenantId} app={appId}", { tenantId: app.tenantId, appId: app.appId });
+      } catch (error) {
+        this.observability.logger.error(asError(error), { "bp.tenant.id": app.tenantId, "bp.app.id": app.appId, "workos.sync.kind": "scheduled" });
+      }
+    }
+  }
+
   private matchingConfiguredApps(event?: unknown): Array<{ tenantId: string; appId: string; config: WorkOSAppConfig }> {
     const portal = this.getPortalConfig();
     if (!portal) return [];
@@ -484,7 +596,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
-    const currentSlugs = new Set(this.bpPermissionCatalog(appId).map((entry) => entry.slug));
+    const currentSlugs = new Set(this.bpPermissionCatalog(tenantId).map((entry) => entry.slug));
     const syncedIds = new Set(bpRoles.map((role) => role.id));
     const roleRows = workosRoles
       .filter((role) => role.permissions.some((permission) => currentSlugs.has(permission)))
@@ -703,33 +815,74 @@ function readStringArrayClaim(claims: Record<string, unknown>, path: string): st
   return typeof value === "string" && value.length > 0 ? [value] : [];
 }
 
-function permissionCatalogForRoute(route: BetterPortalRouteMount, app: BetterPortalApp): BpPermissionCatalogEntry[] {
+function permissionCatalogForRoute(route: BetterPortalRouteMount, mapping: WorkOSPermissionMapping): BpPermissionCatalogEntry[] {
   const title = route.title ?? route.viewId;
   return (["read", "create", "update", "delete"] as const).map((action) => ({
-    slug: bpPermissionSlug(route.serviceId, route.viewId, action),
+    slug: bpPermissionSlug(mapping.shortId, action),
     serviceId: route.serviceId,
     viewId: route.viewId,
     action,
     title: `${title}: ${action}`,
-    description: `${app.title} ${title} ${action} permission`
+    description: `BetterPortal ${route.serviceId} ${route.viewId} ${action} permission`
   }));
 }
 
-export function bpPermissionSlug(serviceId: string, viewId: string, action: AppAuthPermissionAction): string {
-  return `${BP_PERMISSION_PREFIX}${serviceId}:${viewId}:${action}`;
+export function bpPermissionSlug(shortId: string, action: AppAuthPermissionAction): string {
+  return `${BP_PERMISSION_PREFIX}${shortId}_${action}`;
 }
 
-export function parseBpPermissionSlug(slug: string): { serviceId: string; viewId: string; action: AppAuthPermissionAction } | null {
+export function parseBpPermissionSlug(slug: string, state: WorkOSState = emptyWorkOSState()): { serviceId: string; viewId: string; action: AppAuthPermissionAction } | null {
   if (!slug.startsWith(BP_PERMISSION_PREFIX)) return null;
-  const parts = slug.slice(BP_PERMISSION_PREFIX.length).split(":");
-  if (parts.length !== 3) return null;
-  const [serviceId, viewId, action] = parts;
-  if (!serviceId || !viewId || !isPermissionAction(action)) return null;
-  return { serviceId, viewId, action };
+  const body = slug.slice(BP_PERMISSION_PREFIX.length);
+  const splitAt = body.lastIndexOf("_");
+  if (splitAt <= 0) return null;
+  const shortId = body.slice(0, splitAt);
+  const action = body.slice(splitAt + 1);
+  if (!shortId || !isPermissionAction(action)) return null;
+  const mapping = Object.values(state.permissionMappings).find((entry) => entry.shortId === shortId);
+  if (!mapping) return null;
+  return { serviceId: mapping.serviceId, viewId: mapping.viewId, action };
 }
 
 function isPermissionAction(value: string): value is AppAuthPermissionAction {
   return value === "read" || value === "create" || value === "update" || value === "delete";
+}
+
+function emptyWorkOSState(): WorkOSState {
+  return { permissionMappings: {}, roleMappings: {}, appSync: {} };
+}
+
+function permissionMappingKey(tenantId: string, serviceId: string, viewId: string): string {
+  return `${tenantId}|${serviceId}|${viewId}`;
+}
+
+function roleMappingKey(tenantId: string, appId: string, workosRoleSlug: string): string {
+  return `${tenantId}|${appId}|${workosRoleSlug}`;
+}
+
+function appSyncKey(tenantId: string, appId: string): string {
+  return `${tenantId}|${appId}`;
+}
+
+function getOrCreatePermissionMapping(state: WorkOSState, tenantId: string, serviceId: string, viewId: string): WorkOSPermissionMapping {
+  const key = permissionMappingKey(tenantId, serviceId, viewId);
+  const existing = state.permissionMappings[key];
+  if (existing) return existing;
+  const used = new Set(Object.values(state.permissionMappings).map((entry) => entry.shortId));
+  let shortId = randomShortId();
+  while (used.has(shortId)) shortId = randomShortId();
+  const now = new Date().toISOString();
+  const mapping = { shortId, tenantId, serviceId, viewId, createdAt: now, updatedAt: now };
+  state.permissionMappings[key] = mapping;
+  return mapping;
+}
+
+function randomShortId(): string {
+  return randomBytes(4).toString("hex");
+}
+
+function isBpOwnedPermissionSlug(slug: string): boolean {
+  return slug.startsWith(BP_PERMISSION_PREFIX) || slug.startsWith(LEGACY_BP_PERMISSION_PREFIX);
 }
 
 function readNestedString(value: Record<string, unknown>, path: string[]): string | undefined {

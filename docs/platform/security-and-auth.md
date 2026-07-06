@@ -76,7 +76,7 @@ Secret values should be stored through service config APIs and encrypted with a 
 
 Provider credentials such as Authress API keys or WorkOS API keys belong in the auth service's encrypted app-scoped service config. Platform config stores bindings and non-secret auth metadata, not provider secrets.
 
-For WorkOS, application/client credentials and webhook secrets are app-scoped service config. Tenant-level WorkOS defaults must not contain app/client credentials. WorkOS permission slugs may mirror BP permissions, but BP runtime authorization still reads mirrored `app.auth.roles`; WorkOS permission webhook events are not processed.
+For WorkOS, application/client credentials and webhook secrets are app-scoped service config. Tenant-level WorkOS defaults must not contain app/client credentials. WorkOS permission slugs use short `bp_<shortId>_<permission>` keys backed by the service's `workosStatePath` mapping file; BP runtime authorization still reads mirrored `app.auth.roles`. WorkOS permission webhook events are not processed.
 
 ## CORS
 

@@ -26,12 +26,27 @@ test("workos browser config never exposes api key", () => {
 });
 
 test("bp permission slugs round trip", () => {
-  const slug = bpPermissionSlug("019f0000-0000-7000-8000-000000000000", "reports.index", "read");
-  assert.equal(slug, "bp:019f0000-0000-7000-8000-000000000000:reports.index:read");
-  assert.deepEqual(parseBpPermissionSlug(slug), {
+  const state = {
+    permissionMappings: {
+      "tenant|019f0000-0000-7000-8000-000000000000|reports.index": {
+        shortId: "a7k9q2m4",
+        tenantId: "tenant",
+        serviceId: "019f0000-0000-7000-8000-000000000000",
+        viewId: "reports.index",
+        createdAt: "2026-07-06T00:00:00.000Z",
+        updatedAt: "2026-07-06T00:00:00.000Z"
+      }
+    },
+    roleMappings: {},
+    appSync: {}
+  };
+  const slug = bpPermissionSlug("a7k9q2m4", "read");
+  assert.equal(slug, "bp_a7k9q2m4_read");
+  assert.equal(slug.length < 48, true);
+  assert.deepEqual(parseBpPermissionSlug(slug, state), {
     serviceId: "019f0000-0000-7000-8000-000000000000",
     viewId: "reports.index",
     action: "read"
   });
-  assert.equal(parseBpPermissionSlug("bp:svc:view:bad"), null);
+  assert.equal(parseBpPermissionSlug("bp_a7k9q2m4_bad", state), null);
 });

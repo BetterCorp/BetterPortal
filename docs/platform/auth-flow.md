@@ -118,7 +118,7 @@ Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Ea
 
 Role ids are the contract with external providers. The auth provider token `roles[]` values must match `app.auth.roles[].id` exactly. Config-manager role creation requires an explicit id using `[A-Za-z0-9][A-Za-z0-9._:-]{0,63}` and rejects reserved ids.
 
-WorkOS uses provider slugs as keys: WorkOS role `slug` is mirrored to `app.auth.roles[].id`, and WorkOS permission `slug` stores BP permission catalog entries as `bp:{serviceId}:{viewId}:{permission}`. BP syncs missing/current permissions up to WorkOS, but only WorkOS role webhook events sync roles back down. Do not subscribe to WorkOS permission webhook events; stale BP permission slugs are deleted when unassigned or renamed `DEL: ...` while still assigned.
+WorkOS uses provider slugs as keys: WorkOS role `slug` is mirrored to `app.auth.roles[].id`, and WorkOS permission `slug` stores short BP permission keys as `bp_<shortId>_<permission>`. The auth-workos service owns the local `workosStatePath` JSON file that maps each short id back to `tenantId + serviceId + viewId`; roles remain app-scoped when mirrored into BP. BP syncs missing/current permissions up to WorkOS, but only WorkOS role webhook events sync roles back down. Do not subscribe to WorkOS permission webhook events; stale BP permission slugs are deleted when unassigned or renamed `DEL: ...` while still assigned.
 
 `*` is reserved as the platform-root wildcard role. It is only honored when the request tenant/app exactly match `configManagement.adminTenantId` and `configManagement.managementAppId`; otherwise it is logged as misuse and ignored for grants. `root` is not a valid role id.
 

@@ -89,7 +89,7 @@ Config Manager itself remains a direct tenant service during bootstrap because i
 
 Role ids are explicit and should match the values emitted by the selected auth provider. For Authress, configure the Authress role claim so it contains BP role ids such as `admin`, `finance.viewer`, or `tenant-manager`; BP does not map Authress display names to BP role ids.
 
-For WorkOS-backed apps, Config Manager does not duplicate WorkOS role management. It renders the WorkOS sync fragment in the permission manager, disables local role editing, and mirrors WorkOS role slugs into `app.auth.roles`. BP permissions sync to WorkOS permission slugs as `bp:{serviceId}:{viewId}:{permission}`. WorkOS permission webhook events are intentionally ignored to avoid sync loops; role webhook events trigger the WorkOS -> BP mirror.
+For WorkOS-backed apps, Config Manager does not duplicate WorkOS role management. It renders the WorkOS sync fragment in the permission manager, disables local role editing, and mirrors WorkOS role slugs into `app.auth.roles`. BP permissions sync to short WorkOS permission slugs as `bp_<shortId>_<permission>`; the WorkOS service stores the tenant/service/view mapping in its `workosStatePath` JSON file. WorkOS permission webhook events are intentionally ignored to avoid sync loops; role webhook events trigger the WorkOS -> BP mirror.
 
 The normal role API rejects reserved ids, including `root` and `*`. The reserved `*` role is maintained only on the configured management tenant/app as the platform-root wildcard. It grants every route permission only when the request is for `configManagement.adminTenantId` and `configManagement.managementAppId`; outside that exact scope, it is logged as misuse and does not grant access.
 

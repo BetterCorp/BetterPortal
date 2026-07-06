@@ -20,4 +20,6 @@ default:
         accessTokenSeconds: 900
         refreshTokenSeconds: 604800
         keyStorePath: ./.bp-workos-state/keys.json
+        workosStatePath: ./workos-state.json
+        syncIntervalSeconds: 21600
         betterportal: {}
