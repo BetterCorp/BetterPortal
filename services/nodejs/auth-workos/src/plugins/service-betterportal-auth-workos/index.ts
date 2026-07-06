@@ -15,10 +15,12 @@ import {
   htmlResponse,
   jsonResponse,
   createBpTokenIssuer,
+  eventObservability,
   loadOrGenerateKeyPair,
   publicKeyToJwk,
   type AppAuthPermissionAction,
   type AppAuthRole,
+  type BetterPortalEvent,
   type BetterPortalApp,
   type BetterPortalRouteMount,
   type BpTokenIssuer,
@@ -174,6 +176,12 @@ type BpPermissionCatalogEntry = {
   action: AppAuthPermissionAction;
   title: string;
   description: string;
+};
+
+type SyncStatus = {
+  level: "success" | "danger" | "warning" | "info";
+  message: string;
+  details?: string[];
 };
 
 const BP_PERMISSION_PREFIX = "bp:";
@@ -458,7 +466,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     });
   }
 
-  private async renderRoleSyncFragment(event: { req: Request }): Promise<Response> {
+  private async renderRoleSyncFragment(event: BetterPortalEvent, status?: SyncStatus): Promise<Response> {
     const url = new URL(event.req.url, "http://betterportal.invalid");
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
@@ -495,7 +503,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               <button class="btn btn-outline-primary" hx-post="${selfBase}/.well-known/bp/config/workos-role-sync/roles?tenantId=${encodeURIComponent(tenantId)}&appId=${encodeURIComponent(appId)}" hx-target="closest .card" hx-swap="outerHTML">Sync roles</button>
             </div>
           </div>
-          ${error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : ""}
+          ${status ? renderSyncStatus(status) : ""}
+          ${error ? `<div class="alert alert-danger">WorkOS role read failed: ${escapeHtml(error)}</div>` : ""}
           <div class="mb-2 small"><strong>BP permissions:</strong> ${currentSlugs.size} <span class="text-secondary">|</span> <strong>Mirrored BP roles:</strong> ${bpRoles.length}</div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
@@ -508,56 +517,140 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     `, 200, "text/html; mode=fragment");
   }
 
-  private async handlePermissionSync(event: { req: Request }): Promise<Response> {
+  private async handlePermissionSync(event: BetterPortalEvent): Promise<Response> {
     const url = new URL(event.req.url, "http://betterportal.invalid");
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
+    const obs = eventObservability(event);
+    const span = obs?.startSpan("workos.permissions.sync", {
+      "bp.tenant.id": tenantId,
+      "bp.app.id": appId
+    });
+    obs?.logger.info("WorkOS permission sync started tenant={tenantId} app={appId}", { tenantId, appId });
     try {
       const result = await this.syncPermissionsToWorkOS(tenantId, appId);
-      const fragment = await this.renderRoleSyncFragment(event);
+      span?.setAttributes({
+        "workos.permissions.created": result.created,
+        "workos.permissions.updated": result.updated,
+        "workos.permissions.deleted": result.deleted,
+        "workos.permissions.deprecated": result.deprecated,
+        "workos.permissions.current": result.current
+      }).end();
+      obs?.logger.info(
+        "WorkOS permission sync completed tenant={tenantId} app={appId} created={created} updated={updated} deleted={deleted} deprecated={deprecated} current={current}",
+        { tenantId, appId, ...result }
+      );
+      const fragment = await this.renderRoleSyncFragment(event, {
+        level: "success",
+        message: "WorkOS permissions synced.",
+        details: [
+          `${result.created} created`,
+          `${result.updated} updated`,
+          `${result.deleted} deleted`,
+          `${result.deprecated} marked removed`,
+          `${result.current} current`
+        ]
+      });
       fragment.headers.set("HX-Trigger", JSON.stringify({ "bp:toast": `WorkOS permissions synced (${result.created} created, ${result.updated} updated).` }));
       return fragment;
     } catch (err) {
-      return htmlResponse(`<div class="alert alert-danger">${escapeHtml(err instanceof Error ? err.message : String(err))}</div>`, 500, "text/html; mode=fragment");
+      const error = asError(err);
+      span?.error(error, { "bp.tenant.id": tenantId, "bp.app.id": appId });
+      span?.end({ "workos.sync.failed": true });
+      obs?.logger.error(error, { "bp.tenant.id": tenantId, "bp.app.id": appId, "workos.sync.kind": "permissions" });
+      return this.renderSyncFailure(event, error, "Permission sync failed");
     }
   }
 
-  private async handleRoleSync(event: { req: Request }): Promise<Response> {
+  private async handleRoleSync(event: BetterPortalEvent): Promise<Response> {
     const url = new URL(event.req.url, "http://betterportal.invalid");
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
+    const obs = eventObservability(event);
+    const span = obs?.startSpan("workos.roles.sync", {
+      "bp.tenant.id": tenantId,
+      "bp.app.id": appId
+    });
+    obs?.logger.info("WorkOS role sync started tenant={tenantId} app={appId}", { tenantId, appId });
     try {
       const result = await this.syncRolesFromWorkOS(tenantId, appId);
-      const fragment = await this.renderRoleSyncFragment(event);
+      span?.setAttributes({
+        "workos.roles.synced": result.roles,
+        "workos.roles.grants": result.grants
+      }).end();
+      obs?.logger.info(
+        "WorkOS role sync completed tenant={tenantId} app={appId} roles={roles} grants={grants}",
+        { tenantId, appId, roles: result.roles, grants: result.grants }
+      );
+      const fragment = await this.renderRoleSyncFragment(event, {
+        level: "success",
+        message: "WorkOS roles synced.",
+        details: [`${result.roles} roles`, `${result.grants} grants`]
+      });
       fragment.headers.set("HX-Trigger", JSON.stringify({ "bp:toast": `WorkOS roles synced (${result.roles} roles).` }));
       return fragment;
     } catch (err) {
-      return htmlResponse(`<div class="alert alert-danger">${escapeHtml(err instanceof Error ? err.message : String(err))}</div>`, 500, "text/html; mode=fragment");
+      const error = asError(err);
+      span?.error(error, { "bp.tenant.id": tenantId, "bp.app.id": appId });
+      span?.end({ "workos.sync.failed": true });
+      obs?.logger.error(error, { "bp.tenant.id": tenantId, "bp.app.id": appId, "workos.sync.kind": "roles" });
+      return this.renderSyncFailure(event, error, "Role sync failed");
     }
   }
 
-  private async handleWorkOSWebhook(event: { req: Request }): Promise<Response> {
+  private async renderSyncFailure(event: BetterPortalEvent, error: Error, title: string): Promise<Response> {
+    const fragment = await this.renderRoleSyncFragment(event, {
+      level: "danger",
+      message: title,
+      details: [error.message]
+    });
+    fragment.headers.set("HX-Trigger", JSON.stringify({ "bp:toast": `${title}: ${error.message}` }));
+    return fragment;
+  }
+
+  private async handleWorkOSWebhook(event: BetterPortalEvent): Promise<Response> {
+    const obs = eventObservability(event);
+    const span = obs?.startSpan("workos.webhook");
     const payload = await event.req.text();
     const sigHeader = event.req.headers.get("workos-signature");
-    if (!sigHeader) return jsonResponse({ error: "Missing WorkOS signature" }, 401);
+    if (!sigHeader) {
+      span?.end({ "workos.webhook.rejected": true });
+      obs?.logger.warn("WorkOS webhook rejected: missing signature");
+      return jsonResponse({ error: "Missing WorkOS signature" }, 401);
+    }
+    let configuredSecrets = 0;
     for (const candidate of this.matchingConfiguredApps()) {
       if (!candidate.config.webhookSecret) continue;
+      configuredSecrets++;
       try {
         const workosEvent = await this.client(candidate.config).webhooks.constructEvent({
           payload,
           sigHeader,
           secret: candidate.config.webhookSecret
         });
-        if (!ROLE_EVENTS.has(workosEvent.event)) return jsonResponse({ ok: true, ignored: true });
+        span?.setAttribute("workos.webhook.event", workosEvent.event);
+        if (!ROLE_EVENTS.has(workosEvent.event)) {
+          span?.end({ "workos.webhook.ignored": true });
+          obs?.logger.info("WorkOS webhook ignored event={event}", { event: workosEvent.event });
+          return jsonResponse({ ok: true, ignored: true });
+        }
         const apps = this.matchingConfiguredApps(workosEvent);
         for (const app of apps) {
           await this.syncRolesFromWorkOS(app.tenantId, app.appId);
         }
+        span?.end({ "workos.webhook.synced_apps": apps.length });
+        obs?.logger.info("WorkOS webhook synced event={event} apps={apps}", {
+          event: workosEvent.event,
+          apps: apps.length
+        });
         return jsonResponse({ ok: true, synced: apps.length } as JsonValue);
-      } catch {
+      } catch (err) {
+        span?.setAttribute("workos.webhook.last_error", asError(err).message);
         // Try the next configured webhook secret.
       }
     }
+    span?.end({ "workos.webhook.rejected": true, "workos.webhook.configured_secrets": configuredSecrets });
+    obs?.logger.warn("WorkOS webhook rejected: invalid signature configuredSecrets={configuredSecrets}", { configuredSecrets });
     return jsonResponse({ error: "Invalid WorkOS signature" }, 401);
   }
 
@@ -656,6 +749,17 @@ function escapeHtml(value: string): string {
     '"': "&quot;",
     "'": "&#39;"
   }[char]!));
+}
+
+function renderSyncStatus(status: SyncStatus): string {
+  const details = status.details?.length
+    ? `<ul class="mb-0 mt-2">${status.details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>`
+    : "";
+  return `<div class="alert alert-${status.level}">${escapeHtml(status.message)}${details}</div>`;
+}
+
+function asError(value: unknown): Error {
+  return value instanceof Error ? value : new Error(String(value));
 }
 
 function requestBaseUrl(req: Request): string {
