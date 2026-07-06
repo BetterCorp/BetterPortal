@@ -1393,6 +1393,7 @@ export function registerAdminApiRoutes(
       permissions: Array<"read" | "create" | "update" | "delete">;
     }>;
   };
+  type ServiceIdentity = NonNullable<Awaited<ReturnType<typeof store.validateApiKey>>>;
 
   const getAppOr404 = async (appId: string) => {
     const config = await store.loadConfig();
@@ -1431,17 +1432,51 @@ export function registerAdminApiRoutes(
     return { auth: withAuth.auth as { roles: AppAuthRoleEntry[] } };
   };
 
-  const requireServiceApiKeyForAppAuth = async (
+  const readServiceIdentity = async (event: BetterPortalEvent): Promise<ServiceIdentity | Response> => {
+    const authHeader = event.req.headers.get("authorization");
+    const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!apiKey) return jsonResponse({ error: "Bearer service token required" }, 401);
+    const validated = await store.validateApiKey(apiKey);
+    if (!validated?.serviceId) return jsonResponse({ error: "Invalid service API key" }, 403);
+    return validated;
+  };
+
+  const requireServiceIdentityForAppAuth = async (
     event: BetterPortalEvent,
     appDef: { auth?: { serviceId?: string } }
   ): Promise<Response | undefined> => {
-    const authHeader = event.req.headers.get("authorization");
-    const apiKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!apiKey) return jsonResponse({ error: "Bearer token required" }, 401);
-    const validated = await store.validateApiKey(apiKey);
-    if (!validated?.serviceId) return jsonResponse({ error: "Invalid service API key" }, 403);
-    if (validated.serviceId !== appDef.auth?.serviceId) {
+    const identity = await readServiceIdentity(event);
+    if (identity instanceof Response) return identity;
+    if (identity.serviceId !== appDef.auth?.serviceId) {
       return jsonResponse({ error: "Service API key does not match app auth service" }, 403);
+    }
+    return undefined;
+  };
+
+  const validateSyncedRolePermissions = (
+    appDef: BetterPortalApp,
+    roleId: string,
+    permissions: AppAuthRoleEntry["permissions"]
+  ): Response | undefined => {
+    const mounted = new Set(
+      appDef.routes
+        .filter((route) => route.enabled !== false)
+        .map((route) => `${route.serviceId}\n${route.viewId}`)
+    );
+    for (const grant of permissions) {
+      if (!mounted.has(`${grant.serviceId}\n${grant.viewId}`)) {
+        return jsonResponse({
+          error: "Role sync permission is not mounted on the app",
+          roleId,
+          serviceId: grant.serviceId,
+          viewId: grant.viewId
+        }, 400);
+      }
+      for (const action of grant.permissions) {
+        if (!["read", "create", "update", "delete"].includes(action)) {
+          return jsonResponse({ error: "Invalid role sync permission action", roleId, action }, 400);
+        }
+      }
     }
     return undefined;
   };
@@ -1464,7 +1499,7 @@ export function registerAdminApiRoutes(
 
     const { config, appDef } = await getAppOr404(appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-    const serviceError = await requireServiceApiKeyForAppAuth(event, appDef as { auth?: { serviceId?: string } });
+    const serviceError = await requireServiceIdentityForAppAuth(event, appDef as { auth?: { serviceId?: string } });
     if (serviceError) return serviceError;
     const authResult = requireAuthBlock(event, appDef);
     if (authResult.response) return authResult.response;
@@ -1490,6 +1525,8 @@ export function registerAdminApiRoutes(
             permissions: [...new Set(grant.permissions)]
           }))
         : [];
+      const permissionError = validateSyncedRolePermissions(appDef as BetterPortalApp, roleId, permissions);
+      if (permissionError) return permissionError;
       if (permissions.length === 0) continue;
       parsedRoles.push({
         id: roleId,

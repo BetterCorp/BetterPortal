@@ -250,6 +250,11 @@ export abstract class BPService<
 
   protected onRegistered?(registry: BetterPortalRegistry, obs: Observable): void | Promise<void>;
 
+  protected controlPlaneCredentials(): { url: string; apiKey: string } | null {
+    if (!this.resolvedCpUrl || !this.resolvedApiKey) return null;
+    return { url: this.resolvedCpUrl.replace(/\/+$/, ""), apiKey: this.resolvedApiKey };
+  }
+
   /**
    * Override to provide a JWT verifier for incoming requests.
    * Receives the resolved tenant/app context. Return undefined to skip auth for the request.
@@ -1118,22 +1123,21 @@ export abstract class BPService<
   }
 
   private async emitWebhook(event: BetterPortalEvent, eventId: string, payload: unknown, scope: { tenantId?: string; appId?: string }): Promise<void> {
-    const cpUrl = this.bp.controlPlaneUrl?.replace(/\/+$/, "");
-    const apiKey = this.bp.serviceApiKey;
+    const credentials = this.controlPlaneCredentials();
     const obs = eventObservability(event);
-    if (!cpUrl || !apiKey) {
+    if (!credentials) {
       obs?.logger.warn("BP WEBHOOK: skipped event={eventId} service={serviceId} reason=missing_control_plane", {
         eventId,
         serviceId: this.manifest.pluginId
       });
       return;
     }
-    const response = await fetch(`${cpUrl}/.well-known/bp/webhooks/events`, {
+    const response = await fetch(`${credentials.url}/.well-known/bp/webhooks/events`, {
       method: "POST",
       headers: {
         Accept: "application/json",
         "content-type": "application/json",
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${credentials.apiKey}`
       },
       body: JSON.stringify({
         eventId,

@@ -78,6 +78,8 @@ Provider credentials such as Authress API keys or WorkOS API keys belong in the 
 
 For WorkOS, application/client credentials and webhook secrets are app-scoped service config. Tenant-level WorkOS defaults must not contain app/client credentials. WorkOS permission slugs use short `bp_<shortId>_<permission>` keys backed by the service's `workosStatePath` mapping file; BP runtime authorization still reads mirrored `app.auth.roles`. WorkOS permission webhook events are not processed.
 
+Service API keys are service identities, not admin identities. Config Manager accepts them only on explicit service-facing endpoints. WorkOS role sync uses the installed service key and can only replace roles for apps whose `app.auth.serviceId` is that exact WorkOS service activation; every synced permission must reference an enabled route mounted on that app.
+
 ## CORS
 
 Services only allow configured app origins. If a service cannot resolve the calling app from `bp-config.yaml`, HTML requests may fail because the service cannot infer the active theme.

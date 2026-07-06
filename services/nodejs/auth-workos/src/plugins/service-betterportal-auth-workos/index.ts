@@ -486,15 +486,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async pushRolesToConfigManager(appId: string, roles: AppAuthRole[]): Promise<void> {
-    const cpUrl = this.bp.controlPlaneUrl?.replace(/\/+$/, "");
-    const apiKey = this.bp.serviceApiKey;
-    if (!cpUrl || !apiKey) throw new Error("BetterPortal controlPlaneUrl and serviceApiKey are required for role sync.");
-    const response = await fetch(`${cpUrl}/.well-known/bp/admin/apps/${encodeURIComponent(appId)}/auth/roles/sync`, {
+    const credentials = this.controlPlaneCredentials();
+    if (!credentials) throw new Error("WorkOS service is not installed with config-manager credentials.");
+    const response = await fetch(`${credentials.url}/.well-known/bp/admin/apps/${encodeURIComponent(appId)}/auth/roles/sync`, {
       method: "PUT",
       headers: {
         Accept: "application/json",
         "content-type": "application/json",
-        Authorization: `Bearer ${apiKey}`
+        Authorization: `Bearer ${credentials.apiKey}`
       },
       body: JSON.stringify({ roles })
     });
