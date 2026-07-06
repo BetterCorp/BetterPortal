@@ -16,7 +16,7 @@ import type { TenantServiceRegistration, PlatformService, BetterPortalThemeConfi
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { generateApiKey, hashApiKey } from "./storage/index.js";
 import { getManifestCache } from "./syncApi.js";
-import { apiRoutePath, isApiRoute } from "./routeMounts.js";
+import { apiRoutePath, isApiRoute, pageRoutePath } from "./routeMounts.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
@@ -1872,12 +1872,12 @@ export function registerAdminApiRoutes(
         const existingPaths = new Set(appDef.routes.map((r) => r.path));
 
         for (const r of serviceRoutes) {
+          const routeServiceId = serviceId ?? newServiceId;
           const meta = viewMeta.get(r.viewId);
           const renderable = meta?.renderable ?? r.renderable !== false;
-          // Default mounting path is the service's own path; skip collisions
           const mountPath = renderable
-            ? (existingPaths.has(r.path) ? `/${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}${r.path}` : r.path)
-            : apiRoutePath(serviceId ?? newServiceId, r.path);
+            ? pageRoutePath(routeServiceId, r.path)
+            : apiRoutePath(routeServiceId, r.path);
           if (existingPaths.has(mountPath)) continue;
 
           const routeId = uuidv7();

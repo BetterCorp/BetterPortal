@@ -12,7 +12,7 @@ import {
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
 import { getConfigManagerRouteContext } from "../../routeContext.js";
 import { getManifestCache } from "../../syncApi.js";
-import { apiRoutePath } from "../../routeMounts.js";
+import { apiRoutePath, pageRoutePath } from "../../routeMounts.js";
 
 const TenantItemSchema = av.object({
   id: av.string().minLength(1),
@@ -419,14 +419,6 @@ function issuerFromAuthService(hostname: string | undefined): string {
   }
 }
 
-function numberedPath(basePath: string, usedPaths: Set<string>): string {
-  const normalized = basePath.startsWith("/") ? basePath : `/${basePath}`;
-  if (!usedPaths.has(normalized)) return normalized;
-  let i = 2;
-  while (usedPaths.has(`${normalized}-${i}`)) i += 1;
-  return `${normalized}-${i}`;
-}
-
 function ensureAuthRouteMounts(config: BetterPortalConfig, appDef: BetterPortalApp): void {
   const authServiceId = appDef.auth?.serviceId;
   if (!authServiceId) return;
@@ -434,18 +426,16 @@ function ensureAuthRouteMounts(config: BetterPortalConfig, appDef: BetterPortalA
   if (!manifest) return;
 
   const desiredViewIds = ["login.index", "logout.index", "refresh.index", "register.index"];
-  const usedPaths = new Set(appDef.routes.map((route) => route.path));
   for (const viewId of desiredViewIds) {
     const view = manifest.viewIndex[viewId];
     if (!view) continue;
     if (appDef.routes.some((route) => route.serviceId === authServiceId && route.viewId === viewId)) continue;
 
     const renderable = view.renderable !== false;
-    const path = renderable ? numberedPath(view.path, usedPaths) : apiRoutePath(manifest.serviceId, view.path);
+    const path = renderable ? pageRoutePath(manifest.serviceId, view.path) : apiRoutePath(manifest.serviceId, view.path);
     const methods = view.methods.filter((method): method is BetterPortalRouteMount["methods"][number] =>
       method === "GET" || method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE" || method === "OPTIONS"
     );
-    usedPaths.add(path);
     appDef.routes.push({
       id: uuidv7(),
       kind: renderable ? "page" : "api",

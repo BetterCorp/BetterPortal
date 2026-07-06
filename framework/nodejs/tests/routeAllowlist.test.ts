@@ -254,3 +254,61 @@ test("builds service and app route URLs for the current plugin service", async (
     });
   }, { tenant: scopedTenant, serviceId: pluginId });
 });
+
+test("absolute app route URLs prefer the matched request origin", async () => {
+  const pluginId = "service.test.auth";
+  const serviceInstanceId = uuidv7();
+  const scopedTenant: BetterPortalTenant = {
+    ...tenant,
+    services: [{
+      id: serviceInstanceId,
+      hostname: "http://service.local",
+      serviceId: pluginId,
+      capabilities: [],
+      deploymentMode: "self-hosted",
+      createdAt: new Date(0).toISOString(),
+      enabled: true
+    }]
+  };
+  const app: BetterPortalApp = {
+    id: uuidv7(),
+    tenantId: scopedTenant.id,
+    slug: "app",
+    title: "App",
+    hostnames: ["https://betterportal.cloud", "https://my.betterportal.app"],
+    originOverrides: [],
+    refererOverrides: [],
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/login-2",
+    routes: [{
+      id: uuidv7(),
+      path: "/login-2",
+      serviceId: serviceInstanceId,
+      viewId: "login.index",
+      enabled: true,
+      methods: ["GET"]
+    }],
+    menu: [],
+    slots: [],
+    fragments: {}
+  };
+
+  await withServer(app, {
+    routes: [
+      route(
+        "/login",
+        "login.index",
+        (ctx) => ({ uiUrl: ctx.uiRouteUrl?.("login.index", { absolute: true }) ?? null }),
+        av.object({ uiUrl: av.string() })
+      )
+    ]
+  }, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/login`, {
+      headers: { accept: "application/json", origin: "https://my.betterportal.app" }
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      uiUrl: "https://my.betterportal.app/login-2"
+    });
+  }, { tenant: scopedTenant, serviceId: pluginId });
+});

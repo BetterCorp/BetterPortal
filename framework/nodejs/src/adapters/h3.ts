@@ -27,7 +27,7 @@ import {
   type BetterPortalEvent,
   type BetterPortalH3App
 } from "../runtime/h3.js";
-import { toHtmlString } from "../runtime/http.js";
+import { buildHostCandidates, hostFromHeaderValue, toHtmlString } from "../runtime/http.js";
 import { parseAcceptHeader, resolveRequestedRepresentation } from "../runtime/media.js";
 import {
   resolveRenderer,
@@ -543,6 +543,15 @@ function appOrigin(app: BetterPortalApp, override?: string): string {
   return `https://${raw}`;
 }
 
+function requestAppOrigin(app: BetterPortalApp, event: BetterPortalEvent): string | undefined {
+  const headers = event.req.headers;
+  for (const candidate of buildHostCandidates(headers, "theme")) {
+    const hostname = app.hostnames.find((entry) => hostFromHeaderValue(entry) === candidate.host);
+    if (hostname) return appOrigin(app, hostname);
+  }
+  return undefined;
+}
+
 function serviceOrigin(extraContext: RequiredHandlerContext, serviceId: string, override?: string): string | null {
   if (override) return appOrigin(extraContext.app, override);
   const service = extraContext.tenant.services.find((candidate) =>
@@ -592,7 +601,7 @@ function rewriteServiceRouteTokens(
   return rewritten;
 }
 
-function createUiRouteUrlBuilder(extraContext: RequiredHandlerContext, currentServiceId?: string): RouteHandlerContext["uiRouteUrl"] {
+function createUiRouteUrlBuilder(event: BetterPortalEvent, extraContext: RequiredHandlerContext, currentServiceId?: string): RouteHandlerContext["uiRouteUrl"] {
   return (viewId, options = {}) => {
     const targetServiceId = options.serviceId ?? currentServiceId;
     if (!targetServiceId) return null;
@@ -611,7 +620,12 @@ function createUiRouteUrlBuilder(extraContext: RequiredHandlerContext, currentSe
     );
     if (!route) return null;
 
-    return appendQuery(fillAppPath(route.path, options.params), options.query, options.absolute ? appOrigin(extraContext.app, options.origin) : undefined);
+    const origin = options.absolute
+      ? options.origin
+        ? appOrigin(extraContext.app, options.origin)
+        : requestAppOrigin(extraContext.app, event) ?? appOrigin(extraContext.app)
+      : undefined;
+    return appendQuery(fillAppPath(route.path, options.params), options.query, origin);
   };
 }
 
@@ -829,7 +843,7 @@ async function handleRouteRequest(
     setStatus: (status) => { event.res.status = status; },
     serviceId: routerOptions.serviceId,
     routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, routerOptions.serviceId),
-    uiRouteUrl: createUiRouteUrlBuilder(extraContext, routerOptions.serviceId),
+    uiRouteUrl: createUiRouteUrlBuilder(event, extraContext, routerOptions.serviceId),
     response: responseHelper,
     file: fileResponseHelper,
     ...(obs ? { obs } : {})
@@ -1130,7 +1144,7 @@ async function handleStreamSse(
     ...extraContext,
     serviceId: routerOptions.serviceId,
     routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, routerOptions.serviceId),
-    uiRouteUrl: createUiRouteUrlBuilder(extraContext, routerOptions.serviceId),
+    uiRouteUrl: createUiRouteUrlBuilder(event, extraContext, routerOptions.serviceId),
     response: responseHelper,
     file: fileResponseHelper,
     ...(obs ? { obs } : {})

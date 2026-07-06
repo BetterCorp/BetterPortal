@@ -18,6 +18,11 @@ export function apiRoutePath(serviceId: string, servicePath: string): string {
   return `/_bp/service/${serviceRouteSlug(serviceId)}${normalizedServicePath === "/" ? "" : normalizedServicePath}`;
 }
 
+export function pageRoutePath(serviceId: string, servicePath: string): string {
+  const normalizedServicePath = normalizeServicePath(servicePath);
+  return `/${serviceRouteSlug(serviceId)}${normalizedServicePath === "/" ? "" : normalizedServicePath}`;
+}
+
 export function isApiRoute(route: { kind?: "page" | "api"; path: string }, renderable?: boolean): boolean {
   return route.kind === "api" || renderable === false || route.path.startsWith("/_bp/service/");
 }
