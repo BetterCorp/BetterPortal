@@ -29,6 +29,7 @@ export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const),
   message: av.optional(av.string()),
   authorizationUrl: av.optional(av.string()),
+  loginUI: av.enum_(["default", "clean", "redirect"] as const).default("default"),
   alreadyLoggedIn: av.optional(av.bool()),
   loggedOut: av.optional(av.bool()),
   signedIn: av.optional(av.bool()),
@@ -81,19 +82,21 @@ export const handleGet = createHandler(
       return {
         status: "ok" as const,
         message: "Signed out.",
+        loginUI: config?.loginUI ?? "default",
         loggedOut: true,
         nextUrl: normalizeRedirect(config?.logoutRedirectPath)
       };
     }
 
     if (!config) {
-      return { status: "error" as const, message: "WorkOS config is missing clientId or apiKey.", nextUrl };
+      return { status: "error" as const, message: "WorkOS config is missing clientId or apiKey.", loginUI: "default" as const, nextUrl };
     }
 
     if (query.error) {
       return {
         status: "error" as const,
         message: query.error_description || query.error,
+        loginUI: config.loginUI ?? "default",
         nextUrl
       };
     }
@@ -133,6 +136,7 @@ export const handleGet = createHandler(
         return {
           status: "ok" as const,
           message: "Signed in.",
+          loginUI: config.loginUI ?? "default",
           signedIn: true,
           nextUrl,
           user: {
@@ -144,7 +148,7 @@ export const handleGet = createHandler(
         };
       } catch (error: any) {
         ctx.obs?.error(error);
-        return { status: "error" as const, message: `WorkOS sign in failed: ${(error as Error).message}`, nextUrl };
+        return { status: "error" as const, message: `WorkOS sign in failed: ${(error as Error).message}`, loginUI: config.loginUI ?? "default", nextUrl };
       }
     }
 
@@ -152,6 +156,7 @@ export const handleGet = createHandler(
       return {
         status: "ok" as const,
         message: "Already signed in.",
+        loginUI: config.loginUI ?? "default",
         alreadyLoggedIn: true,
         nextUrl,
         user: {
@@ -170,6 +175,7 @@ export const handleGet = createHandler(
     return {
       status: "ok" as const,
       message: "Continue to WorkOS.",
+      loginUI: config.loginUI ?? "default",
       authorizationUrl: pluginFrom(ctx).getAuthorizationUrl(config, { redirectUri, state: nextUrl }),
       nextUrl
     };

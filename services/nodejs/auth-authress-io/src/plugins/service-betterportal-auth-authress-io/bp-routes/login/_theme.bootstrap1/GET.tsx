@@ -22,15 +22,18 @@ export function render(data: ResponseData): HtmlRenderable {
 
   const nextUrl = data.nextUrl || "/";
   const scopes = JSON.stringify(data.scopes?.length ? data.scopes : ["openid", "profile", "email"]);
+  const loginUI = data.loginUI || "default";
+  const cleanLogin = loginUI === "clean" || loginUI === "redirect";
 
   return (
     <main
       id="bp-authress-page"
-      class="bp-authress-shell"
+      class={cleanLogin ? "bp-authress-shell bp-authress-clean" : "bp-authress-shell"}
       data-authress-api-url={data.authressApiUrl || ""}
       data-authress-application-id={data.authressApplicationId || ""}
       data-next-url={nextUrl}
       data-scopes={scopes}
+      data-login-ui={loginUI}
       data-mode={data.alreadyLoggedIn ? "signed-in" : data.status === "error" ? "error" : "login"}
     >
       <script src="https://cdn.jsdelivr.net/npm/@authress/login/dist/authress.min.js"></script>
@@ -43,9 +46,12 @@ export function render(data: ResponseData): HtmlRenderable {
         <input type="hidden" name="picture" value="" />
       </form>
       <section class="bp-authress-panel">
-        <div class="bp-authress-mark" aria-hidden="true">A</div>
+        {!cleanLogin ? <div class="bp-authress-mark" aria-hidden="true">A</div> : null}
         <h1>Sign in</h1>
-        <p class="bp-authress-copy">Continue with your Authress account.</p>
+        <p class="bp-authress-copy">{cleanLogin ? "Continue to your account." : "Continue with your Authress account."}</p>
+        {cleanLogin ? (
+          <button type="button" class="btn btn-primary w-100 mb-3" id="bp-authress-start-login">Continue</button>
+        ) : null}
         <div class="bp-authress-status-row" role="status" aria-live="polite">
           <span class="bp-authress-spinner" aria-hidden="true"></span>
           <span id="bp-authress-status">{data.message || "Preparing sign in."}</span>
@@ -108,6 +114,14 @@ export function render(data: ResponseData): HtmlRenderable {
             return authressClient;
           };
 
+          const startLogin = async (loginClient: { authenticate: (options: Record<string, unknown>) => Promise<void> }, target: string, scopes: unknown[]) => {
+            setStatus("Opening sign in");
+            await loginClient.authenticate({
+              redirectUrl: `${window.location.origin}${window.location.pathname}?next=${encodeURIComponent(target)}`,
+              scopes
+            });
+          };
+
           form?.addEventListener("htmx:afterRequest", (event: Event) => {
             const xhr = (event as CustomEvent<{ xhr: XMLHttpRequest; successful: boolean }>).detail.xhr;
             let body: { status?: string; message?: string; nextUrl?: string } | null = null;
@@ -140,11 +154,14 @@ export function render(data: ResponseData): HtmlRenderable {
             const scopes = JSON.parse(page.dataset.scopes || "[]");
 
             if (!(await loginClient.userSessionExists())) {
-              setStatus("Opening sign in");
-              await loginClient.authenticate({
-                redirectUrl: `${window.location.origin}${window.location.pathname}?next=${encodeURIComponent(target)}`,
-                scopes
-              });
+              const loginUI = page.dataset.loginUi || "default";
+              const startButton = document.getElementById("bp-authress-start-login");
+              if (loginUI === "clean") {
+                setStatus("Ready to sign in.");
+                startButton?.addEventListener("click", () => void startLogin(loginClient, target, scopes), { once: true });
+                return;
+              }
+              await startLogin(loginClient, target, scopes);
               return;
             }
 
@@ -215,6 +232,12 @@ export function render(data: ResponseData): HtmlRenderable {
             background: rgba(255, 255, 255, 0.94);
             padding: 32px;
             box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+          }
+          .bp-authress-clean {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+          }
+          .bp-authress-clean .bp-authress-panel {
+            box-shadow: 0 18px 50px rgba(15, 23, 42, 0.1);
           }
           .bp-authress-mark {
             width: 44px;

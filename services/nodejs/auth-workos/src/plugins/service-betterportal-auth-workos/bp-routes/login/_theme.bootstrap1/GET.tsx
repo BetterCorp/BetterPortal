@@ -21,13 +21,16 @@ export function render(data: ResponseData): HtmlRenderable {
   }
 
   const redirectUrl = data.authorizationUrl || (data.alreadyLoggedIn || data.signedIn ? next : "");
+  const loginUI = data.loginUI || "default";
+  const cleanLogin = loginUI === "clean" || loginUI === "redirect";
+  const autoRedirect = loginUI === "default" || loginUI === "redirect";
 
   return (
-    <main class="bp-workos-shell" data-redirect-url={redirectUrl} data-mode={data.status}>
+    <main class={cleanLogin ? "bp-workos-shell bp-workos-clean" : "bp-workos-shell"} data-redirect-url={redirectUrl} data-mode={data.status} data-auto-redirect={autoRedirect ? "true" : "false"}>
       <section class="bp-workos-panel">
-        <div class="bp-workos-mark" aria-hidden="true">W</div>
+        {!cleanLogin ? <div class="bp-workos-mark" aria-hidden="true">W</div> : null}
         <h1>Sign in</h1>
-        <p class="bp-workos-copy">Continue with WorkOS.</p>
+        <p class="bp-workos-copy">{cleanLogin ? "Continue to your account." : "Continue with WorkOS."}</p>
         {data.status === "error" ? (
           <div class="alert alert-danger mb-0" role="alert">{data.message || "WorkOS sign in failed."}</div>
         ) : (
@@ -40,7 +43,7 @@ export function render(data: ResponseData): HtmlRenderable {
         {js(() => {
           const root = document.currentScript?.closest(".bp-workos-shell") as HTMLElement | null;
           const url = root?.dataset.redirectUrl;
-          if (!url || root?.dataset.mode === "error") return;
+          if (!url || root?.dataset.mode === "error" || root?.dataset.autoRedirect !== "true") return;
           const link = document.createElement("a");
           link.href = url;
           document.body.appendChild(link);
@@ -66,6 +69,12 @@ export function render(data: ResponseData): HtmlRenderable {
             background: rgba(255, 255, 255, 0.96);
             padding: 32px;
             box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+          }
+          .bp-workos-clean {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+          }
+          .bp-workos-clean .bp-workos-panel {
+            box-shadow: 0 18px 50px rgba(15, 23, 42, 0.1);
           }
           .bp-workos-mark {
             width: 44px;

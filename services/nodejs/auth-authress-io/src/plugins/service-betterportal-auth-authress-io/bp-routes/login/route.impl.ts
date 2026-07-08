@@ -32,6 +32,7 @@ export const ResponseSchema = av.object({
   message: av.optional(av.string()),
   authressApiUrl: av.optional(av.string()),
   authressApplicationId: av.optional(av.string()),
+  loginUI: av.enum_(["default", "clean", "redirect"] as const).default("default"),
   scopes: av.array(av.string()).default([]),
   alreadyLoggedIn: av.optional(av.bool()),
   loggedOut: av.optional(av.bool()),
@@ -106,6 +107,7 @@ export const handleGet = createHandler(
         message: "Signed out.",
         authressApiUrl: browserConfig?.authressApiUrl,
         authressApplicationId: browserConfig?.applicationId,
+        loginUI: appConfig?.loginUI ?? "default",
         loggedOut: true,
         scopes: [],
         nextUrl: loggedOutUrl
@@ -117,6 +119,7 @@ export const handleGet = createHandler(
         message: "Already signed in.",
         authressApiUrl: browserConfig?.authressApiUrl,
         authressApplicationId: browserConfig?.applicationId,
+        loginUI: appConfig?.loginUI ?? "default",
         alreadyLoggedIn: true,
         scopes: [],
         nextUrl,
@@ -131,7 +134,7 @@ export const handleGet = createHandler(
 
     const config = browserConfig;
     if (!config) {
-      return { status: "error" as const, message: "Authress browser config is missing authressApiUrl or applicationId.", scopes: [], nextUrl };
+      return { status: "error" as const, message: "Authress browser config is missing authressApiUrl or applicationId.", loginUI: appConfig?.loginUI ?? "default", scopes: [], nextUrl };
     }
 
     return {
@@ -139,6 +142,7 @@ export const handleGet = createHandler(
       message: "Start Authress sign in.",
       authressApiUrl: config.authressApiUrl,
       authressApplicationId: config.applicationId,
+      loginUI: appConfig?.loginUI ?? "default",
       scopes: splitScopes(config.scopes),
       nextUrl
     };
@@ -151,8 +155,9 @@ export const handlePost = createHandler(
     const request = ctx.request as Infer<typeof RequestSchema>;
     const config = resolveAuthressAppConfig(ctx.config);
     const nextUrl = normalizeRedirect(request.next ?? (ctx.query as Infer<typeof QuerySchema>).next ?? config?.loginRedirectPath);
+    const loginUI = config?.loginUI ?? "default";
     if (!config) {
-      return { status: "error" as const, message: "Authress config is missing authressApiUrl or applicationId.", scopes: [], nextUrl };
+      return { status: "error" as const, message: "Authress config is missing authressApiUrl or applicationId.", loginUI, scopes: [], nextUrl };
     }
 
     let user: JwtClaims;
@@ -160,11 +165,11 @@ export const handlePost = createHandler(
       user = await pluginFrom(ctx).verifyAuthressToken(request.accessToken, config, { tenantId: ctx.tenant.id, appId: ctx.app.id });
     } catch (error: any) {
       ctx.obs?.error(error);
-      return { status: "error" as const, message: `Authress token verification failed: ${(error as Error).message}`, scopes: [], nextUrl };
+      return { status: "error" as const, message: `Authress token verification failed: ${(error as Error).message}`, loginUI, scopes: [], nextUrl };
     }
 
     if (request.userId && request.userId !== user.sub) {
-      return { status: "error" as const, message: "Authress profile subject does not match token subject.", scopes: [], nextUrl };
+      return { status: "error" as const, message: "Authress profile subject does not match token subject.", loginUI, scopes: [], nextUrl };
     }
 
     const issued = pluginFrom(ctx).issueTokenPair({
@@ -196,6 +201,7 @@ export const handlePost = createHandler(
     return {
       status: "ok" as const,
       message: "Signed in.",
+      loginUI,
       scopes: [],
       nextUrl,
       expiresInSeconds: issued.accessTokenExpiresInSeconds,
