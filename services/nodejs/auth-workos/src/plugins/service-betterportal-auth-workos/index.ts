@@ -380,11 +380,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   async syncRolesFromWorkOS(tenantId: string, appId: string): Promise<{ roles: number; grants: number }> {
     const config = this.getWorkOSAppConfig(tenantId, appId);
     if (!config) throw new Error("WorkOS app config is missing clientId or apiKey.");
+    if (!this.isAuthoritativeService(tenantId, appId, "auth")) {
+      throw new Error("WorkOS service is not configured as the authoritative auth service for this app.");
+    }
     const currentSlugs = new Set(this.bpPermissionCatalog(tenantId).map((entry) => entry.slug));
     const roles = (await this.listWorkOSRoles(config))
       .map((role) => this.toBpRole(role, currentSlugs))
       .filter((role): role is AppAuthRole => Boolean(role));
-    await this.pushRolesToConfigManager(appId, roles);
+    await this.updateAuthoritativeService(tenantId, appId, "auth", { roles });
     this.markRoleMappings(tenantId, appId, roles.map((role) => role.id));
     this.markAppSync(tenantId, appId, { roles: true });
     return {
@@ -483,24 +486,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       ...(role.description ? { description: role.description } : {}),
       permissions
     };
-  }
-
-  private async pushRolesToConfigManager(appId: string, roles: AppAuthRole[]): Promise<void> {
-    const credentials = this.controlPlaneCredentials();
-    if (!credentials) throw new Error("WorkOS service is not installed with config-manager credentials.");
-    const response = await fetch(`${credentials.url}/.well-known/bp/admin/apps/${encodeURIComponent(appId)}/auth/roles/sync`, {
-      method: "PUT",
-      headers: {
-        Accept: "application/json",
-        "content-type": "application/json",
-        Authorization: `Bearer ${credentials.apiKey}`
-      },
-      body: JSON.stringify({ roles })
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`Config Manager role sync failed: ${response.status} ${body}`);
-    }
   }
 
   private loadWorkOSState(): WorkOSState {

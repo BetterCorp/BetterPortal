@@ -120,7 +120,7 @@ Role ids are the contract with external providers. The auth provider token `role
 
 WorkOS uses provider slugs as keys: WorkOS role `slug` is mirrored to `app.auth.roles[].id`, and WorkOS permission `slug` stores short BP permission keys as `bp_<shortId>_<permission>`. The auth-workos service owns the local `workosStatePath` JSON file that maps each short id back to `tenantId + serviceId + viewId`; roles remain app-scoped when mirrored into BP. BP syncs missing/current permissions up to WorkOS, but only WorkOS role webhook events sync roles back down. Do not subscribe to WorkOS permission webhook events; stale BP permission slugs are deleted when unassigned or renamed `DEL: ...` while still assigned.
 
-WorkOS role sync writes to Config Manager with the service key created during BP install/bootstrap. That key is only accepted for apps whose selected auth service is the same WorkOS activation, and synced grants are rejected unless their `serviceId + viewId` is mounted and enabled on the target app.
+WorkOS role sync writes to Config Manager through the service self-mutation endpoint with the service key created during BP install/bootstrap. Config Manager accepts auth self-mutations only when the caller's service id matches the app's selected auth service, including shared-service activation ids. Synced grants are rejected unless their `serviceId + viewId` is mounted and enabled on the target app.
 
 `*` is reserved as the platform-root wildcard role. It is only honored when the request tenant/app exactly match `configManagement.adminTenantId` and `configManagement.managementAppId`; otherwise it is logged as misuse and ignored for grants. `root` is not a valid role id.
 

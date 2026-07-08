@@ -29,10 +29,12 @@ import {
   verifySetupToken,
   verifyServiceConfigTicket,
   type AppAuthConfig,
+  type AppAuthRole,
   type AuthProviderRuntimeMetadata,
   type BetterPortalResolvedRequestContext,
   type BetterPortalObservability,
   type BetterPortalRegistry,
+  type BetterPortalThemeConfig,
   type JwtVerifier,
   type ManifestBaseFields,
   type PluginManifest,
@@ -123,6 +125,13 @@ export const BetterPortalConfigSchema = av.optional(av.object({
 }, { unknownKeys: "strip" }));
 
 // Service definition
+
+export type AuthoritativeServiceType = "auth" | "theme";
+
+export type AuthoritativeServiceMutation<T extends AuthoritativeServiceType> =
+  T extends "auth"
+    ? { roles: AppAuthRole[] }
+    : { themeConfig: BetterPortalThemeConfig };
 
 export interface BPServiceDefinition {
   manifest: ManifestBaseFields;
@@ -253,6 +262,55 @@ export abstract class BPService<
   protected controlPlaneCredentials(): { url: string; apiKey: string } | null {
     if (!this.resolvedCpUrl || !this.resolvedApiKey) return null;
     return { url: this.resolvedCpUrl.replace(/\/+$/, ""), apiKey: this.resolvedApiKey };
+  }
+
+  protected isAuthoritativeService(tenantId: string, appId: string, serviceType: AuthoritativeServiceType): boolean {
+    const scoped = this.scopedConfig;
+    if (!scoped) return false;
+    const tenant = scoped.tenants.find((candidate) => candidate.id === tenantId && candidate.active);
+    const app = scoped.apps.find((candidate) => candidate.id === appId && candidate.tenantId === tenantId);
+    if (!tenant || !app) return false;
+
+    const mountedServiceId = serviceType === "auth" ? app.auth?.serviceId : app.shell?.serviceId;
+    if (!mountedServiceId) return false;
+
+    return tenant.services.some((service) =>
+      service.enabled !== false
+      && service.id === mountedServiceId
+      && (
+        service.serviceId === this.manifest.pluginId
+        || service.sharedServiceId === this.manifest.pluginId
+      )
+    );
+  }
+
+  protected async updateAuthoritativeService<T extends AuthoritativeServiceType>(
+    tenantId: string,
+    appId: string,
+    serviceType: T,
+    mutation: AuthoritativeServiceMutation<T>
+  ): Promise<void> {
+    const credentials = this.controlPlaneCredentials();
+    if (!credentials) throw new Error("BetterPortal control-plane credentials are unavailable.");
+
+    const response = await fetch(`${credentials.url}/.well-known/bp/admin/services/self-mutation`, {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        "content-type": "application/json",
+        Authorization: `Bearer ${credentials.apiKey}`
+      },
+      body: JSON.stringify({
+        tenantId,
+        appId,
+        type: serviceType,
+        mutation
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Config Manager self-mutation failed: ${response.status} ${body}`);
+    }
   }
 
   /**

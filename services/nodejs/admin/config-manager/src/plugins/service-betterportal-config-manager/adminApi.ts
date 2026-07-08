@@ -4,13 +4,16 @@ import type {
   PlatformConfigStore,
   JsonValue
 } from "@betterportal/framework";
+import * as av from "anyvali";
 import {
+  AppAuthRoleSchema,
   eventHeaders,
   htmlResponse,
   jsonResponse,
   resolveEmbeddedRequestContext,
   signServiceConfigTicket,
-  uuidv7
+  uuidv7,
+  BetterPortalThemeConfigSchema
 } from "@betterportal/framework";
 import type { TenantServiceRegistration, PlatformService, BetterPortalThemeConfig, BetterPortalConfig, BetterPortalApp, BetterPortalRouteMount, DeploymentMode } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
@@ -1394,6 +1397,25 @@ export function registerAdminApiRoutes(
     }>;
   };
   type ServiceIdentity = NonNullable<Awaited<ReturnType<typeof store.validateApiKey>>>;
+  type AuthoritativeServiceType = "auth" | "theme";
+  const SelfMutationRequestSchema = av.union([
+    av.object({
+      tenantId: av.string().minLength(1),
+      appId: av.string().minLength(1),
+      type: av.literal("auth"),
+      mutation: av.object({
+        roles: av.array(AppAuthRoleSchema)
+      }, { unknownKeys: "strip" })
+    }, { unknownKeys: "strip" }),
+    av.object({
+      tenantId: av.string().minLength(1),
+      appId: av.string().minLength(1),
+      type: av.literal("theme"),
+      mutation: av.object({
+        themeConfig: BetterPortalThemeConfigSchema
+      }, { unknownKeys: "strip" })
+    }, { unknownKeys: "strip" })
+  ]);
 
   const getAppOr404 = async (appId: string) => {
     const config = await store.loadConfig();
@@ -1441,16 +1463,100 @@ export function registerAdminApiRoutes(
     return validated;
   };
 
-  const requireServiceIdentityForAppAuth = async (
+  const appMountedServiceId = (appDef: BetterPortalApp, type: AuthoritativeServiceType): string | undefined =>
+    type === "auth" ? appDef.auth?.serviceId : appDef.shell?.serviceId;
+
+  const serviceIdentityOwnsMountedService = (
+    config: BetterPortalConfig,
+    appDef: BetterPortalApp,
+    identity: ServiceIdentity,
+    mountedServiceId: string | undefined
+  ): boolean => {
+    if (!mountedServiceId || !identity.serviceId) return false;
+    if (identity.serviceId === mountedServiceId) return true;
+
+    const activation = config.sharedServiceActivations.find((candidate) =>
+      candidate.enabled
+      && candidate.id === mountedServiceId
+      && candidate.tenantId === appDef.tenantId
+      && (!candidate.appId || candidate.appId === appDef.id)
+      && candidate.sharedServiceId === identity.serviceId
+    );
+    if (activation) return true;
+
+    const tenant = config.tenants.find((candidate) => candidate.id === appDef.tenantId);
+    return Boolean(
+      tenant?.services.some((service) =>
+        service.enabled
+        && service.id === mountedServiceId
+        && service.serviceId === identity.serviceId
+      )
+    );
+  };
+
+  const requireServiceIdentityForAuthoritativeService = async (
     event: BetterPortalEvent,
-    appDef: { auth?: { serviceId?: string } }
+    config: BetterPortalConfig,
+    appDef: BetterPortalApp,
+    type: AuthoritativeServiceType
   ): Promise<Response | undefined> => {
     const identity = await readServiceIdentity(event);
     if (identity instanceof Response) return identity;
-    if (identity.serviceId !== appDef.auth?.serviceId) {
-      return jsonResponse({ error: "Service API key does not match app auth service" }, 403);
+    const mountedServiceId = appMountedServiceId(appDef, type);
+    if (!serviceIdentityOwnsMountedService(config, appDef, identity, mountedServiceId)) {
+      return jsonResponse({
+        error: `Service API key is not authoritative for app ${type} service`,
+        serviceId: identity.serviceId ?? null,
+        appServiceId: mountedServiceId ?? null,
+        type
+      }, 403);
     }
     return undefined;
+  };
+
+  const requireServiceIdentityForAppAuth = async (
+    event: BetterPortalEvent,
+    config: BetterPortalConfig,
+    appDef: BetterPortalApp
+  ): Promise<Response | undefined> =>
+    requireServiceIdentityForAuthoritativeService(event, config, appDef, "auth");
+
+  const parseSyncedRoles = (
+    appDef: BetterPortalApp,
+    roles: unknown[]
+  ): AppAuthRoleEntry[] | Response => {
+    const parsedRoles: AppAuthRoleEntry[] = [];
+    for (const rawRole of roles) {
+      if (!rawRole || typeof rawRole !== "object") continue;
+      const input = rawRole as Record<string, unknown>;
+      const roleId = validateRoleId(input.id);
+      const title = typeof input.title === "string" && input.title.trim() ? input.title.trim() : roleId;
+      if (!roleId || !title) continue;
+      const permissions = Array.isArray(input.permissions)
+        ? input.permissions.filter((grant): grant is AppAuthRoleEntry["permissions"][number] => {
+            if (!grant || typeof grant !== "object") return false;
+            const value = grant as Record<string, unknown>;
+            return typeof value.serviceId === "string"
+              && typeof value.viewId === "string"
+              && Array.isArray(value.permissions)
+              && value.permissions.every((action) => ["read", "create", "update", "delete"].includes(String(action)));
+          }).map((grant) => ({
+            serviceId: grant.serviceId,
+            viewId: grant.viewId,
+            permissions: [...new Set(grant.permissions)]
+          }))
+        : [];
+      const permissionError = validateSyncedRolePermissions(appDef, roleId, permissions);
+      if (permissionError) return permissionError;
+      if (permissions.length === 0) continue;
+      parsedRoles.push({
+        id: roleId,
+        title,
+        ...(typeof input.description === "string" ? { description: input.description } : {}),
+        permissions
+      });
+    }
+    return parsedRoles;
   };
 
   const validateSyncedRolePermissions = (
@@ -1499,46 +1605,43 @@ export function registerAdminApiRoutes(
 
     const { config, appDef } = await getAppOr404(appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-    const serviceError = await requireServiceIdentityForAppAuth(event, appDef as { auth?: { serviceId?: string } });
+    const serviceError = await requireServiceIdentityForAppAuth(event, config, appDef as BetterPortalApp);
     if (serviceError) return serviceError;
     const authResult = requireAuthBlock(event, appDef);
     if (authResult.response) return authResult.response;
 
-    const parsedRoles: AppAuthRoleEntry[] = [];
-    for (const rawRole of roles) {
-      if (!rawRole || typeof rawRole !== "object") continue;
-      const input = rawRole as Record<string, unknown>;
-      const roleId = validateRoleId(input.id);
-      const title = typeof input.title === "string" && input.title.trim() ? input.title.trim() : roleId;
-      if (!roleId || !title) continue;
-      const permissions = Array.isArray(input.permissions)
-        ? input.permissions.filter((grant): grant is AppAuthRoleEntry["permissions"][number] => {
-            if (!grant || typeof grant !== "object") return false;
-            const value = grant as Record<string, unknown>;
-            return typeof value.serviceId === "string"
-              && typeof value.viewId === "string"
-              && Array.isArray(value.permissions)
-              && value.permissions.every((action) => ["read", "create", "update", "delete"].includes(String(action)));
-          }).map((grant) => ({
-            serviceId: grant.serviceId,
-            viewId: grant.viewId,
-            permissions: [...new Set(grant.permissions)]
-          }))
-        : [];
-      const permissionError = validateSyncedRolePermissions(appDef as BetterPortalApp, roleId, permissions);
-      if (permissionError) return permissionError;
-      if (permissions.length === 0) continue;
-      parsedRoles.push({
-        id: roleId,
-        title,
-        ...(typeof input.description === "string" ? { description: input.description } : {}),
-        permissions
-      });
-    }
+    const parsedRoles = parseSyncedRoles(appDef as BetterPortalApp, roles);
+    if (parsedRoles instanceof Response) return parsedRoles;
 
     authResult.auth!.roles = parsedRoles;
     await store.saveConfig(config);
     return jsonResponse({ ok: true, roles: parsedRoles.length });
+  });
+
+  app.put(`${API_BASE}/services/self-mutation`, async (event) => {
+    const parsed = SelfMutationRequestSchema.safeParse(await readJsonBody(event));
+    if (!parsed.success) return jsonResponse({ error: "Invalid self-mutation request", issues: parsed.issues as unknown as JsonValue }, 400);
+    const { tenantId, appId, type, mutation } = parsed.data;
+
+    const { config, appDef } = await getAppOr404(appId);
+    if (!appDef || appDef.tenantId !== tenantId) return jsonResponse({ error: "App not found" }, 404);
+
+    const serviceError = await requireServiceIdentityForAuthoritativeService(event, config, appDef, type);
+    if (serviceError) return serviceError;
+
+    if (type === "auth") {
+      const authResult = requireAuthBlock(event, appDef);
+      if (authResult.response) return authResult.response;
+      const parsedRoles = parseSyncedRoles(appDef, mutation.roles);
+      if (parsedRoles instanceof Response) return parsedRoles;
+      authResult.auth!.roles = parsedRoles;
+      await store.saveConfig(config);
+      return jsonResponse({ ok: true, type, roles: parsedRoles.length });
+    }
+
+    appDef.themeConfig = mutation.themeConfig;
+    await store.saveConfig(config);
+    return jsonResponse({ ok: true, type });
   });
 
   app.post(`${API_BASE}/apps/:appId/auth/roles`, async (event) => {
