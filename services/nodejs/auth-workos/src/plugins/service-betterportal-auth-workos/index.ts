@@ -455,6 +455,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const portal = this.getPortalConfig();
     if (!portal) return [];
     const state = this.loadWorkOSState();
+    const tenant = portal.tenants.find((candidate) => candidate.id === tenantId);
+    const servicesById = new Map(
+      (tenant?.services ?? []).map((service) => [
+        service.id,
+        service.title ?? service.serviceId ?? service.id
+      ])
+    );
     const entries: BpPermissionCatalogEntry[] = [];
     const seen = new Set<string>();
     for (const app of portal.apps.filter((candidate) => candidate.tenantId === tenantId)) {
@@ -463,11 +470,21 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         if (seen.has(key)) continue;
         seen.add(key);
         const mapping = getOrCreatePermissionMapping(state, tenantId, route.serviceId, route.viewId);
-        entries.push(...permissionCatalogForRoute(route as BetterPortalRouteMount, mapping));
+        entries.push(...permissionCatalogForRoute(route as BetterPortalRouteMount, mapping, servicesById.get(route.serviceId) ?? route.serviceId));
       }
     }
     this.saveWorkOSState(state);
     return entries;
+  }
+
+  private routeCatalogCounts(tenantId: string): { page: number; api: number; total: number } {
+    const portal = this.getPortalConfig();
+    const routes = portal?.apps
+      .filter((candidate) => candidate.tenantId === tenantId)
+      .flatMap((app) => app.routes.filter((route) => route.enabled !== false)) ?? [];
+    const page = routes.filter((route) => (route.kind ?? "page") === "page").length;
+    const api = routes.filter((route) => route.kind === "api").length;
+    return { page, api, total: routes.length };
   }
 
   private toBpRole(role: WorkOSRole, currentSlugs: Set<string>): AppAuthRole | null {
@@ -585,6 +602,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       error = err instanceof Error ? err.message : String(err);
     }
     const currentSlugs = new Set(this.bpPermissionCatalog(tenantId).map((entry) => entry.slug));
+    const routeCounts = this.routeCatalogCounts(tenantId);
     const syncedIds = new Set(bpRoles.map((role) => role.id));
     const roleRows = workosRoles
       .filter((role) => role.permissions.some((permission) => currentSlugs.has(permission)))
@@ -605,7 +623,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           </div>
           ${status ? renderSyncStatus(status) : ""}
           ${error ? `<div class="alert alert-danger">WorkOS role read failed: ${escapeHtml(error)}</div>` : ""}
-          <div class="mb-2 small"><strong>BP permissions:</strong> ${currentSlugs.size} <span class="text-secondary">|</span> <strong>Mirrored BP roles:</strong> ${bpRoles.length}</div>
+          <div class="mb-2 small"><strong>BP permissions:</strong> ${currentSlugs.size} <span class="text-secondary">|</span> <strong>Routes:</strong> ${routeCounts.total} (${routeCounts.page} page, ${routeCounts.api} API) <span class="text-secondary">|</span> <strong>Mirrored BP roles:</strong> ${bpRoles.length}</div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead><tr><th>Role slug</th><th>Name</th><th>Current BP grants</th><th>Status</th></tr></thead>
@@ -803,15 +821,19 @@ function readStringArrayClaim(claims: Record<string, unknown>, path: string): st
   return typeof value === "string" && value.length > 0 ? [value] : [];
 }
 
-function permissionCatalogForRoute(route: BetterPortalRouteMount, mapping: WorkOSPermissionMapping): BpPermissionCatalogEntry[] {
+function permissionCatalogForRoute(route: BetterPortalRouteMount, mapping: WorkOSPermissionMapping, serviceTitle: string): BpPermissionCatalogEntry[] {
   const title = route.title ?? route.viewId;
+  const kind = route.kind ?? "page";
+  const appPath = route.path;
+  const servicePath = route.resolvedServicePath ?? route.targetPath ?? route.path;
+  const methods = route.methods.length ? route.methods.join(",") : "GET";
   return (["read", "create", "update", "delete"] as const).map((action) => ({
     slug: bpPermissionSlug(mapping.shortId, action),
     serviceId: route.serviceId,
     viewId: route.viewId,
     action,
-    title: `${title}: ${action}`,
-    description: `BetterPortal ${route.serviceId} ${route.viewId} ${action} permission`
+    title: `${serviceTitle} - ${title} - ${action}`,
+    description: `${kind.toUpperCase()} ${methods} app:${appPath} service:${servicePath} view:${route.viewId} serviceId:${route.serviceId}`
   }));
 }
 
