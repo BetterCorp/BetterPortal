@@ -147,13 +147,23 @@ function shellRuntimeSource(): string {
 
       const cleanupTeleportedOffcanvas = () => {
         teleportedOffcanvas.forEach((el) => {
+          const remove = () => {
+            try { (bootstrap as any)?.Offcanvas.getInstance(el)?.dispose(); }
+            catch { /* already disposed */ }
+            el.remove();
+            teleportedOffcanvas.delete(el);
+          };
           try {
             const inst = bootstrap && (bootstrap as any).Offcanvas.getInstance(el);
-            if (inst) { inst.hide(); inst.dispose(); }
+            const transitioning = el.classList.contains("show") || el.classList.contains("showing") || el.classList.contains("hiding");
+            if (inst && transitioning) {
+              el.addEventListener("hidden.bs.offcanvas", remove, { once: true });
+              inst.hide();
+              return;
+            }
           } catch { /* already disposed */ }
-          el.remove();
+          remove();
         });
-        teleportedOffcanvas.clear();
       };
 
       const syncBootstrapOverlays = () => {
@@ -193,7 +203,7 @@ function shellRuntimeSource(): string {
       scheduleBootstrapOverlaySync();
 
       const closeContainingOffcanvas = (source: Element | null | undefined) => {
-        const panel = source?.closest?.(".offcanvas.show") as Element | null;
+        const panel = source?.closest?.(".offcanvas.show, .offcanvas.showing, .offcanvas.hiding") as Element | null;
         if (!panel || !bootstrap) return;
         try {
           ((bootstrap as any).Offcanvas.getInstance(panel) || new (bootstrap as any).Offcanvas(panel)).hide();
