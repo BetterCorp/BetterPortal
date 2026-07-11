@@ -245,12 +245,69 @@ function methodsLabel(methods: string[] | undefined): string {
   return ((methods && methods.length > 0 ? methods : ["GET"]) as string[]).join(", ");
 }
 
-function pathDepth(path: string): number {
-  return path.split("/").filter(Boolean).length;
+type VisualRoute = ResponseData["routes"][number];
+
+type RouteTreeNode = {
+  path: string;
+  route?: VisualRoute;
+  children: RouteTreeNode[];
+};
+
+type VisualRouteRow = {
+  path: string;
+  route?: VisualRoute;
+  depth: number;
+  basePath: string;
+};
+
+function routeSegments(path: string): string[] {
+  return path.replace(/\/+/g, "/").replace(/\/$/, "").split("/").filter(Boolean);
 }
 
 function domId(value: string): string {
   return value.replace(/[^A-Za-z0-9_-]/g, "-");
+}
+function buildRouteTree(routes: VisualRoute[]): RouteTreeNode[] {
+  const root: RouteTreeNode = { path: "", children: [] };
+  for (const route of routes) {
+    const segments = routeSegments(route.path);
+    let node = root;
+    segments.forEach((segment, index) => {
+      const path = `/${segments.slice(0, index + 1).join("/")}`;
+      let child = node.children.find((candidate) => candidate.path === path);
+      if (!child) {
+        child = { path, children: [] };
+        node.children.push(child);
+      }
+      node = child;
+    });
+    node.route = route;
+  }
+  return root.children.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function routeCount(node: RouteTreeNode): number {
+  return (node.route ? 1 : 0) + node.children.reduce((total, child) => total + routeCount(child), 0);
+}
+
+function relativeRoutePath(path: string, basePath: string): string {
+  if (!basePath) return path;
+  const prefix = `${basePath.replace(/\/$/, "")}/`;
+  return path.startsWith(prefix) ? `./${path.slice(prefix.length)}` : path;
+}
+
+function flattenRouteTree(nodes: RouteTreeNode[]): VisualRouteRow[] {
+  const rows: VisualRouteRow[] = [];
+  const visit = (node: RouteTreeNode, depth: number, basePath: string) => {
+    const showNode = Boolean(node.route) || routeCount(node) > 1;
+    const nextBasePath = showNode ? node.path : basePath;
+    if (showNode) rows.push({ path: node.path, route: node.route, depth, basePath });
+    for (const child of node.children.sort((left, right) => left.path.localeCompare(right.path))) {
+      visit(child, showNode ? depth + 1 : depth, nextBasePath);
+    }
+  };
+  nodes.forEach((node) => visit(node, 0, ""));
+  return rows;
 }
 
 function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
@@ -262,6 +319,7 @@ function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
     return <div class="alert alert-secondary">No visual routes for this app yet</div>;
   }
 
+  const rows = flattenRouteTree(buildRouteTree(pageRoutes));
   return (
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle">
@@ -277,42 +335,50 @@ function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
           </tr>
         </thead>
         <tbody>
-          {pageRoutes.map((route) => (
-            <tr class={route.enabled ? "" : "text-secondary"}>
-              <td class="font-monospace small fw-semibold">
-                <span style={`padding-left:${Math.max(0, pathDepth(route.path) - 1) * 1.25}rem`}>{route.path}</span>
-              </td>
-              <td>{route.title ?? ""}</td>
-              <td class="small" data-bp-route-service-label={route.serviceId}>{serviceLabel(data.availableServices, route.serviceId)}</td>
-              <td class="small" data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId}>{viewLabel(data.availableServices, route.serviceId, route.viewId)}</td>
-              <td class="small font-monospace">{(route as unknown as { query?: string }).query ?? ""}</td>
-              <td>
-                <button
-                  class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
-                  hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                  hx-vals={JSON.stringify({ enabled: !route.enabled })}
-                  hx-target="#bp-main"
-                  hx-swap="innerHTML"
-                >{route.enabled ? "on" : "off"}</button>
-              </td>
-              <td>
-                <div class="btn-group btn-group-sm">
+          {rows.map((row) => {
+            const route = row.route;
+            const displayPath = relativeRoutePath(row.path, row.basePath);
+            return (
+              <tr class={route ? (route.enabled ? "" : "text-secondary") : "text-secondary"}>
+                <td class="font-monospace small fw-semibold">
+                  <span
+                    class={row.depth > 0 ? "bp-route-tree-child" : "bp-route-tree-root"}
+                    style={`padding-left:${row.depth * 1.25}rem`}
+                    title={row.path}
+                  >{row.depth > 0 ? "└─ " : ""}{displayPath}</span>
+                </td>
+                <td>{route?.title ?? ""}</td>
+                <td class="small" data-bp-route-service-label={route?.serviceId}>{route ? serviceLabel(data.availableServices, route.serviceId) : ""}</td>
+                <td class="small" data-bp-route-service-id={route?.serviceId} data-bp-route-view-label={route?.viewId}>{route ? viewLabel(data.availableServices, route.serviceId, route.viewId) : ""}</td>
+                <td class="small font-monospace">{route?.query ?? ""}</td>
+                <td>{route ? (
                   <button
-                    class="btn btn-outline-primary"
-                    data-bs-toggle="offcanvas"
-                    data-bs-target={`#bp-edit-route-panel-${route.id}`}
-                  >Edit</button>
-                  <button
-                    class="btn btn-outline-danger"
-                    hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                    hx-confirm="Delete route?"
-                    hx-target="#bp-routes-alerts"
+                    class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
+                    hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                    hx-vals={JSON.stringify({ enabled: !route.enabled })}
+                    hx-target="#bp-main"
                     hx-swap="innerHTML"
-                  >x</button>
-                </div>
-              </td>
-            </tr>
-          ))}
+                  >{route.enabled ? "on" : "off"}</button>
+                ) : ""}</td>
+                <td>{route ? (
+                  <div class="btn-group btn-group-sm">
+                    <button
+                      class="btn btn-outline-primary"
+                      data-bs-toggle="offcanvas"
+                      data-bs-target={`#bp-edit-route-panel-${route.id}`}
+                    >Edit</button>
+                    <button
+                      class="btn btn-outline-danger"
+                      hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                      hx-confirm="Delete route?"
+                      hx-target="#bp-routes-alerts"
+                      hx-swap="innerHTML"
+                    >x</button>
+                  </div>
+                ) : ""}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
