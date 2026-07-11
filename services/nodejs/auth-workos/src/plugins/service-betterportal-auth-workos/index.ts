@@ -178,6 +178,7 @@ type WorkOSPermission = {
 
 type BpPermissionCatalogEntry = {
   slug: string;
+  serviceName: string;
   serviceId: string;
   viewId: string;
   action: AppAuthPermissionAction;
@@ -595,13 +596,27 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const selfBase = requestBaseUrl(event.req);
     const bpRoles = ((app?.auth?.roles ?? []) as AppAuthRole[]);
     let workosRoles: WorkOSRole[] = [];
+    let workosPermissions: WorkOSPermission[] = [];
     let error = "";
     try {
-      workosRoles = await this.listWorkOSRoles(config);
+      [workosRoles, workosPermissions] = await Promise.all([
+        this.listWorkOSRoles(config),
+        this.client(config).authorization.listPermissions().then((list) => list.autoPagination())
+      ]);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
-    const currentSlugs = new Set(this.bpPermissionCatalog(tenantId).map((entry) => entry.slug));
+    const permissionCatalog = this.bpPermissionCatalog(tenantId);
+    const currentSlugs = new Set(permissionCatalog.map((entry) => entry.slug));
+    const workosBySlug = new Map(workosPermissions.map((permission) => [permission.slug, permission]));
+    const permissionRows = permissionCatalog.map((entry) => {
+      const workos = workosBySlug.get(entry.slug);
+      const state = !workos ? "Missing" : workos.name === entry.title && (workos.description ?? "") === entry.description ? "Synced" : "Needs update";
+      return `<tr><td>${escapeHtml(entry.serviceName)}</td><td>${escapeHtml(entry.viewId)}</td><td>${escapeHtml(entry.action)}</td><td><code>${escapeHtml(entry.slug)}</code></td><td>${state}</td></tr>`;
+    });
+    const currentCatalogSlugs = new Set(permissionCatalog.map((entry) => entry.slug));
+    const removedRows = workosPermissions.filter((permission) => isBpOwnedPermissionSlug(permission.slug) && !currentCatalogSlugs.has(permission.slug)).map((permission) => `<tr><td class="text-secondary">—</td><td class="text-secondary">—</td><td class="text-secondary">—</td><td><code>${escapeHtml(permission.slug)}</code></td><td>Removed from BP</td></tr>`);
+    const permissionTableRows = [...permissionRows, ...removedRows].join("");
     const routeCounts = this.routeCatalogCounts(tenantId);
     const syncedIds = new Set(bpRoles.map((role) => role.id));
     const roleRows = workosRoles
@@ -624,6 +639,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           ${status ? renderSyncStatus(status) : ""}
           ${error ? `<div class="alert alert-danger">WorkOS role read failed: ${escapeHtml(error)}</div>` : ""}
           <div class="mb-2 small"><strong>BP permissions:</strong> ${currentSlugs.size} <span class="text-secondary">|</span> <strong>Routes:</strong> ${routeCounts.total} (${routeCounts.page} page, ${routeCounts.api} API) <span class="text-secondary">|</span> <strong>Mirrored BP roles:</strong> ${bpRoles.length}</div>
+          <div class="table-responsive mb-4">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Service</th><th>View</th><th>Action</th><th>WorkOS slug</th><th>State</th></tr></thead>
+              <tbody>${permissionTableRows || `<tr><td colspan="5" class="text-secondary">No BetterPortal permissions found.</td></tr>`}</tbody>
+            </table>
+          </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead><tr><th>Role slug</th><th>Name</th><th>Current BP grants</th><th>Status</th></tr></thead>
@@ -829,6 +850,7 @@ function permissionCatalogForRoute(route: BetterPortalRouteMount, mapping: WorkO
   const methods = route.methods.length ? route.methods.join(",") : "GET";
   return (["read", "create", "update", "delete"] as const).map((action) => ({
     slug: bpPermissionSlug(mapping.shortId, action),
+    serviceName: serviceTitle,
     serviceId: route.serviceId,
     viewId: route.viewId,
     action,

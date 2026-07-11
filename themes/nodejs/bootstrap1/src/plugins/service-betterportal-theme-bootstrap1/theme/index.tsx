@@ -2086,7 +2086,7 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
           data-bp-no-route=""
         >{shellStyles(context.themeMode, context.themeConfig)}</style>
       </head>
-      <body hx-history-elt={true}>{context.bodyHtml}</body>
+      <body>{context.bodyHtml}</body>
     </html>
   );
 }
@@ -2242,6 +2242,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
             <main class="bp-shell__main">
               <div
                 id="bp-main"
+                hx-history-elt={true}
                 data-bp-main-outlet=""
                 data-bp-service={context.initialServiceId}
                 hx-get={context.initialRouteUrl ?? ""}
@@ -2325,6 +2326,7 @@ function Bootstrap1AuthBody(context: Bootstrap1HostPageContext): HtmlRenderable 
       <main class="bp-shell__main bp-shell__main--auth">
         <div
           id="bp-main"
+          hx-history-elt={true}
           data-bp-main-outlet=""
           data-bp-service={context.initialServiceId}
           hx-get={context.initialRouteUrl ?? ""}
