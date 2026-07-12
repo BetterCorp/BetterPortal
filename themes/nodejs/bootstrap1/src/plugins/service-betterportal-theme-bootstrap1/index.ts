@@ -38,7 +38,7 @@ import {
   type BPServiceDefinition,
   type BetterPortalConfig
 } from "@betterportal/plugin-bsb";
-import { renderBootstrap1HostPage, renderNavItems, shellStyles, renderBrand, type Bootstrap1NavItem } from "./theme/index.js";
+import { isUserFacingRoute, renderBootstrap1HostPage, renderNavItems, shellStyles, renderBrand, type Bootstrap1NavItem } from "./theme/index.js";
 import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap1Asset } from "./assets.js";
 
@@ -795,6 +795,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       // service map, but unsafe theme-origin targets are withheld.
       return {
         id: route.id,
+        kind: route.kind,
         title: displayTitle ?? route.title ?? route.id,
         href: route.path,
         requestUrl: safeTarget.ok ? safeTarget.url : undefined,
@@ -814,7 +815,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const buildLeaf = (m: MenuItem): any => {
       if (m.type !== "link" || !m.routeId) return null;
       const r = routesById.get(m.routeId);
-      if (!r || !r.enabled) return null;
+      if (!r || !r.enabled || !isUserFacingRoute({ kind: r.kind, href: r.path })) return null;
       const link = buildLinkFromRoute(r, m.title);
       if (!link) return null;
         (link as any).serviceStatus = m.serviceStatus ?? "show";
@@ -1173,6 +1174,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         );
         return {
           id: route.id,
+          kind: route.kind,
           title: displayTitle ?? route.title ?? route.id,
           href: route.path,
           requestUrl: safeTarget.ok ? safeTarget.url : undefined,
@@ -1193,7 +1195,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const buildLeafFromMenu = (m: MenuItem): { kind: "route"; route: ReturnType<typeof buildLinkFromRoute>; breadcrumb: string } | null => {
         if (m.type !== "link" || !m.routeId) return null;
         const r = routesById.get(m.routeId);
-        if (!r || !r.enabled) return null;
+        if (!r || !r.enabled || !isUserFacingRoute({ kind: r.kind, href: r.path })) return null;
         const link = buildLinkFromRoute(r, m.title);
         if (!link) return null;
         (link as any).serviceStatus = m.serviceStatus ?? "show";

@@ -410,6 +410,7 @@ function shellRuntimeSource(): string {
         servicePath: string;
         serviceOrigin: string;
         serviceId: string;
+        kind?: "page" | "api";
       }
 
       const serviceOrigins: Record<string, string> = (() => {
@@ -901,14 +902,14 @@ function shellRuntimeSource(): string {
 
       const buildServiceRouteMap = (): ServiceRoute[] => {
         const routes: ServiceRoute[] = [];
-        const addRoute = (tenantPathRaw: string, requestUrl: string, serviceId: string) => {
+        const addRoute = (tenantPathRaw: string, requestUrl: string, serviceId: string, kind?: "page" | "api") => {
           if (!requestUrl || !serviceId) return;
           const origin = serviceOrigins[serviceId];
           if (!origin) return;
           try {
             const tenantPath = normalizePath(tenantPathRaw || "/");
             const servicePath = normalizePath(new URL(requestUrl).pathname);
-            routes.push({ tenantPath, servicePath, serviceOrigin: origin, serviceId });
+            routes.push({ tenantPath, servicePath, serviceOrigin: origin, serviceId, kind });
           } catch { /* skip invalid */ }
         };
         try {
@@ -916,14 +917,16 @@ function shellRuntimeSource(): string {
             href?: string;
             requestUrl?: string;
             serviceId?: string;
+            kind?: "page" | "api";
           }>;
-          allRoutes.forEach((route) => addRoute(route.href || "/", route.requestUrl || "", route.serviceId || ""));
+          allRoutes.forEach((route) => addRoute(route.href || "/", route.requestUrl || "", route.serviceId || "", route.kind));
         } catch { /* fallback to DOM links */ }
         routeLinks().forEach((link) => {
           addRoute(
             link.getAttribute("href") || "/",
             link.getAttribute("data-bp-route-request") || "",
-            link.getAttribute("data-bp-service") || ""
+            link.getAttribute("data-bp-service") || "",
+            "page"
           );
         });
         // Sort by service path length descending for longest-prefix-first matching
@@ -937,6 +940,7 @@ function shellRuntimeSource(): string {
         const tryMatch = (filterServiceId: string | null) => {
           for (const route of routes) {
             if (filterServiceId && route.serviceId !== filterServiceId) continue;
+            if (route.kind === "api" || route.tenantPath.startsWith("/_bp/")) continue;
             if (normalPath === route.servicePath) {
               return { route, suffix: "" };
             }

@@ -9,6 +9,7 @@ import {
 
 export interface Bootstrap1RouteLink {
   id: string;
+  kind?: "page" | "api";
   title: string;
   href: string;
   requestUrl?: string;
@@ -17,6 +18,10 @@ export interface Bootstrap1RouteLink {
   error?: string;
   serviceStatus?: "show" | "hide";
   authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
+}
+
+export function isUserFacingRoute(route: Pick<Bootstrap1RouteLink, "kind" | "href">): boolean {
+  return route.kind !== "api" && !route.href.startsWith("/_bp/");
 }
 
 export interface Bootstrap1ShellContext {
@@ -2144,7 +2149,7 @@ export function renderBrand(brandName: string, logoUrl?: string, id?: string): H
 }
 
 function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderable {
-  const navItems = context.navItems ?? buildNavItems(context.routeLinks);
+  const navItems = context.navItems ?? buildNavItems(context.routeLinks.filter(isUserFacingRoute));
   const activeRoute = context.routeLinks.find((route) => route.active);
   const currentBreadcrumb = activeBreadcrumb(navItems);
   const serviceMap = buildServiceMap(context.routeLinks);
