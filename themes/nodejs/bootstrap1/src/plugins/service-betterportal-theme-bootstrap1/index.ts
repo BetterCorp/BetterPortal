@@ -806,6 +806,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     type MenuItem = {
       id: string; type: string; title?: string; routeId?: string; href?: string;
+        serviceStatus?: "show" | "hide"; authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
       enabled?: boolean; children?: MenuItem[];
     };
     const menu = ((requestContext.app as any).menu ?? []) as MenuItem[];
@@ -816,6 +817,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       if (!r || !r.enabled) return null;
       const link = buildLinkFromRoute(r, m.title);
       if (!link) return null;
+        (link as any).serviceStatus = m.serviceStatus ?? "show";
+        (link as any).authStatus = m.authStatus ?? "show";
       return { kind: "route", route: link, breadcrumb: "" };
     };
 
@@ -1182,6 +1185,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       // Nav is driven exclusively by app.menu. Empty menu -> empty nav.
       type MenuItem = {
         id: string; type: string; title?: string; routeId?: string; href?: string;
+        serviceStatus?: "show" | "hide"; authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
         enabled?: boolean; defaultExpanded?: boolean; children?: MenuItem[];
       };
       const menu = ((requestContext.app as any).menu ?? []) as MenuItem[];
@@ -1192,6 +1196,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         if (!r || !r.enabled) return null;
         const link = buildLinkFromRoute(r, m.title);
         if (!link) return null;
+        (link as any).serviceStatus = m.serviceStatus ?? "show";
+        (link as any).authStatus = m.authStatus ?? "show";
         return { kind: "route", route: link, breadcrumb: "" };
       };
 

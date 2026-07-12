@@ -489,6 +489,10 @@ function shellRuntimeSource(): string {
         catch { /* storage unavailable - headers just won't persist */ }
       };
 
+      const triggerBodyEvent = (name: string, detail?: unknown) => {
+        if (typeof htmx.trigger === "function") htmx.trigger(document.body, name, detail);
+      };
+
       /** Drop expired entries; returns the live set. */
       const liveBpHeaders = (): Record<string, BpStoredHeader> => {
         const stored = readBpHeaders();
@@ -693,6 +697,7 @@ function shellRuntimeSource(): string {
         if (changed) {
           writeBpHeaders(stored);
           scheduleHeaderRefreshes();
+          triggerBodyEvent("bp:fragments-changed");
         }
       };
 
@@ -796,6 +801,7 @@ function shellRuntimeSource(): string {
         delete stored.Authorization;
         writeBpHeaders(stored);
         scheduleHeaderRefreshes();
+        triggerBodyEvent("bp:fragments-changed");
       };
 
       scheduleHeaderRefreshes();
@@ -1163,6 +1169,17 @@ function shellRuntimeSource(): string {
             body: new URLSearchParams(fd as any)
           });
           applyBpHeaderDirectives(response, action);
+          const hxTrigger = response.headers.get("HX-Trigger");
+          if (hxTrigger) {
+            try {
+              const parsed = JSON.parse(hxTrigger);
+              for (const name of Object.keys(parsed)) htmx.trigger(document.body, name, parsed[name]);
+            } catch {
+              for (const name of hxTrigger.split(",").map((value) => value.trim()).filter(Boolean)) {
+                htmx.trigger(document.body, name);
+              }
+            }
+          }
           let body: any = null;
           try { body = await response.json(); } catch { /* non-JSON */ }
           if (!response.ok || !body || body.status !== "ok") {
@@ -1679,8 +1696,25 @@ function shellRuntimeSource(): string {
         if (shellRoot()?.getAttribute("data-bp-auth-mode") !== "true") {
           runMenuHealthChecks();
           setInterval(runMenuHealthChecks, 60 * 60 * 1000);
+          syncMenuVisibility();
         }
       });
+
+      const syncMenuVisibility = () => {
+        const hasAuth = Object.keys(liveBpHeaders()).some((name) => name.toLowerCase() === "authorization");
+        document.querySelectorAll("[data-bp-route-link][data-bp-service]").forEach((el) => {
+          const policy = el.getAttribute("data-bp-auth-status");
+          const authHidden = policy === "hide-unauthenticated"
+            ? !hasAuth
+            : policy === "hide-unauthorized" && el.hasAttribute("data-bp-auth-denied");
+          const serviceHidden = el.classList.contains("bp-service-down") && el.getAttribute("data-bp-service-status") === "hide";
+          el.toggleAttribute("hidden", authHidden || serviceHidden);
+        });
+        document.querySelectorAll("[data-bp-nav-group]").forEach((group) => {
+          const visible = Array.from(group.querySelectorAll("[data-bp-route-link]")).some((link) => !(link as HTMLElement).hidden);
+          group.toggleAttribute("hidden", !visible);
+        });
+      };
 
       // -- Menu health check (P14) --
       // Pings /.well-known/bp/health on each service in serviceOrigins.
@@ -1696,7 +1730,7 @@ function shellRuntimeSource(): string {
             results[sid] = r.ok;
           } catch { results[sid] = false; }
         }));
-        document.querySelectorAll("[data-bp-service]").forEach((el) => {
+        document.querySelectorAll("[data-bp-route-link][data-bp-service]").forEach((el) => {
           const sid = el.getAttribute("data-bp-service");
           if (!sid) return;
           const up = results[sid];
@@ -1708,8 +1742,10 @@ function shellRuntimeSource(): string {
           } else {
             el.classList.add("bp-service-down");
             el.setAttribute("aria-disabled", "true");
+
           }
         });
+        syncMenuVisibility();
       };
 
       // Force-recheck on click of disabled menu link; if back up, allow nav.
@@ -1891,6 +1927,14 @@ function shellRuntimeSource(): string {
           const ctx = detail.ctx;
           const status = ctx?.response?.status;
           const target = ctx?.target;
+          const source = ctx?.sourceElement;
+          if (source instanceof Element && (status === 401 || status === 403)) {
+            const policy = source.getAttribute("data-bp-auth-status");
+            if ((status === 401 && policy === "hide-unauthenticated") || (status === 403 && policy === "hide-unauthorized")) {
+              (source as HTMLElement).hidden = true;
+              syncMenuVisibility();
+            }
+          }
           applyChromeFromResponse(detail);
 
           // JSON is data, never markup - block it from swapping into ANY target

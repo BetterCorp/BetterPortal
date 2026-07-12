@@ -25,6 +25,8 @@ interface MenuItem {
   routeId?: string;
   href?: string;
   enabled: boolean;
+  serviceStatus?: "show" | "hide";
+  authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
   defaultExpanded?: boolean;
   children?: MenuItem[];
 }
@@ -272,7 +274,24 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
         <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
         <label class="form-label small mb-0">URL</label>
         <input type="url" name="href" class="form-control form-control-sm" value="${escapeHtml(item.href ?? "")}" placeholder="https://..." required />
-        <div class="d-flex gap-2 justify-content-end">
+        <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label small mb-0">Unavailable service</label>
+          <select name="serviceStatus" class="form-select form-select-sm">
+            <option value="show"${item.serviceStatus !== "hide" ? " selected" : ""}>Show with warning</option>
+            <option value="hide"${item.serviceStatus === "hide" ? " selected" : ""}>Hide</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small mb-0">Authorization</label>
+          <select name="authStatus" class="form-select form-select-sm">
+            <option value="show"${!item.authStatus || item.authStatus === "show" ? " selected" : ""}>Always show</option>
+            <option value="hide-unauthenticated"${item.authStatus === "hide-unauthenticated" ? " selected" : ""}>Hide when signed out</option>
+            <option value="hide-unauthorized"${item.authStatus === "hide-unauthorized" ? " selected" : ""}>Hide when unauthorized</option>
+          </select>
+        </div>
+      </div>
+      <div class="d-flex gap-2 justify-content-end">
           <button type="submit" class="btn btn-sm btn-success">OK Save</button>
           <button type="button" class="btn btn-sm btn-outline-secondary"
             hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
@@ -357,6 +376,23 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
         <div class="col-md-4">
           <label class="form-label small mb-0">Target Path (service)</label>
           <input type="text" name="targetPath" class="form-control form-control-sm font-monospace" value="${escapeHtml(route?.targetPath ?? "")}" placeholder="/path?param=value" />
+        </div>
+      </div>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label small mb-0">Unavailable service</label>
+          <select name="serviceStatus" class="form-select form-select-sm">
+            <option value="show"${item.serviceStatus !== "hide" ? " selected" : ""}>Show with warning</option>
+            <option value="hide"${item.serviceStatus === "hide" ? " selected" : ""}>Hide</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small mb-0">Authorization</label>
+          <select name="authStatus" class="form-select form-select-sm">
+            <option value="show"${!item.authStatus || item.authStatus === "show" ? " selected" : ""}>Always show</option>
+            <option value="hide-unauthenticated"${item.authStatus === "hide-unauthenticated" ? " selected" : ""}>Hide when signed out</option>
+            <option value="hide-unauthorized"${item.authStatus === "hide-unauthorized" ? " selected" : ""}>Hide when unauthorized</option>
+          </select>
         </div>
       </div>
       <div class="d-flex gap-2 justify-content-end">
@@ -598,6 +634,8 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       return htmlResponse(`<div class="alert alert-danger">Item not found</div>`, 200, "text/html; mode=fragment");
     }
     found.item.title = f.title || undefined;
+    found.item.serviceStatus = f.serviceStatus === "hide" ? "hide" : "show";
+    found.item.authStatus = ["hide-unauthenticated", "hide-unauthorized"].includes(f.authStatus) ? f.authStatus as MenuItem["authStatus"] : "show";
 
     const route = (appDef.routes ?? []).find((r: any) => r.id === found.item.routeId);
     if (route) {

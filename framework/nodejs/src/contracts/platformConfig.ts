@@ -158,6 +158,8 @@ export const BetterPortalMenuItemSchema: any = av.object({
   routeId: av.optional(UuidV7Schema),
   href: av.optional(av.string()),
   enabled: av.bool().default(true),
+  serviceStatus: av.enum_(["show", "hide"] as const).default("show"),
+  authStatus: av.enum_(["show", "hide-unauthenticated", "hide-unauthorized"] as const).default("show"),
   defaultExpanded: av.optional(av.bool()),
   children: av.array(av.any()).default([])
 }, { unknownKeys: "strip" });

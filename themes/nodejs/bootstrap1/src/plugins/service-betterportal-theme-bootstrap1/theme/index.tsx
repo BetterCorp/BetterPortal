@@ -15,6 +15,8 @@ export interface Bootstrap1RouteLink {
   serviceId: string;
   active: boolean;
   error?: string;
+  serviceStatus?: "show" | "hide";
+  authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
 }
 
 export interface Bootstrap1ShellContext {
@@ -275,6 +277,8 @@ function renderRouteLink(item: Bootstrap1NavLeaf, dismissMobileMenu = false): Ht
       data-bp-route-title={route.title}
       data-bp-route-breadcrumb={item.breadcrumb}
       data-bp-service={route.serviceId}
+      data-bp-service-status={route.serviceStatus ?? "show"}
+      data-bp-auth-status={route.authStatus ?? "show"}
       data-bs-dismiss={dismissMobileMenu ? "offcanvas" : undefined}
       {...routeAttrs}
     >
@@ -569,12 +573,18 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       position: "relative"
     },
     ".bp-service-down::after": {
-      content: '""',
+      content: '"!"',
       color: "var(--bp-accent-danger)",
       position: "absolute",
       top: "0.2rem",
       right: "0.3rem",
-      fontSize: "0.5rem",
+      width: "0.9rem",
+      height: "0.9rem",
+      border: "2px solid currentColor",
+      borderRadius: "50%",
+      fontSize: "0.65rem",
+      fontWeight: 700,
+      textAlign: "center",
       lineHeight: 1
     },
 
@@ -2163,7 +2173,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
               class="bp-admin__nav"
               id="bp-nav-mobile"
               hx-get="/.well-known/bp/theme/nav?mobile=1"
-              hx-trigger="bp:menu-changed from:body"
+              hx-trigger="bp:menu-changed from:body, bp:fragments-changed from:body"
               hx-swap="innerHTML"
               data-bp-no-route=""
             >{renderNavItems(navItems, true)}</nav>
@@ -2179,7 +2189,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
               class="bp-admin__nav"
               id="bp-nav-desktop"
               hx-get="/.well-known/bp/theme/nav"
-              hx-trigger="bp:menu-changed from:body"
+              hx-trigger="bp:menu-changed from:body, bp:fragments-changed from:body"
               hx-swap="innerHTML"
               data-bp-no-route=""
             >{renderNavItems(navItems)}</nav>
