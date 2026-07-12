@@ -217,7 +217,7 @@ function detectExports(filePath: string): string[] {
 }
 
 function detectRawHandler(filePath: string): boolean {
-  return fs.readFileSync(filePath, "utf-8").includes("createRawHandler(");
+  return /createRawHandler(?:\.forContext(?:<[^>]+>)?\(\))?\s*\(/.test(fs.readFileSync(filePath, "utf-8"));
 }
 
 function detectDefaultExport(filePath: string): boolean {
@@ -760,7 +760,7 @@ function scanDirectory(
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (entry.name.startsWith("_theme.")) continue;
-    if (entry.name.startsWith(".")) continue;
+    if (entry.name.startsWith(".") && entry.name !== ".well-known") continue;
 
     const childDir = path.join(currentDir, entry.name);
     scanDirectory(childDir, routesDir, generatedDir, [...segments, entry.name], routes);

@@ -3,7 +3,7 @@ import type { HttpMethod } from "../contracts/common.js";
 import type { JsonValue } from "../contracts/json.js";
 import type { PluginManifest } from "../contracts/manifest.js";
 import type { BetterPortalObservability, ObservabilityAttributes } from "../contracts/observability.js";
-import type { BetterPortalRegistry, RegisteredRoute } from "../contracts/registry.js";
+import type { BetterPortalRegistry, RegisteredRoute, RouteUiAttributes, RouteUiOptions, ViewRenderContext } from "../contracts/registry.js";
 import type {
   ApiAuthRequirement,
   FileResponseOptions,
@@ -488,6 +488,10 @@ function appAllowsRoute(
   url: URL,
   acceptHeader?: string
 ): { allowed: boolean; reason?: string } {
+  // Well-known routes are control-plane/service endpoints. Their access policy
+  // is declared by the route and must not depend on being mounted as an app page.
+  if (route.path.startsWith("/.well-known/")) return { allowed: true };
+
   const appRoute = app.routes.find((candidate) => {
     const servicePath = routeMountServicePath(candidate);
     return candidate.enabled !== false
@@ -568,6 +572,53 @@ function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absolut
   return absoluteOrigin ? url.toString() : `${url.pathname}${url.search}`;
 }
 
+function renderUrl(path: string, options: RouteUrlOptions & { component?: string; fragment?: string } = {}): string {
+  const query = { ...(options.query ?? {}) };
+  if (options.component) query._c = options.component;
+  if (options.fragment) query._f = options.fragment;
+  return appendQuery(path, query, options.absolute ? options.origin : undefined);
+}
+
+function createRouteUiAttributes(url: string, options: RouteUiOptions = {}, form = false): RouteUiAttributes {
+  const method = (options.method ?? "GET").toLowerCase();
+  const methodAttr = `hx-${method}`;
+  const attrs: Record<string, string> = form
+    ? { action: url, method: (options.method ?? "GET") }
+    : { href: url };
+  attrs[methodAttr] = url;
+  if (options.target) attrs["hx-target"] = options.target;
+  if (options.swap) attrs["hx-swap"] = options.swap;
+  if (options.push !== undefined) attrs["hx-push-url"] = String(options.push);
+  return attrs;
+}
+
+function createViewRenderContext(
+  route: RegisteredRoute,
+  ctx: RouteHandlerContext,
+  theme: string,
+  mode: import("../contracts/common.js").RenderMode,
+  kind: "page" | "fragment" | "component",
+  key: string | undefined,
+  status: number
+): ViewRenderContext {
+  const current = (options: RouteUrlOptions & { component?: string; fragment?: string } = {}) => renderUrl(ctx.path, options);
+  const path = (value: string, options: RouteUrlOptions = {}) => renderUrl(value, options);
+  const routeUrl = (viewId: string, options?: RouteUrlOptions) => ctx.routeUrl?.(viewId, options) ?? null;
+  const uiRoute = (viewId: string, options?: RouteUrlOptions) => ctx.uiRouteUrl?.(viewId, options) ?? null;
+  const ui = (url: string, options?: RouteUiOptions) => createRouteUiAttributes(url, options);
+  const form = (url: string, options?: RouteUiOptions) => createRouteUiAttributes(url, options, true);
+  return {
+    request: { method: ctx.method, path: ctx.path, params: ctx.params, query: ctx.query },
+    route: { viewId: route.viewId, path: route.path, theme, mode, kind, key, status },
+    url: { current, path, route: routeUrl, uiRoute },
+    routeUi: {
+      link: ui,
+      current: (options = {}) => ui(current(options), options),
+      fragment: ui,
+      form
+    }
+  };
+}
 function createServiceRouteUrlBuilder(routes: ReadonlyArray<RegisteredRoute>, extraContext: RequiredHandlerContext, currentServiceId?: string): RouteHandlerContext["routeUrl"] {
   return (viewId, options = {}) => {
     const targetServiceId = options.serviceId ?? currentServiceId;
@@ -950,6 +1001,7 @@ async function handleRouteRequest(
   const requestedKind: "page" | "component" | "fragment" =
     fragmentKey ? "fragment" : componentId ? "component" : "page";
   const requestedKey = fragmentKey ?? componentId ?? undefined;
+  const renderContext = createViewRenderContext(route, ctx, themeId, representation.mode ?? "page", requestedKind, requestedKey, handlerStatus);
 
   // Status-specific renderer lookup (any non-undefined status code)
   if (handlerStatus !== 200) {
@@ -960,7 +1012,7 @@ async function handleRouteRequest(
         "bp.view.theme_id": themeId,
         "bp.view.kind": requestedKind,
         "bp.view.status": handlerStatus
-      }, () => statusRenderer.render(data));
+      }, () => statusRenderer.render(data, renderContext));
       return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "status", route.chrome));
     }
     // No specific renderer found.
@@ -991,7 +1043,7 @@ async function handleRouteRequest(
       "bp.view.theme_id": themeId,
       "bp.view.kind": "fragment",
       "bp.view.key": fragmentKey
-    }, () => resolved.renderer.render(data));
+    }, () => resolved.renderer.render(data, renderContext));
     return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
   }
 
@@ -1015,7 +1067,7 @@ async function handleRouteRequest(
       "bp.view.theme_id": themeId,
       "bp.view.kind": "component",
       "bp.view.key": componentId
-    }, () => resolved.renderer.render(data));
+    }, () => resolved.renderer.render(data, renderContext));
     return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
   }
 
@@ -1036,7 +1088,7 @@ async function handleRouteRequest(
     "bp.route.view_id": route.viewId,
     "bp.view.theme_id": themeId,
     "bp.view.kind": "page"
-  }, () => resolved.renderer.render(data));
+  }, () => resolved.renderer.render(data, renderContext));
   const mode = representation.mode ?? "page";
   return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, mode, route.chrome));
 }

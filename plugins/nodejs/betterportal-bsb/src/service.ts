@@ -1076,7 +1076,9 @@ export abstract class BPService<
   }
 
   private isConfigManagementPath(pathname: string): boolean {
-    return pathname === "/.well-known/bp/config" || pathname.startsWith("/.well-known/bp/config/");
+    return pathname === "/.well-known/bp/config"
+      || pathname.startsWith("/.well-known/bp/config/")
+      || pathname.startsWith("/.well-known/bp/config/workos-role-sync");
   }
 
   private async managementOrigins(): Promise<string[]> {
