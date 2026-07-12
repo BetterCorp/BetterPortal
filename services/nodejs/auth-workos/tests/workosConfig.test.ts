@@ -4,7 +4,9 @@ import {
   bpPermissionSlug,
   parseBpPermissionSlug,
   resolveWorkOSAppConfig,
-  resolveWorkOSBrowserConfig
+  resolveWorkOSBrowserConfig,
+  workOSPermissionDescription,
+  workOSPermissionName
 } from "../src/plugins/service-betterportal-auth-workos/index.js";
 
 test("workos config requires client id and api key", () => {
@@ -49,4 +51,17 @@ test("bp permission slugs round trip", () => {
     action: "read"
   });
   assert.equal(parseBpPermissionSlug("bp_a7k9q2m4_bad", state), null);
+});
+
+test("workos permission metadata respects field limits", () => {
+  const name = workOSPermissionName(
+    "BetterPortal Hello View Example",
+    "A deliberately long route title",
+    "delete"
+  );
+  assert.equal(name.length <= 48, true);
+  assert.equal(name.endsWith(" - delete"), true);
+
+  const description = workOSPermissionDescription("x".repeat(200));
+  assert.equal(description.length, 150);
 });

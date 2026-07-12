@@ -225,6 +225,8 @@ type SyncStatus = {
 const BP_PERMISSION_PREFIX = "bp_";
 const LEGACY_BP_PERMISSION_PREFIX = "bp:";
 const STALE_PERMISSION_PREFIX = "DEL: ";
+const WORKOS_PERMISSION_NAME_MAX = 48;
+const WORKOS_PERMISSION_DESCRIPTION_MAX = 150;
 const ROLE_EVENTS = new Set([
   "role.created",
   "role.updated",
@@ -362,7 +364,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       if (rolePermissionSlugs.has(permission.slug)) {
         const nextName = permission.name.startsWith(STALE_PERMISSION_PREFIX)
           ? permission.name
-          : `${STALE_PERMISSION_PREFIX}${permission.name}`;
+          : limitWorkOSField(`${STALE_PERMISSION_PREFIX}${permission.name}`, WORKOS_PERMISSION_NAME_MAX);
         if (permission.name !== nextName) {
           await client.authorization.updatePermission(permission.slug, {
             name: nextName,
@@ -851,9 +853,22 @@ function permissionCatalogForRoute(route: BetterPortalRouteMount, mapping: WorkO
     serviceId: route.serviceId,
     viewId: route.viewId,
     action,
-    title: `${serviceTitle} - ${title} - ${action}`,
-    description: `${kind.toUpperCase()} ${methods} app:${appPath} service:${servicePath} view:${route.viewId} serviceId:${route.serviceId}`
+    title: workOSPermissionName(serviceTitle, title, action),
+    description: workOSPermissionDescription(`${kind.toUpperCase()} ${methods} app:${appPath} service:${servicePath} view:${route.viewId} serviceId:${route.serviceId}`)
   }));
+}
+
+export function workOSPermissionName(serviceTitle: string, routeTitle: string, action: AppAuthPermissionAction): string {
+  const suffix = ` - ${action}`;
+  return `${limitWorkOSField(`${serviceTitle} - ${routeTitle}`, WORKOS_PERMISSION_NAME_MAX - suffix.length)}${suffix}`;
+}
+
+export function workOSPermissionDescription(description: string): string {
+  return limitWorkOSField(description, WORKOS_PERMISSION_DESCRIPTION_MAX);
+}
+
+function limitWorkOSField(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : value.slice(0, maxLength);
 }
 
 export function bpPermissionSlug(shortId: string, action: AppAuthPermissionAction): string {
