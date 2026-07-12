@@ -350,12 +350,18 @@ export abstract class BaseStorage implements PlatformConfigStore {
       app.auth?.serviceId === serviceId
       || (app.auth?.serviceId ? sharedActivationIdsForCaller.has(app.auth.serviceId) : false)
     );
+    const isRoleSyncAuthCaller = config.tenants.some((tenant) => tenant.services.some((service) =>
+      service.enabled !== false
+      && (service.id === serviceId || service.serviceId === serviceId)
+      && service.capabilities.includes("auth.roles.sync")
+    ));
+    const includeAuthRoutes = isAuthCaller || isRoleSyncAuthCaller;
 
     if (scope === "tenant" && tenantId) {
-      return this.scopeForTenantService(config, serviceId, tenantId, isThemeCaller, isAuthCaller);
+      return this.scopeForTenantService(config, serviceId, tenantId, isThemeCaller, includeAuthRoutes);
     }
 
-    return this.scopeForPlatformService(config, serviceId, isThemeCaller, isAuthCaller);
+    return this.scopeForPlatformService(config, serviceId, isThemeCaller, includeAuthRoutes);
   }
 
   onChange(listener: () => void): () => void {
