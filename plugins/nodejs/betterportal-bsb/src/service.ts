@@ -973,6 +973,9 @@ export abstract class BPService<
       } catch {
         // ignore - public path stays open even if scope can't be resolved
       }
+      const context = await this.resolveCorsContext(event);
+      if (context) this.applyRequestContext(event, context);
+
       const corsResult = handleCorsRequest(event, {
         origin: [origin],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -997,6 +1000,9 @@ export abstract class BPService<
           preflight: { statusCode: 403 }
         }) || undefined;
       }
+
+      const context = await this.resolveCorsContext(event);
+      if (context) this.applyRequestContext(event, context);
 
       const corsResult = handleCorsRequest(event, {
         origin: allowedOrigins,
