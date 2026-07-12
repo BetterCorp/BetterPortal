@@ -1951,6 +1951,13 @@ function shellRuntimeSource(): string {
           }
 
           if (status && status >= 400 && isMainTarget(target)) {
+            if (status === 403 && ctx?.sourceElement instanceof Element) {
+              const menuLink = ctx.sourceElement.closest("[data-bp-route-link]");
+              if (menuLink) {
+                menuLink.setAttribute("data-bp-auth-denied", "");
+                syncMenuVisibility();
+              }
+            }
             // Themed status views (adapter content-type "...; mode=status") are
             // real server-rendered error states - let them swap like any view
             // (e.g. register POST 400 re-rendering its form with the message).
@@ -2074,6 +2081,10 @@ function shellRuntimeSource(): string {
             scheduleBootstrapOverlaySync();
           } else if (target instanceof Element) {
             target.classList.remove("bp-fragment-loading");
+          }
+
+          if (target instanceof Element && (target.id === "bp-nav-mobile" || target.id === "bp-nav-desktop")) {
+            void runMenuHealthChecks();
           }
 
           // Resolve links after swaps without re-processing the swap target.
