@@ -13,6 +13,11 @@ export interface ScopedServiceConfig {
   readonly configManagement?: {
     readonly adminTenantId?: string;
     readonly managementAppId?: string;
+    /** Minimal admin tenant/app context used by authenticated /.well-known/bp routes. */
+    readonly context?: {
+      readonly tenant: ScopedTenant;
+      readonly app: ScopedApp;
+    };
   };
   readonly managementOrigins: ReadonlyArray<string>;
   readonly tenants: ReadonlyArray<ScopedTenant>;

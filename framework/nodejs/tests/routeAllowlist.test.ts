@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import * as av from "anyvali";
-import { createH3Router } from "../src/adapters/h3.js";
+import { createH3Router, type H3RouterObservabilityOptions } from "../src/adapters/h3.js";
+import type { JwtClaims } from "../src/contracts/auth.js";
 import type { BetterPortalRegistry, RegisteredRoute } from "../src/contracts/registry.js";
 import { createHandler, createRawHandler } from "../src/runtime/handler.js";
 import type { RouteHandler } from "../src/contracts/route.js";
@@ -73,10 +74,14 @@ async function withServer(
   app: BetterPortalApp,
   registry: BetterPortalRegistry,
   handler: (baseUrl: string) => Promise<void>,
-  options: { tenant?: BetterPortalTenant; serviceId?: string } = {}
+  options: { tenant?: BetterPortalTenant; serviceId?: string; router?: H3RouterObservabilityOptions } = {}
 ): Promise<void> {
   const h3 = createBetterPortalApp();
-  createH3Router(registry, h3, { resolveContext: () => ({ tenant: options.tenant ?? tenant, app }), serviceId: options.serviceId });
+  createH3Router(registry, h3, {
+    ...options.router,
+    resolveContext: options.router?.resolveContext ?? (() => ({ tenant: options.tenant ?? tenant, app })),
+    serviceId: options.serviceId
+  });
   const server: Server = createServer(createBetterPortalNodeHandler(h3));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -88,6 +93,70 @@ async function withServer(
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 }
+
+test("authenticated BP well-known routes use route-aware auth and skip app activation", async () => {
+  const app: BetterPortalApp = {
+    id: uuidv7(),
+    tenantId: tenant.id,
+    slug: "management",
+    title: "Management",
+    hostnames: ["root.local"],
+    originOverrides: [],
+    refererOverrides: [],
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/",
+    routes: [],
+    menu: [],
+    slots: [],
+    fragments: {}
+  };
+  const managementRoute = {
+    ...route("/.well-known/bp/config/example", "config.example"),
+    auth: { required: true, permissions: [] }
+  } satisfies RegisteredRoute;
+  let activationChecks = 0;
+  const claims: JwtClaims = {
+    iss: "https://auth.local",
+    aud: "management",
+    sub: "admin",
+    exp: Math.floor(Date.now() / 1000) + 60,
+    iat: Math.floor(Date.now() / 1000),
+    jti: uuidv7(),
+    realm: "runtime",
+    tenantId: tenant.id,
+    appId: app.id,
+    roles: ["*"],
+    tokenType: "access"
+  };
+
+  await withServer(app, { routes: [managementRoute] }, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/.well-known/bp/config/example`, {
+      headers: { authorization: "Bearer management-token", accept: "application/json" }
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true });
+    assert.equal(activationChecks, 0);
+  }, {
+    router: {
+      resolveAuth: (_event, resolvedRoute) => {
+        assert.equal(resolvedRoute, managementRoute);
+        return {
+          verifier: { verify: async (token) => {
+            assert.equal(token, "management-token");
+            return claims;
+          } },
+          tenantId: tenant.id,
+          appId: app.id,
+          platformRoot: { tenantId: tenant.id, appId: app.id }
+        };
+      },
+      validateTenantApp: () => {
+        activationChecks++;
+        return { allowed: false };
+      }
+    }
+  });
+});
 
 test("allows only app-mounted generated routes", async () => {
   const serviceId = uuidv7();

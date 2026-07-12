@@ -34,11 +34,14 @@ import {
   type BetterPortalResolvedRequestContext,
   type BetterPortalObservability,
   type BetterPortalRegistry,
+  type RegisteredRoute,
   type BetterPortalThemeConfig,
   type JwtVerifier,
   type ManifestBaseFields,
   type PluginManifest,
+  type ScopedApp,
   type ScopedServiceConfig,
+  type ScopedTenant,
   type BetterPortalRouteChrome,
   type BetterPortalConfig as PlatformConfig,
   type ServiceConfigAction,
@@ -47,7 +50,7 @@ import {
   type RouteHandlerContext,
   type TenantAppValidation
 } from "@betterportal/framework";
-import { createH3Router, type H3AuthContext } from "@betterportal/framework/lib/adapters/h3.js";
+import { createH3Router, isBpManagementAuthPath, isBpManagementAuthRoute, type H3AuthContext } from "@betterportal/framework/lib/adapters/h3.js";
 import { BootstrapStateStore, type BootstrapStateFile } from "./bootstrapState.js";
 import { ScopedConfigCache } from "./scopedConfigCache.js";
 import {
@@ -199,6 +202,7 @@ export abstract class BPService<
   private runtimeConfigEncryptionKey: string | undefined;
   private configProvider: FileBackedBetterPortalConfigProvider | null = null;
   private scopedConfig: ScopedServiceConfig | null = null;
+  private registeredRoutes: ReadonlyArray<RegisteredRoute> = [];
   private scopedConfigCache!: ScopedConfigCache;
   private sseAbortController: AbortController | null = null;
   protected bootstrapState!: BootstrapStateStore;
@@ -318,7 +322,11 @@ export abstract class BPService<
    * Receives the resolved tenant/app context. Return undefined to skip auth for the request.
    */
   protected getJwtVerifier(_tenantId: string, _appId: string): JwtVerifier | undefined {
-    const auth = this.getAppAuthConfig(_tenantId, _appId);
+    return this.getConfiguredJwtVerifier(_tenantId, _appId);
+  }
+
+  private getConfiguredJwtVerifier(tenantId: string, appId: string): JwtVerifier | undefined {
+    const auth = this.getAppAuthConfig(tenantId, appId);
     if (!auth) return undefined;
 
     if (auth.publicKeys) {
@@ -344,7 +352,10 @@ export abstract class BPService<
    */
   protected getAppAuthConfig(tenantId: string, appId: string): AppAuthConfig | undefined {
     if (!this.scopedConfig) return undefined;
-    const app = this.scopedConfig.apps.find((a) => a.id === appId && a.tenantId === tenantId);
+    const managementApp = this.scopedConfig.configManagement?.context?.app;
+    const app = managementApp?.id === appId && managementApp.tenantId === tenantId
+      ? managementApp
+      : this.scopedConfig.apps.find((candidate) => candidate.id === appId && candidate.tenantId === tenantId);
     return (app as unknown as { auth?: AppAuthConfig })?.auth;
   }
 
@@ -354,7 +365,10 @@ export abstract class BPService<
    * Default: reads the tenant's service bindings from scopedConfig.
    */
   protected getServiceIdAliases(tenantId: string): Record<string, string> | undefined {
-    const tenant = this.scopedConfig?.tenants.find((t) => t.id === tenantId);
+    const managementTenant = this.scopedConfig?.configManagement?.context?.tenant;
+    const tenant = managementTenant?.id === tenantId
+      ? managementTenant
+      : this.scopedConfig?.tenants.find((candidate) => candidate.id === tenantId);
     if (!tenant) return undefined;
     const aliases: Record<string, string> = {};
     for (const svc of tenant.services) {
@@ -429,6 +443,7 @@ export abstract class BPService<
 
   async init(obs: Observable): Promise<void> {
     const def = this.definition();
+    this.registeredRoutes = def.registry.routes;
     const span = createBsbObservability(obs).startSpan("bp.plugin.init", {
       "bp.plugin.id": def.manifest.pluginId,
       "bp.plugin.category": "service"
@@ -492,9 +507,9 @@ export abstract class BPService<
 
     createH3Router(def.registry, this.app, {
       serviceId: def.manifest.pluginId,
-      resolveAuth: (event) => this.resolveAuthForRequest(event),
+      resolveAuth: (event, route) => this.resolveAuthForRequest(event, route),
       validateTenantApp: (tenantId, appId) => this.validateTenantApp(tenantId, appId),
-      resolveContext: (event) => this.resolveHandlerContext(event)
+      resolveContext: (event, route) => this.resolveHandlerContext(event, route)
     });
 
     const bpSchema = buildBpSchema(def.registry, this.manifest);
@@ -935,10 +950,16 @@ export abstract class BPService<
     return resolveEmbeddedRequestContext(portalConfig, eventHeaders(event), this.headerTrustOptions(event));
   }
 
-  private resolveAuthForRequest(event: BetterPortalEvent): H3AuthContext | undefined {
+  private resolveAuthForRequest(event: BetterPortalEvent, route: RegisteredRoute): H3AuthContext | undefined {
     const ctx = event as unknown as { __bpTenantId?: string; __bpAppId?: string };
+    if (isBpManagementAuthRoute(route)) {
+      const management = this.managementRequestContext();
+      if (management) this.applyRequestContext(event, management);
+    }
     if (!ctx.__bpTenantId || !ctx.__bpAppId) return undefined;
-    const verifier = this.getJwtVerifier(ctx.__bpTenantId, ctx.__bpAppId);
+    const verifier = isBpManagementAuthRoute(route)
+      ? this.getConfiguredJwtVerifier(ctx.__bpTenantId, ctx.__bpAppId)
+      : this.getJwtVerifier(ctx.__bpTenantId, ctx.__bpAppId);
     if (!verifier) return undefined;
     return {
       verifier,
@@ -973,9 +994,6 @@ export abstract class BPService<
       } catch {
         // ignore - public path stays open even if scope can't be resolved
       }
-      const context = await this.resolveCorsContext(event);
-      if (context) this.applyRequestContext(event, context);
-
       const corsResult = handleCorsRequest(event, {
         origin: [origin],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -1001,7 +1019,7 @@ export abstract class BPService<
         }) || undefined;
       }
 
-      const context = await this.resolveCorsContext(event);
+      const context = this.managementRequestContext() ?? await this.resolveCorsContext(event);
       if (context) this.applyRequestContext(event, context);
 
       const corsResult = handleCorsRequest(event, {
@@ -1084,7 +1102,7 @@ export abstract class BPService<
   private isConfigManagementPath(pathname: string): boolean {
     return pathname === "/.well-known/bp/config"
       || pathname.startsWith("/.well-known/bp/config/")
-      || pathname.startsWith("/.well-known/bp/config/workos-role-sync");
+      || isBpManagementAuthPath(this.registeredRoutes, pathname);
   }
 
   private async managementOrigins(): Promise<string[]> {
@@ -1125,29 +1143,41 @@ export abstract class BPService<
       if (origins.includes(origin)) {
         const tenant = this.scopedConfig.tenants.find((t) => t.id === app.tenantId) ?? null;
         if (!tenant || !tenant.active) return null;
-        return {
-          tenant: {
-            ...tenant,
-            services: tenant.services.map((service) => ({ ...service, apiKeyHash: "" })),
-            activatedPlatformServices: [...tenant.activatedPlatformServices]
-          },
-          app: {
-            ...app,
-            hostnames: [...app.hostnames],
-            originOverrides: [...app.originOverrides],
-            refererOverrides: [...app.refererOverrides],
-            shell: app.shell,
-            defaultRoute: app.defaultRoute,
-            routes: [...app.routes],
-            menu: [...app.menu],
-            slots: [...app.slots],
-            fragments: { ...app.fragments }
-          }
-        };
+        return this.resolveScopedRequestContext(tenant, app);
       }
     }
 
     return null;
+  }
+
+  private managementRequestContext(): BetterPortalResolvedRequestContext | null {
+    const context = this.scopedConfig?.configManagement?.context;
+    return context ? this.resolveScopedRequestContext(context.tenant, context.app) : null;
+  }
+
+  private resolveScopedRequestContext(
+    tenant: ScopedTenant,
+    app: ScopedApp
+  ): BetterPortalResolvedRequestContext {
+    return {
+      tenant: {
+        ...tenant,
+        services: tenant.services.map((service) => ({ ...service, apiKeyHash: "" })),
+        activatedPlatformServices: [...tenant.activatedPlatformServices]
+      },
+      app: {
+        ...app,
+        hostnames: [...app.hostnames],
+        originOverrides: [...app.originOverrides],
+        refererOverrides: [...app.refererOverrides],
+        shell: app.shell,
+        defaultRoute: app.defaultRoute,
+        routes: [...app.routes],
+        menu: [...app.menu],
+        slots: [...app.slots],
+        fragments: { ...app.fragments }
+      }
+    };
   }
 
   protected applyRequestContext(event: BetterPortalEvent, context: BetterPortalResolvedRequestContext): void {
@@ -1167,7 +1197,11 @@ export abstract class BPService<
     bpContext.__bpAppAuth = context.app.auth;
   }
 
-  protected resolveHandlerContext(event: BetterPortalEvent): Partial<RouteHandlerContext> {
+  protected resolveHandlerContext(event: BetterPortalEvent, route?: RegisteredRoute): Partial<RouteHandlerContext> {
+    if (route && isBpManagementAuthRoute(route)) {
+      const management = this.managementRequestContext();
+      if (management) this.applyRequestContext(event, management);
+    }
     const bpContext = event as unknown as {
       __bpTenantId?: string;
       __bpAppId?: string;

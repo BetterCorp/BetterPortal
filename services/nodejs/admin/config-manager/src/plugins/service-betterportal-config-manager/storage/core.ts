@@ -350,18 +350,11 @@ export abstract class BaseStorage implements PlatformConfigStore {
       app.auth?.serviceId === serviceId
       || (app.auth?.serviceId ? sharedActivationIdsForCaller.has(app.auth.serviceId) : false)
     );
-    const isRoleSyncAuthCaller = config.tenants.some((tenant) => tenant.services.some((service) =>
-      service.enabled !== false
-      && (service.id === serviceId || service.serviceId === serviceId)
-      && service.capabilities.includes("auth.roles.sync")
-    ));
-    const includeAuthRoutes = isAuthCaller || isRoleSyncAuthCaller;
-
     if (scope === "tenant" && tenantId) {
-      return this.scopeForTenantService(config, serviceId, tenantId, isThemeCaller, includeAuthRoutes);
+      return this.scopeForTenantService(config, serviceId, tenantId, isThemeCaller, isAuthCaller);
     }
 
-    return this.scopeForPlatformService(config, serviceId, isThemeCaller, includeAuthRoutes);
+    return this.scopeForPlatformService(config, serviceId, isThemeCaller, isAuthCaller);
   }
 
   onChange(listener: () => void): () => void {
@@ -519,9 +512,26 @@ export abstract class BaseStorage implements PlatformConfigStore {
   }
 
   private scopedConfigManagement(config: BetterPortalConfig): NonNullable<ScopedServiceConfig["configManagement"]> {
+    const tenant = config.tenants.find((candidate) => candidate.id === config.configManagement.adminTenantId);
+    const app = config.apps.find((candidate) =>
+      candidate.id === config.configManagement.managementAppId
+      && candidate.tenantId === tenant?.id
+    );
     return {
       adminTenantId: config.configManagement.adminTenantId,
-      managementAppId: config.configManagement.managementAppId
+      managementAppId: config.configManagement.managementAppId,
+      ...(tenant && app ? {
+        context: {
+          tenant: this.scopeTenant(tenant, config),
+          app: {
+            ...this.scopeApp(app, [], false, false),
+            routes: [],
+            menu: [],
+            slots: [],
+            fragments: {}
+          }
+        }
+      } : {})
     };
   }
 

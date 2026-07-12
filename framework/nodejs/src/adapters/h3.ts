@@ -62,7 +62,7 @@ export interface H3RouterObservabilityOptions {
   /** Identifier of the service hosting this router (used by ctx.serviceId). */
   serviceId?: string;
   /** Resolve auth context for a request. Returning undefined disables auth enforcement for the request. */
-  resolveAuth?: (event: BetterPortalEvent) => Promise<H3AuthContext | undefined> | H3AuthContext | undefined;
+  resolveAuth?: (event: BetterPortalEvent, route: RegisteredRoute) => Promise<H3AuthContext | undefined> | H3AuthContext | undefined;
   /**
    * Validate that the resolved (tenantId, appId) is allowed to use this service.
    * Returning { allowed: false } emits 426 Upgrade Required with optional upgradeUrl.
@@ -70,7 +70,7 @@ export interface H3RouterObservabilityOptions {
    */
   validateTenantApp?: (tenantId: string, appId: string) => Promise<import("../contracts/auth.js").TenantAppValidation> | import("../contracts/auth.js").TenantAppValidation;
   /** Extra per-request context supplied by the host service/plugin. */
-  resolveContext?: (event: BetterPortalEvent) => Promise<Partial<RouteHandlerContext>> | Partial<RouteHandlerContext>;
+  resolveContext?: (event: BetterPortalEvent, route: RegisteredRoute) => Promise<Partial<RouteHandlerContext>> | Partial<RouteHandlerContext>;
 }
 
 type RequiredHandlerContext =
@@ -190,12 +190,24 @@ async function formDataToRequest(fd: FormData): Promise<{ body: Record<string, u
 
 async function resolveRequiredHandlerContext(
   event: BetterPortalEvent,
-  routerOptions: H3RouterObservabilityOptions
+  routerOptions: H3RouterObservabilityOptions,
+  route: RegisteredRoute
 ): Promise<RequiredHandlerContext | null> {
-  const extraContext = await routerOptions.resolveContext?.(event) ?? {};
+  const extraContext = await routerOptions.resolveContext?.(event, route) ?? {};
   return extraContext.tenant && extraContext.app
     ? extraContext as RequiredHandlerContext
     : null;
+}
+
+export function isBpManagementAuthRoute(route: RegisteredRoute): boolean {
+  return route.auth.required && (
+    route.path === "/.well-known/bp"
+    || route.path.startsWith("/.well-known/bp/")
+  );
+}
+
+export function isBpManagementAuthPath(routes: ReadonlyArray<RegisteredRoute>, pathname: string): boolean {
+  return routes.some((route) => isBpManagementAuthRoute(route) && routePathsMatch(route.path, pathname));
 }
 
 /**
@@ -831,7 +843,7 @@ async function handleRouteRequest(
   // Path params - H3 populates event.context.params for `:paramName` routes
   const params: Record<string, string> = (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
 
-  const extraContext = await resolveRequiredHandlerContext(event, routerOptions);
+  const extraContext = await resolveRequiredHandlerContext(event, routerOptions, route);
   if (!extraContext) {
     return jsonResponse({ error: "BetterPortal tenant/app context required" }, 400);
   }
@@ -845,7 +857,7 @@ async function handleRouteRequest(
   // -- Auth resolution (per spec section 0.5) ----------------------
 
   const apiAuth: ApiAuthRequirement = route.auth;
-  const authResolved = await loadAuthContext(event, routerOptions, obs);
+  const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const authResult = await resolveRequestAuth(apiAuth, event, authResolved, obs);
   if (authResult.error) {
     return renderAuthError(route, event, authResult.status, authResult.error, authResult.requiredPermissions);
@@ -854,7 +866,7 @@ async function handleRouteRequest(
   // -- Tenant/app activation check (validateTenantApp hook -> 426) -----
 
   const tenantApp = readTenantAppFromEvent(event);
-  if (tenantApp && routerOptions.validateTenantApp) {
+  if (tenantApp && routerOptions.validateTenantApp && !isBpManagementAuthRoute(route)) {
     try {
       const validation = await routerOptions.validateTenantApp(tenantApp.tenantId, tenantApp.appId);
       if (!validation.allowed) {
@@ -1173,13 +1185,13 @@ async function handleStreamSse(
 
   // The frame stream carries the same data as the view route - enforce the
   // same auth requirement.
-  const authResolved = await loadAuthContext(event, routerOptions, obs);
+  const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const authResult = await resolveRequestAuth(route.auth, event, authResolved, obs);
   if (authResult.error) {
     return jsonResponse({ error: authResult.error, status: authResult.status } as unknown as JsonValue, authResult.status);
   }
 
-  const extraContext = await resolveRequiredHandlerContext(event, routerOptions);
+  const extraContext = await resolveRequiredHandlerContext(event, routerOptions, route);
   if (!extraContext) {
     return jsonResponse({ error: "BetterPortal tenant/app context required" }, 400);
   }
@@ -1265,11 +1277,12 @@ interface AuthResult {
 
 async function loadAuthContext(
   event: BetterPortalEvent,
+  route: RegisteredRoute,
   routerOptions: H3RouterObservabilityOptions,
   obs?: BetterPortalObservability
 ): Promise<H3AuthContext | undefined> {
   try {
-    return await routerOptions.resolveAuth?.(event);
+    return await routerOptions.resolveAuth?.(event, route);
   } catch (err) {
     obs?.logger.warn("Auth resolver threw: {msg}", { msg: (err as Error).message });
     return undefined;
