@@ -1,12 +1,50 @@
 import type { BaseSchema } from "anyvali";
 import type { HttpMethod, RenderMode } from "./common.js";
 import type { CacheHints } from "./view.js";
-import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, SSEHandler } from "./route.js";
+import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteUrlOptions, SSEHandler } from "./route.js";
 import type { BetterPortalRouteChrome } from "./platformConfig.js";
 import type { ApiContractDescriptor } from "./m2m.js";
 import type { BpStreamHandler, StreamRendererSet } from "./streaming.js";
 import type { HtmlRenderable } from "../runtime/view.js";
 
+export interface RouteUiOptions extends RouteUrlOptions {
+  method?: HttpMethod;
+  target?: string;
+  swap?: string;
+  push?: string | boolean;
+}
+
+export type RouteUiAttributes = Readonly<Record<string, string>>;
+
+export interface ViewRenderContext {
+  readonly request: {
+    readonly method: HttpMethod;
+    readonly path: string;
+    readonly params: Readonly<Record<string, string>>;
+    readonly query: Readonly<Record<string, unknown>>;
+  };
+  readonly route: {
+    readonly viewId: string;
+    readonly path: string;
+    readonly theme: string;
+    readonly mode: RenderMode;
+    readonly kind: ThemeRendererType;
+    readonly key?: string;
+    readonly status: number;
+  };
+  readonly url: {
+    current(options?: RouteUrlOptions & { component?: string; fragment?: string }): string;
+    path(path: string, options?: RouteUrlOptions): string;
+    route(viewId: string, options?: RouteUrlOptions): string | null;
+    uiRoute(viewId: string, options?: RouteUrlOptions): string | null;
+  };
+  readonly routeUi: {
+    link(url: string, options?: RouteUiOptions): RouteUiAttributes;
+    current(options?: RouteUiOptions): RouteUiAttributes;
+    fragment(url: string, options?: RouteUiOptions): RouteUiAttributes;
+    form(url: string, options?: RouteUiOptions): RouteUiAttributes;
+  };
+}
 // -- Theme renderer types ----------------------------------------------
 
 /** Type of view renderer within a _theme.* directory. */
@@ -24,7 +62,7 @@ export interface RegisteredThemeRenderer {
   readonly fragmentId?: string;
   /** The render function exported by the theme file. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly render: (data: any) => HtmlRenderable;
+  readonly render: (data: any, context?: ViewRenderContext) => HtmlRenderable;
   /**
    * SSE tick renderer - fragments only.
    * Sourced from `_<location>.<fragmentId>.sse.tsx`'s `renderTick` export.

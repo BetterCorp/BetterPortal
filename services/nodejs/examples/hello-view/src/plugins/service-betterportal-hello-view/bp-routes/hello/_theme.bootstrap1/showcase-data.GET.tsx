@@ -1,5 +1,5 @@
 /** @jsxImportSource jsx-htmx */
-import type { HtmlRenderable } from "@betterportal/framework";
+import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 
 /*
@@ -33,10 +33,8 @@ const TOTAL_PAGES = Math.ceil(ALL_USERS.length / PAGE_SIZE);
 /**
  * Render the user table component.
  * @param page - current page number
- * @param routePath - the PARENT route's internal path (e.g., "/showcase/data")
- *                    pagination uses ?_c=user-table&page=N against this path
  */
-function renderDataTableFragment(page: number, routePath: string): HtmlRenderable {
+function renderDataTableFragment(page: number, ctx: ViewRenderContext): HtmlRenderable {
   const safePage = Math.max(1, Math.min(page, TOTAL_PAGES));
   const start = (safePage - 1) * PAGE_SIZE;
   const users = ALL_USERS.slice(start, start + PAGE_SIZE);
@@ -52,9 +50,7 @@ function renderDataTableFragment(page: number, routePath: string): HtmlRenderabl
     return (
       <li class={`page-item${p === safePage ? " active" : ""}`}>
         <button type="button" class="page-link"
-          hx-get={`${routePath}?_c=user-table&page=${p}`}
-          hx-target="#bp-c-user-table"
-          hx-swap="innerHTML"
+          {...ctx.routeUi.fragment(ctx.url.current({ component: "user-table", query: { page: p } }), { target: "#bp-c-user-table", swap: "innerHTML" })}
         >{label}</button>
       </li>
     );
@@ -104,8 +100,9 @@ function renderDataTableFragment(page: number, routePath: string): HtmlRenderabl
    Showcase: Data Display
     */
 
-export function render(data: ResponseData, page = 1): HtmlRenderable {
-  const routePath = "/hello";
+export function render(data: ResponseData, ctx?: ViewRenderContext): HtmlRenderable {
+  const renderContext = ctx!;
+  const page = Number(renderContext.request.query.page ?? 1);
   return (
     <section class="container-fluid px-0">
       <div class="d-flex flex-column gap-4">
@@ -122,7 +119,7 @@ export function render(data: ResponseData, page = 1): HtmlRenderable {
             <button class="btn btn-primary btn-sm">Add User</button>
           </div>
           <div class="card-body p-0" id="bp-c-user-table">
-            {renderDataTableFragment(page, routePath)}
+            {renderDataTableFragment(page, renderContext)}
           </div>
         </div>
 
