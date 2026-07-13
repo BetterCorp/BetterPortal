@@ -682,9 +682,13 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       display: "none"
     },
     ".bp-admin__content-status": {
+      display: "none",
       position: "relative",
       zIndex: 1,
       padding: "0.75rem 1.25rem 0"
+    },
+    ".bp-admin__content-status:has(.bp-admin__error.is-visible)": {
+      display: "block"
     },
     ".bp-admin__error": {
       display: "none"
