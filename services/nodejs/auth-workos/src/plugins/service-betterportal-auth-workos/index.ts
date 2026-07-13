@@ -10,7 +10,7 @@ import {
   BPService,
   type BPServiceDefinition
 } from "@betterportal/plugin-bsb";
-import { WorkOS, type AuthenticationResponse } from "@workos-inc/node";
+import { WorkOS, type AuthenticationResponse, type OrganizationMembership, type Session } from "@workos-inc/node";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import {
   htmlResponse,
@@ -89,6 +89,12 @@ export interface WorkOSAppConfig {
 }
 
 export type WorkOSBrowserConfig = Omit<WorkOSAppConfig, "apiKey">;
+
+export const WorkOSRefreshContextSchema = av.object({
+  providerToken: av.string().minLength(1),
+  sessionId: av.string().minLength(1),
+  organizationId: av.optional(av.string().minLength(1))
+}, { unknownKeys: "strip" });
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
@@ -317,11 +323,36 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     });
   }
 
-  refreshWorkOSToken(config: WorkOSAppConfig, refreshToken: string): Promise<AuthenticationResponse> {
+  refreshWorkOSToken(config: WorkOSAppConfig, refreshToken: string, organizationId?: string): Promise<AuthenticationResponse> {
     return this.client(config).userManagement.authenticateWithRefreshToken({
       clientId: config.clientId,
-      refreshToken
+      refreshToken,
+      ...(organizationId ? { organizationId } : {})
     });
+  }
+
+  async getWorkOSSessionState(config: WorkOSAppConfig, input: { userId: string; sessionId: string; organizationId?: string }): Promise<{ sessionActive: boolean; membershipActive: boolean }> {
+    const userManagement = this.client(config).userManagement;
+    const sessionsPromise = userManagement.listSessions(input.userId).then((list) => list.autoPagination());
+    const membershipsPromise: Promise<OrganizationMembership[]> = input.organizationId
+      ? userManagement.listOrganizationMemberships({
+          userId: input.userId,
+          organizationId: input.organizationId,
+          statuses: ["active", "inactive", "pending"]
+        }).then((list) => list.autoPagination())
+      : Promise.resolve([]);
+    const [sessions, memberships] = await Promise.all([sessionsPromise, membershipsPromise]);
+    return {
+      sessionActive: (sessions as Session[]).some((session) =>
+        session.id === input.sessionId
+        && session.userId === input.userId
+        && session.status === "active"
+        && (!input.organizationId || session.organizationId === input.organizationId)),
+      membershipActive: !input.organizationId || memberships.some((membership) =>
+        membership.userId === input.userId
+        && membership.organizationId === input.organizationId
+        && membership.status === "active")
+    };
   }
 
   async syncPermissionsToWorkOS(tenantId: string, appId: string): Promise<{ created: number; updated: number; deleted: number; deprecated: number; current: number }> {
@@ -407,6 +438,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     appId: string;
     roles: string[];
     authProvider: string;
+    refreshContext: Record<string, unknown>;
     providerSubject: string;
     provider?: JwtClaims["provider"];
     name?: string;
@@ -414,6 +446,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     picture?: string;
   }, options?: { includeRefreshToken?: boolean }) {
     return this.tokenIssuer().issueTokenPair(input, options);
+  }
+
+  verifyRefreshToken(input: { refreshToken: string; tenantId: string; appId: string }): Promise<JwtClaims> {
+    return this.tokenIssuer().verifyRefreshToken(input);
   }
 
   private getWorkOSRawConfig(tenantId: string, appId: string): Record<string, unknown> {
@@ -805,27 +841,24 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
 export { Config, EventSchemas };
 
-export function rolesFromWorkOSAccessToken(token: string, roleClaimPath = "roles"): string[] {
+export function workOSAccessTokenDetails(token: string, roleClaimPath = "roles"): { roles: string[]; sessionId: string; organizationId?: string } | null {
   const [, payload] = token.split(".");
-  if (!payload) return [];
+  if (!payload) return null;
   try {
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
-    return readStringArrayClaim(claims, roleClaimPath);
+    if (typeof claims.sid !== "string" || !claims.sid) return null;
+    return {
+      roles: readStringArrayClaim(claims, roleClaimPath),
+      sessionId: claims.sid,
+      ...(typeof claims.org_id === "string" && claims.org_id ? { organizationId: claims.org_id } : {})
+    };
   } catch {
-    return [];
+    return null;
   }
 }
 
-export function secondsUntilJwtExpiry(token: string): number | undefined {
-  const [, payload] = token.split(".");
-  if (!payload) return undefined;
-  try {
-    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown };
-    if (typeof parsed.exp !== "number") return undefined;
-    return Math.max(1, Math.floor(parsed.exp - Date.now() / 1000));
-  } catch {
-    return undefined;
-  }
+export function rolesFromWorkOSAccessToken(token: string, roleClaimPath = "roles"): string[] {
+  return workOSAccessTokenDetails(token, roleClaimPath)?.roles ?? [];
 }
 
 function splitScopes(value: string): string[] {

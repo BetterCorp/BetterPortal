@@ -45,7 +45,7 @@ function runtimeFrom(ctx: { plugin?: Pick<Plugin, "runtime"> }): Plugin["runtime
 }
 
 export const handlePost = createHandler(
-  { response: ResponseSchema, request: RequestSchema },
+  { response: ResponseSchema, request: RequestSchema, headers: HeadersSchema },
   async (ctx) => {
     const runtime = runtimeFrom(ctx);
     const tenantId = ctx.tenant.id;
@@ -55,6 +55,9 @@ export const handlePost = createHandler(
     const headers = ctx.headers as Infer<typeof HeadersSchema>;
     const refreshToken = body.refreshToken ?? headers["x-bp-refresh"];
     if (!refreshToken) {
+      ctx.setStatus?.(401);
+      ctx.bpHeaders?.remove('Authorization');
+      ctx.bpHeaders?.remove('X-BP-Refresh');
       return {
         status: "error" as const,
         message: "Refresh token missing."
@@ -69,14 +72,30 @@ export const handlePost = createHandler(
         appId
       });
     } catch {
+      ctx.setStatus?.(401);
+      ctx.bpHeaders?.remove('Authorization');
+      ctx.bpHeaders?.remove('X-BP-Refresh');
       return {
         status: "error" as const,
         message: "Refresh token invalid or expired."
       };
     }
 
+    if (claims.authProvider !== 'betterportal.default' || !claims.refreshContext) {
+      ctx.setStatus?.(401);
+      ctx.bpHeaders?.remove('Authorization');
+      ctx.bpHeaders?.remove('X-BP-Refresh');
+      return {
+        status: 'error' as const,
+        message: 'Refresh token belongs to a different auth provider.'
+      };
+    }
+
     const user = runtime.userStore.findById(claims.sub);
     if (!user || !user.enabled) {
+      ctx.setStatus?.(401);
+      ctx.bpHeaders?.remove('Authorization');
+      ctx.bpHeaders?.remove('X-BP-Refresh');
       return {
         status: "error" as const,
         message: "User no longer exists or is disabled."
@@ -88,6 +107,8 @@ export const handlePost = createHandler(
       sub: user.id,
       tenantId: user.tenantId,
       appId,
+      authProvider: 'betterportal.default',
+      refreshContext: {},
       roles,
       name: user.name ?? user.username,
       email: user.email,

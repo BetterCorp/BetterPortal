@@ -177,23 +177,28 @@ export const handlePost = createHandler(
       tenantId: ctx.tenant.id,
       appId: ctx.app.id,
       roles: user.roles,
+      refreshContext: { providerToken: request.accessToken },
       authProvider: "authress.io",
       providerSubject: user.sub,
       provider: user.provider,
       name: profileValue(request.name) || user.name,
       email: profileValue(request.email) || user.email,
       picture: profileValue(request.picture) || user.picture
-    }, { includeRefreshToken: false });
+    });
+    if (!issued.refreshToken) throw new Error('Auth token issuer did not return a refresh token');
     ctx.bpHeaders?.set("Authorization", `Bearer ${issued.accessToken}`, {
       locked: true,
       expiresInSeconds: issued.accessTokenExpiresInSeconds,
       refreshPath: "/refresh",
       refreshBeforeSeconds: 60
     });
-    ctx.bpHeaders?.set("X-BP-Refresh", request.accessToken, {
+    ctx.bpHeaders?.set("X-BP-Refresh", issued.refreshToken, {
       locked: true,
       scopeToOwner: true,
-      expiresInSeconds: secondsUntilJwtExpiry(request.accessToken)
+      expiresInSeconds: Math.min(
+        issued.refreshTokenExpiresInSeconds ?? Number.MAX_SAFE_INTEGER,
+        secondsUntilJwtExpiry(request.accessToken) ?? Number.MAX_SAFE_INTEGER
+      )
     });
     ctx.responseHeaders?.set("HX-Redirect", nextUrl);
     if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);

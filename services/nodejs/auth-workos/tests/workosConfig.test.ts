@@ -5,6 +5,7 @@ import {
   parseBpPermissionSlug,
   resolveWorkOSAppConfig,
   resolveWorkOSBrowserConfig,
+  workOSAccessTokenDetails,
   workOSPermissionDescription,
   workOSPermissionName
 } from "../src/plugins/service-betterportal-auth-workos/index.js";
@@ -64,4 +65,19 @@ test("workos permission metadata respects field limits", () => {
 
   const description = workOSPermissionDescription("x".repeat(200));
   assert.equal(description.length, 150);
+});
+
+test("reads session, organization, and current roles from a WorkOS access token", () => {
+  const payload = Buffer.from(JSON.stringify({
+    sid: "session_123",
+    org_id: "org_123",
+    roles: ["admin", "member"]
+  })).toString("base64url");
+
+  assert.deepEqual(workOSAccessTokenDetails(`header.${payload}.signature`), {
+    sessionId: "session_123",
+    organizationId: "org_123",
+    roles: ["admin", "member"]
+  });
+  assert.equal(workOSAccessTokenDetails("header.invalid.signature"), null);
 });

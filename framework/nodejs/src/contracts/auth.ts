@@ -22,6 +22,7 @@ export const JwtClaimsSchema = av.object({
   roles: av.array(NonEmptyStringSchema).default([]),
   tokenType: TokenTypeSchema,
   authProvider: av.optional(av.string().minLength(1)),
+  refreshContext: av.optional(av.record(av.any())),
   providerSubject: av.optional(av.string().minLength(1)),
   provider: av.optional(av.object({
     username: av.optional(av.string()),

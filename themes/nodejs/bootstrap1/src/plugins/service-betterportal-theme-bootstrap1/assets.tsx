@@ -477,7 +477,9 @@ function shellRuntimeSource(): string {
 
       const BP_HEADERS_KEY = "bp.headers";
       const DEFAULT_HEADER_REFRESH_BEFORE_SECONDS = 60;
+      const HEADER_REFRESH_RETRY_MS = 30_000;
       const headerRefreshTimers = new Map<string, number>();
+      const headerRefreshRetryAt = new Map<string, number>();
       let headerRefreshInFlight: Promise<boolean> | null = null;
 
       const readBpHeaders = (): Record<string, BpStoredHeader> => {
@@ -546,6 +548,7 @@ function shellRuntimeSource(): string {
       const refreshStoredHeader = async (name: string, entry: BpStoredHeader): Promise<boolean> => {
         const refreshUrl = refreshUrlForHeader(entry);
         if (!refreshUrl) return false;
+        const previous = liveBpHeaders()[name] ?? entry;
 
         const headers: Record<string, string> = {
           "accept": "application/json",
@@ -567,7 +570,10 @@ function shellRuntimeSource(): string {
         }
 
         applyBpHeaderDirectives(response, refreshUrl);
-        return response.ok && !!liveBpHeaders()[name];
+        const current = liveBpHeaders()[name];
+        return response.ok
+          && !!current
+          && (current.value !== previous.value || current.expires !== previous.expires);
       };
 
       const refreshStoredHeaders = async (force = false): Promise<boolean> => {
@@ -601,9 +607,14 @@ function shellRuntimeSource(): string {
             ? entry.refreshBefore
             : DEFAULT_HEADER_REFRESH_BEFORE_SECONDS;
           const dueMs = (entry.expires - before) * 1000;
-          const delay = Math.max(0, dueMs - nowMs);
+          const delay = Math.max(0, dueMs - nowMs, (headerRefreshRetryAt.get(name) ?? 0) - nowMs);
           headerRefreshTimers.set(name, window.setTimeout(() => {
-            void refreshStoredHeader(name, entry).finally(scheduleHeaderRefreshes);
+            void refreshStoredHeader(name, entry)
+              .then((refreshed) => {
+                if (refreshed) headerRefreshRetryAt.delete(name);
+                else headerRefreshRetryAt.set(name, Date.now() + HEADER_REFRESH_RETRY_MS);
+              })
+              .finally(scheduleHeaderRefreshes);
           }, delay));
         }
       };

@@ -9,8 +9,7 @@ import {
 import type { Plugin } from "../../index.js";
 import {
   resolveWorkOSAppConfig,
-  rolesFromWorkOSAccessToken,
-  secondsUntilJwtExpiry
+  workOSAccessTokenDetails
 } from "../../index.js";
 
 export const QuerySchema = av.object({
@@ -104,32 +103,43 @@ export const handleGet = createHandler(
     if (query.code) {
       try {
         const auth = await pluginFrom(ctx).authenticateWithCode(config, query.code);
-        const roles = rolesFromWorkOSAccessToken(auth.accessToken, config.roleClaimPath ?? "roles");
+        const details = workOSAccessTokenDetails(auth.accessToken, config.roleClaimPath ?? "roles");
+        if (!details) throw new Error("WorkOS access token is missing its session id.");
+        if (auth.organizationId && details.organizationId && auth.organizationId !== details.organizationId) {
+          throw new Error("WorkOS organization does not match the access token.");
+        }
+        const organizationId = auth.organizationId ?? details.organizationId;
         const issued = pluginFrom(ctx).issueTokenPair({
           sub: auth.user.id,
           tenantId: ctx.tenant.id,
           appId: ctx.app.id,
-          roles,
+          roles: details.roles,
           authProvider: "workos",
+          refreshContext: {
+            providerToken: auth.refreshToken,
+            sessionId: details.sessionId,
+            ...(organizationId ? { organizationId } : {})
+          },
           providerSubject: auth.user.id,
           provider: {
             accountId: auth.user.id,
-            scope: auth.organizationId ? `organization:${auth.organizationId}` : undefined
+            scope: organizationId ? `organization:${organizationId}` : undefined
           },
           name: firstString(auth.user.name, [auth.user.firstName, auth.user.lastName].filter(Boolean).join(" ")),
           email: auth.user.email,
           picture: auth.user.profilePictureUrl ?? undefined
-        }, { includeRefreshToken: false });
+        });
+        if (!issued.refreshToken) throw new Error("Auth token issuer did not return a refresh token");
         ctx.bpHeaders?.set("Authorization", `Bearer ${issued.accessToken}`, {
           locked: true,
           expiresInSeconds: issued.accessTokenExpiresInSeconds,
           refreshPath: "/refresh",
           refreshBeforeSeconds: 60
         });
-        ctx.bpHeaders?.set("X-BP-Refresh", auth.refreshToken, {
+        ctx.bpHeaders?.set("X-BP-Refresh", issued.refreshToken, {
           locked: true,
           scopeToOwner: true,
-          expiresInSeconds: secondsUntilJwtExpiry(auth.accessToken)
+          expiresInSeconds: issued.refreshTokenExpiresInSeconds
         });
         ctx.responseHeaders?.set("HX-Redirect", nextUrl);
         if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);

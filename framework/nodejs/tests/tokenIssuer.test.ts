@@ -21,6 +21,8 @@ test("issues access and refresh tokens from one token id", async () => {
     sub: "user-1",
     tenantId,
     appId,
+    authProvider: 'test',
+    refreshContext: { providerToken: 'secret' },
     roles: ["admin"],
     name: "Admin User",
     email: "admin@example.test"
@@ -40,10 +42,17 @@ test("issues access and refresh tokens from one token id", async () => {
 
   assert.equal(accessClaims.jti, pair.tokenId);
   assert.equal(refreshClaims.jti, pair.tokenId);
+  assert.equal(accessClaims.refreshContext, undefined);
+  assert.deepEqual(refreshClaims.refreshContext, { providerToken: 'secret' });
   assert.equal(accessClaims.tokenType, "access");
   assert.equal(refreshClaims.tokenType, "refresh");
   assert.deepEqual(accessClaims.roles, ["admin"]);
   assert.deepEqual(refreshClaims.roles, []);
+  await assert.rejects(
+    issuer.verifyRefreshToken({ refreshToken: pair.accessToken, tenantId, appId }),
+    /Token type mismatch/
+  );
+  await assert.rejects(issuer.verifier("access").verify(pair.refreshToken), /Token type mismatch/);
 });
 
 test("rejects refresh tokens bound to a different tenant or app", async () => {
@@ -57,7 +66,9 @@ test("rejects refresh tokens bound to a different tenant or app", async () => {
   const pair = issuer.issueTokenPair({
     sub: "user-1",
     tenantId,
-    appId
+    appId,
+    authProvider: 'test',
+    refreshContext: {}
   });
   assert.ok(pair.refreshToken);
 
@@ -69,4 +80,18 @@ test("rejects refresh tokens bound to a different tenant or app", async () => {
     }),
     /different tenant\/app/
   );
+});
+
+test('requires refresh context only when issuing a refresh token', () => {
+  const issuer = createBpTokenIssuer({
+    keyPair,
+    issuer: 'https://auth.local',
+    audience: 'betterportal-runtime',
+    accessTokenSeconds: 900,
+    refreshTokenSeconds: 3600
+  });
+  const input = { sub: 'user-1', tenantId, appId, authProvider: 'test' };
+
+  assert.throws(() => issuer.issueTokenPair(input as any), /refreshContext is required/);
+  assert.doesNotThrow(() => issuer.issueTokenPair(input as any, { includeRefreshToken: false }));
 });

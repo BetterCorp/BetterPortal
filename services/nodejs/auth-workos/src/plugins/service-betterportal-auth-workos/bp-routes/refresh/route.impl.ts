@@ -8,8 +8,8 @@ import {
 import type { Plugin } from "../../index.js";
 import {
   resolveWorkOSAppConfig,
-  rolesFromWorkOSAccessToken,
-  secondsUntilJwtExpiry
+  workOSAccessTokenDetails,
+  WorkOSRefreshContextSchema
 } from "../../index.js";
 
 export const HeadersSchema = av.object({
@@ -29,7 +29,7 @@ export const ResponseSchema = av.object({
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "WorkOS Refresh";
-export const description = "Refresh BetterPortal tokens using the WorkOS refresh token.";
+export const description = "Refresh BetterPortal tokens using a WorkOS-backed BP refresh token.";
 export const role = "auth.refresh";
 export const auth: ApiAuthRequirement = { required: false, permissions: [] };
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: [] };
@@ -40,11 +40,17 @@ function pluginFrom(ctx: { plugin?: unknown }): Plugin {
   return plugin;
 }
 
+function clearAuth(ctx: { bpHeaders?: { remove(name: string): void } }): void {
+  ctx.bpHeaders?.remove("Authorization");
+  ctx.bpHeaders?.remove("X-BP-Refresh");
+}
+
 export const handlePost = createHandler(
   { response: ResponseSchema, request: RequestSchema, headers: HeadersSchema },
   async (ctx) => {
     const config = resolveWorkOSAppConfig(ctx.config);
     if (!config) {
+      ctx.setStatus?.(503);
       return { status: "error" as const, message: "WorkOS config is missing clientId or apiKey." };
     }
 
@@ -52,32 +58,95 @@ export const handlePost = createHandler(
     const headers = ctx.headers as Infer<typeof HeadersSchema>;
     const refreshToken = body.refreshToken ?? headers["x-bp-refresh"];
     if (!refreshToken?.trim()) {
-      return { status: "error" as const, message: "WorkOS refresh token is required." };
+      ctx.setStatus?.(401);
+      clearAuth(ctx);
+      return { status: "error" as const, message: "Refresh token is required." };
     }
 
-    let auth;
+    const plugin = pluginFrom(ctx);
+    let claims;
     try {
-      auth = await pluginFrom(ctx).refreshWorkOSToken(config, refreshToken);
+      claims = await plugin.verifyRefreshToken({ refreshToken, tenantId: ctx.tenant.id, appId: ctx.app.id });
+    } catch {
+      ctx.setStatus?.(401);
+      clearAuth(ctx);
+      return { status: "error" as const, message: "Refresh token invalid or expired." };
+    }
+
+    let refreshContext: Infer<typeof WorkOSRefreshContextSchema>;
+    try {
+      if (claims.authProvider !== "workos" || claims.providerSubject !== claims.sub) throw new Error("Wrong auth provider");
+      refreshContext = WorkOSRefreshContextSchema.parse(claims.refreshContext);
+    } catch {
+      ctx.setStatus?.(401);
+      clearAuth(ctx);
+      return { status: "error" as const, message: "Refresh token belongs to a different auth provider." };
+    }
+
+    let state;
+    try {
+      state = await plugin.getWorkOSSessionState(config, {
+        userId: claims.sub,
+        sessionId: refreshContext.sessionId,
+        organizationId: refreshContext.organizationId
+      });
     } catch (error: any) {
       ctx.obs?.error(error);
-      return { status: "error" as const, message: "WorkOS refresh token invalid or expired." };
+      ctx.setStatus?.(502);
+      return { status: "error" as const, message: "WorkOS session lookup failed." };
+    }
+    if (!state.sessionActive || !state.membershipActive) {
+      ctx.setStatus?.(401);
+      clearAuth(ctx);
+      return { status: "error" as const, message: "WorkOS session or organization membership is inactive." };
     }
 
-    const issued = pluginFrom(ctx).issueTokenPair({
-      sub: auth.user.id,
+    let workosAuth;
+    try {
+      workosAuth = await plugin.refreshWorkOSToken(config, refreshContext.providerToken, refreshContext.organizationId);
+    } catch (error: any) {
+      ctx.obs?.error(error);
+      const status = [400, 401, 403, 404, 422].includes(error?.status) ? 401 : 502;
+      ctx.setStatus?.(status);
+      if (status === 401) clearAuth(ctx);
+      return {
+        status: "error" as const,
+        message: status === 401 ? "WorkOS refresh token invalid, expired, or revoked." : "WorkOS token refresh failed."
+      };
+    }
+
+    const details = workOSAccessTokenDetails(workosAuth.accessToken, config.roleClaimPath ?? "roles");
+    if (!details
+      || workosAuth.user.id !== claims.sub
+      || details.sessionId !== refreshContext.sessionId
+      || (details.organizationId ?? "") !== (refreshContext.organizationId ?? "")
+      || (workosAuth.organizationId ?? details.organizationId ?? "") !== (refreshContext.organizationId ?? "")) {
+      ctx.setStatus?.(401);
+      clearAuth(ctx);
+      return { status: "error" as const, message: "WorkOS refreshed identity does not match the original session." };
+    }
+
+    const issued = plugin.issueTokenPair({
+      sub: workosAuth.user.id,
       tenantId: ctx.tenant.id,
       appId: ctx.app.id,
-      roles: rolesFromWorkOSAccessToken(auth.accessToken, config.roleClaimPath ?? "roles"),
+      roles: details.roles,
       authProvider: "workos",
-      providerSubject: auth.user.id,
-      provider: {
-        accountId: auth.user.id,
-        scope: auth.organizationId ? `organization:${auth.organizationId}` : undefined
+      refreshContext: {
+        providerToken: workosAuth.refreshToken,
+        sessionId: details.sessionId,
+        ...(details.organizationId ? { organizationId: details.organizationId } : {})
       },
-      name: auth.user.name ?? undefined,
-      email: auth.user.email,
-      picture: auth.user.profilePictureUrl ?? undefined
-    }, { includeRefreshToken: false });
+      providerSubject: workosAuth.user.id,
+      provider: {
+        accountId: workosAuth.user.id,
+        scope: details.organizationId ? `organization:${details.organizationId}` : undefined
+      },
+      name: workosAuth.user.name ?? undefined,
+      email: workosAuth.user.email,
+      picture: workosAuth.user.profilePictureUrl ?? undefined
+    });
+    if (!issued.refreshToken) throw new Error("Auth token issuer did not return a refresh token");
 
     ctx.bpHeaders?.set("Authorization", `Bearer ${issued.accessToken}`, {
       locked: true,
@@ -85,10 +154,10 @@ export const handlePost = createHandler(
       refreshPath: "/refresh",
       refreshBeforeSeconds: 60
     });
-    ctx.bpHeaders?.set("X-BP-Refresh", auth.refreshToken, {
+    ctx.bpHeaders?.set("X-BP-Refresh", issued.refreshToken, {
       locked: true,
       scopeToOwner: true,
-      expiresInSeconds: secondsUntilJwtExpiry(auth.accessToken)
+      expiresInSeconds: issued.refreshTokenExpiresInSeconds
     });
 
     return {

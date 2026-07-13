@@ -165,6 +165,8 @@ export const handlePost = createHandler(
       sub: user.id,
       tenantId: user.tenantId,
       appId,
+      authProvider: 'betterportal.default',
+      refreshContext: {},
       roles: user.roles,
       name: user.name ?? user.username,
       email: user.email,

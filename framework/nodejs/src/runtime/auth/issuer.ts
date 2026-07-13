@@ -18,11 +18,17 @@ export interface BpTokenUser {
   appId: string;
   roles?: string[];
   authProvider?: string;
+  refreshContext?: Record<string, unknown>;
   providerSubject?: string;
   provider?: JwtClaims["provider"];
   name?: string;
   email?: string;
   picture?: string;
+}
+
+export interface BpTokenPairUser extends BpTokenUser {
+  authProvider: string;
+  refreshContext: Record<string, unknown>;
 }
 
 export interface BpIssuedTokenPair {
@@ -58,6 +64,7 @@ export function createBpTokenIssuer(options: BpTokenIssuerOptions) {
       realm: "runtime",
       tokenType,
       authProvider: input.authProvider,
+      refreshContext: tokenType === 'refresh' ? input.refreshContext : undefined,
       providerSubject: input.providerSubject,
       provider: input.provider,
       name: input.name,
@@ -73,15 +80,21 @@ export function createBpTokenIssuer(options: BpTokenIssuerOptions) {
       return signToken(input, "access", options.accessTokenSeconds);
     },
 
-    issueTokenPair(input: BpTokenUser, pairOptions: { includeRefreshToken?: boolean } = { includeRefreshToken: true }): BpIssuedTokenPair {
+    issueTokenPair(input: BpTokenPairUser, pairOptions: { includeRefreshToken?: boolean } = { includeRefreshToken: true }): BpIssuedTokenPair {
       const tokenId = uuidv7();
       const accessToken = signToken(input, "access", options.accessTokenSeconds, tokenId);
-      if (!pairOptions.includeRefreshToken) {
+      if (pairOptions.includeRefreshToken === false) {
         return {
           tokenId,
           accessToken,
           accessTokenExpiresInSeconds: options.accessTokenSeconds
         };
+      }
+      if (!input.authProvider) {
+        throw new Error("authProvider is required to issue refresh tokens");
+      }
+      if (!input.refreshContext) {
+        throw new Error('refreshContext is required to issue refresh tokens');
       }
       if (!options.refreshTokenSeconds) {
         throw new Error("refreshTokenSeconds is required to issue refresh tokens");

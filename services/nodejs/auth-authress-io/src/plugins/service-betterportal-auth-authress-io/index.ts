@@ -246,12 +246,17 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     return verifyAuthressToken(token, appConfig, scope);
   }
 
+  verifyRefreshToken(input: { refreshToken: string; tenantId: string; appId: string }): Promise<JwtClaims> {
+    return this.tokenIssuer().verifyRefreshToken(input);
+  }
+
   issueTokenPair(input: {
     sub: string;
     tenantId: string;
     appId: string;
     roles: string[];
     authProvider: string;
+    refreshContext: Record<string, unknown>;
     providerSubject: string;
     provider?: JwtClaims["provider"];
     name?: string;
