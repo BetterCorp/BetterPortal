@@ -322,18 +322,18 @@ Streaming HTML renderers live in `_theme.<themeId>/index.stream.tsx` exporting `
 
 ## SSE files
 
-Custom SSE handlers are method-scoped. Use `GET.sse.ts`; SSE is HTTP GET transport.
+SSE is always HTTP GET, so the preferred handler name is `sse.ts`. The explicit legacy name `GET.sse.ts` remains supported.
 
 ```text
 bp-routes/hello/
   GET.ts
-  GET.sse.ts
+  sse.ts
   _theme.bootstrap1/
     _nav.clock.GET.tsx
-    _nav.clock.GET.sse.tsx
+    _nav.clock.sse.tsx
 ```
 
-`GET.sse.ts` exports `handleSSE` and optional `tickSchema`. A fragment tick renderer uses `_<location>.<id>.GET.sse.tsx` and exports `renderTick`.
+`sse.ts` exports `handleSSE` and optional `tickSchema`. A fragment tick renderer uses `_<location>.<id>.sse.tsx` and exports `renderTick`; its GET method is inferred. The explicit `GET.sse.ts` and `_<location>.<id>.GET.sse.tsx` forms remain supported, but do not keep both aliases for the same handler or renderer.
 
 Only actual renderer files should live inside `_theme.<themeId>/`. Shared helpers should live elsewhere, because codegen treats `.tsx` files in theme directories as renderers.
 

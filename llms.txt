@@ -109,7 +109,7 @@ These are non-negotiable. The whole architecture is built on them.
 - **External auth login UI.** Authress and WorkOS app config support `loginUI`: `default` preserves the provider-specific current presentation, `clean` shows a neutral BP sign-in button, and `redirect` uses clean UI but auto-starts the provider redirect. This does not implement WorkOS custom in-app AuthKit credential collection; that needs explicit routes/API handling.
 - **403 permission UI.** Services must return useful HTML for `403 Insufficient permissions` when HTML is requested. The fallback status body includes required `serviceId`, `viewId`, and permission actions; JSON clients receive the same `requiredPermissions` details.
 - **Live-refresh via `HX-Trigger` events.** Mutations emit an event header; passive regions subscribe via `hx-trigger="event from:body"`. No websockets needed for typical UI.
-- **SSE for server-push.** SSE handler convention is `GET.sse.ts` + `_<loc>.<frag>.GET.sse.tsx`. WebSockets need framework-level connection lifecycle support and are not route files.
+- **SSE for server-push.** SSE handler convention is `sse.ts` + `_<loc>.<frag>.sse.tsx`; GET is inferred. The explicit GET-prefixed forms remain supported. WebSockets need framework-level connection lifecycle support and are not route files.
 - **Codegen is mandatory.** Route registration is file-system driven through `bp-codegen`. Hand-written registries are not supported.
 - **BSB package shape.** Runnable services/themes are BSB plugins: `@bsb/base`, `@betterportal/framework`, and `@betterportal/plugin-bsb` are runtime dependencies. `@bsb/tests` is dev-only and used through `"test": "bsb-plugin-cli test"` for packages that want shared BSB plugin checks. Keep `tests/`, `*.test.ts`, and `bsb-tests.json` out of published package `files`.
 - **Strict separation of admin and tenant data.** Tenant-scoped operations only see their tenant's services + apps. Platform admin operations are gated behind config-manager.
@@ -209,12 +209,12 @@ bp-routes/
     index.ts                         # route metadata only
     GET.ts                           # GET schemas + default handler
     POST.ts                          # POST schemas + default handler
-    GET.sse.ts                       # optional SSE handler
+    sse.ts                           # optional SSE handler (GET inferred)
     _theme.bootstrap1/
       GET.tsx                        # GET page HTML for bootstrap1
       POST.422.tsx                   # POST 422 HTML
       _nav.profile.GET.tsx           # fragment at location "nav", id "profile"
-      _nav.profile.GET.sse.tsx       # optional SSE tick renderer
+      _nav.profile.sse.tsx           # optional SSE tick renderer (GET inferred)
       showcase-cards.GET.tsx         # named component (queryable via ?_c=showcase-cards)
     _theme.embedded/
       GET.tsx                        # embedded GET page

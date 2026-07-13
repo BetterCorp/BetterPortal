@@ -110,7 +110,7 @@ The full developer guide lives in **[llms.txt](llms.txt)** - written for LLM age
 | **Platform service** | Shared cross-tenant service (e.g., auth); tenants opt in. |
 | **Route** | `path -> service + view + targetPath` binding in an app. |
 | **View** | `bp-routes/<dir>/index.ts` - schemas + handler. Theme renderers live alongside in `_theme.<themeId>/index.tsx`. |
-| **Fragment** | HTML island at a named location (`nav`, `footer`). File: `_<location>.<id>.tsx`. Optional SSE renderer: `_<location>.<id>.sse.tsx`. |
+| **Fragment** | HTML island at a named location (`nav`, `footer`). File: `_<location>.<id>.GET.tsx`. Optional SSE renderer: `_<location>.<id>.sse.tsx`. |
 | **Menu** | Per-app tree (groups + links) driving the sidebar nav. |
 
 ## Design constraints (non-negotiable)

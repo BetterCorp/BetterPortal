@@ -340,7 +340,7 @@ export function createH3Router(
               ?? (rawQuery._theme as string | undefined);
 
             if (themeId) {
-              const resolved = resolveRenderer(route, themeId, "fragment", undefined, undefined, fragmentKey);
+              const resolved = resolveRenderer(route, themeId, "fragment", "GET", undefined, fragmentKey);
               if (resolved?.renderer.sseRender) {
                 sseRender = resolved.renderer.sseRender as (data: unknown) => unknown;
               }
@@ -349,7 +349,7 @@ export function createH3Router(
               // themes; otherwise leave it to the JSON passthrough rather than guess.
               const matches: Array<(data: unknown) => unknown> = [];
               for (const candidateThemeId of Object.keys(route.themeRenderers)) {
-                const resolved = resolveRenderer(route, candidateThemeId, "fragment", undefined, undefined, fragmentKey);
+                const resolved = resolveRenderer(route, candidateThemeId, "fragment", "GET", undefined, fragmentKey);
                 if (resolved?.renderer.sseRender) {
                   matches.push(resolved.renderer.sseRender as (data: unknown) => unknown);
                 }

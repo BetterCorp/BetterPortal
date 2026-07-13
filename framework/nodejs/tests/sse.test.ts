@@ -1,0 +1,115 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createH3Router } from "../src/adapters/h3.js";
+import { emitRegistry } from "../src/codegen/emitter.js";
+import { scanRoutes } from "../src/codegen/scanner.js";
+import { validateScanResult } from "../src/codegen/validate.js";
+import type { BetterPortalRegistry, RegisteredRoute } from "../src/contracts/registry.js";
+import { createBetterPortalApp, createBetterPortalNodeHandler } from "../src/runtime/h3.js";
+
+function write(path: string, content: string): void {
+  writeFileSync(path, content, "utf8");
+}
+
+test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-sse-codegen-"));
+  t.after(() => rmSync(baseDir, { recursive: true, force: true }));
+  const routeDir = join(baseDir, "bp-routes", "live");
+  const themeDir = join(routeDir, "_theme.bootstrap1");
+  mkdirSync(themeDir, { recursive: true });
+
+  write(join(baseDir, "index.ts"), "export class Plugin {}\n");
+  write(join(routeDir, "index.ts"), `
+    export const viewId = "live.index";
+    export const title = "Live";
+    export const description = "";
+    export const auth = { required: false, permissions: [] };
+    export const cacheHints = { ttlSeconds: 0, varyBy: [] };
+    export const demoScenarios = [];
+  `);
+  write(join(routeDir, "GET.ts"), `
+    export const ResponseSchema = {};
+    export default function handle() { return { value: "ready" }; }
+  `);
+  write(join(routeDir, "sse.ts"), `
+    export async function* handleSSE() { yield { value: "tick" }; }
+    export const tickSchema = {};
+  `);
+  write(join(themeDir, "_body.live.GET.tsx"), `
+    export function render(data: { value: string }) { return data.value; }
+  `);
+  write(join(themeDir, "_body.live.sse.tsx"), `
+    export function renderTick(data: { value: string }) { return data.value; }
+  `);
+
+  const scan = scanRoutes(baseDir);
+  const route = scan.routes[0];
+  const fragment = route.themeRenderers[0];
+  assert.equal(route.sseMethod, "GET");
+  assert.match(route.sseRelativePath ?? "", /\/sse\.ts$/);
+  assert.match(fragment.sseRendererPath ?? "", /_body\.live\.sse\.tsx$/);
+  assert.match(emitRegistry(scan), /sseRender: .*\.renderTick/);
+  assert.equal(validateScanResult(scan).some((issue) => issue.severity === "error"), false);
+
+  write(join(routeDir, "GET.sse.ts"), "export async function* handleSSE() {}\n");
+  write(join(themeDir, "_body.live.GET.sse.tsx"), "export function renderTick() { return 'legacy'; }\n");
+  const duplicateIssues = validateScanResult(scanRoutes(baseDir));
+  assert.equal(duplicateIssues.filter((issue) => issue.message.includes("multiple")).length, 2);
+});
+
+test("SSE fragments render with explicit or inferred theme", async () => {
+  const route = {
+    viewId: "live.index",
+    path: "/live",
+    methods: ["GET"],
+    paramNames: [],
+    schemas: {},
+    handlers: { GET: () => ({ value: "ready" }) },
+    title: "Live",
+    description: "",
+    auth: { required: false, permissions: [] },
+    cacheHints: {},
+    demoScenarios: [],
+    themeRenderers: {
+      bootstrap1: {
+        pages: [],
+        components: [],
+        fragments: [{
+          rendererId: "body.live",
+          type: "fragment",
+          method: "GET",
+          fragmentLocation: "body",
+          fragmentId: "live",
+          render: () => "ready",
+          sseRender: (data: { value: string }) => `<strong>${data.value}</strong>`
+        }]
+      }
+    },
+    sse: {
+      handler: async function* () {
+        yield { value: "tick" };
+      }
+    }
+  } satisfies RegisteredRoute;
+  const registry: BetterPortalRegistry = { routes: [route] };
+  const app = createBetterPortalApp();
+  createH3Router(registry, app);
+  const server = createServer(createBetterPortalNodeHandler(app));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+
+  try {
+    for (const theme of ["&_theme=bootstrap1", ""]) {
+      const response = await fetch(`http://127.0.0.1:${address.port}/live/__sse?_f=body.live${theme}`);
+      assert.equal(response.headers.get("content-type"), "text/event-stream");
+      assert.match(await response.text(), /data: <strong>tick<\/strong>/);
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});

@@ -16,6 +16,8 @@ export interface ScannedThemeRenderer {
   relativePath: string;
   /** Path to `_<location>.<id>.sse.tsx` (sibling SSE renderer for this fragment). */
   sseRendererPath?: string;
+  /** Conflicting SSE renderer aliases for the same fragment. */
+  sseRendererConflicts?: string[];
   renderParamWarning?: "missing" | "any" | "unknown";
 }
 
@@ -49,6 +51,8 @@ export interface ScannedRoute {
   /** Per-theme streaming renderers (streaming views only). */
   streamRenderers: ScannedStreamRenderer[];
   sseRelativePath?: string;
+  /** All detected SSE handler paths; more than one is ambiguous. */
+  sseRelativePaths?: string[];
   sseMethod?: string;
   hasSseHandler: boolean;
   /** Whether sse.ts exports a `tickSchema` for SSE message validation. */
@@ -156,6 +160,7 @@ function methodFromFileName(fileName: string): string | undefined {
 }
 
 function sseMethodFromFileName(fileName: string): string | undefined {
+  if (fileName === "sse.ts") return "GET";
   const match = fileName.match(/^([A-Z]+)\.sse\.ts$/);
   if (!match) return undefined;
   return HTTP_METHODS.has(match[1]) ? match[1] : undefined;
@@ -587,7 +592,7 @@ function scanThemeDirectory(
 
   // Collect SSE renderer files by their `rendererId` and method.
   // so we can pair them with their fragment renderer.
-  const sseRendererPaths = new Map<string, string>();
+  const sseRendererPaths = new Map<string, string[]>();
   for (const entry of entries) {
     if (!entry.isFile()) continue;
     if (!entry.name.endsWith(".sse.tsx")) continue;
@@ -600,7 +605,10 @@ function scanThemeDirectory(
     const [location, id] = parts;
     if (!location || !id) continue;
     const filePath = path.join(themeDirPath, entry.name);
-    sseRendererPaths.set(`${location}.${id}:${method ?? ""}`, relativeFromGenerated(generatedDir, filePath));
+    const key = `${location}.${id}:${method ?? "GET"}`;
+    const paths = sseRendererPaths.get(key) ?? [];
+    paths.push(relativeFromGenerated(generatedDir, filePath));
+    sseRendererPaths.set(key, paths);
   }
 
   for (const entry of entries) {
@@ -610,7 +618,7 @@ function scanThemeDirectory(
     if (!parsed) continue;
 
     const filePath = path.join(themeDirPath, entry.name);
-    const sseRendererPath = parsed.type === "fragment"
+    const sseRendererMatches = parsed.type === "fragment"
       ? sseRendererPaths.get(`${parsed.rendererId}:${parsed.method ?? ""}`)
       : undefined;
 
@@ -623,7 +631,10 @@ function scanThemeDirectory(
       fragmentLocation: parsed.fragmentLocation,
       fragmentId: parsed.fragmentId,
       relativePath: relativeFromGenerated(generatedDir, filePath),
-      sseRendererPath,
+      sseRendererPath: sseRendererMatches?.[0],
+      sseRendererConflicts: sseRendererMatches && sseRendererMatches.length > 1
+        ? sseRendererMatches
+        : undefined,
       renderParamWarning: detectRenderParamWarning(filePath),
     });
   }
@@ -675,10 +686,14 @@ function scanDirectory(
     const methods = methodModules.map((module) => module.method);
     const handlerExports = [...new Set([...legacyHandlerExports, ...methodModules.flatMap((module) => module.exports)])];
 
-    // Detect method-scoped SSE handler (GET.sse.ts)
-    const sseEntry = entries.find((e) => e.isFile() && sseMethodFromFileName(e.name));
+    // Detect SSE handler (`sse.ts` infers GET; `GET.sse.ts` remains supported).
+    const sseEntries = entries.filter((e) => e.isFile() && sseMethodFromFileName(e.name));
+    const sseEntry = sseEntries.find((e) => e.name === "sse.ts") ?? sseEntries[0];
     const sseMethod = sseEntry ? sseMethodFromFileName(sseEntry.name) : undefined;
     const ssePath = sseEntry ? path.join(currentDir, sseEntry.name) : undefined;
+    const sseRelativePaths = sseEntries.map((entry) =>
+      relativeFromGenerated(generatedDir, path.join(currentDir, entry.name))
+    );
     const sseExports = ssePath ? detectExports(ssePath) : [];
     const hasSseHandler = Boolean(ssePath) && sseExports.includes("handleSSE");
     const sseRelativePath = hasSseHandler && ssePath
@@ -744,6 +759,7 @@ function scanDirectory(
         themeRenderers,
         streamRenderers,
         sseRelativePath,
+        sseRelativePaths,
         sseMethod,
         hasSseHandler,
         sseHasTickSchema,

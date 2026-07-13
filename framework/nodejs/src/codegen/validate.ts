@@ -138,20 +138,47 @@ function checkRenderersMatchMethods(route: ScannedRoute, errors: ValidationError
 }
 
 function checkSseMethod(route: ScannedRoute, errors: ValidationError[]): void {
+  const handlerPaths = route.sseRelativePaths ?? [];
+  if (handlerPaths.length > 1) {
+    errors.push({
+      file: handlerPaths.join(", "),
+      message: `SSE route "${route.viewId}" has multiple handlers. Use either sse.ts or GET.sse.ts, not both.`,
+      severity: "error",
+    });
+  }
   if (!route.hasSseHandler) return;
   if (route.sseMethod !== "GET") {
     errors.push({
-      file: route.sseRelativePath ?? `${route.relativePath}/GET.sse.ts`,
-      message: `SSE route "${route.viewId}" must use GET.sse.ts.`,
+      file: route.sseRelativePath ?? `${route.relativePath}/sse.ts`,
+      message: `SSE route "${route.viewId}" must use sse.ts or GET.sse.ts.`,
       severity: "error",
     });
   }
   if (!route.methods.includes("GET")) {
     errors.push({
-      file: route.sseRelativePath ?? `${route.relativePath}/GET.sse.ts`,
+      file: route.sseRelativePath ?? `${route.relativePath}/sse.ts`,
       message: `SSE route "${route.viewId}" requires a GET.ts handler.`,
       severity: "error",
     });
+  }
+}
+
+function checkSseFragmentRenderers(route: ScannedRoute, errors: ValidationError[]): void {
+  for (const renderer of route.themeRenderers) {
+    if (renderer.sseRendererConflicts) {
+      errors.push({
+        file: renderer.sseRendererConflicts.join(", "),
+        message: `SSE fragment "${renderer.rendererId}" has multiple renderers. Use either .sse.tsx or .GET.sse.tsx, not both.`,
+        severity: "error",
+      });
+    }
+    if (renderer.sseRendererPath && renderer.method !== "GET") {
+      errors.push({
+        file: renderer.sseRendererPath,
+        message: `SSE fragment "${renderer.rendererId}" must target GET.`,
+        severity: "error",
+      });
+    }
   }
 }
 
@@ -272,6 +299,7 @@ export function validateScanResult(result: ScanResult): ValidationError[] {
     warnLooseSchemas(route, errors);
     checkRenderersMatchMethods(route, errors);
     checkSseMethod(route, errors);
+    checkSseFragmentRenderers(route, errors);
     checkFragmentFileNames(route, errors);
     checkThemeRendererOrphans(route, errors);
     checkMissingThemeRenderers(route, errors);
