@@ -1851,13 +1851,15 @@ function shellRuntimeSource(): string {
             : elt instanceof Element
               ? elt
               : null;
-          // Don't clobber Accept header for SSE-connect requests - hx-sse ext
-          // sets it to "text/html, text/event-stream".
-          if (source?.hasAttribute?.("hx-sse:connect") || source?.hasAttribute?.("sse-connect")) return;
-          const mode = isMainTarget(ctx.target) ? "page" : "fragment";
-          const hasAcceptHeader = Object.keys(ctx.request.headers).some((key) => key.toLowerCase() === "accept");
-          if (!hasAcceptHeader) {
-            ctx.request.headers["Accept"] = "text/html; theme=bootstrap1; mode=" + mode;
+          // Preserve the SSE extension's Accept header, but still run the
+          // shared URL rewrite and BP header attachment below.
+          const isSseConnect = source?.hasAttribute?.("hx-sse:connect") || source?.hasAttribute?.("sse-connect");
+          if (!isSseConnect) {
+            const mode = isMainTarget(ctx.target) ? "page" : "fragment";
+            const hasAcceptHeader = Object.keys(ctx.request.headers).some((key) => key.toLowerCase() === "accept");
+            if (!hasAcceptHeader) {
+              ctx.request.headers["Accept"] = "text/html; theme=bootstrap1; mode=" + mode;
+            }
           }
 
           // Attach stored BP headers (Authorization etc.) to every BP request -

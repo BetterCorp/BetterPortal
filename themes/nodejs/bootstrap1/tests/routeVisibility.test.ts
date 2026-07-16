@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { loadBootstrap1Asset } from "../src/plugins/service-betterportal-theme-bootstrap1/assets.js";
 import { isUserFacingRoute } from "../src/plugins/service-betterportal-theme-bootstrap1/theme/index.js";
 
 test("API routes are never browser navigation candidates", () => {
   assert.equal(isUserFacingRoute({ kind: "page", href: "/tunnels/dashboard" }), true);
   assert.equal(isUserFacingRoute({ kind: "api", href: "/tunnels/dashboard" }), false);
   assert.equal(isUserFacingRoute({ href: "/_bp/service/example/tunnels/dashboard" }), false);
+});
+
+test("SSE requests keep BetterPortal headers", async () => {
+  const asset = await loadBootstrap1Asset("bootstrap1-shell.js");
+  const source = String(asset?.body);
+  const hook = source.slice(source.indexOf("htmx_config_request"), source.indexOf("htmx_before_request"));
+  assert.match(hook, /if\s*\(!isSseConnect\)/);
+  assert.match(hook, /attachBpHeaders\(ctx\.request\.headers/);
 });
