@@ -1244,12 +1244,19 @@ function shellRuntimeSource(): string {
 
           const headers: Record<string, string> = { Accept: "text/html; theme=bootstrap1; mode=page" };
           attachBpHeaders(headers, action);
+          const serviceId = serviceContextFor(el).id;
           state.preload = {
             prefetch: fetch(hxGet, {
               method: "GET",
               mode: "cors",
               cache: "no-store",
               headers
+            }).then((response) => {
+              if (response.ok && serviceId) {
+                setMenuServiceAvailability(serviceId, true);
+                syncMenuVisibility();
+              }
+              return response;
             }),
             action,
             expiresAt: Date.now() + 5000
@@ -1731,6 +1738,14 @@ function shellRuntimeSource(): string {
         });
       };
 
+      const setMenuServiceAvailability = (serviceId: string, available: boolean) => {
+        document.querySelectorAll("[data-bp-route-link][data-bp-service]").forEach((el) => {
+          if (el.getAttribute("data-bp-service") !== serviceId) return;
+          el.classList.toggle("bp-service-down", !available);
+          el.toggleAttribute("aria-disabled", !available);
+        });
+      };
+
       // -- Menu health check (P14) --
       // Pings /.well-known/bp/health on each service in serviceOrigins.
       // Adds .bp-service-down to anchors whose service is unreachable.
@@ -1745,20 +1760,8 @@ function shellRuntimeSource(): string {
             results[sid] = r.ok;
           } catch { results[sid] = false; }
         }));
-        document.querySelectorAll("[data-bp-route-link][data-bp-service]").forEach((el) => {
-          const sid = el.getAttribute("data-bp-service");
-          if (!sid) return;
-          const up = results[sid];
-          // undefined = no entry in origins (skip), true/false = known
-          if (up === undefined) return;
-          if (up) {
-            el.classList.remove("bp-service-down");
-            el.removeAttribute("aria-disabled");
-          } else {
-            el.classList.add("bp-service-down");
-            el.setAttribute("aria-disabled", "true");
-
-          }
+        Object.entries(results).forEach(([serviceId, available]) => {
+          setMenuServiceAvailability(serviceId, available);
         });
         syncMenuVisibility();
       };
