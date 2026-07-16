@@ -504,6 +504,7 @@ export abstract class BPService<
     }
 
     this.registerInstallEndpoint(obs);
+    this.registerHostnameChangeEndpoint(obs);
 
     createH3Router(def.registry, this.app, {
       serviceId: def.manifest.pluginId,
@@ -1086,6 +1087,7 @@ export abstract class BPService<
       "/.well-known/bp/schema.json",
       "/.well-known/bp/config/schema",
       "/.well-known/bp/install",
+      "/.well-known/bp/hostname-change",
       "/.well-known/bp/services/redeem",
       "/.well-known/bp/bootstrap",
       "/.well-known/bp/bootstrap/commit",
@@ -1438,6 +1440,7 @@ export abstract class BPService<
     if (pathname === "/.well-known/bp/manifest") return true;
     if (pathname === "/.well-known/bp/schema.json") return true;
     if (pathname === "/.well-known/bp/install") return true;
+    if (pathname === "/.well-known/bp/hostname-change") return true;
     if (pathname === "/.well-known/jwks.json") return true;
     if (pathname === "/.well-known/bp/bootstrap") return true;
     if (pathname === "/.well-known/bp/bootstrap/commit") return true;
@@ -1585,6 +1588,37 @@ export abstract class BPService<
       } catch (err) {
         obs.log.warn("Install handler error: {msg}", { msg: (err as Error).message });
         return jsonResponse({ error: "Install failed", detail: (err as Error).message }, 400);
+      }
+    });
+  }
+
+  private registerHostnameChangeEndpoint(obs: Observable): void {
+    this.app.post("/.well-known/bp/hostname-change", async (event) => {
+      const body = await event.req.json().catch(() => null) as { changeToken?: string } | null;
+      if (!body || typeof body.changeToken !== "string" || body.changeToken.length === 0) {
+        return jsonResponse({ error: "Missing changeToken" }, 400);
+      }
+      const credentials = this.controlPlaneCredentials();
+      if (!credentials) return jsonResponse({ error: "Service is not installed" }, 409);
+
+      try {
+        const response = await fetch(`${credentials.url}/.well-known/bp/services/confirm-hostname-change`, {
+          method: "POST",
+          headers: {
+            "accept": "application/json",
+            "authorization": `Bearer ${credentials.apiKey}`,
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            changeToken: body.changeToken,
+            serviceUrl: this.deriveOwnUrl(event)
+          })
+        });
+        const responseBody = await response.json().catch(() => ({ error: `Control plane returned HTTP ${response.status}` }));
+        return jsonResponse(responseBody, response.status);
+      } catch (error) {
+        obs.log.warn("Hostname change confirmation failed: {msg}", { msg: (error as Error).message });
+        return jsonResponse({ error: "Could not verify this service with the control plane" }, 502);
       }
     });
   }

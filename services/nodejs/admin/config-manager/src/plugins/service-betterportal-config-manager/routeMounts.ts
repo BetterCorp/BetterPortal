@@ -13,6 +13,16 @@ export function normalizeServicePath(path: string): string {
   return cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
 }
 
+export function appRoutePatternKey(path: string): string {
+  const normalized = normalizeServicePath(path)
+    .replace(/\/{2,}/g, "/")
+    .replace(/\/$/, "") || "/";
+  return normalized
+    .split("/")
+    .map((segment) => segment.startsWith(":") || /^\{[^}]+\}$/.test(segment) ? ":*" : segment)
+    .join("/");
+}
+
 export function apiRoutePath(serviceId: string, servicePath: string): string {
   const normalizedServicePath = normalizeServicePath(servicePath);
   return `/_bp/service/${serviceRouteSlug(serviceId)}${normalizedServicePath === "/" ? "" : normalizedServicePath}`;

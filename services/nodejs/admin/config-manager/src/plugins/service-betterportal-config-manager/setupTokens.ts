@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
-import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, TenantServiceRegistration } from "@betterportal/framework";
+import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
 import { signSetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 
@@ -13,6 +13,12 @@ interface PendingSetup {
   tenantScope?: { tenantId: string; appId?: string };
   expiresAt: number;
   redeemed: boolean;
+}
+
+interface PendingHostnameChange {
+  instanceId: string;
+  serviceUrl: string;
+  expiresAt: number;
 }
 
 const SETUP_TTL_SECONDS = 5 * 60;
@@ -32,13 +38,62 @@ export function registerSetupEndpoints(input: {
   cpState: CpBootstrapState;
 }): void {
   const pending = new Map<string, PendingSetup>();
+  const pendingHostnameChanges = new Map<string, PendingHostnameChange>();
 
   function sweep(): void {
     const now = Date.now();
     for (const [jti, entry] of pending.entries()) {
       if (entry.expiresAt < now) pending.delete(jti);
     }
+    for (const [token, entry] of pendingHostnameChanges.entries()) {
+      if (entry.expiresAt < now) pendingHostnameChanges.delete(token);
+    }
   }
+
+  input.app.post("/.well-known/bp/admin/services/begin-hostname-change", async (event) => {
+    sweep();
+    const body = await event.req.json().catch(() => null) as { instanceId?: string; serviceUrl?: string } | null;
+    const instanceId = typeof body?.instanceId === "string" ? body.instanceId.trim() : "";
+    const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
+    if (!instanceId || !serviceUrl) return jsonResponse({ error: "A service instance and valid URL origin are required" }, 400);
+
+    const config = await input.storage.loadConfig();
+    const service = findServiceInstance(config, instanceId);
+    if (!service) return jsonResponse({ error: "Service instance not found" }, 404);
+    if (!service.enabled || !service.apiKeyHash) return jsonResponse({ error: "Only an installed, enabled service can change URL" }, 409);
+
+    const changeToken = `bp_hc_${randomBytes(32).toString("base64url")}`;
+    pendingHostnameChanges.set(changeToken, {
+      instanceId,
+      serviceUrl,
+      expiresAt: Date.now() + SETUP_TTL_SECONDS * 1000
+    });
+    return jsonResponse({ changeToken, expiresInSeconds: SETUP_TTL_SECONDS }, 200);
+  });
+
+  input.app.post("/.well-known/bp/services/confirm-hostname-change", async (event) => {
+    sweep();
+    const body = await event.req.json().catch(() => null) as { changeToken?: string; serviceUrl?: string } | null;
+    const changeToken = typeof body?.changeToken === "string" ? body.changeToken : "";
+    const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
+    const entry = pendingHostnameChanges.get(changeToken);
+    if (!entry) return jsonResponse({ error: "Hostname change token not recognized or expired" }, 400);
+    if (!serviceUrl || serviceUrl !== entry.serviceUrl) return jsonResponse({ error: "Service URL does not match the requested hostname" }, 403);
+
+    const authorization = event.req.headers.get("authorization") ?? "";
+    const apiKey = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+    const validated = apiKey ? await input.storage.validateApiKey(apiKey) : null;
+    if (!validated) return jsonResponse({ error: "Valid existing service API key required" }, 401);
+    const config = await input.storage.loadConfig();
+    const service = findServiceInstance(config, entry.instanceId);
+    if (!service) return jsonResponse({ error: "Service instance not found" }, 404);
+    if (!applyVerifiedServiceOrigin(service, entry.instanceId, validated.serviceId, entry.serviceUrl)) {
+      return jsonResponse({ error: "The hostname belongs to a different installed service instance" }, 403);
+    }
+    await input.storage.saveConfig(config);
+    pendingHostnameChanges.delete(changeToken);
+    return jsonResponse({ ok: true, serviceUrl: entry.serviceUrl }, 200);
+  });
 
   // (1) Admin asks CP to mint a setup token for a target serviceUrl.
   // Optional instanceId - if the caller pre-assigned a UUIDv7 (e.g. bootstrap
@@ -161,6 +216,40 @@ export function registerSetupEndpoints(input: {
       cpJwksUri: input.cpState.jwksUri
     } as Record<string, unknown> as never, 200);
   });
+}
+
+function normalizeServiceOrigin(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    if (url.username || url.password || url.search || url.hash) return undefined;
+    if (url.pathname !== "/") return undefined;
+    return url.origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function findServiceInstance(
+  config: BetterPortalConfig,
+  instanceId: string
+): TenantServiceRegistration | PlatformService | SharedServiceDefinition | undefined {
+  return config.platformServices.find((service) => service.id === instanceId)
+    ?? config.sharedServiceCatalog.find((service) => service.id === instanceId)
+    ?? config.tenants.flatMap((tenant) => tenant.services).find((service) => service.id === instanceId);
+}
+
+export function applyVerifiedServiceOrigin(
+  service: TenantServiceRegistration | PlatformService | SharedServiceDefinition,
+  expectedInstanceId: string,
+  verifiedInstanceId: string | undefined,
+  serviceUrl: string
+): boolean {
+  if (verifiedInstanceId !== expectedInstanceId) return false;
+  if ("baseUrl" in service) service.baseUrl = serviceUrl;
+  else service.hostname = serviceUrl;
+  return true;
 }
 
 function readJti(token: string): string | undefined {

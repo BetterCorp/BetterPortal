@@ -267,8 +267,8 @@ function routeSegments(path: string): string[] {
 function domId(value: string): string {
   return value.replace(/[^A-Za-z0-9_-]/g, "-");
 }
-function buildRouteTree(routes: VisualRoute[]): RouteTreeNode[] {
-  const root: RouteTreeNode = { path: "", children: [] };
+export function buildRouteTree(routes: VisualRoute[]): RouteTreeNode[] {
+  const root: RouteTreeNode = { path: "/", children: [] };
   for (const route of routes) {
     const segments = routeSegments(route.path);
     let node = root;
@@ -283,7 +283,7 @@ function buildRouteTree(routes: VisualRoute[]): RouteTreeNode[] {
     });
     node.route = route;
   }
-  return root.children.sort((left, right) => left.path.localeCompare(right.path));
+  return (root.route ? [root] : root.children).sort((left, right) => left.path.localeCompare(right.path));
 }
 
 function routeCount(node: RouteTreeNode): number {
@@ -296,7 +296,7 @@ function relativeRoutePath(path: string, basePath: string): string {
   return path.startsWith(prefix) ? `./${path.slice(prefix.length)}` : path;
 }
 
-function flattenRouteTree(nodes: RouteTreeNode[]): VisualRouteRow[] {
+export function flattenRouteTree(nodes: RouteTreeNode[]): VisualRouteRow[] {
   const rows: VisualRouteRow[] = [];
   const visit = (node: RouteTreeNode, depth: number, basePath: string) => {
     const showNode = Boolean(node.route) || routeCount(node) > 1;

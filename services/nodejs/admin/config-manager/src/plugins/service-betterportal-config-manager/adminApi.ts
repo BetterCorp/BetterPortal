@@ -19,7 +19,7 @@ import type { TenantServiceRegistration, PlatformService, BetterPortalThemeConfi
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { generateApiKey, hashApiKey } from "./storage/index.js";
 import { getManifestCache } from "./syncApi.js";
-import { apiRoutePath, isApiRoute, pageRoutePath } from "./routeMounts.js";
+import { apiRoutePath, appRoutePatternKey, isApiRoute, pageRoutePath } from "./routeMounts.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
@@ -1062,7 +1062,14 @@ export function registerAdminApiRoutes(
     if (!service) return wantsHtmx(event) ? htmxError("Shared service not found", 404) : jsonResponse({ error: "Shared service not found" }, 404);
 
     if (typeof body.title === "string" && body.title.trim()) service.title = body.title.trim();
-    if (typeof body.baseUrl === "string" && body.baseUrl.trim()) service.baseUrl = normalizeHostname(body.baseUrl.trim());
+    if (typeof body.baseUrl === "string" && body.baseUrl.trim()) {
+      const baseUrl = normalizeHostname(body.baseUrl.trim());
+      if (service.apiKeyHash && baseUrl !== normalizeHostname(service.baseUrl)) {
+        const message = "Use Change URL so the installed service can verify its existing API key.";
+        return wantsHtmx(event) ? htmxError(message, 409) : jsonResponse({ error: message }, 409);
+      }
+      service.baseUrl = baseUrl;
+    }
     if (typeof body.description === "string") service.description = body.description.trim() || undefined;
     if (typeof body.category === "string") service.category = body.category.trim() || undefined;
     if (typeof body.tags === "string") service.tags = body.tags.split(",").map((tag) => tag.trim()).filter(Boolean);
@@ -1747,6 +1754,9 @@ export function registerAdminApiRoutes(
     if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route.");
     const serviceError = validateRegisteredRouteService(config, appDef, parsed.route.serviceId);
     if (serviceError) return validationError(event, serviceError);
+    if (appDef.routes.some((candidate) => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
+      return validationError(event, `A route already exists at ${parsed.route.path}.`);
+    }
     const route: BetterPortalRouteMount = { ...parsed.route, id: uuidv7() };
     appDef.routes.push(route);
     addRouteDependencies(appDef, route);
@@ -1770,6 +1780,9 @@ export function registerAdminApiRoutes(
       const path = trimmedString(body, "path");
       if (!path) return validationError(event, "Mount path is required.");
       if (!path.startsWith("/")) return validationError(event, "Mount path must start with /.");
+      if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(path))) {
+        return validationError(event, `A route already exists at ${path}.`);
+      }
       route.path = path;
     }
     if (body.serviceId !== undefined) {
@@ -1815,6 +1828,10 @@ export function registerAdminApiRoutes(
       if (!isApiRoute(route, manifestView?.renderable)) route.title = title;
     }
     if (body.enabled !== undefined) route.enabled = body.enabled === true || body.enabled === "true" || body.enabled === "on";
+
+    if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(route.path))) {
+      return validationError(event, `A route already exists at ${route.path}.`);
+    }
 
     await store.saveConfig(config);
     if (wantsHtmx(event)) return htmxReload(`/routes?appId=${encodeURIComponent(appId)}`);

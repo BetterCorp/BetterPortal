@@ -105,6 +105,19 @@ function renderServiceCard(
           <div class="small mb-1"><strong>Status:</strong> <span class={`badge ${service.enabled ? "text-bg-success" : "text-bg-secondary"}`}>{service.enabled ? "active" : "disabled"}</span></div>
           <div class="small mb-2"><strong>Created:</strong> {service.createdAt}{service.lastSeenAt ? ` - Last seen: ${service.lastSeenAt}` : ""}</div>
           <div class="d-flex gap-2 flex-wrap align-items-center">
+            {service.scope !== "shared" ? (
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                data-bp-change-hostname=""
+                data-bp-service-id={service.id}
+                data-bp-service-url={normalizeUrl(service.hostname)}
+                data-bs-toggle="offcanvas"
+                data-bs-target="#bp-change-hostname-panel"
+              >
+                Change URL
+              </button>
+            ) : ""}
             {apps.length > 0 && service.hasConfigurableOptions ? (
               <div class="btn-group btn-group-sm">
                 <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">Configure</button>
@@ -211,6 +224,19 @@ function renderCatalogCard(
                 data-bp-install-url={normalizeUrl(item.baseUrl)}
               >
                 Install
+              </button>
+            ) : ""}
+            {item.installed ? (
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                data-bp-change-hostname=""
+                data-bp-service-id={item.id}
+                data-bp-service-url={normalizeUrl(item.baseUrl)}
+                data-bs-toggle="offcanvas"
+                data-bs-target="#bp-change-hostname-panel"
+              >
+                Change URL
               </button>
             ) : ""}
             {selectedActivation ? (
@@ -407,6 +433,26 @@ export function render(data: ResponseData): HtmlRenderable {
         </div>
       </div>
 
+      <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-change-hostname-panel">
+        <div class="offcanvas-header">
+          <h5 class="offcanvas-title">Change Service URL</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+          <form id="bp-change-hostname-form">
+            <input type="hidden" name="instanceId" />
+            <div class="mb-3">
+              <label class="form-label">New service URL</label>
+              <input class="form-control" type="url" name="baseUrl" placeholder="https://service.example.com" required />
+            </div>
+            <div class="alert alert-info small">
+              The new URL must be this exact installed instance. BetterPortal verifies it with the instance's existing API key.
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Verify and change URL</button>
+          </form>
+        </div>
+      </div>
+
       <div class="offcanvas offcanvas-end" tabindex={-1} id="bp-shared-service-panel" style="width:480px;max-width:90vw;">
         <div class="offcanvas-header">
           <h5 class="offcanvas-title">Shared Service</h5>
@@ -437,6 +483,7 @@ export function render(data: ResponseData): HtmlRenderable {
 (() => {
   const tenantForm = document.getElementById("bp-tenant-service-form");
   const sharedForm = document.getElementById("bp-shared-service-form");
+  const hostnameForm = document.getElementById("bp-change-hostname-form");
   const alerts = document.getElementById("bp-services-alerts");
   const tenantPreview = document.getElementById("bp-tenant-service-preview");
   const sharedPreview = document.getElementById("bp-shared-service-preview");
@@ -540,6 +587,12 @@ export function render(data: ResponseData): HtmlRenderable {
     }
   };
   document.addEventListener("click", async (event) => {
+    const hostnameButton = event.target?.closest?.("[data-bp-change-hostname]");
+    if (hostnameButton && hostnameForm) {
+      hostnameForm.elements.instanceId.value = hostnameButton.dataset.bpServiceId || "";
+      hostnameForm.elements.baseUrl.value = hostnameButton.dataset.bpServiceUrl || "";
+      return;
+    }
     const button = event.target?.closest?.("[data-bp-install-shared]");
     if (!button) return;
     event.preventDefault();
@@ -547,6 +600,34 @@ export function render(data: ResponseData): HtmlRenderable {
       await installShared(button.dataset.bpInstallShared, button.dataset.bpInstallUrl);
     } catch (error) {
       setAlert("danger", error instanceof Error ? error.message : String(error));
+    }
+  });
+  hostnameForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = hostnameForm.querySelector('button[type="submit"]');
+    const fd = new FormData(hostnameForm);
+    const instanceId = String(fd.get("instanceId") || "").trim();
+    const baseUrl = String(fd.get("baseUrl") || "").trim().replace(/\\/+$/, "");
+    if (!instanceId || !baseUrl) {
+      setAlert("danger", "Service instance and URL are required");
+      return;
+    }
+    if (submit) submit.disabled = true;
+    try {
+      setAlert("secondary", "Verifying exact installed service instance...");
+      const change = await postJson(adminApiBase + "/services/begin-hostname-change", {
+        instanceId,
+        serviceUrl: baseUrl
+      });
+      await postJson(baseUrl + "/.well-known/bp/hostname-change", {
+        changeToken: change.changeToken
+      });
+      setAlert("success", "Service URL changed and verified.");
+      await refreshServices();
+    } catch (error) {
+      setAlert("danger", error instanceof Error ? error.message : String(error));
+    } finally {
+      if (submit) submit.disabled = false;
     }
   });
   tenantForm?.addEventListener("submit", async (event) => {
