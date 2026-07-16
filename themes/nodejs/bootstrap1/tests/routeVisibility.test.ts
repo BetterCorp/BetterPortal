@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadBootstrap1Asset } from "../src/plugins/service-betterportal-theme-bootstrap1/assets.js";
-import { isUserFacingRoute } from "../src/plugins/service-betterportal-theme-bootstrap1/theme/index.js";
+import { isUserFacingRoute, renderBootstrap1Shell } from "../src/plugins/service-betterportal-theme-bootstrap1/theme/index.js";
 
 test("API routes are never browser navigation candidates", () => {
   assert.equal(isUserFacingRoute({ kind: "page", href: "/tunnels/dashboard" }), true);
@@ -15,4 +15,16 @@ test("SSE requests keep BetterPortal headers", async () => {
   const hook = source.slice(source.indexOf("htmx_config_request"), source.indexOf("htmx_before_request"));
   assert.match(hook, /if\s*\(!isSseConnect\)/);
   assert.match(hook, /attachBpHeaders\(ctx\.request\.headers/);
+});
+
+test("Bootstrap initializes before shell overlay cleanup", () => {
+  const html = renderBootstrap1Shell({
+    title: "Test",
+    brandName: "Test",
+    themeMode: "light",
+    themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets",
+    bodyHtml: ""
+  });
+  assert.ok(html.indexOf("bootstrap.bundle.min.js") < html.indexOf("bootstrap1-core.js"));
 });

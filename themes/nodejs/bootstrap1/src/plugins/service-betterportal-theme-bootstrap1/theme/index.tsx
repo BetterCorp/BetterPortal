@@ -2092,11 +2092,9 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
         <link rel="icon" type="image/png" sizes="16x16" href={context.faviconUrl ?? `${context.assetBaseUrl}/betterportal-favicon-16.png`} />
         <link rel="icon" type="image/png" sizes="32x32" href={context.faviconUrl ?? `${context.assetBaseUrl}/betterportal-favicon-32.png`} />
         <link href={`${context.assetBaseUrl}/bootstrap.min.css`} rel="stylesheet" />
-        {/* Single-request core bundle (htmx + shell + sse): separate
-            tags can race on load order; htmx must exist before anything
-            registers against it. Bootstrap stays separate - independent of htmx. */}
-        <script src={`${context.assetBaseUrl}/bootstrap1-core.js`} defer></script>
+        {/* Bootstrap must initialize before the shell snapshots its component API. */}
         <script src={`${context.assetBaseUrl}/bootstrap.bundle.min.js`} defer></script>
+        <script src={`${context.assetBaseUrl}/bootstrap1-core.js`} defer></script>
         <style
           id="bp-theme-style"
           hx-get="/.well-known/bp/theme/style"
