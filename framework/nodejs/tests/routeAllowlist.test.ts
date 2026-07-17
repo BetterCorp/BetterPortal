@@ -381,3 +381,65 @@ test("absolute app route URLs prefer the matched request origin", async () => {
     });
   }, { tenant: scopedTenant, serviceId: pluginId });
 });
+
+test("uiRouteUrl only resolves GET page mounts", async () => {
+  const pluginId = "service.test.routes";
+  const serviceInstanceId = uuidv7();
+  const scopedTenant: BetterPortalTenant = {
+    ...tenant,
+    services: [{
+      id: serviceInstanceId,
+      hostname: "http://service.local",
+      serviceId: pluginId,
+      capabilities: [],
+      deploymentMode: "self-hosted",
+      createdAt: new Date(0).toISOString(),
+      enabled: true
+    }]
+  };
+  const app: BetterPortalApp = {
+    id: uuidv7(),
+    tenantId: scopedTenant.id,
+    slug: "app",
+    title: "App",
+    hostnames: ["https://app.local"],
+    originOverrides: [],
+    refererOverrides: [],
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/page",
+    routes: [
+      { id: uuidv7(), kind: "page", path: "/page", serviceId: serviceInstanceId, viewId: "page.index", enabled: true, methods: ["GET"] },
+      { id: uuidv7(), kind: "api", path: "/_bp/service/test/api", serviceId: serviceInstanceId, viewId: "api.index", enabled: true, methods: ["GET"] },
+      { id: uuidv7(), kind: "page", path: "/mutate", serviceId: serviceInstanceId, viewId: "mutation.index", enabled: true, methods: ["POST"] },
+      { id: uuidv7(), kind: "page", path: "/self", serviceId: serviceInstanceId, viewId: "self.index", enabled: true, methods: ["GET"] }
+    ],
+    menu: [],
+    slots: [],
+    fragments: {}
+  };
+
+  await withServer(app, {
+    routes: [
+      route("/page", "page.index"),
+      route("/api", "api.index"),
+      route("/mutate", "mutation.index"),
+      route("/self", "self.index", (ctx) => ({
+        uiPage: ctx.uiRouteUrl?.("page.index") ?? null,
+        uiApi: ctx.uiRouteUrl?.("api.index") ?? null,
+        uiMutation: ctx.uiRouteUrl?.("mutation.index") ?? null,
+        serviceApi: ctx.routeUrl?.("api.index") ?? null,
+        serviceMutation: ctx.routeUrl?.("mutation.index") ?? null
+      }), av.any())
+    ]
+  }, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/self`, { headers: { accept: "application/json" } });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      uiPage: "/page",
+      uiApi: null,
+      uiMutation: null,
+      serviceApi: "/api",
+      serviceMutation: "/mutate"
+    });
+  }, { tenant: scopedTenant, serviceId: pluginId });
+});

@@ -275,6 +275,30 @@ function checkMissingThemeRenderers(route: ScannedRoute, errors: ValidationError
   }
 }
 
+function checkPluginLifecycle(result: ScanResult, errors: ValidationError[]): void {
+  for (const lifecycle of result.pluginLifecycleOverrides) {
+    const file = `index.ts:${lifecycle.line}`;
+    if (!lifecycle.callsSuper) {
+      errors.push({
+        file,
+        message: lifecycle.method === "dispose"
+          ? "Plugin.dispose overrides BPService.dispose but does not call super.dispose(). BetterPortal cleanup would be skipped."
+          : `Plugin.${lifecycle.method} overrides BPService.${lifecycle.method} but does not call super.${lifecycle.method}(obs). Await or return the base lifecycle call, or remove the override.`,
+        severity: "error"
+      });
+      continue;
+    }
+
+    if (lifecycle.method !== "dispose" && !lifecycle.awaitsOrReturnsSuper) {
+      errors.push({
+        file,
+        message: `Plugin.${lifecycle.method} calls super.${lifecycle.method}(obs) without awaiting or returning it. BetterPortal lifecycle setup must complete before the override returns.`,
+        severity: "error"
+      });
+    }
+  }
+}
+
 // -- Public API -------------------------------------------------------
 
 /**
@@ -285,6 +309,8 @@ function checkMissingThemeRenderers(route: ScannedRoute, errors: ValidationError
  */
 export function validateScanResult(result: ScanResult): ValidationError[] {
   const errors: ValidationError[] = [];
+
+  checkPluginLifecycle(result, errors);
 
   // Cross-route checks
   checkDuplicateViewIds(result.routes, errors);

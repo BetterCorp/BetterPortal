@@ -73,6 +73,14 @@ export interface ScanResult {
   generatedDir: string;
   pluginImportPath: string;
   pluginExports: string[];
+  pluginLifecycleOverrides: ScannedPluginLifecycleOverride[];
+}
+
+export interface ScannedPluginLifecycleOverride {
+  method: "init" | "run" | "dispose";
+  line: number;
+  callsSuper: boolean;
+  awaitsOrReturnsSuper: boolean;
 }
 
 // -- Path helpers -----------------------------------------------------
@@ -219,6 +227,57 @@ function detectExports(filePath: string): string[] {
 
   visit(sourceFile);
   return [...new Set(found)];
+}
+
+function scanPluginLifecycleOverrides(filePath: string): ScannedPluginLifecycleOverride[] {
+  if (!fs.existsSync(filePath)) return [];
+
+  const sourceFile = ts.createSourceFile(
+    path.basename(filePath),
+    fs.readFileSync(filePath, "utf-8"),
+    ts.ScriptTarget.ES2022,
+    /* setParentNodes */ true,
+    ts.ScriptKind.TS,
+  );
+  const methods = new Set(["init", "run", "dispose"]);
+  const overrides: ScannedPluginLifecycleOverride[] = [];
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isClassDeclaration(statement) || statement.name?.text !== "Plugin") continue;
+
+    for (const member of statement.members) {
+      if (!ts.isMethodDeclaration(member) || !member.body || !ts.isIdentifier(member.name)) continue;
+      const method = member.name.text;
+      if (!methods.has(method)) continue;
+
+      let callsSuper = false;
+      let awaitsOrReturnsSuper = false;
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isCallExpression(node)
+          && ts.isPropertyAccessExpression(node.expression)
+          && node.expression.expression.kind === ts.SyntaxKind.SuperKeyword
+          && node.expression.name.text === method
+        ) {
+          callsSuper = true;
+          awaitsOrReturnsSuper = awaitsOrReturnsSuper
+            || ts.isAwaitExpression(node.parent)
+            || ts.isReturnStatement(node.parent);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(member.body);
+
+      overrides.push({
+        method: method as ScannedPluginLifecycleOverride["method"],
+        line: sourceFile.getLineAndCharacterOfPosition(member.name.getStart(sourceFile)).line + 1,
+        callsSuper,
+        awaitsOrReturnsSuper
+      });
+    }
+  }
+
+  return overrides;
 }
 
 function detectRawHandler(filePath: string): boolean {
@@ -798,9 +857,10 @@ export function scanRoutes(baseDir: string): ScanResult {
   const pluginIndexPath = path.resolve(baseDir, "index.ts");
   const pluginImportPath = toJsImport(relativeFromGenerated(generatedDir, pluginIndexPath));
   const pluginExports = detectNamedExports(pluginIndexPath, ["Plugin", "ServiceConfig"]);
+  const pluginLifecycleOverrides = scanPluginLifecycleOverrides(pluginIndexPath);
 
   if (!fs.existsSync(routesDir)) {
-    return { routes: [], generatedDir, pluginImportPath, pluginExports };
+    return { routes: [], generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
   }
 
   const routes: ScannedRoute[] = [];
@@ -825,5 +885,5 @@ export function scanRoutes(baseDir: string): ScanResult {
     return aSeg.length - bSeg.length;
   });
 
-  return { routes, generatedDir, pluginImportPath, pluginExports };
+  return { routes, generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
 }

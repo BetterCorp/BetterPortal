@@ -1,5 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { scanRoutes } from "../src/codegen/scanner.js";
 import { validateScanResult } from "../src/codegen/validate.js";
 import type { ScanResult, ScannedRoute } from "../src/codegen/scanner.js";
 
@@ -36,9 +40,49 @@ function scanResult(route: ScannedRoute): ScanResult {
     routes: [route],
     generatedDir: ".bp-generated",
     pluginImportPath: "../index.js",
-    pluginExports: ["Plugin"]
+    pluginExports: ["Plugin"],
+    pluginLifecycleOverrides: []
   };
 }
+
+function lifecycleIssues(source: string) {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-lifecycle-"));
+  try {
+    writeFileSync(join(baseDir, "index.ts"), source);
+    return validateScanResult(scanRoutes(baseDir));
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
+}
+
+test("plugin lifecycle overrides must call the BP base lifecycle", () => {
+  const issues = lifecycleIssues(`
+    class Unrelated { init() {} }
+    export class Plugin extends BPService {
+      async init(obs: Observable) { /* super.init(obs) */ }
+      async run(obs: Observable) { super.run(obs); }
+      async dispose() {}
+    }
+  `);
+
+  assert.equal(issues.some((issue) => issue.message.includes("does not call super.init")), true);
+  assert.equal(issues.some((issue) => issue.message.includes("without awaiting or returning")), true);
+  assert.equal(issues.some((issue) => issue.message.includes("does not call super.dispose")), true);
+});
+
+test("awaited, returned, and inherited BP lifecycle methods pass validation", () => {
+  const valid = lifecycleIssues(`
+    export class Plugin extends BPService {
+      async init(obs: Observable) { await super.init(obs); }
+      run(obs: Observable) { return super.run(obs); }
+      async dispose() { await super.dispose(); }
+    }
+  `);
+  const inherited = lifecycleIssues("export class Plugin extends BPService {}");
+
+  assert.equal(valid.some((issue) => issue.severity === "error"), false);
+  assert.equal(inherited.some((issue) => issue.severity === "error"), false);
+});
 
 test("raw handlers warn developers to prefer schema based handlers", () => {
   const issues = validateScanResult(scanResult(scannedRoute({

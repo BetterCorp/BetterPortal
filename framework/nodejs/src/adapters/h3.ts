@@ -678,6 +678,8 @@ function createUiRouteUrlBuilder(event: BetterPortalEvent, extraContext: Require
 
     const route = extraContext.app.routes.find((candidate) =>
       candidate.enabled !== false
+      && (candidate.kind ?? "page") === "page"
+      && methodAllowed(candidate.methods, "GET")
       && candidate.viewId === viewId
       && serviceIds.has(candidate.serviceId)
     );

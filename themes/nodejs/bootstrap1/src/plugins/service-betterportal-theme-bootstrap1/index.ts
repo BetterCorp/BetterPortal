@@ -1416,13 +1416,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     });
   }
 
-  async run(obs: Observable): Promise<void> {
-    await super.run(obs);
-  }
-
-  async dispose(): Promise<void> {
-    await super.dispose();
-  }
 }
 
 export { Config, EventSchemas };

@@ -164,7 +164,7 @@ export const apiContracts = [{
 
 Codegen attaches the current route `viewId` and methods when omitted. Service-level manifests may also declare `m2mRequests`, which describe required outbound contracts by `contractId`, version range, capabilities, methods, and permissions. These are requests only, not grants.
 
-Handlers that need a service-facing URL for another view should use `ctx.routeUrl(viewId, options)`. It resolves the registered service route and, when `absolute: true`, uses the service hostname/base URL.
+Handlers that need to request another service view should use `ctx.routeUrl(viewId, options)`. It resolves the registered service route and, when `absolute: true`, uses the service hostname/base URL. Use it for HTMX requests, form actions, `fetch`, SSE, and downloads.
 
 ```ts
 const url = ctx.routeUrl?.("reports.detail.index", {
@@ -174,7 +174,14 @@ const url = ctx.routeUrl?.("reports.detail.index", {
 });
 ```
 
-Handlers that need the browser-visible app route should use `ctx.uiRouteUrl(viewId, options)`. It resolves tenant service ids, shared-service activation ids, and the current plugin id before returning the app route path; when `absolute: true`, it uses the app hostname/base URL.
+Use `ctx.uiRouteUrl(viewId, options)` only for GET browser navigation through the app shell, such as links and `HX-Location` redirects. It resolves enabled GET page mounts and, when `absolute: true`, uses the app hostname/base URL. It returns `null` for API and mutation-only routes.
+
+```ts
+const submitUrl = ctx.routeUrl?.("reports.update"); // hx-post, form action, fetch
+const pageUrl = ctx.uiRouteUrl?.("reports.detail"); // href or GET navigation
+```
+
+Do not use `uiRouteUrl` for HTMX requests, form actions, `fetch`, SSE, or downloads. Those requests would target the app/theme origin instead of the service and can return 404.
 
 Do not manually scan `ctx.app.routes` and `ctx.tenant.services` unless the framework helper cannot express the case. App routes store service-instance UUIDs; `ctx.serviceId` is usually the plugin id.
 

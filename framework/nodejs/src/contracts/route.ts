@@ -136,9 +136,16 @@ export interface RouteHandlerContext<
   readonly setStatus?: (status: number) => void;
   /** The service id this handler belongs to. Always present when adapter wires it. */
   readonly serviceId?: string;
-  /** Build a service-facing URL for a registered view id. */
+  /**
+   * Build a URL to the service route that owns the view.
+   * Use for service requests: HTMX requests, form actions, fetch, SSE, and downloads.
+   */
   readonly routeUrl?: (viewId: string, options?: RouteUrlOptions) => string | null;
-  /** Build an app/UI-facing URL for a mounted route by view id. */
+  /**
+   * Build a GET navigation URL for a page mounted in the app shell.
+   * Do not use for HTMX requests, form actions, fetch, SSE, or downloads; those
+   * must use routeUrl or they can target the theme/app origin and return 404.
+   */
   readonly uiRouteUrl?: (viewId: string, options?: RouteUrlOptions) => string | null;
   /** Emit a dev-declared webhook event through the control plane. */
   readonly webhook?: (eventId: string, payload: JsonValue, options?: WebhookEmitOptions) => Promise<void>;
