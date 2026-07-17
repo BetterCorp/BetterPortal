@@ -160,9 +160,10 @@ export const handlePost = createHandler(
       return { status: "error" as const, message: "Authress config is missing authressApiUrl or applicationId.", loginUI, scopes: [], nextUrl };
     }
 
+    const plugin = pluginFrom(ctx);
     let user: JwtClaims;
     try {
-      user = await pluginFrom(ctx).verifyAuthressToken(request.accessToken, config, { tenantId: ctx.tenant.id, appId: ctx.app.id });
+      user = await plugin.verifyAuthressToken(request.accessToken, config, { tenantId: ctx.tenant.id, appId: ctx.app.id });
     } catch (error: any) {
       ctx.obs?.error(error);
       return { status: "error" as const, message: `Authress token verification failed: ${(error as Error).message}`, loginUI, scopes: [], nextUrl };
@@ -172,11 +173,12 @@ export const handlePost = createHandler(
       return { status: "error" as const, message: "Authress profile subject does not match token subject.", loginUI, scopes: [], nextUrl };
     }
 
-    const issued = pluginFrom(ctx).issueTokenPair({
+    const roles = await plugin.resolveAuthressRoles(user.sub, ctx.tenant.id, ctx.app.id, config, user.roles);
+    const issued = plugin.issueTokenPair({
       sub: user.sub,
       tenantId: ctx.tenant.id,
       appId: ctx.app.id,
-      roles: user.roles,
+      roles,
       refreshContext: { providerToken: request.accessToken },
       authProvider: "authress.io",
       providerSubject: user.sub,

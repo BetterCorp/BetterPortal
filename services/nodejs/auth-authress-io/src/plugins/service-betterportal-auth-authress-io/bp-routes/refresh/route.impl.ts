@@ -84,18 +84,19 @@ export const handlePost = createHandler(
       return { status: "error" as const, message: "Authress token invalid or expired." };
     }
 
+    const roles = await plugin.resolveAuthressRoles(authressClaims.sub, ctx.tenant.id, ctx.app.id, config, authressClaims.roles);
     const issued = plugin.issueTokenPair({
       sub: authressClaims.sub,
       tenantId: ctx.tenant.id,
       appId: ctx.app.id,
-      roles: authressClaims.roles,
+      roles,
       authProvider: "authress.io",
       refreshContext: { providerToken: authressToken },
       providerSubject: authressClaims.sub,
       provider: authressClaims.provider,
-      name: authressClaims.name,
-      email: authressClaims.email,
-      picture: authressClaims.picture
+      name: authressClaims.name ?? refreshClaims.name,
+      email: authressClaims.email ?? refreshClaims.email,
+      picture: authressClaims.picture ?? refreshClaims.picture
     });
     if (!issued.refreshToken) throw new Error("Auth token issuer did not return a refresh token");
 

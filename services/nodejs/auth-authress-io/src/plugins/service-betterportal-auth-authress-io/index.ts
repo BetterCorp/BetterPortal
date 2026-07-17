@@ -12,6 +12,7 @@ import {
 } from "@betterportal/plugin-bsb";
 import { verify as verifySignature } from "node:crypto";
 import jwt, { type Algorithm, type JwtHeader } from "jsonwebtoken";
+import { ServiceClientTokenProvider } from "@authress/sdk";
 import {
   createBpTokenIssuer,
   getSigningKeyForKid,
@@ -27,6 +28,7 @@ import {
 } from "@betterportal/framework";
 import { registry } from "./.bp-generated/registry.js";
 import { resolve } from "node:path";
+import { AuthressGroupCache } from "../../groupCache.js";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -36,6 +38,7 @@ const PluginConfigSchema = av.object({
   accessTokenSeconds: av.int().min(1).default(60 * 15),
   refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7),
   keyStorePath: av.string().minLength(1).default("./.bp-authress-state/keys.json"),
+  groupCachePath: av.string().minLength(1).default("./.bp-authress-state/groups.json"),
   betterportal: BetterPortalConfigSchema
 }, { unknownKeys: "strip" });
 export type AuthressPluginConfig = av.Infer<typeof PluginConfigSchema>;
@@ -177,7 +180,7 @@ export const AuthressConfigSchemas: ConfigSchemaDescriptor[] = [
       { key: "emailClaimPath", title: "Email Claim Path", description: "Dot path to email in the Authress token.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "claims", order: 40, defaultValue: "email", required: false },
       { key: "pictureClaimPath", title: "Picture Claim Path", description: "Dot path to avatar URL in the Authress token.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "claims", order: 50, defaultValue: "picture", required: false },
       { key: "clientSecret", title: "Client Secret", description: "Optional Authress client secret for server-side Authress flows.", scope: "app", visibility: "secret", ownership: "bp", sourceOfTruth: "bp", groupId: "secrets", order: 10, required: false },
-      { key: "apiKey", title: "API Key", description: "Optional Authress API key for server-side Authress API calls.", scope: "app", visibility: "secret", ownership: "bp", sourceOfTruth: "bp", groupId: "secrets", order: 20, required: false }
+      { key: "apiKey", title: "API Key", description: "Optional Authress service-client access key. When it can read Authress:Groups, group names matching BP role IDs are synced hourly.", scope: "app", visibility: "secret", ownership: "bp", sourceOfTruth: "bp", groupId: "secrets", order: 20, required: false }
     ]
   }
 ];
@@ -186,6 +189,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   static Config = Config;
   static EventSchemas = EventSchemas;
   private keyPair!: RsaKeyPair;
+  private groupCache!: AuthressGroupCache;
+  private readonly groupRefreshes = new Map<string, Promise<Record<string, string[]>>>();
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
@@ -193,6 +198,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   async init(obs: Observable): Promise<void> {
     this.keyPair = loadOrGenerateKeyPair(resolve(this.config.keyStorePath));
+    this.groupCache = new AuthressGroupCache(resolve(this.config.groupCachePath));
     await super.init(obs);
     const jwk = publicKeyToJwk(this.keyPair.publicKeyPem, this.keyPair.kid);
     this.registerAsAuthProvider({
@@ -248,6 +254,39 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   verifyRefreshToken(input: { refreshToken: string; tenantId: string; appId: string }): Promise<JwtClaims> {
     return this.tokenIssuer().verifyRefreshToken(input);
+  }
+
+  async resolveAuthressRoles(
+    userId: string,
+    tenantId: string,
+    appId: string,
+    appConfig: AuthressAppConfig,
+    tokenRoles: string[]
+  ): Promise<string[]> {
+    if (!appConfig.apiKey) return tokenRoles;
+    const cached = this.groupCache.read(tenantId, appId, userId);
+    if (cached.fresh) return uniqueStrings(tokenRoles, cached.roles);
+
+    const key = `${tenantId}/${appId}`;
+    let refresh = this.groupRefreshes.get(key);
+    if (!refresh) {
+      refresh = fetchAuthressGroupRoles(appConfig);
+      this.groupRefreshes.set(key, refresh);
+    }
+    try {
+      const rolesByUser = await refresh;
+      this.groupCache.write(tenantId, appId, rolesByUser);
+      return uniqueStrings(tokenRoles, rolesByUser[userId] ?? []);
+    } catch (error) {
+      this.observability.logger.warn("Authress group refresh failed tenant={tenantId} app={appId}: {error}", {
+        tenantId,
+        appId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return uniqueStrings(tokenRoles, cached.roles);
+    } finally {
+      this.groupRefreshes.delete(key);
+    }
   }
 
   issueTokenPair(input: {
@@ -308,6 +347,41 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 }
 
 export { Config, EventSchemas };
+
+type AuthressGroupCollection = {
+  groups?: Array<{ name?: unknown; users?: Array<{ userId?: unknown }> }>;
+  pagination?: { next?: { cursor?: unknown } };
+};
+
+async function fetchAuthressGroupRoles(config: AuthressAppConfig): Promise<Record<string, string[]>> {
+  if (!config.apiKey) return {};
+  const token = await new ServiceClientTokenProvider(config.apiKey, config.authressApiUrl).getToken();
+  const rolesByUser: Record<string, string[]> = {};
+  let cursor: string | undefined;
+  do {
+    const url = new URL(`${config.authressApiUrl}/v1/groups`);
+    url.searchParams.set("limit", "100");
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const response = await fetch(url, {
+      headers: { authorization: `Bearer ${token}`, accept: "application/json" }
+    });
+    if (!response.ok) throw new Error(`GET /v1/groups returned ${response.status}`);
+    const body = await response.json() as AuthressGroupCollection;
+    for (const group of body.groups ?? []) {
+      if (typeof group.name !== "string" || !group.name) continue;
+      for (const user of group.users ?? []) {
+        if (typeof user.userId !== "string" || !user.userId) continue;
+        rolesByUser[user.userId] = uniqueStrings(rolesByUser[user.userId] ?? [], [group.name]);
+      }
+    }
+    cursor = typeof body.pagination?.next?.cursor === "string" ? body.pagination.next.cursor : undefined;
+  } while (cursor);
+  return rolesByUser;
+}
+
+function uniqueStrings(...values: string[][]): string[] {
+  return [...new Set(values.flat())];
+}
 
 async function verifyAuthressToken(token: string, appConfig: AuthressAppConfig, scope: { tenantId: string; appId: string }): Promise<JwtClaims> {
   const raw = await verifyExternalAuthressJwt(token, appConfig);
