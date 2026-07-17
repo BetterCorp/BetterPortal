@@ -9,6 +9,7 @@ export interface ThemeAssetResponse {
 
 const require = createRequire(import.meta.url);
 const HtmxPath = require.resolve("htmx.org/dist/htmx.min.js");
+const HtmxSsePath = require.resolve("htmx.org/dist/ext/hx-sse.min.js");
 
 const AssetCache = new Map<string, Promise<ThemeAssetResponse>>();
 
@@ -22,8 +23,30 @@ function embeddedRuntimeSource(): string {
       const htmx = (window as any).htmx;
       if (!htmx) return;
 
+      htmx.config.sse = {
+        reconnect: true,
+        reconnectDelay: 500,
+        reconnectMaxDelay: 60000,
+        reconnectMaxAttempts: Infinity,
+        reconnectJitter: 0.3,
+        pauseOnBackground: true
+      };
+
       const HX_METHODS = ["hx-get", "hx-post", "hx-put", "hx-delete", "hx-patch"] as const;
       const DOWNLOAD_ATTR = "hx-download";
+      const HEADER_REFRESH_RETRY_MS = 30_000;
+      const headerRefreshTimers = new Map<string, number>();
+      const headerRefreshRetryAt = new Map<string, number>();
+
+      type BpStoredHeader = {
+        value?: unknown;
+        owner?: unknown;
+        locked?: unknown;
+        expires?: unknown;
+        scope?: unknown;
+        refresh?: unknown;
+        refreshBefore?: unknown;
+      };
 
       const closestEmbed = (element: Element | null): Element | null =>
         element?.closest?.("[data-bp-embedded-root]") ?? null;
@@ -123,7 +146,7 @@ function embeddedRuntimeSource(): string {
                 if (fragment.fragmentLocation !== "background" || !fragment.fragmentId) continue;
                 const key = "background." + fragment.fragmentId;
                 const url = base + route.path + (route.path.includes("?") ? "&" : "?") + "_f=" + encodeURIComponent(key);
-                nodes.push('<div data-bp-fragment="' + escapeAttr(fragment.fragmentId) + '" data-bp-fragment-location="background" data-bp-service="' + escapeAttr(service.serviceId) + '" hx-get="' + escapeAttr(url) + '" hx-trigger="load" hx-target="this" hx-swap="innerHTML"></div>');
+                nodes.push('<div data-bp-fragment="' + escapeAttr(fragment.fragmentId) + '" data-bp-fragment-location="background" data-bp-service="' + escapeAttr(service.serviceId) + '" hx-get="' + escapeAttr(url) + '" hx-trigger="load, bp:fragments-changed from:body" hx-target="this" hx-swap="innerHTML"></div>');
               }
             }
           } catch { /* service unavailable; skip background fragments */ }
@@ -132,13 +155,28 @@ function embeddedRuntimeSource(): string {
         htmx.process(outlet);
       };
 
-      const readBpHeaders = (): Record<string, { value?: unknown; owner?: unknown; locked?: unknown; expires?: unknown; scope?: unknown; refresh?: unknown; refreshBefore?: unknown }> => {
+      const readBpHeaders = (): Record<string, BpStoredHeader> => {
         try { return JSON.parse(window.localStorage.getItem("bp.headers") || "{}"); }
         catch { return {}; }
       };
 
       const writeBpHeaders = (headers: Record<string, unknown>): void => {
-        window.localStorage.setItem("bp.headers", JSON.stringify(headers));
+        try { window.localStorage.setItem("bp.headers", JSON.stringify(headers)); }
+        catch { /* storage unavailable - headers remain request-local */ }
+      };
+
+      const liveBpHeaders = (): Record<string, BpStoredHeader> => {
+        const stored = readBpHeaders();
+        const now = Math.floor(Date.now() / 1000);
+        let changed = false;
+        for (const [name, entry] of Object.entries(stored)) {
+          if (entry && typeof entry.expires === "number" && entry.expires <= now) {
+            delete stored[name];
+            changed = true;
+          }
+        }
+        if (changed) writeBpHeaders(stored);
+        return stored;
       };
 
       const serviceIdForUrl = (url: string): string => {
@@ -157,10 +195,8 @@ function embeddedRuntimeSource(): string {
         try {
           const actionOrigin = new URL(action, window.location.origin).origin;
           const targetServiceId = serviceIdForUrl(action);
-          const now = Math.floor(Date.now() / 1000);
-          for (const [name, entry] of Object.entries(readBpHeaders())) {
+          for (const [name, entry] of Object.entries(liveBpHeaders())) {
             if (!entry || typeof entry.value !== "string") continue;
-            if (typeof entry.expires === "number" && entry.expires <= now) continue;
             if (typeof entry.scope === "string" && entry.scope && entry.scope !== targetServiceId) continue;
             if (headers[name] === undefined) headers[name] = entry.value;
           }
@@ -236,8 +272,59 @@ function embeddedRuntimeSource(): string {
           }
         }
 
-        if (changed) writeBpHeaders(stored);
+        if (changed) {
+          writeBpHeaders(stored);
+          scheduleHeaderRefreshes();
+          htmx.trigger(document.body, "bp:fragments-changed");
+        }
       };
+
+      const refreshUrlForHeader = (entry: BpStoredHeader): string => {
+        if (typeof entry.refresh !== "string" || !entry.refresh) return "";
+        let base = window.location.origin;
+        if (typeof entry.owner === "string") {
+          for (const root of Array.from(document.querySelectorAll("[data-bp-embedded-root]"))) {
+            const serviceOrigin = parseServices(root)[entry.owner];
+            if (serviceOrigin) base = serviceOrigin;
+          }
+          try { base = new URL(entry.owner).origin; } catch { /* owner may be a service id */ }
+        }
+        try { return new URL(entry.refresh, base).href; } catch { return ""; }
+      };
+
+      const refreshStoredHeader = async (name: string, entry: BpStoredHeader): Promise<boolean> => {
+        const url = refreshUrlForHeader(entry);
+        if (!url) return false;
+        const previous = readBpHeaders()[name];
+        const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+        attachBpHeaders(headers, url);
+        try {
+          const response = await fetch(url, { method: "POST", mode: "cors", cache: "no-store", headers, body: "{}" });
+          applyBpHeaderDirectives(response, url);
+          const current = readBpHeaders()[name];
+          return response.ok && !!current && (current.value !== previous?.value || current.expires !== previous?.expires);
+        } catch {
+          return false;
+        }
+      };
+
+      const scheduleHeaderRefreshes = (): void => {
+        headerRefreshTimers.forEach((timer) => window.clearTimeout(timer));
+        headerRefreshTimers.clear();
+        const nowMs = Date.now();
+        for (const [name, entry] of Object.entries(readBpHeaders())) {
+          if (typeof entry.refresh !== "string" || typeof entry.expires !== "number") continue;
+          const before = typeof entry.refreshBefore === "number" ? entry.refreshBefore : 60;
+          const delay = Math.max(0, (entry.expires - before) * 1000 - nowMs, (headerRefreshRetryAt.get(name) ?? 0) - nowMs);
+          headerRefreshTimers.set(name, window.setTimeout(() => {
+            void refreshStoredHeader(name, entry)
+              .then((refreshed) => refreshed ? headerRefreshRetryAt.delete(name) : headerRefreshRetryAt.set(name, Date.now() + HEADER_REFRESH_RETRY_MS))
+              .finally(scheduleHeaderRefreshes);
+          }, delay));
+        }
+      };
+
+      scheduleHeaderRefreshes();
 
       const contentDispositionFilename = (value: string | null): string => {
         if (!value) return "";
@@ -376,6 +463,12 @@ function embeddedRuntimeSource(): string {
         },
         htmx_after_request(_elt: unknown, detail: any) {
           applyBpHeaderDirectives(detail.ctx?.response, detail.ctx?.request?.action || "");
+          try {
+            const location = detail.ctx?.hx?.location;
+            if (typeof location !== "string" || !location) return;
+            const parsed = location.trim().startsWith("{") ? JSON.parse(location) : { path: location };
+            detail.ctx.hx.location = JSON.stringify({ ...parsed, target: "[data-bp-main-outlet]", swap: parsed.swap || "innerHTML", push: false });
+          } catch { /* invalid HX-Location is left to htmx */ }
         },
         htmx_after_swap(_elt: unknown, detail: any) {
           const target = detail.ctx?.target;
@@ -403,8 +496,11 @@ export async function loadEmbeddedAsset(assetPath: string): Promise<ThemeAssetRe
     if (!AssetCache.has(normalized)) {
       AssetCache.set(
         normalized,
-        readTextAsset(HtmxPath, "application/javascript; charset=utf-8").then((asset) => ({
-          body: `${asset.body}\n;\n${embeddedRuntimeSource()}`,
+        Promise.all([
+          readTextAsset(HtmxPath, "application/javascript; charset=utf-8"),
+          readTextAsset(HtmxSsePath, "application/javascript; charset=utf-8")
+        ]).then(([htmx, sse]) => ({
+          body: `${htmx.body}\n;\n${embeddedRuntimeSource()}\n;\n${sse.body}`,
           contentType: "application/javascript; charset=utf-8"
         }))
       );

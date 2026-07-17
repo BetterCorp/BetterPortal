@@ -21,7 +21,7 @@ import { registerAdminApiRoutes } from "./adminApi.js";
 import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
-import { getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
+import { getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
 import { setConfigManagerRouteContext } from "./routeContext.js";
 import { isApiRoute } from "./routeMounts.js";
 import {
@@ -764,7 +764,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     // Pull per-view permissions from the manifest cache (populated when services poll).
     const cache = getManifestCache();
     const servicePermissions = Array.from(servicesById.values()).map((svc) => {
-      const cachedManifest = cache.get(svc.id);
+      const cachedManifest = getCachedManifestForService(config, svc.id, cache);
       const views = cachedManifest
         ? Object.values(cachedManifest.viewIndex).map((v) => ({
             viewId: v.viewId,
@@ -801,7 +801,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     );
     const currentRoles: AppRole[] = appWithAuth?.auth?.roles ?? [];
     const authService = appWithAuth?.auth?.serviceId ? servicesById.get(appWithAuth.auth.serviceId) : undefined;
-    const authManifest = authService ? cache.get(authService.id) : undefined;
+    const authManifest = authService ? getCachedManifestForService(config, authService.id, cache) : undefined;
     const externalRoleSync = selectedApp && selectedTenantId && authService && authManifest?.capabilities.includes("auth.roles.sync")
       ? {
           serviceTitle: authService.title,

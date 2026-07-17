@@ -11,7 +11,7 @@ import {
 } from "@betterportal/framework";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
 import { getConfigManagerRouteContext } from "../../routeContext.js";
-import { getManifestCache } from "../../syncApi.js";
+import { getCachedManifestForService } from "../../syncApi.js";
 import { apiRoutePath, pageRoutePath } from "../../routeMounts.js";
 
 const TenantItemSchema = av.object({
@@ -396,7 +396,7 @@ function buildAppAuthConfig(
     loginViewId: existing?.loginViewId ?? "/login",
     logoutViewId: existing?.logoutViewId ?? "/logout",
     refreshViewId: existing?.refreshViewId ?? "/refresh",
-    provider: existing?.provider ?? (
+    provider: existing?.serviceId === authServiceId ? existing.provider : (
       providerKind === "authress.io"
         ? { kind: "authress.io", roleClaimPath: "roles", subjectClaimPath: "sub" }
         : { kind: "betterportal.default" }
@@ -422,7 +422,7 @@ function issuerFromAuthService(hostname: string | undefined): string {
 function ensureAuthRouteMounts(config: BetterPortalConfig, appDef: BetterPortalApp): void {
   const authServiceId = appDef.auth?.serviceId;
   if (!authServiceId) return;
-  const manifest = getManifestCache().get(authServiceId);
+  const manifest = getCachedManifestForService(config, authServiceId);
   if (!manifest) return;
 
   const desiredViewIds = ["login.index", "logout.index", "refresh.index", "register.index"];

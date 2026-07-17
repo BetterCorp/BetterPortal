@@ -27,7 +27,7 @@ function tenantsScript(): HtmlRenderable {
         form.querySelector("[name=tenantId]").value = data.id;
         form.querySelector("[name=title]").value = data.title;
         form.querySelector("[name=slug]").value = data.slug;
-        form.querySelector("[name=active]").checked = data.active;
+        form.querySelector("input[type=checkbox][name=active]").checked = data.active;
         if (window.htmx) window.htmx.process(form);
       });
     });

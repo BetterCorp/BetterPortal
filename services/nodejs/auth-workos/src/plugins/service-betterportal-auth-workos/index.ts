@@ -625,6 +625,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
     if (!tenantId || !appId) return htmlResponse(`<div class="alert alert-danger">tenantId and appId are required.</div>`, 400, "text/html; mode=fragment");
+    const permissionsUrl = route?.routeUrl?.("workos-role-sync.permissions", { absolute: true, query: { tenantId, appId } });
+    const rolesUrl = route?.routeUrl?.("workos-role-sync.roles", { absolute: true, query: { tenantId, appId } });
+    if (!permissionsUrl || !rolesUrl) {
+      return htmlResponse(`<div class="alert alert-danger">WorkOS role sync routes could not be resolved.</div>`, 500, "text/html; mode=fragment");
+    }
     const config = this.getWorkOSAppConfig(tenantId, appId);
     if (!config) return htmlResponse(`<div class="alert alert-warning">WorkOS app config is missing clientId or apiKey.</div>`, 409, "text/html; mode=fragment");
     const portal = this.getPortalConfig();
@@ -667,8 +672,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               <div class="text-secondary small">BP permissions sync to WorkOS; WorkOS roles mirror back to this app.</div>
             </div>
             <div class="btn-group btn-group-sm">
-              <button class="btn btn-outline-primary" hx-post="${route?.routeUrl?.("workos-role-sync.permissions", { absolute: true, query: { tenantId, appId } }) ?? ""}" hx-target="closest .card" hx-swap="outerHTML">Sync permissions</button>
-              <button class="btn btn-outline-primary" hx-post="${route?.routeUrl?.("workos-role-sync.roles", { absolute: true, query: { tenantId, appId } }) ?? ""}" hx-target="closest .card" hx-swap="outerHTML">Sync roles</button>
+              <button class="btn btn-outline-primary" hx-post="${permissionsUrl}" hx-target="closest .card" hx-swap="outerHTML">Sync permissions</button>
+              <button class="btn btn-outline-primary" hx-post="${rolesUrl}" hx-target="closest .card" hx-swap="outerHTML">Sync roles</button>
             </div>
           </div>
           ${status ? renderSyncStatus(status) : ""}

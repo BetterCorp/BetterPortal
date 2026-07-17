@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { buildRouteTree, flattenRouteTree } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_theme.bootstrap1/GET.js";
 import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
+import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_theme.bootstrap1/GET.js";
 
 test("visual routes include the root mount", () => {
   const route = {
@@ -31,4 +33,29 @@ test("hostname changes require the exact instance API key", () => {
   assert.equal((service as { hostname: string }).hostname, "https://old.example");
   assert.equal(applyVerifiedServiceOrigin(service, "expected", "expected", "https://new.example"), true);
   assert.equal((service as { hostname: string }).hostname, "https://new.example");
+});
+
+test("shared activation manifest lookup falls back to its shared service", () => {
+  const manifest = { serviceId: "service.example" } as CachedManifest;
+  const cache = new Map([["shared-service", manifest]]);
+  const config = {
+    sharedServiceActivations: [{ id: "activation", sharedServiceId: "shared-service" }],
+    sharedServiceCatalog: [{ id: "shared-service", serviceId: "service.example" }],
+    tenants: [],
+    platformServices: []
+  } as never;
+  assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
+});
+
+test("tenant edit script targets the active checkbox, not its hidden fallback", () => {
+  const html = String(renderTenants({
+    title: "Tenants & Apps",
+    tenants: [],
+    apps: [],
+    shellServices: [],
+    authServices: [],
+    adminApiBase: "/.well-known/bp/admin",
+    tenantsPath: "/tenants"
+  }));
+  assert.match(html, /input\[type=checkbox\]\[name=active\]/);
 });

@@ -9,7 +9,7 @@
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
-    "test": "bsb-plugin-cli test",
+    "test": "node --import tsx --test tests/runtime.test.ts && bsb-plugin-cli test",
     "prepublishOnly": "npm run build",
     "publish:client": "bsb-client-cli publish"
   },

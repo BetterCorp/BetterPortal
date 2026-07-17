@@ -10,6 +10,7 @@ import type {
   ScopedServiceConfig,
   BetterPortalRouteChrome,
   BetterPortalRouteMount,
+  BetterPortalConfig,
   WebhookEventDescriptor
 } from "@betterportal/framework";
 import { eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
@@ -64,6 +65,30 @@ const manifestCache = new Map<string, CachedManifest>();
 /** Read-only accessor for the manifest cache. */
 export function getManifestCache(): ReadonlyMap<string, CachedManifest> {
   return manifestCache;
+}
+
+/** Resolve manifests for service instances, including shared-service activation aliases. */
+export function getCachedManifestForService(
+  config: BetterPortalConfig,
+  serviceInstanceId: string,
+  cache: ReadonlyMap<string, CachedManifest> = manifestCache
+): CachedManifest | undefined {
+  const direct = cache.get(serviceInstanceId);
+  if (direct) return direct;
+
+  const activation = config.sharedServiceActivations.find((candidate) => candidate.id === serviceInstanceId);
+  if (activation) {
+    const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === activation.sharedServiceId);
+    return cache.get(activation.sharedServiceId)
+      ?? (shared?.serviceId ? cache.get(shared.serviceId) : undefined);
+  }
+
+  for (const tenant of config.tenants) {
+    const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId);
+    if (service?.serviceId) return cache.get(service.serviceId);
+  }
+  const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId);
+  return platform?.serviceId ? cache.get(platform.serviceId) : undefined;
 }
 
 function cacheManifest(serviceId: string, manifest: CachedManifest): void {
