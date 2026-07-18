@@ -24,6 +24,7 @@ import { registerWebhookRoutes } from "./webhooks.js";
 import { getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
 import { setConfigManagerRouteContext } from "./routeContext.js";
 import { isApiRoute } from "./routeMounts.js";
+import { resolveRoleAuthority } from "./roleAuthority.js";
 import {
   describeEmbeddedContextResolution,
   eventHeaders,
@@ -790,6 +791,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         expectedIssuer?: string;
         expectedAudience?: string;
         jwksUri?: string;
+        roleAuthority?: "provider" | "betterportal";
         roles?: AppRole[];
       };
     } | undefined;
@@ -802,10 +804,17 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const currentRoles: AppRole[] = appWithAuth?.auth?.roles ?? [];
     const authService = appWithAuth?.auth?.serviceId ? servicesById.get(appWithAuth.auth.serviceId) : undefined;
     const authManifest = authService ? getCachedManifestForService(config, authService.id, cache) : undefined;
-    const externalRoleSync = selectedApp && selectedTenantId && authService && authManifest?.capabilities.includes("auth.roles.sync")
+    const roleAuthority = resolveRoleAuthority(authManifest?.capabilities ?? [], appWithAuth?.auth?.roleAuthority);
+    const externalRoleSync = roleAuthority === "provider" && selectedApp && selectedTenantId && authService && authManifest?.capabilities.includes("auth.roles.sync")
       ? {
           serviceTitle: authService.title,
           fragmentUrl: `${authService.hostname.replace(/\/+$/, "")}/.well-known/bp/config/workos-role-sync?tenantId=${encodeURIComponent(selectedTenantId)}&appId=${encodeURIComponent(selectedApp.id)}`
+        }
+      : undefined;
+    const managedRoleSync = roleAuthority === "betterportal" && selectedApp && selectedTenantId && authService && authManifest?.capabilities.includes("auth.roles.authority.betterportal")
+      ? {
+          serviceTitle: authService.title,
+          syncUrl: `${authService.hostname.replace(/\/+$/, "")}/.well-known/bp/config/workos-role-sync/roles?tenantId=${encodeURIComponent(selectedTenantId)}&appId=${encodeURIComponent(selectedApp.id)}`
         }
       : undefined;
 
@@ -818,6 +827,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       servicePermissions,
       currentRoles,
       ...(externalRoleSync ? { externalRoleSync } : {}),
+      ...(managedRoleSync ? { managedRoleSync } : {}),
       adminApiBase: "/.well-known/bp/admin",
       serviceBaseUrl: this.cpState.issuer
     };

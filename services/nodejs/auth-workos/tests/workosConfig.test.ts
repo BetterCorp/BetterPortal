@@ -6,6 +6,7 @@ import {
   resolveWorkOSAppConfig,
   resolveWorkOSBrowserConfig,
   workOSAccessTokenDetails,
+  workOSPermissionsForBpRole,
   workOSPermissionDescription,
   workOSPermissionName
 } from "../src/plugins/service-betterportal-auth-workos/index.js";
@@ -80,4 +81,27 @@ test("reads session, organization, and current roles from a WorkOS access token"
     roles: ["admin", "member"]
   });
   assert.equal(workOSAccessTokenDetails("header.invalid.signature"), null);
+});
+
+test("BP role sync replaces only BP-owned WorkOS permissions", () => {
+  const serviceId = "019f0000-0000-7000-8000-000000000000";
+  const role = {
+    id: "admin",
+    title: "Admin",
+    permissions: [{ serviceId, viewId: "reports.index", permissions: ["read"] }]
+  } as const;
+  const catalog = [{
+    slug: "bp_current_read",
+    serviceName: "Reports",
+    serviceId,
+    viewId: "reports.index",
+    action: "read",
+    title: "Read reports",
+    description: "Read reports"
+  }] as const;
+
+  assert.deepEqual(
+    workOSPermissionsForBpRole(role as never, [...catalog], ["external.permission", "bp_stale_read"]),
+    ["external.permission", "bp_current_read"]
+  );
 });

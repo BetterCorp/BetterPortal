@@ -9,10 +9,13 @@ import {
   type CacheHints,
   type RouteHandlerContext
 } from "@betterportal/framework";
-import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
+import type { AppAuthConfig, AuthProviderRuntimeMetadata, AuthRoleAuthority, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
 import { getConfigManagerRouteContext } from "../../routeContext.js";
 import { getCachedManifestForService } from "../../syncApi.js";
 import { apiRoutePath, pageRoutePath } from "../../routeMounts.js";
+import { resolveRoleAuthority, supportedRoleAuthorities } from "../../roleAuthority.js";
+
+const RoleAuthoritySchema = av.enum_(["provider", "betterportal"] as const);
 
 const TenantItemSchema = av.object({
   id: av.string().minLength(1),
@@ -30,6 +33,7 @@ const AppItemSchema = av.object({
   hostnames: av.array(av.string()),
   shellServiceId: av.optional(av.string().minLength(1)),
   authServiceId: av.optional(av.string().minLength(1)),
+  roleAuthority: av.optional(RoleAuthoritySchema),
   routeCount: av.int().min(0)
 }, { unknownKeys: "strip" });
 
@@ -40,12 +44,20 @@ const ShellServiceSchema = av.object({
   serviceId: av.optional(av.string())
 }, { unknownKeys: "strip" });
 
+const AuthServiceSchema = av.object({
+  id: av.string().minLength(1),
+  tenantId: av.string().minLength(1),
+  title: av.string().minLength(1),
+  serviceId: av.optional(av.string()),
+  roleAuthorities: av.array(RoleAuthoritySchema).default(["betterportal"])
+}, { unknownKeys: "strip" });
+
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
   tenants: av.array(TenantItemSchema),
   apps: av.array(AppItemSchema),
   shellServices: av.array(ShellServiceSchema).default([]),
-  authServices: av.array(ShellServiceSchema).default([]),
+  authServices: av.array(AuthServiceSchema).default([]),
   adminApiBase: av.string().minLength(1),
   tenantsPath: av.string().minLength(1),
   serviceBaseUrl: av.optional(av.string())
@@ -122,6 +134,7 @@ function tenantsPathFromContext(ctx: Pick<RouteHandlerContext, "routeUrl">): str
 async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseData> {
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
+  const authServices = config.tenants.flatMap((tenant) => authServicesForTenant(config, tenant.id));
   return {
     title: "Tenants & Apps",
     tenants: config.tenants.map((t) => ({
@@ -139,10 +152,16 @@ async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseDat
       hostnames: a.hostnames,
       shellServiceId: a.shell?.serviceId,
       authServiceId: a.auth?.serviceId,
+      roleAuthority: a.auth
+        ? resolveRoleAuthority(
+            authServices.find((service) => service.id === a.auth?.serviceId)?.capabilities ?? [],
+            a.auth.roleAuthority
+          )
+        : undefined,
       routeCount: a.routes.length
     })),
     shellServices: config.tenants.flatMap((tenant) => themeShellServicesForTenant(config, tenant.id)),
-    authServices: config.tenants.flatMap((tenant) => authServicesForTenant(config, tenant.id)),
+    authServices,
     adminApiBase: "/.well-known/bp/admin",
     tenantsPath,
     serviceBaseUrl: routeContext.serviceBaseUrl
@@ -228,7 +247,7 @@ async function createApp(body: Record<string, unknown>): Promise<void> {
     fragments: {}
   };
   if (authServiceId) {
-    app.auth = buildAppAuthConfig(config, tenantId, authServiceId);
+    app.auth = buildAppAuthConfig(config, tenantId, authServiceId, undefined, roleAuthorityValue(body.roleAuthority));
     ensureAuthRouteMounts(config, app);
   }
   config.apps.push(app);
@@ -266,7 +285,7 @@ async function updateApp(body: Record<string, unknown>): Promise<void> {
     if (isAuthServiceForTenant(config, appDef.tenantId, authServiceId)) {
       const existingRoles = appDef.auth?.roles ?? [];
       appDef.auth = {
-        ...buildAppAuthConfig(config, appDef.tenantId, authServiceId, appDef.auth),
+        ...buildAppAuthConfig(config, appDef.tenantId, authServiceId, appDef.auth, roleAuthorityValue(body.roleAuthority)),
         roles: existingRoles
       };
       ensureAuthRouteMounts(config, appDef);
@@ -334,6 +353,8 @@ function authServicesForTenant(config: BetterPortalConfig, tenantId: string): Ar
   serviceId?: string;
   authProvider?: AuthProviderRuntimeMetadata;
   hostname: string;
+  capabilities: string[];
+  roleAuthorities: AuthRoleAuthority[];
 }> {
   const tenant = config.tenants.find((candidate) => candidate.id === tenantId);
   const tenantServices = (tenant?.services ?? [])
@@ -344,7 +365,9 @@ function authServicesForTenant(config: BetterPortalConfig, tenantId: string): Ar
       title: service.title ?? service.serviceId ?? service.hostname,
       serviceId: service.serviceId,
       authProvider: service.authProvider,
-      hostname: service.hostname
+      hostname: service.hostname,
+      capabilities: service.capabilities ?? [],
+      roleAuthorities: supportedRoleAuthorities(service.capabilities ?? [])
     }));
 
   const sharedServices = config.sharedServiceActivations
@@ -362,7 +385,9 @@ function authServicesForTenant(config: BetterPortalConfig, tenantId: string): Ar
         title: shared.title,
         serviceId: shared.serviceId ?? shared.id,
         authProvider: shared.authProvider,
-        hostname: shared.baseUrl
+        hostname: shared.baseUrl,
+        capabilities: shared.tags,
+        roleAuthorities: supportedRoleAuthorities(shared.tags)
       };
     })
     .filter((service): service is NonNullable<typeof service> => !!service);
@@ -378,7 +403,8 @@ function buildAppAuthConfig(
   config: BetterPortalConfig,
   tenantId: string,
   authServiceId: string,
-  existing?: AppAuthConfig
+  existing?: AppAuthConfig,
+  requestedRoleAuthority?: AuthRoleAuthority
 ): AppAuthConfig {
   const authService = authServicesForTenant(config, tenantId).find((service) => service.id === authServiceId);
   const publicKeys = existing?.publicKeys ?? findKnownAuthPublicKeys(config, authServiceId);
@@ -393,6 +419,10 @@ function buildAppAuthConfig(
     : existing?.expectedAudience;
   return {
     serviceId: authServiceId,
+    roleAuthority: resolveRoleAuthority(
+      authService?.capabilities ?? [],
+      requestedRoleAuthority ?? (existing?.serviceId === authServiceId ? existing.roleAuthority : undefined)
+    ),
     loginViewId: existing?.loginViewId ?? "/login",
     logoutViewId: existing?.logoutViewId ?? "/logout",
     refreshViewId: existing?.refreshViewId ?? "/refresh",
@@ -479,4 +509,8 @@ function stringValue(value: unknown): string {
 
 function boolValue(value: unknown): boolean {
   return value === true || value === "true" || value === "on";
+}
+
+function roleAuthorityValue(value: unknown): AuthRoleAuthority | undefined {
+  return value === "provider" || value === "betterportal" ? value : undefined;
 }

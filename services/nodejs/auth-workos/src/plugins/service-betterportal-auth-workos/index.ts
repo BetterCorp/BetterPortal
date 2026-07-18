@@ -175,6 +175,7 @@ type WorkOSRole = {
   name?: string;
   description?: string | null;
   permissions: string[];
+  type?: "EnvironmentRole" | "OrganizationRole";
 };
 
 type WorkOSPermission = {
@@ -183,7 +184,7 @@ type WorkOSPermission = {
   description?: string | null;
 };
 
-type BpPermissionCatalogEntry = {
+export type BpPermissionCatalogEntry = {
   slug: string;
   serviceName: string;
   serviceId: string;
@@ -274,7 +275,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         pluginId: SERVICE_ID,
         title: "BetterPortal WorkOS",
         description: "WorkOS-backed auth service for BetterPortal apps.",
-        capabilities: ["auth", "auth.roles.sync"],
+        capabilities: [
+          "auth",
+          "auth.roles.sync",
+          "auth.roles.authority.provider",
+          "auth.roles.authority.betterportal"
+        ],
         configSchemas: WorkOSConfigSchemas
       },
       registry
@@ -421,9 +427,79 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     }
     const currentSlugs = new Set(this.bpPermissionCatalog(tenantId).map((entry) => entry.slug));
     const roles = (await this.listWorkOSRoles(config))
-      .map((role) => this.toBpRole(role, currentSlugs))
-      .filter((role): role is AppAuthRole => Boolean(role));
+      .map((role) => this.toBpRole(role, currentSlugs));
     await this.updateAuthoritativeService(tenantId, appId, "auth", { roles });
+    this.markRoleMappings(tenantId, appId, roles.map((role) => role.id));
+    this.markAppSync(tenantId, appId, { roles: true });
+    return {
+      roles: roles.length,
+      grants: roles.reduce((sum, role) => sum + role.permissions.length, 0)
+    };
+  }
+
+  async syncRolesToWorkOS(tenantId: string, appId: string): Promise<{ roles: number; grants: number }> {
+    const config = this.getWorkOSAppConfig(tenantId, appId);
+    if (!config) throw new Error("WorkOS app config is missing clientId or apiKey.");
+    if (!this.isAuthoritativeService(tenantId, appId, "auth")) {
+      throw new Error("WorkOS service is not configured as the authoritative auth service for this app.");
+    }
+    const app = this.getPortalConfig()?.apps.find((candidate) => candidate.id === appId && candidate.tenantId === tenantId);
+    if (!app?.auth) throw new Error("BetterPortal auth config is missing for this app.");
+
+    const catalog = this.bpPermissionCatalog(tenantId);
+    const providerRoles = await this.listWorkOSRoles(config);
+    const roles = [...app.auth.roles];
+    for (const providerRole of providerRoles) {
+      if (roles.some((role) => role.id === providerRole.slug)) continue;
+      roles.push({
+        id: providerRole.slug,
+        title: providerRole.name ?? providerRole.slug,
+        ...(providerRole.description ? { description: providerRole.description } : {}),
+        permissions: []
+      });
+    }
+    if (roles.length !== app.auth.roles.length) {
+      await this.updateAuthoritativeService(tenantId, appId, "auth", { roles });
+    }
+
+    const authorization = this.client(config).authorization;
+    const providerBySlug = new Map(providerRoles.map((role) => [role.slug, role]));
+    for (const role of roles) {
+      let providerRole = providerBySlug.get(role.id);
+      if (!providerRole) {
+        providerRole = config.organizationId
+          ? await authorization.createOrganizationRole(config.organizationId, {
+              slug: role.id,
+              name: role.title,
+              ...(role.description ? { description: role.description } : {})
+            }) as WorkOSRole
+          : await authorization.createEnvironmentRole({
+              slug: role.id,
+              name: role.title,
+              ...(role.description ? { description: role.description } : {})
+            }) as WorkOSRole;
+      } else if (providerRole.name !== role.title || (providerRole.description ?? "") !== (role.description ?? "")) {
+        providerRole = providerRole.type === "OrganizationRole" && config.organizationId
+          ? await authorization.updateOrganizationRole(config.organizationId, role.id, {
+              name: role.title,
+              description: role.description ?? null
+            }) as WorkOSRole
+          : await authorization.updateEnvironmentRole(role.id, {
+              name: role.title,
+              description: role.description ?? null
+            }) as WorkOSRole;
+      }
+
+      const permissions = workOSPermissionsForBpRole(role, catalog, providerRole.permissions);
+      if (!sameStrings(permissions, providerRole.permissions)) {
+        if (providerRole.type === "OrganizationRole" && config.organizationId) {
+          await authorization.setOrganizationRolePermissions(config.organizationId, role.id, { permissions });
+        } else {
+          await authorization.setEnvironmentRolePermissions(role.id, { permissions });
+        }
+      }
+    }
+
     this.markRoleMappings(tenantId, appId, roles.map((role) => role.id));
     this.markAppSync(tenantId, appId, { roles: true });
     return {
@@ -524,7 +600,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     return { page, api, total: routes.length };
   }
 
-  private toBpRole(role: WorkOSRole, currentSlugs: Set<string>): AppAuthRole | null {
+  private toBpRole(role: WorkOSRole, currentSlugs: Set<string>): AppAuthRole {
     const state = this.loadWorkOSState();
     const byTarget = new Map<string, AppAuthRole["permissions"][number]>();
     for (const slug of role.permissions) {
@@ -537,7 +613,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       byTarget.set(key, grant);
     }
     const permissions = Array.from(byTarget.values());
-    if (permissions.length === 0) return null;
     return {
       id: role.slug,
       title: role.name ?? role.slug,
@@ -598,12 +673,19 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       try {
         this.observability.logger.info("WorkOS scheduled sync started tenant={tenantId} app={appId}", { tenantId: app.tenantId, appId: app.appId });
         await this.syncPermissionsToWorkOS(app.tenantId, app.appId);
-        await this.syncRolesFromWorkOS(app.tenantId, app.appId);
+        await this.syncRoles(app.tenantId, app.appId);
         this.observability.logger.info("WorkOS scheduled sync completed tenant={tenantId} app={appId}", { tenantId: app.tenantId, appId: app.appId });
       } catch (error) {
         this.observability.logger.error(asError(error), { "bp.tenant.id": app.tenantId, "bp.app.id": app.appId, "workos.sync.kind": "scheduled" });
       }
     }
+  }
+
+  private syncRoles(tenantId: string, appId: string): Promise<{ roles: number; grants: number }> {
+    const app = this.getPortalConfig()?.apps.find((candidate) => candidate.id === appId && candidate.tenantId === tenantId);
+    return app?.auth?.roleAuthority === "betterportal"
+      ? this.syncRolesToWorkOS(tenantId, appId)
+      : this.syncRolesFromWorkOS(tenantId, appId);
   }
 
   private matchingConfiguredApps(event?: unknown): Array<{ tenantId: string; appId: string; config: WorkOSAppConfig }> {
@@ -752,7 +834,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     });
     obs?.logger.info("WorkOS role sync started tenant={tenantId} app={appId}", { tenantId, appId });
     try {
-      const result = await this.syncRolesFromWorkOS(tenantId, appId);
+      const result = await this.syncRoles(tenantId, appId);
       span?.setAttributes({
         "workos.roles.synced": result.roles,
         "workos.roles.grants": result.grants
@@ -815,7 +897,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         }
         const apps = this.matchingConfiguredApps(workosEvent);
         for (const app of apps) {
-          await this.syncRolesFromWorkOS(app.tenantId, app.appId);
+          await this.syncRoles(app.tenantId, app.appId);
         }
         span?.end({ "workos.webhook.synced_apps": apps.length });
         obs?.logger.info("WorkOS webhook synced event={event} apps={apps}", {
@@ -965,6 +1047,29 @@ function randomShortId(): string {
 
 function isBpOwnedPermissionSlug(slug: string): boolean {
   return slug.startsWith(BP_PERMISSION_PREFIX) || slug.startsWith(LEGACY_BP_PERMISSION_PREFIX);
+}
+
+export function workOSPermissionsForBpRole(
+  role: AppAuthRole,
+  catalog: BpPermissionCatalogEntry[],
+  existing: string[]
+): string[] {
+  const byGrant = new Map(catalog.map((entry) => [
+    `${entry.serviceId}\n${entry.viewId}\n${entry.action}`,
+    entry.slug
+  ]));
+  const permissions = new Set(existing.filter((slug) => !isBpOwnedPermissionSlug(slug)));
+  for (const grant of role.permissions) {
+    for (const action of grant.permissions) {
+      const slug = byGrant.get(`${grant.serviceId}\n${grant.viewId}\n${action}`);
+      if (slug) permissions.add(slug);
+    }
+  }
+  return [...permissions];
+}
+
+function sameStrings(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value) => right.includes(value));
 }
 
 function readNestedString(value: Record<string, unknown>, path: string[]): string | undefined {

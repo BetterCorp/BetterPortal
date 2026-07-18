@@ -153,6 +153,7 @@ export function render(data: ResponseData): HtmlRenderable {
   const authPath = `${serviceUrl}/auth`;
   const selectedApp = data.apps.find((a) => a.id === data.selectedAppId);
   const externalRoleSync = data.externalRoleSync;
+  const managedRoleSync = data.managedRoleSync;
 
   return (
     <div class="container-fluid px-0">
@@ -207,6 +208,19 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
       ) : (
+        <div>
+          {managedRoleSync ? (
+            <div class="alert alert-info d-flex justify-content-between align-items-center gap-3">
+              <span>Roles are managed by BetterPortal and synced to {managedRoleSync.serviceTitle}.</span>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-primary"
+                hx-post={managedRoleSync.syncUrl}
+                hx-swap="none"
+              >Sync now</button>
+              <div hidden hx-post={managedRoleSync.syncUrl} hx-trigger="load" hx-swap="none"></div>
+            </div>
+          ) : null}
         <div class="row g-4">
           {/* -- Roles column -- */}
           <div class="col-lg-7">
@@ -284,6 +298,7 @@ export function render(data: ResponseData): HtmlRenderable {
               </div>
             </div>
           </div>
+        </div>
         </div>
       )}
 

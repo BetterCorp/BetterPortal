@@ -13,6 +13,21 @@ function tenantsScript(): HtmlRenderable {
       });
     };
 
+    const syncRoleAuthority = (form, preferred) => {
+      const authSelect = form.querySelector("[name=authServiceId]");
+      const authoritySelect = form.querySelector("[name=roleAuthority]");
+      const field = form.querySelector("[data-bp-role-authority-field]");
+      if (!authSelect || !authoritySelect || !field) return;
+      const supported = (authSelect.selectedOptions[0]?.dataset.bpRoleAuthorities || "betterportal").split(",").filter(Boolean);
+      const fallback = supported.includes("provider") ? "provider" : (supported[0] || "betterportal");
+      authoritySelect.value = preferred && supported.includes(preferred) ? preferred : fallback;
+      field.hidden = !authSelect.value || supported.length < 2;
+    };
+
+    document.querySelectorAll("form").forEach((form) => {
+      form.querySelector("[name=authServiceId]")?.addEventListener("change", () => syncRoleAuthority(form));
+    });
+
     const addAppForm = document.getElementById("bp-add-app-form");
     const addTenantSelect = addAppForm?.querySelector("[name=tenantId]");
     addTenantSelect?.addEventListener("change", () => {
@@ -46,6 +61,7 @@ function tenantsScript(): HtmlRenderable {
         shellSelect.value = data.shellServiceId || "";
         const authSelect = form.querySelector("[name=authServiceId]");
         authSelect.value = data.authServiceId || "";
+        syncRoleAuthority(form, data.roleAuthority);
         if (window.htmx) window.htmx.process(form);
       });
     });
@@ -241,8 +257,19 @@ export function render(data: ResponseData): HtmlRenderable {
               <select class="form-select" name="authServiceId" data-bp-tenant-scoped="">
                 <option value="">No auth provider</option>
                 {data.authServices.map((service) => (
-                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title}</option>
+                  <option
+                    value={service.id}
+                    data-bp-tenant-id={service.tenantId}
+                    data-bp-role-authorities={service.roleAuthorities.join(",")}
+                  >{service.title}</option>
                 ))}
+              </select>
+            </div>
+            <div class="mb-3" data-bp-role-authority-field="" hidden>
+              <label class="form-label">Role management</label>
+              <select class="form-select" name="roleAuthority">
+                <option value="provider">Auth provider</option>
+                <option value="betterportal">BetterPortal</option>
               </select>
             </div>
             <div class="alert alert-danger d-none" id="bp-app-error"></div>
@@ -288,10 +315,21 @@ export function render(data: ResponseData): HtmlRenderable {
               <select class="form-select" name="authServiceId" data-bp-tenant-scoped="">
                 <option value="">No auth provider</option>
                 {data.authServices.map((service) => (
-                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title}</option>
+                  <option
+                    value={service.id}
+                    data-bp-tenant-id={service.tenantId}
+                    data-bp-role-authorities={service.roleAuthorities.join(",")}
+                  >{service.title}</option>
                 ))}
               </select>
               <div class="form-text">Only auth-capable services registered for this app's tenant should be selected.</div>
+            </div>
+            <div class="mb-3" data-bp-role-authority-field="" hidden>
+              <label class="form-label">Role management</label>
+              <select class="form-select" name="roleAuthority">
+                <option value="provider">Auth provider</option>
+                <option value="betterportal">BetterPortal</option>
+              </select>
             </div>
             <div class="alert alert-danger d-none" id="bp-edit-app-error"></div>
             <button type="submit" class="btn btn-primary w-100">Save</button>

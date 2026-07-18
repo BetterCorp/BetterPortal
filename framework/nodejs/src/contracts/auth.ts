@@ -88,6 +88,9 @@ export const AppAuthProviderConfigSchema = av.union([
 ]);
 export type AppAuthProviderConfig = Infer<typeof AppAuthProviderConfigSchema>;
 
+export const AuthRoleAuthoritySchema = av.enum_(["provider", "betterportal"] as const);
+export type AuthRoleAuthority = Infer<typeof AuthRoleAuthoritySchema>;
+
 export const AuthProviderRuntimeMetadataSchema = av.object({
   issuer: NonEmptyStringSchema,
   audience: NonEmptyStringSchema,
@@ -98,6 +101,7 @@ export type AuthProviderRuntimeMetadata = Infer<typeof AuthProviderRuntimeMetada
 export const AppAuthConfigSchema = av.object({
   serviceId: UuidV7Schema,
   provider: av.optional(AppAuthProviderConfigSchema),
+  roleAuthority: av.optional(AuthRoleAuthoritySchema),
   loginViewId: av.optional(NonEmptyStringSchema),
   logoutViewId: av.optional(NonEmptyStringSchema),
   refreshViewId: av.optional(NonEmptyStringSchema),

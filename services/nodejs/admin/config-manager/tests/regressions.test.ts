@@ -5,6 +5,11 @@ import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-m
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_theme.bootstrap1/GET.js";
+import {
+  BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
+  PROVIDER_ROLE_AUTHORITY_CAPABILITY,
+  resolveRoleAuthority
+} from "../src/plugins/service-betterportal-config-manager/roleAuthority.js";
 
 test("visual routes include the root mount", () => {
   const route = {
@@ -58,4 +63,15 @@ test("tenant edit script targets the active checkbox, not its hidden fallback", 
     tenantsPath: "/tenants"
   }));
   assert.match(html, /input\[type=checkbox\]\[name=active\]/);
+});
+
+test("provider role management is the default when advertised", () => {
+  const capabilities = [
+    PROVIDER_ROLE_AUTHORITY_CAPABILITY,
+    BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY
+  ];
+  assert.equal(resolveRoleAuthority(capabilities), "provider");
+  assert.equal(resolveRoleAuthority(capabilities, "betterportal"), "betterportal");
+  assert.equal(resolveRoleAuthority(["auth.roles.sync"]), "provider");
+  assert.equal(resolveRoleAuthority([], "provider"), "betterportal");
 });
