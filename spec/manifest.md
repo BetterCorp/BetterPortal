@@ -24,6 +24,7 @@ The manifest is a service's self-description. Themes and admin tooling read it t
   "configSchemas": [ <configSchema>, ... ],
   "permissions": [ <permission>, ... ],
   "adminApis": [ <adminApi>, ... ],
+  "developerResources": [ <developerResource>, ... ],
   "cacheHints": {
     "metadataTtlSeconds": 300
   }
@@ -53,6 +54,7 @@ The manifest is a service's self-description. Themes and admin tooling read it t
 | `configSchemas` | array | Per-service config descriptors (see section 3). |
 | `permissions` | array | Permission strings this service defines (see `auth.md`). |
 | `adminApis` | array | Admin-only endpoints surfaced for tooling. |
+| `developerResources` | array | Public guides, templates, skills, or examples (see section 7). |
 | `cacheHints.metadataTtlSeconds` | int | How long clients MAY cache this manifest. |
 
 ## 1. View shape
@@ -265,7 +267,44 @@ Endpoints that exist outside the main view set, surfaced for admin tooling disco
 
 `supportsCustomUi: true` tells admin tooling to navigate to `customUiPath` instead of generating a form from `configSchemas`.
 
-## 7. Conformance
+## 7. developerResources
+
+Developer resources make service- or theme-specific implementation guidance discoverable without inventing another package format:
+
+```jsonc
+[
+  {
+    "id": "ui.guide",
+    "kind": "guide",
+    "title": "Bootstrap1 UI guide",
+    "description": "Layout, component, and accessibility rules.",
+    "mediaType": "text/markdown; charset=utf-8",
+    "content": "# Bootstrap1 UI guide\n..."
+  },
+  {
+    "id": "ui.page-template",
+    "kind": "template",
+    "title": "Page renderer template",
+    "mediaType": "text/plain; charset=utf-8",
+    "language": "typescript",
+    "content": "..."
+  }
+]
+```
+
+| Field | Rules |
+|---|---|
+| `id` | Stable lowercase dotted identifier; URL-safe and unique within the service. |
+| `kind` | `guide`, `template`, `skill`, or `example`. |
+| `title` | Human-readable resource name. |
+| `description` | Optional short summary. |
+| `mediaType` | Response content type, including charset for text where appropriate. |
+| `language` | Optional language identifier such as `typescript`, `php`, or `python`. |
+| `content` | Public resource body, 1 byte to 512 KiB. |
+
+The framework serves the index and content routes defined in [ai.md](ai.md). Published registry contracts and Config Manager's synced manifest cache preserve the same resources. Because the manifest and resource endpoints are public, content MUST NOT contain secrets or private operational instructions.
+
+## 8. Conformance
 
 A conformant manifest:
 

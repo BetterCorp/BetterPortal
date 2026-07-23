@@ -7,6 +7,12 @@ import {
 import * as av from "anyvali";
 import {
   InMemoryServiceConfigStore,
+  buildThemeAiManifest,
+  resolveThemeLlmsContext,
+  renderThemeLlmsApi,
+  renderThemeLlmsDev,
+  renderThemeLlmsIndex,
+  renderThemeLlmsUi,
   buildServiceViewUrl,
   buildOriginPolicy,
   htmlResponse,
@@ -41,6 +47,7 @@ import {
 import { isUserFacingRoute, renderBootstrap1HostPage, renderNavItems, shellStyles, renderBrand, type Bootstrap1NavItem } from "./theme/index.js";
 import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap1Asset } from "./assets.js";
+import { Bootstrap1DeveloperResources } from "./resources.js";
 
 // Parse-only base for relative request URLs. Never emit this origin.
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
@@ -240,6 +247,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         description: "Bootstrap 5 + htmx theme that renders BetterPortal app shells.",
         category: "theme",
         capabilities: ["theme"],
+        developerResources: Bootstrap1DeveloperResources,
         configSchemas: THEME_CONFIG_SCHEMAS as any
       },
       // Theme exposes manual routes (not bp-routes/) - registered in onRegistered.
@@ -319,6 +327,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private registerRoutes(): void {
     this.app.get("/_themes/bootstrap1/assets/**", (event) => this.handleAsset(event));
     this.app.get("/llms.txt", (event) => this.handleLlmsTxt(event));
+    this.app.get("/llms-api.txt", (event) => this.handleLlmsApi(event));
+    this.app.get("/llms-dev.txt", (event) => this.handleLlmsDev(event));
+    this.app.get("/llms-ui.txt", (event) => this.handleLlmsUi(event));
     this.app.get("/.well-known/bp/ai.json", (event) => this.handleAiManifest(event));
     this.app.get("/.well-known/bp/manifest", (event) => this.handleManifest(event));
     this.app.get("/.well-known/bp/public", (event) => this.handlePublicDiscovery(event));
@@ -351,132 +362,48 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.get("/**", (event) => this.handleIndex(event));
   }
 
-  private resolveConfigManagerUrl(portalConfig: PlatformConfig, tenantId: string): string | undefined {
-    const tenants = Array.isArray(portalConfig.tenants) ? portalConfig.tenants : [];
-    const sharedServiceActivations = Array.isArray(portalConfig.sharedServiceActivations)
-      ? portalConfig.sharedServiceActivations
-      : [];
-    const sharedServiceCatalog = Array.isArray(portalConfig.sharedServiceCatalog)
-      ? portalConfig.sharedServiceCatalog
-      : [];
-
-    const tenant = tenants.find((entry) => entry.id === tenantId);
-    const tenantServices = Array.isArray(tenant?.services) ? tenant.services : [];
-    const direct = tenantServices.find((service) => service.enabled && service.serviceId === "org.betterportal.config-manager");
-    if (direct) return direct.hostname;
-    for (const activation of sharedServiceActivations.filter((entry) => entry.tenantId === tenantId && entry.enabled)) {
-      const shared = sharedServiceCatalog.find((service) =>
-        service.id === activation.sharedServiceId && service.enabled && service.serviceId === "org.betterportal.config-manager"
-      );
-      if (shared) return shared.baseUrl;
-    }
-    return undefined;
-  }
-
-  private appPublicUrl(app: { hostnames: string[] } | undefined): string | undefined {
-    const hostname = app?.hostnames[0];
-    if (!hostname) return undefined;
-    return /^https?:\/\//i.test(hostname) ? hostname : `https://${hostname}`;
-  }
-
-  private resolveManagementApp(portalConfig: PlatformConfig): { appId?: string; tenantId?: string; url?: string } {
-    const appId = portalConfig.configManagement?.managementAppId;
-    const apps = Array.isArray(portalConfig.apps) ? portalConfig.apps : [];
-    const app = appId ? apps.find((entry) => entry.id === appId) : undefined;
-    return { appId, tenantId: app?.tenantId, url: this.appPublicUrl(app) };
-  }
-
-  private discoveryUrls(portalConfig: PlatformConfig, tenantId: string, tenantUrl: string): { configManagerUrl?: string; catalogUrl?: string; managementDiscoveryUrl?: string; managementCurrentUrl?: string } {
-    const configManagerUrl = this.resolveConfigManagerUrl(portalConfig, tenantId);
-    return {
-      configManagerUrl,
-      catalogUrl: configManagerUrl ? `${configManagerUrl}/.well-known/bp/automation/catalog?tenantUrl=${encodeURIComponent(tenantUrl)}` : undefined,
-      managementDiscoveryUrl: configManagerUrl ? `${configManagerUrl}/.well-known/bp/management` : undefined,
-      managementCurrentUrl: configManagerUrl ? `${configManagerUrl}/.well-known/bp/manage/current?tenantUrl=${encodeURIComponent(tenantUrl)}` : undefined
-    };
-  }
-
-  private resolveThemeAiContext(activeEvent: BetterPortalEvent): { tenant: { id: string; title: string }; app: { id: string; title: string }; tenantUrl: string; urls: ReturnType<Plugin["discoveryUrls"]>; management: ReturnType<Plugin["resolveManagementApp"]> } | null {
+  private resolveThemeAiContext(activeEvent: BetterPortalEvent): ReturnType<typeof resolveThemeLlmsContext> {
     const portalConfig = this.getPortalConfig();
-    if (!portalConfig) return null;
-    const context = resolveThemeRequestContext(
-      portalConfig,
-      eventHeaders(activeEvent),
-      resolveThemeHostname(eventHeaders(activeEvent), this.headerTrustOptions()) ?? undefined,
-      this.headerTrustOptions()
-    );
-    if (!context) return null;
-    const tenantUrl = activeEvent.url.origin;
-    return {
-      tenant: { id: context.tenant.id, title: context.tenant.title },
-      app: { id: context.app.id, title: context.app.title },
-      tenantUrl,
-      urls: this.discoveryUrls(portalConfig, context.tenant.id, tenantUrl),
-      management: this.resolveManagementApp(portalConfig)
-    };
+    return portalConfig
+      ? resolveThemeLlmsContext(portalConfig, eventHeaders(activeEvent), activeEvent.url.origin, this.headerTrustOptions())
+      : null;
   }
 
-  private aiManifest(context: NonNullable<ReturnType<Plugin["resolveThemeAiContext"]>>, traceId?: string): JsonValue {
-    return {
-      protocol: "betterportal-ai.v1",
-      tenant: context.tenant,
-      app: { ...context.app, url: context.tenantUrl },
-      configManagerUrl: context.urls.configManagerUrl,
-      automation: { catalogUrl: context.urls.catalogUrl },
-      management: {
-        appUrl: context.management.url,
-        appId: context.management.appId,
-        tenantId: context.management.tenantId,
-        discoveryUrl: context.urls.managementDiscoveryUrl,
-        currentUrl: context.urls.managementCurrentUrl,
-        platformAdmin: {
-          available: true,
-          usage: "operator-only",
-          aiPolicy: "do-not-use-for-user-tasks"
-        }
-      },
-      ...(traceId ? { traceId } : {})
-    } as JsonValue;
+  private handleLlmsDocument(
+    event: BetterPortalEvent,
+    name: string,
+    render: (context: NonNullable<ReturnType<typeof resolveThemeLlmsContext>>) => string
+  ): Promise<Response> {
+    return withObservedEvent(event, this.observability, `theme.bootstrap1.${name}`, (activeEvent) => {
+      const context = this.resolveThemeAiContext(activeEvent);
+      if (!context) return new Response("BetterPortal app context is not available yet.\n", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+      return new Response(render(context), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+    });
   }
 
   private async handleAiManifest(event: BetterPortalEvent): Promise<Response> {
     return withObservedEvent(event, this.observability, "theme.bootstrap1.ai_manifest", (activeEvent, span) => {
       const context = this.resolveThemeAiContext(activeEvent);
-      if (!context) return jsonResponse({ error: "Unable to resolve tenant/app AI context" }, 404);
-      return jsonResponse(this.aiManifest(context, span.traceId));
+      return context
+        ? jsonResponse(buildThemeAiManifest(context, Bootstrap1DeveloperResources, span.traceId))
+        : jsonResponse({ error: "Unable to resolve tenant/app AI context" }, 404);
     });
   }
 
-  private async handleLlmsTxt(event: BetterPortalEvent): Promise<Response> {
-    return withObservedEvent(event, this.observability, "theme.bootstrap1.llms_txt", (activeEvent) => {
-      const context = this.resolveThemeAiContext(activeEvent);
-      if (!context) return new Response("BetterPortal app context is not available yet.\n", { status: 404, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
-      const lines = [
-        `# ${context.app.title}`,
-        "",
-        "This is a BetterPortal tenant app.",
-        "",
-        `Tenant ID: ${context.tenant.id}`,
-        `Tenant Title: ${context.tenant.title}`,
-        `App ID: ${context.app.id}`,
-        `App URL: ${context.tenantUrl}`,
-        "",
-        "Discovery:",
-        "- AI manifest: /.well-known/bp/ai.json",
-        `- Automation catalog: ${context.urls.catalogUrl ?? "not available"}`,
-        `- Management discovery: ${context.urls.managementDiscoveryUrl ?? "not available"}`,
-        `- Management app URL: ${context.management.url ?? "not configured"}`,
-        "",
-        "Use the automation catalog for business/service actions.",
-        "Use management discovery and the management app URL for user-owned app, tenant, service, route, menu, fragment, and theme configuration.",
-        "Platform admin is operator-only. AI agents must not use platform admin for user tasks.",
-        "If an action schema has missing required values, ask the user for those values before calling the API.",
-        "Persist BetterPortal response headers from BP-SetHeader until expiry and send live headers on later BP API calls. Apply BP-RemoveHeader when returned.",
-        "Referer and Origin help BetterPortal resolve tenant/app context; explicit discovered URLs and BP headers are preferred for API calls.",
-        ""
-      ];
-      return new Response(lines.join("\n"), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
-    });
+  private handleLlmsTxt(event: BetterPortalEvent): Promise<Response> {
+    return this.handleLlmsDocument(event, "llms_txt", renderThemeLlmsIndex);
+  }
+
+  private handleLlmsApi(event: BetterPortalEvent): Promise<Response> {
+    return this.handleLlmsDocument(event, "llms_api", renderThemeLlmsApi);
+  }
+
+  private handleLlmsDev(event: BetterPortalEvent): Promise<Response> {
+    return this.handleLlmsDocument(event, "llms_dev", renderThemeLlmsDev);
+  }
+
+  private handleLlmsUi(event: BetterPortalEvent): Promise<Response> {
+    return this.handleLlmsDocument(event, "llms_ui", (context) => renderThemeLlmsUi(context, Bootstrap1DeveloperResources));
   }
 
   private async handlePublicDiscovery(event: BetterPortalEvent): Promise<Response> {
@@ -487,16 +414,17 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         protocol: "betterportal-automation.v1",
         tenantId: context.tenant.id,
         appId: context.app.id,
-        tenantUrl: context.tenantUrl,
-        configManagerUrl: context.urls.configManagerUrl,
-        catalogUrl: context.urls.catalogUrl,
+        tenantUrl: context.app.url,
+        configManagerUrl: context.configManagerUrl,
+        catalogUrl: context.catalogUrl,
+        apiGuideUrl: context.apiGuideUrl,
         aiManifestUrl: "/.well-known/bp/ai.json",
-        managementDiscoveryUrl: context.urls.managementDiscoveryUrl,
+        resourcesUrl: "/.well-known/bp/resources",
+        managementDiscoveryUrl: context.management.discoveryUrl,
         traceId: span.traceId
       } as JsonValue);
     });
   }
-
   private async resolveEffectiveTheme(event: BetterPortalEvent): Promise<{ brandName: string; logoUrl?: string; faviconUrl: string; mode: "light" | "dark"; themeConfig: any; tenantId: string; appId: string } | null> {
     const portalConfig = this.requirePortalConfig();
     const reqCtx = resolveThemeRequestContext(
@@ -1344,7 +1272,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       let loginUrl: string | undefined;
       const appAuth = (requestContext.app as { auth?: { serviceId?: string; loginViewId?: string } }).auth;
       const fullScreen = currentRoute?.chrome?.fullScreen === true;
-      const discoveryUrls = this.discoveryUrls(portalConfig, requestContext.tenant.id, activeEvent.url.origin);
+      const discoveryUrls = this.resolveThemeAiContext(activeEvent);
       if (appAuth?.serviceId) {
         const authBinding = resolveServiceForTenant(portalConfig, appAuth.serviceId, requestContext);
         if (authBinding) {
@@ -1380,8 +1308,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           loginUrl,
           fullScreen,
           aiManifestUrl: "/.well-known/bp/ai.json",
-          automationCatalogUrl: discoveryUrls.catalogUrl,
-          managementDiscoveryUrl: discoveryUrls.managementDiscoveryUrl
+          automationCatalogUrl: discoveryUrls?.catalogUrl,
+          managementDiscoveryUrl: discoveryUrls?.management.discoveryUrl
         }),
         {
           status: routeNotFound ? 404 : 200,

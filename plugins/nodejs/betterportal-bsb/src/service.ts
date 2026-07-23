@@ -862,6 +862,7 @@ export abstract class BPService<
           webhooks: this.manifest.webhooks,
           apiContracts: this.manifest.apiContracts,
           m2mRequests: this.manifest.m2mRequests,
+          developerResources: this.manifest.developerResources,
           ...(this.publishedAuthProvider ? { authProvider: this.publishedAuthProvider } : {}),
           viewIndex
         })

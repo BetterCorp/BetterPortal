@@ -1633,4 +1633,30 @@ export function registerBpWellKnownRoutes(
   app.get("/.well-known/bp/manifest", () => {
     return jsonResponse(manifest as unknown as JsonValue);
   });
+
+  app.get("/.well-known/bp/resources", () => {
+    return jsonResponse({
+      resources: manifest.developerResources.map(({ content: _content, ...resource }) => ({
+        ...resource,
+        url: `/.well-known/bp/resources/${encodeURIComponent(resource.id)}`
+      }))
+    } as unknown as JsonValue);
+  });
+
+  app.get("/.well-known/bp/resources/**", (event) => {
+    const encodedId = event.url.pathname.slice("/.well-known/bp/resources/".length);
+    let id: string;
+    try { id = decodeURIComponent(encodedId); }
+    catch { return jsonResponse({ error: "invalid_resource_id" }, 400); }
+    const resource = manifest.developerResources.find((candidate) => candidate.id === id);
+    if (!resource) return jsonResponse({ error: "resource_not_found" }, 404);
+    return new Response(resource.content, {
+      headers: {
+        "content-type": resource.mediaType,
+        "cache-control": `public, max-age=${manifest.cacheHints.metadataTtlSeconds}`,
+        "content-security-policy": "sandbox; default-src 'none'",
+        "x-content-type-options": "nosniff"
+      }
+    });
+  });
 }

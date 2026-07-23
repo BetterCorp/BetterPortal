@@ -5,13 +5,21 @@ BetterPortal exposes a lightweight discovery path for automation tools:
 1. Automation plugin receives a tenant/theme URL.
 2. It reads `GET <tenantUrl>/.well-known/bp/ai.json` or `GET <tenantUrl>/.well-known/bp/public`.
 3. If `configManagerUrl` was not supplied manually, it uses the discovered `configManagerUrl`.
-4. It reads `GET <configManagerUrl>/.well-known/bp/automation/catalog?tenantUrl=<tenantUrl>`.
+4. For readable instructions, it reads `GET <configManagerUrl>/.well-known/bp/automation/llms-api.txt?tenantUrl=<tenantUrl>`.
+5. For structured actions, it reads `GET <configManagerUrl>/.well-known/bp/automation/catalog?tenantUrl=<tenantUrl>`.
 
 Themes also expose `GET <tenantUrl>/llms.txt` and HTML discovery tags:
 
 - `<link rel="llms" href="/llms.txt">`
 - `<link rel="alternate" type="application/json" title="BetterPortal AI manifest" href="/.well-known/bp/ai.json">`
 - `<meta name="betterportal:ai-manifest" content="/.well-known/bp/ai.json">`
+
+The app hostname provides task-specific documents without making `/llms.txt` large:
+
+- `/llms-api.txt` - authentication, service origins, live schemas, and the expanded Config Manager API guide.
+- `/llms-dev.txt` - protocol, registry, typed-client, and language guidance.
+- `/llms-ui.txt` - active-theme guides, skills, examples, and templates.
+- `/.well-known/bp/resources` - machine-readable index of the active theme's public developer resources.
 
 The catalog is read-only and action-focused. It returns tenant/app ids, services, cached config schemas, and cached service view/action metadata from config-manager. Config-manager does not fetch services server-side; services must sync their manifests through control-plane sync/poll. Synced action metadata includes service path, methods, renderability, permissions, role hint, chrome, dependencies, JSON schemas, raw/API-only status, M2M API contracts/requests, and demo scenarios when the service declares them.
 

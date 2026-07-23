@@ -47,11 +47,15 @@ Themes expose:
 - `GET /.well-known/bp/ai.json`
 - `GET /.well-known/bp/public`
 - `GET /llms.txt`
+- `GET /llms-api.txt`
+- `GET /llms-dev.txt`
+- `GET /llms-ui.txt`
 
 Config-manager exposes:
 
 - `GET /.well-known/bp/management`
 - `GET /.well-known/bp/automation/catalog?tenantUrl=...`
+- `GET /.well-known/bp/automation/llms-api.txt?tenantUrl=...`
 - `GET /.well-known/bp/manage/current`
 - `GET /.well-known/bp/manage/services`
 - `POST /.well-known/bp/manage/services/activate`
@@ -62,6 +66,8 @@ Config-manager exposes:
 - `GET /.well-known/bp/manage/webhooks/events`
 
 The automation catalog is built from cached service manifests pushed by services during sync/poll. Config-manager must not fetch service manifests server-side because it cannot assume network reachability to services.
+
+The text API guide and JSON catalog are two representations of the same app-scoped cached metadata. The guide expands actions, permissions, schemas, and demo scenarios for an LLM or human; the catalog remains the stable input for automation clients. Both continue to require normal route authentication when a discovered action is called.
 
 ## Webhooks
 

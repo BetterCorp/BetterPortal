@@ -33,6 +33,17 @@ export const WebhookEventDescriptorSchema = av.object({
 }, { unknownKeys: "strip" });
 export type WebhookEventDescriptor = Infer<typeof WebhookEventDescriptorSchema>;
 
+export const DeveloperResourceSchema = av.object({
+  id: av.string().pattern("^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"),
+  kind: av.enum_(["guide", "template", "skill", "example"] as const),
+  title: av.string().minLength(1),
+  description: av.optional(av.string()),
+  mediaType: av.string().minLength(1).maxLength(128).pattern("^[^\\r\\n]+$"),
+  language: av.optional(av.string().minLength(1)),
+  content: av.string().minLength(1).maxLength(512 * 1024)
+}, { unknownKeys: "strip" });
+export type DeveloperResource = Infer<typeof DeveloperResourceSchema>;
+
 export const PluginManifestSchema = av.object({
   protocolVersion: av.literal(1),
   pluginId: PluginIdSchema,
@@ -51,6 +62,7 @@ export const PluginManifestSchema = av.object({
   webhooks: av.array(WebhookEventDescriptorSchema).default([]),
   apiContracts: av.array(ApiContractDescriptorSchema).default([]),
   m2mRequests: av.array(M2MRequestDescriptorSchema).default([]),
+  developerResources: av.array(DeveloperResourceSchema).default([]),
   cacheHints: av.object({
     metadataTtlSeconds: av.int().min(0).default(1800)
   }, { unknownKeys: "strip" }).default({ metadataTtlSeconds: 1800 })

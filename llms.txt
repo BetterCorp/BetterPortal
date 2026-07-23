@@ -12,6 +12,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 > | [`spec/protocol.md`](spec/protocol.md) | HTTP surface, CORS, content negotiation. |
 > | [`spec/manifest.md`](spec/manifest.md) | `/.well-known/bp/manifest`. |
 > | [`spec/schema-json.md`](spec/schema-json.md) | `/.well-known/bp/schema.json`. |
+> | [`spec/ai.md`](spec/ai.md) | App LLM guides, AI manifest, resources, and discovery flow. |
 > | [`spec/fragment-html.md`](spec/fragment-html.md) | Fragment HTML rules + `HX-Trigger` events. |
 > | [`spec/config.md`](spec/config.md) | `bp-config.yaml` + per-service config endpoints. |
 > | [`spec/auth.md`](spec/auth.md) | OIDC + JWT + JWKS + config tickets. |
@@ -94,7 +95,7 @@ These are non-negotiable. The whole architecture is built on them.
 - **Raw/file routes.** Use `createRawHandler()` for API-only endpoints that return `Response`/files/streams. Raw routes must not export `ResponseSchema` or theme renderers; codegen forces them non-renderable. Use `ctx.response(body, init)` for custom responses and `ctx.file(body, { filename, contentType, size, disposition })` for downloads. Raw routes still run auth, app allowlist, input validation, tracing, `routeUrl`, and BP header directives.
 - **Multipart uploads.** Multipart is opt-in via exported `MultipartSchema` and `createRawHandler({ multipart: MultipartSchema }, ...)`. `ctx.multipart.fields` contains string fields, `ctx.multipart.files` contains buffered `{ fieldName, filename, contentType, size, data }` files; repeated keys become arrays. Buffered multipart is capped at 25 MiB total file bytes and returns `413` when exceeded; add streaming/resumable protocols only for proven large upload needs.
 - **Automation discovery.** Themes expose `GET /.well-known/bp/public` with `protocol`, `tenantId`, `appId`, `tenantUrl`, `configManagerUrl`, and `catalogUrl`. Config-manager exposes `GET /.well-known/bp/automation/catalog?tenantUrl=...` returning services, cached config schemas, and cached service actions from manifest sync. Config-manager must not fetch services server-side for automation discovery. Node-RED, n8n, and Zapier scaffolds live under `automations/` and share `automations/shared/bp-client.js`.
-- **AI discovery.** Themes expose `GET /.well-known/bp/ai.json`, `GET /llms.txt`, and HTML discovery tags (`rel="llms"`, `betterportal:ai-manifest`). Start from the tenant app URL, read the AI manifest, then use the automation catalog for business/service actions. For app management tasks, use the discovered management app URL and config-manager `/.well-known/bp/manage/*` endpoints. Platform admin is operator-only and AI agents must not use it for user tasks.
+- **AI discovery.** Themes expose a small `GET /llms.txt` router, task guides at `/llms-api.txt`, `/llms-dev.txt`, and `/llms-ui.txt`, plus `GET /.well-known/bp/ai.json` and HTML discovery tags. Every service exposes public declared resources at `/.well-known/bp/resources`; never put secrets in them. Config-manager expands cached app actions and schemas at `/.well-known/bp/automation/llms-api.txt?tenantUrl=...` and as JSON in the automation catalog. For app management tasks, use the discovered management app and `/.well-known/bp/manage/*`; platform admin is operator-only.
 - **Management API.** Config-manager exposes `GET /.well-known/bp/management` plus `/.well-known/bp/manage/current`, `services`, `services/activate`, `routes`, `fragments`, and `theme`. These endpoints resolve the current app from explicit `appId`/`tenantUrl` first, then `Referer`/`Origin` context. Raw UUIDv7 ids are intentionally visible for API, automation, and AI use.
 - **Webhooks.** Services declare webhook events in their manifest; users never edit payload schemas. Handlers emit with `await ctx.webhook?.("event.id", payload)`. Config-manager stores delivery targets, receives service events at `POST /.well-known/bp/webhooks/events`, signs JSON POST deliveries, skips disabled tenants, and retries up to target `maxAttempts`. User/app management uses `/.well-known/bp/manage/webhooks/events` and `/.well-known/bp/manage/webhooks/targets`; platform admin uses `/.well-known/bp/admin/webhooks/*`. File delivery is single-process; add Postgres claiming only for real multi-container delivery.
 - **BP header directives.** Clients, automation tools, and AI agents must process `BP-SetHeader` and `BP-RemoveHeader`. Store BP headers until expiry, remove them when directed, and send fresh live headers on later BP API calls. `Referer` and `Origin` help context resolution but are not auth; prefer discovered URLs, `tenantUrl`, `appId`, and BP headers.
@@ -178,6 +179,8 @@ Every BPService exposes these automatically:
 | `GET /.well-known/bp/config/schema` | Config schema descriptor for service + whether custom UI exists.       |
 | `GET /.well-known/bp/config`        | Read tenant/app config values (config API token via `Authorization: Bearer ...`). |
 | `POST /.well-known/bp/config`       | Write tenant/app config values (config API token via `Authorization: Bearer ...`). |
+| `GET /.well-known/bp/resources`    | Public developer-resource index.                                      |
+| `GET /.well-known/bp/resources/<id>` | Public guide, template, skill, or example content.                  |
 
 Themes additionally expose:
 
@@ -188,6 +191,11 @@ Themes additionally expose:
 | `GET /.well-known/bp/theme/nav`         | Sidebar nav HTML for current app.                        |
 | `GET /.well-known/bp/theme/fragments?location=X` | Fragment list HTML for a shell location.        |
 | `GET /.well-known/bp/config/ui`         | Theme designer page (custom UI).                         |
+| `GET /llms.txt`                        | Concise task router for AI and developers.                            |
+| `GET /llms-api.txt`                    | App API, auth, services, schemas, and action-guide links.              |
+| `GET /llms-dev.txt`                    | Protocol, registry, SDK, and multi-language development guide.        |
+| `GET /llms-ui.txt`                     | Active-theme UI resources and templates.                              |
+| `GET /.well-known/bp/ai.json`          | Machine-readable discovery graph.                                     |
 
 ---
 

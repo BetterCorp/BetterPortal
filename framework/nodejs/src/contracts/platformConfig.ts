@@ -302,6 +302,7 @@ export const ServiceManifestCacheEntrySchema = av.object({
   authProvider: av.optional(AuthProviderRuntimeMetadataSchema),
   m2mRequests: av.array(av.any()).default([]),
   apiContracts: av.array(av.any()).default([]),
+  developerResources: av.array(av.any()).default([]),
   viewIndex: av.record(av.object({
     viewId: NonEmptyStringSchema,
     path: NonEmptyStringSchema,

@@ -15,8 +15,12 @@ Every BetterPortal service MUST expose these paths under `/.well-known/bp/`. The
 | `/.well-known/bp/config/schema` | GET | Per-service config schema descriptor. | none |
 | `/.well-known/bp/config` | GET | Read tenant/app config values. | Bearer ticket |
 | `/.well-known/bp/config` | POST | Write tenant/app config values. | Bearer ticket |
+| `/.well-known/bp/resources` | GET | Public developer-resource index. | none |
+| `/.well-known/bp/resources/<id>` | GET | Public guide, template, skill, or example content. | none |
 
 Services MAY expose additional well-known paths under `/.well-known/bp/` for SDK-specific or service-specific needs (e.g., theme `/theme/nav`, `/theme/style`). These are not part of the core protocol but MUST NOT collide with the table above.
+
+Theme services additionally expose the app-level AI and developer discovery endpoints described in [ai.md](ai.md), including `/llms.txt`, its task-specific guides, and `/.well-known/bp/ai.json`.
 
 ### 1.1 Health response
 

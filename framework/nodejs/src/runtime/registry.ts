@@ -155,6 +155,7 @@ export interface ManifestBaseFields {
   webhooks?: PluginManifest["webhooks"];
   apiContracts?: PluginManifest["apiContracts"];
   m2mRequests?: PluginManifest["m2mRequests"];
+  developerResources?: PluginManifest["developerResources"];
   cacheHints?: PluginManifest["cacheHints"];
 }
 
@@ -261,6 +262,7 @@ export function buildManifestFromRegistry(
     webhooks: base.webhooks ?? [],
     apiContracts,
     m2mRequests: base.m2mRequests ?? [],
+    developerResources: base.developerResources ?? [],
     cacheHints: base.cacheHints ?? { metadataTtlSeconds: 1800 }
   };
 }

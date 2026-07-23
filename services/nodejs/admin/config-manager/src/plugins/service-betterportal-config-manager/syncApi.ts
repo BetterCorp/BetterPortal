@@ -11,9 +11,10 @@ import type {
   BetterPortalRouteChrome,
   BetterPortalRouteMount,
   BetterPortalConfig,
+  DeveloperResource,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
+import { DeveloperResourceSchema, deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, isApiRoute } from "./routeMounts.js";
 
@@ -65,6 +66,7 @@ export interface CachedManifest {
   capabilities: string[];
   apiContracts: JsonValue[];
   m2mRequests: JsonValue[];
+  developerResources: DeveloperResource[];
   viewIndex: Record<string, CachedManifestView>;
   configSchemas: ConfigSchemaDescriptor[];
   webhooks: WebhookEventDescriptor[];
@@ -133,6 +135,7 @@ function normalizeManifest(input: {
   webhooks?: WebhookEventDescriptor[];
   apiContracts?: JsonValue[];
   m2mRequests?: JsonValue[];
+  developerResources?: DeveloperResource[];
   viewIndex?: Record<string, {
     viewId: string;
     path: string;
@@ -174,6 +177,15 @@ function normalizeManifest(input: {
     capabilities: Array.isArray(input.capabilities) ? input.capabilities.filter((value): value is string => typeof value === "string") : [],
     apiContracts: Array.isArray(input.apiContracts) ? input.apiContracts : [],
     m2mRequests: Array.isArray(input.m2mRequests) ? input.m2mRequests : [],
+    developerResources: Array.isArray(input.developerResources)
+      ? input.developerResources.flatMap((resource) => {
+        try {
+          return [DeveloperResourceSchema.parse(resource)];
+        } catch {
+          return [];
+        }
+      })
+      : [],
     viewIndex: normalizedViews,
     configSchemas: Array.isArray(input.configSchemas) ? input.configSchemas : [],
     webhooks: Array.isArray(input.webhooks) ? input.webhooks : [],
@@ -193,6 +205,7 @@ export async function reconcileServiceRegistry(
     webhooks?: WebhookEventDescriptor[];
     apiContracts?: JsonValue[];
     m2mRequests?: JsonValue[];
+    developerResources?: DeveloperResource[];
   } = {}
 ): Promise<CachedManifest> {
   const viewIndex: NonNullable<Parameters<typeof normalizeManifest>[0]["viewIndex"]> = {};
@@ -381,6 +394,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
         webhooks?: WebhookEventDescriptor[];
         apiContracts?: JsonValue[];
         m2mRequests?: JsonValue[];
+        developerResources?: DeveloperResource[];
         viewIndex?: Record<string, {
           viewId: string;
           path: string;
@@ -429,6 +443,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           capabilities: body.capabilities,
           apiContracts: body.apiContracts,
           m2mRequests: body.m2mRequests,
+          developerResources: body.developerResources,
           viewIndex: body.viewIndex,
           configSchemas: body.configSchemas,
           webhooks: body.webhooks
