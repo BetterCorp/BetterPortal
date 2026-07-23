@@ -7,6 +7,7 @@ import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-
 import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { BaseStorage, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_theme.bootstrap1/GET.js";
+import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_theme.bootstrap1/GET.js";
 import {
   BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
   PROVIDER_ROLE_AUTHORITY_CAPABILITY,
@@ -200,6 +201,24 @@ test("tenant edit script targets the active checkbox, not its hidden fallback", 
     tenantsPath: "/tenants"
   }));
   assert.match(html, /input\[type=checkbox\]\[name=active\]/);
+});
+
+test("service registration stays browser-mediated and tenant history follows the request", () => {
+  const html = String(renderServices({
+    title: "Service Registry",
+    services: [],
+    tenants: [{ id: "tenant-a", title: "Tenant A" }],
+    selectedTenantId: "tenant-a",
+    sharedServiceCatalog: [],
+    sharedServiceActivations: [],
+    apps: [],
+    tenantApps: {},
+    adminApiBase: "/.well-known/bp/admin"
+  }));
+  assert.match(html, /id="bp-services-tenant-filter"[^>]*hx-push-url="true"/);
+  assert.match(html, /id="bp-tenant-service-form"[^>]*data-bp-config="rewrite=false"/);
+  assert.match(html, /id="bp-change-hostname-form"[^>]*data-bp-config="rewrite=false"/);
+  assert.match(html, /id="bp-shared-service-form"[^>]*data-bp-config="rewrite=false"/);
 });
 
 test("provider role management is the default when advertised", () => {

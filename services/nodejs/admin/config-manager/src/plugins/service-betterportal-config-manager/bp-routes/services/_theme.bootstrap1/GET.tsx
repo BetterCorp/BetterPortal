@@ -308,7 +308,7 @@ export function render(data: ResponseData): HtmlRenderable {
             hx-trigger="change"
             hx-target="#bp-main"
             hx-swap="innerHTML"
-            hx-push-url={selectedServicesPath}
+            hx-push-url="true"
           >
             {data.tenants.map((tenant) => (
               <option value={tenant.id} selected={tenant.id === selectedTenantId}>{tenant.title}</option>
@@ -397,7 +397,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-tenant-service-form">
+          <form id="bp-tenant-service-form" data-bp-config="rewrite=false">
             <div class="mb-3">
               <label class="form-label">Tenant</label>
               <select class="form-select" name="tenantId" required>
@@ -439,7 +439,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-change-hostname-form">
+          <form id="bp-change-hostname-form" data-bp-config="rewrite=false">
             <input type="hidden" name="instanceId" />
             <div class="mb-3">
               <label class="form-label">New service URL</label>
@@ -463,6 +463,7 @@ export function render(data: ResponseData): HtmlRenderable {
             id="bp-shared-service-form"
             data-admin-api-base={adminApiBase}
             data-service-base-url={serviceBaseUrl}
+            data-bp-config="rewrite=false"
           >
             <div class="mb-3">
               <label class="form-label">Base URL</label>
