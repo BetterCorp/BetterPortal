@@ -5,6 +5,7 @@ import type { JsonValue } from "./json.js";
 import type { BetterPortalObservability } from "./observability.js";
 import type { BetterPortalApp, BetterPortalTenant } from "./platformConfig.js";
 import { AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
+import type { ServiceTokenClaims } from "./m2m.js";
 
 /**
  * Route-level (API-layer) auth requirement. Replaces ViewAuthRequirement at the API tier.
@@ -29,11 +30,22 @@ export interface JwtVerifier {
   verify(token: string, context: { tenantId: string; appId: string }): Promise<JwtClaims>;
 }
 
+export interface ServiceTokenVerifier {
+  verify(token: string, context: {
+    tenantId: string;
+    appId: string;
+    viewId: string;
+    method: HttpMethod;
+    requiredPermissions: ReadonlyArray<string>;
+  }): Promise<ServiceTokenClaims>;
+}
+
 /**
  * Validated user claims attached to the handler context when auth succeeds.
  * Either fully populated or `undefined` - never partial.
  */
 export type ValidatedUserClaims = JwtClaims;
+export type ValidatedServiceClaims = ServiceTokenClaims;
 
 /**
  * BP-managed header API on the handler context. Headers set here are emitted as
@@ -122,6 +134,8 @@ export interface RouteHandlerContext<
   readonly obs?: BetterPortalObservability;
   /** Validated user claims when auth resolver succeeds. `undefined` for anonymous or invalid token. */
   readonly user?: ValidatedUserClaims;
+  /** Validated installed-service caller. Never populated from a user JWT. */
+  readonly serviceCaller?: ValidatedServiceClaims;
   /** Resolved tenant for this request. Handlers are not invoked without it. */
   readonly tenant: BetterPortalTenant;
   /** Resolved app for this request. Handlers are not invoked without it. */

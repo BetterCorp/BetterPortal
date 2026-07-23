@@ -34,6 +34,7 @@ export * from "./runtime/auth/envelope.js";
 export * from "./runtime/auth/issuer.js";
 export * from "./runtime/auth/jwks.js";
 export * from "./runtime/auth/keypair.js";
+export * from "./runtime/auth/serviceToken.js";
 export * from "./runtime/auth/tokens.js";
 export * from "./runtime/auth/verifier.js";
 export * from "./contracts/controlPlane.js";

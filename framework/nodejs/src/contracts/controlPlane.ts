@@ -2,6 +2,8 @@ import type {
   BetterPortalApp,
   BetterPortalConfig,
   BetterPortalTenant,
+  M2MBinding,
+  M2MGrant,
   TenantServiceRegistration,
   PlatformService,
   SharedServiceDefinition
@@ -10,6 +12,10 @@ import type {
 // -- Scoped config (what a service receives via sync) -----------------
 
 export interface ScopedServiceConfig {
+  /** The installed service identity authenticated by the control-plane API key. */
+  readonly serviceIdentity?: ScopedServiceIdentity;
+  /** Last-known-good S2S policy relevant to this service, filtered by the control plane. */
+  readonly m2m?: ScopedM2MConfig;
   readonly configManagement?: {
     readonly adminTenantId?: string;
     readonly managementAppId?: string;
@@ -24,6 +30,29 @@ export interface ScopedServiceConfig {
   /** Apps whose service config may be managed for this service. This can be broader than runtime apps. */
   readonly configApps?: ReadonlyArray<ScopedConfigApp>;
   readonly apps: ReadonlyArray<ScopedApp>;
+}
+
+export interface ScopedServiceIdentity {
+  readonly id: string;
+  readonly publicKeyPem?: string;
+  readonly keyId?: string;
+}
+
+export interface ScopedM2MService {
+  /** Concrete tenant/app service id used by a binding and JWT iss/aud. */
+  readonly id: string;
+  readonly serviceId?: string;
+  readonly hostname: string;
+  readonly publicKeyPem?: string;
+  readonly keyId?: string;
+}
+
+export interface ScopedM2MConfig {
+  /** All concrete ids that resolve to this running service (including shared activations). */
+  readonly localServiceIds: ReadonlyArray<string>;
+  readonly services: ReadonlyArray<ScopedM2MService>;
+  readonly bindings: ReadonlyArray<M2MBinding>;
+  readonly grants: ReadonlyArray<M2MGrant>;
 }
 
 export interface ScopedTenant {
@@ -85,6 +114,14 @@ export interface PlatformConfigStore {
   } | null>;
 
   getScopedConfig(serviceId: string, scope: "tenant" | "platform", tenantId?: string): Promise<ScopedServiceConfig>;
+
+  registerServicePublicKey(
+    serviceId: string,
+    scope: "tenant" | "platform",
+    tenantId: string | undefined,
+    publicKeyPem: string,
+    keyId: string
+  ): Promise<"registered" | "matched" | "mismatch" | "not-found">;
 
   invalidate(): void;
 

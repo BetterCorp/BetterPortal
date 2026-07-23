@@ -50,7 +50,21 @@ M2M access is explicit and denied by default:
 - Config-manager stores tenant/app `m2m.bindings` to choose the concrete target service/view.
 - Config-manager stores `m2m.grants` to approve methods/permissions for that binding.
 
-Runtime token issuing/enforcement should use these bindings/grants. Do not let a newly provisioned service call arbitrary tenant services just because it has a bootstrap identity.
+Each installed service owns an RS256 private key generated after installation.
+Config-manager stores the public key and distributes the relevant bindings and
+grants; it does not mint S2S tokens. Targets verify short-lived, target-bound
+service JWTs locally and deny access unless the current binding and grant match
+the tenant, app, view, method, and route permissions.
+
+Use `this.m2mClient(requestId, tenantId, appId)` from a `BPService` implementation
+as the runtime passed to a generated BP client. It resolves the target URL from
+the last-known-good snapshot, adds the tenant/app headers, and signs a fresh
+service token for each request.
+
+If config-manager cannot be reached, the cached snapshot remains active without
+an automatic expiry. Consequently, a revocation is enforced per target after
+that target next syncs; config-manager unavailability never becomes a live
+dependency for existing calls.
 
 ## Route policy
 

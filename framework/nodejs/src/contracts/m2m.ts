@@ -1,5 +1,6 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
+import { UuidV7Schema } from "./common.js";
 
 export const M2MMethodSchema = av.enum_(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const);
 
@@ -27,3 +28,19 @@ export const M2MRequestDescriptorSchema = av.object({
   optional: av.bool().default(false)
 }, { unknownKeys: "strip" });
 export type M2MRequestDescriptor = Infer<typeof M2MRequestDescriptorSchema>;
+
+/** Short-lived proof that one installed service instance is calling another. */
+export const ServiceTokenClaimsSchema = av.object({
+  iss: UuidV7Schema,
+  sub: UuidV7Schema,
+  aud: UuidV7Schema,
+  tenantId: UuidV7Schema,
+  appId: UuidV7Schema,
+  bindingId: UuidV7Schema,
+  iat: av.int().min(0),
+  nbf: av.optional(av.int().min(0)),
+  exp: av.int().min(1),
+  jti: av.string().minLength(1),
+  tokenType: av.literal("service")
+}, { unknownKeys: "strip" });
+export type ServiceTokenClaims = Infer<typeof ServiceTokenClaimsSchema>;

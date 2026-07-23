@@ -1,5 +1,5 @@
-import { generateKeyPairSync, createPublicKey, type KeyObject } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { generateKeyPairSync, createPublicKey, randomBytes, type KeyObject } from "node:crypto";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from "node:fs";
 import { dirname } from "node:path";
 
 export interface RsaKeyPair {
@@ -21,7 +21,7 @@ export function generateKeyPair(options: GenerateKeyPairOptions = {}): RsaKeyPai
     privateKeyEncoding: { type: "pkcs8", format: "pem" }
   });
 
-  const kid = options.kid ?? deriveKid(publicKey);
+  const kid = options.kid ?? deriveKeyId(publicKey);
   return { privateKeyPem: privateKey, publicKeyPem: publicKey, kid };
 }
 
@@ -37,7 +37,14 @@ export function loadOrGenerateKeyPair(filePath: string, options: GenerateKeyPair
 
   const pair = generateKeyPair(options);
   mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(pair, null, 2), { mode: 0o600 });
+  const temporaryPath = filePath + "." + randomBytes(8).toString("hex") + ".tmp";
+  try {
+    writeFileSync(temporaryPath, JSON.stringify(pair, null, 2), { mode: 0o600, flag: "wx" });
+    renameSync(temporaryPath, filePath);
+  } catch (error) {
+    if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+    throw error;
+  }
   return pair;
 }
 
@@ -66,7 +73,7 @@ export function publicKeyToJwk(publicKeyPem: string, kid: string): JwkRsaPublic 
   };
 }
 
-function deriveKid(publicKeyPem: string): string {
+export function deriveKeyId(publicKeyPem: string): string {
   const keyObject = createPublicKey(publicKeyPem);
   const jwk = keyObject.export({ format: "jwk" }) as { n?: string };
   if (!jwk.n) throw new Error("Cannot derive kid from non-RSA key");

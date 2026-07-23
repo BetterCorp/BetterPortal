@@ -173,12 +173,27 @@ Auth provider implementations are not part of the protocol. A BetterPortal deplo
 
 ## 4. Service-to-service auth
 
-When a service needs to call another service's API directly (rare; the protocol prefers fragment composition):
+Installed services authenticate directly; neither config-manager nor the app auth
+provider mints their data-plane tokens.
 
-- Use the **calling service's** API key (`apiKeyHash` in `bp-config.yaml`) to mint a short-lived service-to-service token via the auth service.
-- OR use a configured shared secret with mTLS.
+- After installation, a service generates and persists an RS256 keypair beside
+  its bootstrap state. Existing installations generate it on their first
+  upgraded startup.
+- The service submits its public key and derived `kid` during authenticated
+  control-plane sync. The first key is registered automatically. A different
+  key is rejected until an explicit recovery/rotation flow is used.
+- Config-manager syncs only the relevant public keys, `m2m.bindings`, and
+  `m2m.grants` to each source/target service.
+- The caller signs a `BP-S2S-JWT` with a maximum lifetime of 60 seconds. Claims
+  bind the source, exact target instance, tenant, app, and binding.
+- The target verifies the signature and evaluates the binding, HTTP method,
+  target view, grant, and current route permissions from its local snapshot.
+  Permissions supplied by the caller are never authoritative.
 
-The protocol does not currently mandate a wire format for service-to-service tokens. SDKs MAY use OAuth2 client-credentials grant or any standards-based equivalent.
+The control-plane API key remains control-plane-only and MUST NOT authenticate
+ordinary service API routes. If config-manager is unavailable, services keep
+using their persisted last-known-good snapshot. Revocations become effective on
+each target as soon as that target applies the updated snapshot.
 
 ---
 

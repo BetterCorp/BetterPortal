@@ -1,6 +1,7 @@
 import { randomBytes, createHash } from "node:crypto";
 import type {
   PlatformConfigStore,
+  ScopedM2MConfig,
   ScopedServiceConfig,
   ScopedTenant,
   ScopedApp
@@ -352,6 +353,28 @@ export abstract class BaseStorage implements PlatformConfigStore {
     return null;
   }
 
+  async registerServicePublicKey(
+    serviceId: string,
+    scope: "tenant" | "platform",
+    tenantId: string | undefined,
+    publicKeyPem: string,
+    keyId: string
+  ): Promise<"registered" | "matched" | "mismatch" | "not-found"> {
+    const config = await this.loadConfig();
+    const service = scope === "tenant"
+      ? config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId)
+      : config.platformServices.find((candidate) => candidate.id === serviceId)
+        ?? config.sharedServiceCatalog.find((candidate) => candidate.id === serviceId);
+    if (!service) return "not-found";
+    if (service.publicKeyPem || service.keyId) {
+      return service.publicKeyPem === publicKeyPem && service.keyId === keyId ? "matched" : "mismatch";
+    }
+    service.publicKeyPem = publicKeyPem;
+    service.keyId = keyId;
+    await this.saveConfig(config);
+    return "registered";
+  }
+
   async getScopedConfig(
     serviceId: string,
     scope: "tenant" | "platform",
@@ -374,10 +397,18 @@ export abstract class BaseStorage implements PlatformConfigStore {
       || (app.auth?.serviceId ? sharedActivationIdsForCaller.has(app.auth.serviceId) : false)
     );
     if (scope === "tenant" && tenantId) {
-      return this.scopeForTenantService(config, serviceId, tenantId, isThemeCaller, isAuthCaller);
+      return this.withM2MPolicy(
+        config,
+        serviceId,
+        this.scopeForTenantService(config, serviceId, tenantId, isThemeCaller, isAuthCaller)
+      );
     }
 
-    return this.scopeForPlatformService(config, serviceId, isThemeCaller, isAuthCaller);
+    return this.withM2MPolicy(
+      config,
+      serviceId,
+      this.scopeForPlatformService(config, serviceId, isThemeCaller, isAuthCaller)
+    );
   }
 
   onChange(listener: () => void): () => void {
@@ -525,6 +556,93 @@ export abstract class BaseStorage implements PlatformConfigStore {
       tenants,
       configApps: tenants.flatMap((tenant) => this.configAppsForTenant(config, tenant.id)),
       apps
+    };
+  }
+
+  private withM2MPolicy(
+    config: BetterPortalConfig,
+    serviceId: string,
+    scoped: ScopedServiceConfig
+  ): ScopedServiceConfig {
+    const registered = this.registeredService(config, serviceId);
+    const localServiceIds = new Set<string>([serviceId]);
+    const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === serviceId);
+    if (shared) {
+      for (const activation of config.sharedServiceActivations) {
+        const tenantActive = config.tenants.some((tenant) => tenant.active && tenant.id === activation.tenantId);
+        if (activation.enabled && tenantActive && activation.sharedServiceId === shared.id) localServiceIds.add(activation.id);
+      }
+    }
+
+    const bindings = config.m2m.bindings.filter((binding) =>
+      binding.enabled
+      && config.tenants.some((tenant) => tenant.active && tenant.id === binding.tenantId)
+      && (!binding.appId || config.apps.some((app) => app.id === binding.appId && app.tenantId === binding.tenantId))
+      && Boolean(this.resolveM2MService(config, binding.sourceServiceId))
+      && Boolean(this.resolveM2MService(config, binding.targetServiceId))
+      && (localServiceIds.has(binding.sourceServiceId) || localServiceIds.has(binding.targetServiceId))
+    );
+    const bindingIds = new Set(bindings.map((binding) => binding.id));
+    const grants = config.m2m.grants.filter((grant) => grant.enabled && bindingIds.has(grant.bindingId));
+    const relatedServiceIds = new Set(bindings.flatMap((binding) => [binding.sourceServiceId, binding.targetServiceId]));
+    const services = [...relatedServiceIds]
+      .map((id) => this.resolveM2MService(config, id))
+      .filter((service): service is NonNullable<typeof service> => Boolean(service));
+    const m2m: ScopedM2MConfig = {
+      localServiceIds: [...localServiceIds],
+      services,
+      bindings,
+      grants
+    };
+    return {
+      ...scoped,
+      ...(registered ? {
+        serviceIdentity: {
+          id: serviceId,
+          ...(registered.publicKeyPem ? { publicKeyPem: registered.publicKeyPem } : {}),
+          ...(registered.keyId ? { keyId: registered.keyId } : {})
+        }
+      } : {}),
+      m2m
+    };
+  }
+
+  private registeredService(
+    config: BetterPortalConfig,
+    serviceId: string
+  ): TenantServiceRegistration | PlatformService | SharedServiceDefinition | undefined {
+    return config.platformServices.find((service) => service.id === serviceId)
+      ?? config.sharedServiceCatalog.find((service) => service.id === serviceId)
+      ?? config.tenants.flatMap((tenant) => tenant.services).find((service) => service.id === serviceId);
+  }
+
+  private resolveM2MService(config: BetterPortalConfig, serviceId: string): ScopedM2MConfig["services"][number] | undefined {
+    const direct = this.registeredService(config, serviceId);
+    const directEnabled = direct?.enabled && (
+      !("hostname" in direct)
+      || config.platformServices.includes(direct as PlatformService)
+      || config.tenants.some((tenant) => tenant.active && tenant.services.includes(direct as TenantServiceRegistration))
+    );
+    if (direct && directEnabled) {
+      return {
+        id: serviceId,
+        ...(direct.serviceId ? { serviceId: direct.serviceId } : {}),
+        hostname: "hostname" in direct ? direct.hostname : direct.baseUrl,
+        ...(direct.publicKeyPem ? { publicKeyPem: direct.publicKeyPem } : {}),
+        ...(direct.keyId ? { keyId: direct.keyId } : {})
+      };
+    }
+    const activation = config.sharedServiceActivations.find((candidate) => candidate.enabled && candidate.id === serviceId);
+    const shared = activation
+      ? config.sharedServiceCatalog.find((candidate) => candidate.enabled && candidate.id === activation.sharedServiceId)
+      : undefined;
+    if (!shared) return undefined;
+    return {
+      id: serviceId,
+      serviceId: shared.serviceId ?? shared.id,
+      hostname: shared.baseUrl,
+      ...(shared.publicKeyPem ? { publicKeyPem: shared.publicKeyPem } : {}),
+      ...(shared.keyId ? { keyId: shared.keyId } : {})
     };
   }
 

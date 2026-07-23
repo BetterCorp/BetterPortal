@@ -13,10 +13,21 @@ import type {
   BetterPortalConfig,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
+import { deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
+import { createPublicKey } from "node:crypto";
 import { apiRoutePath, isApiRoute } from "./routeMounts.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
+
+function validateServicePublicKey(publicKeyPem: string, keyId: string): { publicKeyPem: string; keyId: string } {
+  const key = createPublicKey(publicKeyPem);
+  if (key.asymmetricKeyType !== "rsa" || (key.asymmetricKeyDetails?.modulusLength ?? 0) < 2048) {
+    throw new Error("S2S public key must be RSA with a modulus of at least 2048 bits");
+  }
+  const normalized = key.export({ type: "spki", format: "pem" }).toString();
+  if (deriveKeyId(normalized) !== keyId) throw new Error("S2S keyId does not match the public key");
+  return { publicKeyPem: normalized, keyId };
+}
 
 /**
  * In-memory manifest cache per service. Populated by POST sync/poll bodies.
@@ -360,6 +371,8 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
     // POST: extract manifest push if present and cache.
     if (event.req.method === "POST") {
       const body = await event.req.json().catch(() => null) as {
+        publicKeyPem?: string;
+        keyId?: string;
         manifestVersion?: string;
         title?: string;
         authProvider?: AuthProviderRuntimeMetadata;
@@ -383,6 +396,30 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
         }>;
       } | null;
+      if (body?.publicKeyPem || body?.keyId) {
+        if (typeof body.publicKeyPem !== "string" || typeof body.keyId !== "string") {
+          return jsonResponse({ error: "Both publicKeyPem and keyId are required" }, 400);
+        }
+        let identity: { publicKeyPem: string; keyId: string };
+        try {
+          identity = validateServicePublicKey(body.publicKeyPem, body.keyId);
+        } catch (error) {
+          return jsonResponse({ error: error instanceof Error ? error.message : "Invalid S2S public key" }, 400);
+        }
+        const registration = await store.registerServicePublicKey(
+          serviceId,
+          validated.scope,
+          validated.tenantId,
+          identity.publicKeyPem,
+          identity.keyId
+        );
+        if (registration === "mismatch") {
+          return jsonResponse({
+            error: "The service already has a different S2S key. Use the explicit key recovery/rotation flow."
+          }, 409);
+        }
+        if (registration === "not-found") return jsonResponse({ error: "Service registration not found" }, 404);
+      }
       if (body && (body.viewIndex || body.configSchemas)) {
         const cachedManifest = normalizeManifest({
           serviceId,

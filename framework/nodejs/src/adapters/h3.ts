@@ -12,7 +12,9 @@ import type {
   RawResponseBody,
   RouteHandler,
   RouteHandlerContext,
+  ServiceTokenVerifier,
   UploadedFile,
+  ValidatedServiceClaims,
   ValidatedUserClaims
 } from "../contracts/route.js";
 import type { BetterPortalApp, BetterPortalRouteChrome } from "../contracts/platformConfig.js";
@@ -31,6 +33,7 @@ import { buildHostCandidates, hostFromHeaderValue, toHtmlString } from "../runti
 import { parseAcceptHeader, resolveRequestedRepresentation } from "../runtime/media.js";
 import { resolveRenderer } from "../runtime/registry.js";
 import { createBpHeadersCollector } from "../runtime/bpHeaders.js";
+import { isServiceToken } from "../runtime/auth/serviceToken.js";
 import {
   resolveStatusRenderer,
   shouldFallThroughToDefaultRenderer,
@@ -76,7 +79,8 @@ type RequiredHandlerContext =
 type RouteUrlOptions = NonNullable<RouteHandlerContext["routeUrl"]> extends (viewId: string, options?: infer T) => unknown ? T : never;
 
 export interface H3AuthContext {
-  readonly verifier: JwtVerifier;
+  readonly verifier?: JwtVerifier;
+  readonly serviceVerifier?: ServiceTokenVerifier;
   readonly tenantId: string;
   readonly appId: string;
   readonly appAuthConfig?: AppAuthConfig;
@@ -857,7 +861,7 @@ async function handleRouteRequest(
 
   const apiAuth: ApiAuthRequirement = route.auth;
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
-  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, obs);
+  const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs);
   if (authResult.error) {
     return renderAuthError(route, event, authResult.status, authResult.error, authResult.requiredPermissions);
   }
@@ -899,6 +903,7 @@ async function handleRouteRequest(
     path: url.pathname,
     rawEvent: event,
     user: authResult.user,
+    serviceCaller: authResult.serviceCaller,
     ...extraContext,
     bpHeaders,
     responseHeaders: event.res.headers,
@@ -1185,7 +1190,7 @@ async function handleStreamSse(
   // The frame stream carries the same data as the view route - enforce the
   // same auth requirement.
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
-  const authResult = await resolveRequestAuth(route.auth, event, authResolved, obs);
+  const authResult = await resolveRequestAuth(route.auth, event, authResolved, route, "GET", obs);
   if (authResult.error) {
     return jsonResponse({ error: authResult.error, status: authResult.status } as unknown as JsonValue, authResult.status);
   }
@@ -1204,6 +1209,7 @@ async function handleStreamSse(
     path: url.pathname,
     rawEvent: event,
     user: authResult.user,
+    serviceCaller: authResult.serviceCaller,
     ...extraContext,
     serviceId: routerOptions.serviceId,
     routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, routerOptions.serviceId),
@@ -1269,6 +1275,7 @@ async function handleStreamSse(
 
 interface AuthResult {
   user?: ValidatedUserClaims;
+  serviceCaller?: ValidatedServiceClaims;
   error?: string;
   status: number;
   requiredPermissions?: ReadonlyArray<RequiredPermissionDescriptor>;
@@ -1296,6 +1303,8 @@ async function resolveRequestAuth(
   apiAuth: ApiAuthRequirement,
   event: BetterPortalEvent,
   authContext: H3AuthContext | undefined,
+  route: RegisteredRoute,
+  method: HttpMethod,
   obs?: BetterPortalObservability
 ): Promise<AuthResult> {
   const required = apiAuth.required;
@@ -1313,14 +1322,43 @@ async function resolveRequestAuth(
     return { status: 200 };
   }
 
+  if (isServiceToken(bearer)) {
+    if (!authContext.serviceVerifier) {
+      if (required) return { status: 503, error: "Service auth context unavailable" };
+      return { status: 200 };
+    }
+    try {
+      const claims = await authContext.serviceVerifier.verify(bearer, {
+        tenantId: authContext.tenantId,
+        appId: authContext.appId,
+        viewId: route.viewId,
+        method,
+        requiredPermissions: apiAuth.permissions.flatMap((requirement) => requirement.permissions)
+      });
+      return { status: 200, serviceCaller: claims };
+    } catch (err) {
+      obs?.logger.warn("Service token verification failed: {msg}", { msg: (err as Error).message });
+      if (required) {
+        const status = (err as { status?: number }).status === 403 ? 403 : 401;
+        return { status, error: status === 403 ? "Service access denied" : "Invalid service token" };
+      }
+      return { status: 200 };
+    }
+  }
+
   // Step 2-4: verify JWT (signature + double-verify happens inside verifier)
+  const verifier = authContext.verifier;
+  if (!verifier) {
+    if (required) return { status: 503, error: "Auth context unavailable" };
+    return { status: 200 };
+  }
   let claims: JwtClaims;
   try {
     claims = await withSpan(obs, "bp.auth.verify_token", {
       "bp.auth.required": required,
       "bp.auth.tenant_id": authContext.tenantId,
       "bp.auth.app_id": authContext.appId
-    }, () => authContext.verifier.verify(bearer, {
+    }, () => verifier.verify(bearer, {
       tenantId: authContext.tenantId,
       appId: authContext.appId
     }));

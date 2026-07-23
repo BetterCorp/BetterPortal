@@ -389,6 +389,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       },
       validateApiKey: (apiKey) => store.validateApiKey(apiKey),
       getScopedConfig: (serviceId, scope, tenantId) => store.getScopedConfig(serviceId, scope, tenantId),
+      registerServicePublicKey: (serviceId, scope, tenantId, publicKeyPem, keyId) =>
+        store.registerServicePublicKey(serviceId, scope, tenantId, publicKeyPem, keyId),
       invalidate: () => store.invalidate(),
       onChange: (listener) => store.onChange(listener)
     };

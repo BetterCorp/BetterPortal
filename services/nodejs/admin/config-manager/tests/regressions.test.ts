@@ -1,16 +1,113 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { generateKeyPair, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { buildRouteTree, flattenRouteTree } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_theme.bootstrap1/GET.js";
 import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
-import { migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BaseStorage, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_theme.bootstrap1/GET.js";
 import {
   BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
   PROVIDER_ROLE_AUTHORITY_CAPABILITY,
   resolveRoleAuthority
 } from "../src/plugins/service-betterportal-config-manager/roleAuthority.js";
+
+class MemoryStorage extends BaseStorage {
+  constructor(private value: BetterPortalConfig) {
+    super();
+  }
+  async loadConfig(): Promise<BetterPortalConfig> {
+    return this.value;
+  }
+  async saveConfig(config: BetterPortalConfig): Promise<void> {
+    this.value = config;
+    this.notifyListeners();
+  }
+}
+
+function s2sConfig(): {
+  config: BetterPortalConfig;
+  tenantId: string;
+  appId: string;
+  sourceId: string;
+  targetId: string;
+  bindingId: string;
+} {
+  const tenantId = uuidv7();
+  const appId = uuidv7();
+  const sourceId = uuidv7();
+  const targetId = uuidv7();
+  const bindingId = uuidv7();
+  const createdAt = new Date().toISOString();
+  const service = (id: string, name: string) => ({
+    id,
+    hostname: "https://" + name + ".example",
+    apiKeyHash: name,
+    serviceId: "org.example." + name,
+    capabilities: [],
+    deploymentMode: "self-hosted" as const,
+    createdAt,
+    enabled: true
+  });
+  const config = {
+    configManagement: { auth: { mechanism: "none", requiredPermissions: [] } },
+    platformServices: [],
+    tenants: [{
+      id: tenantId,
+      slug: "tenant",
+      title: "Tenant",
+      active: true,
+      branding: {},
+      services: [service(sourceId, "source"), service(targetId, "target")],
+      activatedPlatformServices: []
+    }],
+    apps: [{
+      id: appId,
+      tenantId,
+      slug: "app",
+      title: "App",
+      hostnames: ["app.example"],
+      originOverrides: [],
+      refererOverrides: [],
+      themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
+      defaultRoute: "/",
+      routes: [],
+      menu: [],
+      slots: [],
+      fragments: {}
+    }],
+    sharedServiceCatalog: [],
+    sharedServiceActivations: [],
+    manifestCache: [],
+    m2m: {
+      bindings: [{
+        id: bindingId,
+        tenantId,
+        appId,
+        sourceServiceId: sourceId,
+        requestId: "reports.read",
+        contractId: "reports",
+        targetServiceId: targetId,
+        targetViewId: "reports.list",
+        enabled: true,
+        createdAt
+      }],
+      grants: [{
+        id: uuidv7(),
+        tenantId,
+        appId,
+        bindingId,
+        methods: ["GET"],
+        permissions: ["read"],
+        enabled: true,
+        createdAt
+      }]
+    },
+    webhooks: { targets: [] }
+  } as BetterPortalConfig;
+  return { config, tenantId, appId, sourceId, targetId, bindingId };
+}
 
 test("visual routes include the root mount", () => {
   const route = {
@@ -49,6 +146,35 @@ test("hostname changes require the exact instance API key", () => {
   assert.equal((service as { hostname: string }).hostname, "https://old.example");
   assert.equal(applyVerifiedServiceOrigin(service, "expected", "expected", "https://new.example"), true);
   assert.equal((service as { hostname: string }).hostname, "https://new.example");
+});
+
+test("S2S public keys register once and mismatches require recovery", async () => {
+  const value = s2sConfig();
+  const store = new MemoryStorage(value.config);
+  const first = generateKeyPair();
+  const other = generateKeyPair();
+  assert.equal(
+    await store.registerServicePublicKey(value.sourceId, "tenant", value.tenantId, first.publicKeyPem, first.kid),
+    "registered"
+  );
+  assert.equal(
+    await store.registerServicePublicKey(value.sourceId, "tenant", value.tenantId, first.publicKeyPem, first.kid),
+    "matched"
+  );
+  assert.equal(
+    await store.registerServicePublicKey(value.sourceId, "tenant", value.tenantId, other.publicKeyPem, other.kid),
+    "mismatch"
+  );
+
+  const scoped = await store.getScopedConfig(value.targetId, "tenant", value.tenantId);
+  assert.deepEqual(scoped.m2m?.localServiceIds, [value.targetId]);
+  assert.equal(scoped.m2m?.bindings[0]?.id, value.bindingId);
+  assert.equal(scoped.m2m?.services.find((service) => service.id === value.sourceId)?.keyId, first.kid);
+
+  value.config.tenants[0].services[0].enabled = false;
+  const revoked = await store.getScopedConfig(value.targetId, "tenant", value.tenantId);
+  assert.equal(revoked.m2m?.bindings.length, 0);
+  assert.equal(revoked.m2m?.services.some((service) => service.id === value.sourceId), false);
 });
 
 test("shared activation manifest lookup falls back to its shared service", () => {

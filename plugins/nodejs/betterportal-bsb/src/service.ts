@@ -17,12 +17,15 @@ import {
   buildOriginPolicy,
   buildManifestFromRegistry,
   buildBpSchema,
+  authorizeServiceToken,
   createJwksVerifier,
   createStaticJwksVerifier,
   describeEmbeddedContextResolution,
   hostFromHeaderValue,
   registerBpWellKnownRoutes,
   registerServiceConfigRoutes,
+  loadOrGenerateKeyPair,
+  signServiceToken,
   resolveEmbeddedSourceHeader,
   resolveEmbeddedRequestContext,
   resolveThemeSourceHeader,
@@ -41,6 +44,8 @@ import {
   type PluginManifest,
   type ScopedApp,
   type ScopedServiceConfig,
+  type RsaKeyPair,
+  type ServiceTokenVerifier,
   type ScopedTenant,
   type BetterPortalRouteChrome,
   type BetterPortalConfig as PlatformConfig,
@@ -141,6 +146,12 @@ export interface BPServiceDefinition {
   registry: BetterPortalRegistry;
 }
 
+export interface BPServiceClientRuntime {
+  readonly baseUrl: string;
+  readonly headers: Record<string, string>;
+  readonly token: () => string;
+}
+
 // Base class
 
 export abstract class BPService<
@@ -211,6 +222,8 @@ export abstract class BPService<
   private scopedConfig: ScopedServiceConfig | null = null;
   private registeredRoutes: ReadonlyArray<RegisteredRoute> = [];
   private scopedConfigCache!: ScopedConfigCache;
+  private s2sKeyPair: RsaKeyPair | null = null;
+  private s2sIdentityReady = false;
   private sseAbortController: AbortController | null = null;
   protected bootstrapState!: BootstrapStateStore;
 
@@ -273,6 +286,89 @@ export abstract class BPService<
   protected controlPlaneCredentials(): { url: string; apiKey: string } | null {
     if (!this.resolvedCpUrl || !this.resolvedApiKey) return null;
     return { url: this.resolvedCpUrl.replace(/\/+$/, ""), apiKey: this.resolvedApiKey };
+  }
+
+  /**
+   * Resolve an installed-service dependency from the last-known-good snapshot.
+   * The returned shape is accepted directly by generated BP clients.
+   */
+  public m2mClient(requestId: string, tenantId: string, appId: string): BPServiceClientRuntime {
+    const policy = this.scopedConfig?.m2m;
+    const keyPair = this.s2sKeyPair;
+    if (!policy || !keyPair || !this.s2sIdentityReady) {
+      throw new Error("BetterPortal S2S identity is not registered in the current config snapshot");
+    }
+    const binding = policy.bindings.find((candidate) =>
+      candidate.enabled
+      && candidate.requestId === requestId
+      && candidate.tenantId === tenantId
+      && (!candidate.appId || candidate.appId === appId)
+      && policy.localServiceIds.includes(candidate.sourceServiceId)
+    );
+    if (!binding) throw new Error("No enabled S2S binding for request " + requestId);
+    const grant = policy.grants.find((candidate) =>
+      candidate.enabled
+      && candidate.bindingId === binding.id
+      && candidate.tenantId === tenantId
+      && (!candidate.appId || candidate.appId === appId)
+    );
+    if (!grant) throw new Error("No enabled S2S grant for request " + requestId);
+    const target = policy.services.find((candidate) => candidate.id === binding.targetServiceId);
+    if (!target) throw new Error("S2S target service is missing from the current config snapshot");
+
+    return {
+      baseUrl: target.hostname.replace(/\/+$/, ""),
+      headers: {
+        "X-BP-Tenant-Id": tenantId,
+        "X-BP-App-Id": appId
+      },
+      token: () => signServiceToken({
+        keyPair,
+        sourceServiceId: binding.sourceServiceId,
+        targetServiceId: binding.targetServiceId,
+        tenantId,
+        appId,
+        bindingId: binding.id
+      })
+    };
+  }
+
+  private initializeS2SIdentity(obs: Observable): void {
+    if (!this.requireBetterPortalConfigSource || this.inSetupMode || this.s2sKeyPair) return;
+    const bootstrapPath = resolve(this.bp.bootstrapStatePath ?? DEFAULT_BOOTSTRAP_STATE_PATH);
+    const keyPath = resolve(dirname(bootstrapPath), "s2s-key.json");
+    this.s2sKeyPair = loadOrGenerateKeyPair(keyPath);
+    this.updateS2SIdentityState(obs);
+  }
+
+  private updateS2SIdentityState(obs: Observable): void {
+    const registered = this.scopedConfig?.serviceIdentity;
+    this.s2sIdentityReady = Boolean(
+      this.s2sKeyPair
+      && registered?.publicKeyPem === this.s2sKeyPair.publicKeyPem
+      && registered?.keyId === this.s2sKeyPair.kid
+    );
+    if (registered?.publicKeyPem && this.s2sKeyPair && !this.s2sIdentityReady) {
+      obs.log.error("Local S2S key does not match the registered service identity; outbound S2S calls are disabled");
+    }
+  }
+
+  private getServiceTokenVerifier(): ServiceTokenVerifier | undefined {
+    const policy = this.scopedConfig?.m2m;
+    if (!policy) return undefined;
+    return {
+      verify: async (token, context) => {
+        const authorized = await authorizeServiceToken(token, {
+          policy,
+          tenantId: context.tenantId,
+          appId: context.appId,
+          viewId: context.viewId,
+          method: context.method,
+          requiredPermissions: context.requiredPermissions
+        });
+        return authorized.claims;
+      }
+    };
   }
 
   protected isAuthoritativeService(tenantId: string, appId: string, serviceType: AuthoritativeServiceType): boolean {
@@ -478,6 +574,7 @@ export abstract class BPService<
     }
 
     this.resolveCredentials(obs);
+    this.initializeS2SIdentity(obs);
     this.validateBetterPortalConfig(obs);
     this.runtimeConfigEncryptionKey = this.resolveConfigEncryptionKey();
 
@@ -668,6 +765,7 @@ export abstract class BPService<
 
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
       this.scopedConfig = rawConfig as ScopedServiceConfig;
+      this.updateS2SIdentityState(obs);
       // Persist for restart resilience - the service owns its cache; CM's
       // bp-config.yaml is never shared.
       try {
@@ -754,6 +852,10 @@ export abstract class BPService<
         },
         body: JSON.stringify({
           manifestVersion: this.manifest.version,
+          ...(this.s2sKeyPair ? {
+            publicKeyPem: this.s2sKeyPair.publicKeyPem,
+            keyId: this.s2sKeyPair.kid
+          } : {}),
           title: this.manifest.title,
           capabilities: this.manifest.capabilities,
           configSchemas: this.manifest.configSchemas,
@@ -969,9 +1071,11 @@ export abstract class BPService<
     const verifier = isBpManagementAuthRoute(route)
       ? this.getConfiguredJwtVerifier(ctx.__bpTenantId, ctx.__bpAppId)
       : this.getJwtVerifier(ctx.__bpTenantId, ctx.__bpAppId);
-    if (!verifier) return undefined;
+    const serviceVerifier = this.getServiceTokenVerifier();
+    if (!verifier && !serviceVerifier) return undefined;
     return {
-      verifier,
+      ...(verifier ? { verifier } : {}),
+      ...(serviceVerifier ? { serviceVerifier } : {}),
       tenantId: ctx.__bpTenantId,
       appId: ctx.__bpAppId,
       appAuthConfig: this.getAppAuthConfig(ctx.__bpTenantId, ctx.__bpAppId),
@@ -1045,6 +1149,12 @@ export abstract class BPService<
     }
 
     if (!origin) {
+      const tenantId = event.req.headers.get("x-bp-tenant-id");
+      const appId = event.req.headers.get("x-bp-app-id");
+      if (tenantId && appId) {
+        const context = this.resolveScopedContextById(tenantId, appId);
+        if (context) this.applyRequestContext(event, context);
+      }
       return handleCorsRequest(event, {
         origin: [],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -1158,6 +1268,12 @@ export abstract class BPService<
     }
 
     return null;
+  }
+
+  private resolveScopedContextById(tenantId: string, appId: string): BetterPortalResolvedRequestContext | null {
+    const tenant = this.scopedConfig?.tenants.find((candidate) => candidate.active && candidate.id === tenantId);
+    const app = this.scopedConfig?.apps.find((candidate) => candidate.tenantId === tenantId && candidate.id === appId);
+    return tenant && app ? this.resolveScopedRequestContext(tenant, app) : null;
   }
 
   private managementRequestContext(): BetterPortalResolvedRequestContext | null {
@@ -1578,6 +1694,7 @@ export abstract class BPService<
         this.resolvedApiKey = redeemBody.apiKey;
         this.resolvedCpUrl = normalizedCp;
         this.inSetupMode = false;
+        this.initializeS2SIdentity(obs);
 
         // eslint-disable-next-line no-console
         console.log(`\n*** BP install complete for ${this.manifest.pluginId} ***\n    apiKey: ${redeemBody.apiKey}\n    cpUrl:  ${normalizedCp}\n`);
