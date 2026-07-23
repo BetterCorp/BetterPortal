@@ -1,7 +1,7 @@
 import { createEventStream, getRequestIP, getRequestURL } from "h3";
 import type { HttpMethod } from "../contracts/common.js";
 import type { JsonValue } from "../contracts/json.js";
-import type { PluginManifest } from "../contracts/manifest.js";
+import type { BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
 import type { BetterPortalObservability, ObservabilityAttributes } from "../contracts/observability.js";
 import type { BetterPortalRegistry, RegisteredRoute, RouteUiAttributes, RouteUiOptions, ViewRenderContext } from "../contracts/registry.js";
 import type {
@@ -29,10 +29,7 @@ import {
 } from "../runtime/h3.js";
 import { buildHostCandidates, hostFromHeaderValue, toHtmlString } from "../runtime/http.js";
 import { parseAcceptHeader, resolveRequestedRepresentation } from "../runtime/media.js";
-import {
-  resolveRenderer,
-  type BpSchemaOutput
-} from "../runtime/registry.js";
+import { resolveRenderer } from "../runtime/registry.js";
 import { createBpHeadersCollector } from "../runtime/bpHeaders.js";
 import {
   resolveStatusRenderer,

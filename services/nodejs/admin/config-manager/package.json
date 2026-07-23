@@ -12,7 +12,11 @@
     "dev": "bsb-plugin-cli dev",
     "test": "node --import tsx --test tests/regressions.test.ts && bsb-plugin-cli test",
     "prepublishOnly": "npm run build",
-    "publish:client": "bsb-client-cli publish"
+    "publish:client": "bsb-client-cli publish",
+    "bp:gen": "bp run gen",
+    "bp:types": "bp run types",
+    "bp:contract": "bp run contract",
+    "publish:bp": "bp publish"
   },
   "keywords": [
     "betterportal",
@@ -46,7 +50,13 @@
   "bsb": {
     "orgId": "betterportal",
     "hooks": {
-      "afterSchemas": "bp-codegen"
+      "afterSchemas": [
+        "bp:gen",
+        "bp:types"
+      ],
+      "afterBuild": [
+        "bp:contract"
+      ]
     }
   },
   "betterportal": {

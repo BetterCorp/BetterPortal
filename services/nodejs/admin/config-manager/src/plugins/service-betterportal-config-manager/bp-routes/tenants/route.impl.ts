@@ -70,7 +70,7 @@ export const description = "Manage tenants and applications.";
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "tenants.index", permissions: ["read","create","update","delete"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "tenants.index", permissions: ["read","create","update","delete"] }
   ]
 };
 
@@ -408,7 +408,7 @@ function buildAppAuthConfig(
 ): AppAuthConfig {
   const authService = authServicesForTenant(config, tenantId).find((service) => service.id === authServiceId);
   const publicKeys = existing?.publicKeys ?? findKnownAuthPublicKeys(config, authServiceId);
-  const providerKind = authService?.serviceId === "service.betterportal.auth.authress-io"
+  const providerKind = authService?.serviceId === "org.betterportal.auth.authress-io"
     ? "authress.io" as const
     : "betterportal.default" as const;
   const expectedIssuer = providerKind === "authress.io" && existing?.expectedIssuer === "https://authress.io"

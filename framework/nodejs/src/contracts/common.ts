@@ -13,8 +13,15 @@ export type PluginCategory = Infer<typeof PluginCategorySchema>;
 export const UuidV7Schema = av.string().pattern("^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$");
 export type UuidV7 = Infer<typeof UuidV7Schema>;
 
-export const PluginIdSchema = av.string().pattern("^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$");
+export const PluginIdSchema = av.string().pattern(
+  "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+);
 export type PluginId = Infer<typeof PluginIdSchema>;
+
+export const SemverSchema = av.string().pattern(
+  "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+);
+export type Semver = Infer<typeof SemverSchema>;
 
 export const DeploymentModeSchema = av.enum_([
   "bp-hosted",

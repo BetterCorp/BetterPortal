@@ -55,7 +55,7 @@ export const DefaultAuthAdminApis: readonly AdminApiDescriptor[] = [
 ];
 
 export const DefaultAuthManifest: PluginManifest = createPluginManifest({
-  pluginId: "auth.betterportal.default",
+  pluginId: "org.betterportal.auth.default",
   title: "BetterPortal Default Auth",
   description: "JWT issuing auth plugin for BetterPortal v10 runtime and control-plane flows.",
   version: "1.0.0",

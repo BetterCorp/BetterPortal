@@ -148,6 +148,13 @@ export abstract class BPService<
   TEvents extends BSBEventSchemas = BSBEventSchemas
 > extends BSBService<TConfig, TEvents> {
 
+  /** Build-time metadata extraction without constructing or starting the service. */
+  static getBPDefinition(this: { prototype: { definition(): BPServiceDefinition } }): BPServiceDefinition {
+    return this.prototype.definition.call(Object.create(this.prototype));
+  }
+
+  private readonly bpPluginVersion: string;
+
   private get service(): BPServiceConfig {
     return this.config;
   }
@@ -439,6 +446,7 @@ export abstract class BPService<
 
   constructor(cfg: BSBServiceConstructor<TConfig, TEvents>) {
     super(cfg);
+    this.bpPluginVersion = cfg.pluginVersion;
   }
 
   async init(obs: Observable): Promise<void> {
@@ -486,7 +494,7 @@ export abstract class BPService<
       this.configProvider = new FileBackedBetterPortalConfigProvider(this.bp.bpConfigPath);
     }
 
-    this.manifest = buildManifestFromRegistry(def.registry, { version: "1.0.0" }, def.manifest);
+    this.manifest = buildManifestFromRegistry(def.registry, { version: this.bpPluginVersion }, def.manifest);
 
     if (this.manifest.configSchemas.length > 0 && this.runtimeConfigEncryptionKey) {
       this.configStore = new FileBackedServiceConfigStore({

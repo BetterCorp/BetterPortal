@@ -5,6 +5,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "bin": {
+    "bp": "lib/cli/bp.js",
     "bp-codegen": "lib/codegen/cli.js",
     "bp-init": "lib/codegen/init.js"
   },

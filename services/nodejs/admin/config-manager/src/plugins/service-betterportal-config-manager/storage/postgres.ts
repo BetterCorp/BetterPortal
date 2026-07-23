@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { BetterPortalConfigSchema, type BetterPortalConfig } from "@betterportal/framework";
 import {
   BaseStorage,
+  migrateOfficialPluginIds,
   type PostgresStorageOptions
 } from "./core.js";
 
@@ -40,12 +41,12 @@ export class PostgresStorage extends BaseStorage {
       return empty;
     }
 
-    return this.canonicalizeConfig(BetterPortalConfigSchema.parse(result.rows[0].config));
+    return this.canonicalizeConfig(BetterPortalConfigSchema.parse(migrateOfficialPluginIds(result.rows[0].config)));
   }
 
   async saveConfig(config: BetterPortalConfig): Promise<void> {
     await this.ensureSchema();
-    const validated = this.canonicalizeConfig(BetterPortalConfigSchema.parse(config));
+    const validated = this.canonicalizeConfig(BetterPortalConfigSchema.parse(migrateOfficialPluginIds(config)));
     this.validateConfigReferences(validated);
     const pool = await this.getPool();
     await pool.query(

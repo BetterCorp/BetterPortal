@@ -88,8 +88,8 @@ The catalog id is stable for the shared provider. The activation id is the servi
 
 ```yaml
 sharedServiceCatalog:
-  - id: service.betterportal.auth.default       # shared provider id
-    serviceId: service.betterportal.auth.default # pluginId
+  - id: org.betterportal.auth.default       # shared provider id
+    serviceId: org.betterportal.auth.default # pluginId
     title: BetterPortal Default Auth
     baseUrl: http://localhost:3210
     apiKeyHash: <sha256 hex>                    # filled by install/redeem
@@ -101,7 +101,7 @@ sharedServiceActivations:
   - id: 019...                                  # activation/service instance id
     tenantId: betterportal
     appId: 019...                               # optional; absent = tenant-wide
-    sharedServiceId: service.betterportal.auth.default
+    sharedServiceId: org.betterportal.auth.default
     activatedAt: 2026-05-20T00:00:00.000Z
     enabled: true
 ```
@@ -122,7 +122,7 @@ tenants:
       - id: hello-view                       # binding id (NOT pluginId)
         hostname: http://localhost:3200
         apiKeyHash: ""                       # sha256 hex; empty for dev
-        serviceId: service.betterportal.hello-view   # pluginId
+        serviceId: org.betterportal.hello-view   # pluginId
         title: Hello View
         deploymentMode: self-hosted | bp-hosted | customer-hosted
         createdAt: <iso>

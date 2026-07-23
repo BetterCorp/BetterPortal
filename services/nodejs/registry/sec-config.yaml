@@ -1,0 +1,49 @@
+default:
+  config:
+    config-default:
+      plugin: config-default
+      enabled: true
+  observable:
+    observable-default:
+      plugin: observable-default
+      enabled: true
+      config:
+        level: info
+        colors: false
+  events:
+    events-default:
+      plugin: events-default
+      enabled: true
+  services:
+    service-bsb-registry:
+      plugin: service-bsb-registry
+      enabled: true
+      config:
+        database:
+          type: file
+          path: /mnt/temp/bsb-registry
+        auth:
+          requireAuth: true
+    service-bsb-registry-ui:
+      plugin: service-bsb-registry-ui
+      enabled: true
+      config:
+        host: 0.0.0.0
+        port: 3210
+    service-betterportal-registry:
+      plugin: service-betterportal-registry
+      enabled: true
+      config:
+        host: 0.0.0.0
+        port: 3211
+        dataDir: /mnt/temp/bp-registry
+        publishers:
+          betterportal:
+            token: ${BP_REGISTRY_TOKEN}
+            pluginIdPrefixes:
+              - org.betterportal.
+              - cloud.betterportal.
+          community:
+            token: ${BP_COMMUNITY_REGISTRY_TOKEN}
+            pluginIdPrefixes:
+              - org.betterportal.community.

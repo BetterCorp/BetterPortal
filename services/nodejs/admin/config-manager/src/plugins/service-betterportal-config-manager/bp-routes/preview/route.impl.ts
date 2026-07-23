@@ -36,7 +36,7 @@ export const description = "Browse and preview service views, components, and fr
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "preview.index", permissions: ["read"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "preview.index", permissions: ["read"] }
   ]
 };
 

@@ -46,7 +46,7 @@ export const description = "Design app navigation menu.";
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "menu.index", permissions: ["read","create","update","delete"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "menu.index", permissions: ["read","create","update","delete"] }
   ]
 };
 

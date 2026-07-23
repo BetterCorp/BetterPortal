@@ -1,0 +1,6 @@
+{
+  "$schema": "https://io.betterportal.org/v1/project.schema.json",
+  "registryRef": "betterportal/auth-default",
+  "defaultNamespace": "betterportal",
+  "dependencies": {}
+}

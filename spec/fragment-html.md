@@ -34,7 +34,7 @@ When in doubt, set `data-bp-service` on the outermost element of the fragment.
 If an element or subtree intentionally talks to another registered service, set an explicit service override:
 
 ```html
-<section bp-service-id="service.betterportal.docs-site">
+<section bp-service-id="org.betterportal.docs-site">
   <a href="/docs">Docs</a>
 </section>
 ```

@@ -681,7 +681,7 @@ function previewTenantServiceSharedMigration(
   if (!service) blockers.push(`Tenant service not found: ${serviceId}`);
   if (service && !service.serviceId) blockers.push("Service is not linked to a BetterPortal plugin id.");
   if (service && !service.hostname) blockers.push("Service has no hostname.");
-  if (service && service.serviceId === "service.betterportal.config-manager") {
+  if (service && service.serviceId === "org.betterportal.config-manager") {
     blockers.push("Config Manager is the control plane service and cannot be converted to shared by this migration.");
   }
   if (options.appId && !config.apps.some((app) => app.id === options.appId && app.tenantId === tenantId)) {

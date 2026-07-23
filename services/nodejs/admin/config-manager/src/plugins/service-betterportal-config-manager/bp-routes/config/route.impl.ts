@@ -42,7 +42,7 @@ export const description = "Admin service that discovers BetterPortal service co
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "config.index", permissions: ["read","update"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "config.index", permissions: ["read","update"] }
   ]
 };
 

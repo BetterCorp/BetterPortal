@@ -112,7 +112,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected definition(): BPServiceDefinition {
     return {
       manifest: {
-        pluginId: "service.betterportal.auth.default",
+        pluginId: "org.betterportal.auth.default",
         title: "BetterPortal Default Auth",
         description: "JWT-issuing auth service (RS256 + JWKS + bcrypt user store).",
         capabilities: ["auth"],

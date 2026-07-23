@@ -235,7 +235,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected definition(): BPServiceDefinition {
     return {
       manifest: {
-        pluginId: "service.betterportal.theme.bootstrap1",
+        pluginId: "org.betterportal.theme.bootstrap1",
         title: "Bootstrap1 Theme",
         description: "Bootstrap 5 + htmx theme that renders BetterPortal app shells.",
         category: "theme",
@@ -288,7 +288,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       jti: `theme-render-${now}`,
       realm: "control-plane",
       tenantId,
-      serviceId: "service.betterportal.theme.bootstrap1",
+      serviceId: "org.betterportal.theme.bootstrap1",
       actions: ["config.read"]
     };
   }
@@ -326,7 +326,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     registerServiceConfigRoutes({
       app: this.app,
-      serviceId: "service.betterportal.theme.bootstrap1",
+      serviceId: "org.betterportal.theme.bootstrap1",
       configSchemas: THEME_CONFIG_SCHEMAS,
       mode: "hybrid",
       customUiPath: "/.well-known/bp/config/ui",
@@ -362,11 +362,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     const tenant = tenants.find((entry) => entry.id === tenantId);
     const tenantServices = Array.isArray(tenant?.services) ? tenant.services : [];
-    const direct = tenantServices.find((service) => service.enabled && service.serviceId === "service.betterportal.config-manager");
+    const direct = tenantServices.find((service) => service.enabled && service.serviceId === "org.betterportal.config-manager");
     if (direct) return direct.hostname;
     for (const activation of sharedServiceActivations.filter((entry) => entry.tenantId === tenantId && entry.enabled)) {
       const shared = sharedServiceCatalog.find((service) =>
-        service.id === activation.sharedServiceId && service.enabled && service.serviceId === "service.betterportal.config-manager"
+        service.id === activation.sharedServiceId && service.enabled && service.serviceId === "org.betterportal.config-manager"
       );
       if (shared) return shared.baseUrl;
     }
@@ -1053,7 +1053,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       iss: "internal", aud: ["theme"], sub: "save", exp: now + 60, iat: now,
       jti: `save-${now}`, realm: "control-plane",
       tenantId,
-      serviceId: "service.betterportal.theme.bootstrap1",
+      serviceId: "org.betterportal.theme.bootstrap1",
       actions: ["config.write"]
     });
 
@@ -1084,7 +1084,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       iss: "internal", aud: ["theme"], sub: "reset", exp: now + 60, iat: now,
       jti: `reset-${now}`, realm: "control-plane" as const,
       tenantId, appId,
-      serviceId: "service.betterportal.theme.bootstrap1",
+      serviceId: "org.betterportal.theme.bootstrap1",
       actions: ["config.write" as const]
     };
     this.configStore.clearKey?.(tenantId, appId, key, ticket);

@@ -28,7 +28,7 @@ function buildDefaultAdminRoutes(cmInstanceId: string, authServiceInstanceId: st
     // Login page (unauthenticated landing) - required for the /login redirect to land somewhere.
     { id: uuidv7(), kind: "page", path: "/login", serviceId: authServiceInstanceId, viewId: "login.index", title: "Sign In", enabled: true, methods: ["GET", "POST"] },
     { id: uuidv7(), kind: "page", path: "/logout", serviceId: authServiceInstanceId, viewId: "logout.index", title: "Sign Out", enabled: true, methods: ["GET", "POST"] },
-    { id: uuidv7(), kind: "api", path: apiRoutePath("service.betterportal.auth.default", "/refresh"), serviceId: authServiceInstanceId, viewId: "refresh.index", title: "Refresh Session", enabled: true, methods: ["POST"], targetPath: "/refresh" },
+    { id: uuidv7(), kind: "api", path: apiRoutePath("org.betterportal.auth.default", "/refresh"), serviceId: authServiceInstanceId, viewId: "refresh.index", title: "Refresh Session", enabled: true, methods: ["POST"], targetPath: "/refresh" },
     // First-admin registration page. Only renders a form while the auth service
     // has zero users; once any user exists it redirects to /login.
     { id: uuidv7(), kind: "page", path: "/register", serviceId: authServiceInstanceId, viewId: "register.index", title: "Create First Admin", enabled: true, methods: ["GET", "POST"] }
@@ -176,8 +176,8 @@ export async function registerBootstrapEndpoint(input: {
     const cmInstanceId = uuidv7();
     const authActivationId = uuidv7();
     const themeActivationId = uuidv7();
-    const authSharedServiceId = "service.betterportal.auth.default";
-    const themeSharedServiceId = "service.betterportal.theme.bootstrap1";
+    const authSharedServiceId = "org.betterportal.auth.default";
+    const themeSharedServiceId = "org.betterportal.theme.bootstrap1";
 
     const defaultRoutes = buildDefaultAdminRoutes(cmInstanceId, authActivationId);
     // Auth routes are in defaultRoutes for routing, but excluded from the menu
@@ -205,7 +205,7 @@ export async function registerBootstrapEndpoint(input: {
       id: cmInstanceId,
       hostname: input.cpState.issuer,
       apiKeyHash: "",
-      serviceId: "service.betterportal.config-manager",
+      serviceId: "org.betterportal.config-manager",
       capabilities: ["config"],
       title: "Config Manager",
       description: undefined,

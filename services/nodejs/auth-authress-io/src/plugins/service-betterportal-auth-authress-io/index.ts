@@ -45,7 +45,7 @@ export type AuthressPluginConfig = av.Infer<typeof PluginConfigSchema>;
 
 const Config = createConfigSchema(
   {
-    name: "service.betterportal.auth.authress-io",
+    name: "org.betterportal.auth.authress-io",
     description: "BetterPortal Authress.io auth service",
     tags: ["betterportal", "auth", "authress"],
     documentation: ["./README.md"],
@@ -212,7 +212,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected definition(): BPServiceDefinition {
     return {
       manifest: {
-        pluginId: "service.betterportal.auth.authress-io",
+        pluginId: "org.betterportal.auth.authress-io",
         title: "BetterPortal Authress.io",
         description: "Authress-backed auth service for BetterPortal apps.",
         capabilities: ["auth"],
@@ -322,15 +322,15 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private authressConfigReadTicket(tenantId: string): ServiceConfigTicketClaims {
     const now = Math.floor(Date.now() / 1000);
     return {
-      iss: "service.betterportal.auth.authress-io",
-      aud: "service.betterportal.auth.authress-io",
-      sub: "service.betterportal.auth.authress-io",
+      iss: "org.betterportal.auth.authress-io",
+      aud: "org.betterportal.auth.authress-io",
+      sub: "org.betterportal.auth.authress-io",
       iat: now,
       exp: now + 60,
       jti: `${tenantId}:${now}`,
       realm: "control-plane",
       tenantId,
-      serviceId: "service.betterportal.auth.authress-io",
+      serviceId: "org.betterportal.auth.authress-io",
       actions: ["config.read"]
     };
   }

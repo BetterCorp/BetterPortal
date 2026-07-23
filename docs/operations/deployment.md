@@ -38,7 +38,7 @@ npm run bp-codegen
 
 ## Release publishing
 
-Tag releases publish npm packages and then publish BSB registry schemas for every workspace that contains `bsb-plugin.json`. The tag is the release version: pushing `v10.0.2` makes CI set every workspace package to `10.0.2` before build/publish. Master builds and tests only; it does not publish.
+Tag releases publish npm packages, BSB registry schemas, and BetterPortal contracts. The tag is the release version: pushing `v10.0.2` makes CI set every workspace package to `10.0.2` before build/publish. Master builds and tests only; it does not publish.
 
 Each publishable BetterPortal plugin package must set:
 
@@ -51,6 +51,8 @@ Each publishable BetterPortal plugin package must set:
 ```
 
 The BSB registry uses that `orgId` as the namespace, so BetterPortal plugins publish under `betterportal/<plugin-id>`. This intentionally matches the npm package scope `@betterportal/...`. The GitHub release workflow publishes core packages first, then publishes each plugin package in a matrix and runs `npm run publish:client` for plugin workspaces after their npm publish step.
+
+The separate BetterPortal registry is hosted at `https://io.betterportal.org`. Workspaces containing `betterportal.json` publish their canonical service contract with `BP_REGISTRY_TOKEN`. Its `betterportal/<name>` coordinate does not replace either the npm package name or runtime reverse-domain plugin ID.
 
 BetterPortal BSB plugins should declare the registry logo in their `createConfigSchema()` metadata:
 

@@ -86,7 +86,7 @@ export const description = "Define role -> permission grants per app. Services a
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "auth.index", permissions: ["read","create","update","delete"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "auth.index", permissions: ["read","create","update","delete"] }
   ]
 };
 

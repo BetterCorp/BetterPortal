@@ -33,6 +33,28 @@ export type StorageOptions =
   | FileStorageOptions
   | PostgresStorageOptions;
 
+const OfficialPluginIdMigrations: Readonly<Record<string, string>> = {
+  "service.betterportal.config-manager": "org.betterportal.config-manager",
+  "service.betterportal.auth.default": "org.betterportal.auth.default",
+  "auth.betterportal.default": "org.betterportal.auth.default",
+  "service.betterportal.auth.authress-io": "org.betterportal.auth.authress-io",
+  "service.betterportal.auth.workos": "org.betterportal.auth.workos",
+  "service.betterportal.theme.bootstrap1": "org.betterportal.theme.bootstrap1",
+  "theme.betterportal.bootstrap1": "org.betterportal.theme.bootstrap1",
+  "service.betterportal.theme.embedded": "org.betterportal.theme.embedded",
+  "service.betterportal.docs-site": "org.betterportal.docs-site",
+  "service.betterportal.hello-view": "org.betterportal.hello-view"
+};
+
+export function migrateOfficialPluginIds<T>(value: T): T {
+  if (typeof value === "string") return (OfficialPluginIdMigrations[value] ?? value) as T;
+  if (Array.isArray(value)) return value.map((item) => migrateOfficialPluginIds(item)) as T;
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, migrateOfficialPluginIds(item)])
+  ) as T;
+}
+
 export function generateApiKey(): string {
   return `bp_sk_${randomBytes(32).toString("hex")}`;
 }
@@ -48,6 +70,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
   abstract saveConfig(config: BetterPortalConfig): Promise<void>;
 
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
+    config = migrateOfficialPluginIds(config);
     this.ensurePlatformRootRole(config);
     for (const app of config.apps) {
       if (app.auth) {
@@ -597,7 +620,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
   private shellThemeId(app: BetterPortalApp): string {
     const legacyThemeId = (app as unknown as { themeId?: string }).themeId;
     if (legacyThemeId) return legacyThemeId;
-    // Convention: service.betterportal.theme.bootstrap1 -> bootstrap1.
+    // Convention: org.betterportal.theme.bootstrap1 -> bootstrap1.
     // Renderer ids stay internal to codegen; app config only stores shell service.
     return "bootstrap1";
   }

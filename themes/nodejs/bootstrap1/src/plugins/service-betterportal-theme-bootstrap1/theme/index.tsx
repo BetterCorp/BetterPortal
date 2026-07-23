@@ -69,7 +69,7 @@ export interface Bootstrap1HostPageContext {
 }
 
 export const Bootstrap1Manifest: PluginManifest = createPluginManifest({
-  pluginId: "theme.betterportal.bootstrap1",
+  pluginId: "org.betterportal.theme.bootstrap1",
   title: "BetterPortal Bootstrap1 Theme",
   description: "Custom Bootstrap 5 plus HTMX shell for BetterPortal v10.",
   version: "1.0.0",

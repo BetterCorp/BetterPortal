@@ -383,7 +383,7 @@ async function registerServiceInPlatformConfig(input: {
 }
 
 function defaultCapabilities(pluginId: string): string[] {
-  if (pluginId.startsWith("service.betterportal.theme.")) return ["theme"];
+  if (pluginId.startsWith("org.betterportal.theme.")) return ["theme"];
   if (pluginId.includes(".auth.")) return ["auth"];
   if (pluginId.includes(".config-manager")) return ["config"];
   return [];

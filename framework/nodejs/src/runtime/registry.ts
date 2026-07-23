@@ -6,7 +6,7 @@ import type {
   RegisteredThemeRenderer,
   ThemeRendererSet
 } from "../contracts/registry.js";
-import type { AdminApiDescriptor, PluginManifest } from "../contracts/manifest.js";
+import type { AdminApiDescriptor, BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
 import type { ViewMetadata } from "../contracts/view.js";
 import { toJsonSchemaDocument } from "./jsonSchema.js";
 
@@ -244,6 +244,7 @@ export function buildManifestFromRegistry(
     .map((route) => routeToViewMetadata(route));
 
   return {
+    protocolVersion: 1,
     pluginId: base.pluginId,
     title: base.title,
     description: base.description,
@@ -359,20 +360,6 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
 
 // -- BP Schema builder -------------------------------------------------
 
-export interface BpSchemaOutput {
-  manifest: PluginManifest;
-  routes: Array<{
-    viewId: string;
-    path: string;
-    methods: ReadonlyArray<HttpMethod>;
-    paramNames: ReadonlyArray<string>;
-    themes: string[];
-    hasFragments: boolean;
-    fragments: Array<{ fragmentLocation: string; fragmentId: string; themes: string[] }>;
-    components: string[];
-  }>;
-}
-
 /**
  * Build /.well-known/bp/schema.json output.
  */
@@ -398,8 +385,8 @@ export function buildBpSchema(
       return {
         viewId: route.viewId,
         path: route.path,
-        methods: route.methods,
-        paramNames: route.paramNames,
+        methods: [...route.methods],
+        paramNames: [...route.paramNames],
         themes: Object.keys(route.themeRenderers),
         hasFragments: fragMap.size > 0,
         fragments: Array.from(fragMap.values()),

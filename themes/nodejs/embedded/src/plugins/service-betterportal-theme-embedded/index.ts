@@ -156,7 +156,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected definition(): BPServiceDefinition {
     return {
       manifest: {
-        pluginId: "service.betterportal.theme.embedded",
+        pluginId: "org.betterportal.theme.embedded",
         title: "Embedded Theme",
         description: "Minimal htmx theme for embedding BetterPortal content without iframes.",
         category: "theme",
@@ -216,11 +216,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private resolveConfigManagerUrl(portalConfig: PlatformConfig, tenantId: string): string | undefined {
     const tenant = portalConfig.tenants.find((entry) => entry.id === tenantId);
-    const direct = tenant?.services.find((service) => service.enabled && service.serviceId === "service.betterportal.config-manager");
+    const direct = tenant?.services.find((service) => service.enabled && service.serviceId === "org.betterportal.config-manager");
     if (direct) return direct.hostname;
     for (const activation of portalConfig.sharedServiceActivations.filter((entry) => entry.tenantId === tenantId && entry.enabled)) {
       const shared = portalConfig.sharedServiceCatalog.find((service) =>
-        service.id === activation.sharedServiceId && service.enabled && service.serviceId === "service.betterportal.config-manager"
+        service.id === activation.sharedServiceId && service.enabled && service.serviceId === "org.betterportal.config-manager"
       );
       if (shared) return shared.baseUrl;
     }

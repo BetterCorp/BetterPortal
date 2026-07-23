@@ -299,7 +299,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected definition(): BPServiceDefinition {
     return {
       manifest: {
-        pluginId: "service.betterportal.myservice",
+        pluginId: "org.betterportal.myservice",
         title: "My Service",
         description: "...",
         configSchemas: [/* per-tenant/per-app config field descriptors */]
@@ -452,7 +452,7 @@ platformServices:
   - id: bp-auth
     hostname: http://localhost:3400
     apiKeyHash: <sha256>
-    serviceId: service.betterportal.auth-default
+    serviceId: org.betterportal.auth-default
     category: auth
     enabled: true
 
@@ -466,14 +466,14 @@ tenants:
       - id: hello-view
         hostname: http://localhost:3200
         apiKeyHash: <sha256>             # "" allowed in dev
-        serviceId: service.betterportal.hello-view
+        serviceId: org.betterportal.hello-view
         deploymentMode: self-hosted
         enabled: true
     activatedPlatformServices: []            # legacy platformServices[] only
 
 sharedServiceCatalog:
-  - id: service.betterportal.auth.default
-    serviceId: service.betterportal.auth.default
+  - id: org.betterportal.auth.default
+    serviceId: org.betterportal.auth.default
     title: BetterPortal Default Auth
     baseUrl: http://localhost:3210
     apiKeyHash: <sha256>
@@ -483,7 +483,7 @@ sharedServiceCatalog:
 sharedServiceActivations:
   - id: auth-default-admin
     tenantId: betterportal
-    sharedServiceId: service.betterportal.auth.default
+    sharedServiceId: org.betterportal.auth.default
     enabled: true
 
 apps:

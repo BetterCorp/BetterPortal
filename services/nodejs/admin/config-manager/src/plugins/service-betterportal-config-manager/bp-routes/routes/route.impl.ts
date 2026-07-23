@@ -61,7 +61,7 @@ export const description = "Design navigation routes for apps.";
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "routes.index", permissions: ["read","create","update","delete"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "routes.index", permissions: ["read","create","update","delete"] }
   ]
 };
 

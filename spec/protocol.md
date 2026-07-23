@@ -176,14 +176,18 @@ Status codes follow HTTP conventions:
 
 ### 5.1 `pluginId`
 
-Reverse-DNS, lowercase, `[a-z0-9.-]+`:
+Reverse-DNS, lowercase, with at least three dot-separated labels. Labels may contain non-leading/trailing hyphens. The identifier describes runtime identity and is independent of the registry namespace:
 
 ```
-service.<org>.<name>           - business services
-theme.<org>.<name>             - themes
+org.betterportal.<name>             - BetterPortal-owned service
+org.betterportal.theme.<name>       - BetterPortal-owned theme
+org.betterportal.community.<name>   - community identity delegated by BetterPortal
+<reversed-company-domain>.<name>    - third-party service
 ```
 
-Examples: `service.betterportal.hello-view`, `theme.betterportal.bootstrap1`.
+Examples: `org.betterportal.hello-view`, `org.betterportal.theme.bootstrap1`, `com.example.invoicing`.
+
+Registry references are distribution coordinates, not runtime IDs. For example, `betterportal/config` can publish the runtime plugin ID `org.betterportal.config`. Namespace ownership is assigned by the BetterPortal registry and a plugin ID is permanently bound to one registry reference after its first publish.
 
 ### 5.2 Paths
 

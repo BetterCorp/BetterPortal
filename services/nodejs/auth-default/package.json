@@ -12,7 +12,11 @@
     "dev": "bsb-plugin-cli dev",
     "test": "tsx --test tests/*.test.ts",
     "prepublishOnly": "npm run build",
-    "publish:client": "bsb-client-cli publish"
+    "publish:client": "bsb-client-cli publish",
+    "bp:gen": "bp run gen",
+    "bp:types": "bp run types",
+    "bp:contract": "bp run contract",
+    "publish:bp": "bp publish"
   },
   "keywords": [
     "betterportal",
@@ -47,7 +51,13 @@
   "bsb": {
     "orgId": "betterportal",
     "hooks": {
-      "afterSchemas": "bp-codegen"
+      "afterSchemas": [
+        "bp:gen",
+        "bp:types"
+      ],
+      "afterBuild": [
+        "bp:contract"
+      ]
     }
   },
   "betterportal": {

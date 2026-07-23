@@ -1,10 +1,10 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
-import type { HttpMethod } from "./common.js";
+import { PluginIdSchema, type HttpMethod } from "./common.js";
 import type { JsonValue } from "./json.js";
 import type { BetterPortalObservability } from "./observability.js";
 import type { BetterPortalApp, BetterPortalTenant } from "./platformConfig.js";
-import { AppAuthPermissionGrantSchema, type JwtClaims } from "./auth.js";
+import { AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
 
 /**
  * Route-level (API-layer) auth requirement. Replaces ViewAuthRequirement at the API tier.
@@ -13,7 +13,11 @@ import { AppAuthPermissionGrantSchema, type JwtClaims } from "./auth.js";
  */
 export const ApiAuthRequirementSchema = av.object({
   required: av.bool().default(false),
-  permissions: av.array(AppAuthPermissionGrantSchema).default([])
+  permissions: av.array(av.object({
+    serviceId: PluginIdSchema,
+    viewId: av.string().minLength(1),
+    permissions: av.array(AppAuthPermissionActionSchema).minItems(1)
+  }, { unknownKeys: "strip" })).default([])
 }, { unknownKeys: "strip" });
 export type ApiAuthRequirement = Infer<typeof ApiAuthRequirementSchema>;
 

@@ -52,7 +52,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected definition(): BPServiceDefinition {
     return {
       manifest: {
-        pluginId: "service.betterportal.docs-site",
+        pluginId: "org.betterportal.docs-site",
         title: "BetterPortal Docs",
         description: "Dogfooded BetterPortal documentation site backed by repository Markdown files.",
         configSchemas: []

@@ -28,7 +28,7 @@ export const description = "Manage topbar/footer fragments per app.";
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "fragments.index", permissions: ["read","create","update","delete"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "fragments.index", permissions: ["read","create","update","delete"] }
   ]
 };
 

@@ -37,7 +37,7 @@ import { dirname, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { registry } from "./.bp-generated/registry.js";
 
-const SERVICE_ID = "service.betterportal.auth.workos";
+const SERVICE_ID = "org.betterportal.auth.workos";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),

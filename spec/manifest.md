@@ -11,7 +11,7 @@ The manifest is a service's self-description. Themes and admin tooling read it t
 ```jsonc
 {
   "protocolVersion": 1,
-  "pluginId": "service.<org>.<name>",
+  "pluginId": "org.betterportal.<name>",
   "title": "<human title>",
   "description": "<short description>",
   "version": "1.0.0",

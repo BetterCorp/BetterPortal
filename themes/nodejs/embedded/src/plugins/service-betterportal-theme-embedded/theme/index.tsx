@@ -34,7 +34,7 @@ export interface EmbeddedHostPageContext {
 }
 
 export const EmbeddedManifest: PluginManifest = createPluginManifest({
-  pluginId: "service.betterportal.theme.embedded",
+  pluginId: "org.betterportal.theme.embedded",
   title: "BetterPortal Embedded Theme",
   description: "Minimal wrapper theme for BetterPortal embed use cases.",
   version: "1.0.0",

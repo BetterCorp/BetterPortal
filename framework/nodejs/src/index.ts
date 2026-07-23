@@ -16,6 +16,7 @@ export * from "./controlPlane/store.js";
 export * from "./controlPlane/sync.js";
 export * from "./controlPlane/types.js";
 export * from "./runtime/configProvider.js";
+export * from "./runtime/contract.js";
 export * from "./runtime/h3.js";
 export * from "./runtime/jsonSchema.js";
 export * from "./runtime/http.js";

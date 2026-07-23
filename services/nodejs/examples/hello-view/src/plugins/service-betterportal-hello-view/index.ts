@@ -45,7 +45,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected definition(): BPServiceDefinition {
     return {
       manifest: {
-        pluginId: "service.betterportal.hello-view",
+        pluginId: "org.betterportal.hello-view",
         title: "BetterPortal Hello View Example",
         description: "Example business service showing API-first view negotiation.",
         configSchemas: [

@@ -62,7 +62,7 @@ export const description = "Manage the current BetterPortal app through the user
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "settings.index", permissions: ["read", "update"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "settings.index", permissions: ["read", "update"] }
   ]
 };
 

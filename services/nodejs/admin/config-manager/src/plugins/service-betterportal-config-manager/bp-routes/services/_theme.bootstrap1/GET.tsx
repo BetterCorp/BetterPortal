@@ -149,7 +149,7 @@ function renderServiceCard(
               </button>
             ) : service.tenantId ? (
               <>
-                {service.serviceId && service.serviceId !== "service.betterportal.config-manager" ? (
+                {service.serviceId && service.serviceId !== "org.betterportal.config-manager" ? (
                   <button class="btn btn-sm btn-outline-success"
                     hx-post={`${data.adminApiBase}/tenants/${encodeURIComponent(service.tenantId)}/services/${encodeURIComponent(service.id)}/migrate-to-shared`}
                     hx-target="#bp-services-alerts"

@@ -15,7 +15,7 @@ const { privateKey, publicKey } = generateKeyPairSync("rsa", {
 });
 const KID = "test-kid-1";
 const ISSUER = "http://cp.local:4000";
-const SERVICE_ID = "service.betterportal.example";
+const SERVICE_ID = "org.betterportal.example";
 
 const keyResolver = (kid: string): string => {
   if (kid !== KID) throw new Error(`unknown kid ${kid}`);

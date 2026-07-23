@@ -1,7 +1,14 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import { ConfigSchemaDescriptorSchema } from "./config.js";
-import { DeploymentModeSchema, PluginCategorySchema, RenderModeSchema } from "./common.js";
+import {
+  DeploymentModeSchema,
+  HttpMethodSchema,
+  PluginCategorySchema,
+  PluginIdSchema,
+  RenderModeSchema,
+  SemverSchema
+} from "./common.js";
 import { JsonObjectSchema } from "./json.js";
 import { ApiContractDescriptorSchema, M2MRequestDescriptorSchema } from "./m2m.js";
 import { ViewMetadataSchema, ViewPermissionDefinitionSchema } from "./view.js";
@@ -27,10 +34,11 @@ export const WebhookEventDescriptorSchema = av.object({
 export type WebhookEventDescriptor = Infer<typeof WebhookEventDescriptorSchema>;
 
 export const PluginManifestSchema = av.object({
-  pluginId: av.string().minLength(1),
+  protocolVersion: av.literal(1),
+  pluginId: PluginIdSchema,
   title: av.string().minLength(1),
   description: av.string().minLength(1),
-  version: av.string().minLength(1),
+  version: SemverSchema,
   category: PluginCategorySchema,
   deploymentModes: av.array(DeploymentModeSchema).minItems(1),
   capabilities: av.array(av.string().minLength(1)).default([]),
@@ -48,3 +56,25 @@ export const PluginManifestSchema = av.object({
   }, { unknownKeys: "strip" }).default({ metadataTtlSeconds: 1800 })
 }, { unknownKeys: "strip" });
 export type PluginManifest = Infer<typeof PluginManifestSchema>;
+
+export const BpSchemaRouteSchema = av.object({
+  viewId: av.string().minLength(1),
+  path: av.string().minLength(1),
+  methods: av.array(HttpMethodSchema).minItems(1),
+  paramNames: av.array(av.string().minLength(1)).default([]),
+  themes: av.array(av.string().minLength(1)).default([]),
+  hasFragments: av.bool().default(false),
+  fragments: av.array(av.object({
+    fragmentLocation: av.string().minLength(1),
+    fragmentId: av.string().minLength(1),
+    themes: av.array(av.string().minLength(1)).default([])
+  }, { unknownKeys: "strip" })).default([]),
+  components: av.array(av.string().minLength(1)).default([])
+}, { unknownKeys: "strip" });
+export type BpSchemaRoute = Infer<typeof BpSchemaRouteSchema>;
+
+export const BpSchemaOutputSchema = av.object({
+  manifest: PluginManifestSchema,
+  routes: av.array(BpSchemaRouteSchema).default([])
+}, { unknownKeys: "strip" });
+export type BpSchemaOutput = Infer<typeof BpSchemaOutputSchema>;

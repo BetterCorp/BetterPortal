@@ -14,13 +14,16 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       plugin-workspaces: ${{ steps.workspaces.outputs.plugin-workspaces }}
+      bp-workspaces: ${{ steps.workspaces.outputs.bp-workspaces }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
       - name: Discover plugin workspaces
         id: workspaces
-        run: echo "plugin-workspaces=$(node scripts/release/list-plugin-workspaces.mjs)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "plugin-workspaces=$(node scripts/release/list-plugin-workspaces.mjs)" >> "$GITHUB_OUTPUT"
+          echo "bp-workspaces=$(node scripts/release/list-bp-workspaces.mjs)" >> "$GITHUB_OUTPUT"
 
   build-core:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -230,3 +233,47 @@ jobs:
             sleep $((attempt * 10))
           done
           exit 1
+
+  publish-bp-contracts:
+    runs-on: ubuntu-latest
+    needs:
+      - publish-plugin-packages
+      - discover-workspaces
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: ${{ fromJSON(needs.discover-workspaces.outputs.bp-workspaces) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install
+        run: npm ci --workspaces --include-workspace-root
+
+      - name: Version workspace from tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          node scripts/release/set-workspace-version.mjs "$TAG"
+
+      - name: Build local dependencies and package
+        run: |
+          npm run build -w @betterportal/framework
+          npm run build -w @betterportal/plugin-bsb
+          npm run build -w "${{ matrix.workspace }}"
+
+      - name: Publish BetterPortal contract
+        env:
+          BP_REGISTRY_TOKEN: ${{ secrets.BP_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "${BP_REGISTRY_TOKEN:-}" ]; then
+            echo "::error::BP_REGISTRY_TOKEN secret is required to publish BetterPortal contracts"
+            exit 1
+          fi
+          npm run publish:bp -w "${{ matrix.workspace }}"

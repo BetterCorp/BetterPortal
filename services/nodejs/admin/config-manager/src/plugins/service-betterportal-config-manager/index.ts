@@ -151,7 +151,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected definition() {
     return {
       manifest: {
-        pluginId: "service.betterportal.config-manager",
+        pluginId: "org.betterportal.config-manager",
         title: "BetterPortal Config Manager",
         description: "Admin-facing BetterPortal service for discovering and managing service config surfaces.",
         cacheHints: { metadataTtlSeconds: 300 }

@@ -86,7 +86,7 @@ export const description = "Manage registered service instances.";
 export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [
-    { serviceId: "service.betterportal.config-manager", viewId: "services.index", permissions: ["read"] }
+    { serviceId: "org.betterportal.config-manager", viewId: "services.index", permissions: ["read"] }
   ]
 };
 

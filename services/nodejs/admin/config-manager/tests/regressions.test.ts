@@ -4,6 +4,7 @@ import { buildRouteTree, flattenRouteTree } from "../src/plugins/service-betterp
 import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_theme.bootstrap1/GET.js";
 import {
   BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
@@ -30,6 +31,16 @@ test("duplicate route keys follow runtime route matching", () => {
   assert.equal(appRoutePatternKey("/"), appRoutePatternKey("//"));
   assert.equal(appRoutePatternKey("/users/:id"), appRoutePatternKey("/users/{userId}/"));
   assert.notEqual(appRoutePatternKey("/users/new"), appRoutePatternKey("/users/:id"));
+});
+
+test("official legacy plugin IDs migrate without changing external IDs", () => {
+  const migrated = migrateOfficialPluginIds({
+    serviceId: "service.betterportal.config-manager",
+    nested: ["service.betterportal.theme.bootstrap1", "service.betterportal.robertgroups.webcalcs"]
+  });
+  assert.equal(migrated.serviceId, "org.betterportal.config-manager");
+  assert.equal(migrated.nested[0], "org.betterportal.theme.bootstrap1");
+  assert.equal(migrated.nested[1], "service.betterportal.robertgroups.webcalcs");
 });
 
 test("hostname changes require the exact instance API key", () => {
