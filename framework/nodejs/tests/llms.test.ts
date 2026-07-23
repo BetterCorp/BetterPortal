@@ -52,6 +52,19 @@ test("theme LLM documents provide concise task-specific discovery", () => {
   assert.match(ui, /\.well-known\/bp\/resources\/ui\.skill/);
 });
 
+test("theme LLM documents hide unavailable root management links", () => {
+  const tenantContext: ThemeLlmsContext = {
+    ...context,
+    configManagerUrl: undefined,
+    catalogUrl: undefined,
+    apiGuideUrl: undefined,
+    management: {}
+  };
+
+  assert.doesNotMatch(renderThemeLlmsIndex(tenantContext), /Optional|Automation catalog|Management discovery/);
+  assert.doesNotMatch(renderThemeLlmsApi(tenantContext), /Complete catalog|unavailable/);
+});
+
 test("AI manifest links resources without duplicating their content", () => {
   const manifest = buildThemeAiManifest(context, [resource]) as Record<string, unknown>;
   const resources = manifest.resources as Array<Record<string, unknown>>;

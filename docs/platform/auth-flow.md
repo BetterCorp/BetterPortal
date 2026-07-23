@@ -141,7 +141,7 @@ Default-auth owns its local user store, so its first-admin registration assigns 
 - Verify JWT on incoming requests when `route.auth.required === true`.
 - Enforce tenant/app match against request context.
 - Enforce route permissions against `app.auth.roles[]` map.
-- Strip unknown request headers (already default via `unknownKeys: "strip"` on header schema).
+- Strip unknown request headers (already the `anyvali` object default).
 
 ### Auth provider service
 

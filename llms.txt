@@ -283,7 +283,7 @@ const PluginConfigSchema = av.object({
   port: av.int().min(1).default(3200),
   // Optional: omit for setup-mode/control-plane bootstrap.
   betterportal: BetterPortalConfigSchema
-}, { unknownKeys: "strip" });
+});
 
 const Config = createConfigSchema(
   { name: "service-betterportal-myservice", description: "...", tags: [...] },
@@ -350,12 +350,12 @@ import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import { createHandler } from "../.bp-generated/route-runtime.js";
 
-export const QuerySchema = av.object({ name: av.string().default("World") }, { unknownKeys: "strip" });
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
-export const RequestSchema = av.object({}, { unknownKeys: "strip" });
+export const QuerySchema = av.object({ name: av.string().default("World") });
+export const HeadersSchema = av.object({});
+export const RequestSchema = av.object({});
 export const ResponseSchema = av.object({
   greeting: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export default createHandler(
@@ -858,7 +858,7 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 - **Theme `_theme.<themeId>` directory must exist** for every theme the view wants to support. If absent, that theme cannot render the view -> fallback to embedded.
 - **Don't fetch from theme code at render time.** Theme should only resolve from `bp-config.yaml` + headers. Page content comes from the browser hitting the service directly.
 - **CORS preflight for PUT/DELETE.** Default `BPService` allows full HTTP method set; new custom services should not narrow it unless intentional.
-- **`anyvali`** is the schema lib used everywhere. Imports as `av`. Patterns: `av.object`, `av.string`, `av.int`, `av.bool`, `av.array`, `av.enum_(["a","b"] as const)`, `av.record`, `av.optional`, `.minLength`, `.default`, `{ unknownKeys: "strip" }`.
+- **`anyvali`** is the schema lib used everywhere. Imports as `av`. Patterns: `av.object`, `av.string`, `av.int`, `av.bool`, `av.array`, `av.enum_(["a","b"] as const)`, `av.record`, `av.optional`, `.minLength`, `.default`. Objects strip unknown keys by default; specify `unknownKeys` only for non-default behavior.
 
 ---
 
