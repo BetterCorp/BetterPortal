@@ -122,7 +122,7 @@ function permsScript(apiBase: string, serviceUrl: string, selectedAppId: string 
           const grant = (role.permissions ?? []).find((p) => p.serviceId === sid && p.viewId === vid);
           setRowMask(select, permissionsToMask(grantToPermission(grant)));
         });
-        if (window.htmx) window.htmx.process(form);
+        if (window.htmx) window.htmx.process(form, true);
       });
     });
   })()`);
@@ -352,7 +352,7 @@ export function render(data: ResponseData): HtmlRenderable {
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
           </div>
           <div class="offcanvas-body">
-            <form id="bp-edit-role-form" hx-target="#bp-main" hx-swap="innerHTML">
+            <form id="bp-edit-role-form" data-bp-config="rewrite=false" hx-target="#bp-main" hx-swap="innerHTML">
               <input type="hidden" name="roleId" />
               <div class="mb-3">
                 <label class="form-label">Title</label>

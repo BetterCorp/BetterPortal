@@ -8,6 +8,7 @@ import { getCachedManifestForService, type CachedManifest } from "../src/plugins
 import { BaseStorage, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_theme.bootstrap1/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_theme.bootstrap1/GET.js";
+import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_theme.bootstrap1/GET.js";
 import {
   BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
   PROVIDER_ROLE_AUTHORITY_CAPABILITY,
@@ -221,6 +222,21 @@ test("service registration stays browser-mediated and tenant history follows the
   assert.match(html, /id="bp-shared-service-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /<script>\s*\(\(\) => \{/);
   assert.doesNotMatch(html, /&quot;bp-tenant-service-form&quot;/);
+});
+
+test("role edits replace the deferred form action", () => {
+  const html = String(renderAuth({
+    title: "Permission Manager",
+    apps: [{ id: "app-a", tenantId: "tenant-a", title: "App A" }],
+    selectedAppId: "app-a",
+    authConfigured: true,
+    servicePermissions: [],
+    currentRoles: [],
+    adminApiBase: "/.well-known/bp/admin",
+    serviceBaseUrl: "https://config.example"
+  }));
+  assert.match(html, /id="bp-edit-role-form"[^>]*data-bp-config="rewrite=false"/);
+  assert.match(html, /window\.htmx\.process\(form, true\)/);
 });
 
 test("provider role management is the default when advertised", () => {
