@@ -356,6 +356,42 @@ function shellRuntimeSource(): string {
         node.classList.remove("is-visible");
       };
 
+      const showRequestErrorModal = (status: number, content: string) => {
+        if (!bootstrap) {
+          const text = document.createElement("div");
+          text.innerHTML = content;
+          window.alert(text.textContent || errorMessage(status));
+          return;
+        }
+        let modal = document.querySelector("#bp-request-error-modal") as HTMLElement | null;
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "bp-request-error-modal";
+          modal.className = "modal fade";
+          modal.tabIndex = -1;
+          modal.setAttribute("role", "dialog");
+          modal.setAttribute("aria-modal", "true");
+          modal.setAttribute("aria-labelledby", "bp-request-error-modal-title");
+          modal.innerHTML =
+            '<div class="modal-dialog modal-dialog-centered">' +
+            '<div class="modal-content">' +
+            '<div class="modal-header">' +
+            '<h5 class="modal-title" id="bp-request-error-modal-title">Request failed</h5>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>' +
+            '</div>' +
+            '<div class="modal-body" data-bp-request-error-body></div>' +
+            '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Dismiss</button></div>' +
+            '</div></div>';
+          document.body.appendChild(modal);
+        }
+        const body = modal.querySelector("[data-bp-request-error-body]");
+        if (body) {
+          body.innerHTML = content || `<div class="alert alert-danger mb-0">${errorMessage(status)}</div>`;
+          htmx.process(body);
+        }
+        (bootstrap as any).Modal.getOrCreateInstance(modal).show();
+      };
+
       const renderErrorAction = (action: any) => {
         if (!action) return "";
         return `<button type="button" class="btn btn-sm btn-outline-danger" data-bp-error-action="${action.kind}">${action.label}</button>`;
@@ -1962,6 +1998,11 @@ function shellRuntimeSource(): string {
           // htmx:afterRequest; error states surface via htmx:error / 401 flow.
           const swapContentType = ctx?.response?.headers?.get?.("content-type") || "";
           const isJson = swapContentType.includes("application/json");
+          if (status && status >= 400 && source instanceof Element && source.closest("[data-bp-error-modal]") && !isMainTarget(target)) {
+            if (target instanceof Element) target.classList.remove("bp-fragment-loading");
+            showRequestErrorModal(status, isJson ? "" : (ctx?.text || ""));
+            return false;
+          }
           if (isJson) {
             if (status && status >= 400 && isMainTarget(target)) {
               // fall through to the error handling below (401->login etc.)

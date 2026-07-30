@@ -219,6 +219,8 @@ test("service registration stays browser-mediated and tenant history follows the
   assert.match(html, /id="bp-tenant-service-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /id="bp-change-hostname-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /id="bp-shared-service-form"[^>]*data-bp-config="rewrite=false"/);
+  assert.match(html, /<script>\s*\(\(\) => \{/);
+  assert.doesNotMatch(html, /&quot;bp-tenant-service-form&quot;/);
 });
 
 test("provider role management is the default when advertised", () => {

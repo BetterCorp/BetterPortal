@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { css } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 
@@ -45,7 +46,7 @@ export function render(data: ResponseData): HtmlRenderable {
   return (
     <main class="bp-landing">
       <style>
-        {`
+        {css(`
           :root {
             --bp-landing-bg: #f7f8fb;
             --bp-landing-panel: #ffffff;
@@ -341,7 +342,7 @@ export function render(data: ResponseData): HtmlRenderable {
               font-size: clamp(3rem, 14vw, 5rem);
             }
           }
-        `}
+        `)}
       </style>
 
       <div class="bp-landing-shell">

@@ -17,6 +17,14 @@ test("SSE requests keep BetterPortal headers", async () => {
   assert.match(hook, /attachBpHeaders\(ctx\.request\.headers/);
 });
 
+test("marked fragment errors open a dismissible modal", async () => {
+  const asset = await loadBootstrap1Asset("bootstrap1-shell.js");
+  const source = String(asset?.body);
+  assert.match(source, /source\.closest\("\[data-bp-error-modal\]"\)/);
+  assert.match(source, /data-bs-dismiss="modal">Dismiss/);
+  assert.match(source, /Modal\.getOrCreateInstance\(modal\)\.show\(\)/);
+});
+
 test("Bootstrap initializes before shell overlay cleanup", () => {
   const html = renderBootstrap1Shell({
     title: "Test",

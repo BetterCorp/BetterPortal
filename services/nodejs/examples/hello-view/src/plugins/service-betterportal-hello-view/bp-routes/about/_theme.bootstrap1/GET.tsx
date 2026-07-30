@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { css } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 
@@ -34,7 +35,7 @@ export function render(data: ResponseData): HtmlRenderable {
   return (
     <main class="container-fluid px-0">
       <style>
-        {`
+        {css(`
           .bp-about-hero {
             border-bottom: 1px solid var(--bs-border-color);
             background:
@@ -56,7 +57,7 @@ export function render(data: ResponseData): HtmlRenderable {
           @media (max-width: 575.98px) {
             .bp-about-map { grid-template-columns: 1fr; }
           }
-        `}
+        `)}
       </style>
 
       <section class="bp-about-hero">

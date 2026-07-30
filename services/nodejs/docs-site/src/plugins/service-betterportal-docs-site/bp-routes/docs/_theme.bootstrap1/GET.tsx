@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { css } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 
@@ -23,7 +24,7 @@ function docLink(doc: ResponseData["docs"][number] | undefined, label: string, v
 
 function homeStyles(): HtmlRenderable {
   return (
-    <style>{`
+    <style>{css(`
       .bp-docs-home {
         --bp-docs-ink: var(--bs-body-color);
         --bp-docs-soft: rgba(59, 130, 246, .10);
@@ -81,7 +82,7 @@ function homeStyles(): HtmlRenderable {
       }
       .bp-docs-list .list-group-item:first-child { border-top: 0; }
       .bp-docs-list .list-group-item:last-child { border-bottom: 0; }
-    `}</style>
+    `)}</style>
   );
 }
 

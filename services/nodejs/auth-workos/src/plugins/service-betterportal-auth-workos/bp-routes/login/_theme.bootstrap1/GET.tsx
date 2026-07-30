@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 
 import type { HtmlRenderable } from "@betterportal/framework";
-import { js } from "jsx-htmx";
+import { css, js } from "jsx-htmx";
 import type { ResponseData } from "../route.impl.js";
 
 export function render(data: ResponseData): HtmlRenderable {
@@ -52,7 +52,7 @@ export function render(data: ResponseData): HtmlRenderable {
         })}
       </script>
       <style>
-        {`
+        {css(`
           .bp-workos-shell {
             min-height: 100vh;
             width: 100%;
@@ -98,7 +98,7 @@ export function render(data: ResponseData): HtmlRenderable {
             color: #64748b;
             font-size: 14px;
           }
-        `}
+        `)}
       </style>
     </main>
   );

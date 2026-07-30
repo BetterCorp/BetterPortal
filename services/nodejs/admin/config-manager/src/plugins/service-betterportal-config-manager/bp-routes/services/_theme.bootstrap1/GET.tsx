@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 
@@ -162,6 +163,7 @@ function renderServiceCard(
                   hx-delete={`${data.adminApiBase}/tenants/${encodeURIComponent(service.tenantId)}/services/${encodeURIComponent(service.id)}`}
                   hx-target="#bp-services-alerts"
                   hx-swap="innerHTML"
+                  data-bp-error-modal=""
                   hx-confirm="Remove this service registration?">
                   Remove
                 </button>
@@ -480,7 +482,7 @@ export function render(data: ResponseData): HtmlRenderable {
             <button type="submit" class="btn btn-primary w-100">Add Shared Service</button>
           </form>
           <script>
-            {`
+            {js(`
 (() => {
   const tenantForm = document.getElementById("bp-tenant-service-form");
   const sharedForm = document.getElementById("bp-shared-service-form");
@@ -697,7 +699,7 @@ export function render(data: ResponseData): HtmlRenderable {
     }
   });
 })();
-            `}
+            `)}
           </script>
         </div>
       </div>

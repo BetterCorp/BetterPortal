@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { css } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 import { renderMarkdown } from "../../../rendering/markdown.js";
@@ -13,7 +14,7 @@ function sectionLabel(section: string): string {
 
 function pageStyles(): HtmlRenderable {
   return (
-    <style>{`
+    <style>{css(`
       .bp-doc-page {
         --bp-doc-page-blue: rgba(59,130,246,.14);
         --bp-doc-page-green: rgba(34,197,94,.12);
@@ -82,7 +83,7 @@ function pageStyles(): HtmlRenderable {
         transform: translateY(-2px);
         border-color: rgba(59,130,246,.45) !important;
       }
-    `}</style>
+    `)}</style>
   );
 }
 

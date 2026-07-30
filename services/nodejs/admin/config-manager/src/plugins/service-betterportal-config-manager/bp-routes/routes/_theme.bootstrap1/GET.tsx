@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 
@@ -586,7 +587,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
       ))}
-      <script>{manifestLoaderScript(data.availableServices)}</script>
+      <script>{js(manifestLoaderScript(data.availableServices))}</script>
     </div>
   );
 }
