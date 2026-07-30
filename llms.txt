@@ -57,6 +57,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 ### Roles
 
 - **Theme** (`themes/nodejs/bootstrap1/`): renders the host page (HTML shell) + acts as the front-end origin. Resolves tenant/app from hostname. Provides nav/brand/style/fragments endpoints. Owns the visible URL bar. Does **not** call backend services itself - the browser does.
+- **Theme runtime** (`themes/nodejs/runtime/`, npm: `@betterportal/theme-runtime`): backend-assembles HTMX core, the theme adapter, the shared BP shell, and the bundled SSE extension into one asset. Owns URL rewriting, BP headers, header-aware preload, request lifecycle, auth failures, downloads, history, SSE, and background fragments. Normal services do not depend on it.
 - **Service** (`services/nodejs/.../`): self-contained BSB plugin. Exposes typed routes via file-based convention. Negotiates JSON or HTML representation. Owns its own data and config.
 - **Config Manager** (`services/nodejs/admin/config-manager`): special service. Mutates `bp-config.yaml` via REST. Hosts admin views (services registry, tenants, routes, menu editor, fragments editor, theme designer dispatch).
 - **Node SDK** (`framework/nodejs/`, npm: `@betterportal/framework`): TypeScript implementation of `bp-protocol/1`. Contracts, runtime helpers, codegen (`bp-codegen`), h3 adapter, schema validation. Imported by all Node services and themes. **Other-language SDKs would live as sibling packages** (`@betterportal/sdk-php`, etc.) - none exist yet.
@@ -127,6 +128,7 @@ BetterPortal/
 +-- framework/nodejs/                 # core contracts, runtime, codegen, h3 adapter
 +-- plugins/nodejs/betterportal-bsb/  # BSB<->framework integration (BPService base class)
 +-- themes/nodejs/
+|   +-- runtime/                      # shared backend-built HTMX shell runtime
 |   +-- bootstrap1/                   # full Bootstrap 5 + HTMX theme
 |   +-- embedded/                     # lightweight embedded theme
 +-- services/nodejs/
@@ -627,11 +629,12 @@ If you add a custom HX-* header to a response, ensure it's in `exposeHeaders` (i
 
 ### 13b. URL rewriting (theme runtime)
 
-`themes/nodejs/bootstrap1/src/plugins/.../assets.ts -> resolveServiceLinks` runs after every HTMX swap:
+`@betterportal/theme-runtime` owns `resolveServiceLinks`, which runs after every HTMX swap. Theme packages serve the resulting backend-assembled asset from their existing asset URL:
 - Walks all newly inserted elements with `a[href], [hx-get|post|put|patch|delete], script[src], img[src], link[rel=stylesheet]`.
 - Looks up the closest `[data-bp-service]` ancestor -> maps to that service's origin from `data-bp-services="..."` on the shell root.
 - Rewrites root-relative paths (`/foo`) to absolute (`http://localhost:3200/foo`).
 - Skips elements with `data-bp-no-route=""` - use this on theme-shell elements that always target the theme itself (style, brand, nav, fragments wrappers).
+- Rewrites `kind: "api"` GET anchors to their `/_bp/service/{serviceId}/...` allowlist path as native browser links. OAuth redirects must not be issued as HTMX fetches.
 
 Always write hx-* paths as relative. Never hardcode `http://localhost:3300/...`.
 
@@ -819,9 +822,9 @@ this.app.use("/protected/**", (event) => {
 5. **Service verification** - each service uses the configured JWT verifier/middleware from app auth metadata.
 6. **Route policy** - flip `auth.required = true` on protected routes. Manifests advertise this so gateways and admin tools can reason about it.
 
-### Current state of the bootstrap1 theme
+### Current theme runtime
 
-Bootstrap1 contains the shell header manager. Routes default to `required: false`; auth provider services own login/refresh/logout views and emit BP header directives.
+`@betterportal/theme-runtime` contains the shared shell header manager and header-aware preload. Bootstrap1 and Embedded supply presentation adapters only. Routes default to `required: false`; auth provider services own login/refresh/logout views and emit BP header directives.
 
 ---
 
@@ -882,7 +885,7 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 
 ## 19. Building a new theme
 
-1. Scaffold `themes/nodejs/<themeId>/` mirroring `themes/nodejs/bootstrap1/`.
+1. Scaffold `themes/nodejs/<themeId>/` and depend on `@betterportal/theme-runtime`; copy shell/service patterns from Bootstrap1, not its Bootstrap presentation.
 2. Plugin class extends `BSBService` (not `BPService` - themes own their full HTTP surface).
 3. Must serve:
    - The shell page (route catch-all `/**`)
@@ -892,8 +895,10 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 4. Use `resolveThemeRequestContext(portalConfig, headers, host)` to resolve tenant + app from incoming request.
 5. Use `resolveAppRoute(app, pathname)` to find the route binding for the current URL.
 6. Use `buildServiceViewUrl(service, route, pathname)` to construct the absolute service URL for content swaps.
-7. Inject `data-bp-services="{...origins...}"` on the shell root so `resolveServiceLinks` can rewrite paths.
-8. Register the new theme in `bp-config.yaml` `themes[]` AND ensure each service has a `_theme.<themeId>/` directory for views you want it to render.
+7. Emit the shared shell DOM contract: `data-bp-shell-root`, `data-bp-services`, `data-bp-routes`, and a `#bp-main` / `data-bp-main-outlet` element.
+8. Call `buildBetterPortalThemeRuntimeAsset({ themeId, adapterSource })` on the backend and serve the result as one non-stale JavaScript asset. Never load HTMX extensions dynamically in the browser. The fixed allowlist is `bp-shell, sse`; preload is already implemented inside `bp-shell` with BP header support.
+9. Keep the adapter presentation-only: loading/errors, component init/dispose, swap cleanup, overlays, and scrolling.
+10. Register the new theme in `bp-config.yaml` `themes[]` AND ensure each service has a `_theme.<themeId>/` directory for views you want it to render.
 
 ---
 

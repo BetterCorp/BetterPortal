@@ -14,10 +14,17 @@ A theme owns:
 - theme assets
 - theme configuration UI
 - fragment locations
-- service link rewriting
-- HTMX request behavior
+- presentation hooks for loading, errors, swaps, and component lifecycle
 
 It does not own service page content.
+
+## Shared Node theme runtime
+
+Node themes use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, the header-aware preload implementation, HTMX request/response handling, SSE, history, auth failures, downloads, and background fragments.
+
+The runtime is assembled on the backend into one JavaScript asset in deterministic order: HTMX core, the theme adapter, the BetterPortal shell, and the bundled SSE extension. Browsers never discover or dynamically load HTMX extensions. A missing required asset fails during backend bundle creation.
+
+Theme packages keep their public asset URLs and provide only presentation hooks. Bootstrap1 owns Bootstrap modal/offcanvas and component lifecycle behavior; Embedded owns its loading and error presentation. The required HTMX extension allowlist is `bp-shell, sse`. BetterPortal's header-aware preload is part of `bp-shell`; do not also load the stock preload extension.
 
 ## Service renderers
 

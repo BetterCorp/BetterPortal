@@ -16,6 +16,7 @@
     "services/nodejs/auth-default",
     "services/nodejs/auth-authress-io",
     "services/nodejs/auth-workos",
+    "themes/nodejs/runtime",
     "themes/nodejs/bootstrap1",
     "themes/nodejs/embedded",
     "services/nodejs/admin/config-manager",

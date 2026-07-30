@@ -12,5 +12,6 @@ test("Embedded runtime keeps shared shell behavior", async () => {
   assert.match(hook, /attachBpHeaders\(ctx\.request\.headers/);
   assert.match(source, /refreshStoredHeader/);
   assert.match(source, /bp:fragments-changed from:body/);
-  assert.match(source, /target:\s*["']\[data-bp-main-outlet\]["']/);
+  assert.match(source, /#bp-main, \[data-bp-main-outlet\]/);
+  assert.match(source, /BetterPortalThemeAdapter/);
 });

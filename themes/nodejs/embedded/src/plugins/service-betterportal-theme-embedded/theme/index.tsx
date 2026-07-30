@@ -58,7 +58,7 @@ function EmbeddedDocument(context: EmbeddedShellContext): HtmlRenderable {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":0,"mode":"cors","extensions":"bp-embedded"}' />
+        <meta name="htmx-config" content='{"selfRequestsOnly":false,"historyCacheSize":0,"mode":"cors","extensions":"bp-shell, sse"}' />
         <link rel="llms" href="/llms.txt" />
         <link rel="alternate" type="application/json" title="BetterPortal AI Manifest" href={context.aiManifestUrl ?? "/.well-known/bp/ai.json"} />
         <meta name="betterportal:ai-manifest" content={context.aiManifestUrl ?? "/.well-known/bp/ai.json"} />
@@ -144,14 +144,18 @@ function EmbeddedBody(context: EmbeddedHostPageContext): HtmlRenderable {
   return (
     <div
       class="bp-embedded"
+      data-bp-shell-root=""
       data-bp-embedded-root=""
       data-bp-services={JSON.stringify(serviceMap)}
+      data-bp-routes={JSON.stringify(context.routeLinks)}
       data-bp-background-services={JSON.stringify(context.backgroundServices)}
       data-bp-initial-service={context.initialServiceId}
-      hx-ext="bp-embedded"
+      data-bp-auth-mode="true"
+      hx-ext="bp-shell"
     >
       <div data-bp-background-fragments="" hidden></div>
       <div
+        id="bp-main"
         class="bp-embedded__main"
         data-bp-main-outlet=""
         data-bp-service={context.initialServiceId}

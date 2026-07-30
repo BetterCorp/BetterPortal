@@ -61,6 +61,7 @@ BetterPortal/
 +-- framework/nodejs/                 # Node SDK: contracts, runtime, codegen, h3 adapter
 +-- plugins/nodejs/betterportal-bsb/  # BSB <-> Node SDK integration (BPService base class)
 +-- themes/nodejs/
+|   +-- runtime/                      # shared backend-built HTMX shell runtime
 |   +-- bootstrap1/                   # reference theme: Bootstrap 5 + HTMX shell
 |   +-- embedded/                     # reference theme: lightweight embedded renderer
 +-- auth/nodejs/                      # optional OIDC-style auth platform service
@@ -130,6 +131,7 @@ See `llms.txt section 1b` for the full list.
 |---|---|
 | `@betterportal/framework` | Contracts, runtime, codegen CLI (`bp-codegen`), h3 adapter, schema helpers. |
 | `@betterportal/plugin-bsb` | `BPService` base class; wires h3, CORS, observability into BSB. |
+| `@betterportal/theme-runtime` | Shared backend-assembled HTMX shell, BP headers, preload, URL rewriting, SSE, and theme adapter contract. |
 | `@betterportal/theme-bootstrap1` | Default theme: Bootstrap 5 + HTMX shell, theme designer, nav/brand/style/fragment refresh endpoints. |
 | `@betterportal/theme-embedded` | Lightweight embedded renderer for headless / external embeds. |
 | `@betterportal/auth` | Optional JWT auth platform service. |

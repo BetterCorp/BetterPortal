@@ -7,4 +7,5 @@ Design goals:
 - modern and minimal
 - clean light and dark modes
 - shell-first, not app-logic-first
-- HTMX included as a required runtime dependency for UI composition
+- HTMX shell behavior supplied by `@betterportal/theme-runtime`
+- Bootstrap-specific modal, offcanvas, loading, and component presentation

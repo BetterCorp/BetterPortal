@@ -52,6 +52,7 @@ jobs:
         run: |
           npm run build -w @betterportal/framework
           npm run build -w @betterportal/plugin-bsb
+          npm run build -w @betterportal/theme-runtime
 
   build-plugins:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -87,6 +88,7 @@ jobs:
         run: |
           npm run build -w @betterportal/framework
           npm run build -w @betterportal/plugin-bsb
+          npm run build -w @betterportal/theme-runtime
 
       - name: Build package
         run: npm run build -w "${{ matrix.workspace }}" --if-present
@@ -119,6 +121,7 @@ jobs:
         run: |
           npm run build -w @betterportal/framework
           npm run build -w @betterportal/plugin-bsb
+          npm run build -w @betterportal/theme-runtime
 
       - name: Publish core packages
         run: |
@@ -159,6 +162,7 @@ jobs:
         run: |
           npm run build -w @betterportal/framework
           npm run build -w @betterportal/plugin-bsb
+          npm run build -w @betterportal/theme-runtime
 
       - name: Build package
         run: npm run build -w "${{ matrix.workspace }}" --if-present
@@ -200,6 +204,7 @@ jobs:
         run: |
           npm run build -w @betterportal/framework
           npm run build -w @betterportal/plugin-bsb
+          npm run build -w @betterportal/theme-runtime
 
       - name: Build package
         run: npm run build -w "${{ matrix.workspace }}" --if-present
@@ -266,6 +271,7 @@ jobs:
         run: |
           npm run build -w @betterportal/framework
           npm run build -w @betterportal/plugin-bsb
+          npm run build -w @betterportal/theme-runtime
           npm run build -w "${{ matrix.workspace }}"
 
       - name: Publish BetterPortal contract
