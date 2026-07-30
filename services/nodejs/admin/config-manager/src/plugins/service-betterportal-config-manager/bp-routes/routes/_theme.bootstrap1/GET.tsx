@@ -2,6 +2,7 @@
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
+import { appRoutePatternKey } from "../../../routeMounts.js";
 
 function scriptJson(value: unknown): string {
   return JSON.stringify(value)
@@ -23,6 +24,12 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
     service.id,
     { ...service, views: Array.isArray(service.views) ? service.views : [] }
   ]));
+
+  const formatServiceLabel = (service) => {
+    const title = String(service?.title || service?.id || "");
+    const identity = String(service?.serviceId || service?.id || "");
+    return identity && identity !== title ? title + " · " + identity : title;
+  };
 
   const viewRenderable = (view) => {
     if (typeof view?.renderable === "boolean") return view.renderable;
@@ -67,6 +74,23 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
       }
     }
 
+    const selectedExists = Array.from(view.options).some((option) =>
+      option.value === selectedView && option.dataset.serviceId === selectedService
+    );
+    if (selectedService && selectedView && !selectedExists) {
+      const selectedServiceMeta = byServiceId.get(selectedService);
+      const reason = !selectedServiceMeta
+        ? "service unavailable"
+        : selectedServiceMeta.manifestLoaded === false
+          ? "service manifest not loaded"
+          : "unavailable in current manifest";
+      const option = new Option(selectedView + " — " + reason, selectedView, true, true);
+      option.dataset.serviceId = selectedService;
+      option.dataset.renderable = "true";
+      option.dataset.unavailable = "true";
+      view.appendChild(option);
+    }
+
     let hasSelectedView = false;
     Array.from(view.options).forEach((option) => {
       if (!option.value) {
@@ -105,12 +129,12 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
       Array.from(select.options).forEach((option) => {
         if (!option.value) return;
         const service = byServiceId.get(option.value);
-        if (service) option.textContent = service.title || option.value;
+        if (service) option.textContent = formatServiceLabel(service);
       });
     });
     document.querySelectorAll("[data-bp-route-service-label]").forEach((node) => {
       const service = byServiceId.get(node.dataset.bpRouteServiceLabel || "");
-      if (service) node.textContent = service.title || service.id;
+      if (service) node.textContent = formatServiceLabel(service);
     });
     document.querySelectorAll("[data-bp-route-view-label]").forEach((node) => {
       const service = byServiceId.get(node.dataset.bpRouteServiceId || "");
@@ -153,6 +177,7 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
       ...service,
       title: typeof manifest.title === "string" ? manifest.title : service.title,
       serviceId: typeof manifest.pluginId === "string" ? manifest.pluginId : service.serviceId,
+      manifestLoaded: true,
       views
     });
   };
@@ -182,8 +207,10 @@ function routeFormFields(
       ...view
     }))
   );
+  const selectedServiceMeta = services.find((service) => service.id === selectedService);
   const selectedMeta = viewOptions.find((view) => view.serviceId === selectedService && view.viewId === selectedView);
-  const isRenderable = selectedMeta?.renderable !== false;
+  const selectedViewMissing = Boolean(route && selectedView && !selectedMeta);
+  const isRenderable = selectedMeta?.renderable ?? route?.renderable ?? true;
   return (
     <>
       <div class="mb-3">
@@ -191,20 +218,32 @@ function routeFormFields(
         <select class="form-select" name="serviceId" id={`${prefix}-service`} data-bp-route-service="" required>
           <option value="">Select service...</option>
           {services.map((svc) => (
-            <option value={svc.id} selected={svc.id === selectedService}>{svc.title}</option>
+            <option value={svc.id} selected={svc.id === selectedService}>{serviceLabel(services, svc.id)}</option>
           ))}
+          {route && selectedService && !selectedServiceMeta ? (
+            <option value={selectedService} selected>{selectedService} — service unavailable</option>
+          ) : ""}
         </select>
       </div>
       <div class="mb-3">
         <label class="form-label">View</label>
         <select class="form-select" name="viewId" id={`${prefix}-view`} data-bp-route-view="" data-selected-view={selectedView} required>
           <option value="">Select view...</option>
-          {viewOptions.filter((view) => view.renderable !== false || view.viewId === selectedView).map((view) => (
+          {selectedViewMissing ? (
+            <option
+              value={selectedView}
+              data-service-id={selectedService}
+              data-renderable={isRenderable ? "true" : "false"}
+              data-unavailable="true"
+              selected
+            >{selectedView} — {!selectedServiceMeta ? "service unavailable" : selectedServiceMeta.manifestLoaded ? "unavailable in current manifest" : "service manifest not loaded"}</option>
+          ) : ""}
+          {viewOptions.filter((view) => view.renderable !== false || (view.serviceId === selectedService && view.viewId === selectedView)).map((view) => (
             <option
               value={view.viewId}
               data-service-id={view.serviceId}
               data-renderable={view.renderable === false ? "false" : "true"}
-              disabled={view.renderable === false && view.viewId !== selectedView}
+              disabled={view.renderable === false && !(view.serviceId === selectedService && view.viewId === selectedView)}
               selected={view.serviceId === selectedService && view.viewId === selectedView}
             >
               {view.renderable === false ? `[API] ${view.title}` : view.title}
@@ -233,7 +272,9 @@ function routeFormFields(
 
 function serviceLabel(services: ResponseData["availableServices"], serviceId: string): string {
   const service = services.find((svc) => svc.id === serviceId);
-  return service?.title || serviceId;
+  if (!service) return serviceId;
+  const identity = service.serviceId || service.id;
+  return identity !== service.title ? `${service.title} · ${identity}` : service.title;
 }
 
 function viewLabel(services: ResponseData["availableServices"], serviceId: string, viewId: string): string {
@@ -242,23 +283,24 @@ function viewLabel(services: ResponseData["availableServices"], serviceId: strin
   return view?.title || viewId;
 }
 
+function routeWarning(services: ResponseData["availableServices"], route: ResponseData["routes"][number]): string | undefined {
+  const service = services.find((candidate) => candidate.id === route.serviceId);
+  if (!service) return "Service unavailable";
+  if (!service.manifestLoaded) return "Service manifest not loaded";
+  if (!service.views.some((candidate) => candidate.viewId === route.viewId)) return "Manifest view unavailable";
+  return undefined;
+}
+
 function methodsLabel(methods: string[] | undefined): string {
   return ((methods && methods.length > 0 ? methods : ["GET"]) as string[]).join(", ");
 }
 
 type VisualRoute = ResponseData["routes"][number];
 
-type RouteTreeNode = {
-  path: string;
-  route?: VisualRoute;
-  children: RouteTreeNode[];
-};
-
-type VisualRouteRow = {
-  path: string;
-  route?: VisualRoute;
-  depth: number;
-  basePath: string;
+export type PathGroup = {
+  pathPrefix: string;
+  synthetic: boolean;
+  routes: VisualRoute[];
 };
 
 function routeSegments(path: string): string[] {
@@ -268,47 +310,26 @@ function routeSegments(path: string): string[] {
 function domId(value: string): string {
   return value.replace(/[^A-Za-z0-9_-]/g, "-");
 }
-export function buildRouteTree(routes: VisualRoute[]): RouteTreeNode[] {
-  const root: RouteTreeNode = { path: "/", children: [] };
+
+export function groupVisualRoutes(routes: VisualRoute[]): PathGroup[] {
+  const groups = new Map<string, PathGroup>();
   for (const route of routes) {
     const segments = routeSegments(route.path);
-    let node = root;
-    segments.forEach((segment, index) => {
-      const path = `/${segments.slice(0, index + 1).join("/")}`;
-      let child = node.children.find((candidate) => candidate.path === path);
-      if (!child) {
-        child = { path, children: [] };
-        node.children.push(child);
-      }
-      node = child;
-    });
-    node.route = route;
+    const synthetic = segments.length > 1;
+    const pathPrefix = synthetic ? `/${segments.slice(0, -1).join("/")}` : (segments.length ? `/${segments[0]}` : "/");
+    const key = `${synthetic ? "group" : "route"}:${pathPrefix}`;
+    const group = groups.get(key) ?? { pathPrefix, synthetic, routes: [] };
+    group.routes.push(route);
+    groups.set(key, group);
   }
-  return (root.route ? [root] : root.children).sort((left, right) => left.path.localeCompare(right.path));
+  return Array.from(groups.values())
+    .map((group) => ({ ...group, routes: group.routes.sort((left, right) => left.path.localeCompare(right.path) || left.id.localeCompare(right.id)) }))
+    .sort((left, right) => left.pathPrefix.localeCompare(right.pathPrefix));
 }
 
-function routeCount(node: RouteTreeNode): number {
-  return (node.route ? 1 : 0) + node.children.reduce((total, child) => total + routeCount(child), 0);
-}
-
-function relativeRoutePath(path: string, basePath: string): string {
-  if (!basePath) return path;
-  const prefix = `${basePath.replace(/\/$/, "")}/`;
-  return path.startsWith(prefix) ? `./${path.slice(prefix.length)}` : path;
-}
-
-export function flattenRouteTree(nodes: RouteTreeNode[]): VisualRouteRow[] {
-  const rows: VisualRouteRow[] = [];
-  const visit = (node: RouteTreeNode, depth: number, basePath: string) => {
-    const showNode = Boolean(node.route) || routeCount(node) > 1;
-    const nextBasePath = showNode ? node.path : basePath;
-    if (showNode) rows.push({ path: node.path, route: node.route, depth, basePath });
-    for (const child of node.children.sort((left, right) => left.path.localeCompare(right.path))) {
-      visit(child, showNode ? depth + 1 : depth, nextBasePath);
-    }
-  };
-  nodes.forEach((node) => visit(node, 0, ""));
-  return rows;
+function pathWithinGroup(group: PathGroup, path: string): string {
+  if (!group.synthetic) return path;
+  return path.slice(group.pathPrefix.length) || "/";
 }
 
 function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
@@ -320,7 +341,12 @@ function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
     return <div class="alert alert-secondary">No visual routes for this app yet</div>;
   }
 
-  const rows = flattenRouteTree(buildRouteTree(pageRoutes));
+  const groups = groupVisualRoutes(pageRoutes);
+  const conflictCounts = new Map<string, number>();
+  for (const route of pageRoutes) {
+    const key = appRoutePatternKey(route.path);
+    conflictCounts.set(key, (conflictCounts.get(key) ?? 0) + 1);
+  }
   return (
     <div class="table-responsive">
       <table class="table table-sm table-hover align-middle">
@@ -336,50 +362,62 @@ function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
-            const route = row.route;
-            const displayPath = relativeRoutePath(row.path, row.basePath);
-            return (
-              <tr class={route ? (route.enabled ? "" : "text-secondary") : "text-secondary"}>
-                <td class="font-monospace small fw-semibold">
-                  <span
-                    class={row.depth > 0 ? "bp-route-tree-child" : "bp-route-tree-root"}
-                    style={`padding-left:${row.depth * 1.25}rem`}
-                    title={row.path}
-                  >{row.depth > 0 ? "└─ " : ""}{displayPath}</span>
-                </td>
-                <td>{route?.title ?? ""}</td>
-                <td class="small" data-bp-route-service-label={route?.serviceId}>{route ? serviceLabel(data.availableServices, route.serviceId) : ""}</td>
-                <td class="small" data-bp-route-service-id={route?.serviceId} data-bp-route-view-label={route?.viewId}>{route ? viewLabel(data.availableServices, route.serviceId, route.viewId) : ""}</td>
-                <td class="small font-monospace">{route?.query ?? ""}</td>
-                <td>{route ? (
-                  <button
-                    class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
-                    hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                    hx-vals={JSON.stringify({ enabled: !route.enabled })}
-                    hx-target="#bp-main"
-                    hx-swap="innerHTML"
-                  >{route.enabled ? "on" : "off"}</button>
-                ) : ""}</td>
-                <td>{route ? (
-                  <div class="btn-group btn-group-sm">
-                    <button
-                      class="btn btn-outline-primary"
-                      data-bs-toggle="offcanvas"
-                      data-bs-target={`#bp-edit-route-panel-${route.id}`}
-                    >Edit</button>
-                    <button
-                      class="btn btn-outline-danger"
-                      hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                      hx-confirm="Delete route?"
-                      hx-target="#bp-routes-alerts"
-                      hx-swap="innerHTML"
-                    >x</button>
-                  </div>
-                ) : ""}</td>
-              </tr>
-            );
-          })}
+          {groups.map((group) => (
+            <>
+              {group.synthetic ? (
+                <tr class="table-light" data-bp-path-group={group.pathPrefix}>
+                  <th colspan={7} class="font-monospace small py-2">Path group: {group.pathPrefix}</th>
+                </tr>
+              ) : ""}
+              {group.routes.map((route) => {
+                const warning = routeWarning(data.availableServices, route);
+                const conflictCount = conflictCounts.get(appRoutePatternKey(route.path)) ?? 0;
+                return (
+                  <tr class={route.enabled ? "" : "text-secondary"} data-bp-route-id={route.id}>
+                    <td class="font-monospace small fw-semibold">
+                      {pathWithinGroup(group, route.path)}
+                      {conflictCount > 1 ? <span class="badge text-bg-danger ms-2">Conflict: {conflictCount} route records use this mount path</span> : ""}
+                    </td>
+                    <td>{route.title ?? ""}</td>
+                    <td class="small" data-bp-route-service-label={route.serviceId}>{serviceLabel(data.availableServices, route.serviceId)}</td>
+                    <td class="small">
+                      <span data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId}>{viewLabel(data.availableServices, route.serviceId, route.viewId)}</span>
+                      <div class="d-flex flex-wrap gap-1 mt-1">
+                        {!route.enabled ? <span class="badge text-bg-secondary">Disabled</span> : ""}
+                        {warning ? <span class="badge text-bg-warning">{warning}</span> : ""}
+                      </div>
+                    </td>
+                    <td class="small font-monospace">{route.query ?? ""}</td>
+                    <td>
+                      <button
+                        class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
+                        hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                        hx-vals={JSON.stringify({ enabled: !route.enabled })}
+                        hx-target="#bp-main"
+                        hx-swap="innerHTML"
+                      >{route.enabled ? "on" : "off"}</button>
+                    </td>
+                    <td>
+                      <div class="btn-group btn-group-sm">
+                        <button
+                          class="btn btn-outline-primary"
+                          data-bs-toggle="offcanvas"
+                          data-bs-target={`#bp-edit-route-panel-${route.id}`}
+                        >Edit</button>
+                        <button
+                          class="btn btn-outline-danger"
+                          hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                          hx-confirm="Delete route?"
+                          hx-target="#bp-routes-alerts"
+                          hx-swap="innerHTML"
+                        >x</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </>
+          ))}
         </tbody>
       </table>
     </div>
@@ -389,7 +427,7 @@ function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
 function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
   const apiRoutes = data.routes
     .filter((route) => route.kind === "api" || route.renderable === false)
-    .sort((a, b) => serviceLabel(data.availableServices, a.serviceId).localeCompare(serviceLabel(data.availableServices, b.serviceId)) || a.path.localeCompare(b.path));
+    .sort((a, b) => serviceLabel(data.availableServices, a.serviceId).localeCompare(serviceLabel(data.availableServices, b.serviceId)) || a.serviceId.localeCompare(b.serviceId) || a.path.localeCompare(b.path));
 
   if (apiRoutes.length === 0) {
     return <div class="alert alert-secondary">No service/API routes mounted for this app</div>;
@@ -405,7 +443,8 @@ function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
           <div class="accordion-item">
             <h3 class="accordion-header">
               <button class={`accordion-button ${index === 0 ? "" : "collapsed"}`} type="button" data-bs-toggle="collapse" data-bs-target={`#${panelId}`}>
-                <span>{serviceLabel(data.availableServices, serviceId)}</span>
+                <span data-bp-route-service-label={serviceId}>{serviceLabel(data.availableServices, serviceId)}</span>
+                <span class="font-monospace small text-secondary ms-2">{serviceId}</span>
                 <span class="badge text-bg-secondary ms-2">{routes.length}</span>
               </button>
             </h3>
@@ -423,32 +462,41 @@ function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
                     </tr>
                   </thead>
                   <tbody>
-                    {routes.map((route) => (
-                      <tr class={route.enabled ? "" : "text-secondary"}>
-                        <td class="font-monospace small">{route.path}</td>
-                        <td class="font-monospace small">{route.targetPath ?? ""}</td>
-                        <td class="small">{viewLabel(data.availableServices, route.serviceId, route.viewId)}</td>
-                        <td class="small font-monospace">{methodsLabel(route.methods)}</td>
-                        <td>
-                          <button
-                            class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
-                            hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                            hx-vals={JSON.stringify({ enabled: !route.enabled })}
-                            hx-target="#bp-main"
-                            hx-swap="innerHTML"
-                          >{route.enabled ? "on" : "off"}</button>
-                        </td>
-                        <td>
-                          <button
-                            class="btn btn-sm btn-outline-danger"
-                            hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                            hx-confirm="Delete API route?"
-                            hx-target="#bp-routes-alerts"
-                            hx-swap="innerHTML"
-                          >x</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {routes.map((route) => {
+                      const warning = routeWarning(data.availableServices, route);
+                      return (
+                        <tr class={route.enabled ? "" : "text-secondary"} data-bp-route-id={route.id}>
+                          <td class="font-monospace small">{route.path}</td>
+                          <td class="font-monospace small">{route.targetPath ?? ""}</td>
+                          <td class="small">
+                            <span data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId}>{viewLabel(data.availableServices, route.serviceId, route.viewId)}</span>
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                              {!route.enabled ? <span class="badge text-bg-secondary">Disabled</span> : ""}
+                              {warning ? <span class="badge text-bg-warning">{warning}</span> : ""}
+                            </div>
+                          </td>
+                          <td class="small font-monospace">{methodsLabel(route.methods)}</td>
+                          <td>
+                            <button
+                              class={`btn btn-sm ${route.enabled ? "btn-success" : "btn-outline-secondary"}`}
+                              hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                              hx-vals={JSON.stringify({ enabled: !route.enabled })}
+                              hx-target="#bp-main"
+                              hx-swap="innerHTML"
+                            >{route.enabled ? "on" : "off"}</button>
+                          </td>
+                          <td>
+                            <button
+                              class="btn btn-sm btn-outline-danger"
+                              hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                              hx-confirm="Delete API route?"
+                              hx-target="#bp-routes-alerts"
+                              hx-swap="innerHTML"
+                            >x</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

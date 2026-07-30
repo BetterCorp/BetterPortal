@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { generateKeyPair, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
-import { buildRouteTree, flattenRouteTree } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_theme.bootstrap1/GET.js";
+import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_theme.bootstrap1/GET.js";
 import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
@@ -111,19 +111,27 @@ function s2sConfig(): {
   return { config, tenantId, appId, sourceId, targetId, bindingId };
 }
 
-test("visual routes include the root mount", () => {
-  const route = {
-    id: "root-route",
-    path: "/",
+test("visual route groups preserve duplicate records", () => {
+  const route = (id: string, path: string) => ({
+    id,
+    kind: "page" as const,
+    path,
     serviceId: "service.example",
     viewId: "home",
-    title: "Home",
+    methods: [],
+    title: id,
+    renderable: true,
     enabled: true
-  };
-  const rows = flattenRouteTree(buildRouteTree([route]));
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0]?.path, "/");
-  assert.equal(rows[0]?.route?.id, "root-route");
+  });
+  const groups = groupVisualRoutes([
+    route("root-a", "/"),
+    route("root-b", "/"),
+    route("investment", "/calculators/investment"),
+    route("quotes", "/calculators/quotes")
+  ]);
+  assert.deepEqual(groups.flatMap((group) => group.routes.map((item) => item.id)).sort(), ["investment", "quotes", "root-a", "root-b"]);
+  assert.deepEqual(groups.find((group) => group.pathPrefix === "/")?.routes.map((item) => item.id), ["root-a", "root-b"]);
+  assert.equal(groups.find((group) => group.pathPrefix === "/calculators")?.synthetic, true);
 });
 
 test("duplicate route keys follow runtime route matching", () => {
@@ -189,6 +197,48 @@ test("shared activation manifest lookup falls back to its shared service", () =>
     platformServices: []
   } as never;
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
+});
+
+test("route designer exposes conflicts, stale views, and service identity", () => {
+  const route = (id: string, path: string, serviceId: string, viewId: string, kind: "page" | "api" = "page") => ({
+    id,
+    kind,
+    path,
+    serviceId,
+    viewId,
+    methods: ["GET"],
+    title: viewId,
+    renderable: kind === "page",
+    enabled: id !== "stale"
+  });
+  const html = String(renderRoutes({
+    title: "Route Designer",
+    apps: [{ id: "app-a", title: "App A", tenantId: "tenant-a" }],
+    selectedAppId: "app-a",
+    routes: [
+      route("root-a", "/", "service-a", "welcome.index"),
+      route("root-b", "/", "service-a", "welcome.index"),
+      route("stale", "/calculators/investment", "service-a", "retirement.index"),
+      route("api-a", "/_bp/service/crm/a", "service-a", "crm.api", "api"),
+      route("api-b", "/_bp/service/theme/b", "service-b", "theme.api", "api")
+    ],
+    availableServices: [
+      { id: "service-a", title: "TRG One Theme", hostname: "https://crm.example", serviceId: "service.trg-one.crm", manifestLoaded: true, views: [] },
+      { id: "service-b", title: "TRG One Theme", hostname: "https://theme.example", serviceId: "service.trg-one.theme", manifestLoaded: true, views: [] }
+    ],
+    adminApiBase: "/.well-known/bp/admin",
+    serviceBaseUrl: "https://config.example"
+  }));
+  assert.match(html, /data-bp-route-id="root-a"/);
+  assert.match(html, /data-bp-route-id="root-b"/);
+  assert.match(html, /Conflict: 2 route records use this mount path/);
+  assert.match(html, /data-bp-path-group="\/calculators"/);
+  assert.match(html, /retirement\.index — unavailable in current manifest/);
+  assert.match(html, /Manifest view unavailable/);
+  assert.match(html, /TRG One Theme · service\.trg-one\.crm/);
+  assert.match(html, /bp-api-routes-service-a/);
+  assert.match(html, /bp-api-routes-service-b/);
+  assert.doesNotMatch(html, /└─/);
 });
 
 test("app permissions only list available service instances", () => {

@@ -41,6 +41,7 @@ const AvailableServiceSchema = av.object({
   title: av.string(),
   hostname: av.string().format("url"),
   serviceId: av.optional(av.string()),
+  manifestLoaded: av.bool().default(false),
   views: av.array(AvailableViewSchema).default([])
 }, { unknownKeys: "strip" });
 

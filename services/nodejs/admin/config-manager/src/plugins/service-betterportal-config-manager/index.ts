@@ -564,32 +564,39 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const selectedTenant = selectedApp ? config.tenants.find((t) => t.id === selectedApp.tenantId) : undefined;
 
     const cache = getManifestCache();
-    const viewsForService = (serviceInstanceId: string | undefined): Array<{ viewId: string; title: string; path: string; methods: string[]; renderable: boolean; dependencies: string[] }> => {
-      if (!serviceInstanceId) return [];
-      const manifest = cache.get(serviceInstanceId);
-      if (!manifest) return [];
-      return Object.values(manifest.viewIndex)
-        .map((v) => ({ viewId: v.viewId, title: v.viewId, path: v.path, methods: v.methods, renderable: v.renderable, dependencies: v.dependencies }));
+    const serviceDetails = (serviceInstanceId: string, title: string, serviceId: string) => {
+      const manifest = getCachedManifestForService(config, serviceInstanceId, cache);
+      return {
+        title: manifest?.title ?? title,
+        serviceId: manifest?.serviceId ?? serviceId,
+        manifestLoaded: Boolean(manifest),
+        views: manifest
+          ? Object.values(manifest.viewIndex).map((v) => ({
+              viewId: v.viewId,
+              title: v.viewId,
+              path: v.path,
+              methods: v.methods,
+              renderable: v.renderable,
+              dependencies: v.dependencies
+            }))
+          : []
+      };
     };
 
     const availableServices = selectedTenant
       ? [
           ...selectedTenant.services.filter((s) => s.enabled).map((s) => ({
             id: s.id,
-            title: s.title ?? s.serviceId ?? s.hostname,
             hostname: s.hostname,
-            serviceId: s.serviceId ?? s.id,
-            views: viewsForService(s.id)
+            ...serviceDetails(s.id, s.title ?? s.serviceId ?? s.hostname, s.serviceId ?? s.id)
           })),
           ...selectedTenant.activatedPlatformServices
             .map((psId) => config.platformServices.find((ps) => ps.id === psId && ps.enabled))
             .filter((ps): ps is NonNullable<typeof ps> => !!ps)
             .map((ps) => ({
               id: ps.id,
-              title: `${ps.title} (platform)`,
               hostname: ps.hostname,
-              serviceId: ps.serviceId ?? ps.id,
-              views: viewsForService(ps.id)
+              ...serviceDetails(ps.id, `${ps.title} (platform)`, ps.serviceId ?? ps.id)
             })),
           ...config.sharedServiceActivations
             .filter((activation) =>
@@ -602,10 +609,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               if (!shared) return undefined;
               return {
                 id: activation.id,
-                title: `${shared.title} (shared)`,
                 hostname: shared.baseUrl,
-                serviceId: shared.serviceId ?? shared.id,
-                views: viewsForService(shared.id)
+                ...serviceDetails(activation.id, `${shared.title} (shared)`, shared.serviceId ?? shared.id)
               };
             })
             .filter((service): service is NonNullable<typeof service> => !!service)
@@ -613,7 +618,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       : [];
 
     const routeModel = (selectedApp?.routes ?? []).map((r) => {
-      const view = cache.get(r.serviceId)?.viewIndex[r.viewId];
+      const view = getCachedManifestForService(config, r.serviceId, cache)?.viewIndex[r.viewId];
       const renderable = view?.renderable ?? r.kind !== "api";
       return {
         id: r.id,
