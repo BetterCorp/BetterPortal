@@ -32,5 +32,9 @@
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BetterCorp/BetterPortal.git"
+  },
   "license": "(AGPL-3.0-only OR Commercial)"
 }
