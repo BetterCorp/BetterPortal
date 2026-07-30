@@ -354,6 +354,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <div class="offcanvas-body">
             <form id="bp-edit-role-form" data-bp-config="rewrite=false" hx-target="#bp-main" hx-swap="innerHTML">
               <input type="hidden" name="roleId" />
+              <input type="hidden" name="grant" value="" />
               <div class="mb-3">
                 <label class="form-label">Title</label>
                 <input type="text" class="form-control" name="title" required />

@@ -5,7 +5,7 @@ import { buildRouteTree, flattenRouteTree } from "../src/plugins/service-betterp
 import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
-import { BaseStorage, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_theme.bootstrap1/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_theme.bootstrap1/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_theme.bootstrap1/GET.js";
@@ -191,6 +191,47 @@ test("shared activation manifest lookup falls back to its shared service", () =>
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
 });
 
+test("app permissions only list available service instances", () => {
+  const config = {
+    tenants: [
+      {
+        id: "tenant-a",
+        services: [
+          { id: "tenant-service", enabled: true },
+          { id: "tenant-service-disabled", enabled: false }
+        ],
+        activatedPlatformServices: ["platform-service", "platform-service-disabled"]
+      },
+      {
+        id: "tenant-b",
+        services: [{ id: "foreign-tenant-service", enabled: true }],
+        activatedPlatformServices: []
+      }
+    ],
+    platformServices: [
+      { id: "platform-service", enabled: true },
+      { id: "platform-service-unactivated", enabled: true },
+      { id: "platform-service-disabled", enabled: false }
+    ],
+    sharedServiceCatalog: [
+      { id: "shared-service", enabled: true },
+      { id: "shared-service-disabled", enabled: false }
+    ],
+    sharedServiceActivations: [
+      { id: "shared-global", tenantId: "tenant-a", sharedServiceId: "shared-service", enabled: true },
+      { id: "shared-app", tenantId: "tenant-a", appId: "app-a", sharedServiceId: "shared-service", enabled: true },
+      { id: "shared-other-app", tenantId: "tenant-a", appId: "app-b", sharedServiceId: "shared-service", enabled: true },
+      { id: "shared-other-tenant", tenantId: "tenant-b", sharedServiceId: "shared-service", enabled: true },
+      { id: "shared-disabled", tenantId: "tenant-a", sharedServiceId: "shared-service-disabled", enabled: true }
+    ]
+  } as BetterPortalConfig;
+  const app = { id: "app-a", tenantId: "tenant-a" } as BetterPortalConfig["apps"][number];
+  assert.deepEqual(
+    getAvailableServiceInstanceIdsForApp(config, app),
+    new Set(["tenant-service", "platform-service", "shared-global", "shared-app"])
+  );
+});
+
 test("tenant edit script targets the active checkbox, not its hidden fallback", () => {
   const html = String(renderTenants({
     title: "Tenants & Apps",
@@ -236,6 +277,7 @@ test("role edits replace the deferred form action", () => {
     serviceBaseUrl: "https://config.example"
   }));
   assert.match(html, /id="bp-edit-role-form"[^>]*data-bp-config="rewrite=false"/);
+  assert.match(html, /<input[^>]*name="grant"[^>]*value=""/);
   assert.match(html, /window\.htmx\.process\(form, true\)/);
 });
 

@@ -64,6 +64,28 @@ export function hashApiKey(apiKey: string): string {
   return createHash("sha256").update(apiKey).digest("hex");
 }
 
+export function getAvailableServiceInstanceIdsForApp(
+  config: BetterPortalConfig,
+  app: Pick<BetterPortalApp, "id" | "tenantId">
+): Set<string> {
+  const tenant = config.tenants.find((candidate) => candidate.id === app.tenantId);
+  if (!tenant) return new Set();
+  const activePlatformServiceIds = new Set(config.platformServices.filter((service) => service.enabled).map((service) => service.id));
+  const activeSharedServiceIds = new Set(config.sharedServiceCatalog.filter((service) => service.enabled).map((service) => service.id));
+  return new Set([
+    ...tenant.services.filter((service) => service.enabled).map((service) => service.id),
+    ...tenant.activatedPlatformServices.filter((serviceId) => activePlatformServiceIds.has(serviceId)),
+    ...config.sharedServiceActivations
+      .filter((activation) =>
+        activation.enabled
+        && activation.tenantId === app.tenantId
+        && (!activation.appId || activation.appId === app.id)
+        && activeSharedServiceIds.has(activation.sharedServiceId)
+      )
+      .map((activation) => activation.id)
+  ]);
+}
+
 export abstract class BaseStorage implements PlatformConfigStore {
   protected listeners: Set<() => void> = new Set();
 
@@ -248,18 +270,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
         errors.push(`app ${app.id} references missing tenant: ${app.tenantId}`);
         continue;
       }
-      const serviceIdsForApp = new Set([
-        ...tenant.services.filter((service) => service.enabled).map((service) => service.id),
-        ...tenant.activatedPlatformServices.filter((serviceId) => activePlatformServiceIds.has(serviceId)),
-        ...config.sharedServiceActivations
-          .filter((activation) =>
-            activation.enabled
-            && activation.tenantId === app.tenantId
-            && (!activation.appId || activation.appId === app.id)
-            && activeSharedServiceIds.has(activation.sharedServiceId)
-          )
-          .map((activation) => activation.id)
-      ]);
+      const serviceIdsForApp = getAvailableServiceInstanceIdsForApp(config, app);
 
       if (app.shell?.serviceId && !serviceIdsForApp.has(app.shell.serviceId)) {
         errors.push(`app ${app.id} shell.serviceId references unavailable service instance: ${app.shell.serviceId}`);

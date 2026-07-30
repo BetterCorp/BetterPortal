@@ -37,6 +37,7 @@ import {
 } from "@betterportal/framework";
 import {
   createStorageFromConfig,
+  getAvailableServiceInstanceIdsForApp,
   PlatformConfigStorageSchema
 } from "./storage/index.js";
 import BetterportalConfigManagerClient from "../../.bsb/clients/service-betterportal-config-manager.js";
@@ -729,7 +730,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       : config.apps[0];
     const selectedTenantId = selectedApp?.tenantId;
 
-    // All services known to CP (tenant-registered + platform) with their manifest permissions.
+    // Build service metadata, then apply the validator's app-scoped availability rules.
     const allServices = [
       ...config.tenants.flatMap((t) => t.services.filter((s) => s.enabled).map((s) => ({
         id: s.id,
@@ -759,9 +760,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     ];
 
     // De-dupe by service instance id.
+    const availableServiceIds = selectedApp
+      ? getAvailableServiceInstanceIdsForApp(config, selectedApp)
+      : new Set<string>();
     const servicesById = new Map<string, { id: string; serviceId: string; hostname: string; title: string }>();
     for (const svc of allServices) {
-      if (!servicesById.has(svc.id)) servicesById.set(svc.id, svc);
+      if (availableServiceIds.has(svc.id) && !servicesById.has(svc.id)) servicesById.set(svc.id, svc);
     }
 
     // Pull per-view permissions from the manifest cache (populated when services poll).
