@@ -26,6 +26,8 @@ The runtime is assembled on the backend into one JavaScript asset in determinist
 
 Theme packages keep their public asset URLs and provide only presentation hooks. Bootstrap1 owns Bootstrap modal/offcanvas and component lifecycle behavior; Embedded owns its loading and error presentation. The required HTMX extension allowlist is `bp-shell, sse`. BetterPortal's header-aware preload is part of `bp-shell`; do not also load the stock preload extension.
 
+In a theme's `package.json`, declare `@betterportal/theme-runtime` but not `htmx.org`; the runtime owns and bundles the browser HTMX package. The runtime also imports `jsx-htmx`, but themes that directly import `jsx-htmx` for server-rendered TSX must keep it as their own direct dependency rather than relying on the runtime's transitive dependency.
+
 ## Service renderers
 
 Each service view chooses which themes it supports by adding renderer folders:

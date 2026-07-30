@@ -885,7 +885,7 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 
 ## 19. Building a new theme
 
-1. Scaffold `themes/nodejs/<themeId>/` and depend on `@betterportal/theme-runtime`; copy shell/service patterns from Bootstrap1, not its Bootstrap presentation.
+1. Scaffold `themes/nodejs/<themeId>/` and depend on `@betterportal/theme-runtime`; copy shell/service patterns from Bootstrap1, not its Bootstrap presentation. Do not add `htmx.org` to the theme: the runtime owns and bundles it. The runtime also imports `jsx-htmx`, but a theme that directly imports `jsx-htmx` for server-rendered TSX must declare it directly rather than relying on a transitive dependency.
 2. Plugin class extends `BSBService` (not `BPService` - themes own their full HTTP surface).
 3. Must serve:
    - The shell page (route catch-all `/**`)
