@@ -214,11 +214,19 @@ function observeRegisteredHandlers(app: BetterPortalH3App): BetterPortalH3App {
     const original = registrars[name].bind(app);
     registrars[name] = (path, handler) => original(path, async (event) => {
       const obs = eventObservability(event);
-      if (!obs) return handler(event);
-      return withObservedEvent(event, obs, "bp.h3.handler", handler, {
-        "http.route": path,
-        "http.route.method": name.toUpperCase()
-      });
+      const response = obs
+        ? await withObservedEvent(event, obs, "bp.h3.handler", handler, {
+            "http.route": path,
+            "http.route.method": name.toUpperCase()
+          })
+        : await handler(event);
+      // h3 does not merge middleware-set headers into error Responses.
+      if (response instanceof Response && !response.ok) {
+        event.res.headers.forEach((value, header) => {
+          if (!response.headers.has(header)) response.headers.set(header, value);
+        });
+      }
+      return response;
     });
   }
 

@@ -265,18 +265,9 @@ export function createH3Router(
     for (const method of route.methods) {
       const register = methodRegistrar(app, method);
       register(route.path, async (event) => {
-        const response = await withRequestObservability(event, route, method, options, (obs) =>
+        return withRequestObservability(event, route, method, options, (obs) =>
           handleRouteRequest(registry.routes, route, method, event, obs, options)
         );
-        // h3 only merges event.res.headers into 2xx responses - error responses
-        // would otherwise lose CORS and BP-SetHeader/RemoveHeader headers, which
-        // makes cross-origin 4xx unreadable by the browser entirely.
-        if (response instanceof Response && !response.ok) {
-          event.res.headers.forEach((value, name) => {
-            if (!response.headers.has(name)) response.headers.set(name, value);
-          });
-        }
-        return response;
       });
     }
 
