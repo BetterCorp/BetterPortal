@@ -106,29 +106,64 @@ export class InMemoryServiceConfigStore implements ServiceConfigStore {
 // -- Encryption helpers -----------------------------------------------
 
 const ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
-const ENCRYPTED_PREFIX = "enc:aes256gcm:";
 
-function deriveKey(secret: string): Buffer {
-  return scryptSync(secret, "bp-config-store", 32);
+// v1 wrote a 16-byte IV. GCM's standard nonce is 96-bit; anything else forces
+// the GHASH-based derivation path instead of using the nonce directly. v2
+// writes the correct 12 bytes. v1 values stay readable so existing stores keep
+// working - they re-encrypt as v2 on the next write of that value.
+const IV_LENGTH = 12;
+const LEGACY_IV_LENGTH = 16;
+const ENCRYPTED_PREFIX = "enc:aes256gcm2:";
+const LEGACY_ENCRYPTED_PREFIX = "enc:aes256gcm:";
+
+// spec/config.md 4.1 mandates scrypt N=32768. v1 shipped with node's default
+// (16384), so the cost parameter is pinned per envelope version - v1 values
+// stay decryptable and v2 values match the spec.
+const KDF_COST_V1 = 16384;
+const KDF_COST = 32768;
+
+// scrypt at N=32768 is deliberately expensive, so derived keys are memoised -
+// the store would otherwise re-derive once per secret value.
+const derivedKeys = new Map<string, Buffer>();
+
+// Fixed salt is safe here: the KDF input is a 256-bit CSPRNG key generated at
+// install, never an operator passphrase, so there is no low-entropy space to
+// precompute against.
+function deriveKey(secret: string, cost: number): Buffer {
+  const cacheKey = `${cost}:${secret}`;
+  const cached = derivedKeys.get(cacheKey);
+  if (cached) return cached;
+  // maxmem must be raised alongside N; node's default ceiling is 32MB and
+  // scrypt needs roughly 128 * N * r bytes.
+  const key = scryptSync(secret, "bp-config-store", 32, { N: cost, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
+  derivedKeys.set(cacheKey, key);
+  return key;
 }
 
-function encryptValue(plaintext: string, key: Buffer): string {
+function isEncrypted(value: string): boolean {
+  return value.startsWith(ENCRYPTED_PREFIX) || value.startsWith(LEGACY_ENCRYPTED_PREFIX);
+}
+
+function encryptValue(plaintext: string, secret: string): string {
   const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const cipher = createCipheriv(ALGORITHM, deriveKey(secret, KDF_COST), iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
   const payload = Buffer.concat([iv, authTag, encrypted]).toString("base64");
   return `${ENCRYPTED_PREFIX}${payload}`;
 }
 
-function decryptValue(ciphertext: string, key: Buffer): string {
-  if (!ciphertext.startsWith(ENCRYPTED_PREFIX)) return ciphertext;
-  const payload = Buffer.from(ciphertext.slice(ENCRYPTED_PREFIX.length), "base64");
-  const iv = payload.subarray(0, IV_LENGTH);
-  const authTag = payload.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
-  const encrypted = payload.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+function decryptValue(ciphertext: string, secret: string): string {
+  const legacy = !ciphertext.startsWith(ENCRYPTED_PREFIX);
+  if (legacy && !ciphertext.startsWith(LEGACY_ENCRYPTED_PREFIX)) return ciphertext;
+  const prefix = legacy ? LEGACY_ENCRYPTED_PREFIX : ENCRYPTED_PREFIX;
+  const ivLength = legacy ? LEGACY_IV_LENGTH : IV_LENGTH;
+  const payload = Buffer.from(ciphertext.slice(prefix.length), "base64");
+  const iv = payload.subarray(0, ivLength);
+  const authTag = payload.subarray(ivLength, ivLength + AUTH_TAG_LENGTH);
+  const encrypted = payload.subarray(ivLength + AUTH_TAG_LENGTH);
+  const key = deriveKey(secret, legacy ? KDF_COST_V1 : KDF_COST);
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
@@ -147,12 +182,12 @@ function resolveSecretKeys(configSchemas: ConfigSchemaDescriptor[]): Set<string>
 function encryptSecrets(
   values: Record<string, JsonValue>,
   secretKeys: Set<string>,
-  key: Buffer
+  secret: string
 ): Record<string, JsonValue> {
   return Object.fromEntries(
     Object.entries(values).map(([k, v]) => [
       k,
-      secretKeys.has(k) && typeof v === "string" ? encryptValue(v, key) : v
+      secretKeys.has(k) && typeof v === "string" ? encryptValue(v, secret) : v
     ])
   );
 }
@@ -160,13 +195,13 @@ function encryptSecrets(
 function decryptSecrets(
   values: Record<string, JsonValue>,
   secretKeys: Set<string>,
-  key: Buffer
+  secret: string
 ): Record<string, JsonValue> {
   return Object.fromEntries(
     Object.entries(values).map(([k, v]) => [
       k,
-      secretKeys.has(k) && typeof v === "string" && v.startsWith(ENCRYPTED_PREFIX)
-        ? decryptValue(v, key)
+      secretKeys.has(k) && typeof v === "string" && isEncrypted(v)
+        ? decryptValue(v, secret)
         : v
     ])
   );
@@ -182,13 +217,13 @@ export interface FileBackedServiceConfigStoreOptions {
 
 export class FileBackedServiceConfigStore implements ServiceConfigStore {
   private state: PersistedServiceConfigState;
-  private readonly key: Buffer;
+  private readonly encryptionKey: string;
   private readonly secretKeys: Set<string>;
   private readonly filePath: string;
 
   constructor(options: FileBackedServiceConfigStoreOptions) {
     this.filePath = options.filePath;
-    this.key = deriveKey(options.encryptionKey);
+    this.encryptionKey = options.encryptionKey;
     this.secretKeys = resolveSecretKeys(options.configSchemas);
     this.state = this.loadFromDisk();
   }
@@ -208,7 +243,7 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
       return this.read(ticket);
     }
 
-    const encrypted = encryptSecrets(parsed, this.secretKeys, this.key);
+    const encrypted = encryptSecrets(parsed, this.secretKeys, this.encryptionKey);
     const current = this.ensureTenantBucket(tenantId);
 
     if (appId) {
@@ -273,7 +308,7 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
   }
 
   private decryptRecord(values: Record<string, JsonValue>): Record<string, JsonValue> {
-    return decryptSecrets(values, this.secretKeys, this.key);
+    return decryptSecrets(values, this.secretKeys, this.encryptionKey);
   }
 
   private loadFromDisk(): PersistedServiceConfigState {

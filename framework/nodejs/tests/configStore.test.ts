@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileBackedServiceConfigStore, InMemoryServiceConfigStore } from "../src/runtime/configStore.js";
@@ -51,4 +52,44 @@ test("file-backed service config migrates legacy tenant shape into the first ten
       "tenant-a": { tenant: { issuer: "legacy" }, app: {} }
     }
   });
+});
+
+test("secret values are written in the aes256gcm2 envelope with a 96-bit IV", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-cfg-iv-"));
+  const filePath = join(dir, "store.json");
+  const store = new FileBackedServiceConfigStore({
+    filePath,
+    configSchemas: [{ serviceId: "service.test", fields: [{ key: "token", visibility: "secret" }] }] as never,
+    encryptionKey: "bp_cek_unit_test_key_material_0000000000"
+  });
+  store.write("tenant-a", undefined, { token: "s3cret" }, ticket("tenant-a"));
+
+  const stored = JSON.parse(readFileSync(filePath, "utf8")).tenants["tenant-a"].tenant.token as string;
+  assert.ok(stored.startsWith("enc:aes256gcm2:"), `unexpected envelope: ${stored.slice(0, 20)}`);
+
+  const payload = Buffer.from(stored.slice("enc:aes256gcm2:".length), "base64");
+  // payload is iv || authTag(16) || ciphertext, and GCM ciphertext matches
+  // plaintext length, so the IV is whatever remains.
+  assert.equal(payload.length - 16 - "s3cret".length, 12);
+  assert.equal(store.read(ticket("tenant-a")).tenant.token, "s3cret");
+});
+
+test("legacy aes256gcm secrets stay readable after the envelope change", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-cfg-legacy-"));
+  const filePath = join(dir, "store.json");
+  const encryptionKey = "bp_cek_unit_test_key_material_0000000000";
+  const configSchemas = [{ serviceId: "service.test", fields: [{ key: "token", visibility: "secret" }] }] as never;
+
+  // Reproduce a v1 value exactly as the previous implementation wrote it:
+  // 16-byte IV and scrypt at node's default cost.
+  const legacyKey = scryptSync(encryptionKey, "bp-config-store", 32);
+  const iv = randomBytes(16);
+  const cipher = createCipheriv("aes-256-gcm", legacyKey, iv);
+  const body = Buffer.concat([cipher.update("legacy-secret", "utf8"), cipher.final()]);
+  const legacy = "enc:aes256gcm:" + Buffer.concat([iv, cipher.getAuthTag(), body]).toString("base64");
+
+  writeFileSync(filePath, JSON.stringify({ tenants: { "tenant-a": { tenant: { token: legacy }, app: {} } } }));
+
+  const store = new FileBackedServiceConfigStore({ filePath, configSchemas, encryptionKey });
+  assert.equal(store.read(ticket("tenant-a")).tenant.token, "legacy-secret");
 });

@@ -66,11 +66,39 @@ const SharedServiceActivationSchema = av.object({
   enabled: av.bool().default(true)
 }, { unknownKeys: "strip" });
 
+const M2MConnectionCandidateSchema = av.object({
+  targetServiceId: av.string().minLength(1),
+  targetServiceTitle: av.string().minLength(1),
+  targetServiceType: av.string().minLength(1),
+  targetViewId: av.string().minLength(1)
+});
+
+const M2MConnectionSchema = av.object({
+  sourceServiceId: av.string().minLength(1),
+  sourceServiceTitle: av.string().minLength(1),
+  sourceServiceType: av.string().minLength(1),
+  requestId: av.string().minLength(1),
+  title: av.string().minLength(1),
+  contractId: av.string().minLength(1),
+  version: av.optional(av.string().minLength(1)),
+  mode: av.enum_(["service", "delegated"] as const),
+  methods: av.array(av.string()).default([]),
+  permissions: av.array(av.string()).default([]),
+  optional: av.bool().default(false),
+  status: av.enum_(["connected", "pending", "choice", "unavailable", "stale"] as const),
+  message: av.string().minLength(1),
+  bindingId: av.optional(av.string().minLength(1)),
+  targetServiceId: av.optional(av.string().minLength(1)),
+  targetViewId: av.optional(av.string().minLength(1)),
+  candidates: av.array(M2MConnectionCandidateSchema).default([])
+});
 export const ResponseSchema = av.object({
   title: av.string().minLength(1).describe("View title for the service registry."),
   services: av.array(RegisteredServiceItemSchema).describe("Registered service instances visible to the admin view."),
   tenants: av.array(TenantSummarySchema).describe("Tenants available for grouping and service registration."),
   selectedTenantId: av.optional(av.string().minLength(1)).describe("Tenant currently selected in the service registry."),
+  selectedAppId: av.optional(av.string().minLength(1)).describe("App currently selected for service connections."),
+  m2mConnections: av.array(M2MConnectionSchema).default([]).describe("App-scoped service dependency requests and connection status."),
   sharedServiceCatalog: av.array(SharedServiceCatalogItemSchema).default([]).describe("Shared service definitions from platform config."),
   sharedServiceActivations: av.array(SharedServiceActivationSchema).default([]).describe("Tenant/app activations for shared services."),
   apps: av.array(AppSummarySchema).default([]).describe("Apps available in the current admin context."),
@@ -96,7 +124,7 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [
   {
     id: "default",
     title: "Default",
-    response: { title: "Service Registry", services: [], tenants: [], sharedServiceCatalog: [], sharedServiceActivations: [], apps: [], tenantApps: {}, adminApiBase: "/.well-known/bp/admin" }
+    response: { title: "Service Registry", services: [], tenants: [], m2mConnections: [], sharedServiceCatalog: [], sharedServiceActivations: [], apps: [], tenantApps: {}, adminApiBase: "/.well-known/bp/admin" }
   }
 ];
 
@@ -104,6 +132,6 @@ export const handleGet = createHandler(
   { response: ResponseSchema },
   (ctx) => {
     if (ctx.responseModel) return ctx.responseModel as ResponseData;
-    return { title: "Service Registry", services: [], tenants: [], sharedServiceCatalog: [], sharedServiceActivations: [], apps: [], tenantApps: {}, adminApiBase: "/.well-known/bp/admin" };
+    return { title: "Service Registry", services: [], tenants: [], m2mConnections: [], sharedServiceCatalog: [], sharedServiceActivations: [], apps: [], tenantApps: {}, adminApiBase: "/.well-known/bp/admin" };
   }
 );

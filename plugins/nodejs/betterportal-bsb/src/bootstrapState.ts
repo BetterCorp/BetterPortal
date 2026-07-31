@@ -8,8 +8,10 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
  *  - cpUrl: control-plane URL (delivered via setup)
  *  - tenantLock: first-tenant lock for auto-single-tenant default
  *
- * Stored encrypted on disk at the configured path. Encryption key derived from
- * `configEncryptionKey` (same as service config store).
+ * Stored encrypted on disk at the configured path. The encryption key is
+ * generated (256-bit, CSPRNG) on first use and held in a sibling `.key` file
+ * with mode 0600 - it is never operator-supplied, so the KDF always runs over
+ * a high-entropy input.
  */
 export interface BootstrapStateFile {
   version: 1;
@@ -25,11 +27,12 @@ export interface BootstrapStateFile {
 const ALGO = "aes-256-gcm";
 const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
+// Fixed salt is safe here: the KDF input is always a 256-bit CSPRNG key, never
+// an operator passphrase, so there is no low-entropy space to precompute.
 const SALT = Buffer.from("bp-bootstrap-state-v1", "utf8");
 
 export interface BootstrapStateOptions {
   filePath: string;
-  encryptionKey?: string;
 }
 
 export class BootstrapStateStore {
@@ -39,7 +42,7 @@ export class BootstrapStateStore {
 
   constructor(options: BootstrapStateOptions) {
     this.filePath = resolve(options.filePath);
-    this.key = deriveKey(options.encryptionKey ?? loadOrCreateLocalKey(`${this.filePath}.key`));
+    this.key = deriveKey(loadOrCreateLocalKey(`${this.filePath}.key`));
   }
 
   read(): BootstrapStateFile {

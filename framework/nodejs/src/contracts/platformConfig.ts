@@ -8,6 +8,7 @@ import {
   UuidV7Schema
 } from "./common.js";
 import { AppAuthConfigSchema, AuthProviderRuntimeMetadataSchema } from "./auth.js";
+import { M2MCallerModeSchema } from "./m2m.js";
 
 const NonEmptyStringSchema = av.string().minLength(1);
 
@@ -270,6 +271,7 @@ export const M2MBindingSchema = av.object({
   contractId: NonEmptyStringSchema,
   targetServiceId: UuidV7Schema,
   targetViewId: NonEmptyStringSchema,
+  mode: M2MCallerModeSchema.default("service"),
   enabled: av.bool().default(true),
   createdAt: av.string().format("date-time")
 }, { unknownKeys: "strip" });

@@ -162,19 +162,48 @@ For OAuth, the user-facing "Continue with ..." anchor should target a mounted pa
 
 Config-manager sync normalizes non-renderable/raw/dependency routes to `kind: "api"` on the next service sync. Existing API routes mounted at raw paths such as `/refresh` are rewritten to the deterministic `/_bp/service/...` path. Page routes are not rewritten unless the manifest now says the selected view is non-renderable. If a view disappears from a service manifest, config-manager disables matching app routes instead of deleting them.
 
-Routes can also declare API contracts they provide for service-to-service binding:
+Routes can declare API contracts for explicit service-to-service binding. Machine callers are opt-in at the route boundary; omitting `auth.callers` means user-only.
 
 ```ts
+export const auth = {
+  required: true,
+  callers: ["service", "delegated"],
+  permissions: [
+    { serviceId: "com.example.pricing", viewId: "pricing.quote", permissions: ["create"] }
+  ]
+};
+
 export const apiContracts = [{
   id: "pricing.quote",
   title: "Pricing quote",
   version: "1.0.0",
   capabilities: ["pricing.quote"],
-  permissions: ["pricing.quote"]
+  permissions: ["create"],
+  modes: ["service", "delegated"]
 }];
 ```
 
-Codegen attaches the current route `viewId` and methods when omitted. Service-level manifests may also declare `m2mRequests`, which describe required outbound contracts by `contractId`, version range, capabilities, methods, and permissions. These are requests only, not grants.
+Codegen attaches the current route `viewId` and methods when omitted. Manifest construction rejects a contract mode that is absent from the owning route's `auth.callers`; declaring a contract never makes a user route callable by a service.
+
+Service-level manifests declare outbound `m2mRequests`. A request chooses exactly one mode and describes the minimum contract it needs:
+
+```ts
+m2mRequests: [{
+  id: "pricing.quote",
+  title: "Request a pricing quote",
+  contractId: "pricing.quote",
+  version: "1.0.0",
+  requiredCapabilities: ["pricing.quote"],
+  methods: ["POST"],
+  permissions: ["create"],
+  mode: "delegated",
+  optional: false
+}]
+```
+
+Requests are not grants. An administrator approves a compatible provider in Config Manager's Services page, which creates an app-scoped binding and least-privilege grant. Multiple compatible providers require an explicit choice. Revoking deletes the binding/grant; a later request returns to pending and receives fresh IDs when approved again.
+
+Use `this.m2mClient(requestId, tenantId, appId)` for pure service automation. For a user-initiated operation, use `this.delegatedM2mClient(requestId, ctx)` so the generated client sends the original BP user JWT plus a fresh service proof. The target verifies both credentials. Do not manually construct or forward these headers.
 
 Handlers that need to request another service view should use `ctx.routeUrl(viewId, options)`. It resolves the registered service route and, when `absolute: true`, uses the service hostname/base URL. Use it for HTMX requests, form actions, `fetch`, SSE, and downloads.
 

@@ -43,30 +43,44 @@ When a service denies access with `403 Insufficient permissions`, HTML clients r
 
 ## Service-to-service auth
 
-Provisioning creates service identity only. A service key/public key lets config-manager know which service is talking; it does not grant arbitrary API access.
+Provisioning creates service identity only. A service key/public key proves which installed service is calling; it grants no API access by itself.
 
-M2M access is explicit and denied by default:
+Every route has an explicit caller policy:
 
-- Providers declare `apiContracts` in route or manifest metadata.
-- Callers declare `m2mRequests` by contract id, version, capabilities, methods, and permissions.
-- Config-manager stores tenant/app `m2m.bindings` to choose the concrete target service/view.
-- Config-manager stores `m2m.grants` to approve methods/permissions for that binding.
+- `user` verifies the BetterPortal user bearer token. This is the default when `auth.callers` is omitted.
+- `service` verifies a short-lived service token and requires an approved service binding/grant.
+- `delegated` verifies both the original BetterPortal user token and a service token. The target independently checks the user permissions and the service grant.
 
-Each installed service owns an RS256 private key generated after installation.
-Config-manager stores the public key and distributes the relevant bindings and
-grants; it does not mint S2S tokens. Targets verify short-lived, target-bound
-service JWTs locally and deny access unless the current binding and grant match
-the tenant, app, view, method, and route permissions.
+A provider route must opt into machine access with `auth.callers: ["service"]`, `auth.callers: ["delegated"]`, or both. Publishing an `apiContract` for a mode the route does not allow fails manifest construction. Existing routes remain user-only unless they explicitly opt in.
 
-Use `this.m2mClient(requestId, tenantId, appId)` from a `BPService` implementation
-as the runtime passed to a generated BP client. It resolves the target URL from
-the last-known-good snapshot, adds the tenant/app headers, and signs a fresh
-service token for each request.
+Providers declare `apiContracts` with supported `modes`, methods, capabilities, and permissions. Callers declare `m2mRequests` with one requested `mode`. Config-manager's Services page shows compatible app-scoped requests and creates one `m2m.binding` plus one least-privilege `m2m.grant` only after an administrator approves the request. Provisioning and manifest sync never approve access automatically.
 
-If config-manager cannot be reached, the cached snapshot remains active without
-an automatic expiry. Consequently, a revocation is enforced per target after
-that target next syncs; config-manager unavailability never becomes a live
-dependency for existing calls.
+Pure service calls use:
+
+```http
+Authorization: Bearer <service-token>
+X-BP-Service-Id: <source-service-instance-uuid>
+X-BP-Tenant-Id: <tenant-uuid>
+X-BP-App-Id: <app-uuid>
+```
+
+Delegated calls preserve the original user credential and put the service proof in a second header:
+
+```http
+Authorization: Bearer <original-bp-user-jwt>
+X-BP-Service-Authorization: Bearer <service-token>
+X-BP-Service-Id: <source-service-instance-uuid>
+X-BP-Tenant-Id: <tenant-uuid>
+X-BP-App-Id: <app-uuid>
+```
+
+A complete service envelope resolves tenant/app from these headers before `Origin` or `Referer`. A partial, malformed, or mismatched envelope is rejected and never falls back to browser context resolution. For delegated mode, the target verifies the user JWT again against its configured app verifier and then checks the service token against the delegated binding and grant.
+
+Each installed service owns an RS256 private key generated after installation. Config-manager stores its public key and distributes relevant bindings and grants in scoped snapshots; it does not mint S2S tokens. Tokens are short-lived and target-bound.
+
+Use `this.m2mClient(requestId, tenantId, appId)` as the runtime for a generated client in pure service automation. In a user-initiated handler, use `this.delegatedM2mClient(requestId, ctx)`; it preserves the inbound BP user token and signs a fresh secondary service token for each request.
+
+Revocation removes the binding and grant. Already-issued tokens fail after the target receives the next scoped sync. If the same dependency is needed later, it returns to pending approval and approval creates fresh binding/grant IDs; revoked records are never silently reactivated. When config-manager is unavailable, the last-known-good snapshot remains active, so revocation enforcement occurs when each target next syncs.
 
 ## Route policy
 
@@ -74,11 +88,11 @@ Each view can declare:
 
 ```ts
 export const auth = {
-  required: false,
-  realm: "runtime",
-  minimumTier: "public",
-  audiences: [],
-  permissions: []
+  required: true,
+  callers: ["user"],
+  permissions: [
+    { serviceId: "com.example.reports", viewId: "reports.update", permissions: ["update"] }
+  ]
 };
 ```
 
@@ -88,7 +102,7 @@ The manifest advertises this policy so themes, admin tools, and gateways can rea
 
 Service config fields can be marked as public, protected, or secret.
 
-Secret values should be stored through service config APIs and encrypted with a configured `configEncryptionKey`.
+Secret values should be stored through service config APIs. They are encrypted at rest with a per-service key the service generates at install (256-bit, CSPRNG) and holds in its bootstrap state - it is not operator-configurable.
 
 Provider credentials such as Authress API keys or WorkOS API keys belong in the auth service's encrypted app-scoped service config. Platform config stores bindings and non-secret auth metadata, not provider secrets.
 

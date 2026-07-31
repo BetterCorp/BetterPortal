@@ -282,14 +282,74 @@ function renderCatalogCard(
   );
 }
 
+function renderConnections(data: ResponseData, appId: string): HtmlRenderable {
+  if (data.m2mConnections.length === 0) return <div class="alert alert-secondary mb-0">No service connection requests for this app.</div>;
+  const endpoint = `${data.adminApiBase}/apps/${encodeURIComponent(appId)}/m2m/connections`;
+  return (
+    <div class="list-group list-group-flush">
+      {data.m2mConnections.map((connection) => (
+        <div class="list-group-item px-0 py-3">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div>
+              <div class="fw-semibold">{connection.title}</div>
+              <div class="small text-secondary">
+                {connection.sourceServiceTitle} / <span class="font-monospace">{connection.sourceServiceType}</span>
+              </div>
+              <div class="small font-monospace">{connection.contractId}{connection.version ? `@${connection.version}` : ""} / {connection.mode}</div>
+              <div class="small mt-1">
+                <span class={`badge me-2 ${connection.status === "connected" ? "text-bg-success" : connection.status === "stale" || connection.status === "unavailable" ? "text-bg-warning" : "text-bg-secondary"}`}>
+                  {connection.status}
+                </span>
+                {connection.message}
+              </div>
+              {connection.methods.length > 0 ? <div class="small mt-1"><strong>Methods:</strong> {connection.methods.join(", ")}</div> : ""}
+              {connection.permissions.length > 0 ? <div class="small"><strong>Permissions:</strong> {connection.permissions.join(", ")}</div> : ""}
+            </div>
+            <div class="d-flex flex-column gap-2 align-items-end">
+              {connection.bindingId ? (
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-danger"
+                  hx-delete={`${endpoint}/${encodeURIComponent(connection.bindingId)}`}
+                  hx-target="#bp-services-alerts"
+                  hx-swap="innerHTML"
+                  hx-confirm="Revoke this service connection? Existing service tokens will stop working."
+                  data-bp-error-modal=""
+                >Revoke</button>
+              ) : connection.candidates.map((candidate) => (
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-primary text-start"
+                  hx-post={endpoint}
+                  hx-vals={JSON.stringify({ sourceServiceId: connection.sourceServiceId, requestId: connection.requestId, targetServiceId: candidate.targetServiceId, targetViewId: candidate.targetViewId })}
+                  hx-target="#bp-services-alerts"
+                  hx-swap="innerHTML"
+                  data-bp-error-modal=""
+                >
+                  Connect {candidate.targetServiceTitle} / {candidate.targetServiceType}
+                  <span class="d-block small font-monospace">{candidate.targetServiceId}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function render(data: ResponseData): HtmlRenderable {
   const tenantById = new Map(data.tenants.map((tenant) => [tenant.id, tenant]));
   const selectedTenantId = data.selectedTenantId ?? data.tenants[0]?.id ?? "";
   const selectedTenant = data.tenants.find((tenant) => tenant.id === selectedTenantId);
   const selectedTenantServices = data.services.filter((service) => service.tenantId === selectedTenantId);
+  const selectedTenantApps = data.apps.filter((app) => app.tenantId === selectedTenantId);
+  const selectedAppId = selectedTenantApps.some((app) => app.id === data.selectedAppId) ? data.selectedAppId : selectedTenantApps[0]?.id;
   const unassignedServices = data.services.filter((service) => !service.tenantId);
   const hasPendingManifests = data.services.some((service) => service.enabled && !service.configManifestKnown);
-  const selectedServicesPath = selectedTenantId ? `/services?tenantId=${encodeURIComponent(selectedTenantId)}` : "/services";
+  const selectedServicesPath = selectedTenantId
+    ? `/services?tenantId=${encodeURIComponent(selectedTenantId)}${selectedAppId ? `&appId=${encodeURIComponent(selectedAppId)}` : ""}`
+    : "/services";
   const adminApiBase = data.adminApiBase;
   const serviceBaseUrl = data.serviceBaseUrl ?? "";
 
@@ -316,6 +376,23 @@ export function render(data: ResponseData): HtmlRenderable {
               <option value={tenant.id} selected={tenant.id === selectedTenantId}>{tenant.title}</option>
             ))}
           </select>
+          <select
+            class="form-select"
+            id="bp-services-app-filter"
+            name="appId"
+            aria-label="App"
+            hx-get="/services"
+            hx-trigger="change"
+            hx-include="#bp-services-tenant-filter"
+            hx-target="#bp-main"
+            hx-swap="innerHTML"
+            hx-push-url="true"
+            disabled={selectedTenantApps.length === 0 ? true : undefined}
+          >
+            {selectedTenantApps.map((app) => (
+              <option value={app.id} selected={app.id === selectedAppId}>{app.title}</option>
+            ))}
+          </select>
           <button class="btn btn-primary text-nowrap" id="bp-register-service-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#bp-add-service-panel">
             + Register Service
           </button>
@@ -326,6 +403,16 @@ export function render(data: ResponseData): HtmlRenderable {
       </div>
 
       <div id="bp-services-alerts"></div>
+
+      <section class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          <div class="mb-3">
+            <h3 class="h5 mb-1">Service Connections</h3>
+            <div class="small text-secondary">Approve explicit app-scoped service and delegated access. Revocation requires a new approval.</div>
+          </div>
+          {selectedAppId ? renderConnections(data, selectedAppId) : <div class="alert alert-secondary mb-0">Select an app to manage service connections.</div>}
+        </div>
+      </section>
 
       {data.sharedServiceCatalog.length > 0 ? (
         <section class="mb-4">

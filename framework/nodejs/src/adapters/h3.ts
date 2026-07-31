@@ -21,6 +21,7 @@ import type { BetterPortalApp, BetterPortalRouteChrome } from "../contracts/plat
 import { isStreamHandler, type BpStreamHandler, type StreamShellContext } from "../contracts/streaming.js";
 import { driveStream, driveStreamBuffered, ndjsonStreamResponse } from "../runtime/stream.js";
 import type { AppAuthConfig, JwtClaims } from "../contracts/auth.js";
+import type { ApiCallerMode } from "../contracts/m2m.js";
 import {
   acceptHeaderFromEvent,
   eventObservability,
@@ -895,6 +896,7 @@ async function handleRouteRequest(
     rawEvent: event,
     user: authResult.user,
     serviceCaller: authResult.serviceCaller,
+    callerMode: authResult.callerMode,
     ...extraContext,
     bpHeaders,
     responseHeaders: event.res.headers,
@@ -956,7 +958,7 @@ async function handleRouteRequest(
       description: route.description,
       path: route.path,
       methods: [...route.methods],
-      auth: route.auth,
+      auth: { ...route.auth, callers: [...(route.auth.callers ?? ["user"])] },
       cacheHints: route.cacheHints
     } as JsonValue, 200, {
       "content-type": "application/vnd.betterportal.metadata+json; charset=utf-8"
@@ -1201,6 +1203,7 @@ async function handleStreamSse(
     rawEvent: event,
     user: authResult.user,
     serviceCaller: authResult.serviceCaller,
+    callerMode: authResult.callerMode,
     ...extraContext,
     serviceId: routerOptions.serviceId,
     routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, routerOptions.serviceId),
@@ -1267,6 +1270,7 @@ async function handleStreamSse(
 interface AuthResult {
   user?: ValidatedUserClaims;
   serviceCaller?: ValidatedServiceClaims;
+  callerMode?: ApiCallerMode;
   error?: string;
   status: number;
   requiredPermissions?: ReadonlyArray<RequiredPermissionDescriptor>;
@@ -1299,12 +1303,26 @@ async function resolveRequestAuth(
   obs?: BetterPortalObservability
 ): Promise<AuthResult> {
   const required = apiAuth.required;
-  const authHeader = event.req.headers.get("authorization");
-  const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const primaryHeader = event.req.headers.get("authorization");
+  const secondaryHeader = event.req.headers.get("x-bp-service-authorization");
+  const primary = primaryHeader?.startsWith("Bearer ") ? primaryHeader.slice(7) : null;
+  const secondary = secondaryHeader?.startsWith("Bearer ") ? secondaryHeader.slice(7) : null;
+  const callerMode: ApiCallerMode | undefined = secondaryHeader !== null
+    ? "delegated"
+    : primary && isServiceToken(primary)
+      ? "service"
+      : primary
+        ? "user"
+        : undefined;
 
-  // Step 1: no token
-  if (!bearer) {
+  if (!primary || !callerMode) {
     if (required) return { status: 401, error: "Authentication required" };
+    return { status: 200 };
+  }
+
+  const allowedCallers = apiAuth.callers ?? ["user"];
+  if (!allowedCallers.includes(callerMode)) {
+    if (required) return { status: 403, error: `${callerMode} callers are not allowed` };
     return { status: 200 };
   }
 
@@ -1313,31 +1331,65 @@ async function resolveRequestAuth(
     return { status: 200 };
   }
 
-  if (isServiceToken(bearer)) {
-    if (!authContext.serviceVerifier) {
-      if (required) return { status: 503, error: "Service auth context unavailable" };
-      return { status: 200 };
-    }
+  if (callerMode === "user") {
+    return resolveUserRequestAuth(primary, apiAuth, authContext, obs);
+  }
+
+  const sourceServiceId = event.req.headers.get("x-bp-service-id");
+  const tenantId = event.req.headers.get("x-bp-tenant-id");
+  const appId = event.req.headers.get("x-bp-app-id");
+  if (!sourceServiceId || !tenantId || !appId) {
+    return { status: 401, error: "Service, tenant, and app headers are required for S2S calls" };
+  }
+  if (tenantId !== authContext.tenantId || appId !== authContext.appId) {
+    return { status: 401, error: "S2S headers do not match the resolved tenant/app" };
+  }
+  if (!authContext.serviceVerifier) {
+    if (required) return { status: 503, error: "Service auth context unavailable" };
+    return { status: 200 };
+  }
+
+  const verifyService = async (token: string, mode: "service" | "delegated"): Promise<ValidatedServiceClaims | AuthResult> => {
     try {
-      const claims = await authContext.serviceVerifier.verify(bearer, {
+      return await authContext.serviceVerifier!.verify(token, {
         tenantId: authContext.tenantId,
         appId: authContext.appId,
         viewId: route.viewId,
         method,
+        mode,
+        sourceServiceId,
         requiredPermissions: apiAuth.permissions.flatMap((requirement) => requirement.permissions)
       });
-      return { status: 200, serviceCaller: claims };
     } catch (err) {
       obs?.logger.warn("Service token verification failed: {msg}", { msg: (err as Error).message });
-      if (required) {
-        const status = (err as { status?: number }).status === 403 ? 403 : 401;
-        return { status, error: status === 403 ? "Service access denied" : "Invalid service token" };
-      }
-      return { status: 200 };
+      const status = (err as { status?: number }).status === 403 ? 403 : 401;
+      return { status, error: status === 403 ? "Service access denied" : "Invalid service token" };
     }
+  };
+
+  if (callerMode === "service") {
+    const serviceCaller = await verifyService(primary, "service");
+    if ("status" in serviceCaller) return required ? serviceCaller : { status: 200 };
+    return { status: 200, serviceCaller, callerMode };
   }
 
-  // Step 2-4: verify JWT (signature + double-verify happens inside verifier)
+  if (!secondary || isServiceToken(primary)) {
+    return { status: 401, error: "Delegated calls require a BP user token and a service token" };
+  }
+  const userResult = await resolveUserRequestAuth(primary, apiAuth, authContext, obs);
+  if (userResult.error || !userResult.user) return userResult.error ? userResult : { status: 401, error: "Valid BP user token required" };
+  const serviceCaller = await verifyService(secondary, "delegated");
+  if ("status" in serviceCaller) return required ? serviceCaller : { status: 200 };
+  return { status: 200, user: userResult.user, serviceCaller, callerMode };
+}
+
+async function resolveUserRequestAuth(
+  bearer: string,
+  apiAuth: ApiAuthRequirement,
+  authContext: H3AuthContext,
+  obs?: BetterPortalObservability
+): Promise<AuthResult> {
+  const required = apiAuth.required;
   const verifier = authContext.verifier;
   if (!verifier) {
     if (required) return { status: 503, error: "Auth context unavailable" };
@@ -1359,7 +1411,6 @@ async function resolveRequestAuth(
     return { status: 200 };
   }
 
-  // Step 5: tenant binding
   if (claims.tenantId !== authContext.tenantId) {
     obs?.logger.warn("JWT tenantId mismatch: token={t1} request={t2}", {
       t1: claims.tenantId,
@@ -1369,7 +1420,6 @@ async function resolveRequestAuth(
     return { status: 200 };
   }
 
-  // Step 6: app binding
   if (claims.appId !== authContext.appId) {
     obs?.logger.warn("JWT appId mismatch: token={a1} request={a2}", {
       a1: claims.appId,
@@ -1379,7 +1429,6 @@ async function resolveRequestAuth(
     return { status: 200 };
   }
 
-  // Step 7: permission check against app.auth.roles
   if (apiAuth.permissions.length > 0) {
     const hasPlatformRootRole = claims.roles.includes(PLATFORM_ROOT_PERMISSION_ROLE_ID);
     if (hasPlatformRootRole) {
@@ -1388,7 +1437,7 @@ async function resolveRequestAuth(
         && claims.tenantId === authContext.platformRoot.tenantId
         && claims.appId === authContext.platformRoot.appId;
       if (rootMatches) {
-        return { status: 200, user: claims };
+        return { status: 200, user: claims, callerMode: "user" };
       }
       obs?.logger.error("Reserved platform-root permission role used outside management app: tenant={tenantId} app={appId} rootTenant={rootTenantId} rootApp={rootAppId}", {
         tenantId: claims.tenantId,
@@ -1399,19 +1448,17 @@ async function resolveRequestAuth(
     }
 
     const granted = expandRolesToPermissions(claims.roles, authContext.appAuthConfig);
-    // Grants reference tenant service-instance ids; route requirements are
-    // authored against pluginIds. Treat them as equal via the alias map.
     const aliases = authContext.serviceIdAliases ?? {};
     const serviceIdsMatch = (grantServiceId: string, requiredServiceId: string): boolean =>
-      grantServiceId === requiredServiceId ||
-      aliases[grantServiceId] === requiredServiceId ||
-      aliases[requiredServiceId] === grantServiceId;
+      grantServiceId === requiredServiceId
+      || aliases[grantServiceId] === requiredServiceId
+      || aliases[requiredServiceId] === grantServiceId;
     const ok = apiAuth.permissions.every((requirement) =>
       requirement.permissions.every((action) =>
         granted.some((grant) =>
-          serviceIdsMatch(grant.serviceId, requirement.serviceId) &&
-          grant.viewId === requirement.viewId &&
-          grant.permissions.includes(action)
+          serviceIdsMatch(grant.serviceId, requirement.serviceId)
+          && grant.viewId === requirement.viewId
+          && grant.permissions.includes(action)
         )
       )
     );
@@ -1427,10 +1474,8 @@ async function resolveRequestAuth(
     }
   }
 
-  // Step 8: attach validated claims
-  return { status: 200, user: claims };
+  return { status: 200, user: claims, callerMode: "user" };
 }
-
 function expandRolesToPermissions(
   roleIds: ReadonlyArray<string>,
   appAuthConfig?: AppAuthConfig

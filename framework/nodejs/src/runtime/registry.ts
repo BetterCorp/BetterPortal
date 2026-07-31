@@ -200,7 +200,12 @@ export function buildManifestFromRegistry(
   capabilities.add("view.metadata");
 
   for (const route of registry.routes) {
+    const callers = route.auth.callers ?? ["user"];
     for (const contract of route.apiContracts ?? []) {
+      const unsupportedModes = (contract.modes ?? ["service"]).filter((mode) => !callers.includes(mode));
+      if (unsupportedModes.length > 0) {
+        throw new Error(`Route ${route.viewId} publishes ${contract.id} for ${unsupportedModes.join(", ")} callers but does not allow them in auth.callers`);
+      }
       apiContracts.push({
         ...contract,
         viewId: route.viewId,
@@ -340,7 +345,7 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
       }
     } : {}),
     html: { themeRenderers },
-    auth: route.auth,
+    auth: { ...route.auth, callers: [...(route.auth.callers ?? ["user"])] },
     ...(route.role ? { role: route.role } : {}),
     dependencies: [...(route.dependencies ?? [])],
     ...(route.chrome ? { chrome: route.chrome } : {}),

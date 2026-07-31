@@ -22,6 +22,7 @@ import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
 import { getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
+import { buildM2MConnectionModel } from "./m2mConnections.js";
 import { setConfigManagerRouteContext } from "./routeContext.js";
 import { isApiRoute } from "./routeMounts.js";
 import { resolveRoleAuthority } from "./roleAuthority.js";
@@ -464,6 +465,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const selectedTenantId = config.tenants.some((tenant) => tenant.id === requestedTenantId)
       ? requestedTenantId
       : config.tenants[0]?.id;
+    const requestedAppId = url.searchParams.get("appId") ?? undefined;
+    const selectedApp = config.apps.find((app) => app.id === requestedAppId && app.tenantId === selectedTenantId)
+      ?? config.apps.find((app) => app.tenantId === selectedTenantId);
+    const selectedAppId = selectedApp?.id;
 
     const tenantApps: Record<string, Array<{ id: string; title: string; shellServiceId?: string }>> = {};
     for (const t of config.tenants) {
@@ -544,6 +549,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       services: allServices,
       tenants: config.tenants.map((t) => ({ id: t.id, title: t.title })),
       selectedTenantId,
+      selectedAppId,
+      m2mConnections: selectedAppId ? buildM2MConnectionModel(config, selectedAppId, manifestCache) : [],
       sharedServiceCatalog: config.sharedServiceCatalog.map((service) => ({
         ...service,
         installed: typeof service.apiKeyHash === "string" && service.apiKeyHash.length > 0

@@ -18,6 +18,10 @@ A theme owns:
 
 It does not own service page content.
 
+## Theme configuration ownership
+
+Each theme owns its configuration schema and defaults. `apps[].themeConfig.bootstrap` is a Bootstrap1 compatibility palette whose meanings and fallback values are hardcoded by Bootstrap1; it is not a portable theme contract. A new theme must not copy those values as its defaults or require that palette. Define theme-specific fields and defaults in the new theme's service configuration schema, and map Bootstrap palette values only when deliberate compatibility is desired.
+
 ## Shared Node theme runtime
 
 Node themes use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and background fragments.

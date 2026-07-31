@@ -5,7 +5,7 @@ import type { JsonValue } from "./json.js";
 import type { BetterPortalObservability } from "./observability.js";
 import type { BetterPortalApp, BetterPortalTenant } from "./platformConfig.js";
 import { AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
-import type { ServiceTokenClaims } from "./m2m.js";
+import { ApiCallerModeSchema, type ApiCallerMode, type M2MCallerMode, type ServiceTokenClaims } from "./m2m.js";
 
 /**
  * Route-level (API-layer) auth requirement. Replaces ViewAuthRequirement at the API tier.
@@ -14,13 +14,17 @@ import type { ServiceTokenClaims } from "./m2m.js";
  */
 export const ApiAuthRequirementSchema = av.object({
   required: av.bool().default(false),
+  callers: av.array(ApiCallerModeSchema).minItems(1).default(["user"]),
   permissions: av.array(av.object({
     serviceId: PluginIdSchema,
     viewId: av.string().minLength(1),
     permissions: av.array(AppAuthPermissionActionSchema).minItems(1)
   }, { unknownKeys: "strip" })).default([])
 }, { unknownKeys: "strip" });
-export type ApiAuthRequirement = Infer<typeof ApiAuthRequirementSchema>;
+type ParsedApiAuthRequirement = Infer<typeof ApiAuthRequirementSchema>;
+export type ApiAuthRequirement = Omit<ParsedApiAuthRequirement, "callers"> & {
+  readonly callers?: ReadonlyArray<ApiCallerMode>;
+};
 
 /**
  * Interface the adapter uses to verify JWTs. Framework does not depend on a particular
@@ -36,6 +40,8 @@ export interface ServiceTokenVerifier {
     appId: string;
     viewId: string;
     method: HttpMethod;
+    mode: M2MCallerMode;
+    sourceServiceId: string;
     requiredPermissions: ReadonlyArray<string>;
   }): Promise<ServiceTokenClaims>;
 }
@@ -136,6 +142,8 @@ export interface RouteHandlerContext<
   readonly user?: ValidatedUserClaims;
   /** Validated installed-service caller. Never populated from a user JWT. */
   readonly serviceCaller?: ValidatedServiceClaims;
+  /** Verified caller shape. Delegated calls populate both user and serviceCaller. */
+  readonly callerMode?: ApiCallerMode;
   /** Resolved tenant for this request. Handlers are not invoked without it. */
   readonly tenant: BetterPortalTenant;
   /** Resolved app for this request. Handlers are not invoked without it. */

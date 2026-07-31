@@ -91,6 +91,20 @@ Service configuration is independent from service usage. A tenant service or sha
 
 Config Manager itself remains a direct tenant service during bootstrap because it is the control plane. The default auth service and Bootstrap1 theme are bootstrapped as shared services.
 
+## Service connections
+
+The Services view includes an app selector and an app-scoped Service Connections panel. It derives pending requests from each available source service's cached `m2mRequests` and matches them to available providers' cached `apiContracts` by contract id, exact requested version, mode, methods, capabilities, and permissions.
+
+- `pending` has one compatible provider and can be approved directly.
+- `choice` has multiple compatible providers; the administrator must choose a concrete service instance and view.
+- `unavailable` has no compatible provider.
+- `connected` has one valid binding and active grant.
+- `stale` preserves a stored binding whose request, provider contract, mode, or grant no longer matches current manifests.
+
+Approval creates one UUIDv7 app-scoped binding and one least-privilege grant. It never groups providers by display title; duplicate titles are distinguished by plugin id and service-instance UUID. Revocation removes the binding and its grants. If the source requests the dependency again, it appears as pending and a later approval creates fresh IDs rather than restoring the revoked record.
+
+The admin API is `GET|POST /.well-known/bp/admin/apps/{appId}/m2m/connections` and `DELETE /.well-known/bp/admin/apps/{appId}/m2m/connections/{bindingId}`. Manifest sync and service identity provisioning never auto-approve a connection.
+
 ## Roles and permissions
 
 Role ids are explicit and should match the values emitted by the selected auth provider. For Authress, configure the Authress role claim so it contains BP role ids such as `admin`, `finance.viewer`, or `tenant-manager`; BP does not map Authress display names to BP role ids.

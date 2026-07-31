@@ -225,6 +225,12 @@ export abstract class BaseStorage implements PlatformConfigStore {
     };
 
     seen("m2m binding", config.m2m.bindings.map((binding) => binding.id));
+    const activeConnectionKeys = new Set<string>();
+    for (const binding of config.m2m.bindings.filter((candidate) => candidate.enabled)) {
+      const key = [binding.tenantId, binding.appId ?? "", binding.sourceServiceId, binding.requestId, binding.mode].join("\n");
+      if (activeConnectionKeys.has(key)) errors.push(`active m2m binding is duplicated for request ${binding.requestId}`);
+      activeConnectionKeys.add(key);
+    }
     for (const binding of config.m2m.bindings) {
       const tenant = tenantsById.get(binding.tenantId);
       if (!tenant || !tenant.active) {
@@ -250,6 +256,11 @@ export abstract class BaseStorage implements PlatformConfigStore {
 
     const bindingsById = new Map(config.m2m.bindings.map((binding) => [binding.id, binding]));
     seen("m2m grant", config.m2m.grants.map((grant) => grant.id));
+    const activeGrantBindings = new Set<string>();
+    for (const grant of config.m2m.grants.filter((candidate) => candidate.enabled)) {
+      if (activeGrantBindings.has(grant.bindingId)) errors.push(`m2m binding ${grant.bindingId} has multiple active grants`);
+      activeGrantBindings.add(grant.bindingId);
+    }
     for (const grant of config.m2m.grants) {
       const binding = bindingsById.get(grant.bindingId);
       if (!binding) {

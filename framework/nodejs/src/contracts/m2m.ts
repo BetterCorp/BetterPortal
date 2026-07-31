@@ -3,6 +3,10 @@ import type { Infer } from "anyvali";
 import { UuidV7Schema } from "./common.js";
 
 export const M2MMethodSchema = av.enum_(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const);
+export const ApiCallerModeSchema = av.enum_(["user", "service", "delegated"] as const);
+export type ApiCallerMode = Infer<typeof ApiCallerModeSchema>;
+export const M2MCallerModeSchema = av.enum_(["service", "delegated"] as const);
+export type M2MCallerMode = Infer<typeof M2MCallerModeSchema>;
 
 export const ApiContractDescriptorSchema = av.object({
   id: av.string().minLength(1),
@@ -12,7 +16,8 @@ export const ApiContractDescriptorSchema = av.object({
   viewId: av.string().minLength(1),
   methods: av.array(M2MMethodSchema).minItems(1),
   capabilities: av.array(av.string().minLength(1)).default([]),
-  permissions: av.array(av.string().minLength(1)).default([])
+  permissions: av.array(av.string().minLength(1)).default([]),
+  modes: av.array(M2MCallerModeSchema).minItems(1).default(["service"])
 }, { unknownKeys: "strip" });
 export type ApiContractDescriptor = Infer<typeof ApiContractDescriptorSchema>;
 
@@ -25,6 +30,7 @@ export const M2MRequestDescriptorSchema = av.object({
   requiredCapabilities: av.array(av.string().minLength(1)).default([]),
   methods: av.array(M2MMethodSchema).minItems(1),
   permissions: av.array(av.string().minLength(1)).default([]),
+  mode: M2MCallerModeSchema.default("service"),
   optional: av.bool().default(false)
 }, { unknownKeys: "strip" });
 export type M2MRequestDescriptor = Infer<typeof M2MRequestDescriptorSchema>;

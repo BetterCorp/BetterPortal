@@ -47,7 +47,7 @@ BetterPortal lets you compose a tenant-aware web portal out of small, independen
 |---|---|---|
 | **Protocol** | [`spec/`](spec/README.md) | Normative HTTP + HTMX + JSON contracts. Any language can implement. |
 | **Node SDK** | `framework/nodejs/`, `plugins/nodejs/betterportal-bsb/` | Reference TypeScript implementation of the protocol, built on BSB. |
-| **Reference services** | `auth/nodejs/`, `themes/nodejs/`, `services/nodejs/admin/config-manager/` | Concrete services built with the Node SDK. |
+| **Reference services** | `services/nodejs/auth-*/`, `themes/nodejs/`, `services/nodejs/admin/config-manager/` | Concrete services built with the Node SDK. |
 | **Examples** | `services/nodejs/examples/hello-view/` | A minimal Node service demonstrating views, fragments, SSE. |
 
 When the SDK and the spec disagree, **the spec wins** - file a bug.
@@ -64,10 +64,15 @@ BetterPortal/
 |   +-- runtime/                      # shared backend-built HTMX shell runtime
 |   +-- bootstrap1/                   # reference theme: Bootstrap 5 + HTMX shell
 |   +-- embedded/                     # reference theme: lightweight embedded renderer
-+-- auth/nodejs/                      # optional OIDC-style auth platform service
 +-- services/nodejs/
+|   +-- auth-default/                 # optional JWT auth platform service
+|   +-- auth-authress-io/             # optional auth platform service (Authress)
+|   +-- auth-workos/                  # optional auth platform service (WorkOS)
+|   +-- registry/                     # BP contract / plugin registry
+|   +-- docs-site/                    # rendered docs service
 |   +-- examples/hello-view/          # example business service (clock SSE, profile fragment, showcase)
 |   +-- admin/config-manager/         # admin UI: tenants, services, routes, menu, fragments, preview
++-- automations/                      # n8n / node-red / zapier integration packages
 +-- llms.txt                          # detailed developer guide (humans + LLMs)
 +-- docs/                             # architecture overview + ADRs
 ```
@@ -134,8 +139,12 @@ See `llms.txt section 1b` for the full list.
 | `@betterportal/theme-runtime` | Shared backend-assembled HTMX shell, BP headers, preload, URL rewriting, generic route chrome lifecycle, SSE, and typed TSX theme adapter contract. |
 | `@betterportal/theme-bootstrap1` | Default theme: Bootstrap 5 + HTMX shell, theme designer, nav/brand/style/fragment refresh endpoints. |
 | `@betterportal/theme-embedded` | Lightweight embedded renderer for headless / external embeds. |
-| `@betterportal/auth` | Optional JWT auth platform service. |
+| `@betterportal/auth-default` | Optional JWT auth platform service. |
+| `@betterportal/auth-authress-io` | Optional auth platform service backed by Authress. |
+| `@betterportal/auth-workos` | Optional auth platform service backed by WorkOS. |
 | `@betterportal/config-manager` | Admin UI for tenants, services, routes, menu, fragments, preview. |
+| `@betterportal/registry` | BP contract / plugin registry service. |
+| `@betterportal/docs-site` | Rendered documentation service. |
 | `@betterportal/hello-view` | Example business service. |
 
 All packages live in this repo as a single npm workspace. Versioning is unified.

@@ -173,30 +173,25 @@ Auth provider implementations are not part of the protocol. A BetterPortal deplo
 
 ## 4. Service-to-service auth
 
-Installed services authenticate directly; neither config-manager nor the app auth
-provider mints their data-plane tokens.
+Installed services authenticate directly; neither config-manager nor the app auth provider mints their data-plane service tokens. Provisioned identity alone grants no access.
 
-- After installation, a service generates and persists an RS256 keypair beside
-  its bootstrap state. Existing installations generate it on their first
-  upgraded startup.
-- The service submits its public key and derived `kid` during authenticated
-  control-plane sync. The first key is registered automatically. A different
-  key is rejected until an explicit recovery/rotation flow is used.
-- Config-manager syncs only the relevant public keys, `m2m.bindings`, and
-  `m2m.grants` to each source/target service.
-- The caller signs a `BP-S2S-JWT` with a maximum lifetime of 60 seconds. Claims
-  bind the source, exact target instance, tenant, app, and binding.
-- The target verifies the signature and evaluates the binding, HTTP method,
-  target view, grant, and current route permissions from its local snapshot.
-  Permissions supplied by the caller are never authoritative.
+Routes MUST default to `auth.callers: ["user"]` when caller modes are omitted. A route MUST explicitly allow `service` and/or `delegated` before accepting that mode. Provider contracts MUST declare their supported machine modes, and each outbound request MUST select one mode.
 
-The control-plane API key remains control-plane-only and MUST NOT authenticate
-ordinary service API routes. If config-manager is unavailable, services keep
-using their persisted last-known-good snapshot. Revocations become effective on
-each target as soon as that target applies the updated snapshot.
+- `service`: `Authorization` contains the short-lived service token.
+- `delegated`: `Authorization` contains the original BP user JWT and `X-BP-Service-Authorization` contains the short-lived service token. The target MUST independently verify both credentials and enforce both user permissions and the delegated service grant.
+
+Both machine modes MUST include `X-BP-Service-Id`, `X-BP-Tenant-Id`, and `X-BP-App-Id`. A complete service envelope takes precedence over browser `Origin`/`Referer` context. A partial, malformed, or mismatched envelope MUST fail and MUST NOT fall back to browser context resolution.
+
+- After installation, a service generates and persists an RS256 keypair beside its bootstrap state.
+- The service submits its public key and derived `kid` during authenticated control-plane sync. A different key is rejected until an explicit recovery/rotation flow is used.
+- Config-manager syncs only relevant public keys, app-scoped `m2m.bindings`, and `m2m.grants` to each source/target service.
+- The caller signs a `BP-S2S-JWT` with a maximum lifetime of 60 seconds. Claims bind the source, exact target instance, tenant, app, and binding.
+- The target verifies the signature, source header, mode, binding, HTTP method, target view, grant, and route permissions from its local snapshot. Caller-supplied permissions are never authoritative.
+- Config-manager MUST create bindings/grants only after explicit administrator approval. Revocation deletes them. A later recurrence MUST return to pending approval and MUST receive fresh binding/grant IDs rather than reactivating revoked records.
+
+The control-plane API key remains control-plane-only and MUST NOT authenticate ordinary service API routes. If config-manager is unavailable, services keep using their persisted last-known-good snapshot. Revocations become effective on each target as soon as that target applies the updated snapshot.
 
 ---
-
 ## 5. Cookies (theme-origin only)
 
 Themes MAY use HttpOnly, Secure, SameSite=Lax cookies for **same-origin** purposes:

@@ -37,6 +37,7 @@ function fixture() {
       contractId: "reports",
       targetServiceId,
       targetViewId: "reports.list",
+      mode: "service",
       enabled: true,
       createdAt: new Date().toISOString()
     }],
@@ -63,6 +64,8 @@ test("installed service tokens are bound to the target binding and grant", async
     appId: value.appId,
     viewId: "reports.list",
     method: "GET",
+    mode: "service",
+    sourceServiceId: value.sourceServiceId,
     requiredPermissions: ["read"]
   });
   assert.equal(authorized.claims.iss, value.sourceServiceId);
@@ -75,9 +78,38 @@ test("installed service tokens are bound to the target binding and grant", async
       appId: value.appId,
       viewId: "reports.list",
       method: "POST",
+      mode: "service",
+      sourceServiceId: value.sourceServiceId,
       requiredPermissions: ["read"]
     }),
     (error) => error instanceof ServiceTokenAuthorizationError && error.status === 403
+  );
+
+  await assert.rejects(
+    authorizeServiceToken(token, {
+      policy: value.policy,
+      tenantId: value.tenantId,
+      appId: value.appId,
+      viewId: "reports.list",
+      method: "GET",
+      mode: "delegated",
+      sourceServiceId: value.sourceServiceId,
+      requiredPermissions: ["read"]
+    }),
+    (error) => error instanceof ServiceTokenAuthorizationError && error.status === 403
+  );
+  await assert.rejects(
+    authorizeServiceToken(token, {
+      policy: value.policy,
+      tenantId: value.tenantId,
+      appId: value.appId,
+      viewId: "reports.list",
+      method: "GET",
+      mode: "service",
+      sourceServiceId: uuidv7(),
+      requiredPermissions: ["read"]
+    }),
+    (error) => error instanceof ServiceTokenAuthorizationError && error.status === 401
   );
 });
 

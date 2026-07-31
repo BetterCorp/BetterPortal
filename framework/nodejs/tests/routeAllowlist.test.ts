@@ -443,3 +443,102 @@ test("uiRouteUrl only resolves GET page mounts", async () => {
     });
   }, { tenant: scopedTenant, serviceId: pluginId });
 });
+test("route caller modes default to user and delegated calls verify both credentials", async () => {
+  const serviceId = uuidv7();
+  const sourceServiceId = uuidv7();
+  const app: BetterPortalApp = {
+    id: uuidv7(),
+    tenantId: tenant.id,
+    slug: "caller-modes",
+    title: "Caller modes",
+    hostnames: ["caller.local"],
+    originOverrides: [],
+    refererOverrides: [],
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/delegated",
+    routes: [
+      { id: uuidv7(), path: "/delegated", serviceId, viewId: "delegated.action", enabled: true, methods: ["GET"] },
+      { id: uuidv7(), path: "/user", serviceId, viewId: "user.action", enabled: true, methods: ["GET"] }
+    ],
+    menu: [],
+    slots: [],
+    fragments: {}
+  };
+  const responseSchema = av.object({ mode: av.string(), user: av.bool(), service: av.bool() });
+  const delegatedRoute = {
+    ...route("/delegated", "delegated.action", (ctx) => ({
+      mode: ctx.callerMode ?? "none",
+      user: Boolean(ctx.user),
+      service: Boolean(ctx.serviceCaller)
+    }), responseSchema),
+    auth: { required: true, callers: ["delegated"], permissions: [] }
+  } satisfies RegisteredRoute;
+  const userRoute = {
+    ...route("/user", "user.action"),
+    auth: { required: true, permissions: [] }
+  } satisfies RegisteredRoute;
+  const now = Math.floor(Date.now() / 1000);
+  const userClaims: JwtClaims = {
+    iss: "https://auth.local",
+    aud: "caller-modes",
+    sub: "user",
+    exp: now + 60,
+    iat: now,
+    jti: uuidv7(),
+    realm: "runtime",
+    tenantId: tenant.id,
+    appId: app.id,
+    roles: [],
+    tokenType: "access"
+  };
+  const serviceToken = `${Buffer.from(JSON.stringify({ alg: "RS256", typ: "BP-S2S-JWT", kid: "test" })).toString("base64url")}.${Buffer.from("{}").toString("base64url")}.signature`;
+
+  await withServer(app, { routes: [delegatedRoute, userRoute] }, async (baseUrl) => {
+    const headers = {
+      authorization: "Bearer user-token",
+      "x-bp-service-authorization": `Bearer ${serviceToken}`,
+      "x-bp-service-id": sourceServiceId,
+      "x-bp-tenant-id": tenant.id,
+      "x-bp-app-id": app.id,
+      accept: "application/json"
+    };
+    const delegated = await fetch(`${baseUrl}/delegated`, { headers });
+    assert.equal(delegated.status, 200);
+    assert.deepEqual(await delegated.json(), { mode: "delegated", user: true, service: true });
+
+    assert.equal((await fetch(`${baseUrl}/delegated`, { headers: { authorization: "Bearer user-token" } })).status, 403);
+    assert.equal((await fetch(`${baseUrl}/delegated`, { headers: { ...headers, "x-bp-tenant-id": uuidv7() } })).status, 401);
+    assert.equal((await fetch(`${baseUrl}/user`, {
+      headers: { ...headers, authorization: `Bearer ${serviceToken}`, "x-bp-service-authorization": "" }
+    })).status, 403);
+  }, {
+    serviceId,
+    router: {
+      resolveAuth: () => ({
+        verifier: { verify: async (token) => {
+          assert.equal(token, "user-token");
+          return userClaims;
+        } },
+        serviceVerifier: { verify: async (token, context) => {
+          assert.equal(token, serviceToken);
+          assert.equal(context.mode, "delegated");
+          assert.equal(context.sourceServiceId, sourceServiceId);
+          return {
+            iss: sourceServiceId,
+            sub: sourceServiceId,
+            aud: serviceId,
+            tenantId: tenant.id,
+            appId: app.id,
+            bindingId: uuidv7(),
+            iat: now,
+            exp: now + 60,
+            jti: uuidv7(),
+            tokenType: "service"
+          };
+        } },
+        tenantId: tenant.id,
+        appId: app.id
+      })
+    }
+  });
+});

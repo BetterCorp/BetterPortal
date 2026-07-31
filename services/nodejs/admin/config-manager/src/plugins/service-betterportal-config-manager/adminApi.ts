@@ -20,6 +20,13 @@ import type { CpBootstrapState } from "./cpBootstrap.js";
 import { generateApiKey, hashApiKey } from "./storage/index.js";
 import { getManifestCache } from "./syncApi.js";
 import { apiRoutePath, appRoutePatternKey, isApiRoute, pageRoutePath } from "./routeMounts.js";
+import {
+  M2MConnectionError,
+  approveM2MConnections,
+  buildM2MConnectionModel,
+  revokeM2MConnection,
+  type M2MConnectionSelection
+} from "./m2mConnections.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
@@ -1793,6 +1800,66 @@ export function registerAdminApiRoutes(
     if (auth.roles.length === before) return wantsHtmx(event) ? htmxError("Role not found", 404) : jsonResponse({ error: "Role not found" }, 404);
     await store.saveConfig(config);
     if (wantsHtmx(event)) return htmxReload(`/auth?appId=${encodeURIComponent(appId)}`);
+    return jsonResponse({ ok: true });
+  });
+
+  // Service connections (per app)
+
+  app.get(`${API_BASE}/apps/:appId/m2m/connections`, async (event) => {
+    const appId = getParam(event, "appId");
+    if (!appId) return jsonResponse({ error: "appId required" }, 400);
+    const config = await store.loadConfig();
+    if (!config.apps.some((candidate) => candidate.id === appId)) return jsonResponse({ error: "App not found" }, 404);
+    return jsonResponse(buildM2MConnectionModel(config, appId) as unknown as JsonValue);
+  });
+
+  app.post(`${API_BASE}/apps/:appId/m2m/connections`, async (event) => {
+    const appId = getParam(event, "appId");
+    if (!appId) return jsonResponse({ error: "appId required" }, 400);
+    const body = await readFormOrJsonBody(event);
+    let rawSelections: unknown = body.connections;
+    if (typeof rawSelections === "string") {
+      try { rawSelections = JSON.parse(rawSelections); } catch { rawSelections = undefined; }
+    }
+    const inputs = Array.isArray(rawSelections) ? rawSelections : [body];
+    const selections = inputs.flatMap((input): M2MConnectionSelection[] => {
+      if (!input || typeof input !== "object") return [];
+      const value = input as Record<string, unknown>;
+      return typeof value.sourceServiceId === "string" && typeof value.requestId === "string"
+        ? [{
+            sourceServiceId: value.sourceServiceId,
+            requestId: value.requestId,
+            ...(typeof value.targetServiceId === "string" && value.targetServiceId ? { targetServiceId: value.targetServiceId } : {}),
+            ...(typeof value.targetViewId === "string" && value.targetViewId ? { targetViewId: value.targetViewId } : {})
+          }]
+        : [];
+    });
+    const config = await store.loadConfig();
+    const appDef = config.apps.find((candidate) => candidate.id === appId);
+    if (!appDef) return jsonResponse({ error: "App not found" }, 404);
+    try {
+      const result = approveM2MConnections(config, appId, selections);
+      if (result.created.length > 0) await store.saveConfig(config);
+      if (wantsHtmx(event)) return htmxReload(`/services?tenantId=${encodeURIComponent(appDef.tenantId)}&appId=${encodeURIComponent(appId)}`);
+      return jsonResponse(result as unknown as JsonValue, result.created.length > 0 ? 201 : 200);
+    } catch (error) {
+      const status = error instanceof M2MConnectionError ? error.status : 500;
+      const message = error instanceof Error ? error.message : "Unable to approve service connection";
+      return wantsHtmx(event) ? htmxError(message, status) : jsonResponse({ error: message }, status);
+    }
+  });
+
+  app.delete(`${API_BASE}/apps/:appId/m2m/connections/:bindingId`, async (event) => {
+    const appId = getParam(event, "appId");
+    const bindingId = getParam(event, "bindingId");
+    if (!appId || !bindingId) return jsonResponse({ error: "appId and bindingId required" }, 400);
+    const config = await store.loadConfig();
+    const appDef = config.apps.find((candidate) => candidate.id === appId);
+    if (!appDef || !revokeM2MConnection(config, appId, bindingId)) {
+      return wantsHtmx(event) ? htmxError("Service connection not found", 404) : jsonResponse({ error: "Service connection not found" }, 404);
+    }
+    await store.saveConfig(config);
+    if (wantsHtmx(event)) return htmxReload(`/services?tenantId=${encodeURIComponent(appDef.tenantId)}&appId=${encodeURIComponent(appId)}`);
     return jsonResponse({ ok: true });
   });
 

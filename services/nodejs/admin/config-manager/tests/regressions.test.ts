@@ -5,6 +5,7 @@ import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/servic
 import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_theme.bootstrap1/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_theme.bootstrap1/GET.js";
@@ -92,6 +93,7 @@ function s2sConfig(): {
         contractId: "reports",
         targetServiceId: targetId,
         targetViewId: "reports.list",
+        mode: "service",
         enabled: true,
         createdAt
       }],
@@ -185,6 +187,56 @@ test("S2S public keys register once and mismatches require recovery", async () =
   const revoked = await store.getScopedConfig(value.targetId, "tenant", value.tenantId);
   assert.equal(revoked.m2m?.bindings.length, 0);
   assert.equal(revoked.m2m?.services.some((service) => service.id === value.sourceId), false);
+});
+
+test("service connections require approval and revoked connections receive fresh ids", () => {
+  const value = s2sConfig();
+  value.config.m2m.bindings = [];
+  value.config.m2m.grants = [];
+  const manifest = (serviceId: string, values: Partial<CachedManifest>): CachedManifest => ({
+    serviceId,
+    manifestVersion: "1",
+    capabilities: [],
+    apiContracts: [],
+    m2mRequests: [],
+    developerResources: [],
+    viewIndex: {},
+    configSchemas: [],
+    webhooks: [],
+    fetchedAt: Date.now(),
+    ...values
+  });
+  const cache = new Map<string, CachedManifest>([
+    [value.sourceId, manifest("org.example.source", {
+      m2mRequests: [
+        { id: "reports.read", title: "Read reports", contractId: "reports", version: "1", methods: ["GET"], permissions: ["read"], mode: "service" },
+        { id: "reports.update", title: "Update reports", contractId: "reports.update", version: "1", methods: ["POST"], permissions: ["update"], mode: "delegated" }
+      ]
+    })],
+    [value.targetId, manifest("org.example.target", {
+      apiContracts: [
+        { id: "reports", title: "Reports", version: "1", viewId: "reports.list", methods: ["GET"], capabilities: [], permissions: ["read"], modes: ["service"] },
+        { id: "reports.update", title: "Update report", version: "1", viewId: "reports.update", methods: ["POST"], capabilities: [], permissions: ["update"], modes: ["delegated"] }
+      ]
+    })]
+  ]);
+
+  const approved = approveM2MConnections(value.config, value.appId, [
+    { sourceServiceId: value.sourceId, requestId: "reports.read" },
+    { sourceServiceId: value.sourceId, requestId: "reports.update" }
+  ], cache);
+  assert.equal(approved.created.length, 2);
+  assert.equal(value.config.m2m.bindings.length, 2);
+  assert.equal(value.config.m2m.grants.length, 2);
+  assert.deepEqual(buildM2MConnectionModel(value.config, value.appId, cache).map((row) => row.status), ["connected", "connected"]);
+
+  const revokedId = approved.created[0];
+  assert.equal(revokeM2MConnection(value.config, value.appId, revokedId), true);
+  assert.equal(buildM2MConnectionModel(value.config, value.appId, cache).find((row) => row.requestId === "reports.read")?.status, "pending");
+  const reapproved = approveM2MConnections(value.config, value.appId, [
+    { sourceServiceId: value.sourceId, requestId: "reports.read" }
+  ], cache);
+  assert.notEqual(reapproved.created[0], revokedId);
 });
 
 test("shared activation manifest lookup falls back to its shared service", () => {
@@ -301,13 +353,32 @@ test("service registration stays browser-mediated and tenant history follows the
     services: [],
     tenants: [{ id: "tenant-a", title: "Tenant A" }],
     selectedTenantId: "tenant-a",
+    selectedAppId: "app-a",
+    m2mConnections: [{
+      sourceServiceId: "source-a",
+      sourceServiceTitle: "Source",
+      sourceServiceType: "org.example.source",
+      requestId: "crm.update",
+      title: "Update CRM",
+      contractId: "crm.update",
+      mode: "delegated",
+      methods: ["POST"],
+      permissions: ["update"],
+      optional: false,
+      status: "pending",
+      message: "Ready for approval",
+      candidates: [{ targetServiceId: "target-a", targetServiceTitle: "CRM", targetServiceType: "org.example.crm", targetViewId: "crm.update" }]
+    }],
     sharedServiceCatalog: [],
     sharedServiceActivations: [],
-    apps: [],
-    tenantApps: {},
+    apps: [{ id: "app-a", tenantId: "tenant-a", title: "App A" }],
+    tenantApps: { "tenant-a": [{ id: "app-a", title: "App A" }] },
     adminApiBase: "/.well-known/bp/admin"
   }));
   assert.match(html, /id="bp-services-tenant-filter"[^>]*hx-push-url="true"/);
+  assert.match(html, /id="bp-services-app-filter"/);
+  assert.match(html, /\/apps\/app-a\/m2m\/connections/);
+  assert.match(html, /Connect CRM \/ org\.example\.crm/);
   assert.match(html, /id="bp-tenant-service-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /id="bp-change-hostname-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /id="bp-shared-service-form"[^>]*data-bp-config="rewrite=false"/);

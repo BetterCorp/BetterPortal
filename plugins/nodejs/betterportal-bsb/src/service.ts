@@ -18,6 +18,7 @@ import {
   buildManifestFromRegistry,
   buildBpSchema,
   authorizeServiceToken,
+  isServiceToken,
   createJwksVerifier,
   createStaticJwksVerifier,
   describeEmbeddedContextResolution,
@@ -41,6 +42,7 @@ import {
   type BetterPortalThemeConfig,
   type JwtVerifier,
   type ManifestBaseFields,
+  type M2MCallerMode,
   type PluginManifest,
   type ScopedApp,
   type ScopedServiceConfig,
@@ -82,7 +84,6 @@ export interface BPServiceConfig {
   betterportal?: BetterPortalConfig;
   bpConfigPath?: string;
   configApiToken?: string;
-  configEncryptionKey?: string;
   controlPlaneUrl?: string;
   serviceApiKey?: string;
   bootstrapStatePath?: string;
@@ -96,7 +97,6 @@ type BPServicePluginConfig = BSBPluginConfig<av.BaseSchema<unknown, BPServiceCon
 export interface BetterPortalConfig {
   bpConfigPath?: string;
   configApiToken?: string;
-  configEncryptionKey?: string;
   controlPlaneUrl?: string;
   serviceApiKey?: string;
   bootstrapStatePath?: string;
@@ -118,7 +118,9 @@ export const BetterPortalConfigSchema = av.optional(av.object({
   // never needs this. The fallback is additionally gated behind
   // BP_ALLOW_DEV_CONFIG_TOKEN=true (see validateConfigTicket).
   configApiToken: av.optional(av.string().minLength(1)),
-  configEncryptionKey: av.optional(av.string().minLength(16)),
+  // NOTE: there is deliberately no operator-supplied config encryption key.
+  // The key is generated (256-bit, CSPRNG) at install and persisted in the
+  // bootstrap state; see resolveConfigEncryptionKey.
   controlPlaneUrl: av.optional(av.string().minLength(1)),
   serviceApiKey: av.optional(av.string().minLength(1)),
   bootstrapStatePath: av.string().minLength(1).default(DEFAULT_BOOTSTRAP_STATE_PATH),
@@ -148,7 +150,7 @@ export interface BPServiceDefinition {
 
 export interface BPServiceClientRuntime {
   readonly baseUrl: string;
-  readonly headers: Record<string, string>;
+  readonly headers: Record<string, string> | (() => Record<string, string>);
   readonly token: () => string;
 }
 
@@ -179,7 +181,6 @@ export abstract class BPService<
     return {
       bpConfigPath: cfg.bpConfigPath,
       configApiToken: cfg.configApiToken,
-      configEncryptionKey: cfg.configEncryptionKey,
       controlPlaneUrl: cfg.controlPlaneUrl,
       serviceApiKey: cfg.serviceApiKey,
       trustedProxyHeaders: cfg.trustedProxyHeaders,
@@ -293,32 +294,11 @@ export abstract class BPService<
    * The returned shape is accepted directly by generated BP clients.
    */
   public m2mClient(requestId: string, tenantId: string, appId: string): BPServiceClientRuntime {
-    const policy = this.scopedConfig?.m2m;
-    const keyPair = this.s2sKeyPair;
-    if (!policy || !keyPair || !this.s2sIdentityReady) {
-      throw new Error("BetterPortal S2S identity is not registered in the current config snapshot");
-    }
-    const binding = policy.bindings.find((candidate) =>
-      candidate.enabled
-      && candidate.requestId === requestId
-      && candidate.tenantId === tenantId
-      && (!candidate.appId || candidate.appId === appId)
-      && policy.localServiceIds.includes(candidate.sourceServiceId)
-    );
-    if (!binding) throw new Error("No enabled S2S binding for request " + requestId);
-    const grant = policy.grants.find((candidate) =>
-      candidate.enabled
-      && candidate.bindingId === binding.id
-      && candidate.tenantId === tenantId
-      && (!candidate.appId || candidate.appId === appId)
-    );
-    if (!grant) throw new Error("No enabled S2S grant for request " + requestId);
-    const target = policy.services.find((candidate) => candidate.id === binding.targetServiceId);
-    if (!target) throw new Error("S2S target service is missing from the current config snapshot");
-
+    const { keyPair, binding, target } = this.resolveM2MClient(requestId, tenantId, appId, "service");
     return {
       baseUrl: target.hostname.replace(/\/+$/, ""),
       headers: {
+        "X-BP-Service-Id": binding.sourceServiceId,
         "X-BP-Tenant-Id": tenantId,
         "X-BP-App-Id": appId
       },
@@ -333,6 +313,62 @@ export abstract class BPService<
     };
   }
 
+  /** Resolve an installed-service dependency while preserving the current BP user identity. */
+  public delegatedM2mClient(requestId: string, ctx: Pick<RouteHandlerContext, "tenant" | "app" | "user" | "rawEvent">): BPServiceClientRuntime {
+    if (!ctx.user) throw new Error("Delegated S2S calls require an authenticated BP user");
+    const event = ctx.rawEvent as BetterPortalEvent | undefined;
+    const authorization = event?.req.headers.get("authorization") ?? "";
+    const userToken = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+    if (!userToken || isServiceToken(userToken)) throw new Error("Delegated S2S calls require the original BP user bearer token");
+
+    const tenantId = ctx.tenant.id;
+    const appId = ctx.app.id;
+    const { keyPair, binding, target } = this.resolveM2MClient(requestId, tenantId, appId, "delegated");
+    return {
+      baseUrl: target.hostname.replace(/\/+$/, ""),
+      headers: () => ({
+        "X-BP-Service-Authorization": `Bearer ${signServiceToken({
+          keyPair,
+          sourceServiceId: binding.sourceServiceId,
+          targetServiceId: binding.targetServiceId,
+          tenantId,
+          appId,
+          bindingId: binding.id
+        })}`,
+        "X-BP-Service-Id": binding.sourceServiceId,
+        "X-BP-Tenant-Id": tenantId,
+        "X-BP-App-Id": appId
+      }),
+      token: () => userToken
+    };
+  }
+
+  private resolveM2MClient(requestId: string, tenantId: string, appId: string, mode: M2MCallerMode) {
+    const policy = this.scopedConfig?.m2m;
+    const keyPair = this.s2sKeyPair;
+    if (!policy || !keyPair || !this.s2sIdentityReady) {
+      throw new Error("BetterPortal S2S identity is not registered in the current config snapshot");
+    }
+    const binding = policy.bindings.find((candidate) =>
+      candidate.enabled
+      && candidate.mode === mode
+      && candidate.requestId === requestId
+      && candidate.tenantId === tenantId
+      && (!candidate.appId || candidate.appId === appId)
+      && policy.localServiceIds.includes(candidate.sourceServiceId)
+    );
+    if (!binding) throw new Error(`No enabled ${mode} S2S binding for request ${requestId}`);
+    const grant = policy.grants.find((candidate) =>
+      candidate.enabled
+      && candidate.bindingId === binding.id
+      && candidate.tenantId === tenantId
+      && (!candidate.appId || candidate.appId === appId)
+    );
+    if (!grant) throw new Error(`No enabled ${mode} S2S grant for request ${requestId}`);
+    const target = policy.services.find((candidate) => candidate.id === binding.targetServiceId);
+    if (!target) throw new Error("S2S target service is missing from the current config snapshot");
+    return { keyPair, binding, target };
+  }
   private initializeS2SIdentity(obs: Observable): void {
     if (!this.requireBetterPortalConfigSource || this.inSetupMode || this.s2sKeyPair) return;
     const bootstrapPath = resolve(this.bp.bootstrapStatePath ?? DEFAULT_BOOTSTRAP_STATE_PATH);
@@ -364,6 +400,8 @@ export abstract class BPService<
           appId: context.appId,
           viewId: context.viewId,
           method: context.method,
+          mode: context.mode,
+          sourceServiceId: context.sourceServiceId,
           requiredPermissions: context.requiredPermissions
         });
         return authorized.claims;
@@ -555,8 +593,7 @@ export abstract class BPService<
     try {
 
     this.bootstrapState = new BootstrapStateStore({
-      filePath: this.bp.bootstrapStatePath ?? DEFAULT_BOOTSTRAP_STATE_PATH,
-      encryptionKey: this.bp.configEncryptionKey
+      filePath: this.bp.bootstrapStatePath ?? DEFAULT_BOOTSTRAP_STATE_PATH
     });
 
     this.scopedConfigCache = new ScopedConfigCache({
@@ -1096,9 +1133,30 @@ export abstract class BPService<
     const requestedHeaders = event.req.headers.get("access-control-request-headers");
     const allowHeaders = requestedHeaders?.trim().length
       ? requestedHeaders.split(",").map((v) => v.trim())
-      : ["Accept", "Authorization", "Content-Type", "HX-Current-URL", "HX-Request", "HX-Target", "HX-Trigger", "HX-Trigger-Name", "X-BP-App-Id", "X-BP-Tenant-Id", "BP-SetHeader", "BP-RemoveHeader"];
+      : ["Accept", "Authorization", "Content-Type", "HX-Current-URL", "HX-Request", "HX-Target", "HX-Trigger", "HX-Trigger-Name", "X-BP-App-Id", "X-BP-Tenant-Id", "X-BP-Service-Id", "X-BP-Service-Authorization", "BP-SetHeader", "BP-RemoveHeader"];
 
     const origin = event.req.headers.get("origin");
+    const authorization = event.req.headers.get("authorization");
+    const primaryToken = authorization?.startsWith("Bearer ") ? authorization.slice(7) : "";
+    const secondaryAuthorization = event.req.headers.get("x-bp-service-authorization");
+    const sourceServiceId = event.req.headers.get("x-bp-service-id");
+    const isServiceEnvelope = secondaryAuthorization !== null || sourceServiceId !== null || isServiceToken(primaryToken);
+    if (isServiceEnvelope) {
+      const secondaryToken = secondaryAuthorization?.startsWith("Bearer ") ? secondaryAuthorization.slice(7) : "";
+      const delegated = secondaryAuthorization !== null;
+      if (delegated ? (!secondaryToken || !primaryToken || isServiceToken(primaryToken)) : !isServiceToken(primaryToken)) {
+        return jsonResponse({ error: "Invalid S2S authorization envelope" }, 401);
+      }
+      const tenantId = event.req.headers.get("x-bp-tenant-id");
+      const appId = event.req.headers.get("x-bp-app-id");
+      if (!sourceServiceId || !tenantId || !appId) {
+        return jsonResponse({ error: "X-BP-Service-Id, X-BP-Tenant-Id, and X-BP-App-Id are required for S2S calls" }, 401);
+      }
+      const context = this.resolveScopedContextById(tenantId, appId);
+      if (!context) return jsonResponse({ error: "S2S tenant/app context is unavailable" }, 401);
+      this.applyRequestContext(event, context);
+      return undefined;
+    }
     if (origin && this.isPublicBpDiscoveryPath(event.url.pathname)) {
       // Public-discovery: CORS open to any origin, but ALSO try to resolve scope
       // so themed responses (login page, etc.) know which theme + tenant context to render under.
@@ -1556,8 +1614,7 @@ export abstract class BPService<
   }
 
   private resolveConfigEncryptionKey(): string | undefined {
-    const stored = this.bootstrapState.read();
-    return stored.configEncryptionKey ?? this.bp.configEncryptionKey;
+    return this.bootstrapState.read().configEncryptionKey;
   }
 
   private isPreSyncCorePath(pathname: string): boolean {

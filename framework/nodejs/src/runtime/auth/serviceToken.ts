@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import type { HttpMethod } from "../../contracts/common.js";
 import {
+  type M2MCallerMode,
   ServiceTokenClaimsSchema,
   type ServiceTokenClaims
 } from "../../contracts/m2m.js";
@@ -29,6 +30,8 @@ export interface AuthorizeServiceTokenOptions {
   readonly appId: string;
   readonly viewId: string;
   readonly method: HttpMethod;
+  readonly mode: M2MCallerMode;
+  readonly sourceServiceId: string;
   readonly requiredPermissions?: ReadonlyArray<string>;
   readonly clockToleranceSeconds?: number;
 }
@@ -107,6 +110,7 @@ export async function authorizeServiceToken(
   }
   const claims = ServiceTokenClaimsSchema.parse(verified);
   if (claims.sub !== claims.iss) throw new ServiceTokenAuthorizationError("Service token subject does not match issuer", 401);
+  if (claims.iss !== options.sourceServiceId) throw new ServiceTokenAuthorizationError("Service token source does not match request headers", 401);
   if (claims.exp - claims.iat > MAX_LIFETIME_SECONDS) throw new ServiceTokenAuthorizationError("Service token lifetime exceeds the maximum", 401);
   if (!options.policy.localServiceIds.includes(claims.aud)) throw new ServiceTokenAuthorizationError("Service token targets another service", 401);
   if (claims.tenantId !== options.tenantId || claims.appId !== options.appId) {
@@ -118,6 +122,7 @@ export async function authorizeServiceToken(
     && candidate.id === claims.bindingId
     && candidate.sourceServiceId === claims.iss
     && candidate.targetServiceId === claims.aud
+    && candidate.mode === options.mode
     && candidate.tenantId === claims.tenantId
     && (!candidate.appId || candidate.appId === claims.appId)
     && candidate.targetViewId === options.viewId
