@@ -91,6 +91,10 @@ Method files are service API boundaries. They validate inputs, build typed respo
 
 Method files are named exactly by HTTP method: `GET.ts`, `POST.ts`, `PUT.ts`, `PATCH.ts`, `DELETE.ts`, and `OPTIONS.ts`. They may export `QuerySchema`, `HeadersSchema`, `RequestSchema`, `MultipartSchema`, `ResponseSchema`, and a default `createHandler`, `createRawHandler`, or `createStreamHandler`. They should not export route metadata such as `viewId`, `title`, `auth`, `chrome`, or `dependencies`; put those in `index.ts`.
 
+`av.object` strips unknown keys by default. API schemas do not need an `unknownKeys` option for stripping; specify that option only when deliberately choosing non-default behavior.
+
+BetterPortal service APIs do not support cookies. Do not read `Cookie` or emit `Set-Cookie` from route handlers; use `ctx.bpHeaders.set(...)` and `ctx.bpHeaders.remove(...)` for browser-managed state that must accompany later BP requests.
+
 Route handlers can import handler factories from two places:
 
 - `@betterportal/framework` keeps `ctx.plugin` as `unknown` and `ctx.config` as `Record<string, unknown>`.
@@ -147,6 +151,14 @@ Route dependencies are service-declared view ids that must be mounted with a rou
 
 - `kind: "page"` routes are visual app routes. Their app path, title, query, chrome, and menu usage are app-owned.
 - `kind: "api"` routes are service-locked allowlist routes. Config-manager mounts them under `/_bp/service/{service-slug}/{service-path}` and keeps `targetPath`/`resolvedServicePath` pointed at the service-owned path from the manifest.
+
+By default, a user-facing capability should be one renderable route that provides both its API contract/handlers and its theme renderer. Content negotiation serves JSON to API clients and HTML to the UI. Do not create a separate API-only route when the renderable route can own the operation.
+
+Use `kind: "api"` only when there is a specific reason the endpoint has no UI: provider callbacks, webhooks, machine-only/internal dependencies, raw files, streams, or similar protocol endpoints. An API route is never an application navigation destination, and the user must never be left viewing it. Browser-mediated protocol endpoints such as OAuth callbacks must immediately redirect to an enabled page route after completing their work.
+
+An internal, root-relative `<a href>` is browser-visible navigation and must resolve to an enabled GET `kind: "page"` route backed by a renderable view. Generate it with `ctx.uiRouteUrl`. Do not put a service path, `kind: "api"` route, or `ctx.routeUrl` result in an anchor `href`. API routes are invoked through form actions, `hx-*` requests, `fetch`, SSE, downloads, callbacks, and other non-page operations.
+
+For OAuth, the user-facing "Continue with ..." anchor should target a mounted page/view route. That view may initiate the external provider redirect with the normal BP response/header flow. The provider callback can remain an API route, but it must redirect back to a mounted page route after completing authentication. `data-bp-no-route` is not a workaround for service links: it disables routing entirely and leaves a root-relative URL pointed at the theme origin.
 
 Config-manager sync normalizes non-renderable/raw/dependency routes to `kind: "api"` on the next service sync. Existing API routes mounted at raw paths such as `/refresh` are rewritten to the deterministic `/_bp/service/...` path. Page routes are not rewritten unless the manifest now says the selected view is non-renderable. If a view disappears from a service manifest, config-manager disables matching app routes instead of deleting them.
 

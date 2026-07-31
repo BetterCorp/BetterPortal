@@ -12,7 +12,7 @@ const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3200),
   betterportal: BetterPortalConfigSchema
-}, { unknownKeys: "strip" });
+});
 
 const Config = createConfigSchema(
   {

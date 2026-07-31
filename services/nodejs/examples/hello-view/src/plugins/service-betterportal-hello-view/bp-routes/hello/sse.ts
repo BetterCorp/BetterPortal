@@ -7,7 +7,7 @@ import type { SSEHandlerContext } from "@betterportal/framework";
 export const tickSchema = av.object({
   time: av.string().minLength(1),
   iso: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 export type Tick = Infer<typeof tickSchema>;
 

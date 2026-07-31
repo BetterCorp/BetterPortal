@@ -2,7 +2,11 @@
 
 BetterPortal's shell runtime rewrites service-owned links so services can emit portable, root-relative HTML.
 
-Services should normally render simple links:
+Services should render internal navigation links only for mounted page routes. API/service paths belong in form actions, `hx-*` requests, `fetch`, SSE, downloads, callbacks, and other non-page operations, not in `href`. Generate internal anchors with `ctx.uiRouteUrl`; it returns `null` for API or mutation-only routes.
+
+The normal design is one renderable route with both API handlers/schemas and theme renderers. Create an API-only route only for a genuinely non-visual protocol endpoint. Never navigate the user to an API route or leave the browser displaying one; callbacks that run in the browser must redirect to a mounted page when finished.
+
+The resulting page link looks like:
 
 ```html
 <a href="/docs/getting-started/quick-start">Quick Start</a>

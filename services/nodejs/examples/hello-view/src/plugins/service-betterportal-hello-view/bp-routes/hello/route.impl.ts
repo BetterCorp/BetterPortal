@@ -11,15 +11,15 @@ import {
 
 export const QuerySchema = av.object({
   name: av.string().minLength(1).default("World")
-}, { unknownKeys: "strip" });
+});
 
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
+export const HeadersSchema = av.object({});
 
-export const RequestSchema = av.object({}, { unknownKeys: "strip" });
+export const RequestSchema = av.object({});
 
 export const ResponseSchema = av.object({
   greeting: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 // -- Metadata --------------------------------------------------------

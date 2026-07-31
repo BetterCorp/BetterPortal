@@ -11,19 +11,19 @@ import {
 export const QuerySchema = av.object({
   count: av.string().default("5"),
   delayMs: av.string().default("400")
-}, { unknownKeys: "strip" });
+});
 
 export const ItemSchema = av.object({
   id: av.string().minLength(1),
   label: av.string().minLength(1),
   elapsedMs: av.int().min(0)
-}, { unknownKeys: "strip" });
+});
 export type DelayedItem = Infer<typeof ItemSchema>;
 
 export const SummarySchema = av.object({
   total: av.int().min(0),
   totalMs: av.int().min(0)
-}, { unknownKeys: "strip" });
+});
 export type DelayedSummary = Infer<typeof SummarySchema>;
 
 // -- Metadata --------------------------------------------------------

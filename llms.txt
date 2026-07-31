@@ -80,7 +80,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 These are non-negotiable. The whole architecture is built on them.
 
 - **No iframes.** Ever. Content composition is HTMX fragment swaps, not nested browsing contexts. Iframes break theming, navigation, accessibility, cookies, CSS variables, and the URL bar.
-- **Service route tokens, not hardcoded service paths.** Service-rendered HTML may use `{view.id}` in `href`, `action`, `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`, and `hx-download`. The framework rewrites those tokens server-side to service route paths. Do not use this for browser-visible UI/app routes; the theme/shell owns those.
+- **Service route tokens, not hardcoded service paths.** Service-rendered HTML may use `{view.id}` in `action`, `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`, and `hx-download`. The framework rewrites those tokens server-side to service route paths. Do not use service route tokens or `ctx.routeUrl` in anchor `href`; browser-visible UI navigation uses `ctx.uiRouteUrl` and a mounted page route.
 - **No SPA framework.** No React, Vue, Svelte, Angular, etc. JSX-htmx is server-side template syntax that emits strings - it is not a client runtime.
 - **No client-side router.** URL state is server-driven via `hx-push-url`. Browser back/forward "just works" because htmx pushes real history entries.
 - **No client-side state library.** No Redux, Zustand, etc. State lives in: (a) the server, (b) URL/query, (c) HTML attributes on DOM elements. That is enough.
@@ -88,6 +88,8 @@ These are non-negotiable. The whole architecture is built on them.
 - **HTML-as-API.** Services emit HTML fragments. The browser inserts them. No client code re-parses or transforms response bodies.
 - **Service-declared route chrome.** Routes may export flat primitive `chrome`, e.g. `export const chrome = { fullScreen: true }`. Values must be `string | number | boolean`. Codegen emits it into the view manifest; service sync copies it onto app routes unless the app route explicitly overrides it. The framework emits initial `data-bp-chrome-*` attributes, and the shared theme runtime applies response `bp-chrome-*` content-type params, removes stale attributes, and calls the optional typed theme hook. Themes own presentation through CSS or that hook. Chrome never implies authentication; do not infer it from auth service ids.
 - **Route dependencies and API-only views.** Keep one route model: use `apps[].routes[]` for renderable page routes and API/dependency allowlist routes. `kind: "page"` routes are browser-visible app routes. `kind: "api"` routes are service-locked allowlist routes mounted by config-manager under `/_bp/service/{service-slug}/{service-path}` while `targetPath`/`resolvedServicePath` stays pointed at the service-owned manifest path. `index.ts` may export `dependencies = ["other.viewId"]`; codegen also detects literal `{view.id}` route tokens in renderer files and merges them into dependencies. Config-manager auto-adds dependency routes when the parent is mounted and normalizes non-renderable/raw/dependency routes to `kind: "api"` on service sync. Menus and visual route editing use page routes only.
+- **UI-with-API is the default.** A user-facing capability should normally be one renderable route with API handlers/schemas and theme renderers; content negotiation serves JSON or HTML. Use an API-only route only for a genuinely non-visual endpoint such as a provider callback, webhook, machine/internal dependency, raw file, or stream. An API route is never an app navigation destination, and the user must never be left viewing it. Browser-mediated callbacks must redirect to a mounted page when finished.
+- **Anchors are page navigation.** An internal root-relative `<a href>` must target an enabled GET `kind: "page"` route with a renderer and should be generated with `ctx.uiRouteUrl`. API routes belong in form actions, `hx-*`, `fetch`, SSE, downloads, callbacks, and other non-page operations. For OAuth, link the user to a mounted page/view that initiates the provider redirect; the provider callback may remain API-only but must redirect back to a mounted page. `data-bp-no-route` is reserved for theme-owned shell internals and must not be used to bypass service routing.
 - **Service-to-service contracts.** Services should not hardcode target service ids for module/provider cases. Providers declare `apiContracts`; callers declare `m2mRequests` by contract id/version/capabilities. Config-manager stores explicit `m2m.bindings` and `m2m.grants`; provisioning identity alone grants no M2M API access.
 - **Stable view ids.** Routes may export `viewId = "stable.id"`. Use explicit view ids for anything referenced by app config, permissions, dependencies, or code. File-derived ids are defaults only and change when route files move. Codegen/build must reject duplicate view ids.
 - **Manifest-owned route metadata.** Route `methods`, service path (`targetPath`/resolved path), renderability, dependencies, and default chrome come from the service manifest. Config-manager sync reconciles those fields and disables routes whose viewId disappeared. Do not make HTTP methods editable in the UI; users control mount path/title/query only for renderable routes. Menu auto-generation is stricter than route renderability: only views with a page renderer become menu links. API, raw, dependency, and fragment-only routes may be allowlisted but must not appear in menus.
@@ -104,7 +106,7 @@ These are non-negotiable. The whole architecture is built on them.
 - **Authoritative service self-mutation.** Installed services use `BPService.isAuthoritativeService(tenantId, appId, "auth" | "theme")` before asking Config Manager to mutate app-owned data. `updateAuthoritativeService(...)` calls `/.well-known/bp/admin/services/self-mutation` with the installed service key. Config Manager only accepts auth mutations when the caller owns `app.auth.serviceId`, and theme mutations when the caller owns `app.shell.serviceId`; shared activation ids are resolved against the shared service catalog id.
 - **Each service is its own origin.** Browser hits services directly (`http://localhost:3200`, etc.). Theme does not proxy traffic. This forces CORS-correctness and enforces service isolation.
 - **All cross-service request validation is schema-first.** Inputs validated on entry; outputs validated on exit. `anyvali` everywhere.
-- **Cookies are theme-origin only.** See section 15. Cross-origin cookies do not work for service requests. Browser-managed BP headers are set with `BP-SetHeader` / `BP-RemoveHeader` and owned by the shell.
+- **Service cookies are unsupported.** Service API handlers must not read `Cookie` or emit `Set-Cookie`. Use `ctx.bpHeaders.set(...)` / `ctx.bpHeaders.remove(...)`; the framework emits `BP-SetHeader` / `BP-RemoveHeader`, and the shell owns the browser-managed header state.
 - **Role ids are provider-facing.** BP role ids must match the values emitted by the auth provider, especially Authress role claims. Role titles are display text only. User-created role ids use `[A-Za-z0-9][A-Za-z0-9._:-]{0,63}` and cannot be reserved ids.
 - **Reserved platform-root role.** `*` is the only platform-root wildcard role id. It is not creatable through normal role APIs. It grants all route permissions only when both request tenant/app match `configManagement.adminTenantId` and `configManagement.managementAppId`; using `*` elsewhere logs an error and does not grant access. Do not use `root` as a role id.
 - **Default-auth root bootstrap.** Default-auth owns local users, so first-admin registration assigns `appRoles[managementAppId] = ["*"]`. External providers such as Authress and WorkOS must emit `roles: ["*"]` from their own role assignment; BP does not manage external-provider user membership.
@@ -373,6 +375,12 @@ export default createHandler(
 - Return type matches `Infer<ResponseSchema>` (TS-checked)
 - Runtime: re-parses output through `ResponseSchema` (belt + braces)
 
+`av.object` strips unknown keys by default. Do not add an `unknownKeys` option to API schemas for stripping; specify it only for deliberate non-default behavior.
+
+A method file owns the complete API operation: its schemas, orchestration, business-rule calls, and response construction. Keep endpoint workflows such as `beginGoogleLogin` out of the plugin class, and do not delegate the whole handler through `ctx.plugin`. The plugin class owns service lifecycle and wiring; it may expose typed shared infrastructure such as repositories, provider clients, or key stores. A handler may use that infrastructure or import pure reusable helpers, but the handler remains responsible for the use case and its HTTP response. Import typed handler factories from the generated `route-runtime.js`; do not use `.forContext<Plugin>()`, cast `ctx.plugin`, or rely on `ctx.plugin!`.
+
+Service API handlers must not use cookies for OAuth state, sessions, or any other browser state. Do not read `Cookie`, emit `Set-Cookie`, or call cookie serialization helpers. Use `ctx.bpHeaders.set(...)` and `ctx.bpHeaders.remove(...)`; return redirects and other HTTP behavior from the route handler itself.
+
 Typed handler context:
 - Route files that only need validated input/output can import `createHandler`, `createRawHandler`, or `createStreamHandler` from `@betterportal/framework`.
 - Route files that need `ctx.plugin` or BP service config should import factories from the generated local runtime, e.g. `../.bp-generated/route-runtime.js` with the correct relative path.
@@ -424,9 +432,9 @@ Rules:
 - Import `ResponseData` from the matching method file or a shared helper.
 - Return JSX (string-based, server-rendered).
 - Bootstrap 5 + HTMX attributes only - no client framework.
-- Use `{view.id}` route tokens for service routes. The framework rewrites supported attributes server-side. UI/app routes remain the theme/shell's responsibility.
-- To opt **out** of URL rewriting (rare - theme-shell elements only), add `data-bp-no-route=""`.
-- For SPA-style links, use anchor tags with relative `href`. The shell upgrades them to HTMX boosted nav automatically when in-tenant.
+- Use `{view.id}` route tokens for service requests such as form actions and `hx-*`; use `ctx.uiRouteUrl` for anchor navigation to a mounted page route.
+- Never put a service API path or `ctx.routeUrl` result in `href`; API routes are for non-page operations.
+- `data-bp-no-route` is reserved for theme-owned shell internals. On service content it prevents route mapping and can send a root-relative URL to the theme origin.
 - Bootstrap1 already provides shell/header context for the active route. Do not add duplicate top-level page headings like `<h1 class="h4 mb-3">Templates</h1>` in Bootstrap1 service renderers unless the heading is actual service content.
 
 ---
@@ -634,7 +642,7 @@ If you add a custom HX-* header to a response, ensure it's in `exposeHeaders` (i
 - Looks up the closest `[data-bp-service]` ancestor -> maps to that service's origin from `data-bp-services="..."` on the shell root.
 - Rewrites root-relative paths (`/foo`) to absolute (`http://localhost:3200/foo`).
 - Skips elements with `data-bp-no-route=""` - use this on theme-shell elements that always target the theme itself (style, brand, nav, fragments wrappers).
-- Rewrites `kind: "api"` GET anchors to their `/_bp/service/{serviceId}/...` allowlist path as native browser links. OAuth redirects must not be issued as HTMX fetches.
+- Rewrites internal page anchors through their `kind: "page"` app mount. Service renderers must not use API/service paths as anchor destinations.
 
 Always write hx-* paths as relative. Never hardcode `http://localhost:3300/...`.
 
@@ -753,7 +761,7 @@ Auth in BetterPortal is **opt-in** per tenant and built on **bearer tokens, not 
 
 Each service runs on its own origin (`localhost:3200`, `localhost:3300`, etc.). The theme runs on yet another (`localhost:3100`). Browser cookies do not cross origins - a cookie set by the theme is not sent to a service. SameSite=None+Secure only widens 3rd-party context for embedded scenarios, never solves cross-origin same-document calls cleanly, and it forces HTTPS + couples deployment.
 
-Since browser to service is a direct HTMX call from a different origin, **auth tokens must travel as request headers**, not cookies. Services set browser-managed request headers by returning `BP-SetHeader` / `BP-RemoveHeader`. The shell stores those headers, expires them, attaches live headers to BP-managed requests, and refreshes headers that advertise `refresh=/path` before expiry.
+Since browser to service is a direct HTMX call from a different origin, **auth tokens must travel as request headers**, not cookies. Service handlers call `ctx.bpHeaders.set(...)` / `ctx.bpHeaders.remove(...)`; the framework returns `BP-SetHeader` / `BP-RemoveHeader`. The shell stores those headers, expires them, attaches live headers to BP-managed requests, and refreshes headers that advertise `refresh=/path` before expiry.
 
 ### Auth provider services
 
@@ -782,8 +790,6 @@ Service API keys are not admin/user tokens. Config Manager accepts service keys 
 | `JwksVerifier`            | Caches JWKS and verifies an ID token's signature + claims.              |
 | `AuthClientError`         | Error class thrown by `authLogin` / `authLogout` for typed handling.    |
 | `JwtClaims`               | Type describing the verified claim shape.                               |
-
-Cookie helpers (`parseCookieHeader`, `serializeCookie`, `serializeClearCookie`) also exist and are useful for **same-origin** flows on the theme itself (e.g., remembering UI preferences). They are **not** part of the auth path.
 
 ### Per-route policy
 

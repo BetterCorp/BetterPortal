@@ -1,6 +1,6 @@
 # Security and Auth
 
-BetterPortal keeps browser cookies on the theme origin and sends runtime auth context to services through request headers.
+BetterPortal service APIs do not support cookies. Runtime auth and other browser-managed state travel to services through request headers.
 
 This avoids cross-origin cookie problems while preserving independent service origins.
 
@@ -10,6 +10,8 @@ Services set browser-managed BP headers with response directives:
 
 - `BP-SetHeader` tells the shell/client to store a named header value, expiry, owner, and scope.
 - `BP-RemoveHeader` tells the shell/client to remove a stored header.
+
+Route handlers use `ctx.bpHeaders.set(...)` and `ctx.bpHeaders.remove(...)`; the framework emits the directives. Do not read `Cookie`, emit `Set-Cookie`, or build service login/session flows around browser cookies.
 
 The shell owns expiry and refresh behavior. Service fragments should not manipulate local storage directly for auth/header state.
 

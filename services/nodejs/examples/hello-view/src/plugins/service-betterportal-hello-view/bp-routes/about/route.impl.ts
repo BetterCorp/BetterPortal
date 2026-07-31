@@ -6,19 +6,19 @@ import {
   type CacheHints
 } from "@betterportal/framework";
 
-export const QuerySchema = av.object({}, { unknownKeys: "strip" });
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
-export const RequestSchema = av.object({}, { unknownKeys: "strip" });
+export const QuerySchema = av.object({});
+export const HeadersSchema = av.object({});
+export const RequestSchema = av.object({});
 
 const SectionSchema = av.object({
   title: av.string().minLength(1),
   text: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 const PrincipleSchema = av.object({
   title: av.string().minLength(1),
   text: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
@@ -26,7 +26,7 @@ export const ResponseSchema = av.object({
   sections: av.array(SectionSchema),
   principles: av.array(PrincipleSchema),
   landingHref: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "About BetterPortal";

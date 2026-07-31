@@ -7,24 +7,24 @@ import {
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
 
-export const QuerySchema = av.object({}, { unknownKeys: "strip" });
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
-export const RequestSchema = av.object({}, { unknownKeys: "strip" });
+export const QuerySchema = av.object({});
+export const HeadersSchema = av.object({});
+export const RequestSchema = av.object({});
 
 const HighlightSchema = av.object({
   title: av.string().minLength(1),
   text: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 const CapabilitySchema = av.object({
   title: av.string().minLength(1),
   text: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 const AudienceSchema = av.object({
   title: av.string().minLength(1),
   text: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   headline: av.string().minLength(1),
@@ -34,7 +34,7 @@ export const ResponseSchema = av.object({
   capabilities: av.array(CapabilitySchema),
   audiences: av.array(AudienceSchema),
   aboutHref: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "BetterPortal";
