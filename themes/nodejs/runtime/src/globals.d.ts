@@ -40,6 +40,5 @@ declare global {
   interface Window {
     bootstrap?: Bootstrap;
     htmx: Htmx;
-    BetterPortalThemeAdapter?: Record<string, (...args: any[]) => unknown>;
   }
 }

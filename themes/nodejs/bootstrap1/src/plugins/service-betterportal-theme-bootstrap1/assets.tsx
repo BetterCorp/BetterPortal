@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import {
+  BETTERPORTAL_BROWSER_SOURCE_PREAMBLE,
   betterPortalShellRuntimeSource,
   buildBetterPortalThemeRuntimeAsset,
   loadThemeRuntimeVendorAsset
@@ -58,7 +59,7 @@ export async function loadBootstrap1Asset(assetPath: string): Promise<ThemeAsset
   }
   if (normalized === "bootstrap1-shell.js") {
     return {
-      body: [Bootstrap1AdapterSource, betterPortalShellRuntimeSource("bootstrap1")].join("\n;\n"),
+      body: [BETTERPORTAL_BROWSER_SOURCE_PREAMBLE, Bootstrap1AdapterSource, betterPortalShellRuntimeSource("bootstrap1")].join("\n;\n"),
       contentType: "application/javascript; charset=utf-8"
     };
   }

@@ -1,10 +1,12 @@
-export const Bootstrap1AdapterSource = `
-(() => {
+import { js } from "jsx-htmx";
+import type { BetterPortalThemeAdapter } from "@betterportal/theme-runtime";
+
+export const Bootstrap1AdapterSource = js(() => {
   const bootstrap = window.bootstrap;
-  const teleported = new Set();
-  const convertSidebars = (root) => {
+  const teleported = new Set<Element>();
+  const convertSidebars = (root: Element | null) => {
     if (!root) return;
-    root.querySelectorAll('[data-bp-sidebar]:not([data-bp-sidebar-ready])').forEach((element) => {
+    root.querySelectorAll<HTMLElement>('[data-bp-sidebar]:not([data-bp-sidebar-ready])').forEach((element) => {
       const id = element.getAttribute('data-bp-sidebar') || ('bp-sidebar-' + Math.random().toString(36).slice(2));
       const title = element.getAttribute('data-bp-sidebar-title') || '';
       const position = element.getAttribute('data-bp-sidebar-position') || 'end';
@@ -17,18 +19,20 @@ export const Bootstrap1AdapterSource = `
       if (width) element.style.width = width;
       element.innerHTML = '<div class="offcanvas-header">' + (title ? '<h5 class="offcanvas-title">' + title + '</h5>' : '<span></span>') + '<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div><div class="offcanvas-body">' + content + '</div>';
     });
-    root.querySelectorAll('[data-bp-sidebar-open]:not([data-bp-trigger-ready])').forEach((button) => {
+    root.querySelectorAll<HTMLElement>('[data-bp-sidebar-open]:not([data-bp-trigger-ready])').forEach((button) => {
       button.setAttribute('data-bp-trigger-ready', '');
       button.setAttribute('data-bs-toggle', 'offcanvas');
       button.setAttribute('data-bs-target', '#' + button.getAttribute('data-bp-sidebar-open'));
     });
-  };  const initComponents = (root) => {
+  };
+
+  const initComponents = (root: Element | null) => {
     if (!root || !bootstrap) return;
     convertSidebars(root);
-    root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+    root.querySelectorAll<HTMLElement>('[data-bs-toggle="tooltip"]').forEach((el) => {
       if (!bootstrap.Tooltip.getInstance(el)) new bootstrap.Tooltip(el);
     });
-    root.querySelectorAll('[data-bs-toggle="popover"]').forEach((el) => {
+    root.querySelectorAll<HTMLElement>('[data-bs-toggle="popover"]').forEach((el) => {
       if (!bootstrap.Popover.getInstance(el)) new bootstrap.Popover(el);
     });
   };
@@ -93,7 +97,7 @@ export const Bootstrap1AdapterSource = `
         window.alert("Request failed (" + status + ")");
         return;
       }
-      let modal = document.querySelector("#bp-request-error-modal");
+      let modal = document.querySelector<HTMLDivElement>("#bp-request-error-modal");
       if (!modal) {
         modal = document.createElement("div");
         modal.id = "bp-request-error-modal";
@@ -109,5 +113,5 @@ export const Bootstrap1AdapterSource = `
       }
       bootstrap.Modal.getOrCreateInstance(modal).show();
     }
-  };
-})();`;
+  } satisfies BetterPortalThemeAdapter;
+});

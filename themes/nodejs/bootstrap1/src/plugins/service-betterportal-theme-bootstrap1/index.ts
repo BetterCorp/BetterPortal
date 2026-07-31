@@ -1271,7 +1271,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       // redirects here on a 401 (see assets.ts htmx_before_swap).
       let loginUrl: string | undefined;
       const appAuth = (requestContext.app as { auth?: { serviceId?: string; loginViewId?: string } }).auth;
-      const fullScreen = currentRoute?.chrome?.fullScreen === true;
       const discoveryUrls = this.resolveThemeAiContext(activeEvent);
       if (appAuth?.serviceId) {
         const authBinding = resolveServiceForTenant(portalConfig, appAuth.serviceId, requestContext);
@@ -1306,7 +1305,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           navItems: navItems as any,
           resolvedFragments,
           loginUrl,
-          fullScreen,
+          chrome: currentRoute?.chrome,
           aiManifestUrl: "/.well-known/bp/ai.json",
           automationCatalogUrl: discoveryUrls?.catalogUrl,
           managementDiscoveryUrl: discoveryUrls?.management.discoveryUrl

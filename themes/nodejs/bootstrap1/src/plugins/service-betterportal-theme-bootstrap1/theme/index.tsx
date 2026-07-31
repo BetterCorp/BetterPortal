@@ -6,6 +6,10 @@ import {
   type HtmlRenderable,
   type PluginManifest
 } from "@betterportal/framework";
+import {
+  betterPortalChromeAttributes,
+  type BetterPortalThemeChrome
+} from "@betterportal/theme-runtime";
 
 export interface Bootstrap1RouteLink {
   id: string;
@@ -62,7 +66,7 @@ export interface Bootstrap1HostPageContext {
   }>>;
   loginUrl?: string;
   logoutUrl?: string;
-  fullScreen?: boolean;
+  chrome?: BetterPortalThemeChrome;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
   managementDiscoveryUrl?: string;
@@ -382,11 +386,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       minHeight: "100vh",
       padding: "0.85rem"
     },
-    ".bp-shell--auth": {
-      display: "grid",
-      placeItems: "center",
-      padding: "1.5rem"
-    },
+
     ".bp-shell[data-bp-chrome-full-screen='true']": {
       padding: "0"
     },
@@ -411,6 +411,15 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
     },
     ".bp-shell[data-bp-chrome-full-screen='true'] .bp-shell__main": {
       padding: 0
+    },
+    ".bp-shell[data-bp-chrome-hide-menu='true'] .bp-admin__sidebar, .bp-shell[data-bp-chrome-hide-menu='true'] .bp-admin__mobile-menu, .bp-shell[data-bp-chrome-hide-menu='true'] .bp-admin__menu-button": {
+      display: "none"
+    },
+    ".bp-shell[data-bp-chrome-hide-header='true'] .bp-admin__topbar": {
+      display: "none"
+    },
+    ".bp-shell[data-bp-chrome-hide-footer='true'] .bp-admin__footer": {
+      display: "none"
     },
     ".bp-admin": {
       maxWidth: 1540,
@@ -735,11 +744,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       zIndex: 1,
       padding: "0.85rem 1.25rem 1.25rem"
     },
-    ".bp-shell__main--auth": {
-      width: "100%",
-      maxWidth: 520,
-      padding: 0
-    },
+
     ".bp-shell__loading": {
       minHeight: 320,
       display: "flex",
@@ -2166,7 +2171,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
       data-bp-dev-reload="auto"
       data-bp-login-url={context.loginUrl}
       data-bp-logout-url={context.logoutUrl}
-      data-bp-chrome-full-screen={context.fullScreen ? "true" : "false"}
+      {...betterPortalChromeAttributes(context.chrome)}
     >
       <div class="offcanvas offcanvas-start bp-admin__mobile-menu" tabindex={-1} id="bp-mobile-menu" aria-labelledby="bp-mobile-menu-title">
         <div class="offcanvas-header">
@@ -2323,57 +2328,6 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
   );
 }
 
-function Bootstrap1AuthBody(context: Bootstrap1HostPageContext): HtmlRenderable {
-  const hasInitialRouteError = Boolean(context.initialRouteError);
-  const initialRouteErrorTitle = context.initialRouteStatus === 404 ? "Route Not Found" : "Route Configuration Error";
-  const serviceMap = buildServiceMap(context.routeLinks);
-  return (
-    <div
-      class="bp-shell bp-shell--auth"
-      data-bp-shell-root=""
-      data-bp-services={JSON.stringify(serviceMap)}
-      data-bp-routes={JSON.stringify(context.routeLinks)}
-      data-bp-dev-reload="auto"
-      data-bp-login-url={context.loginUrl}
-      data-bp-logout-url={context.logoutUrl}
-      data-bp-auth-mode="true"
-      data-bp-chrome-full-screen="true"
-    >
-      <div data-bp-background-fragments="" hidden></div>
-      <main class="bp-shell__main bp-shell__main--auth">
-        <div
-          id="bp-main"
-          hx-history-elt={true}
-          data-bp-main-outlet=""
-          data-bp-service={context.initialServiceId}
-          hx-get={context.initialRouteUrl ?? ""}
-          hx-trigger={context.initialRouteUrl && !hasInitialRouteError ? "load" : undefined}
-          hx-target="#bp-main"
-          hx-swap="innerHTML"
-        >
-          {hasInitialRouteError ? (
-            <div class="bp-shell__empty-state">
-              <div class="bp-shell__empty-card">
-                <div class="bp-shell__empty-title">{initialRouteErrorTitle}</div>
-                <div class="bp-shell__empty-copy">{context.initialRouteError}</div>
-              </div>
-            </div>
-          ) : (
-            <div class="bp-shell__loading">
-              <div class="bp-shell__loading-skeleton">
-                <div class="bp-shell__skeleton-heading"></div>
-                <div class="bp-shell__skeleton-row"></div>
-                <div class="bp-shell__skeleton-row"></div>
-                <div class="bp-shell__skeleton-row"></div>
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  );
-}
-
 export function renderBootstrap1Shell(context: Bootstrap1ShellContext): string {
   return `<!DOCTYPE html>${Bootstrap1Document(context)}`;
 }
@@ -2390,6 +2344,6 @@ export function renderBootstrap1HostPage(context: Bootstrap1HostPageContext): st
     aiManifestUrl: context.aiManifestUrl,
     automationCatalogUrl: context.automationCatalogUrl,
     managementDiscoveryUrl: context.managementDiscoveryUrl,
-    bodyHtml: context.fullScreen ? Bootstrap1AuthBody(context) : Bootstrap1LandingBody(context)
+    bodyHtml: Bootstrap1LandingBody(context)
   });
 }

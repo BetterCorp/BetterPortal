@@ -1,10 +1,68 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { js } from "jsx-htmx";
+import { js, type RawText } from "jsx-htmx";
 
 export interface ThemeRuntimeAsset {
   body: string;
   contentType: string;
+}
+
+export type BetterPortalThemeChromeValue = string | number | boolean;
+export type BetterPortalThemeChrome = Readonly<Record<string, BetterPortalThemeChromeValue>>;
+
+export interface BetterPortalThemeAdapter {
+  syncProfileMirror?(): void;
+  cleanupTransientUi?(): void;
+  syncOverlays?(): void;
+  closeContainingOverlay?(source: Element | null | undefined): void;
+  prepareContent?(root: Element): void;
+  initComponents?(root: Element | null): void;
+  disposeComponents?(root: Element | null): void;
+  scrollToTop?(): void;
+  setLoading?(loading: boolean, outlet: Element | null): void;
+  clearError?(): void;
+  showRequestError?(status: number, content: string): void;
+  replaceMainWithError?(
+    title: string,
+    message: string,
+    action: unknown,
+    context: string | undefined,
+    outlet: Element | null
+  ): void;
+  applyChrome?(
+    chrome: BetterPortalThemeChrome,
+    previousChrome: BetterPortalThemeChrome,
+    root: Element
+  ): void;
+}
+
+declare global {
+  interface Window {
+    BetterPortalThemeAdapter?: BetterPortalThemeAdapter;
+  }
+}
+
+export type BetterPortalThemeRuntimeSource = string | RawText;
+export const BETTERPORTAL_BROWSER_SOURCE_PREAMBLE = "var __name=function(f){return f};";
+
+function chromeDataKey(rawKey: string): string | null {
+  const key = rawKey
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[_\s]+/g, "-")
+    .toLowerCase();
+  return /^[a-z][a-z0-9-]*$/.test(key) ? key : null;
+}
+
+export function betterPortalChromeAttributes(
+  chrome?: BetterPortalThemeChrome
+): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  for (const [rawKey, value] of Object.entries(chrome ?? {})) {
+    if (typeof value === "number" && !Number.isFinite(value)) continue;
+    const key = chromeDataKey(rawKey);
+    if (key) attributes[`data-bp-chrome-${key}`] = String(value);
+  }
+  return attributes;
 }
 
 const require = createRequire(import.meta.url);
@@ -44,7 +102,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
 
       const HX_METHODS = ["hx-get", "hx-post", "hx-put", "hx-delete", "hx-patch"] as const;
       const DOWNLOAD_ATTR = "hx-download";
-      const themeAdapter = (window as any).BetterPortalThemeAdapter || {};
+      const themeAdapter = window.BetterPortalThemeAdapter ?? {};
 
       // -- DOM helpers --
 
@@ -113,10 +171,44 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         return Object.keys(chrome).length ? chrome : null;
       };
 
-      const setChromeFullScreen = (fullScreen: boolean) => {
+      const kebabChromeKey = (key: string) =>
+        key
+          .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+          .replace(/[_\s]+/g, "-")
+          .toLowerCase();
+
+      const readChromeFromRoot = (): Record<string, string | number | boolean> => {
+        const root = shellRoot();
+        const chrome: Record<string, string | number | boolean> = {};
+        if (!root) return chrome;
+        for (const attribute of Array.from(root.attributes)) {
+          if (!attribute.name.startsWith("data-bp-chrome-")) continue;
+          const key = camelChromeKey(attribute.name.slice("data-bp-chrome-".length));
+          const raw = attribute.value;
+          chrome[key] =
+            raw === "true" ? true :
+            raw === "false" ? false :
+            raw !== "" && Number.isFinite(Number(raw)) ? Number(raw) :
+            raw;
+        }
+        return chrome;
+      };
+
+      let activeChrome = readChromeFromRoot();
+
+      const applyChrome = (chrome: Record<string, string | number | boolean> | null) => {
         const root = shellRoot();
         if (!root) return;
-        root.setAttribute("data-bp-chrome-full-screen", fullScreen ? "true" : "false");
+        const nextChrome = chrome ?? {};
+        for (const key of Object.keys(activeChrome)) {
+          if (!(key in nextChrome)) root.removeAttribute(`data-bp-chrome-${kebabChromeKey(key)}`);
+        }
+        for (const [key, value] of Object.entries(nextChrome)) {
+          root.setAttribute(`data-bp-chrome-${kebabChromeKey(key)}`, String(value));
+        }
+        const previousChrome = activeChrome;
+        activeChrome = { ...nextChrome };
+        themeAdapter.applyChrome?.(activeChrome, previousChrome, root);
       };
 
       const applyChromeFromResponse = (detail: any) => {
@@ -124,8 +216,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         const response = detail?.ctx?.response;
         const contentType = response?.headers?.get?.("content-type") || "";
         if (!contentType.includes("text/html")) return;
-        const chrome = parseChromeFromContentType(contentType);
-        setChromeFullScreen(chrome?.fullScreen === true);
+        applyChrome(parseChromeFromContentType(contentType));
       };
 
       // -- Theme presentation lifecycle --
@@ -1566,6 +1657,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
       // -- DOM setup --
 
       document.addEventListener("DOMContentLoaded", () => {
+        applyChrome(readChromeFromRoot());
         scheduleBootstrapOverlaySync();
         setActiveRoute(window.location.pathname);
         resolveServiceLinks(document.body);
@@ -1573,7 +1665,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         void loadBackgroundFragments();
         if (!hasLoaded()) setLoading(true);
         // P14: kick off menu service health checks for the admin shell only.
-        if (shellRoot()?.getAttribute("data-bp-auth-mode") !== "true") {
+        if (shellRoot()?.getAttribute("data-bp-menu-health") !== "false") {
           runMenuHealthChecks();
           setInterval(runMenuHealthChecks, 60 * 60 * 1000);
           syncMenuVisibility();
@@ -2033,14 +2125,14 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         },
       });
     })();
-  }).toString();
-  return `const __name=function(f){return f};${body}`.replaceAll("theme=bootstrap1", `theme=${themeId}`);
+  });
+  return `${BETTERPORTAL_BROWSER_SOURCE_PREAMBLE}${body}`.replaceAll("theme=bootstrap1", `theme=${themeId}`);
 }
 
 
 export interface BuildBetterPortalThemeRuntimeOptions {
   themeId: string;
-  adapterSource?: string;
+  adapterSource?: BetterPortalThemeRuntimeSource;
 }
 
 export async function buildBetterPortalThemeRuntimeAsset(
@@ -2048,7 +2140,7 @@ export async function buildBetterPortalThemeRuntimeAsset(
 ): Promise<ThemeRuntimeAsset> {
   const [htmx, sse] = await Promise.all([readTextAsset(HtmxPath), readTextAsset(HtmxSsePath)]);
   return {
-    body: [htmx.body, options.adapterSource, betterPortalShellRuntimeSource(options.themeId), sse.body]
+    body: [htmx.body, BETTERPORTAL_BROWSER_SOURCE_PREAMBLE, options.adapterSource, betterPortalShellRuntimeSource(options.themeId), sse.body]
       .filter(Boolean)
       .join("\n;\n"),
     contentType: "application/javascript; charset=utf-8"

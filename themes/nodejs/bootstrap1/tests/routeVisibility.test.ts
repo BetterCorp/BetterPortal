@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadBootstrap1Asset } from "../src/plugins/service-betterportal-theme-bootstrap1/assets.js";
-import { isUserFacingRoute, renderBootstrap1Shell } from "../src/plugins/service-betterportal-theme-bootstrap1/theme/index.js";
+import { isUserFacingRoute, renderBootstrap1HostPage, renderBootstrap1Shell } from "../src/plugins/service-betterportal-theme-bootstrap1/theme/index.js";
 
 test("API routes are never browser navigation candidates", () => {
   assert.equal(isUserFacingRoute({ kind: "page", href: "/tunnels/dashboard" }), true);
@@ -35,4 +35,21 @@ test("Bootstrap initializes before shell overlay cleanup", () => {
     bodyHtml: ""
   });
   assert.ok(html.indexOf("bootstrap.bundle.min.js") < html.indexOf("bootstrap1-core.js"));
+});
+
+test("fullscreen chrome keeps the normal shell and does not imply auth", () => {
+  const html = renderBootstrap1HostPage({
+    title: "Test",
+    brandName: "Test",
+    themeMode: "light",
+    themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets",
+    currentPath: "/login",
+    routeLinks: [],
+    resolvedFragments: {},
+    chrome: { fullScreen: true }
+  });
+  assert.match(html, /data-bp-chrome-full-screen="true"/);
+  assert.match(html, /class="bp-admin"/);
+  assert.doesNotMatch(html, /data-bp-auth-mode/);
 });

@@ -6,10 +6,12 @@ interface BootstrapComponentInstance {
 
 interface BootstrapModalInstance extends BootstrapComponentInstance {
   hide(): void;
+  show(): void;
 }
 
 interface BootstrapComponentStatic<T extends BootstrapComponentInstance = BootstrapComponentInstance> {
   getInstance(el: Element): T | null;
+  getOrCreateInstance(el: Element): T;
   new(el: Element): T;
 }
 
@@ -34,12 +36,11 @@ type Bootstrap = {
   Tooltip: BootstrapComponentStatic;
   Popover: BootstrapComponentStatic;
   Modal: BootstrapComponentStatic<BootstrapModalInstance>;
+  Offcanvas: BootstrapComponentStatic<BootstrapModalInstance>;
 }
 
 declare global {
   const htmx: Htmx;
-  //const bootstrap: Bootstrap;
-
   interface Window {
     bootstrap?: Bootstrap;
     htmx: Htmx;

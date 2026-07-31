@@ -1,6 +1,10 @@
 /** @jsxImportSource jsx-htmx */
 import { css } from "jsx-htmx";
 import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework";
+import {
+  betterPortalChromeAttributes,
+  type BetterPortalThemeChrome
+} from "@betterportal/theme-runtime";
 
 export interface EmbeddedShellContext {
   title: string;
@@ -28,6 +32,7 @@ export interface EmbeddedHostPageContext {
   initialRouteError?: string;
   routeLinks: EmbeddedRouteLink[];
   backgroundServices: Array<{ serviceId: string; origin: string }>;
+  chrome?: BetterPortalThemeChrome;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
   managementDiscoveryUrl?: string;
@@ -150,7 +155,8 @@ function EmbeddedBody(context: EmbeddedHostPageContext): HtmlRenderable {
       data-bp-routes={JSON.stringify(context.routeLinks)}
       data-bp-background-services={JSON.stringify(context.backgroundServices)}
       data-bp-initial-service={context.initialServiceId}
-      data-bp-auth-mode="true"
+      data-bp-menu-health="false"
+      {...betterPortalChromeAttributes(context.chrome)}
       hx-ext="bp-shell"
     >
       <div data-bp-background-fragments="" hidden></div>
