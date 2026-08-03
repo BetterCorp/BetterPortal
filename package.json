@@ -28,7 +28,7 @@
     "automations/zapier"
   ],
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@playwright/test": "^1.62.1"
   },
   "dependencies": {
     "@bsb/observable-axiom": "^9.6.60",
