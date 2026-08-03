@@ -259,7 +259,7 @@ export abstract class BPService<
       } as any,
       platformServices: [],
       sharedServiceCatalog: [],
-      tenantSharedServiceActivations: [],
+      sharedServiceActivations: [],
       manifestCache,
       tenants: s.tenants.map((t) => ({
         id: t.id,
@@ -865,7 +865,7 @@ export abstract class BPService<
 
   // Control plane sync
 
-  private connectToControlPlane(obs: Observable): void {
+  private connectToControlPlane(obs: Observable): Promise<boolean> {
     const baseUrl = this.resolvedCpUrl!.replace(/\/+$/, "");
     const url = `${baseUrl}/.well-known/bp/sync`;
     const pollUrl = `${url}/poll`;
@@ -927,7 +927,7 @@ export abstract class BPService<
       }
     };
 
-    const bootstrapFromPoll = async (): Promise<void> => {
+    const bootstrapFromPoll = async (): Promise<boolean> => {
       obs.log.info("Control plane sync bootstrap polling: {url}", { url: pollUrl });
       // POST manifest with the poll so CP can cache it for resolvedServicePath injection
       // AND surface per-view permission requirements to the admin role editor.
@@ -1030,7 +1030,7 @@ export abstract class BPService<
           status: response.status,
           body
         });
-        return;
+        return false;
       }
 
       const config = await response.json();
@@ -1039,6 +1039,7 @@ export abstract class BPService<
         status: response.status
       });
       applyScopedConfig(config, "poll");
+      return true;
     };
 
     const logBootstrapPollError = (error: unknown): void => {
@@ -1058,8 +1059,11 @@ export abstract class BPService<
       });
     };
 
-    const connect = () => {
-      void bootstrapFromPoll().catch(logBootstrapPollError);
+    const connect = (): Promise<boolean> => {
+      const bootstrap = bootstrapFromPoll().catch((error) => {
+        logBootstrapPollError(error);
+        return false;
+      });
       this.sseAbortController = new AbortController();
       obs.log.info("BP SYNC CLIENT: opening SSE update stream service={serviceId} url={url}", {
         serviceId: this.manifest.pluginId,
@@ -1165,15 +1169,14 @@ export abstract class BPService<
           scheduleReconnect();
         }
       });
+      return bootstrap;
     };
 
     const scheduleReconnect = () => {
-      setTimeout(connect, 5000);
+      setTimeout(() => void connect(), 5000);
     };
 
-    bootstrapFromPoll()
-      .catch(logBootstrapPollError)
-      .finally(connect);
+    return connect();
   }
 
   private logScopedConfigDebug(obs: Observable): void {
@@ -1305,6 +1308,7 @@ export abstract class BPService<
           methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
           allowHeaders,
           credentials: true,
+          exposeHeaders: [],
           preflight: { statusCode: 403 }
         }) || undefined;
       }
@@ -1331,6 +1335,7 @@ export abstract class BPService<
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowHeaders,
         credentials: true,
+        exposeHeaders: [],
         preflight: { statusCode: 403 }
       }) || undefined;
     }
@@ -1349,6 +1354,7 @@ export abstract class BPService<
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowHeaders,
         credentials: true,
+        exposeHeaders: [],
         preflight: { statusCode: 403 }
       }) || undefined;
     }
@@ -1869,8 +1875,17 @@ export abstract class BPService<
         console.log(`\n*** BP install complete for ${this.manifest.pluginId} ***\n    apiKey: ${redeemBody.apiKey}\n    cpUrl:  ${normalizedCp}\n`);
         obs.log.info("Install complete for {pluginId}; apiKey persisted; starting CP sync", { pluginId: this.manifest.pluginId });
 
-        // Kick off CP sync (idempotent - connectToControlPlane uses resolved fields)
-        this.connectToControlPlane(obs);
+        // The install handshake is not complete until the CP has cached this
+        // service's manifest and returned its scoped config. In particular,
+        // bootstrap shells must be resolvable before the wizard redirects.
+        const synced = await this.connectToControlPlane(obs);
+        if (!synced) {
+          return jsonResponse({
+            error: "Install completed, but initial control-plane sync failed",
+            installed: true,
+            pluginId: this.manifest.pluginId
+          }, 503);
+        }
 
         return jsonResponse({
           ok: true,
