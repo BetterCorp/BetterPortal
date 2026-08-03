@@ -22,7 +22,7 @@ export interface BPElementArgs {
 }
 
 export interface BPElementReference {
-  /** Dependency alias from betterportal.json, a canonical plugin id, or "theme". */
+  /** Dependency alias from betterportal.json, a canonical plugin id, or "shell". */
   readonly service: string;
   /** Service route path from the dependency contract. Required for service fragments. */
   readonly path?: string;
@@ -46,9 +46,9 @@ export interface ViewRenderContext {
   readonly route: {
     readonly viewId: string;
     readonly path: string;
-    readonly theme: string;
+    readonly renderer: string;
     readonly mode: RenderMode;
-    readonly kind: ThemeRendererType;
+    readonly kind: ViewRendererType;
     readonly key?: string;
     readonly status: number;
   };
@@ -67,15 +67,15 @@ export interface ViewRenderContext {
   /** Resolve an app-allowlisted fragment request. Context is consumed server-side. */
   readonly element: (reference: BPElementReference) => ResolvedBPElementReference;
 }
-// -- Theme renderer types ----------------------------------------------
+// -- HTML renderer types -----------------------------------------------
 
-/** Type of view renderer within a _theme.* directory. */
-export type ThemeRendererType = "page" | "component" | "fragment";
+/** Type of view renderer within a _renderer.* directory. */
+export type ViewRendererType = "page" | "component" | "fragment";
 
-/** A single theme renderer - page, component, or fragment. */
-export interface RegisteredThemeRenderer {
+/** A single HTML renderer - page, component, or fragment. */
+export interface RegisteredViewRenderer {
   readonly rendererId: string;
-  readonly type: ThemeRendererType;
+  readonly type: ViewRendererType;
   /** HTTP method restriction (e.g., from index.GET.tsx). Undefined = all methods. */
   readonly method?: HttpMethod;
   /** Fragment location (e.g., "nav" from _nav.profile.tsx). Only for fragments. */
@@ -95,10 +95,10 @@ export interface RegisteredThemeRenderer {
 }
 
 /** All renderers for a single theme within a route. */
-export interface ThemeRendererSet {
-  readonly pages: ReadonlyArray<RegisteredThemeRenderer>;
-  readonly components: ReadonlyArray<RegisteredThemeRenderer>;
-  readonly fragments: ReadonlyArray<RegisteredThemeRenderer>;
+export interface ViewRendererSet {
+  readonly pages: ReadonlyArray<RegisteredViewRenderer>;
+  readonly components: ReadonlyArray<RegisteredViewRenderer>;
+  readonly fragments: ReadonlyArray<RegisteredViewRenderer>;
   /**
    * Streaming-view frame renderers, sourced from `index.stream.tsx`.
    * Present only on routes whose handler is a `createStreamHandler` stream.
@@ -112,10 +112,10 @@ export interface ThemeRendererSet {
  * can match the originally requested renderer (e.g. fragment `nav.profile`).
  */
 export interface StatusRenderersByKind {
-  readonly page?: RegisteredThemeRenderer;
-  readonly pages?: ReadonlyArray<RegisteredThemeRenderer>;
-  readonly components?: Readonly<Record<string, RegisteredThemeRenderer>>;
-  readonly fragments?: Readonly<Record<string, RegisteredThemeRenderer>>;
+  readonly page?: RegisteredViewRenderer;
+  readonly pages?: ReadonlyArray<RegisteredViewRenderer>;
+  readonly components?: Readonly<Record<string, RegisteredViewRenderer>>;
+  readonly fragments?: Readonly<Record<string, RegisteredViewRenderer>>;
 }
 
 // -- Route schemas -----------------------------------------------------
@@ -171,13 +171,13 @@ export interface RegisteredRoute {
   readonly apiContracts?: ReadonlyArray<Omit<ApiContractDescriptor, "viewId" | "methods"> & { methods?: ReadonlyArray<HttpMethod> }>;
   /**
    * Status code -> renderer map (per theme), broken down by renderer kind.
-   * Adapter looks up by (themeId, statusCode, kind, optional rendererKey).
+   * Adapter looks up by (rendererKey, statusCode, kind, optional renderer id).
    */
   readonly statusRenderers?: Readonly<Record<string, Readonly<Record<number, StatusRenderersByKind>>>>;
   readonly cacheHints: CacheHints;
   readonly demoScenarios: ReadonlyArray<DemoScenario>;
-  /** Theme renderers keyed by themeId. */
-  readonly themeRenderers: Readonly<Record<string, ThemeRendererSet>>;
+  /** HTML renderers keyed by compatibility key. */
+  readonly renderers: Readonly<Record<string, ViewRendererSet>>;
   /** SSE handler, registered at `{path}/__sse`. */
   readonly sse?: {
     readonly handler: SSEHandler;
@@ -186,7 +186,7 @@ export interface RegisteredRoute {
   };
 }
 
-export interface ThemeFragmentRenderContext {
+export interface ShellFragmentRenderContext {
   readonly tenant: BetterPortalTenant;
   readonly app: BetterPortalApp;
   readonly config?: Readonly<Record<string, unknown>>;
@@ -195,13 +195,13 @@ export interface ThemeFragmentRenderContext {
   readonly items: ReadonlyArray<HtmlRenderable>;
 }
 
-export interface RegisteredThemeFragment {
+export interface RegisteredShellFragment {
   readonly id: string;
   readonly kind: "fragment" | "block";
   readonly title: string;
   readonly description: string;
   readonly defaultItems?: ReadonlyArray<string>;
-  readonly render: (context: ThemeFragmentRenderContext) => HtmlRenderable;
+  readonly render: (context: ShellFragmentRenderContext) => HtmlRenderable;
 }
 
 // -- Registry ----------------------------------------------------------
@@ -211,5 +211,5 @@ export interface BetterPortalRegistry {
   /** Dependency alias -> canonical plugin id, generated from betterportal.lock.json. */
   readonly dependencies?: Readonly<Record<string, string>>;
   readonly routes: ReadonlyArray<RegisteredRoute>;
-  readonly themeFragments?: ReadonlyArray<RegisteredThemeFragment>;
+  readonly shellFragments?: ReadonlyArray<RegisteredShellFragment>;
 }

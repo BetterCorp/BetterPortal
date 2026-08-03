@@ -34,7 +34,7 @@ function route(path: string, viewId: string, handler: RouteHandler = () => ({ ok
     auth: { required: false, permissions: [] },
     cacheHints: {},
     demoScenarios: [],
-    themeRenderers: {}
+    renderers: {}
   };
 }
 
@@ -244,7 +244,7 @@ test("raw routes return file responses without ResponseSchema negotiation", asyn
       auth: { required: false, permissions: [] },
       cacheHints: {},
       demoScenarios: [],
-      themeRenderers: {}
+      renderers: {}
     }]
   }, async (baseUrl) => {
     const response = await fetch(`${baseUrl}/download`);

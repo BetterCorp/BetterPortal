@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadBootstrap1Asset } from "../src/plugins/service-betterportal-theme-bootstrap1/assets.js";
-import { isUserFacingRoute, renderBootstrap1HostPage, renderBootstrap1Shell } from "../src/plugins/service-betterportal-theme-bootstrap1/theme/index.js";
+import { isUserFacingRoute, renderBootstrap1HostPage, renderBootstrap1Shell } from "../src/plugins/service-betterportal-theme-bootstrap1/shell/index.js";
 
 test("API routes are never browser navigation candidates", () => {
   assert.equal(isUserFacingRoute({ kind: "page", href: "/tunnels/dashboard" }), true);

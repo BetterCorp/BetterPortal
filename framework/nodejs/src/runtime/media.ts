@@ -10,7 +10,7 @@ export type RequestedRepresentation =
   | { kind: "json" }
   | { kind: "ndjson" }
   | { kind: "metadata" }
-  | { kind: "html"; theme?: string; mode?: RenderMode };
+  | { kind: "html"; mode?: RenderMode };
 
 function parseParameter(raw: string): [string, string] | null {
   const separatorIndex = raw.indexOf("=");
@@ -86,7 +86,6 @@ export function resolveRequestedRepresentation(headerValue?: string): RequestedR
       const mode = modeCandidate ? RenderModeSchema.parse(modeCandidate) : undefined;
       return {
         kind: "html",
-        theme: entry.parameters.theme,
         mode
       };
     }

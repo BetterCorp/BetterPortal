@@ -479,7 +479,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     const manifestCache = getManifestCache();
     const configMetadata = (serviceInstanceId: string, pluginId?: string) => {
-      const cached = manifestCache.get(serviceInstanceId) ?? (pluginId ? manifestCache.get(pluginId) : undefined);
+      const cached = getCachedManifestForService(config, serviceInstanceId, manifestCache)
+        ?? (pluginId ? getCachedManifestForService(config, pluginId, manifestCache) : undefined);
       const configManifestKnown = Boolean(cached) || pluginId === this.manifest.pluginId;
       const hasConfigSchemas = (cached?.configSchemas?.length ?? 0) > 0;
       return {
@@ -492,16 +493,15 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     const tenantSvcsRaw = config.tenants.flatMap((t) =>
       t.services.map((s) => {
-        const cached = manifestCache.get(s.id);
+        const cached = getCachedManifestForService(config, s.id, manifestCache);
         const capabilities = cached?.capabilities?.length ? cached.capabilities : (s.capabilities ?? []);
-        const isTheme = capabilities.includes("theme");
+        const isShell = Boolean(cached?.shell);
         return {
           id: s.id, hostname: s.hostname, serviceId: s.serviceId, capabilities,
           title: cached?.title ?? s.title, description: s.description,
           createdAt: s.createdAt, lastSeenAt: s.lastSeenAt,
           enabled: s.enabled,
-          scope: isTheme ? "theme" as const : "tenant" as const,
-          themeId: undefined,
+          scope: isShell ? "shell" as const : "tenant" as const,
           tenantId: t.id as string | undefined,
           pushBase: `/settings/service/${s.id}`,
           ...configMetadata(s.id, s.serviceId)
@@ -535,7 +535,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           lastSeenAt: undefined as string | undefined,
           enabled: activation.enabled,
           scope: "shared" as const,
-          themeId: undefined,
           tenantId: activation.tenantId as string | undefined,
           pushBase: `/settings/shared/${activation.id}`,
           ...configMetadata(activation.id, shared.id)
@@ -701,7 +700,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       endpointBaseUrl: string;
       views: Array<{
         viewId: string; title: string; path: string;
-        themes: string[]; components: string[];
+        renderers: string[]; components: string[];
         hasFragments: boolean;
         demoScenarios: Array<{ id: string; title: string }>;
       }>;

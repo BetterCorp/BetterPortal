@@ -88,13 +88,13 @@ function renderServiceCard(
             </div>
             <span class={`badge ${
               service.scope === "platform" ? "text-bg-info" :
-              service.scope === "theme" ? "text-bg-warning" :
+              service.scope === "shell" ? "text-bg-warning" :
               service.scope === "shared" ? "text-bg-success" :
               "text-bg-primary"
             }`}>{service.scope}</span>
           </div>
           {service.tenantId ? <div class="small mb-1"><strong>Tenant:</strong> {tenant?.title ?? service.tenantId}</div> : ""}
-          {service.capabilities.includes("theme") && apps.length > 0 ? <div class="small mb-1"><strong>Apps:</strong> {apps.map((app) => app.title).join(", ")}</div> : ""}
+          {service.scope === "shell" && apps.length > 0 ? <div class="small mb-1"><strong>Apps:</strong> {apps.map((app) => app.title).join(", ")}</div> : ""}
           <div class="small mb-1"><strong>URL:</strong> <span class="font-monospace">{service.hostname}</span></div>
           {service.serviceId ? <div class="small mb-1"><strong>Plugin:</strong> <span class="font-monospace">{service.serviceId}</span></div> : ""}
           {service.capabilities.length > 0 ? (

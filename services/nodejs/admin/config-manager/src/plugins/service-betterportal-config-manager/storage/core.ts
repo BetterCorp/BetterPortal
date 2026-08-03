@@ -6,6 +6,7 @@ import type {
   ScopedTenant,
   ScopedApp
 } from "@betterportal/framework";
+import { resolveAppShell } from "@betterportal/framework";
 import type {
   BetterPortalConfig,
   BetterPortalTenant,
@@ -351,7 +352,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
 
     for (const ps of config.platformServices) {
       if (ps.enabled && ps.apiKeyHash === hash) {
-        // Return the UUIDv7 instance id - routes/fragments/app.themeId all key off it.
+        // Return the UUIDv7 instance id; app references always use concrete instances.
         // (ps.serviceId is the pluginId reference; not used for routing.)
         return { scope: "platform", serviceId: ps.id, service: ps };
       }
@@ -403,14 +404,14 @@ export abstract class BaseStorage implements PlatformConfigStore {
     tenantId?: string
   ): Promise<ScopedServiceConfig> {
     const config = await this.loadConfig();
-    // Shell/theme services need an unfiltered app view to resolve route URLs and
+    // Shell services need an unfiltered app view to resolve route URLs and
     // render full nav. Detect by app.shell.serviceId pointing at the caller.
     const sharedActivationIdsForCaller = new Set(
       config.sharedServiceActivations
         .filter((activation) => activation.enabled && activation.sharedServiceId === serviceId)
         .map((activation) => activation.id)
     );
-    const isThemeCaller = config.apps.some((app) =>
+    const isShellCaller = config.apps.some((app) =>
       app.shell?.serviceId === serviceId
       || (app.shell?.serviceId ? sharedActivationIdsForCaller.has(app.shell.serviceId) : false)
     );
@@ -422,14 +423,14 @@ export abstract class BaseStorage implements PlatformConfigStore {
       return this.withM2MPolicy(
         config,
         serviceId,
-        this.scopeForTenantService(config, serviceId, tenantId, isThemeCaller, isAuthCaller)
+        this.scopeForTenantService(config, serviceId, tenantId, isShellCaller, isAuthCaller)
       );
     }
 
     return this.withM2MPolicy(
       config,
       serviceId,
-      this.scopeForPlatformService(config, serviceId, isThemeCaller, isAuthCaller)
+      this.scopeForPlatformService(config, serviceId, isShellCaller, isAuthCaller)
     );
   }
 
@@ -452,7 +453,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
     config: BetterPortalConfig,
     serviceId: string,
     tenantId: string,
-    isThemeCaller: boolean,
+    isShellCaller: boolean,
     isAuthCaller: boolean
   ): ScopedServiceConfig {
     const tenant = config.tenants.find((t) => t.active && t.id === tenantId);
@@ -467,7 +468,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
       && activation.tenantId === tenantId
       && (activation.id === serviceId || activation.sharedServiceId === serviceId)
     );
-    if (!service && !sharedActivation && !isThemeCaller) return { configManagement: this.scopedConfigManagement(config), managementOrigins, tenants: [], apps: [] };
+    if (!service && !sharedActivation && !isShellCaller) return { configManagement: this.scopedConfigManagement(config), managementOrigins, tenants: [], apps: [] };
 
     const serviceKeys = service
       ? [service.id, service.serviceId].filter((value): value is string => !!value)
@@ -480,9 +481,9 @@ export abstract class BaseStorage implements PlatformConfigStore {
     const apps: ScopedApp[] = config.apps
       .filter((a) => a.tenantId === tenantId)
       // Shell callers only see apps that selected this service instance as shell.
-      .filter((a) => isThemeCaller ? a.shell?.serviceId === serviceId : true)
-      .map((a) => this.scopeApp(a, serviceKeys, isThemeCaller, isAuthCaller))
-      .filter((a) => isThemeCaller || a.routes.length > 0 || Object.keys(a.fragments).length > 0);
+      .filter((a) => isShellCaller ? a.shell?.serviceId === serviceId : true)
+      .map((a) => this.scopeApp(config, a, serviceKeys, isShellCaller, isAuthCaller))
+      .filter((a) => isShellCaller || a.routes.length > 0 || Object.keys(a.fragments).length > 0);
 
     return {
       configManagement: this.scopedConfigManagement(config),
@@ -496,7 +497,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
   private scopeForPlatformService(
     config: BetterPortalConfig,
     serviceId: string,
-    isThemeCaller: boolean,
+    isShellCaller: boolean,
     isAuthCaller: boolean
   ): ScopedServiceConfig {
     const tenants: ScopedTenant[] = [];
@@ -505,7 +506,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
     for (const tenant of config.tenants) {
       if (!tenant.active) continue;
 
-      if (isThemeCaller) {
+      if (isShellCaller) {
         // Platform shell services serve any tenant whose apps reference this service.
         const sharedShellActivationIds = new Set(
           config.sharedServiceActivations
@@ -520,7 +521,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
               || (a.shell?.serviceId ? sharedShellActivationIds.has(a.shell.serviceId) : false)
             )
           )
-          .map((a) => this.scopeApp(a, [], true, isAuthCaller));
+          .map((a) => this.scopeApp(config, a, [], true, isAuthCaller));
         if (tenantApps.length === 0) continue;
         tenants.push(this.scopeTenant(tenant, config));
         apps.push(...tenantApps);
@@ -545,9 +546,9 @@ export abstract class BaseStorage implements PlatformConfigStore {
         const tenantApps = config.apps
           .filter((a) => a.tenantId === tenant.id)
           .filter((a) => activations.some((activation) => !activation.appId || activation.appId === a.id))
-          .filter((a) => isThemeCaller ? (a.shell?.serviceId ? activationIds.has(a.shell.serviceId) : false) : true)
-          .map((a) => this.scopeApp(a, [sharedService.id, ...activationIds], isThemeCaller, isAuthCaller))
-          .filter((a) => isThemeCaller || a.routes.length > 0 || Object.keys(a.fragments).length > 0);
+          .filter((a) => isShellCaller ? (a.shell?.serviceId ? activationIds.has(a.shell.serviceId) : false) : true)
+          .map((a) => this.scopeApp(config, a, [sharedService.id, ...activationIds], isShellCaller, isAuthCaller))
+          .filter((a) => isShellCaller || a.routes.length > 0 || Object.keys(a.fragments).length > 0);
         apps.push(...tenantApps);
         continue;
       }
@@ -566,7 +567,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
 
       const tenantApps = config.apps
         .filter((a) => a.tenantId === tenant.id)
-        .map((a) => this.scopeApp(a, serviceKeys, false, isAuthCaller))
+        .map((a) => this.scopeApp(config, a, serviceKeys, false, isAuthCaller))
         .filter((a) => a.routes.length > 0 || Object.keys(a.fragments).length > 0);
 
       apps.push(...tenantApps);
@@ -687,12 +688,12 @@ export abstract class BaseStorage implements PlatformConfigStore {
         context: {
           tenant: this.scopeTenant(tenant, config),
           app: {
-            ...this.scopeApp(app, [], false, false),
+            ...this.scopeApp(config, app, [], false, false),
             routes: [],
             menu: [],
             slots: [],
             fragments: {},
-            themeFragments: {}
+            shellFragments: {}
           }
         }
       } : {})
@@ -758,15 +759,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
     return [...new Set(origins)];
   }
 
-  private shellThemeId(app: BetterPortalApp): string {
-    const legacyThemeId = (app as unknown as { themeId?: string }).themeId;
-    if (legacyThemeId) return legacyThemeId;
-    // Convention: org.betterportal.theme.bootstrap1 -> bootstrap1.
-    // Renderer ids stay internal to codegen; app config only stores shell service.
-    return "bootstrap1";
-  }
-
-  private scopeApp(app: BetterPortalApp, serviceKeys: string[], isThemeCaller: boolean, isAuthCaller: boolean): ScopedApp {
+  private scopeApp(config: BetterPortalConfig, app: BetterPortalApp, serviceKeys: string[], isShellCaller: boolean, isAuthCaller: boolean): ScopedApp {
     const serviceKeySet = new Set(serviceKeys);
     return {
       id: app.id,
@@ -776,22 +769,21 @@ export abstract class BaseStorage implements PlatformConfigStore {
       hostnames: app.hostnames,
       originOverrides: app.originOverrides,
       refererOverrides: app.refererOverrides,
-      themeId: this.shellThemeId(app),
-      shell: app.shell,
+      shell: resolveAppShell(config, app),
       themeConfig: app.themeConfig,
       defaultRoute: app.defaultRoute,
       // Themes and authoritative auth services need the full route allowlist.
-      routes: isThemeCaller || isAuthCaller ? app.routes : app.routes.filter((r) => serviceKeySet.has(r.serviceId)),
+      routes: isShellCaller || isAuthCaller ? app.routes : app.routes.filter((r) => serviceKeySet.has(r.serviceId)),
       menu: app.menu,
-      slots: isThemeCaller ? app.slots : app.slots.filter((s) => serviceKeySet.has(s.serviceId)),
-      fragments: isThemeCaller
+      slots: isShellCaller ? app.slots : app.slots.filter((s) => serviceKeySet.has(s.serviceId)),
+      fragments: isShellCaller
         ? app.fragments
         : Object.fromEntries(
             Object.entries(app.fragments)
               .map(([loc, frags]) => [loc, frags.filter((f) => serviceKeySet.has(f.serviceId))])
               .filter(([, frags]) => (frags as unknown[]).length > 0)
           ),
-      themeFragments: isThemeCaller ? app.themeFragments : {},
+      shellFragments: isShellCaller ? app.shellFragments : {},
       auth: app.auth
     };
   }

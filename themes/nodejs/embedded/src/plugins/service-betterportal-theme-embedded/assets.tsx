@@ -1,12 +1,12 @@
 import { js } from "jsx-htmx";
 import {
-  buildBetterPortalThemeRuntimeAsset,
-  type BetterPortalThemeAdapter,
-  type ThemeRuntimeAsset
+  buildBetterPortalShellRuntimeAsset,
+  type BetterPortalShellAdapter,
+  type ShellRuntimeAsset
 } from "@betterportal/theme-runtime";
 
 const EmbeddedAdapterSource = js(() => {
-  window.BetterPortalThemeAdapter = {
+  window.BetterPortalShellAdapter = {
     initComponents: function () {},
     disposeComponents: function () {},
     closeContainingOverlay: function () {},
@@ -26,16 +26,15 @@ const EmbeddedAdapterSource = js(() => {
       error.textContent = message || "Unable to load embedded content.";
       outlet.appendChild(error);
     }
-  } satisfies BetterPortalThemeAdapter;
+  } satisfies BetterPortalShellAdapter;
 });
 
-let RuntimeAsset: Promise<ThemeRuntimeAsset> | undefined;
+let RuntimeAsset: Promise<ShellRuntimeAsset> | undefined;
 
-export async function loadEmbeddedAsset(assetPath: string): Promise<ThemeRuntimeAsset | null> {
+export async function loadEmbeddedAsset(assetPath: string): Promise<ShellRuntimeAsset | null> {
   const normalized = assetPath.replace(/^\/+/, "");
   if (normalized !== "embedded-core.js") return null;
-  RuntimeAsset ??= buildBetterPortalThemeRuntimeAsset({
-    themeId: "embedded",
+  RuntimeAsset ??= buildBetterPortalShellRuntimeAsset({
     adapterSource: EmbeddedAdapterSource
   });
   return RuntimeAsset;

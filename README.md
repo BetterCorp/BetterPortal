@@ -9,7 +9,7 @@ A multi-tenant portal platform composed of independent services unified by a sin
 
 ## What it is
 
-BetterPortal lets you compose a tenant-aware web portal out of small, independent services that each own their own data, config, and views. A theme service renders the host shell; HTMX swaps content from each business service directly in the browser. There is no client-side framework, no proxy layer, no shared monolith.
+BetterPortal lets you compose a tenant-aware web portal out of small, independent services that each own their own data, config, and views. A shell service renders the host page; HTMX swaps content from each business service directly in the browser. There is no client-side framework, no proxy layer, no shared monolith.
 
 ```
                        +-------------+
@@ -99,7 +99,7 @@ The default `bp-config.yaml` ships with the `betterportal` tenant + `betterporta
 
 1. Scaffold a directory under `services/nodejs/<category>/<name>/` (mirror `services/nodejs/examples/hello-view/`).
 2. Declare the plugin in `src/plugins/<plugin-name>/index.ts` extending `BPService` from `@betterportal/plugin-bsb`.
-3. Drop routes under `bp-routes/<routeDir>/index.ts`. Export `ResponseSchema`, `handleGet` via `createHandler(...)`. Add theme renderers in `_theme.<themeId>/index.tsx`.
+3. Drop routes under `bp-routes/<routeDir>/`. Put metadata in `index.ts`, method handlers in `GET.ts`/`POST.ts`, and HTML in `_renderer.<renderer>/GET.tsx`.
 4. Run `npx bp-codegen` (regenerates `.bp-generated/registry.ts`).
 5. `npm run build && npm start` - visit `/.well-known/bp/manifest`.
 6. Register in `bp-config.yaml` under a tenant's `services[]` (or as a platform service) and bind a route in `apps[].routes[]`.
@@ -111,11 +111,11 @@ The full developer guide lives in **[llms.txt](llms.txt)** - written for LLM age
 | Concept | What it is |
 |---|---|
 | **Tenant** | Isolation boundary; owns services + branding. |
-| **App** | A site under a tenant; has theme, routes, menu, fragments. |
+| **App** | A site under a tenant; has a shell, routes, menu, fragments. |
 | **Service** | BSB plugin exposing typed views + manifest, registered under a tenant. |
 | **Platform service** | Shared cross-tenant service (e.g., auth); tenants opt in. |
 | **Route** | `path -> service + view + targetPath` binding in an app. |
-| **View** | `bp-routes/<dir>/index.ts` - schemas + handler. Theme renderers live alongside in `_theme.<themeId>/index.tsx`. |
+| **View** | `bp-routes/<dir>/index.ts` metadata plus method handlers. HTML renderers live alongside in `_renderer.<renderer>/METHOD.tsx`. |
 | **Fragment** | HTML island at a named location (`nav`, `footer`). File: `_<location>.<id>.GET.tsx`. Optional SSE renderer: `_<location>.<id>.sse.tsx`. |
 | **Menu** | Per-app tree (groups + links) driving the sidebar nav. |
 
@@ -136,7 +136,7 @@ See `llms.txt section 1b` for the full list.
 |---|---|
 | `@betterportal/framework` | Contracts, runtime, codegen CLI (`bp-codegen`), h3 adapter, schema helpers. |
 | `@betterportal/plugin-bsb` | `BPService` base class; wires h3, CORS, observability into BSB. |
-| `@betterportal/theme-runtime` | Shared backend-assembled HTMX shell, BP headers, preload, URL rewriting, generic route chrome lifecycle, SSE, and typed TSX theme adapter contract. |
+| `@betterportal/theme-runtime` | Shared backend-assembled HTMX shell, BP headers, preload, URL rewriting, generic route chrome lifecycle, SSE, and typed TSX shell adapter contract. |
 | `@betterportal/theme-bootstrap1` | Default theme: Bootstrap 5 + HTMX shell, theme designer, nav/brand/style/fragment refresh endpoints. |
 | `@betterportal/theme-embedded` | Lightweight embedded renderer for headless / external embeds. |
 | `@betterportal/auth-default` | Optional JWT auth platform service. |

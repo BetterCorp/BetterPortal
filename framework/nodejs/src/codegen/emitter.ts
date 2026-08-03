@@ -1,4 +1,4 @@
-import type { ScanResult, ScannedMethodModule, ScannedRoute, ScannedStreamRenderer, ScannedThemeRenderer } from "./scanner.js";
+import type { ScanResult, ScannedMethodModule, ScannedRoute, ScannedStreamRenderer, ScannedViewRenderer } from "./scanner.js";
 
 // -- Naming helpers ---------------------------------------------------
 
@@ -45,43 +45,43 @@ function methodImportName(viewId: string, method: string): string {
 }
 
 /**
- * Build an import alias for a theme renderer module.
- * Pattern: `{viewIdCamel}{ThemeId}{Type|RendererId}`
+ * Build an import alias for a view renderer module.
+ * Pattern: `{viewIdCamel}{RendererKey}{Type|RendererId}`
  *
- * For pages with rendererId="default": `{viewIdCamel}{ThemeId}Page`
- * For components: `{viewIdCamel}{ThemeId}{RendererId}`  (camelCased)
- * For fragments: `{viewIdCamel}{ThemeId}{Location}{Id}`
+ * For pages with rendererId="default": `{viewIdCamel}{RendererKey}Page`
+ * For components: `{viewIdCamel}{RendererKey}{RendererId}`  (camelCased)
+ * For fragments: `{viewIdCamel}{RendererKey}{Location}{Id}`
  */
-function themeImportName(
+function rendererImportName(
   viewId: string,
-  renderer: ScannedThemeRenderer,
+  renderer: ScannedViewRenderer,
 ): string {
   const base = viewIdToCamel(viewId);
-  const theme = capitalize(sanitizeIdentifier(renderer.themeId));
+  const rendererName = capitalize(sanitizeIdentifier(renderer.rendererKey));
   const statusSuffix = renderer.statusCode !== undefined ? `S${renderer.statusCode}` : "";
 
   if (renderer.type === "page") {
     if (renderer.method) {
-      return `${base}${theme}Page${renderer.method}${statusSuffix}`;
+      return `${base}${rendererName}Page${renderer.method}${statusSuffix}`;
     }
-    return `${base}${theme}Page${statusSuffix}`;
+    return `${base}${rendererName}Page${statusSuffix}`;
   }
 
   if (renderer.type === "fragment") {
     const loc = capitalize(sanitizeIdentifier(renderer.fragmentLocation ?? ""));
     const id = capitalize(sanitizeIdentifier(renderer.fragmentId ?? ""));
     if (renderer.method) {
-      return `${base}${theme}${loc}${id}${renderer.method}${statusSuffix}`;
+      return `${base}${rendererName}${loc}${id}${renderer.method}${statusSuffix}`;
     }
-    return `${base}${theme}${loc}${id}${statusSuffix}`;
+    return `${base}${rendererName}${loc}${id}${statusSuffix}`;
   }
 
   // component
-  const rendererName = capitalize(sanitizeIdentifier(renderer.rendererId));
+  const variantName = capitalize(sanitizeIdentifier(renderer.rendererId));
   if (renderer.method) {
-    return `${base}${theme}${rendererName}${renderer.method}${statusSuffix}`;
+    return `${base}${rendererName}${variantName}${renderer.method}${statusSuffix}`;
   }
-  return `${base}${theme}${rendererName}${statusSuffix}`;
+  return `${base}${rendererName}${variantName}${statusSuffix}`;
 }
 
 /**
@@ -187,38 +187,38 @@ function emitMethodRoutes(route: ScannedRoute): string {
   return `{ ${entries.join(", ")} }`;
 }
 
-// -- Theme renderer emission ------------------------------------------
+// -- View renderer emission -------------------------------------------
 
-interface RenderersByTheme {
-  pages: Array<{ renderer: ScannedThemeRenderer; importName: string }>;
-  components: Array<{ renderer: ScannedThemeRenderer; importName: string }>;
-  fragments: Array<{ renderer: ScannedThemeRenderer; importName: string; sseImportName?: string }>;
+interface RenderersByRenderer {
+  pages: Array<{ renderer: ScannedViewRenderer; importName: string }>;
+  components: Array<{ renderer: ScannedViewRenderer; importName: string }>;
+  fragments: Array<{ renderer: ScannedViewRenderer; importName: string; sseImportName?: string }>;
   /** Streaming frame renderers from index.stream.tsx. */
   stream?: { renderer: ScannedStreamRenderer; importName: string };
   /** statusCode -> { page?, components: id -> ..., fragments: loc.id -> ... } */
   statusRenderers: Map<number, {
-    pages: Array<{ renderer: ScannedThemeRenderer; importName: string }>;
-    components: Map<string, { renderer: ScannedThemeRenderer; importName: string }>;
-    fragments: Map<string, { renderer: ScannedThemeRenderer; importName: string }>;
+    pages: Array<{ renderer: ScannedViewRenderer; importName: string }>;
+    components: Map<string, { renderer: ScannedViewRenderer; importName: string }>;
+    fragments: Map<string, { renderer: ScannedViewRenderer; importName: string }>;
   }>;
 }
 
-function emitThemeRenderers(
-  renderersByTheme: Map<string, RenderersByTheme>,
+function emitRenderers(
+  renderersByRenderer: Map<string, RenderersByRenderer>,
 ): string {
-  if (renderersByTheme.size === 0) return "{}";
+  if (renderersByRenderer.size === 0) return "{}";
 
-  const themeLines: string[] = ["{"];
+  const rendererLines: string[] = ["{"];
 
-  const themes = [...renderersByTheme.entries()];
-  for (let t = 0; t < themes.length; t++) {
-    const [themeId, sets] = themes[t];
-    const themeComma = t < themes.length - 1 ? "," : "";
+  const rendererEntries = [...renderersByRenderer.entries()];
+  for (let t = 0; t < rendererEntries.length; t++) {
+    const [rendererKey, sets] = rendererEntries[t];
+    const rendererComma = t < rendererEntries.length - 1 ? "," : "";
 
-    themeLines.push(`        ${JSON.stringify(themeId)}: {`);
-    themeLines.push(`          pages: [${emitRendererArray(sets.pages)}],`);
-    themeLines.push(`          components: [${emitRendererArray(sets.components)}],`);
-    themeLines.push(`          fragments: [${emitRendererArray(sets.fragments)}]${sets.stream ? "," : ""}`);
+    rendererLines.push(`        ${JSON.stringify(rendererKey)}: {`);
+    rendererLines.push(`          pages: [${emitRendererArray(sets.pages)}],`);
+    rendererLines.push(`          components: [${emitRendererArray(sets.components)}],`);
+    rendererLines.push(`          fragments: [${emitRendererArray(sets.fragments)}]${sets.stream ? "," : ""}`);
     if (sets.stream) {
       const props = [
         `renderShell: ${sets.stream.importName}.renderShell`,
@@ -230,29 +230,29 @@ function emitThemeRenderers(
       if (sets.stream.renderer.exports.includes("renderError")) {
         props.push(`renderError: ${sets.stream.importName}.renderError`);
       }
-      themeLines.push(`          stream: { ${props.join(", ")} }`);
+      rendererLines.push(`          stream: { ${props.join(", ")} }`);
     }
-    themeLines.push(`        }${themeComma}`);
+    rendererLines.push(`        }${rendererComma}`);
   }
 
-  themeLines.push("      }");
-  return themeLines.join("\n");
+  rendererLines.push("      }");
+  return rendererLines.join("\n");
 }
 
 function emitStatusRenderers(
-  renderersByTheme: Map<string, RenderersByTheme>,
+  renderersByRenderer: Map<string, RenderersByRenderer>,
 ): string | null {
-  const themesWithStatus = [...renderersByTheme.entries()].filter(
+  const renderersWithStatus = [...renderersByRenderer.entries()].filter(
     ([, sets]) => sets.statusRenderers.size > 0
   );
-  if (themesWithStatus.length === 0) return null;
+  if (renderersWithStatus.length === 0) return null;
 
   const lines: string[] = ["{"];
-  for (let t = 0; t < themesWithStatus.length; t++) {
-    const [themeId, sets] = themesWithStatus[t];
-    const themeComma = t < themesWithStatus.length - 1 ? "," : "";
+  for (let t = 0; t < renderersWithStatus.length; t++) {
+    const [rendererKey, sets] = renderersWithStatus[t];
+    const rendererComma = t < renderersWithStatus.length - 1 ? "," : "";
 
-    lines.push(`        ${JSON.stringify(themeId)}: {`);
+    lines.push(`        ${JSON.stringify(rendererKey)}: {`);
     const codes = [...sets.statusRenderers.entries()];
     for (let c = 0; c < codes.length; c++) {
       const [code, bucket] = codes[c];
@@ -275,19 +275,19 @@ function emitStatusRenderers(
       }
       lines.push(`          ${code}: { ${props.join(", ")} }${codeComma}`);
     }
-    lines.push(`        }${themeComma}`);
+    lines.push(`        }${rendererComma}`);
   }
   lines.push("      }");
   return lines.join("\n");
 }
 
-function emitRendererLiteral(item: { renderer: ScannedThemeRenderer; importName: string }): string {
+function emitRendererLiteral(item: { renderer: ScannedViewRenderer; importName: string }): string {
   const props: string[] = [
     `rendererId: ${JSON.stringify(item.renderer.rendererId)}`,
     `type: ${JSON.stringify(item.renderer.type)}`
   ];
   if (item.renderer.method) props.push(`method: ${JSON.stringify(item.renderer.method)}`);
-  // statusCode is NOT emitted - RegisteredThemeRenderer has no such field; the
+  // statusCode is NOT emitted - RegisteredViewRenderer has no such field; the
   // status code is already the key of the enclosing statusRenderers map.
   if (item.renderer.fragmentLocation) props.push(`fragmentLocation: ${JSON.stringify(item.renderer.fragmentLocation)}`);
   if (item.renderer.fragmentId) props.push(`fragmentId: ${JSON.stringify(item.renderer.fragmentId)}`);
@@ -296,7 +296,7 @@ function emitRendererLiteral(item: { renderer: ScannedThemeRenderer; importName:
 }
 
 function emitRendererArray(
-  items: Array<{ renderer: ScannedThemeRenderer; importName: string; sseImportName?: string }>,
+  items: Array<{ renderer: ScannedViewRenderer; importName: string; sseImportName?: string }>,
 ): string {
   if (items.length === 0) return "";
 
@@ -341,18 +341,18 @@ export function emitRegistry(scanResult: ScanResult): string {
   // -- Collect imports ------------------------------------------------
 
   const imports: Array<{ alias: string; path: string }> = [];
-  const themeFragmentImports = scanResult.themeFragments.map((fragment, index) => ({
+  const shellFragmentImports = scanResult.shellFragments.map((fragment, index) => ({
     fragment,
-    alias: `themeFragment${index}`
+    alias: `shellFragment${index}`
   }));
-  for (const item of themeFragmentImports) {
+  for (const item of shellFragmentImports) {
     imports.push({ alias: item.alias, path: toJsImport(item.fragment.relativePath) });
   }
 
-  // Map from theme import name -> ScannedThemeRenderer (for each route)
-  const routeThemeImports = new Map<
+  // Map from theme import name -> ScannedViewRenderer (for each route)
+  const routeRendererImports = new Map<
     ScannedRoute,
-    Map<string, RenderersByTheme>
+    Map<string, RenderersByRenderer>
   >();
 
   for (const route of scanResult.routes) {
@@ -373,21 +373,21 @@ export function emitRegistry(scanResult: ScanResult): string {
       });
     }
 
-    // Group theme renderers by themeId
-    const byTheme = new Map<string, RenderersByTheme>();
+    // Group HTML renderers by compatibility key.
+    const byRenderer = new Map<string, RenderersByRenderer>();
 
-    for (const renderer of route.themeRenderers) {
-      if (!byTheme.has(renderer.themeId)) {
-        byTheme.set(renderer.themeId, {
+    for (const renderer of route.renderers) {
+      if (!byRenderer.has(renderer.rendererKey)) {
+        byRenderer.set(renderer.rendererKey, {
           pages: [],
           components: [],
           fragments: [],
           statusRenderers: new Map()
         });
       }
-      const set = byTheme.get(renderer.themeId)!;
+      const set = byRenderer.get(renderer.rendererKey)!;
 
-      const importName = themeImportName(route.viewId, renderer);
+      const importName = rendererImportName(route.viewId, renderer);
       imports.push({
         alias: importName,
         path: toJsImport(renderer.relativePath),
@@ -438,23 +438,23 @@ export function emitRegistry(scanResult: ScanResult): string {
 
     // Streaming frame renderers (index.stream.tsx) - one per theme
     for (const streamRenderer of route.streamRenderers) {
-      if (!byTheme.has(streamRenderer.themeId)) {
-        byTheme.set(streamRenderer.themeId, {
+      if (!byRenderer.has(streamRenderer.rendererKey)) {
+        byRenderer.set(streamRenderer.rendererKey, {
           pages: [],
           components: [],
           fragments: [],
           statusRenderers: new Map()
         });
       }
-      const importName = `${viewIdToCamel(route.viewId)}${capitalize(sanitizeIdentifier(streamRenderer.themeId))}Stream`;
+      const importName = `${viewIdToCamel(route.viewId)}${capitalize(sanitizeIdentifier(streamRenderer.rendererKey))}Stream`;
       imports.push({
         alias: importName,
         path: toJsImport(streamRenderer.relativePath),
       });
-      byTheme.get(streamRenderer.themeId)!.stream = { renderer: streamRenderer, importName };
+      byRenderer.get(streamRenderer.rendererKey)!.stream = { renderer: streamRenderer, importName };
     }
 
-    routeThemeImports.set(route, byTheme);
+    routeRendererImports.set(route, byRenderer);
   }
 
   // Emit import statements
@@ -479,7 +479,7 @@ export function emitRegistry(scanResult: ScanResult): string {
   for (let r = 0; r < scanResult.routes.length; r++) {
     const route = scanResult.routes[r];
     const alias = routeImportName(route.viewId);
-    const byTheme = routeThemeImports.get(route)!;
+    const byRenderer = routeRendererImports.get(route)!;
     const routeComma = r < scanResult.routes.length - 1 ? "," : "";
 
     const hasTitle = route.metadataExports.includes("title");
@@ -533,8 +533,8 @@ export function emitRegistry(scanResult: ScanResult): string {
     }
     lines.push(`      cacheHints: ${hasCacheHints ? `${alias}.cacheHints` : `{ ttlSeconds: 0, varyBy: [] }`},`);
     lines.push(`      demoScenarios: ${hasDemoScenarios ? `${alias}.demoScenarios` : `[]`},`);
-    const statusBlock = emitStatusRenderers(byTheme);
-    lines.push(`      themeRenderers: ${emitThemeRenderers(byTheme)}${(statusBlock || route.hasSseHandler) ? "," : ""}`);
+    const statusBlock = emitStatusRenderers(byRenderer);
+    lines.push(`      renderers: ${emitRenderers(byRenderer)}${(statusBlock || route.hasSseHandler) ? "," : ""}`);
     if (statusBlock) {
       lines.push(`      statusRenderers: ${statusBlock}${route.hasSseHandler ? "," : ""}`);
     }
@@ -548,8 +548,8 @@ export function emitRegistry(scanResult: ScanResult): string {
   }
 
   lines.push("  ],");
-  lines.push("  themeFragments: [");
-  for (const { fragment, alias } of themeFragmentImports) {
+  lines.push("  shellFragments: [");
+  for (const { fragment, alias } of shellFragmentImports) {
     lines.push("    {");
     lines.push(`      id: ${JSON.stringify(fragment.id)},`);
     lines.push(`      kind: ${JSON.stringify(fragment.kind)},`);

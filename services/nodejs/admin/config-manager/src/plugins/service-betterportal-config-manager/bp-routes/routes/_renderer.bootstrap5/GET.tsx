@@ -33,8 +33,8 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
 
   const viewRenderable = (view) => {
     if (typeof view?.renderable === "boolean") return view.renderable;
-    const themeRenderers = view?.html?.themeRenderers;
-    return !!themeRenderers && typeof themeRenderers === "object" && Object.keys(themeRenderers).length > 0;
+    const renderers = view?.html?.renderers;
+    return !!renderers && typeof renderers === "object" && Object.keys(renderers).length > 0;
   };
 
   const manifestViews = (manifest) => {

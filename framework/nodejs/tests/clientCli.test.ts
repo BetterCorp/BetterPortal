@@ -32,13 +32,13 @@ function contract(responseField = "message"): BpSchemaOutput {
           root: { kind: "object", properties: { [responseField]: { kind: "string" } }, required: [responseField] }
         },
         metadataResponseSchema: {},
-        html: { themeRenderers: {} },
+        html: { renderers: {} },
         auth: { required: false, permissions: [] },
         demoScenarios: [],
         cacheHints: { ttlSeconds: 0, varyBy: [] }
       }]
     },
-    routes: [{ viewId: "config.index", path: "/", methods: ["GET"], paramNames: [], themes: [], hasFragments: false, fragments: [], components: [] }]
+    routes: [{ viewId: "config.index", path: "/", methods: ["GET"], paramNames: [], renderers: [], hasFragments: false, fragments: [], components: [] }]
   });
 }
 

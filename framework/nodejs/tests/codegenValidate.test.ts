@@ -23,7 +23,7 @@ function scannedRoute(overrides: Partial<ScannedRoute> = {}): ScannedRoute {
     }],
     handlerExports: ["default", "ResponseSchema"],
     methods: ["GET"],
-    themeRenderers: [],
+    renderers: [],
     streamRenderers: [],
     hasSseHandler: false,
     hasItemSchema: false,
@@ -38,7 +38,7 @@ function scannedRoute(overrides: Partial<ScannedRoute> = {}): ScannedRoute {
 function scanResult(route: ScannedRoute): ScanResult {
   return {
     routes: [route],
-    themeFragments: [],
+    shellFragments: [],
     dependencyAliases: {},
     generatedDir: ".bp-generated",
     pluginImportPath: "../index.js",
@@ -47,16 +47,16 @@ function scanResult(route: ScannedRoute): ScanResult {
   };
 }
 
-test("theme fragment folders distinguish singular fragments from blocks", () => {
-  const baseDir = mkdtempSync(join(tmpdir(), "bp-theme-fragments-"));
+test("shell fragment folders distinguish singular fragments from blocks", () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-shell-fragments-"));
   try {
-    const themeDir = join(baseDir, "theme");
-    mkdirSync(join(themeDir, "_nav"), { recursive: true });
-    writeFileSync(join(themeDir, "_theme-selector.tsx"), "export const render = () => '';\n");
-    writeFileSync(join(themeDir, "_nav", "index.tsx"), "export const render = () => '';\n");
-    writeFileSync(join(themeDir, "index.tsx"), "export const shell = true;\n");
+    const shellDir = join(baseDir, "shell");
+    mkdirSync(join(shellDir, "_nav"), { recursive: true });
+    writeFileSync(join(shellDir, "_theme-selector.tsx"), "export const render = () => '';\n");
+    writeFileSync(join(shellDir, "_nav", "index.tsx"), "export const render = () => '';\n");
+    writeFileSync(join(shellDir, "index.tsx"), "export const shell = true;\n");
 
-    assert.deepEqual(scanRoutes(baseDir).themeFragments.map(({ id, kind }) => ({ id, kind })), [
+    assert.deepEqual(scanRoutes(baseDir).shellFragments.map(({ id, kind }) => ({ id, kind })), [
       { id: "nav", kind: "block" },
       { id: "theme-selector", kind: "fragment" }
     ]);
@@ -65,14 +65,26 @@ test("theme fragment folders distinguish singular fragments from blocks", () => 
   }
 });
 
-test("theme fragment ids cannot collide between a file and block", () => {
-  const baseDir = mkdtempSync(join(tmpdir(), "bp-theme-fragment-conflict-"));
+test("shell fragment ids cannot collide between a file and block", () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-shell-fragment-conflict-"));
   try {
-    const themeDir = join(baseDir, "theme");
-    mkdirSync(join(themeDir, "_nav"), { recursive: true });
-    writeFileSync(join(themeDir, "_nav.tsx"), "export const render = () => '';\n");
-    writeFileSync(join(themeDir, "_nav", "index.tsx"), "export const render = () => '';\n");
-    assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes('Duplicate theme fragment id "nav"')), true);
+    const shellDir = join(baseDir, "shell");
+    mkdirSync(join(shellDir, "_nav"), { recursive: true });
+    writeFileSync(join(shellDir, "_nav.tsx"), "export const render = () => '';\n");
+    writeFileSync(join(shellDir, "_nav", "index.tsx"), "export const render = () => '';\n");
+    assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes('Duplicate shell fragment id "nav"')), true);
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("legacy theme renderer folders fail codegen", () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-legacy-renderer-"));
+  try {
+    const routeDir = join(baseDir, "bp-routes", "home");
+    mkdirSync(join(routeDir, "_theme.bootstrap1"), { recursive: true });
+    writeFileSync(join(baseDir, "index.ts"), "export class Plugin {}\n");
+    assert.throws(() => scanRoutes(baseDir), /rename it to _renderer/);
   } finally {
     rmSync(baseDir, { recursive: true, force: true });
   }

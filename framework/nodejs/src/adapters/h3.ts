@@ -243,8 +243,12 @@ function chromeContentTypeParams(chrome?: BetterPortalRouteChrome): string {
   return params.length ? `; ${params.join("; ")}` : "";
 }
 
-function htmlContentType(themeId: string, mode: string, chrome?: BetterPortalRouteChrome): string {
-  return `text/html; theme=${themeId}; mode=${mode}${chromeContentTypeParams(chrome)}`;
+function htmlContentType(mode: string, chrome?: BetterPortalRouteChrome): string {
+  return `text/html; mode=${mode}${chromeContentTypeParams(chrome)}`;
+}
+
+function rendererFromEvent(event: BetterPortalEvent): string | undefined {
+  return (event as unknown as { __bpApp?: { shell?: { renderer?: string } } }).__bpApp?.shell?.renderer;
 }
 
 // -- Router registration ----------------------------------------------
@@ -319,41 +323,16 @@ export function createH3Router(
 
         // Generator path: framework drives the stream.
         if (typeof result === "object" && result !== null && Symbol.asyncIterator in (result as object)) {
-          // Resolve theme renderer if `?_f=loc.frag` provided. The theme MUST be
-          // disambiguated - with multiple themes registered, picking the first
-          // match would silently render another theme's fragment. Prefer the
-          // theme resolved from request context (__bpThemeId), then an explicit
-          // `?_theme=` pin; only fall back to a cross-theme scan when exactly one
-          // theme provides the fragment.
+          // Renderer identity comes only from the server-resolved app shell.
           const fragmentKey = (rawQuery._f as string | undefined) ?? undefined;
           let sseRender: ((data: unknown) => unknown) | undefined;
           if (fragmentKey) {
-            const themeId =
-              (event as unknown as { __bpThemeId?: string }).__bpThemeId
-              ?? (rawQuery._theme as string | undefined);
+            const renderer = rendererFromEvent(event);
 
-            if (themeId) {
-              const resolved = resolveRenderer(route, themeId, "fragment", "GET", undefined, fragmentKey);
+            if (renderer) {
+              const resolved = resolveRenderer(route, renderer, "fragment", "GET", undefined, fragmentKey);
               if (resolved?.renderer.sseRender) {
                 sseRender = resolved.renderer.sseRender as (data: unknown) => unknown;
-              }
-            } else {
-              // No theme context. Only render if the match is unambiguous across
-              // themes; otherwise leave it to the JSON passthrough rather than guess.
-              const matches: Array<(data: unknown) => unknown> = [];
-              for (const candidateThemeId of Object.keys(route.themeRenderers)) {
-                const resolved = resolveRenderer(route, candidateThemeId, "fragment", "GET", undefined, fragmentKey);
-                if (resolved?.renderer.sseRender) {
-                  matches.push(resolved.renderer.sseRender as (data: unknown) => unknown);
-                }
-              }
-              if (matches.length === 1) {
-                sseRender = matches[0];
-              } else if (matches.length > 1) {
-                obs?.logger.warn(
-                  "BP SSE: ambiguous fragment '{fragmentKey}' across {count} themes and no theme context; sending raw ticks",
-                  { fragmentKey, count: matches.length }
-                );
               }
             }
           }
@@ -604,12 +583,12 @@ function createElementResolver(
   return (reference: BPElementReference) => {
     if (!reference.fragment.trim()) return { unavailable: "fragment_required" };
 
-    if (reference.service === "theme") {
-      const themeServiceId = extraContext.app.shell?.serviceId;
-      const origin = themeServiceId ? serviceOrigin(extraContext, themeServiceId) : null;
-      if (!themeServiceId || !origin) return { unavailable: "theme_unavailable" };
-      const path = `/.well-known/bp/theme/fragment/${encodeURIComponent(reference.fragment)}`;
-      return { serviceId: themeServiceId, url: appendQuery(path, reference.args?.query, origin) };
+    if (reference.service === "shell") {
+      const shellServiceId = extraContext.app.shell?.serviceId;
+      const origin = shellServiceId ? serviceOrigin(extraContext, shellServiceId) : null;
+      if (!shellServiceId || !origin) return { unavailable: "shell_unavailable" };
+      const path = `/.well-known/bp/shell/fragment/${encodeURIComponent(reference.fragment)}`;
+      return { serviceId: shellServiceId, url: appendQuery(path, reference.args?.query, origin) };
     }
 
     if (!reference.path?.startsWith("/")) return { unavailable: "service_path_required" };
@@ -640,7 +619,7 @@ function createViewRenderContext(
   route: RegisteredRoute,
   ctx: RouteHandlerContext,
   dependencyAliases: Readonly<Record<string, string>>,
-  theme: string,
+  renderer: string,
   mode: import("../contracts/common.js").RenderMode,
   kind: "page" | "fragment" | "component",
   key: string | undefined,
@@ -654,7 +633,7 @@ function createViewRenderContext(
   const form = (url: string, options?: RouteUiOptions) => createRouteUiAttributes(url, options, true);
   return {
     request: { method: ctx.method, path: ctx.path, params: ctx.params, query: ctx.query },
-    route: { viewId: route.viewId, path: route.path, theme, mode, kind, key, status },
+    route: { viewId: route.viewId, path: route.path, renderer, mode, kind, key, status },
     url: { current, path, route: routeUrl, uiRoute },
     routeUi: {
       link: ui,
@@ -1034,16 +1013,13 @@ async function handleRouteRequest(
     return jsonResponse(data as JsonValue, handlerStatus);
   }
 
-  // HTML - resolve theme from request context (hostname -> app config), Accept header as fallback
-  const themeId =
-    (event as unknown as { __bpThemeId?: string }).__bpThemeId
-    ?? representation.theme;
-  if (!themeId) {
-    logNegotiationFailure(obs, route, method, "theme_not_resolved", {
+  const renderer = rendererFromEvent(event);
+  if (!renderer) {
+    logNegotiationFailure(obs, route, method, "renderer_not_resolved", {
       "http.request.accept": acceptHeader ?? "",
       "bp.representation.kind": representation.kind
     });
-    return jsonResponse({ error: "Theme could not be resolved from app config or request" }, 406);
+    return jsonResponse({ error: "Renderer could not be resolved from the app shell" }, 406);
   }
 
   // Determine the renderer kind requested
@@ -1052,19 +1028,19 @@ async function handleRouteRequest(
   const requestedKind: "page" | "component" | "fragment" =
     fragmentKey ? "fragment" : componentId ? "component" : "page";
   const requestedKey = fragmentKey ?? componentId ?? undefined;
-  const renderContext = createViewRenderContext(route, ctx, dependencyAliases, themeId, representation.mode ?? "page", requestedKind, requestedKey, handlerStatus);
+  const renderContext = createViewRenderContext(route, ctx, dependencyAliases, renderer, representation.mode ?? "page", requestedKind, requestedKey, handlerStatus);
 
   // Status-specific renderer lookup (any non-undefined status code)
   if (handlerStatus !== 200) {
-    const statusRenderer = resolveStatusRenderer(route, themeId, handlerStatus, requestedKind, requestedKey, method);
+    const statusRenderer = resolveStatusRenderer(route, renderer, handlerStatus, requestedKind, requestedKey, method);
     if (statusRenderer) {
       const html = await withSpan(obs, "bp.view.render", {
         "bp.route.view_id": route.viewId,
-        "bp.view.theme_id": themeId,
+        "bp.view.renderer": renderer,
         "bp.view.kind": requestedKind,
         "bp.view.status": handlerStatus
       }, () => statusRenderer.render(data, renderContext));
-      return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "status", route.chrome));
+      return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("status", route.chrome));
     }
     // No specific renderer found.
     if (!shouldFallThroughToDefaultRenderer(handlerStatus)) {
@@ -1076,72 +1052,72 @@ async function handleRouteRequest(
 
   // Fragment request via `_f` query param or Accept header
   if (fragmentKey) {
-    const resolved = resolveRenderer(route, themeId, "fragment", method, undefined, fragmentKey);
+    const resolved = resolveRenderer(route, renderer, "fragment", method, undefined, fragmentKey);
     if (!resolved) {
       logNegotiationFailure(obs, route, method, "fragment_renderer_not_found", {
         "http.request.accept": acceptHeader ?? "",
-        "bp.view.theme_id": themeId,
+        "bp.view.renderer": renderer,
         "bp.view.kind": "fragment",
         "bp.view.key": fragmentKey
       });
       return jsonResponse({
-        error: `No fragment renderer found for fragment="${fragmentKey}" in theme "${themeId}"`
+        error: `No fragment renderer found for fragment="${fragmentKey}" in renderer "${renderer}"`
       }, 406);
     }
 
     const html = await withSpan(obs, "bp.view.render", {
       "bp.route.view_id": route.viewId,
-      "bp.view.theme_id": themeId,
+      "bp.view.renderer": renderer,
       "bp.view.kind": "fragment",
       "bp.view.key": fragmentKey
     }, () => resolved.renderer.render(data, renderContext));
-    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
+    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("fragment", route.chrome));
   }
 
   // Component request via `_c` query param
   if (componentId) {
-    const resolved = resolveRenderer(route, themeId, "component", method, componentId);
+    const resolved = resolveRenderer(route, renderer, "component", method, componentId);
     if (!resolved) {
       logNegotiationFailure(obs, route, method, "component_renderer_not_found", {
         "http.request.accept": acceptHeader ?? "",
-        "bp.view.theme_id": themeId,
+        "bp.view.renderer": renderer,
         "bp.view.kind": "component",
         "bp.view.key": componentId
       });
       return jsonResponse({
-        error: `No component renderer found for _c="${componentId}" in theme "${themeId}"`
+        error: `No component renderer found for _c="${componentId}" in renderer "${renderer}"`
       }, 406);
     }
 
     const html = await withSpan(obs, "bp.view.render", {
       "bp.route.view_id": route.viewId,
-      "bp.view.theme_id": themeId,
+      "bp.view.renderer": renderer,
       "bp.view.kind": "component",
       "bp.view.key": componentId
     }, () => resolved.renderer.render(data, renderContext));
-    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, "fragment", route.chrome));
+    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("fragment", route.chrome));
   }
 
   // Page request - only page renderers allowed
-  const resolved = resolveRenderer(route, themeId, "page", method);
+  const resolved = resolveRenderer(route, renderer, "page", method);
   if (!resolved) {
     logNegotiationFailure(obs, route, method, "page_renderer_not_found", {
       "http.request.accept": acceptHeader ?? "",
-      "bp.view.theme_id": themeId,
+      "bp.view.renderer": renderer,
       "bp.view.kind": "page"
     });
     return jsonResponse({
-      error: `No page renderer found for theme "${themeId}"`
+      error: `No page renderer found for renderer "${renderer}"`
     }, 406);
   }
 
   const html = await withSpan(obs, "bp.view.render", {
     "bp.route.view_id": route.viewId,
-    "bp.view.theme_id": themeId,
+    "bp.view.renderer": renderer,
     "bp.view.kind": "page"
   }, () => resolved.renderer.render(data, renderContext));
   const mode = representation.mode ?? "page";
-  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(themeId, mode, route.chrome));
+  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(mode, route.chrome));
 }
 
 // -- Streaming routes (spec/streaming.md) ----------------------------
@@ -1174,17 +1150,15 @@ async function handleStreamRepresentation(
   // Fragment/component selectors render over the buffered data set.
   if (url.searchParams.get("_f") || url.searchParams.get("_c")) return null;
 
-  const themeId =
-    (event as unknown as { __bpThemeId?: string }).__bpThemeId
-    ?? representation.theme;
-  if (!themeId) return null;
+  const renderer = rendererFromEvent(event);
+  if (!renderer) return null;
 
-  const streamSet = route.themeRenderers[themeId]?.stream;
+  const streamSet = route.renderers[renderer]?.stream;
   if (!streamSet) return null;
 
   // Full-page request with a page renderer available -> buffered render of the
   // complete data set (crawlers, no-SSE clients). Fragment swaps stream.
-  if (representation.mode === "page" && resolveRenderer(route, themeId, "page", method)) {
+  if (representation.mode === "page" && resolveRenderer(route, renderer, "page", method)) {
     return null;
   }
 
@@ -1195,10 +1169,10 @@ async function handleStreamRepresentation(
   };
   const html = await withSpan(obs, "bp.view.render", {
     "bp.route.view_id": route.viewId,
-    "bp.view.theme_id": themeId,
+    "bp.view.renderer": renderer,
     "bp.view.kind": "stream-shell"
   }, () => streamSet.renderShell(shellCtx));
-  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), 200, htmlContentType(themeId, "fragment", route.chrome));
+  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), 200, htmlContentType("fragment", route.chrome));
 }
 
 /**
@@ -1255,10 +1229,8 @@ async function handleStreamSse(
     ...(obs ? { obs } : {})
   };
 
-  const themeId =
-    (event as unknown as { __bpThemeId?: string }).__bpThemeId
-    ?? (rawQuery._theme as string | undefined);
-  const streamSet = themeId ? route.themeRenderers[themeId]?.stream : undefined;
+  const renderer = rendererFromEvent(event);
+  const streamSet = renderer ? route.renderers[renderer]?.stream : undefined;
 
   const stream = createEventStream(event);
 
@@ -1576,7 +1548,7 @@ function renderAuthError(
   message: string,
   requiredPermissions: ReadonlyArray<RequiredPermissionDescriptor> = []
 ): Response {
-  const themeId = (event as unknown as { __bpThemeId?: string }).__bpThemeId;
+  const renderer = rendererFromEvent(event);
   const acceptHeader = acceptHeaderFromEvent(event);
   const representation = resolveRequestedRepresentation(acceptHeader);
   const corsHeaders = corsHeadersFromEvent(event);
@@ -1590,14 +1562,14 @@ function renderAuthError(
 
   // Prefer a route/theme status view so the body swaps cleanly into the htmx
   // target as a fragment rather than replacing the shell.
-  if (themeId && (representation.kind === "html")) {
-    const statusRenderer = resolveStatusRenderer(route, themeId, status, "page", undefined, "GET");
+  if (renderer && (representation.kind === "html")) {
+    const statusRenderer = resolveStatusRenderer(route, renderer, status, "page", undefined, "GET");
     if (statusRenderer) {
       try {
         const html = statusRenderer.render({ error: message, status, requiredPermissions });
         return new Response(toHtmlString(html), {
           status,
-          headers: { ...corsHeaders, "content-type": htmlContentType(themeId, "status", route.chrome) }
+          headers: { ...corsHeaders, "content-type": htmlContentType("status", route.chrome) }
         });
       } catch {
         // fall through to JSON
@@ -1618,7 +1590,7 @@ function renderAuthError(
     `;
     return new Response(html, {
       status,
-      headers: { ...corsHeaders, "content-type": themeId ? htmlContentType(themeId, "status", route.chrome) : "text/html; charset=utf-8" }
+      headers: { ...corsHeaders, "content-type": renderer ? htmlContentType("status", route.chrome) : "text/html; charset=utf-8" }
     });
   }
 
@@ -1636,7 +1608,7 @@ function renderUpgradeRequired(
   event: BetterPortalEvent,
   validation: import("../contracts/auth.js").TenantAppValidation
 ): Response {
-  const themeId = (event as unknown as { __bpThemeId?: string }).__bpThemeId;
+  const renderer = rendererFromEvent(event);
   const acceptHeader = acceptHeaderFromEvent(event);
   const representation = resolveRequestedRepresentation(acceptHeader);
   const status = 426;
@@ -1647,8 +1619,8 @@ function renderUpgradeRequired(
     extraHeaders["retry-after"] = String(validation.retryAfterSeconds);
   }
 
-  if (themeId && representation.kind === "html") {
-    const statusRenderer = resolveStatusRenderer(route, themeId, status, "page", undefined, "GET");
+  if (renderer && representation.kind === "html") {
+    const statusRenderer = resolveStatusRenderer(route, renderer, status, "page", undefined, "GET");
     if (statusRenderer) {
       try {
         const html = statusRenderer.render({
@@ -1656,7 +1628,7 @@ function renderUpgradeRequired(
           reason: validation.reason,
           upgradeUrl: validation.upgradeUrl
         });
-        return htmlResponse(toHtmlString(html), status, htmlContentType(themeId, "status", route.chrome));
+        return htmlResponse(toHtmlString(html), status, htmlContentType("status", route.chrome));
       } catch {
         // fall through to JSON
       }

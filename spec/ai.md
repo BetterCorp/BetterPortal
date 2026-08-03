@@ -2,11 +2,11 @@
 
 **Version:** `betterportal-ai.v1`
 
-BetterPortal themes publish a small task router for humans, coding agents, and automation clients. Service contracts remain the source of truth; these documents link to them rather than copying a second API definition.
+BetterPortal shell services publish a small task router for humans, coding agents, and automation clients. Service contracts remain the source of truth; these documents link to them rather than copying a second API definition.
 
 ## 1. Theme endpoints
 
-The active theme exposes these public endpoints on every tenant app hostname:
+The active shell exposes these public endpoints on every tenant app hostname:
 
 | Path | Format | Purpose |
 |---|---|---|

@@ -40,7 +40,7 @@ export const AppSchema = av.object({
   slug: NonEmptyStringSchema,
   hostname: NonEmptyStringSchema,
   title: NonEmptyStringSchema,
-  themeId: NonEmptyStringSchema,
+  shell: av.object({ serviceId: NonEmptyStringSchema }),
   routes: av.array(AppRouteSchema).default([]),
   fragments: av.record(av.array(FragmentAssignmentSchema)).default({})
 }, { unknownKeys: "strip" });

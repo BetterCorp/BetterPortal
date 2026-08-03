@@ -18,7 +18,12 @@ The manifest is a service's self-description. Themes and admin tooling read it t
   "category": "service" | "theme" | "auth" | "<custom>",
   "deploymentModes": ["self-hosted", "bp-hosted", "customer-hosted"],
   "capabilities": ["<capability-token>", ...],
-  "supportedThemes": ["bootstrap1", "embedded"],
+  "supportedRenderers": ["bootstrap5", "embedded"],
+  "shell": {
+    "service": "bootstrap1",
+    "renderer": "bootstrap5",
+    "fragments": []
+  },
   "supportedRenderModes": ["page", "fragment", "embed"],
   "views": [ <view>, ... ],
   "configSchemas": [ <configSchema>, ... ],
@@ -49,7 +54,8 @@ The manifest is a service's self-description. Themes and admin tooling read it t
 | `category` | string | Free-form. Common values: `service`, `theme`, `auth`. |
 | `deploymentModes` | string[] | Where this service can run. |
 | `capabilities` | string[] | Free-form capability tokens (e.g., `theme.shell`, `theme.htmx`, `view.json`). |
-| `supportedThemes` | string[] | Themes this service has renderers for. Themes themselves declare what themes they themselves provide. |
+| `supportedRenderers` | string[] | Renderer compatibility keys implemented by this service's views. |
+| `shell` | object | Present only for shell services. Declares stable shell `service`, view `renderer`, and fragment definitions. |
 | `supportedRenderModes` | string[] | `page`, `fragment`, `embed`. |
 | `configSchemas` | array | Per-service config descriptors (see section 3). |
 | `permissions` | array | Permission strings this service defines (see `auth.md`). |
@@ -79,8 +85,8 @@ Each entry in `views[]`:
     "summarySchema": { ... }
   },
   "html": {
-    "themeRenderers": {
-      "bootstrap1": {
+    "renderers": {
+      "bootstrap5": {
         "defaultRenderer": "default",
         "renderModes": ["page", "fragment"],
         "slots": ["main", "nav.profile"],
@@ -103,7 +109,7 @@ Each entry in `views[]`:
 - `path` MUST start with `/`. Path parameters use `:name` syntax: `/orders/:orderId`.
 - `methods` lists HTTP verbs the view handles. Auto-derived in the Node SDK from `handleGet`/`handlePost`/etc. exports.
 - Schema fields use a portable JSON descriptor (see section 4) so non-Node SDKs can emit them.
-- `html.themeRenderers` is keyed by themeId. Each entry lists the renderers (page, components, fragments) the view supports for that theme.
+- `html.renderers` is keyed by renderer compatibility key. Each entry lists the page, component, and fragment renderers the view supports for that renderer contract.
 
 ### Renderer slot semantics
 

@@ -8,7 +8,7 @@ The config manager provides a UI for editing tenants, apps, services, routes, me
 
 | Section | Purpose |
 |---|---|
-| `themes` | Available themes and theme hostnames. |
+| `manifestCache` | Synced service manifests, including shell `service` and `renderer` contracts. |
 | `platformServices` | Shared services that tenants can activate. |
 | `sharedServiceCatalog` | Platform-managed service definitions that can be activated for tenants/apps. |
 | `sharedServiceActivations` | Concrete shared-service instance bindings referenced by apps. |

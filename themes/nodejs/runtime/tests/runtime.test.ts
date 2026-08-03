@@ -5,16 +5,15 @@ import {
   BETTERPORTAL_HTMX_EXTENSIONS,
   betterPortalChromeAttributes,
   betterPortalShellRuntimeSource,
-  buildBetterPortalThemeRuntimeAsset
+  buildBetterPortalShellRuntimeAsset
 } from "../src/index.js";
 
-test("backend assembles HTMX, theme adapter, shell, and SSE in order", async () => {
+test("backend assembles HTMX, shell adapter, shell, and SSE in order", async () => {
   const adapterSource = js(() => {
-    (globalThis as typeof globalThis & { __bpThemeAdapterLoaded?: boolean }).__bpThemeAdapterLoaded = true;
+    (globalThis as typeof globalThis & { __bpShellAdapterLoaded?: boolean }).__bpShellAdapterLoaded = true;
   });
-  const marker = "__bpThemeAdapterLoaded";
-  const asset = await buildBetterPortalThemeRuntimeAsset({
-    themeId: "test-theme",
+  const marker = "__bpShellAdapterLoaded";
+  const asset = await buildBetterPortalShellRuntimeAsset({
     adapterSource
   });
   const source = asset.body;
@@ -22,11 +21,11 @@ test("backend assembles HTMX, theme adapter, shell, and SSE in order", async () 
   assert.ok(source.indexOf("4.0.0-beta6") < source.indexOf(marker));
   assert.ok(source.indexOf(marker) < source.indexOf('registerExtension("bp-shell"'));
   assert.ok(source.indexOf('registerExtension("bp-shell"') < source.lastIndexOf('registerExtension("sse"'));
-  assert.match(source, /theme=test-theme/);
+  assert.doesNotMatch(source, /theme=/);
 });
 
 test("shell owns header-aware preload and native API allowlist rewriting", () => {
-  const source = betterPortalShellRuntimeSource("test-theme");
+  const source = betterPortalShellRuntimeSource();
 
   assert.match(source, /attachBpHeaders\(headers,action\)/);
   assert.match(source, /detail\.ctx\.fetch=\(\)=>preload\.prefetch/);
@@ -54,15 +53,15 @@ test("chrome attributes are normalized for initial shell rendering", () => {
 });
 
 test("shared shell owns generic chrome lifecycle", () => {
-  const source = betterPortalShellRuntimeSource("test-theme");
+  const source = betterPortalShellRuntimeSource();
   assert.match(source, /data-bp-chrome-/);
   assert.match(source, /removeAttribute/);
-  assert.match(source, /themeAdapter\.applyChrome/);
+  assert.match(source, /shellAdapter\.applyChrome/);
   assert.doesNotMatch(source, /setChromeFullScreen/);
 });
 
 test("shared shell owns bp-element states without browser schema discovery", () => {
-  const source = betterPortalShellRuntimeSource("test-theme");
+  const source = betterPortalShellRuntimeSource();
   assert.match(source, /bp-element\[data-bp-element\]/);
   assert.match(source, /statusSpecificity/);
   assert.match(source, /bp:element-retry/);

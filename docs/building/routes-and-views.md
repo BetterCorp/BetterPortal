@@ -12,7 +12,7 @@ bp-routes/
     index.ts              # metadata only
     GET.ts                # GET handler + schemas
     POST.ts               # POST handler + schemas
-    _theme.bootstrap1/
+    _renderer.bootstrap5/
       GET.tsx
       POST.tsx
       POST.422.tsx
@@ -21,7 +21,7 @@ bp-routes/
       [page]/
         index.ts
         GET.ts
-        _theme.bootstrap1/
+        _renderer.bootstrap5/
           GET.tsx
 ```
 
@@ -143,7 +143,7 @@ export function render(data: ResponseData): HtmlRenderable {
 }
 ```
 
-Route chrome is service-declared presentation metadata. Use `export const chrome = { fullScreen: true }` when a route should use a full-workspace presentation; this does not mark the route as authentication UI. Chrome is a flat object whose values must be `string`, `number`, or `boolean`. The framework emits initial `data-bp-chrome-*` attributes and serializes response values as `bp-chrome-*` content-type parameters, e.g. `text/html; theme=bootstrap1; mode=page; bp-chrome-full-screen=true; charset=utf-8`. The shared theme runtime applies new values, removes stale values after navigation, and exposes them to the active theme; theme CSS or the optional typed adapter hook controls presentation. Chrome is also emitted into the service manifest and copied into app route config during sync; an explicit `apps[].routes[].chrome` value overrides the service default.
+Route chrome is service-declared presentation metadata. Use `export const chrome = { fullScreen: true }` when a route should use a full-workspace presentation; this does not mark the route as authentication UI. Chrome is a flat object whose values must be `string`, `number`, or `boolean`. The framework emits initial `data-bp-chrome-*` attributes and serializes response values as `bp-chrome-*` content-type parameters, e.g. `text/html; mode=page; bp-chrome-full-screen=true; charset=utf-8`. The shared shell runtime applies new values, removes stale values after navigation, and exposes them to the active shell; shell CSS or the optional typed adapter hook controls presentation. Chrome is also emitted into the service manifest and copied into app route config during sync; an explicit `apps[].routes[].chrome` value overrides the service default.
 
 Route dependencies are service-declared view ids that must be mounted with a route for API/detail flows. Use `export const dependencies = ["clients.detail.index"]` when a rendered view calls another service view such as `/clients/:clientId`. Codegen also auto-detects literal `{view.id}` route tokens in renderer files and merges them into dependencies. Config-manager auto-adds dependency routes when the parent route is mounted.
 
@@ -152,7 +152,7 @@ Route dependencies are service-declared view ids that must be mounted with a rou
 - `kind: "page"` routes are visual app routes. Their app path, title, query, chrome, and menu usage are app-owned.
 - `kind: "api"` routes are service-locked allowlist routes. Config-manager mounts them under `/_bp/service/{service-slug}/{service-path}` and keeps `targetPath`/`resolvedServicePath` pointed at the service-owned path from the manifest.
 
-By default, a user-facing capability should be one renderable route that provides both its API contract/handlers and its theme renderer. Content negotiation serves JSON to API clients and HTML to the UI. Do not create a separate API-only route when the renderable route can own the operation.
+By default, a user-facing capability should be one renderable route that provides both its API contract/handlers and its HTML renderer. Content negotiation serves JSON to API clients and HTML to the UI. Do not create a separate API-only route when the renderable route can own the operation.
 
 Use `kind: "api"` only when there is a specific reason the endpoint has no UI: provider callbacks, webhooks, machine-only/internal dependencies, raw files, streams, or similar protocol endpoints. An API route is never an application navigation destination, and the user must never be left viewing it. Browser-mediated protocol endpoints such as OAuth callbacks must immediately redirect to an enabled page route after completing their work.
 
@@ -244,11 +244,11 @@ import { BPElement } from "@betterportal/framework";
 </BPElement>
 ```
 
-`service` is the dependency alias from `betterportal.json`; codegen records its canonical plugin id from `betterportal.lock.json`, and the server resolves the concrete app-mounted service UUID. Authors do not use service UUIDs or `absolute: true`. `ctx` is consumed on the server and is never serialized. The path must be app-allowlisted. Use `service="theme"` with no `path` to reference an active-theme singular fragment, for example `fragment="theme-selector"`.
+`service` is the dependency alias from `betterportal.json`; codegen records its canonical plugin id from `betterportal.lock.json`, and the server resolves the concrete app-mounted service UUID. Authors do not use service UUIDs or `absolute: true`. `ctx` is consumed on the server and is never serialized. The path must be app-allowlisted. Use `service="shell"` with no `path` to reference an active-shell singular fragment, for example `fragment="theme-selector"`.
 
 The shared HTMX pipeline performs the request and adds managed BetterPortal headers. `bp-loading` is the initial state. `bp-ok` is optional; when present it must contain exactly one empty `<template />` insertion point. `bp-status` accepts exact codes, `40x`, or `4xx`, in that priority order. `bp-nok` handles unavailable dependencies, unmatched errors, and network failures. Omitted states render nothing. A 204 response is successful empty content.
 
-Use `routeUrl` for same-service actions and `uiRouteUrl` for mounted GET navigation. Use `BPElement` for UI components from another service or the active theme; do not parse cross-service references into arbitrary `hx-*` attributes.
+Use `routeUrl` for same-service actions and `uiRouteUrl` for mounted GET navigation. Use `BPElement` for UI components from another service or the active shell; do not parse cross-service references into arbitrary `hx-*` attributes.
 
 Do not manually scan `ctx.app.routes` and `ctx.tenant.services` unless the framework helper cannot express the case. App routes store service-instance UUIDs; `ctx.serviceId` is usually the plugin id.
 
@@ -256,13 +256,13 @@ HTTP methods are service manifest metadata. Do not make route methods user-edita
 
 ## UI renderers
 
-HTML renderers live under `_theme.<themeId>/` and are method/status-specific. There is no runtime fallback between renderers.
+HTML renderers live under `_renderer.<renderer>/` and are method/status-specific. The suffix matches `ctx.app.shell.renderer`, not the shell service identity. There is no runtime fallback between renderers.
 
 ```text
 bp-routes/example/
   GET.ts
   POST.ts
-  _theme.bootstrap1/
+  _renderer.bootstrap5/
     GET.tsx
     POST.tsx
     POST.422.tsx
@@ -344,7 +344,7 @@ export default createRawHandler(
 );
 ```
 
-Do not export `ResponseSchema` or theme renderers for raw routes; codegen rejects both. Use `ctx.response(body, init)` for custom raw responses and `ctx.file(body, options)` for downloadable/inline files. `ctx.file` accepts standard `Response` bodies, including `Uint8Array`, `ArrayBuffer`, `Blob`, and `ReadableStream`.
+Do not export `ResponseSchema` or HTML renderers for raw routes; codegen rejects both. Use `ctx.response(body, init)` for custom raw responses and `ctx.file(body, options)` for downloadable/inline files. `ctx.file` accepts standard `Response` bodies, including `Uint8Array`, `ArrayBuffer`, `Blob`, and `ReadableStream`.
 
 For multipart uploads, export `MultipartSchema` and use `createRawHandler({ multipart: MultipartSchema }, ...)`. First-pass multipart support is buffered in memory and capped at 25 MiB total file bytes per request.
 
@@ -365,7 +365,7 @@ export default createRawHandler(
 
 `ctx.multipart.files` values are `{ fieldName, filename, contentType, size, data }`. Repeated form keys become arrays. Oversized requests return `413`. Use streaming/resumable upload protocols only when buffered uploads are too small for the use case.
 
-Do not put theme/UI routing assumptions in a view file. UI paths, browser-visible hostnames, and pushed URL state belong to the active theme renderer under `_theme.<themeId>/`. A service-side view path is not the same thing as a UI path, and a service hostname is not the same thing as the theme hostname. If a themed UI needs a selected tab, tenant filter, or other URL state, handle that in the themed renderer or through explicit schema fields supplied by the service/API model.
+Do not put shell/UI routing assumptions in a view file. UI paths, browser-visible hostnames, and pushed URL state belong to the HTML renderer under `_renderer.<renderer>/`. A service-side view path is not the same thing as a UI path, and a service hostname is not the same thing as the shell hostname. If the UI needs a selected tab, tenant filter, or other URL state, handle that in the renderer or through explicit schema fields supplied by the service/API model.
 
 Service-rendered HTMX must stay in its lane. Main content may target `#bp-main` or elements owned by that content. Fragment content must target itself or descendants inside its own `data-bp-fragment` container. Do not let service HTML target `body`, theme nav, menu, or unrelated fragments; the bootstrap shell sanitizes incoming targets and request-time targets to enforce this.
 
@@ -392,7 +392,7 @@ One handler, negotiated representations (see [`spec/streaming.md`](../../spec/st
 - `Accept: application/x-ndjson` - one frame per line as data is produced (`item`/`summary`/`error`/`end`).
 - `Accept: text/html` - streamed: an instant shell wired to `<path>/__sse`, which pushes server-rendered rows per frame. With `mode=page` and a matching method renderer present, a buffered full render instead.
 
-Streaming HTML renderers live in `_theme.<themeId>/index.stream.tsx` exporting `renderShell`, `renderItem`, and optionally `renderSummary` / `renderError`. The shell receives `ctx.sseConnectPath` and wires `hx-ext="sse"` / `sse-swap` itself; a matching method renderer such as `GET.tsx` over `{ items, summary }` provides the buffered page render. See `bp-routes/delayed/` in the hello-view example.
+Streaming HTML renderers live in `_renderer.<renderer>/index.stream.tsx` exporting `renderShell`, `renderItem`, and optionally `renderSummary` / `renderError`. The shell receives `ctx.sseConnectPath` and wires `hx-ext="sse"` / `sse-swap` itself; a matching method renderer such as `GET.tsx` over `{ items, summary }` provides the buffered page render. See `bp-routes/delayed/` in the hello-view example.
 
 ## SSE files
 
@@ -402,14 +402,14 @@ SSE is always HTTP GET, so the preferred handler name is `sse.ts`. The explicit 
 bp-routes/hello/
   GET.ts
   sse.ts
-  _theme.bootstrap1/
+  _renderer.bootstrap5/
     _nav.clock.GET.tsx
     _nav.clock.sse.tsx
 ```
 
 `sse.ts` exports `handleSSE` and optional `tickSchema`. A fragment tick renderer uses `_<location>.<id>.sse.tsx` and exports `renderTick`; its GET method is inferred. The explicit `GET.sse.ts` and `_<location>.<id>.GET.sse.tsx` forms remain supported, but do not keep both aliases for the same handler or renderer.
 
-Only actual renderer files should live inside `_theme.<themeId>/`. Shared helpers should live elsewhere, because codegen treats `.tsx` files in theme directories as renderers.
+Only actual renderer files should live inside `_renderer.<renderer>/`. Shared helpers should live elsewhere, because codegen treats `.tsx` files in renderer directories as renderers.
 
 ## App routes
 

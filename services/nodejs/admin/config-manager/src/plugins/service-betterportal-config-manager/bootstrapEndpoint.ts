@@ -231,7 +231,7 @@ export async function registerBootstrapEndpoint(input: {
       enabled: true
     };
 
-    // Same placeholder pattern for the theme service. Theme is a BPService and
+    // Same placeholder pattern for the shell service. The shell is a BPService and
     // syncs scoped config from the CP just like auth.
     const themeSharedService = {
       id: themeSharedServiceId,

@@ -19,8 +19,8 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
   const baseDir = mkdtempSync(join(tmpdir(), "bp-sse-codegen-"));
   t.after(() => rmSync(baseDir, { recursive: true, force: true }));
   const routeDir = join(baseDir, "bp-routes", "live");
-  const themeDir = join(routeDir, "_theme.bootstrap1");
-  mkdirSync(themeDir, { recursive: true });
+  const rendererDir = join(routeDir, "_renderer.bootstrap5");
+  mkdirSync(rendererDir, { recursive: true });
 
   write(join(baseDir, "index.ts"), "export class Plugin {}\n");
   write(join(routeDir, "index.ts"), `
@@ -39,16 +39,16 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
     export async function* handleSSE() { yield { value: "tick" }; }
     export const tickSchema = {};
   `);
-  write(join(themeDir, "_body.live.GET.tsx"), `
+  write(join(rendererDir, "_body.live.GET.tsx"), `
     export function render(data: { value: string }) { return data.value; }
   `);
-  write(join(themeDir, "_body.live.sse.tsx"), `
+  write(join(rendererDir, "_body.live.sse.tsx"), `
     export function renderTick(data: { value: string }) { return data.value; }
   `);
 
   const scan = scanRoutes(baseDir);
   const route = scan.routes[0];
-  const fragment = route.themeRenderers[0];
+  const fragment = route.renderers[0];
   assert.equal(route.sseMethod, "GET");
   assert.match(route.sseRelativePath ?? "", /\/sse\.ts$/);
   assert.match(fragment.sseRendererPath ?? "", /_body\.live\.sse\.tsx$/);
@@ -56,12 +56,12 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
   assert.equal(validateScanResult(scan).some((issue) => issue.severity === "error"), false);
 
   write(join(routeDir, "GET.sse.ts"), "export async function* handleSSE() {}\n");
-  write(join(themeDir, "_body.live.GET.sse.tsx"), "export function renderTick() { return 'legacy'; }\n");
+  write(join(rendererDir, "_body.live.GET.sse.tsx"), "export function renderTick() { return 'legacy'; }\n");
   const duplicateIssues = validateScanResult(scanRoutes(baseDir));
   assert.equal(duplicateIssues.filter((issue) => issue.message.includes("multiple")).length, 2);
 });
 
-test("SSE fragments render with explicit or inferred theme", async () => {
+test("SSE fragments use the resolved app shell renderer and ignore client overrides", async () => {
   const route = {
     viewId: "live.index",
     path: "/live",
@@ -74,8 +74,8 @@ test("SSE fragments render with explicit or inferred theme", async () => {
     auth: { required: false, permissions: [] },
     cacheHints: {},
     demoScenarios: [],
-    themeRenderers: {
-      bootstrap1: {
+    renderers: {
+      bootstrap5: {
         pages: [],
         components: [],
         fragments: [{
@@ -97,6 +97,11 @@ test("SSE fragments render with explicit or inferred theme", async () => {
   } satisfies RegisteredRoute;
   const registry: BetterPortalRegistry = { routes: [route] };
   const app = createBetterPortalApp();
+  app.use("/**", (event) => {
+    (event as unknown as { __bpApp: { shell: { renderer: string } } }).__bpApp = {
+      shell: { renderer: "bootstrap5" }
+    };
+  });
   createH3Router(registry, app);
   const server = createServer(createBetterPortalNodeHandler(app));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -104,11 +109,11 @@ test("SSE fragments render with explicit or inferred theme", async () => {
   assert.ok(address && typeof address === "object");
 
   try {
-    for (const theme of ["&_theme=bootstrap1", ""]) {
-      const response = await fetch(`http://127.0.0.1:${address.port}/live/__sse?_f=body.live${theme}`);
-      assert.equal(response.headers.get("content-type"), "text/event-stream");
-      assert.match(await response.text(), /data: <strong>tick<\/strong>/);
-    }
+    const response = await fetch(`http://127.0.0.1:${address.port}/live/__sse?_f=body.live&_theme=evil`, {
+      headers: { accept: "text/event-stream; theme=evil", "x-bp-theme": "evil" }
+    });
+    assert.equal(response.headers.get("content-type"), "text/event-stream");
+    assert.match(await response.text(), /data: <strong>tick<\/strong>/);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }

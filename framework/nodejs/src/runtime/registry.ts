@@ -3,8 +3,8 @@ import type { JsonValue } from "../contracts/json.js";
 import type {
   BetterPortalRegistry,
   RegisteredRoute,
-  RegisteredThemeRenderer,
-  ThemeRendererSet
+  RegisteredViewRenderer,
+  ViewRendererSet
 } from "../contracts/registry.js";
 import type { AdminApiDescriptor, BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
 import type { ViewMetadata } from "../contracts/view.js";
@@ -91,37 +91,37 @@ export function resolveRoute(
 // -- Renderer resolution -----------------------------------------------
 
 export interface ResolvedRenderer {
-  readonly renderer: RegisteredThemeRenderer;
-  readonly themeId: string;
+  readonly renderer: RegisteredViewRenderer;
+  readonly rendererKey: string;
 }
 
-/** Resolve a theme renderer for a route. Success renderers must match the request method. */
+/** Resolve an exact compatibility renderer for a route. */
 export function resolveRenderer(
   route: RegisteredRoute,
-  themeId: string,
+  rendererKey: string,
   type: "page" | "component" | "fragment",
   method?: HttpMethod,
   componentId?: string,
   fragmentKey?: string
 ): ResolvedRenderer | null {
-  const themeSet = route.themeRenderers[themeId];
-  if (!themeSet) return null;
+  const rendererSet = route.renderers[rendererKey];
+  if (!rendererSet) return null;
 
-  let pool: ReadonlyArray<RegisteredThemeRenderer>;
+  let pool: ReadonlyArray<RegisteredViewRenderer>;
   switch (type) {
     case "page":
-      pool = themeSet.pages;
+      pool = rendererSet.pages;
       break;
     case "component":
-      pool = themeSet.components;
+      pool = rendererSet.components;
       break;
     case "fragment":
-      pool = themeSet.fragments;
+      pool = rendererSet.fragments;
       break;
   }
 
   // Filter by target
-  let candidates: RegisteredThemeRenderer[];
+  let candidates: RegisteredViewRenderer[];
   if (type === "component" && componentId) {
     candidates = pool.filter((r) => r.rendererId === componentId);
   } else if (type === "fragment" && fragmentKey) {
@@ -137,7 +137,7 @@ export function resolveRenderer(
 
   if (!method) return null;
   const methodSpecific = candidates.find((r) => r.method === method);
-  return methodSpecific ? { renderer: methodSpecific, themeId } : null;
+  return methodSpecific ? { renderer: methodSpecific, rendererKey } : null;
 }
 
 // -- Manifest builder --------------------------------------------------
@@ -156,7 +156,7 @@ export interface ManifestBaseFields {
   apiContracts?: PluginManifest["apiContracts"];
   m2mRequests?: PluginManifest["m2mRequests"];
   developerResources?: PluginManifest["developerResources"];
-  theme?: PluginManifest["theme"];
+  shell?: PluginManifest["shell"];
   cacheHints?: PluginManifest["cacheHints"];
 }
 
@@ -178,23 +178,28 @@ function deriveAdminApis(base: ManifestBaseFields): AdminApiDescriptor[] {
 /**
  * Build a PluginManifest from the registry, auto-deriving:
  * - version (from package.json)
- * - supportedThemes (from route themeRenderers)
+ * - supportedRenderers (from route renderers)
  * - supportedRenderModes (from renderer types)
  * - views (from non-fragment routes)
- * - capabilities (from themes + view types)
+ * - capabilities (from renderers + view types)
  */
 export function buildManifestFromRegistry(
   registry: BetterPortalRegistry,
   packageJson: { version: string },
   base: ManifestBaseFields
 ): PluginManifest {
-  const themes = new Set<string>();
+  const rendererKeys = new Set<string>();
   const renderModes = new Set<string>();
   const capabilities = new Set<string>();
   const apiContracts: PluginManifest["apiContracts"] = [...(base.apiContracts ?? [])];
 
   for (const capability of base.capabilities ?? []) {
     capabilities.add(capability);
+  }
+
+  if (base.shell) {
+    rendererKeys.add(base.shell.renderer);
+    capabilities.add(`renderer.${base.shell.renderer}`);
   }
 
   capabilities.add("view.json");
@@ -219,9 +224,9 @@ export function buildManifestFromRegistry(
       capabilities.add("stream.ndjson");
     }
 
-    for (const [themeId, rendererSet] of Object.entries(route.themeRenderers)) {
-      themes.add(themeId);
-      capabilities.add(`theme.${themeId}`);
+    for (const [renderer, rendererSet] of Object.entries(route.renderers)) {
+      rendererKeys.add(renderer);
+      capabilities.add(`renderer.${renderer}`);
 
       if (rendererSet.pages.length > 0) renderModes.add("page");
       if (rendererSet.fragments.length > 0) renderModes.add("fragment");
@@ -243,10 +248,10 @@ export function buildManifestFromRegistry(
       seenViewIds.add(route.viewId);
 
       // Exclude fragment-only routes (routes that have fragment renderers but no pages)
-      const hasAnyPage = Object.values(route.themeRenderers).some(
+      const hasAnyPage = Object.values(route.renderers).some(
         (set) => set.pages.length > 0 || set.stream !== undefined
       );
-      return hasAnyPage || Object.keys(route.themeRenderers).length === 0;
+      return hasAnyPage || Object.keys(route.renderers).length === 0;
     })
     .map((route) => routeToViewMetadata(route));
 
@@ -259,7 +264,7 @@ export function buildManifestFromRegistry(
     category: base.category ?? "service",
     deploymentModes: base.deploymentModes ? [...base.deploymentModes] : ["self-hosted"],
     capabilities: [...capabilities],
-    supportedThemes: [...themes],
+    supportedRenderers: [...rendererKeys],
     supportedRenderModes: [...renderModes] as PluginManifest["supportedRenderModes"],
     views,
     configSchemas: base.configSchemas ?? [],
@@ -269,15 +274,17 @@ export function buildManifestFromRegistry(
     apiContracts,
     m2mRequests: base.m2mRequests ?? [],
     developerResources: base.developerResources ?? [],
-    ...(registry.themeFragments?.length || base.theme ? {
-      theme: {
-        fragments: registry.themeFragments?.map((fragment) => ({
+    ...(base.shell ? {
+      shell: {
+        service: base.shell.service,
+        renderer: base.shell.renderer,
+        fragments: registry.shellFragments?.map((fragment) => ({
           id: fragment.id,
           kind: fragment.kind,
           title: fragment.title,
           description: fragment.description,
           defaultItems: [...(fragment.defaultItems ?? [])]
-        })) ?? [...(base.theme?.fragments ?? [])]
+        })) ?? [...base.shell.fragments]
       }
     } : {}),
     cacheHints: base.cacheHints ?? { metadataTtlSeconds: 1800 }
@@ -285,22 +292,22 @@ export function buildManifestFromRegistry(
 }
 
 function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
-  const themeRenderers: Record<string, {
+  const rendererSupport: Record<string, {
     defaultRenderer: string;
     renderModes: RenderMode[];
     slots: string[];
     renderers: Array<{ id: string; title: string; slotId: string; renderModes: RenderMode[] }>;
   }> = {};
 
-  for (const [themeId, set] of Object.entries(route.themeRenderers)) {
+  for (const [renderer, set] of Object.entries(route.renderers)) {
     const modes: RenderMode[] = [];
-    const renderers: Array<{ id: string; title: string; slotId: string; renderModes: RenderMode[] }> = [];
+    const variants: Array<{ id: string; title: string; slotId: string; renderModes: RenderMode[] }> = [];
 
     if (set.pages.length > 0) modes.push("page");
     if (set.fragments.length > 0 || set.stream) modes.push("fragment");
 
     for (const page of set.pages) {
-      renderers.push({
+      variants.push({
         id: page.rendererId,
         title: page.rendererId === "default" ? "Default Content" : page.rendererId,
         slotId: "main",
@@ -312,7 +319,7 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
       const slotId = fragment.fragmentLocation && fragment.fragmentId
         ? `${fragment.fragmentLocation}.${fragment.fragmentId}`
         : fragment.rendererId;
-      renderers.push({
+      variants.push({
         id: fragment.rendererId,
         title: fragment.rendererId,
         slotId,
@@ -320,17 +327,17 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
       });
     }
 
-    themeRenderers[themeId] = {
+    rendererSupport[renderer] = {
       defaultRenderer: "default",
       renderModes: modes,
-      slots: [...new Set(renderers.map((r) => r.slotId))],
-      renderers
+      slots: [...new Set(variants.map((r) => r.slotId))],
+      renderers: variants
     };
   }
 
   const renderable = route.raw === true
     ? false
-    : Object.values(route.themeRenderers).some((set) =>
+    : Object.values(route.renderers).some((set) =>
       set.pages.length > 0 || set.components.length > 0 || set.fragments.length > 0 || Boolean(set.stream)
     );
 
@@ -356,7 +363,7 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
         ...(route.schemas.summary ? { summarySchema: toJsonSchemaDocument(route.schemas.summary) } : {})
       }
     } : {}),
-    html: { themeRenderers },
+    html: { renderers: rendererSupport },
     auth: { ...route.auth, callers: [...(route.auth.callers ?? ["user"])] },
     ...(route.role ? { role: route.role } : {}),
     dependencies: [...(route.dependencies ?? [])],
@@ -389,15 +396,14 @@ export function buildBpSchema(
   return {
     manifest,
     routes: registry.routes.map((route) => {
-      // Aggregate fragments across themes: same (location, fragmentId) groups themes that support it
-      const fragMap = new Map<string, { fragmentLocation: string; fragmentId: string; themes: string[] }>();
-      for (const [themeId, set] of Object.entries(route.themeRenderers)) {
+      const fragMap = new Map<string, { fragmentLocation: string; fragmentId: string; renderers: string[] }>();
+      for (const [renderer, set] of Object.entries(route.renderers)) {
         for (const f of set.fragments) {
           if (!f.fragmentLocation || !f.fragmentId) continue;
           const key = `${f.fragmentLocation}::${f.fragmentId}`;
           const existing = fragMap.get(key);
-          if (existing) existing.themes.push(themeId);
-          else fragMap.set(key, { fragmentLocation: f.fragmentLocation, fragmentId: f.fragmentId, themes: [themeId] });
+          if (existing) existing.renderers.push(renderer);
+          else fragMap.set(key, { fragmentLocation: f.fragmentLocation, fragmentId: f.fragmentId, renderers: [renderer] });
         }
       }
 
@@ -406,10 +412,10 @@ export function buildBpSchema(
         path: route.path,
         methods: [...route.methods],
         paramNames: [...route.paramNames],
-        themes: Object.keys(route.themeRenderers),
+        renderers: Object.keys(route.renderers),
         hasFragments: fragMap.size > 0,
         fragments: Array.from(fragMap.values()),
-        components: Object.values(route.themeRenderers).flatMap(
+        components: Object.values(route.renderers).flatMap(
           (set) => set.components.map((c) => c.rendererId)
         )
       };

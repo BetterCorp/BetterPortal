@@ -3,7 +3,7 @@ import type { Infer } from "anyvali";
 import { PluginIdSchema, type HttpMethod } from "./common.js";
 import type { JsonValue } from "./json.js";
 import type { BetterPortalObservability } from "./observability.js";
-import type { BetterPortalApp, BetterPortalTenant } from "./platformConfig.js";
+import type { BetterPortalResolvedApp, BetterPortalTenant } from "./platformConfig.js";
 import { AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
 import { ApiCallerModeSchema, type ApiCallerMode, type M2MCallerMode, type ServiceTokenClaims } from "./m2m.js";
 
@@ -147,7 +147,7 @@ export interface RouteHandlerContext<
   /** Resolved tenant for this request. Handlers are not invoked without it. */
   readonly tenant: BetterPortalTenant;
   /** Resolved app for this request. Handlers are not invoked without it. */
-  readonly app: BetterPortalApp;
+  readonly app: BetterPortalResolvedApp;
   /** Effective service config for this tenant/app: tenant defaults overridden by app config. */
   readonly config?: TServiceConfig;
   /** Direct plugin/service instance that owns this route. */
@@ -259,7 +259,7 @@ export interface SSEHandlerContext {
  *            Handler manages stream lifecycle directly. Cannot be themed.
  *  - Generator: returns AsyncIterable of data items. Framework drives the
  *               stream, validates each item (if `tickSchema` exported), and
- *               applies theme-specific `renderTick` when `?_f=loc.frag` is
+ *               applies renderer-specific `renderTick` when `?_f=loc.frag` is
  *               present on the request.
  */
 export type SSEHandler =

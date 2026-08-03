@@ -44,19 +44,21 @@ export const DeveloperResourceSchema = av.object({
 }, { unknownKeys: "strip" });
 export type DeveloperResource = Infer<typeof DeveloperResourceSchema>;
 
-export const ThemeFragmentDescriptorSchema = av.object({
+export const ShellFragmentDescriptorSchema = av.object({
   id: av.string().pattern("^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"),
   kind: av.enum_(["fragment", "block"] as const),
   title: av.string().minLength(1),
   description: av.string(),
   defaultItems: av.array(av.string().minLength(1)).default([])
 });
-export type ThemeFragmentDescriptor = Infer<typeof ThemeFragmentDescriptorSchema>;
+export type ShellFragmentDescriptor = Infer<typeof ShellFragmentDescriptorSchema>;
 
-export const ThemeManifestSchema = av.object({
-  fragments: av.array(ThemeFragmentDescriptorSchema).default([])
+export const ShellManifestSchema = av.object({
+  service: av.string().minLength(1),
+  renderer: av.string().minLength(1),
+  fragments: av.array(ShellFragmentDescriptorSchema).default([])
 });
-export type ThemeManifest = Infer<typeof ThemeManifestSchema>;
+export type ShellManifest = Infer<typeof ShellManifestSchema>;
 
 export const PluginManifestSchema = av.object({
   protocolVersion: av.literal(1),
@@ -67,7 +69,7 @@ export const PluginManifestSchema = av.object({
   category: PluginCategorySchema,
   deploymentModes: av.array(DeploymentModeSchema).minItems(1),
   capabilities: av.array(av.string().minLength(1)).default([]),
-  supportedThemes: av.array(av.string().minLength(1)).default([]),
+  supportedRenderers: av.array(av.string().minLength(1)).default([]),
   supportedRenderModes: av.array(RenderModeSchema).default([]),
   views: av.array(ViewMetadataSchema).default([]),
   configSchemas: av.array(ConfigSchemaDescriptorSchema).default([]),
@@ -77,7 +79,7 @@ export const PluginManifestSchema = av.object({
   apiContracts: av.array(ApiContractDescriptorSchema).default([]),
   m2mRequests: av.array(M2MRequestDescriptorSchema).default([]),
   developerResources: av.array(DeveloperResourceSchema).default([]),
-  theme: av.optional(ThemeManifestSchema),
+  shell: av.optional(ShellManifestSchema),
   cacheHints: av.object({
     metadataTtlSeconds: av.int().min(0).default(1800)
   }, { unknownKeys: "strip" }).default({ metadataTtlSeconds: 1800 })
@@ -89,12 +91,12 @@ export const BpSchemaRouteSchema = av.object({
   path: av.string().minLength(1),
   methods: av.array(HttpMethodSchema).minItems(1),
   paramNames: av.array(av.string().minLength(1)).default([]),
-  themes: av.array(av.string().minLength(1)).default([]),
+  renderers: av.array(av.string().minLength(1)).default([]),
   hasFragments: av.bool().default(false),
   fragments: av.array(av.object({
     fragmentLocation: av.string().minLength(1),
     fragmentId: av.string().minLength(1),
-    themes: av.array(av.string().minLength(1)).default([])
+    renderers: av.array(av.string().minLength(1)).default([])
   }, { unknownKeys: "strip" })).default([]),
   components: av.array(av.string().minLength(1)).default([])
 }, { unknownKeys: "strip" });

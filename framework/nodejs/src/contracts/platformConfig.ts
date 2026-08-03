@@ -183,8 +183,8 @@ export const BetterPortalFragmentAssignmentSchema = av.object({
 }, { unknownKeys: "strip" });
 export type BetterPortalFragmentAssignment = Infer<typeof BetterPortalFragmentAssignmentSchema>;
 
-export const BetterPortalThemeFragmentItemSchema = av.union([
-  av.object({ source: av.literal("theme"), fragmentId: NonEmptyStringSchema }),
+export const BetterPortalShellFragmentItemSchema = av.union([
+  av.object({ source: av.literal("shell"), fragmentId: NonEmptyStringSchema }),
   av.object({
     source: av.literal("service"),
     serviceId: UuidV7Schema,
@@ -192,14 +192,14 @@ export const BetterPortalThemeFragmentItemSchema = av.union([
     targetPath: NonEmptyStringSchema
   })
 ]);
-export type BetterPortalThemeFragmentItem = Infer<typeof BetterPortalThemeFragmentItemSchema>;
+export type BetterPortalShellFragmentItem = Infer<typeof BetterPortalShellFragmentItemSchema>;
 
-export const BetterPortalThemeFragmentSettingSchema = av.union([
+export const BetterPortalShellFragmentSettingSchema = av.union([
   av.object({ mode: av.literal("none") }),
-  av.object({ mode: av.literal("override"), item: BetterPortalThemeFragmentItemSchema }),
-  av.object({ mode: av.literal("items"), items: av.array(BetterPortalThemeFragmentItemSchema).default([]) })
+  av.object({ mode: av.literal("override"), item: BetterPortalShellFragmentItemSchema }),
+  av.object({ mode: av.literal("items"), items: av.array(BetterPortalShellFragmentItemSchema).default([]) })
 ]);
-export type BetterPortalThemeFragmentSetting = Infer<typeof BetterPortalThemeFragmentSettingSchema>;
+export type BetterPortalShellFragmentSetting = Infer<typeof BetterPortalShellFragmentSettingSchema>;
 
 export const BetterPortalAppSchema = av.object({
   id: UuidV7Schema,
@@ -210,7 +210,6 @@ export const BetterPortalAppSchema = av.object({
   originOverrides: av.array(av.string().format("url")).default([]),
   refererOverrides: av.array(av.string().format("url")).default([]),
   shell: av.optional(BetterPortalAppShellSchema),
-  themeId: av.optional(NonEmptyStringSchema),
   themeConfig: BetterPortalThemeConfigSchema,
   layoutId: av.optional(NonEmptyStringSchema),
   defaultRoute: NonEmptyStringSchema.default("/"),
@@ -218,12 +217,22 @@ export const BetterPortalAppSchema = av.object({
   menu: av.array(BetterPortalMenuItemSchema).default([]),
   slots: av.array(BetterPortalSlotAssignmentSchema).default([]),
   fragments: av.record(av.array(BetterPortalFragmentAssignmentSchema)).default({}),
-  /** Theme service instance UUID -> theme fragment id -> explicit setting. Missing means theme default. */
-  themeFragments: av.record(av.record(BetterPortalThemeFragmentSettingSchema)).default({}),
+  /** Shell service instance UUID -> shell fragment id -> explicit setting. Missing means shell default. */
+  shellFragments: av.record(av.record(BetterPortalShellFragmentSettingSchema)).default({}),
   auth: av.optional(AppAuthConfigSchema),
   statusViewIds: av.optional(av.record(NonEmptyStringSchema))
 }, { unknownKeys: "strip" });
 export type BetterPortalApp = Infer<typeof BetterPortalAppSchema>;
+
+export interface BetterPortalResolvedShell {
+  readonly serviceId: string;
+  readonly service: string;
+  readonly renderer: string;
+}
+
+export type BetterPortalResolvedApp = Omit<BetterPortalApp, "shell"> & {
+  readonly shell?: BetterPortalResolvedShell;
+};
 
 export const BetterPortalConfigManagementAuthSchema = av.object({
   mechanism: av.enum_(["none", "dev-token", "jwt", "oidc"] as const).default("none"),
@@ -321,15 +330,24 @@ export const ServiceManifestCacheEntrySchema = av.object({
   serviceId: NonEmptyStringSchema,
   manifestVersion: NonEmptyStringSchema,
   fetchedAt: av.string().format("date-time"),
+  title: av.optional(NonEmptyStringSchema),
   authProvider: av.optional(AuthProviderRuntimeMetadataSchema),
+  capabilities: av.array(NonEmptyStringSchema).default([]),
   m2mRequests: av.array(av.any()).default([]),
   apiContracts: av.array(av.any()).default([]),
   developerResources: av.array(av.any()).default([]),
-  theme: av.optional(av.any()),
+  configSchemas: av.array(av.any()).default([]),
+  webhooks: av.array(av.any()).default([]),
+  shell: av.optional(av.object({
+    service: NonEmptyStringSchema,
+    renderer: NonEmptyStringSchema,
+    fragments: av.array(av.any()).default([])
+  })),
   viewIndex: av.record(av.object({
     viewId: NonEmptyStringSchema,
     path: NonEmptyStringSchema,
     methods: av.array(NonEmptyStringSchema).default([]),
+    renderers: av.array(NonEmptyStringSchema).default([]),
     role: av.optional(NonEmptyStringSchema),
     chrome: av.optional(BetterPortalRouteChromeSchema),
     dependencies: av.array(NonEmptyStringSchema).default([]),
@@ -379,12 +397,12 @@ export type BetterPortalConfig = Infer<typeof BetterPortalConfigSchema>;
 
 export interface BetterPortalResolvedRequestContext {
   tenant: BetterPortalTenant;
-  app: BetterPortalApp;
+  app: BetterPortalResolvedApp;
 }
 
 export interface BetterPortalResolvedServiceBinding {
   tenant: BetterPortalTenant;
-  app: BetterPortalApp;
+  app: BetterPortalResolvedApp;
   service: TenantServiceRegistration;
 }
 

@@ -62,8 +62,8 @@
     "definitions": [
       "src/plugins/service-betterportal-theme-embedded/index.ts"
     ],
-    "themes": [
-      "src/plugins/service-betterportal-theme-embedded/theme"
+    "shells": [
+      "src/plugins/service-betterportal-theme-embedded/shell"
     ]
   },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",

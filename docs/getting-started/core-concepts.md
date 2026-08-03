@@ -10,19 +10,19 @@ Tenants are defined in `bp-config.yaml` under `tenants`.
 
 ## App
 
-An app is a user-facing portal surface inside a tenant. It has hostnames, a theme, routes, a menu, fragments, and theme config.
+An app is a user-facing portal surface inside a tenant. It has hostnames, a shell service, routes, a menu, fragments, and visual theme config.
 
 A tenant can have more than one app.
 
-## Theme
+## Shell and renderer
 
-A theme renders the shell: layout, navigation, brand, assets, style, and fragment locations.
+A shell service renders layout, navigation, brand, assets, style, and shell fragment locations. The app stores its service-instance id in `app.shell.serviceId`.
 
-The default theme is `bootstrap1`. It uses Bootstrap 5 and HTMX. It does not proxy service page content.
+Each shell manifest declares a stable `service` identity and a `renderer` compatibility key. Bootstrap1 is the `bootstrap1` shell and uses the `bootstrap5` renderer contract. It does not proxy service page content.
 
 ## Service
 
-A service is an independently running BSB plugin that exposes BetterPortal views. Each service has its own manifest, handlers, schemas, and theme renderers.
+A service is an independently running BSB plugin that exposes BetterPortal views. Each service has its own manifest, handlers, schemas, and HTML renderers.
 
 Services are registered directly under a tenant or registered once in `sharedServiceCatalog` and activated through `sharedServiceActivations`.
 
@@ -36,7 +36,7 @@ For example, the app route `/docs` can map to the docs service route `/docs`.
 
 A view is a typed endpoint under `bp-routes/<route>/`. `index.ts` declares metadata; `GET.ts`, `POST.ts`, and other method files declare schemas and handlers.
 
-Theme-specific HTML renderers live beside the view in `_theme.<themeId>/` as method/status files such as `GET.tsx` or `POST.422.tsx`.
+HTML renderers live beside the view in `_renderer.<renderer>/` as method/status files such as `GET.tsx` or `POST.422.tsx`.
 
 ## Fragment
 
@@ -46,4 +46,4 @@ Fragments are still service-owned, but the app decides where they are mounted.
 
 ## Manifest
 
-Every service publishes `/.well-known/bp/manifest`. BetterPortal uses manifests to discover views, supported themes, schemas, fragments, and service metadata.
+Every service publishes `/.well-known/bp/manifest`. BetterPortal uses manifests to discover views, supported renderers, shell contracts, schemas, fragments, and service metadata.

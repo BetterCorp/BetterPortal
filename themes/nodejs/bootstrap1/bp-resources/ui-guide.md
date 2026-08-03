@@ -15,7 +15,7 @@ Use Bootstrap 5 classes and server-rendered JSX/HTMX. BetterPortal service rende
 - Use real `<form>` elements and labelled controls. Validation text uses `.invalid-feedback` or `.form-text`.
 - Use `ctx.routeUrl()` for form actions, HTMX calls, downloads and SSE. `ctx.uiRouteUrl()` is only for GET navigation through a mounted page route.
 - Use `<BPElement ctx={ctx} service="dependency-alias" path="/contract/path" fragment="location.id">` for cross-service UI fragments. Never put service UUIDs or absolute service URLs in renderer code; the server consumes `ctx` and resolves the app-mounted provider.
-- Use `service="theme"` and a singular theme fragment id to reuse active-theme UI such as `theme-selector`. Add `bp-loading`, optional `bp-ok` with exactly one `<template />`, status-specific `bp-status`, and `bp-nok` states as needed.
+- Use `service="shell"` and a singular shell fragment id to reuse active-shell UI such as `theme-selector`. Add `bp-loading`, optional `bp-ok` with exactly one `<template />`, status-specific `bp-status`, and `bp-nok` states as needed.
 - Mutations should return a useful fragment and emit an `HX-Trigger` event for passive regions that need to reload.
 - Disable buttons only while their own request is active. Keep a visible loading indicator and an error fragment.
 

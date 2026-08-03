@@ -38,8 +38,8 @@ import {
   type BetterPortalResolvedRequestContext,
   type BetterPortalObservability,
   type BetterPortalRegistry,
-  type BetterPortalThemeFragmentItem,
-  type RegisteredThemeFragment,
+  type BetterPortalShellFragmentItem,
+  type RegisteredShellFragment,
   type RegisteredRoute,
   type BetterPortalThemeConfig,
   type JwtVerifier,
@@ -234,13 +234,23 @@ export abstract class BPService<
 
   /**
    * Synthesize a BetterPortalConfig-shaped view from the synced scoped config.
-   * Lets services that need the full-portal-config API (e.g. themes for
+   * Lets shell services that need the full-portal-config API (for
    * `resolveThemeRequestContext` / `resolveServiceForTenant`) operate without
    * sharing CM's bp-config.yaml. Returns null until the first sync completes.
    */
   protected getPortalConfig(): PlatformConfig | null {
     const s = this.scopedConfig;
     if (!s) return null;
+    const manifestCache = [...new Map(s.apps
+      .filter((app) => app.shell)
+      .map((app) => [app.shell!.serviceId, {
+        serviceId: app.shell!.serviceId,
+        shell: {
+          service: app.shell!.service,
+          renderer: app.shell!.renderer,
+          fragments: []
+        }
+      }])).values()];
     return {
       configManagement: {
         adminTenantId: s.configManagement?.adminTenantId,
@@ -250,7 +260,7 @@ export abstract class BPService<
       platformServices: [],
       sharedServiceCatalog: [],
       tenantSharedServiceActivations: [],
-      manifestCache: [],
+      manifestCache,
       tenants: s.tenants.map((t) => ({
         id: t.id,
         slug: t.slug,
@@ -268,15 +278,14 @@ export abstract class BPService<
         hostnames: [...a.hostnames],
         originOverrides: [...(a.originOverrides ?? [])],
         refererOverrides: [...(a.refererOverrides ?? [])],
-        shell: a.shell,
-        themeId: a.themeId,
+        shell: a.shell ? { serviceId: a.shell.serviceId } : undefined,
         themeConfig: a.themeConfig,
         defaultRoute: a.defaultRoute ?? "/",
         routes: [...a.routes],
         menu: [...(a.menu ?? [])],
         slots: [...(a.slots ?? [])],
         fragments: a.fragments,
-        themeFragments: a.themeFragments,
+        shellFragments: a.shellFragments,
         auth: a.auth
       })) as any
     } as unknown as PlatformConfig;
@@ -289,29 +298,29 @@ export abstract class BPService<
 
   protected onRegistered?(registry: BetterPortalRegistry, obs: Observable): void | Promise<void>;
 
-  private registerThemeFragmentRoutes(registry: BetterPortalRegistry): void {
-    if (!registry.themeFragments?.length) return;
-    this.app.get("/.well-known/bp/theme/fragment/**", async (event) => {
+  private registerShellFragmentRoutes(registry: BetterPortalRegistry): void {
+    if (!registry.shellFragments?.length) return;
+    this.app.get("/.well-known/bp/shell/fragment/**", async (event) => {
       let id: string;
       try {
-        id = decodeURIComponent(event.url.pathname.slice("/.well-known/bp/theme/fragment/".length));
+        id = decodeURIComponent(event.url.pathname.slice("/.well-known/bp/shell/fragment/".length));
       } catch {
         return new Response("", { status: 400 });
       }
-      const definition = registry.themeFragments!.find((fragment) => fragment.id === id);
+      const definition = registry.shellFragments!.find((fragment) => fragment.id === id);
       if (!definition) return new Response("", { status: 404 });
       const requestContext = this.resolveHandlerContext(event);
-      const activeTheme = requestContext.tenant?.services.find((service) => service.id === requestContext.app?.shell?.serviceId);
-      if (!requestContext.tenant || !requestContext.app || activeTheme?.serviceId !== this.manifest.pluginId) {
+      const activeShell = (requestContext.app as BetterPortalResolvedRequestContext["app"] | undefined)?.shell;
+      if (!requestContext.tenant || !requestContext.app || activeShell?.service !== this.manifest.shell?.service) {
         return new Response("", { status: 404 });
       }
       const app = requestContext.app;
-      const activeThemeServiceId = app.shell!.serviceId;
-      const settings = app.themeFragments?.[activeThemeServiceId] ?? {};
+      const activeShellServiceId = app.shell!.serviceId;
+      const settings = app.shellFragments?.[activeShellServiceId] ?? {};
       const setting = settings[id];
       if (setting?.mode === "none") return new Response(null, { status: 204 });
 
-      const renderBuiltIn = (fragment: RegisteredThemeFragment): string => toHtmlString(fragment.render({
+      const renderBuiltIn = (fragment: RegisteredShellFragment): string => toHtmlString(fragment.render({
         tenant: requestContext.tenant!,
         app,
         config: this.effectiveServiceConfig(requestContext.tenant!.id, app.id),
@@ -320,8 +329,8 @@ export abstract class BPService<
         items: []
       }));
       const renderItem = (item: any): string => {
-        if (item?.source === "theme") {
-          const child = registry.themeFragments!.find((fragment) => fragment.id === item.fragmentId && fragment.kind === "fragment");
+        if (item?.source === "shell") {
+          const child = registry.shellFragments!.find((fragment) => fragment.id === item.fragmentId && fragment.kind === "fragment");
           return child ? renderBuiltIn(child) : "";
         }
         if (item?.source !== "service") return "";
@@ -354,7 +363,7 @@ export abstract class BPService<
         const targetPath = route?.resolvedServicePath ?? route?.targetPath;
         return targetPath ? [{ source: "service" as const, serviceId: slot.serviceId, fragmentId: slot.slotId, targetPath }] : [];
       });
-      let configuredItems: BetterPortalThemeFragmentItem[];
+      let configuredItems: BetterPortalShellFragmentItem[];
       if (setting?.mode === "items") configuredItems = setting.items;
       else if (setting?.mode === "override") configuredItems = [setting.item];
       else if (setting === undefined && legacyFragments.length > 0) configuredItems = legacyFragments
@@ -365,7 +374,7 @@ export abstract class BPService<
           fragmentId: item.fragmentId.includes(".") ? item.fragmentId : `${definition.id}.${item.fragmentId}`
         }));
       else if (setting === undefined && legacySlots.length > 0) configuredItems = legacySlots;
-      else configuredItems = (definition.defaultItems ?? []).map((fragmentId) => ({ source: "theme" as const, fragmentId }));
+      else configuredItems = (definition.defaultItems ?? []).map((fragmentId) => ({ source: "shell" as const, fragmentId }));
       const html = toHtmlString(definition.render({
         tenant: requestContext.tenant,
         app,
@@ -753,7 +762,7 @@ export abstract class BPService<
     registerBpWellKnownRoutes(this.app, this.manifest, bpSchema, {
       health: () => this.renderHealth()
     });
-    this.registerThemeFragmentRoutes(def.registry);
+    this.registerShellFragmentRoutes(def.registry);
 
     if (this.onRegistered) {
       const registeredSpan = this.observability.startSpan("bp.plugin.on_registered", {
@@ -924,6 +933,7 @@ export abstract class BPService<
       // AND surface per-view permission requirements to the admin role editor.
       const viewIndex: Record<string, {
         viewId: string; path: string; methods: string[]; role?: string;
+        renderers: string[];
         chrome?: BetterPortalRouteChrome;
         dependencies: string[];
         permissions: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
@@ -938,7 +948,7 @@ export abstract class BPService<
         const viewWithAuth = view as unknown as {
           auth?: { permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }> };
           chrome?: BetterPortalRouteChrome;
-          html?: { themeRenderers?: Record<string, unknown> };
+          html?: { renderers?: Record<string, unknown> };
           dependencies?: string[];
           raw?: boolean;
           paramsSchema?: unknown;
@@ -949,11 +959,11 @@ export abstract class BPService<
           metadataResponseSchema?: unknown;
           apiContracts?: unknown[];
         };
-        const themeRenderers = viewWithAuth.html?.themeRenderers ?? {};
-        const renderable = Object.keys(themeRenderers).length > 0;
+        const renderers = viewWithAuth.html?.renderers ?? {};
+        const renderable = Object.keys(renderers).length > 0;
         const fragments: Array<{ fragmentId: string; targetPath: string }> = [];
         const seenFragments = new Set<string>();
-        for (const theme of Object.values(themeRenderers) as any[]) {
+        for (const theme of Object.values(renderers) as any[]) {
           for (const renderer of theme?.renderers ?? []) {
             if (typeof renderer?.slotId !== "string" || renderer.slotId === "main" || seenFragments.has(renderer.slotId)) continue;
             seenFragments.add(renderer.slotId);
@@ -974,6 +984,7 @@ export abstract class BPService<
           viewId: view.viewId,
           path: view.path,
           methods: [...view.methods],
+          renderers: Object.keys(renderers),
           ...(view.role ? { role: view.role } : {}),
           ...(viewWithAuth.chrome ? { chrome: viewWithAuth.chrome } : {}),
           dependencies: [...(viewWithAuth.dependencies ?? [])],
@@ -1006,7 +1017,7 @@ export abstract class BPService<
           apiContracts: this.manifest.apiContracts,
           m2mRequests: this.manifest.m2mRequests,
           developerResources: this.manifest.developerResources,
-          theme: this.manifest.theme,
+          shell: this.manifest.shell,
           ...(this.publishedAuthProvider ? { authProvider: this.publishedAuthProvider } : {}),
           viewIndex
         })
@@ -1179,8 +1190,8 @@ export abstract class BPService<
       });
 
       for (const app of this.scopedConfig.apps.filter((entry) => entry.tenantId === tenant.id)) {
-        obs.log.debug(" -> [{themeId}@{appHostnames}] {appName}: {appId}", {
-          themeId: app.themeId,
+        obs.log.debug(" -> [{renderer}@{appHostnames}] {appName}: {appId}", {
+          renderer: app.shell?.renderer ?? "unresolved",
           appHostnames: app.hostnames.join(","),
           appName: app.title,
           appId: app.id
@@ -1315,12 +1326,6 @@ export abstract class BPService<
     }
 
     if (!origin) {
-      const tenantId = event.req.headers.get("x-bp-tenant-id");
-      const appId = event.req.headers.get("x-bp-app-id");
-      if (tenantId && appId) {
-        const context = this.resolveScopedContextById(tenantId, appId);
-        if (context) this.applyRequestContext(event, context);
-      }
       return handleCorsRequest(event, {
         origin: [],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -1468,7 +1473,7 @@ export abstract class BPService<
         menu: [...app.menu],
         slots: [...app.slots],
         fragments: { ...app.fragments },
-        themeFragments: { ...app.themeFragments }
+        shellFragments: { ...app.shellFragments }
       }
     };
   }
@@ -1479,14 +1484,12 @@ export abstract class BPService<
       __bpAppId?: string;
       __bpTenant?: BetterPortalResolvedRequestContext["tenant"];
       __bpApp?: BetterPortalResolvedRequestContext["app"];
-      __bpThemeId?: string;
       __bpAppAuth?: AppAuthConfig;
     };
     bpContext.__bpTenantId = context.tenant.id;
     bpContext.__bpAppId = context.app.id;
     bpContext.__bpTenant = context.tenant;
     bpContext.__bpApp = context.app;
-    bpContext.__bpThemeId = context.app.themeId ?? "bootstrap1";
     bpContext.__bpAppAuth = context.app.auth;
   }
 

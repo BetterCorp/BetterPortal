@@ -1,5 +1,5 @@
 import { js } from "jsx-htmx";
-import type { BetterPortalThemeAdapter } from "@betterportal/theme-runtime";
+import type { BetterPortalShellAdapter } from "@betterportal/theme-runtime";
 
 export const Bootstrap1AdapterSource = js(() => {
   const bootstrap = window.bootstrap;
@@ -36,7 +36,7 @@ export const Bootstrap1AdapterSource = js(() => {
       if (!bootstrap.Popover.getInstance(el)) new bootstrap.Popover(el);
     });
   };
-  window.BetterPortalThemeAdapter = {
+  window.BetterPortalShellAdapter = {
     initComponents,
     disposeComponents(root) {
       if (!root || !bootstrap) return;
@@ -113,5 +113,5 @@ export const Bootstrap1AdapterSource = js(() => {
       }
       bootstrap.Modal.getOrCreateInstance(modal).show();
     }
-  } satisfies BetterPortalThemeAdapter;
+  } satisfies BetterPortalShellAdapter;
 });

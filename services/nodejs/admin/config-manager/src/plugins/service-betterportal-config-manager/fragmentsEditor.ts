@@ -1,4 +1,4 @@
-import type { BetterPortalEvent, BetterPortalH3App, PlatformConfigStore, ThemeFragmentDescriptor } from "@betterportal/framework";
+import type { BetterPortalEvent, BetterPortalH3App, PlatformConfigStore, ShellFragmentDescriptor } from "@betterportal/framework";
 import { htmlResponse, jsonResponse } from "@betterportal/framework";
 import { getCachedManifestForService } from "./syncApi.js";
 
@@ -6,7 +6,7 @@ const API_BASE = "/.well-known/bp/admin/fragments-editor";
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
 type Item =
-  | { source: "theme"; fragmentId: string }
+  | { source: "shell"; fragmentId: string }
   | { source: "service"; serviceId: string; fragmentId: string; targetPath: string };
 
 async function readForm(event: BetterPortalEvent): Promise<Record<string, string>> {
@@ -49,14 +49,14 @@ function serviceLabel(config: any, app: any, serviceId: string): string {
   return service ? `${service.title || service.serviceId || service.id} · ${service.serviceId || service.id}` : serviceId;
 }
 
-function settingsFor(app: any, themeServiceId: string): Record<string, any> {
-  app.themeFragments = app.themeFragments ?? {};
-  app.themeFragments[themeServiceId] = app.themeFragments[themeServiceId] ?? {};
-  return app.themeFragments[themeServiceId];
+function settingsFor(app: any, shellServiceId: string): Record<string, any> {
+  app.shellFragments = app.shellFragments ?? {};
+  app.shellFragments[shellServiceId] = app.shellFragments[shellServiceId] ?? {};
+  return app.shellFragments[shellServiceId];
 }
 
-function effectiveBlockItems(app: any, themeServiceId: string, definition: ThemeFragmentDescriptor): Item[] {
-  const setting = app.themeFragments?.[themeServiceId]?.[definition.id];
+function effectiveBlockItems(app: any, shellServiceId: string, definition: ShellFragmentDescriptor): Item[] {
+  const setting = app.shellFragments?.[shellServiceId]?.[definition.id];
   if (setting?.mode === "none") return [];
   if (setting?.mode === "items") return [...setting.items];
   if (setting?.mode === "override") return [setting.item];
@@ -75,19 +75,19 @@ function effectiveBlockItems(app: any, themeServiceId: string, definition: Theme
     return targetPath ? [{ source: "service" as const, serviceId: slot.serviceId, fragmentId: slot.slotId, targetPath }] : [];
   });
   if (legacySlots.length) return legacySlots;
-  return definition.defaultItems.map((fragmentId) => ({ source: "theme", fragmentId }));
+  return definition.defaultItems.map((fragmentId) => ({ source: "shell", fragmentId }));
 }
 
 function encodeItem(item: Item): string {
-  return item.source === "theme"
-    ? `t:${encodeURIComponent(item.fragmentId)}`
+  return item.source === "shell"
+    ? `h:${encodeURIComponent(item.fragmentId)}`
     : `s:${item.serviceId}:${encodeURIComponent(item.fragmentId)}:${encodeURIComponent(item.targetPath)}`;
 }
 
 function decodeItem(value: string): Item | null {
   try {
     const parts = value.split(":");
-    if (parts[0] === "t" && parts[1]) return { source: "theme", fragmentId: decodeURIComponent(parts[1]) };
+    if (parts[0] === "h" && parts[1]) return { source: "shell", fragmentId: decodeURIComponent(parts[1]) };
     if (parts[0] === "s" && parts.length === 4) return {
       source: "service",
       serviceId: parts[1],
@@ -98,10 +98,10 @@ function decodeItem(value: string): Item | null {
   return null;
 }
 
-function availableItems(config: any, app: any, definitions: ThemeFragmentDescriptor[]): Array<{ item: Item; label: string }> {
+function availableItems(config: any, app: any, definitions: ShellFragmentDescriptor[]): Array<{ item: Item; label: string }> {
   const builtIns = definitions
     .filter((definition) => definition.kind === "fragment")
-    .map((definition) => ({ item: { source: "theme", fragmentId: definition.id } as Item, label: `Theme · ${definition.title}` }));
+    .map((definition) => ({ item: { source: "shell", fragmentId: definition.id } as Item, label: `Shell · ${definition.title}` }));
   const services = servicesFor(config, app);
   const serviceItems = services.flatMap((service: any) => {
     const manifest = getCachedManifestForService(config, service.id);
@@ -117,17 +117,17 @@ function availableItems(config: any, app: any, definitions: ThemeFragmentDescrip
   return [...builtIns, ...serviceItems];
 }
 
-function hidden(appId: string, themeServiceId: string, fragmentId: string): string {
-  return `<input type="hidden" name="appId" value="${escapeHtml(appId)}"><input type="hidden" name="themeServiceId" value="${escapeHtml(themeServiceId)}"><input type="hidden" name="fragmentId" value="${escapeHtml(fragmentId)}">`;
+function hidden(appId: string, shellServiceId: string, fragmentId: string): string {
+  return `<input type="hidden" name="appId" value="${escapeHtml(appId)}"><input type="hidden" name="shellServiceId" value="${escapeHtml(shellServiceId)}"><input type="hidden" name="fragmentId" value="${escapeHtml(fragmentId)}">`;
 }
 
-function modeButtons(appId: string, themeServiceId: string, definition: ThemeFragmentDescriptor): string {
-  const button = (mode: string, label: string, style: string) => `<form class="d-inline" hx-post="${API_BASE}/set-mode" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(appId, themeServiceId, definition.id)}<input type="hidden" name="mode" value="${mode}"><button class="btn btn-sm ${style}" type="submit">${label}</button></form>`;
-  return `<div class="btn-group">${button("default", "Use theme default", "btn-outline-secondary")}${button("none", "Empty", "btn-outline-danger")}</div>`;
+function modeButtons(appId: string, shellServiceId: string, definition: ShellFragmentDescriptor): string {
+  const button = (mode: string, label: string, style: string) => `<form class="d-inline" hx-post="${API_BASE}/set-mode" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(appId, shellServiceId, definition.id)}<input type="hidden" name="mode" value="${mode}"><button class="btn btn-sm ${style}" type="submit">${label}</button></form>`;
+  return `<div class="btn-group">${button("default", "Use shell default", "btn-outline-secondary")}${button("none", "Empty", "btn-outline-danger")}</div>`;
 }
 
-function itemLabel(item: Item, config: any, app: any, definitions: ThemeFragmentDescriptor[]): string {
-  if (item.source === "theme") return `Theme · ${definitions.find((definition) => definition.id === item.fragmentId)?.title ?? item.fragmentId}`;
+function itemLabel(item: Item, config: any, app: any, definitions: ShellFragmentDescriptor[]): string {
+  if (item.source === "shell") return `Shell · ${definitions.find((definition) => definition.id === item.fragmentId)?.title ?? item.fragmentId}`;
   return `${serviceLabel(config, app, item.serviceId)} · ${item.fragmentId} (${item.targetPath})`;
 }
 
@@ -135,26 +135,26 @@ function sourceSelect(items: Array<{ item: Item; label: string }>): string {
   return `<select name="source" class="form-select form-select-sm" required><option value="">Select fragment...</option>${items.map(({ item, label }) => `<option value="${escapeHtml(encodeItem(item))}">${escapeHtml(label)}</option>`).join("")}</select>`;
 }
 
-function renderDefinition(config: any, app: any, themeServiceId: string, definition: ThemeFragmentDescriptor, definitions: ThemeFragmentDescriptor[], choices: Array<{ item: Item; label: string }>): string {
-  const setting = app.themeFragments?.[themeServiceId]?.[definition.id];
-  const status = setting?.mode ?? (app.fragments?.[definition.id]?.length ? "legacy default" : "theme default");
+function renderDefinition(config: any, app: any, shellServiceId: string, definition: ShellFragmentDescriptor, definitions: ShellFragmentDescriptor[], choices: Array<{ item: Item; label: string }>): string {
+  const setting = app.shellFragments?.[shellServiceId]?.[definition.id];
+  const status = setting?.mode ?? (app.fragments?.[definition.id]?.length ? "legacy default" : "shell default");
   if (definition.kind === "fragment") {
-    return `<section class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><div><strong>${escapeHtml(definition.title)}</strong><div class="small text-secondary font-monospace">_${escapeHtml(definition.id)}.tsx · ${escapeHtml(status)}</div></div>${modeButtons(app.id, themeServiceId, definition)}</div><div class="card-body"><p class="small text-secondary">${escapeHtml(definition.description)}</p><form class="row g-2" hx-post="${API_BASE}/set-override" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(app.id, themeServiceId, definition.id)}<div class="col">${sourceSelect(choices.filter(({ item }) => item.source === "service"))}</div><div class="col-auto"><button class="btn btn-sm btn-primary" type="submit">Override</button></div></form></div></section>`;
+    return `<section class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><div><strong>${escapeHtml(definition.title)}</strong><div class="small text-secondary font-monospace">_${escapeHtml(definition.id)}.tsx · ${escapeHtml(status)}</div></div>${modeButtons(app.id, shellServiceId, definition)}</div><div class="card-body"><p class="small text-secondary">${escapeHtml(definition.description)}</p><form class="row g-2" hx-post="${API_BASE}/set-override" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(app.id, shellServiceId, definition.id)}<div class="col">${sourceSelect(choices.filter(({ item }) => item.source === "service"))}</div><div class="col-auto"><button class="btn btn-sm btn-primary" type="submit">Override</button></div></form></div></section>`;
   }
 
-  const items = effectiveBlockItems(app, themeServiceId, definition);
-  const rows = items.length ? items.map((item, index) => `<li class="list-group-item d-flex justify-content-between align-items-center"><span>${escapeHtml(itemLabel(item, config, app, definitions))}</span><div class="btn-group">${["move-up", "move-down", "remove"].map((action) => `<form hx-post="${API_BASE}/${action}" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(app.id, themeServiceId, definition.id)}<input type="hidden" name="index" value="${index}"><button class="btn btn-sm ${action === "remove" ? "btn-outline-danger" : "btn-outline-secondary"}" type="submit"${(action === "move-up" && index === 0) || (action === "move-down" && index === items.length - 1) ? " disabled" : ""}>${action === "move-up" ? "Move up" : action === "move-down" ? "Move down" : "Remove"}</button></form>`).join("")}</div></li>`).join("") : `<li class="list-group-item text-secondary">Empty block.</li>`;
-  return `<section class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><div><strong>${escapeHtml(definition.title)}</strong><div class="small text-secondary font-monospace">_${escapeHtml(definition.id)}/index.tsx · ${escapeHtml(status)}</div></div>${modeButtons(app.id, themeServiceId, definition)}</div><ul class="list-group list-group-flush">${rows}</ul><div class="card-body"><p class="small text-secondary">${escapeHtml(definition.description)}</p><form class="row g-2" hx-post="${API_BASE}/add" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(app.id, themeServiceId, definition.id)}<div class="col">${sourceSelect(choices)}</div><div class="col-auto"><button class="btn btn-sm btn-primary" type="submit">Add</button></div></form></div></section>`;
+  const items = effectiveBlockItems(app, shellServiceId, definition);
+  const rows = items.length ? items.map((item, index) => `<li class="list-group-item d-flex justify-content-between align-items-center"><span>${escapeHtml(itemLabel(item, config, app, definitions))}</span><div class="btn-group">${["move-up", "move-down", "remove"].map((action) => `<form hx-post="${API_BASE}/${action}" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(app.id, shellServiceId, definition.id)}<input type="hidden" name="index" value="${index}"><button class="btn btn-sm ${action === "remove" ? "btn-outline-danger" : "btn-outline-secondary"}" type="submit"${(action === "move-up" && index === 0) || (action === "move-down" && index === items.length - 1) ? " disabled" : ""}>${action === "move-up" ? "Move up" : action === "move-down" ? "Move down" : "Remove"}</button></form>`).join("")}</div></li>`).join("") : `<li class="list-group-item text-secondary">Empty block.</li>`;
+  return `<section class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><div><strong>${escapeHtml(definition.title)}</strong><div class="small text-secondary font-monospace">_${escapeHtml(definition.id)}/index.tsx · ${escapeHtml(status)}</div></div>${modeButtons(app.id, shellServiceId, definition)}</div><ul class="list-group list-group-flush">${rows}</ul><div class="card-body"><p class="small text-secondary">${escapeHtml(definition.description)}</p><form class="row g-2" hx-post="${API_BASE}/add" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(app.id, shellServiceId, definition.id)}<div class="col">${sourceSelect(choices)}</div><div class="col-auto"><button class="btn btn-sm btn-primary" type="submit">Add</button></div></form></div></section>`;
 }
 
 function renderEditor(config: any, app: any): string {
-  const themeServiceId = app.shell?.serviceId;
-  if (!themeServiceId) return `<div id="bp-fragments-editor" class="alert alert-secondary">This app has no active theme, so it has no theme fragments.</div>`;
-  const manifest = getCachedManifestForService(config, themeServiceId);
-  const definitions = manifest?.theme?.fragments ?? [];
-  if (!definitions.length) return `<div id="bp-fragments-editor" class="alert alert-secondary">The active theme exposes no fragments or has not synced its manifest yet.</div>`;
+  const shellServiceId = app.shell?.serviceId;
+  if (!shellServiceId) return `<div id="bp-fragments-editor" class="alert alert-secondary">This app has no shell, so it has no shell fragments.</div>`;
+  const manifest = getCachedManifestForService(config, shellServiceId);
+  const definitions = manifest?.shell?.fragments ?? [];
+  if (!definitions.length) return `<div id="bp-fragments-editor" class="alert alert-secondary">The active shell exposes no fragments or has not synced its manifest yet.</div>`;
   const choices = availableItems(config, app, definitions);
-  return `<div id="bp-fragments-editor"><div class="mb-3"><strong>${escapeHtml(serviceLabel(config, app, themeServiceId))}</strong><div class="small text-secondary">Theme defaults are used until an explicit override, list, or empty value is saved.</div></div>${definitions.map((definition) => renderDefinition(config, app, themeServiceId, definition, definitions, choices)).join("")}</div>`;
+  return `<div id="bp-fragments-editor"><div class="mb-3"><strong>${escapeHtml(serviceLabel(config, app, shellServiceId))}</strong><div class="small text-secondary">Shell defaults are used until an explicit override, list, or empty value is saved.</div></div>${definitions.map((definition) => renderDefinition(config, app, shellServiceId, definition, definitions, choices)).join("")}</div>`;
 }
 
 export function registerFragmentsEditorRoutes(router: BetterPortalH3App, store: PlatformConfigStore): void {
@@ -169,18 +169,18 @@ export function registerFragmentsEditorRoutes(router: BetterPortalH3App, store: 
     form: Record<string, string>,
     app: any,
     settings: Record<string, any>,
-    definition: ThemeFragmentDescriptor,
+    definition: ShellFragmentDescriptor,
     choices: Array<{ item: Item; label: string }>
   ) => boolean) => async (event: BetterPortalEvent) => {
     const form = await readForm(event);
     const config = await store.loadConfig();
     const app = appFor(config, form.appId);
-    if (!app || app.shell?.serviceId !== form.themeServiceId) return jsonResponse({ error: "Active theme changed; reload the editor" }, 409);
-    const definitions = getCachedManifestForService(config, form.themeServiceId)?.theme?.fragments ?? [];
+    if (!app || app.shell?.serviceId !== form.shellServiceId) return jsonResponse({ error: "Active shell changed; reload the editor" }, 409);
+    const definitions = getCachedManifestForService(config, form.shellServiceId)?.shell?.fragments ?? [];
     const definition = definitions.find((candidate) => candidate.id === form.fragmentId);
-    if (!definition) return jsonResponse({ error: "Theme fragment is unavailable; reload the editor" }, 409);
+    if (!definition) return jsonResponse({ error: "Shell fragment is unavailable; reload the editor" }, 409);
     const choices = availableItems(config, app, definitions);
-    if (!handler(form, app, settingsFor(app, form.themeServiceId), definition, choices)) return jsonResponse({ error: "Invalid fragment editor operation" }, 400);
+    if (!handler(form, app, settingsFor(app, form.shellServiceId), definition, choices)) return jsonResponse({ error: "Invalid fragment editor operation" }, 400);
     await store.saveConfig(config);
     return respond(form.appId);
   };
@@ -204,7 +204,7 @@ export function registerFragmentsEditorRoutes(router: BetterPortalH3App, store: 
   router.post(`${API_BASE}/add`, mutate((form, app, settings, definition, choices) => {
     const item = decodeItem(form.source);
     if (definition.kind !== "block" || !item || !choices.some((choice) => encodeItem(choice.item) === form.source)) return false;
-    const current = settings[form.fragmentId]?.mode === "items" ? [...settings[form.fragmentId].items] : effectiveBlockItems(app, form.themeServiceId, definition);
+    const current = settings[form.fragmentId]?.mode === "items" ? [...settings[form.fragmentId].items] : effectiveBlockItems(app, form.shellServiceId, definition);
     settings[form.fragmentId] = { mode: "items", items: [...current, item] };
     return true;
   }));
@@ -212,7 +212,7 @@ export function registerFragmentsEditorRoutes(router: BetterPortalH3App, store: 
     if (definition.kind !== "block") return false;
     const current = settings[form.fragmentId]?.mode === "items"
       ? [...settings[form.fragmentId].items]
-      : effectiveBlockItems(app, form.themeServiceId, definition);
+      : effectiveBlockItems(app, form.shellServiceId, definition);
     if (!operation(current, Number(form.index))) return false;
     settings[form.fragmentId] = { mode: "items", items: current };
     return true;

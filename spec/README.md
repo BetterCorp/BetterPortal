@@ -12,12 +12,12 @@ If you are writing a service in a language other than TypeScript, this is your s
 |---|---|
 | [protocol.md](protocol.md) | HTTP surface, well-known endpoints, CORS, content negotiation, error shape, versioning. |
 | [manifest.md](manifest.md) | `/.well-known/bp/manifest` JSON schema - plugin id, views, config schemas, cache hints. |
-| [schema-json.md](schema-json.md) | `/.well-known/bp/schema.json` - flattened route catalog with theme renderers, fragments, components. |
+| [schema-json.md](schema-json.md) | `/.well-known/bp/schema.json` - flattened route catalog with HTML renderers, fragments, components. |
 | [ai.md](ai.md) | App `llms*.txt`, AI manifest, developer resources, API discovery, and client flow. |
 | [fragment-html.md](fragment-html.md) | HTML conventions for fragments and view bodies: required attributes, relative URLs, HTMX patterns the client rewriter expects. |
 | [config.md](config.md) | `bp-config.yaml` (platform), per-service config schemas, `/.well-known/bp/config*` endpoints. |
 | [auth.md](auth.md) | View auth (OIDC-compliant JWT + JWKS), config ticket claims, `ViewAuthRequirement` semantics. |
-| [sse.md](sse.md) | Server-Sent Events conventions: per-view streams (`/__sse`), per-theme tick renderers, control-plane config sync. |
+| [sse.md](sse.md) | Server-Sent Events conventions: per-view streams (`/__sse`), per-renderer tick output, control-plane config sync. |
 | [streaming.md](streaming.md) | Partial responses: frame envelope, NDJSON streaming, per-frame validation, streamed HTML rendering, deferred components. |
 | [search.md](search.md) | Federated search: `search.v1` capability, provider endpoint, pinned result schema, aggregator rules (viewId link resolution, hiding, custom result HTML). |
 | [conformance.md](conformance.md) | Minimum surface an SDK or service must implement to claim `bp-protocol/1` compliance. |

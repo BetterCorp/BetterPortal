@@ -287,7 +287,7 @@ document.getElementById("wizard").addEventListener("submit", async (evt) => {
     // 1. Commit admin tenant + app to CP (CM generates UUIDv7 ids and returns them)
     const commit = await commitBootstrap(payload);
 
-    // 2. Install auth + theme services via setup-token handshake (browser dispatches).
+    // 2. Install auth + shell services via setup-token handshake (browser dispatches).
     //    instanceIds from commit response -> match pre-created tenant.services placeholders.
     await installService(
       "auth",

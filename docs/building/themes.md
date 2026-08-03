@@ -1,12 +1,12 @@
-# Themes
+# Shell services and themes
 
-Themes render the BetterPortal shell and provide the visual system for service views.
+Shell services render the BetterPortal host page and provide the visual theme. The shell service identity and its service-view renderer compatibility key are separate contracts.
 
-The default theme is `bootstrap1`.
+Bootstrap1 declares `shell: { service: "bootstrap1", renderer: "bootstrap5" }`. Its stable shell identity remains `bootstrap1`; any service renderer compatible with Bootstrap 5 uses `_renderer.bootstrap5`.
 
-## Theme responsibilities
+## Shell responsibilities
 
-A theme owns:
+A shell owns:
 
 - shell layout
 - navigation
@@ -22,24 +22,24 @@ It does not own service page content.
 
 Each theme owns its configuration schema and defaults. `apps[].themeConfig.bootstrap` is a Bootstrap1 compatibility palette whose meanings and fallback values are hardcoded by Bootstrap1; it is not a portable theme contract. A new theme must not copy those values as its defaults or require that palette. Define theme-specific fields and defaults in the new theme's service configuration schema, and map Bootstrap palette values only when deliberate compatibility is desired.
 
-## Shared Node theme runtime
+## Shared Node shell runtime
 
-Node themes use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and `bp-element` lifecycle states.
+Node shells use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and `bp-element` lifecycle states.
 
-The runtime is assembled on the backend in deterministic order: HTMX core, the theme adapter, the BetterPortal shell, and the bundled SSE extension. Browsers never discover or dynamically load HTMX extensions. A missing required asset fails during backend bundle creation.
+The runtime is assembled on the backend in deterministic order: HTMX core, the shell adapter, the BetterPortal shell, and the bundled SSE extension. Browsers never discover or dynamically load HTMX extensions. A missing required asset fails during backend bundle creation.
 
 Write adapters as TSX and use `jsx-htmx`'s typed `js()` helper:
 
 ```tsx
 import { js } from "jsx-htmx";
-import type { BetterPortalThemeAdapter } from "@betterportal/theme-runtime";
+import type { BetterPortalShellAdapter } from "@betterportal/theme-runtime";
 
-export const MyThemeAdapterSource = js(() => {
-  window.BetterPortalThemeAdapter = {
+export const MyShellAdapterSource = js(() => {
+  window.BetterPortalShellAdapter = {
     setLoading(loading, outlet) {
       outlet?.classList.toggle("is-loading", loading);
     }
-  } satisfies BetterPortalThemeAdapter;
+  } satisfies BetterPortalShellAdapter;
 });
 ```
 
@@ -51,53 +51,63 @@ Theme packages keep their public asset URLs and provide only presentation hooks.
 
 In a theme's `package.json`, declare `@betterportal/theme-runtime` but not `htmx.org`; the runtime owns and bundles the browser HTMX package. The runtime imports `jsx-htmx`, but a theme that directly imports `jsx-htmx` for TSX must declare it directly rather than relying on a transitive dependency.
 
-## Theme fragments
+## Shell contract and fragments
 
-Declare the theme directory in `package.json`:
+The shell manifest is authoritative:
+
+```ts
+manifest: {
+  shell: { service: "my-shell", renderer: "bootstrap5", fragments: [] }
+}
+```
+
+The control plane persists only `app.shell.serviceId`. Scoped, read-only service context includes the resolved `app.shell = { serviceId, service, renderer }`. Services must not accept a client-selected renderer; browser context comes from Origin/Referer/effective host, while verified S2S envelopes carry tenant/app scope.
+
+Declare the shell directory in `package.json`:
 
 ```json
-{ "betterportal": { "themes": ["src/plugins/my-theme/theme"] } }
+{ "betterportal": { "shells": ["src/plugins/my-theme/shell"] } }
 ```
 
 Codegen recognizes only these top-level forms:
 
 ```text
-theme/
+shell/
   _theme-selector.tsx  # singular, independently addressable fragment
   _nav/
     index.tsx          # ordered fragment block
 ```
 
-A singular file exports `title`, `description`, and `render(ctx)`. A block also exports `defaultItems`, and its `render(ctx)` places `ctx.items`. Missing app configuration uses the theme default; `mode: "none"` is an explicit empty value; singular overrides and block items may reference service fragments. Settings are stored under the active theme service-instance UUID, so changing themes changes the available definitions without destroying the previous theme's dormant settings. An app with no active shell theme has no theme fragments.
+A singular file exports `title`, `description`, and `render(ctx)`. A block also exports `defaultItems`, and its `render(ctx)` places `ctx.items`. Missing app configuration uses the shell default; `mode: "none"` is an explicit empty value; singular overrides and block items may reference service fragments. Settings are stored under the active shell service-instance UUID, so changing shells changes the available definitions without destroying the previous shell's dormant settings. An app with no shell has no shell fragments.
 
 ```tsx
-import type { HtmlRenderable, ThemeFragmentRenderContext } from "@betterportal/framework";
+import type { HtmlRenderable, ShellFragmentRenderContext } from "@betterportal/framework";
 
 export const title = "Topbar fragments";
 export const description = "Ordered content shown in the topbar.";
 export const defaultItems = ["theme-selector"];
 
-export function render(ctx: ThemeFragmentRenderContext): HtmlRenderable {
+export function render(ctx: ShellFragmentRenderContext): HtmlRenderable {
   return ctx.items.map(String).join("");
 }
 ```
 
-`ThemeFragmentRenderContext` supplies the tenant, app, theme service configuration, request URL, fragment id, and server-resolved block items. Cross-service URLs are not constructed by theme code. Service views reuse a singular active-theme fragment with `<BPElement ctx={ctx} service="theme" fragment="theme-selector">`; see [Routes and views](./routes-and-views.md).
+`ShellFragmentRenderContext` supplies the tenant, app, shell service configuration, request URL, fragment id, and server-resolved block items. Cross-service URLs are not constructed by shell code. Service views reuse a singular active-shell fragment with `<BPElement ctx={ctx} service="shell" fragment="theme-selector">`; see [Routes and views](./routes-and-views.md).
 
 There is no reserved `background` location and no browser-side fragment discovery. A theme that needs a background block declares `_background/index.tsx` explicitly.
 
 ## Service renderers
 
-Each service view chooses which themes it supports by adding renderer folders:
+Each service view chooses renderer contracts by adding renderer folders:
 
 ```text
-_theme.bootstrap1/
+_renderer.bootstrap5/
   GET.tsx
   POST.tsx
   POST.422.tsx
 ```
 
-Renderers are method/status-specific. If a view does not provide a matching renderer for the active app theme and request method/status, the service returns JSON/API output or a JSON error.
+Renderers are method/status-specific. The folder suffix is the shell's `renderer`, not its `service` identity. If a view does not provide an exact renderer match for the resolved app shell and request method/status, the service returns `406`; there is no fallback.
 
 For Bootstrap1, the shell already provides the route header context. Service renderers should not add duplicate top-level page headings such as `<h1 class="h4 mb-3">Templates</h1>` unless that heading is part of the service content itself.
 

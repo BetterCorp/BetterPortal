@@ -82,7 +82,7 @@ export function isStreamHandler(value: unknown): value is BpStreamHandler<any, a
     && (value as Record<symbol, unknown>)[BP_STREAM_HANDLER] === true;
 }
 
-// -- Stream theme renderers (spec/streaming.md section 4) -------------------
+// -- Stream renderers (spec/streaming.md section 4) -------------------------
 
 /**
  * Context passed to a streaming view's shell renderer.
@@ -96,8 +96,8 @@ export interface StreamShellContext {
 }
 
 /**
- * Per-theme renderers for a streaming view, sourced from
- * `_theme.<themeId>/index.stream.tsx` exports.
+ * Per-renderer implementations for a streaming view, sourced from
+ * `_renderer.<rendererKey>/index.stream.tsx` exports.
  * Each function renders ONE frame; the buffered HTML page render uses the
  * regular `index.tsx` page renderer over the derived `{ items, summary }` data.
  */

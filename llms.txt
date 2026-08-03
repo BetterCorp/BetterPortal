@@ -1,6 +1,6 @@
 # BetterPortal v10 - LLM Onboarding
 
-A multi-tenant portal platform composed of independent services unified by a theme. API-first, HTMX-first, strict schema validation, plugin-based.
+A multi-tenant portal platform composed of independent services unified by an app-selected shell. API-first, HTMX-first, strict schema validation, plugin-based.
 
 > **Protocol-first.** BetterPortal is a **wire protocol** (`bp-protocol/1`). The normative spec lives in [`spec/`](spec/README.md). `framework/nodejs` is the **Node SDK** - one reference implementation. A PHP/Python/Go/Rust service that implements the spec is a first-class BetterPortal service.
 >
@@ -21,7 +21,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 > | [`spec/search.md`](spec/search.md) | Federated search: `search.v1` provider endpoint, pinned result schema, aggregator rules. |
 > | [`spec/conformance.md`](spec/conformance.md) | Test matrix. |
 >
-> This document covers everything the Node SDK adds on top: file-based routing, codegen, BPService base class, theme runtime, admin tooling. Most of it is implementation guidance, not protocol.
+> This document covers everything the Node SDK adds on top: file-based routing, codegen, BPService base class, shell runtime, admin tooling. Most of it is implementation guidance, not protocol.
 
 ---
 
@@ -35,7 +35,7 @@ A multi-tenant portal platform composed of independent services unified by a the
                 +---------+  |   |  (CORS, direct)
                 v            |   v
         +--------------+     |   +-------------+
-        |   Theme(s)   |     |   |  Service A  |
+        |   Shell(s)   |     |   |  Service A  |
         |  port 3100   |     |   |  port 3200  |
         |  bootstrap1  |     |   +-------------+
         +--------------+     |   +-------------+
@@ -43,9 +43,9 @@ A multi-tenant portal platform composed of independent services unified by a the
                                  |  port 3300  |
                                  +-------------+
 
-  Theme serves only the HTML shell + nav/style/brand/fragment-list
+  Shell serves only the host page + nav/style/brand/fragment-list
   endpoints. Each service is its own origin; the browser calls them
-  directly via HTMX. The theme NEVER proxies content from a service.
+  directly via HTMX. The shell NEVER proxies content from a service.
 
                           +-----------------+
                           | bp-config.yaml  | -- source of truth
@@ -56,8 +56,8 @@ A multi-tenant portal platform composed of independent services unified by a the
 
 ### Roles
 
-- **Theme** (`themes/nodejs/bootstrap1/`): renders the host page (HTML shell) + acts as the front-end origin. Resolves tenant/app from hostname. Provides nav/brand/style/fragments endpoints. Owns the visible URL bar. Does **not** call backend services itself - the browser does.
-- **Theme runtime** (`themes/nodejs/runtime/`, npm: `@betterportal/theme-runtime`): backend-assembles HTMX core, a typed TSX theme adapter, the shared BP shell, and the bundled SSE extension into one asset. Owns URL rewriting, BP headers, header-aware preload, request lifecycle, generic route chrome state, auth failures, downloads, history, SSE, and background fragments. Normal services do not depend on it.
+- **Shell service** (`themes/nodejs/bootstrap1/`): renders the host page and acts as the front-end origin. Resolves tenant/app from hostname. Provides nav/brand/style/fragments endpoints. Owns the visible URL bar. Its manifest declares stable `shell.service` and view compatibility `shell.renderer`. It does **not** proxy service content.
+- **Shell runtime** (`themes/nodejs/runtime/`, npm: `@betterportal/theme-runtime`): backend-assembles HTMX core, a typed TSX shell adapter, the shared BP shell, and the bundled SSE extension into one asset. Owns URL rewriting, BP headers, header-aware preload, request lifecycle, generic route chrome state, auth failures, downloads, history, SSE, and background fragments. Normal services do not depend on it.
 - **Service** (`services/nodejs/.../`): self-contained BSB plugin. Exposes typed routes via file-based convention. Negotiates JSON or HTML representation. Owns its own data and config.
 - **Config Manager** (`services/nodejs/admin/config-manager`): special service. Mutates `bp-config.yaml` via REST. Hosts admin views (services registry, tenants, routes, menu editor, fragments editor, theme designer dispatch).
 - **Node SDK** (`framework/nodejs/`, npm: `@betterportal/framework`): TypeScript implementation of `bp-protocol/1`. Contracts, runtime helpers, codegen (`bp-codegen`), h3 adapter, schema validation. Imported by all Node services and themes. **Other-language SDKs would live as sibling packages** (`@betterportal/sdk-php`, etc.) - none exist yet.
@@ -69,8 +69,8 @@ A multi-tenant portal platform composed of independent services unified by a the
 
 - **Browser -> Theme**: full-page HTML and assets.
 - **Browser -> Service**: HTMX requests for content swaps and fragments. CORS allows methods `GET, POST, PUT, PATCH, DELETE, OPTIONS` and exposes HX-* headers.
-- **Theme -> Service**: only during server-side resolution (manifest lookups, schema discovery) - never to fetch page content. Theme renders the shell only.
-- **Service -> Service**: not standard. Use platform services or events.
+- **Shell -> Service**: only during server-side resolution (manifest lookups, schema discovery) - never to fetch page content. The shell renders the host page only.
+- **Service -> Service**: use declared M2M contracts. `service` mode uses service identity; `delegated` mode preserves the original BP user JWT and adds service proof.
 - **Config Manager -> Service**: not allowed as an architectural assumption. Config-manager cannot assume network reachability to services. Service metadata arrives via service -> config-manager sync; config read/write/schema UI uses browser -> service requests with CP-signed config tickets. Add-service flows are also browser-mediated: the services page fetches the target manifest/schema, posts metadata to config-manager, calls `begin-install`, then calls the service `/.well-known/bp/install`. Do not render browser form actions from the control-plane issuer.
 
 ---
@@ -80,6 +80,7 @@ A multi-tenant portal platform composed of independent services unified by a the
 These are non-negotiable. The whole architecture is built on them.
 
 - **No iframes.** Ever. Content composition is HTMX fragment swaps, not nested browsing contexts. Iframes break theming, navigation, accessibility, cookies, CSS variables, and the URL bar.
+- **Shell context is server-owned.** Persist only `app.shell.serviceId`; scoped read-only context resolves `{ serviceId, service, renderer }` from the synced shell manifest. Bootstrap1 declares `service: "bootstrap1"`, `renderer: "bootstrap5"`. Browser app context comes from Origin/Referer/effective host. Ignore client `theme` Accept parameters, `X-BP-Theme`, `_theme`, and standalone `X-BP-Tenant-Id`/`X-BP-App-Id`; tenant/app headers are authoritative only inside a verified S2S/delegated envelope. Require an exact renderer match and return 406 when unresolved—never fall back.
 - **Theme configuration is theme-owned.** `apps[].themeConfig.bootstrap` is a Bootstrap1 compatibility palette with Bootstrap1-owned hardcoded fallbacks, not a portable contract or default palette for other themes. A new theme defines its own service configuration schema and defaults; it maps Bootstrap values only when intentionally providing Bootstrap1 compatibility.
 - **Service route tokens, not hardcoded service paths.** Service-rendered HTML may use `{view.id}` in `action`, `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`, and `hx-download`. The framework rewrites those tokens server-side to service route paths. Do not use service route tokens or `ctx.routeUrl` in anchor `href`; browser-visible UI navigation uses `ctx.uiRouteUrl` and a mounted page route.
 - **No SPA framework.** No React, Vue, Svelte, Angular, etc. JSX-htmx is server-side template syntax that emits strings - it is not a client runtime.
@@ -87,16 +88,16 @@ These are non-negotiable. The whole architecture is built on them.
 - **No client-side state library.** No Redux, Zustand, etc. State lives in: (a) the server, (b) URL/query, (c) HTML attributes on DOM elements. That is enough.
 - **No client-side data-fetching library.** No fetch wrappers, no SWR, no React Query. HTMX is the network layer.
 - **HTML-as-API.** Services emit HTML fragments. The browser inserts them. No client code re-parses or transforms response bodies.
-- **Service-declared route chrome.** Routes may export flat primitive `chrome`, e.g. `export const chrome = { fullScreen: true }`. Values must be `string | number | boolean`. Codegen emits it into the view manifest; service sync copies it onto app routes unless the app route explicitly overrides it. The framework emits initial `data-bp-chrome-*` attributes, and the shared theme runtime applies response `bp-chrome-*` content-type params, removes stale attributes, and calls the optional typed theme hook. Themes own presentation through CSS or that hook. Chrome never implies authentication; do not infer it from auth service ids.
+- **Service-declared route chrome.** Routes may export flat primitive `chrome`, e.g. `export const chrome = { fullScreen: true }`. Values must be `string | number | boolean`. Codegen emits it into the view manifest; service sync copies it onto app routes unless the app route explicitly overrides it. The framework emits initial `data-bp-chrome-*` attributes, and the shared shell runtime applies response `bp-chrome-*` content-type params, removes stale attributes, and calls the optional typed shell hook. Shells own presentation through CSS or that hook. Chrome never implies authentication; do not infer it from auth service ids.
 - **Route dependencies and API-only views.** Keep one route model: use `apps[].routes[]` for renderable page routes and API/dependency allowlist routes. `kind: "page"` routes are browser-visible app routes. `kind: "api"` routes are service-locked allowlist routes mounted by config-manager under `/_bp/service/{service-slug}/{service-path}` while `targetPath`/`resolvedServicePath` stays pointed at the service-owned manifest path. `index.ts` may export `dependencies = ["other.viewId"]`; codegen also detects literal `{view.id}` route tokens in renderer files and merges them into dependencies. Config-manager auto-adds dependency routes when the parent is mounted and normalizes non-renderable/raw/dependency routes to `kind: "api"` on service sync. Menus and visual route editing use page routes only.
-- **UI-with-API is the default.** A user-facing capability should normally be one renderable route with API handlers/schemas and theme renderers; content negotiation serves JSON or HTML. Use an API-only route only for a genuinely non-visual endpoint such as a provider callback, webhook, machine/internal dependency, raw file, or stream. An API route is never an app navigation destination, and the user must never be left viewing it. Browser-mediated callbacks must redirect to a mounted page when finished.
+- **UI-with-API is the default.** A user-facing capability should normally be one renderable route with API handlers/schemas and HTML renderers; content negotiation serves JSON or HTML. Use an API-only route only for a genuinely non-visual endpoint such as a provider callback, webhook, machine/internal dependency, raw file, or stream. An API route is never an app navigation destination, and the user must never be left viewing it. Browser-mediated callbacks must redirect to a mounted page when finished.
 - **Anchors are page navigation.** An internal root-relative `<a href>` must target an enabled GET `kind: "page"` route with a renderer and should be generated with `ctx.uiRouteUrl`. API routes belong in form actions, `hx-*`, `fetch`, SSE, downloads, callbacks, and other non-page operations. For OAuth, link the user to a mounted page/view that initiates the provider redirect; the provider callback may remain API-only but must redirect back to a mounted page. `data-bp-no-route` is reserved for theme-owned shell internals and must not be used to bypass service routing.
 - **Service-to-service contracts.** Routes default to `auth.callers: ["user"]`; `service` and `delegated` must be explicit. Providers declare `apiContracts.modes`; callers declare one `m2mRequests.mode`. Config-manager creates app-scoped bindings/grants only after admin approval. Delegated calls preserve the original BP user JWT and add a service proof so the target verifies both. Revoked connections return to pending and receive fresh IDs if approved again.
 - **Stable view ids.** Routes may export `viewId = "stable.id"`. Use explicit view ids for anything referenced by app config, permissions, dependencies, or code. File-derived ids are defaults only and change when route files move. Codegen/build must reject duplicate view ids.
 - **Manifest-owned route metadata.** Route `methods`, service path (`targetPath`/resolved path), renderability, dependencies, and default chrome come from the service manifest. Config-manager sync reconciles those fields and disables routes whose viewId disappeared. Do not make HTTP methods editable in the UI; users control mount path/title/query only for renderable routes. Menu auto-generation is stricter than route renderability: only views with a page renderer become menu links. API, raw, dependency, and fragment-only routes may be allowlisted but must not appear in menus.
 - **Route URL helpers.** Use `ctx.routeUrl(viewId, { params, query, absolute })` for every service request: HTMX requests, form actions, `fetch`, SSE, and downloads; absolute URLs use the service hostname/base URL. Use `ctx.uiRouteUrl(...)` only for GET browser navigation through an enabled page mounted in the app shell, such as an `href` or `HX-Location`; it returns `null` for API and mutation-only routes. Never use `uiRouteUrl` for `hx-post`/other HTMX requests, form actions, `fetch`, SSE, or downloads: that targets the app/theme origin and can return 404. Do not manually scan `ctx.app.routes` against `ctx.serviceId`; app routes store tenant-service/shared-activation UUIDs while handlers usually know the plugin id.
-- **Authenticated downloads.** Use `hx-download="/service/path"` for BP-authenticated file/binary downloads. The active theme rewrites the URL to the owning service, attaches fresh BP headers at request time, fetches the blob, applies BP header directives, and saves using `Content-Disposition` or the `download` attribute. Do not put static `hx-headers` in service HTML for downloads.
-- **Raw/file routes.** Use `createRawHandler()` for API-only endpoints that return `Response`/files/streams. Raw routes must not export `ResponseSchema` or theme renderers; codegen forces them non-renderable. Use `ctx.response(body, init)` for custom responses and `ctx.file(body, { filename, contentType, size, disposition })` for downloads. Raw routes still run auth, app allowlist, input validation, tracing, `routeUrl`, and BP header directives.
+- **Authenticated downloads.** Use `hx-download="/service/path"` for BP-authenticated file/binary downloads. The active shell rewrites the URL to the owning service, attaches fresh BP headers at request time, fetches the blob, applies BP header directives, and saves using `Content-Disposition` or the `download` attribute. Do not put static `hx-headers` in service HTML for downloads.
+- **Raw/file routes.** Use `createRawHandler()` for API-only endpoints that return `Response`/files/streams. Raw routes must not export `ResponseSchema` or HTML renderers; codegen forces them non-renderable. Use `ctx.response(body, init)` for custom responses and `ctx.file(body, { filename, contentType, size, disposition })` for downloads. Raw routes still run auth, app allowlist, input validation, tracing, `routeUrl`, and BP header directives.
 - **Multipart uploads.** Multipart is opt-in via exported `MultipartSchema` and `createRawHandler({ multipart: MultipartSchema }, ...)`. `ctx.multipart.fields` contains string fields, `ctx.multipart.files` contains buffered `{ fieldName, filename, contentType, size, data }` files; repeated keys become arrays. Buffered multipart is capped at 25 MiB total file bytes and returns `413` when exceeded; add streaming/resumable protocols only for proven large upload needs.
 - **Automation discovery.** Themes expose `GET /.well-known/bp/public` with `protocol`, `tenantId`, `appId`, `tenantUrl`, `configManagerUrl`, and `catalogUrl`. Config-manager exposes `GET /.well-known/bp/automation/catalog?tenantUrl=...` returning services, cached config schemas, and cached service actions from manifest sync. Config-manager must not fetch services server-side for automation discovery. Node-RED, n8n, and Zapier scaffolds live under `automations/` and share `automations/shared/bp-client.js`.
 - **AI discovery.** Themes expose a small `GET /llms.txt` router, task guides at `/llms-api.txt`, `/llms-dev.txt`, and `/llms-ui.txt`, plus `GET /.well-known/bp/ai.json` and HTML discovery tags. Every service exposes public declared resources at `/.well-known/bp/resources`; never put secrets in them. Config-manager expands cached app actions and schemas at `/.well-known/bp/automation/llms-api.txt?tenantUrl=...` and as JSON in the automation catalog. For app management tasks, use the discovered management app and `/.well-known/bp/manage/*`; platform admin is operator-only.
@@ -157,7 +158,7 @@ Each service / theme is a BSB plugin published as an npm package and run indepen
 | **Service**         | BSB plugin exposing views + manifest. Registered as a direct tenant service or activated from the shared service catalog.                                     |
 | **Shared service**  | Platform-managed provider registered in `sharedServiceCatalog` and bound through `sharedServiceActivations`. Apps reference the activation id.                |
 | **View**            | A route directory under `bp-routes/<dir>/`. `index.ts` is metadata; `GET.ts`, `POST.ts`, etc. are method handlers.                                            |
-| **Theme renderer**  | Method/status-specific HTML file under `_theme.<themeId>/`, e.g. `GET.tsx`, `POST.422.tsx`, `422.tsx`.                                                       |
+| **HTML renderer**   | Method/status-specific HTML file under `_renderer.<renderer>/`, e.g. `GET.tsx`, `POST.422.tsx`, `422.tsx`.                                                      |
 | **Fragment**        | HTML island rendered inline at a named location. File: `_<location>.<fragmentId>.METHOD.tsx`. Pulled via `?_f=location.fragmentId`.                           |
 | **Component**       | Composable named region inside a view. File: `<componentId>.METHOD.tsx`. Pulled via `?_c=componentId`.                                                       |
 | **Menu**            | Tree of `{type, title, routeId|href, children}` per app. Drives sidebar nav. Items: `link`, `group`, `external`, `section`, `divider`.                       |
@@ -180,21 +181,21 @@ Every BPService exposes these automatically:
 | ----------------------------------- | ---------------------------------------------------------------------- |
 | `GET /.well-known/bp/manifest`      | Plugin id, title, version, views (with schemas).                       |
 | `GET /.well-known/bp/health`        | `{ ok: true, plugin, port }`.                                          |
-| `GET /.well-known/bp/schema.json`   | Manifest + flattened route list (paths, themes, fragments, components).|
+| `GET /.well-known/bp/schema.json`   | Manifest + flattened route list (paths, renderers, fragments, components).|
 | `GET /.well-known/bp/config/schema` | Config schema descriptor for service + whether custom UI exists.       |
 | `GET /.well-known/bp/config`        | Read tenant/app config values (config API token via `Authorization: Bearer ...`). |
 | `POST /.well-known/bp/config`       | Write tenant/app config values (config API token via `Authorization: Bearer ...`). |
 | `GET /.well-known/bp/resources`    | Public developer-resource index.                                      |
 | `GET /.well-known/bp/resources/<id>` | Public guide, template, skill, or example content.                  |
 
-Themes additionally expose:
+Shells additionally expose:
 
 | Path                                    | Purpose                                                  |
 | --------------------------------------- | -------------------------------------------------------- |
 | `GET /.well-known/bp/theme/style`       | Reloadable CSS fragment (listens for `bp:theme-changed`).|
 | `GET /.well-known/bp/theme/brand`       | Brand text fragment.                                     |
 | `GET /.well-known/bp/theme/nav`         | Sidebar nav HTML for current app.                        |
-| `GET /.well-known/bp/theme/fragments?location=X` | Fragment list HTML for a shell location.        |
+| `GET /.well-known/bp/shell/fragment/<id>` | Render one shell fragment or fragment block.             |
 | `GET /.well-known/bp/config/ui`         | Theme designer page (custom UI).                         |
 | `GET /llms.txt`                        | Concise task router for AI and developers.                            |
 | `GET /llms-api.txt`                    | App API, auth, services, schemas, and action-guide links.              |
@@ -223,18 +224,18 @@ bp-routes/
     GET.ts                           # GET schemas + default handler
     POST.ts                          # POST schemas + default handler
     sse.ts                           # optional SSE handler (GET inferred)
-    _theme.bootstrap1/
+    _renderer.bootstrap5/
       GET.tsx                        # GET page HTML for bootstrap1
       POST.422.tsx                   # POST 422 HTML
       _nav.profile.GET.tsx           # fragment at location "nav", id "profile"
       _nav.profile.sse.tsx           # optional SSE tick renderer (GET inferred)
       showcase-cards.GET.tsx         # named component (queryable via ?_c=showcase-cards)
-    _theme.embedded/
+    _renderer.embedded/
       GET.tsx                        # embedded GET page
 ```
 
 Rules:
-- Directory name -> URL path (use `[param]` for required params, `[[param]]` for optional params, `_theme.X` is special).
+- Directory name -> URL path (use `[param]` for required params, `[[param]]` for optional params, `_renderer.X` is special).
 - `index.ts` is required at the leaf and is metadata-only. Put `viewId`, `title`, `description`, route-level `auth`, `chrome`, `dependencies`, `cacheHints`, `apiContracts`, and demos there. Do not put handlers, schemas, JSX renderers, request URL parsing, or service calls in `index.ts`.
 - `auth.permissions` is route-level. Every method file under that route uses the same auth requirement; use permission actions such as `read`, `create`, `update`, and `delete`, or split materially different operations into separate route directories/view ids.
 - Method handlers are exactly `GET.ts`, `POST.ts`, `PUT.ts`, `PATCH.ts`, `DELETE.ts`, `OPTIONS.ts`; each default-exports a handler and exports method schemas (`QuerySchema`, `HeadersSchema`, `RequestSchema`, `MultipartSchema`, `ResponseSchema`). Do not export `viewId`, `title`, `auth`, `chrome`, or `dependencies` from method files.
@@ -401,7 +402,7 @@ Method files are named by HTTP method only (`GET.ts`, `POST.ts`, `PUT.ts`, `PATC
 
 Content negotiation is automatic:
 - `Accept: application/json` -> returns JSON body
-- `Accept: text/html` -> invokes the theme renderer for the negotiated theme
+- `Accept: text/html` -> invokes the exact renderer from the server-resolved app shell
 - HTMX requests get fragment-mode HTML (no surrounding shell)
 
 For mutations, add `POST.ts`, `PUT.ts`, `DELETE.ts`, or `PATCH.ts`.
@@ -416,7 +417,7 @@ Inside the populate, set `(event as any).__bpResponseModel = data`. The handler 
 
 ---
 
-## 8. Anatomy of a theme view (`_theme.bootstrap1/GET.tsx`)
+## 8. Anatomy of a theme view (`_renderer.bootstrap5/GET.tsx`)
 
 ```tsx
 /** @jsxImportSource jsx-htmx */
@@ -460,19 +461,13 @@ export function render(data: ResponseData): HtmlRenderable {
 
 Accessed via `GET <serviceUrl>/<routePath>?_f=<location>.<fragmentId>`. The theme inserts a placeholder `<div hx-get=".../?_f=nav.profile" hx-trigger="load">` for each binding declared in `app.fragments.<location>`.
 
-To trigger live re-render of a fragment region, respond from another endpoint with `HX-Trigger: bp:fragments-changed` (or whatever event the theme region listens for) and ensure CORS exposes `HX-Trigger`. The theme's shell region wraps fragments with `hx-trigger="bp:fragments-changed from:body"` and re-fetches `/.well-known/bp/theme/fragments?location=<loc>`.
+To trigger live re-render of a fragment region, respond from another endpoint with `HX-Trigger: bp:fragments-changed` and ensure CORS exposes `HX-Trigger`. The shell region listens for that event and re-fetches `/.well-known/bp/shell/fragment/<id>`.
 
 ---
 
 ## 10. `bp-config.yaml` - platform source of truth
 
 ```yaml
-themes:
-  - id: bootstrap1
-    hostname: http://localhost:3100
-    title: Bootstrap 1
-    enabled: true
-
 platformServices:
   - id: bp-auth
     hostname: http://localhost:3400
@@ -497,6 +492,13 @@ tenants:
     activatedPlatformServices: []            # legacy platformServices[] only
 
 sharedServiceCatalog:
+  - id: org.betterportal.theme.bootstrap1
+    serviceId: org.betterportal.theme.bootstrap1
+    title: Bootstrap 1 Shell
+    baseUrl: http://localhost:3100
+    category: theme
+    tags: [theme]
+    enabled: true
   - id: org.betterportal.auth.default
     serviceId: org.betterportal.auth.default
     title: BetterPortal Default Auth
@@ -506,6 +508,10 @@ sharedServiceCatalog:
     tags: [auth]
     enabled: true
 sharedServiceActivations:
+  - id: shell-bootstrap1
+    tenantId: betterportal
+    sharedServiceId: org.betterportal.theme.bootstrap1
+    enabled: true
   - id: auth-default-admin
     tenantId: betterportal
     sharedServiceId: org.betterportal.auth.default
@@ -516,7 +522,7 @@ apps:
     tenantId: betterportal
     slug: web
     hostnames: [localhost:3100]          # request host -> resolves to this app
-    themeId: bootstrap1
+    shell: { serviceId: shell-bootstrap1 }
     themeConfig: { mode: system, bootstrap: {...}, light: {...}, dark: {...} }
     defaultRoute: /
     routes:
@@ -646,7 +652,7 @@ All services use `BPService` which configures CORS via `handleCorsRequest`:
 
 If you add a custom HX-* header to a response, ensure it's in `exposeHeaders` (in `plugins/nodejs/betterportal-bsb/src/service.ts`) or the browser can't read it cross-origin.
 
-### 13b. URL rewriting (theme runtime)
+### 13b. URL rewriting (shell runtime)
 
 `@betterportal/theme-runtime` owns `resolveServiceLinks`, which runs after every HTMX swap. Theme packages serve the resulting backend-assembled asset from their existing asset URL:
 - Walks all newly inserted elements with `a[href], [hx-get|post|put|patch|delete], script[src], img[src], link[rel=stylesheet]`.
@@ -787,7 +793,7 @@ The auth provider is just an endpoint server. It does not maintain browser sessi
 
 WorkOS role sync: WorkOS role `slug` is the BP role id. BP permissions are synced from enabled synced tenant app routes, including API routes when mounted in app config, to short WorkOS permission slugs as `bp_<shortId>_<permission>`; labels include service title, app path, service path, route kind, methods, view id, and action. Auth-workos stores the tenant/service/view mapping in its `workosStatePath` JSON file, defaulting to `./workos-state.json`. Config Manager embeds the WorkOS role-sync fragment for WorkOS-backed apps and disables local role editing. Subscribe only to WorkOS role events (`role.*`, `organization_role.*`); never subscribe to WorkOS permission events or BP-created permission updates can loop. Removed BP permission slugs are deleted in WorkOS when unused, otherwise renamed with `DEL: ` while still assigned. Auth-workos mirrors roles through `updateAuthoritativeService(tenantId, appId, "auth", { roles })` and retries stale permission/role sync every `syncIntervalSeconds` seconds, default `21600`.
 
-Service API keys are not admin/user tokens. Config Manager accepts service keys only on explicit service-owned endpoints. Authoritative auth/theme services can mutate only the app data they own by selected service binding; synced auth grants must reference enabled routes on that app.
+Service API keys are not admin/user tokens. Config Manager accepts service keys only on explicit service-owned endpoints. Authoritative auth/shell services can mutate only the app data they own by selected service binding; synced auth grants must reference enabled routes on that app.
 
 ### Framework helpers
 
@@ -827,9 +833,9 @@ Omitting `callers` means user-only. Add `"service"` and/or `"delegated"` only on
 5. **Service verification** - the framework resolves the app verifier and enforces the declared caller mode before the handler runs.
 6. **Route policy** - flip `auth.required = true` on protected routes. Manifests advertise this so gateways and admin tools can reason about it.
 
-### Current theme runtime
+### Current shell runtime
 
-`@betterportal/theme-runtime` contains the shared shell header manager, header-aware preload, and generic route chrome lifecycle. Bootstrap1 and Embedded supply presentation adapters only. Write adapters as TSX with `jsx-htmx` `js(() => ...)` and `satisfies BetterPortalThemeAdapter`; `js()` returns safe `RawText`, so pass it directly without `.toString()` or `raw()`. Routes default to `required: false`; auth provider services own login/refresh/logout views and emit BP header directives.
+`@betterportal/theme-runtime` contains the shared shell header manager, header-aware preload, and generic route chrome lifecycle. Bootstrap1 and Embedded supply presentation adapters only. Write adapters as TSX with `jsx-htmx` `js(() => ...)` and `satisfies BetterPortalShellAdapter`; `js()` returns safe `RawText`, so pass it directly without `.toString()` or `raw()`. Routes default to `required: false`; auth provider services own login/refresh/logout views and emit BP header directives.
 
 ---
 
@@ -863,7 +869,7 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 - **Cross-origin `HX-Trigger` requires `exposeHeaders`.** Browsers strip headers not in `Access-Control-Expose-Headers`. Update `plugins/nodejs/betterportal-bsb/src/service.ts` if you add new HX-* response headers.
 - **Schema validation is strict.** Adding a new field to a config or response requires updating the `av.object({...})` and rebuilding. Unknown keys are stripped by default; tighten with `unknownKeys: "strict"` for prod.
 - **Menu data model.** Top-level can be `link | group | external | section | divider`. Group children can only be non-group leaves. Theme renders one level of nesting.
-- **Theme `_theme.<themeId>` directory must exist** for every theme the view wants to support. If absent, that theme cannot render the view -> fallback to embedded.
+- **An exact `_renderer.<renderer>` directory must exist** for the app shell's renderer compatibility key. If absent, the service returns 406; there is no fallback.
 - **Don't fetch from theme code at render time.** Theme should only resolve from `bp-config.yaml` + headers. Page content comes from the browser hitting the service directly.
 - **CORS preflight for PUT/DELETE.** Default `BPService` allows full HTTP method set; new custom services should not narrow it unless intentional.
 - **`anyvali`** is the schema lib used everywhere. Imports as `av`. Patterns: `av.object`, `av.string`, `av.int`, `av.bool`, `av.array`, `av.enum_(["a","b"] as const)`, `av.record`, `av.optional`, `.minLength`, `.default`. Objects strip unknown keys by default; specify `unknownKeys` only for non-default behavior.
@@ -878,8 +884,8 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 4. `tsconfig.json` - extend the workspace root tsconfig.
 5. **Plugin class** in `src/plugins/<plugin-name>/index.ts` extending `BPService`. Set unique `pluginId` (reverse-DNS).
 6. **Routes** in `bp-routes/<routeDir>/` - put metadata in `index.ts`, method schemas/default handlers in `GET.ts`/`POST.ts`, and never export `handleGet`/`handlePost`.
-7. **Theme renderers** in `bp-routes/<routeDir>/_theme.bootstrap1/GET.tsx`, `POST.tsx`, status files like `POST.422.tsx`, and any other supported theme.
-8. **Fragments / components** as additional `.tsx` files in the theme dir.
+7. **HTML renderers** in `bp-routes/<routeDir>/_renderer.bootstrap5/GET.tsx`, `POST.tsx`, status files like `POST.422.tsx`, and any other supported renderer contract.
+8. **Fragments / components** as additional `.tsx` files in the renderer dir.
 9. Run `npx bp-codegen` to regenerate `.bp-generated/registry.ts`.
 10. `npm run build && npm run start`.
 11. Verify `curl http://localhost:<port>/.well-known/bp/manifest` returns 200.
@@ -888,22 +894,22 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 
 ---
 
-## 19. Building a new theme
+## 19. Building a new shell service
 
-1. Scaffold `themes/nodejs/<themeId>/` and depend on `@betterportal/theme-runtime`; copy shell/service patterns from Bootstrap1, not its Bootstrap presentation or `themeConfig.bootstrap` defaults. That palette is Bootstrap1-specific. Define the new theme's own configuration schema/defaults. Do not add `htmx.org` to the theme: the runtime owns and bundles it. The runtime also imports `jsx-htmx`, but a theme that directly imports `jsx-htmx` for server-rendered TSX must declare it directly rather than relying on a transitive dependency.
-2. Plugin class extends `BSBService` (not `BPService` - themes own their full HTTP surface).
+1. Scaffold `themes/nodejs/<shellId>/` and depend on `@betterportal/theme-runtime`; copy shell/service patterns from Bootstrap1, not its Bootstrap presentation or `themeConfig.bootstrap` defaults. That palette is Bootstrap1-specific. Define the new shell's own configuration schema/defaults. Do not add `htmx.org`: the runtime owns and bundles it. The runtime also imports `jsx-htmx`, but a shell that directly imports `jsx-htmx` for server-rendered TSX must declare it directly rather than relying on a transitive dependency.
+2. Plugin class extends `BSBService` (not `BPService` - shells own their full HTTP surface).
 3. Must serve:
    - The shell page (route catch-all `/**`)
    - `/.well-known/bp/manifest` + `/.well-known/bp/health`
    - Optionally `/.well-known/bp/theme/style|brand|nav|fragments` for live-refresh regions
-   - Static asset endpoint (e.g., `/_themes/<themeId>/assets/**`)
+   - Static asset endpoint (e.g., `/_themes/<shellId>/assets/**`)
 4. Use `resolveThemeRequestContext(portalConfig, headers, host)` to resolve tenant + app from incoming request.
 5. Use `resolveAppRoute(app, pathname)` to find the route binding for the current URL.
 6. Use `buildServiceViewUrl(service, route, pathname)` to construct the absolute service URL for content swaps.
 7. Emit the shared shell DOM contract: `data-bp-shell-root`, `data-bp-services`, `data-bp-routes`, initial `betterPortalChromeAttributes(currentRoute?.chrome)`, and a `#bp-main` / `data-bp-main-outlet` element.
-8. Define `adapterSource` in a `.tsx` file with `js(() => { window.BetterPortalThemeAdapter = { ... } satisfies BetterPortalThemeAdapter; })`, pass that `RawText` directly to `buildBetterPortalThemeRuntimeAsset({ themeId, adapterSource })`, and serve the result as one non-stale JavaScript asset. Do not call `.toString()` or `raw()`. Never load HTMX extensions dynamically in the browser. The fixed allowlist is `bp-shell, sse`; preload is already implemented inside `bp-shell` with BP header support.
+8. Define `adapterSource` in a `.tsx` file with `js(() => { window.BetterPortalShellAdapter = { ... } satisfies BetterPortalShellAdapter; })`, pass that `RawText` directly to `buildBetterPortalShellRuntimeAsset({ adapterSource })`, and serve the result as one non-stale JavaScript asset. Do not call `.toString()` or `raw()`. Never load HTMX extensions dynamically in the browser. The fixed allowlist is `bp-shell, sse`; preload is already implemented inside `bp-shell` with BP header support.
 9. Keep the adapter presentation-only: loading/errors, component init/dispose, swap cleanup, overlays, scrolling, and optional theme-specific chrome effects. The shared runtime owns chrome state and event handling; prefer CSS against `data-bp-chrome-*`. Chrome does not imply auth.
-10. Register the new theme in `bp-config.yaml` `themes[]` AND ensure each service has a `_theme.<themeId>/` directory for views you want it to render.
+10. Declare `manifest.shell = { service: "<shellId>", renderer: "<rendererKey>" }`, list the shell source with `betterportal.shells`, register its service instance, set `app.shell.serviceId`, and ensure each view has `_renderer.<rendererKey>/` where HTML is required.
 
 ---
 

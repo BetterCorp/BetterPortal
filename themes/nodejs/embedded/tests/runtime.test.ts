@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadEmbeddedAsset } from "../src/plugins/service-betterportal-theme-embedded/assets.js";
-import { renderEmbeddedHostPage } from "../src/plugins/service-betterportal-theme-embedded/theme/index.js";
+import { renderEmbeddedHostPage } from "../src/plugins/service-betterportal-theme-embedded/shell/index.js";
 
 test("Embedded runtime keeps shared shell behavior", async () => {
   const asset = await loadEmbeddedAsset("embedded-core.js");
@@ -14,7 +14,7 @@ test("Embedded runtime keeps shared shell behavior", async () => {
   assert.match(source, /refreshStoredHeader/);
   assert.match(source, /bp-element\[data-bp-element\]/);
   assert.match(source, /#bp-main, \[data-bp-main-outlet\]/);
-  assert.match(source, /BetterPortalThemeAdapter/);
+  assert.match(source, /BetterPortalShellAdapter/);
 });
 
 test("Embedded shell receives initial generic chrome", () => {

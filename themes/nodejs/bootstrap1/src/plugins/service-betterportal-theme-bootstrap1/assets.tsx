@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import {
   BETTERPORTAL_BROWSER_SOURCE_PREAMBLE,
   betterPortalShellRuntimeSource,
-  buildBetterPortalThemeRuntimeAsset,
-  loadThemeRuntimeVendorAsset
+  buildBetterPortalShellRuntimeAsset,
+  loadShellRuntimeVendorAsset
 } from "@betterportal/theme-runtime";
 import { Bootstrap1AdapterSource } from "./adapter.js";
 
@@ -45,7 +45,7 @@ export async function loadBootstrap1Asset(assetPath: string): Promise<ThemeAsset
     return cachedAsset(normalized, () => readTextAsset(BootstrapBundlePath, "application/javascript; charset=utf-8"));
   }
 
-  const vendor = await loadThemeRuntimeVendorAsset(normalized);
+  const vendor = await loadShellRuntimeVendorAsset(normalized);
   if (vendor) return vendor;
 
   if (normalized === "betterportal-logo.png") {
@@ -59,13 +59,12 @@ export async function loadBootstrap1Asset(assetPath: string): Promise<ThemeAsset
   }
   if (normalized === "bootstrap1-shell.js") {
     return {
-      body: [BETTERPORTAL_BROWSER_SOURCE_PREAMBLE, Bootstrap1AdapterSource, betterPortalShellRuntimeSource("bootstrap1")].join("\n;\n"),
+      body: [BETTERPORTAL_BROWSER_SOURCE_PREAMBLE, Bootstrap1AdapterSource, betterPortalShellRuntimeSource()].join("\n;\n"),
       contentType: "application/javascript; charset=utf-8"
     };
   }
   if (normalized === "bootstrap1-core.js") {
-    return cachedAsset(normalized, () => buildBetterPortalThemeRuntimeAsset({
-      themeId: "bootstrap1",
+    return cachedAsset(normalized, () => buildBetterPortalShellRuntimeAsset({
       adapterSource: Bootstrap1AdapterSource
     }));
   }

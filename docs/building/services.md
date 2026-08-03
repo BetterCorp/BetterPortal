@@ -2,7 +2,7 @@
 
 A BetterPortal service is a BSB plugin that extends `BPService`.
 
-Services own views, handlers, schemas, config descriptors, fragments, and theme renderers.
+Services own views, handlers, schemas, config descriptors, fragments, and HTML renderers.
 
 ## Service layout
 

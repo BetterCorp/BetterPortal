@@ -4,7 +4,7 @@
 
 BetterPortal has **two** kinds of config:
 
-1. **Platform config (`bp-config.yaml`)** - global state managed by the admin (`config-manager`) service. Defines tenants, apps, themes, routes, menus, fragments, service bindings. Read by every service that needs to resolve a request to a tenant/app.
+1. **Platform config (`bp-config.yaml`)** - global state managed by the admin (`config-manager`) service. Defines tenants, apps, shell service references, routes, menus, fragments, and service bindings.
 2. **Per-service config** - settings each service exposes for tenants/apps to customize (e.g., an API key, a default greeting). Served via `/.well-known/bp/config*` endpoints.
 
 This document specifies both.
@@ -22,7 +22,6 @@ YAML is RECOMMENDED for human-edited deployments. JSON is allowed. The conforman
 ### 1.2 Top-level shape
 
 ```yaml
-themes:           [<theme>, ...]
 platformServices: [<platformService>, ...]
 tenants:          [<tenant>, ...]
 apps:             [<app>, ...]
@@ -69,16 +68,9 @@ configManagement:
 
 `adminTenantId` identifies the tenant that owns the admin surface. `auth` records the intended authentication mechanism. SDKs MAY enforce this metadata, but the metadata itself is not a tenant isolation model.
 
-### 1.3 Theme
+### 1.3 Shell services
 
-```yaml
-themes:
-  - id: bootstrap1                          # opaque id, [a-z0-9-]+
-    hostname: http://localhost:3100         # absolute URL with scheme
-    title: Bootstrap 1
-    description: HTMX + Bootstrap 5 theme
-    enabled: true
-```
+Shells are normal tenant services or shared-service activations. There is no separate top-level theme registry. An app selects a concrete instance with `app.shell.serviceId`; the control plane resolves its synced manifest `shell: { service, renderer }` into read-only scoped app context.
 
 ### 1.4 Shared services
 
@@ -142,7 +134,8 @@ apps:
     hostnames: [localhost:3100]              # host(:port) values matched against Host header
     originOverrides: []
     refererOverrides: []
-    themeId: bootstrap1
+    shell:
+      serviceId: shell-bootstrap1            # service instance / activation UUIDv7
     themeConfig:                             # arbitrary; theme defines schema
       mode: system
       bootstrap: {...}

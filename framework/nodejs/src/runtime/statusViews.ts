@@ -1,6 +1,6 @@
 import type {
   RegisteredRoute,
-  RegisteredThemeRenderer,
+  RegisteredViewRenderer,
   StatusRenderersByKind
 } from "../contracts/registry.js";
 
@@ -10,7 +10,7 @@ export type StatusRendererKind = "page" | "component" | "fragment";
  * Resolve a renderer for an HTTP status code on a route.
  *
  * Resolution order:
- * 1. route.statusRenderers[themeId][code] matching the requested kind and id
+ * 1. route.statusRenderers[rendererKey][code] matching the requested kind and id
  * 2. (caller falls back to default renderer or no-body response)
  *
  * For 2xx success codes the caller may choose to fall back to the default
@@ -18,13 +18,13 @@ export type StatusRendererKind = "page" | "component" | "fragment";
  */
 export function resolveStatusRenderer(
   route: RegisteredRoute,
-  themeId: string,
+  rendererKey: string,
   statusCode: number,
   kind: StatusRendererKind,
-  rendererKey?: string,
-  method?: RegisteredThemeRenderer["method"]
-): RegisteredThemeRenderer | undefined {
-  const bucket: StatusRenderersByKind | undefined = route.statusRenderers?.[themeId]?.[statusCode];
+  targetKey?: string,
+  method?: RegisteredViewRenderer["method"]
+): RegisteredViewRenderer | undefined {
+  const bucket: StatusRenderersByKind | undefined = route.statusRenderers?.[rendererKey]?.[statusCode];
   if (!bucket) return undefined;
 
   switch (kind) {
@@ -34,9 +34,9 @@ export function resolveStatusRenderer(
         ?? pages.find((renderer) => renderer.method === undefined);
     }
     case "component":
-      return rendererKey ? bucket.components?.[rendererKey] : undefined;
+      return targetKey ? bucket.components?.[targetKey] : undefined;
     case "fragment":
-      return rendererKey ? bucket.fragments?.[rendererKey] : undefined;
+      return targetKey ? bucket.fragments?.[targetKey] : undefined;
   }
 }
 

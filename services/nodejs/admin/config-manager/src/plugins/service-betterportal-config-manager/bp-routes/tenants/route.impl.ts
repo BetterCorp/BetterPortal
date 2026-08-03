@@ -32,6 +32,8 @@ const AppItemSchema = av.object({
   title: av.string().minLength(1),
   hostnames: av.array(av.string()),
   shellServiceId: av.optional(av.string().minLength(1)),
+  shellService: av.optional(av.string().minLength(1)),
+  shellRenderer: av.optional(av.string().minLength(1)),
   authServiceId: av.optional(av.string().minLength(1)),
   roleAuthority: av.optional(RoleAuthoritySchema),
   routeCount: av.int().min(0)
@@ -41,7 +43,9 @@ const ShellServiceSchema = av.object({
   id: av.string().minLength(1),
   tenantId: av.string().minLength(1),
   title: av.string().minLength(1),
-  serviceId: av.optional(av.string())
+  serviceId: av.optional(av.string()),
+  service: av.string().minLength(1),
+  renderer: av.string().minLength(1)
 }, { unknownKeys: "strip" });
 
 const AuthServiceSchema = av.object({
@@ -144,13 +148,17 @@ async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseDat
       active: t.active,
       serviceCount: t.services.length + config.sharedServiceActivations.filter((activation) => activation.enabled && activation.tenantId === t.id).length
     })),
-    apps: config.apps.map((a) => ({
+    apps: config.apps.map((a) => {
+      const shell = a.shell ? getCachedManifestForService(config, a.shell.serviceId)?.shell : undefined;
+      return {
       id: a.id,
       tenantId: a.tenantId,
       slug: a.slug,
       title: a.title,
       hostnames: a.hostnames,
       shellServiceId: a.shell?.serviceId,
+      shellService: shell?.service,
+      shellRenderer: shell?.renderer,
       authServiceId: a.auth?.serviceId,
       roleAuthority: a.auth
         ? resolveRoleAuthority(
@@ -159,8 +167,9 @@ async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseDat
           )
         : undefined,
       routeCount: a.routes.length
-    })),
-    shellServices: config.tenants.flatMap((tenant) => themeShellServicesForTenant(config, tenant.id)),
+      };
+    }),
+    shellServices: config.tenants.flatMap((tenant) => shellServicesForTenant(config, tenant.id)),
     authServices,
     adminApiBase: "/.well-known/bp/admin",
     tenantsPath,
@@ -225,7 +234,7 @@ async function createApp(body: Record<string, unknown>): Promise<void> {
   if (!tenant) return;
 
   const shellServiceId = stringValue(body.shellServiceId);
-  if (shellServiceId && !isThemeShellServiceForTenant(config, tenantId, shellServiceId)) return;
+  if (shellServiceId && !isShellServiceForTenant(config, tenantId, shellServiceId)) return;
   const authServiceId = stringValue(body.authServiceId);
   if (authServiceId && !isAuthServiceForTenant(config, tenantId, authServiceId)) return;
 
@@ -245,7 +254,7 @@ async function createApp(body: Record<string, unknown>): Promise<void> {
     menu: [],
     slots: [],
     fragments: {},
-    themeFragments: {}
+    shellFragments: {}
   };
   if (authServiceId) {
     app.auth = buildAppAuthConfig(config, tenantId, authServiceId, undefined, roleAuthorityValue(body.roleAuthority));
@@ -274,7 +283,7 @@ async function updateApp(body: Record<string, unknown>): Promise<void> {
 
   const shellServiceId = stringValue(body.shellServiceId);
   if (shellServiceId) {
-    if (isThemeShellServiceForTenant(config, appDef.tenantId, shellServiceId)) {
+    if (isShellServiceForTenant(config, appDef.tenantId, shellServiceId)) {
       appDef.shell = { serviceId: shellServiceId };
     }
   } else {
@@ -306,36 +315,43 @@ async function deleteApp(id: string): Promise<void> {
   await routeContext.storage.saveConfig(config);
 }
 
-function themeShellServicesForTenant(config: BetterPortalConfig, tenantId: string): Array<{
+function shellServicesForTenant(config: BetterPortalConfig, tenantId: string): Array<{
   id: string;
   tenantId: string;
   title: string;
   serviceId?: string;
+  service: string;
+  renderer: string;
 }> {
   const tenant = config.tenants.find((candidate) => candidate.id === tenantId);
   const tenantServices = (tenant?.services ?? [])
-    .filter((service) => service.enabled && service.capabilities?.includes("theme"))
-    .map((service) => ({
-      id: service.id,
-      tenantId,
-      title: service.title ?? service.serviceId ?? service.hostname,
-      serviceId: service.serviceId
-    }));
+    .filter((service) => service.enabled)
+    .flatMap((service) => {
+      const shell = getCachedManifestForService(config, service.id)?.shell;
+      return shell ? [{
+        id: service.id,
+        tenantId,
+        title: service.title ?? service.serviceId ?? service.hostname,
+        serviceId: service.serviceId,
+        service: shell.service,
+        renderer: shell.renderer
+      }] : [];
+    });
 
   const sharedServices = config.sharedServiceActivations
     .filter((activation) => activation.enabled && activation.tenantId === tenantId)
     .map((activation) => {
-      const shared = config.sharedServiceCatalog.find((service) =>
-        service.enabled
-        && service.id === activation.sharedServiceId
-        && service.tags.includes("theme")
-      );
+      const shared = config.sharedServiceCatalog.find((service) => service.enabled && service.id === activation.sharedServiceId);
       if (!shared) return undefined;
+      const shell = getCachedManifestForService(config, activation.id)?.shell;
+      if (!shell) return undefined;
       return {
         id: activation.id,
         tenantId,
         title: shared.title,
-        serviceId: shared.serviceId ?? shared.id
+        serviceId: shared.serviceId ?? shared.id,
+        service: shell.service,
+        renderer: shell.renderer
       };
     })
     .filter((service): service is NonNullable<typeof service> => !!service);
@@ -343,8 +359,8 @@ function themeShellServicesForTenant(config: BetterPortalConfig, tenantId: strin
   return [...tenantServices, ...sharedServices];
 }
 
-function isThemeShellServiceForTenant(config: BetterPortalConfig, tenantId: string, shellServiceId: string): boolean {
-  return themeShellServicesForTenant(config, tenantId).some((service) => service.id === shellServiceId);
+function isShellServiceForTenant(config: BetterPortalConfig, tenantId: string, shellServiceId: string): boolean {
+  return shellServicesForTenant(config, tenantId).some((service) => service.id === shellServiceId);
 }
 
 function authServicesForTenant(config: BetterPortalConfig, tenantId: string): Array<{

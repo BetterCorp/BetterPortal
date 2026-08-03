@@ -12,10 +12,10 @@ import type {
   BetterPortalRouteMount,
   BetterPortalConfig,
   DeveloperResource,
-  ThemeManifest,
+  ShellManifest,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { DeveloperResourceSchema, ThemeManifestSchema, deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
+import { DeveloperResourceSchema, ShellManifestSchema, deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, isApiRoute } from "./routeMounts.js";
 
@@ -32,22 +32,23 @@ function validateServicePublicKey(publicKeyPem: string, keyId: string): { public
 }
 
 /**
- * In-memory manifest cache per service. Populated by POST sync/poll bodies.
+ * Hot manifest cache per service. The same data is persisted in platform config
+ * so app shell resolution remains deterministic after a control-plane restart.
  * Used to inject resolvedServicePath into app.routes before delivery, and to
  * surface per-view permission requirements to the admin role editor.
  *
- * Lifetime: process. Lost on CP restart; services will re-push on next poll.
  */
 export interface CachedManifestView {
   viewId: string;
   path: string;
   methods: string[];
+  renderers: string[];
   role?: string;
   chrome?: BetterPortalRouteChrome;
   dependencies: string[];
   /** Per-view permission requirements from the service's auth.permissions[]. */
   permissions: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
-  /** True if any theme renderer exists (page/fragment/component). API-only views = false. */
+  /** True if any UI renderer exists (page/fragment/component). API-only views = false. */
   renderable: boolean;
   /** JSON schema documents for request/query/header/response/multipart contracts. */
   schemas?: Record<string, JsonValue>;
@@ -69,7 +70,7 @@ export interface CachedManifest {
   apiContracts: JsonValue[];
   m2mRequests: JsonValue[];
   developerResources: DeveloperResource[];
-  theme?: ThemeManifest;
+  shell?: ShellManifest;
   viewIndex: Record<string, CachedManifestView>;
   configSchemas: ConfigSchemaDescriptor[];
   webhooks: WebhookEventDescriptor[];
@@ -89,22 +90,30 @@ export function getCachedManifestForService(
   serviceInstanceId: string,
   cache: ReadonlyMap<string, CachedManifest> = manifestCache
 ): CachedManifest | undefined {
-  const direct = cache.get(serviceInstanceId);
+  const read = (key: string): CachedManifest | undefined => {
+    const hot = cache.get(key);
+    if (hot) return hot;
+    const stored = config.manifestCache?.find((entry) => entry.serviceId === key);
+    return stored
+      ? normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0])
+      : undefined;
+  };
+  const direct = read(serviceInstanceId);
   if (direct) return direct;
 
   const activation = config.sharedServiceActivations.find((candidate) => candidate.id === serviceInstanceId);
   if (activation) {
     const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === activation.sharedServiceId);
-    return cache.get(activation.sharedServiceId)
-      ?? (shared?.serviceId ? cache.get(shared.serviceId) : undefined);
+    return read(activation.sharedServiceId)
+      ?? (shared?.serviceId ? read(shared.serviceId) : undefined);
   }
 
   for (const tenant of config.tenants) {
     const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId);
-    if (service?.serviceId) return cache.get(service.serviceId);
+    if (service?.serviceId) return read(service.serviceId);
   }
   const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId);
-  return platform?.serviceId ? cache.get(platform.serviceId) : undefined;
+  return platform?.serviceId ? read(platform.serviceId) : undefined;
 }
 
 function cacheManifest(serviceId: string, manifest: CachedManifest): void {
@@ -139,11 +148,12 @@ function normalizeManifest(input: {
   apiContracts?: JsonValue[];
   m2mRequests?: JsonValue[];
   developerResources?: DeveloperResource[];
-  theme?: ThemeManifest;
+  shell?: ShellManifest;
   viewIndex?: Record<string, {
     viewId: string;
     path: string;
     methods: string[];
+    renderers?: string[];
     role?: string;
     chrome?: BetterPortalRouteChrome;
     dependencies?: string[];
@@ -162,6 +172,7 @@ function normalizeManifest(input: {
       viewId: v.viewId,
       path: v.path,
       methods: v.methods ?? [],
+      renderers: Array.isArray(v.renderers) ? v.renderers.filter((value): value is string => typeof value === "string" && value.length > 0) : [],
       ...(v.role ? { role: v.role } : {}),
       ...(v.chrome ? { chrome: v.chrome } : {}),
       dependencies: Array.isArray(v.dependencies) ? v.dependencies.filter((value): value is string => typeof value === "string" && value.length > 0) : [],
@@ -194,7 +205,7 @@ function normalizeManifest(input: {
         }
       })
       : [],
-    ...(input.theme ? { theme: ThemeManifestSchema.parse(input.theme) } : {}),
+    ...(input.shell ? { shell: ShellManifestSchema.parse(input.shell) } : {}),
     viewIndex: normalizedViews,
     configSchemas: Array.isArray(input.configSchemas) ? input.configSchemas : [],
     webhooks: Array.isArray(input.webhooks) ? input.webhooks : [],
@@ -215,20 +226,21 @@ export async function reconcileServiceRegistry(
     apiContracts?: JsonValue[];
     m2mRequests?: JsonValue[];
     developerResources?: DeveloperResource[];
-    theme?: ThemeManifest;
+    shell?: ShellManifest;
   } = {}
 ): Promise<CachedManifest> {
   const viewIndex: NonNullable<Parameters<typeof normalizeManifest>[0]["viewIndex"]> = {};
   for (const route of registry.routes) {
     const renderable = route.raw === true
       ? false
-      : Object.values(route.themeRenderers).some((set) =>
+      : Object.values(route.renderers).some((set) =>
         set.pages.length > 0 || set.components.length > 0 || set.fragments.length > 0 || Boolean(set.stream)
       );
     viewIndex[route.viewId] = {
       viewId: route.viewId,
       path: route.path,
       methods: [...route.methods],
+      renderers: Object.keys(route.renderers),
       ...(route.role ? { role: route.role } : {}),
       ...(route.chrome ? { chrome: route.chrome } : {}),
       dependencies: [...(route.dependencies ?? [])],
@@ -247,7 +259,7 @@ export async function reconcileServiceRegistry(
         ...(scenario.match ? { match: scenario.match } : {}),
         response: scenario.response
       })),
-      fragments: [...new Map(Object.values(route.themeRenderers).flatMap((theme) =>
+      fragments: [...new Map(Object.values(route.renderers).flatMap((theme) =>
         theme.fragments.flatMap((fragment) => {
           const fragmentId = fragment.fragmentLocation && fragment.fragmentId
             ? `${fragment.fragmentLocation}.${fragment.fragmentId}`
@@ -413,11 +425,12 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
         apiContracts?: JsonValue[];
         m2mRequests?: JsonValue[];
         developerResources?: DeveloperResource[];
-        theme?: ThemeManifest;
+        shell?: ShellManifest;
         viewIndex?: Record<string, {
           viewId: string;
           path: string;
           methods: string[];
+          renderers?: string[];
           role?: string;
           chrome?: BetterPortalRouteChrome;
           dependencies?: string[];
@@ -464,7 +477,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           apiContracts: body.apiContracts,
           m2mRequests: body.m2mRequests,
           developerResources: body.developerResources,
-          theme: body.theme,
+          shell: body.shell,
           viewIndex: body.viewIndex,
           configSchemas: body.configSchemas,
           webhooks: body.webhooks
@@ -541,7 +554,15 @@ async function updateServiceMetadata(
   manifest: CachedManifest
 ): Promise<void> {
   const config = await store.loadConfig();
-  let changed = false;
+  const persistedManifest = {
+    ...manifest,
+    serviceId: serviceInstanceId,
+    fetchedAt: new Date(manifest.fetchedAt).toISOString()
+  };
+  const persistedIndex = config.manifestCache.findIndex((entry) => entry.serviceId === serviceInstanceId);
+  if (persistedIndex === -1) config.manifestCache.push(persistedManifest);
+  else config.manifestCache[persistedIndex] = persistedManifest;
+  let changed = true;
   const routeServiceIds = new Set<string>([serviceInstanceId]);
   for (const tenant of config.tenants) {
     const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);

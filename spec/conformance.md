@@ -126,7 +126,7 @@ In addition to section 1, themes:
 | Test | Pass criteria |
 |---|---|
 | Serve `/.well-known/bp/theme/nav` | 200, HTML; emits only relative URLs. |
-| Serve `/.well-known/bp/theme/fragments?location=<loc>` | 200, HTML; emits relative URLs. |
+| Serve `/.well-known/bp/shell/fragment/<id>` | 200 HTML, 204 for explicit empty, or 404 when unavailable; emits relative URLs. |
 | Serve `/.well-known/bp/theme/style` (if reloadable) | 200, CSS or `<style>` element. |
 | Page response includes `data-bp-services="{...}"` on shell root | JSON map of `bindingId -> origin`. |
 | Page response includes `<meta name="htmx-config" content="...">` with `selfRequestsOnly:false` | Allows cross-origin HTMX requests. |

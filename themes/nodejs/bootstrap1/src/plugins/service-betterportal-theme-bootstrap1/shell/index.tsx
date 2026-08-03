@@ -8,7 +8,7 @@ import {
 } from "@betterportal/framework";
 import {
   betterPortalChromeAttributes,
-  type BetterPortalThemeChrome
+  type BetterPortalShellChrome
 } from "@betterportal/theme-runtime";
 
 export interface Bootstrap1RouteLink {
@@ -59,7 +59,7 @@ export interface Bootstrap1HostPageContext {
   navItems?: Bootstrap1NavItem[];
   loginUrl?: string;
   logoutUrl?: string;
-  chrome?: BetterPortalThemeChrome;
+  chrome?: BetterPortalShellChrome;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
   managementDiscoveryUrl?: string;
@@ -79,7 +79,8 @@ export const Bootstrap1Manifest: PluginManifest = createPluginManifest({
     "theme.light-dark",
     "theme.whitelabel"
   ],
-  supportedThemes: ["bootstrap1"],
+  supportedRenderers: ["bootstrap5"],
+  shell: { service: "bootstrap1", renderer: "bootstrap5", fragments: [] },
   supportedRenderModes: ["page", "fragment", "embed"],
   views: [],
   configSchemas: [],
@@ -2209,7 +2210,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
             <div
               class="bp-admin__profile-shell"
               id="bp-frag-nav"
-              hx-get="/.well-known/bp/theme/fragment/nav"
+              hx-get="/.well-known/bp/shell/fragment/nav"
               hx-trigger="load, bp:fragments-changed from:body"
               hx-swap="innerHTML"
               data-bp-no-route=""
@@ -2270,7 +2271,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
             <footer
               class="bp-admin__footer"
               id="bp-frag-footer"
-              hx-get="/.well-known/bp/theme/fragment/footer"
+              hx-get="/.well-known/bp/shell/fragment/footer"
               hx-trigger="load, bp:fragments-changed from:body"
               hx-swap="innerHTML"
               data-bp-no-route=""

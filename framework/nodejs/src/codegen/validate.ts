@@ -80,10 +80,10 @@ function checkResponseSchema(route: ScannedRoute, errors: ValidationError[]): vo
 
 function checkRawRenderers(route: ScannedRoute, errors: ValidationError[]): void {
   if (!route.isRaw) return;
-  if (route.themeRenderers.length === 0 && route.streamRenderers.length === 0) return;
+  if (route.renderers.length === 0 && route.streamRenderers.length === 0) return;
   errors.push({
     file: route.relativePath + "/index.ts",
-    message: `Raw route "${route.viewId}" cannot have theme renderers.`,
+    message: `Raw route "${route.viewId}" cannot have HTML renderers.`,
     severity: "error",
   });
 }
@@ -111,7 +111,7 @@ function warnLooseSchemas(route: ScannedRoute, errors: ValidationError[]): void 
 
 function checkRenderersMatchMethods(route: ScannedRoute, errors: ValidationError[]): void {
   const methods = new Set(route.methods);
-  for (const renderer of route.themeRenderers) {
+  for (const renderer of route.renderers) {
     if (!renderer.method && renderer.statusCode === undefined) {
       errors.push({
         file: renderer.relativePath,
@@ -164,7 +164,7 @@ function checkSseMethod(route: ScannedRoute, errors: ValidationError[]): void {
 }
 
 function checkSseFragmentRenderers(route: ScannedRoute, errors: ValidationError[]): void {
-  for (const renderer of route.themeRenderers) {
+  for (const renderer of route.renderers) {
     if (renderer.sseRendererConflicts) {
       errors.push({
         file: renderer.sseRendererConflicts.join(", "),
@@ -183,7 +183,7 @@ function checkSseFragmentRenderers(route: ScannedRoute, errors: ValidationError[
 }
 
 function checkFragmentFileNames(route: ScannedRoute, errors: ValidationError[]): void {
-  for (const renderer of route.themeRenderers) {
+  for (const renderer of route.renderers) {
     if (renderer.type !== "fragment") continue;
 
     // Extract the file name from the relative import path
@@ -217,14 +217,14 @@ function checkDuplicateViewIds(routes: ScannedRoute[], errors: ValidationError[]
   }
 }
 
-function checkDuplicateThemeFragmentIds(result: ScanResult, errors: ValidationError[]): void {
+function checkDuplicateShellFragmentIds(result: ScanResult, errors: ValidationError[]): void {
   const seen = new Map<string, string>();
-  for (const fragment of result.themeFragments) {
+  for (const fragment of result.shellFragments) {
     const existing = seen.get(fragment.id);
     if (existing) {
       errors.push({
         file: fragment.relativePath,
-        message: `Duplicate theme fragment id "${fragment.id}". Also defined at "${existing}".`,
+        message: `Duplicate shell fragment id "${fragment.id}". Also defined at "${existing}".`,
         severity: "error"
       });
     } else {
@@ -255,36 +255,36 @@ function checkConflictingPaths(routes: ScannedRoute[], errors: ValidationError[]
   }
 }
 
-function checkThemeRendererOrphans(route: ScannedRoute, errors: ValidationError[]): void {
-  // Theme renderers should belong to a route that has an index.ts.
+function checkRendererOrphans(route: ScannedRoute, errors: ValidationError[]): void {
+  // Renderers should belong to a route that has an index.ts.
   // Since we only create ScannedRoute entries for directories that have
   // index.ts, any renderer attached to a route is by definition valid.
   // However, we can warn if a renderer's path suggests it sits outside
   // the route's own directory tree. In practice the scanner already
   // constrains this, but we defensively verify.
 
-  for (const renderer of route.themeRenderers) {
+  for (const renderer of route.renderers) {
     if (!renderer.relativePath.includes(route.relativePath.replace(/\/index\.ts$/, ""))) {
       // The renderer's relative path does not share the route's base
       // directory - this should never happen with the scanner, but
       // guard against hand-edited ScanResults.
       errors.push({
         file: renderer.relativePath,
-        message: `Theme renderer "${renderer.rendererId}" (theme "${renderer.themeId}") does not appear to belong to route "${route.viewId}".`,
+        message: `Renderer "${renderer.rendererId}" (renderer "${renderer.rendererKey}") does not appear to belong to route "${route.viewId}".`,
         severity: "error",
       });
     }
   }
 }
 
-function checkMissingThemeRenderers(route: ScannedRoute, errors: ValidationError[]): void {
+function checkMissingRenderers(route: ScannedRoute, errors: ValidationError[]): void {
   if (route.isRaw) return;
-  if (route.themeRenderers.length === 0) {
+  if (route.renderers.length === 0) {
     const hasHandler = route.handlerExports.some((e) => e.startsWith("handle"));
     if (hasHandler) {
       errors.push({
         file: route.relativePath + "/index.ts",
-        message: `Route "${route.viewId}" has handlers but no theme renderers. The route will serve JSON but not HTML.`,
+        message: `Route "${route.viewId}" has handlers but no HTML renderers. The route will serve JSON but not HTML.`,
         severity: "warning",
       });
     }
@@ -331,7 +331,7 @@ export function validateScanResult(result: ScanResult): ValidationError[] {
   // Cross-route checks
   checkDuplicateViewIds(result.routes, errors);
   checkConflictingPaths(result.routes, errors);
-  checkDuplicateThemeFragmentIds(result, errors);
+  checkDuplicateShellFragmentIds(result, errors);
 
   // Per-route checks
   for (const route of result.routes) {
@@ -344,8 +344,8 @@ export function validateScanResult(result: ScanResult): ValidationError[] {
     checkSseMethod(route, errors);
     checkSseFragmentRenderers(route, errors);
     checkFragmentFileNames(route, errors);
-    checkThemeRendererOrphans(route, errors);
-    checkMissingThemeRenderers(route, errors);
+    checkRendererOrphans(route, errors);
+    checkMissingRenderers(route, errors);
   }
 
   return errors;

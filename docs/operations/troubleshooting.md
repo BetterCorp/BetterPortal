@@ -8,16 +8,17 @@ A service returns 406 when it cannot render the requested representation.
 
 Common causes:
 
-- The active theme cannot be resolved.
-- The view does not have a renderer for the active theme.
+- The app shell or its manifest cannot be resolved.
+- The view does not have an exact renderer match for the app shell.
 - A fragment or component renderer was requested but does not exist.
 - The request used an invalid `Accept` header.
 
 Check:
 
 - Service `sec-config.yaml` has the right `bpConfigPath`.
-- App `themeId` matches the renderer folder name.
-- Renderer folder exists, such as `_theme.bootstrap1`.
+- App `shell.serviceId` references a synced shell service.
+- The shell manifest's `renderer` matches the renderer folder suffix.
+- Renderer folder exists, such as `_renderer.bootstrap5`.
 - The app route points to the correct `viewId`.
 
 ## 404 from the theme

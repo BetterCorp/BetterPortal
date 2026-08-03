@@ -22,16 +22,16 @@ export const ViewRendererVariantSchema = av.object({
 }, { unknownKeys: "strip" });
 export type ViewRendererVariant = Infer<typeof ViewRendererVariantSchema>;
 
-export const ThemeRendererSupportSchema = av.object({
+export const ViewRendererSupportSchema = av.object({
   defaultRenderer: NonEmptyStringSchema.default("default"),
   renderModes: av.array(RenderModeSchema).default([]),
   slots: av.array(NonEmptyStringSchema).default([]),
   renderers: av.array(ViewRendererVariantSchema).default([])
 }, { unknownKeys: "strip" });
-export type ThemeRendererSupport = Infer<typeof ThemeRendererSupportSchema>;
+export type ViewRendererSupport = Infer<typeof ViewRendererSupportSchema>;
 
 export const HtmlRepresentationSupportSchema = av.object({
-  themeRenderers: av.record(ThemeRendererSupportSchema).default({})
+  renderers: av.record(ViewRendererSupportSchema).default({})
 }, { unknownKeys: "strip" });
 export type HtmlRepresentationSupport = Infer<typeof HtmlRepresentationSupportSchema>;
 

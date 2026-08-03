@@ -44,7 +44,7 @@ import {
   type BPServiceDefinition,
   type BetterPortalConfig
 } from "@betterportal/plugin-bsb";
-import { isUserFacingRoute, renderBootstrap1HostPage, renderNavItems, shellStyles, renderBrand, type Bootstrap1NavItem } from "./theme/index.js";
+import { isUserFacingRoute, renderBootstrap1HostPage, renderNavItems, shellStyles, renderBrand, type Bootstrap1NavItem } from "./shell/index.js";
 import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap1Asset } from "./assets.js";
 import { Bootstrap1DeveloperResources } from "./resources.js";
@@ -242,6 +242,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         description: "Bootstrap 5 + htmx theme that renders BetterPortal app shells.",
         category: "theme",
         capabilities: ["theme"],
+        shell: { service: "bootstrap1", renderer: "bootstrap5", fragments: [] },
         developerResources: Bootstrap1DeveloperResources,
         configSchemas: THEME_CONFIG_SCHEMAS as any
       },

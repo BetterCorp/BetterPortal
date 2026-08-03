@@ -19,9 +19,9 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "run" && subcommand === "gen") {
-    const pkg = readJsonFile<{ betterportal?: { routes?: string[]; themes?: string[] } }>(findPackageJson());
-    if ((pkg.betterportal?.routes?.length ?? 0) === 0 && (pkg.betterportal?.themes?.length ?? 0) === 0) {
-      console.log("[bp] No betterportal.routes or betterportal.themes configured; generation skipped.");
+    const pkg = readJsonFile<{ betterportal?: { routes?: string[]; shells?: string[] } }>(findPackageJson());
+    if ((pkg.betterportal?.routes?.length ?? 0) === 0 && (pkg.betterportal?.shells?.length ?? 0) === 0) {
+      console.log("[bp] No betterportal.routes or betterportal.shells configured; generation skipped.");
       return;
     }
     await import("../codegen/cli.js");

@@ -14,7 +14,7 @@ const ServiceViewSchema = av.object({
     viewId: av.string().minLength(1),
     title: av.string(),
     path: av.string().minLength(1),
-    themes: av.array(av.string()),
+    renderers: av.array(av.string()),
     components: av.array(av.string()),
     hasFragments: av.bool(),
     demoScenarios: av.array(av.object({

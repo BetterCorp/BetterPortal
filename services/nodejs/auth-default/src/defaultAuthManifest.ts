@@ -67,7 +67,7 @@ export const DefaultAuthManifest: PluginManifest = createPluginManifest({
     "auth.runtime-identity",
     "auth.control-plane-identity"
   ],
-  supportedThemes: [],
+  supportedRenderers: [],
   supportedRenderModes: [],
   views: [],
   configSchemas: [],

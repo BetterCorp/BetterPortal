@@ -1,6 +1,7 @@
 import type {
   BetterPortalApp,
   BetterPortalConfig,
+  BetterPortalResolvedShell,
   BetterPortalTenant,
   M2MBinding,
   M2MGrant,
@@ -83,15 +84,14 @@ export interface ScopedApp {
   readonly hostnames: ReadonlyArray<string>;
   readonly originOverrides: ReadonlyArray<string>;
   readonly refererOverrides: ReadonlyArray<string>;
-  readonly themeId: string;
-  readonly shell?: BetterPortalApp["shell"];
+  readonly shell?: BetterPortalResolvedShell;
   readonly themeConfig: BetterPortalApp["themeConfig"];
   readonly defaultRoute: string;
   readonly routes: ReadonlyArray<BetterPortalApp["routes"][number]>;
   readonly menu: BetterPortalApp["menu"];
   readonly slots: BetterPortalApp["slots"];
   readonly fragments: BetterPortalApp["fragments"];
-  readonly themeFragments: BetterPortalApp["themeFragments"];
+  readonly shellFragments: BetterPortalApp["shellFragments"];
   readonly auth?: BetterPortalApp["auth"];
 }
 

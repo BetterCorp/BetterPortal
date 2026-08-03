@@ -4,8 +4,8 @@ import ts from "typescript";
 
 // -- Scanned types ----------------------------------------------------
 
-export interface ScannedThemeRenderer {
-  themeId: string;
+export interface ScannedViewRenderer {
+  rendererKey: string;
   rendererId: string;
   type: "page" | "component" | "fragment";
   method?: string;
@@ -21,9 +21,9 @@ export interface ScannedThemeRenderer {
   renderParamWarning?: "missing" | "any" | "unknown";
 }
 
-/** Streaming frame renderers for one theme - from `_theme.<id>/index.stream.tsx`. */
+/** Streaming frame renderers for one compatibility key. */
 export interface ScannedStreamRenderer {
-  themeId: string;
+  rendererKey: string;
   relativePath: string;
   /** Render exports found in the file (renderShell/renderItem/renderSummary/renderError). */
   exports: string[];
@@ -47,7 +47,7 @@ export interface ScannedRoute {
   /** @deprecated use metadataExports or methodModules. */
   handlerExports: string[];
   methods: string[];
-  themeRenderers: ScannedThemeRenderer[];
+  renderers: ScannedViewRenderer[];
   /** Per-theme streaming renderers (streaming views only). */
   streamRenderers: ScannedStreamRenderer[];
   sseRelativePath?: string;
@@ -68,7 +68,7 @@ export interface ScannedRoute {
   autoDependencies: string[];
 }
 
-export interface ScannedThemeFragment {
+export interface ScannedShellFragment {
   id: string;
   kind: "fragment" | "block";
   relativePath: string;
@@ -76,7 +76,7 @@ export interface ScannedThemeFragment {
 
 export interface ScanResult {
   routes: ScannedRoute[];
-  themeFragments: ScannedThemeFragment[];
+  shellFragments: ScannedShellFragment[];
   dependencyAliases: Record<string, string>;
   generatedDir: string;
   pluginImportPath: string;
@@ -378,10 +378,10 @@ function detectRouteTokens(filePath: string): string[] {
   return [...tokens];
 }
 
-function detectRenderParamWarning(filePath: string): ScannedThemeRenderer["renderParamWarning"] {
+function detectRenderParamWarning(filePath: string): ScannedViewRenderer["renderParamWarning"] {
   const source = fs.readFileSync(filePath, "utf-8");
   const sourceFile = ts.createSourceFile(path.basename(filePath), source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
-  let warning: ScannedThemeRenderer["renderParamWarning"];
+  let warning: ScannedViewRenderer["renderParamWarning"];
 
   function checkFunction(node: ts.FunctionDeclaration): void {
     if (warning || !node.name || node.name.text !== "render" || !hasExportModifier(node)) return;
@@ -546,7 +546,7 @@ function buildViewId(segments: string[]): string {
   return [...parts, "index"].join(".");
 }
 
-// -- Theme renderer scanning -----------------------------------------
+// -- HTML renderer scanning ------------------------------------------
 
 /**
  * Parse a theme file name to determine renderer type and attributes.
@@ -558,7 +558,7 @@ function buildViewId(segments: string[]): string {
  *  - name.POST.tsx      -> component, rendererId = name, method = "POST"
  *  - _location.id.tsx   -> fragment, fragmentLocation = location, fragmentId = id
  */
-function parseThemeFile(
+function parseRendererFile(
   fileName: string,
 ): {
   type: "page" | "component" | "fragment";
@@ -627,30 +627,30 @@ function parseThemeFile(
 }
 
 /**
- * Scan a `_theme.{themeId}/` directory for renderers.
+ * Scan a `_renderer.{rendererKey}/` directory for renderers.
  */
-function scanThemeDirectory(
-  themeDirPath: string,
-  themeId: string,
+function scanRendererDirectory(
+  rendererDirPath: string,
+  rendererKey: string,
   generatedDir: string,
   streamRenderers?: ScannedStreamRenderer[],
-): ScannedThemeRenderer[] {
-  const renderers: ScannedThemeRenderer[] = [];
+): ScannedViewRenderer[] {
+  const renderers: ScannedViewRenderer[] = [];
 
-  if (!fs.existsSync(themeDirPath) || !fs.statSync(themeDirPath).isDirectory()) {
+  if (!fs.existsSync(rendererDirPath) || !fs.statSync(rendererDirPath).isDirectory()) {
     return renderers;
   }
 
-  const entries = fs.readdirSync(themeDirPath, { withFileTypes: true });
+  const entries = fs.readdirSync(rendererDirPath, { withFileTypes: true });
 
   // Streaming frame renderers: index.stream.tsx (spec/streaming.md section 4)
   const streamFile = entries.find((e) => e.isFile() && e.name === "index.stream.tsx");
   if (streamFile && streamRenderers) {
-    const filePath = path.join(themeDirPath, streamFile.name);
+    const filePath = path.join(rendererDirPath, streamFile.name);
     const exports = detectExports(filePath).filter((name) => name.startsWith("render"));
     if (exports.includes("renderShell") && exports.includes("renderItem")) {
       streamRenderers.push({
-        themeId,
+        rendererKey,
         relativePath: relativeFromGenerated(generatedDir, filePath),
         exports,
       });
@@ -671,7 +671,7 @@ function scanThemeDirectory(
     if (parts.length === 3 && !method) continue;
     const [location, id] = parts;
     if (!location || !id) continue;
-    const filePath = path.join(themeDirPath, entry.name);
+    const filePath = path.join(rendererDirPath, entry.name);
     const key = `${location}.${id}:${method ?? "GET"}`;
     const paths = sseRendererPaths.get(key) ?? [];
     paths.push(relativeFromGenerated(generatedDir, filePath));
@@ -681,16 +681,16 @@ function scanThemeDirectory(
   for (const entry of entries) {
     if (!entry.isFile()) continue;
 
-    const parsed = parseThemeFile(entry.name);
+    const parsed = parseRendererFile(entry.name);
     if (!parsed) continue;
 
-    const filePath = path.join(themeDirPath, entry.name);
+    const filePath = path.join(rendererDirPath, entry.name);
     const sseRendererMatches = parsed.type === "fragment"
       ? sseRendererPaths.get(`${parsed.rendererId}:${parsed.method ?? ""}`)
       : undefined;
 
     renderers.push({
-      themeId,
+      rendererKey,
       rendererId: parsed.rendererId,
       type: parsed.type,
       method: parsed.method,
@@ -719,6 +719,10 @@ function scanDirectory(
   routes: ScannedRoute[],
 ): void {
   const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+  const legacyRenderer = entries.find((entry) => entry.name.startsWith("_theme."));
+  if (legacyRenderer) {
+    throw new Error(`Legacy renderer path "${path.join(currentDir, legacyRenderer.name)}" is unsupported; rename it to _renderer.<key>.`);
+  }
 
   // Check for index.ts in this directory
   const hasIndex = entries.some(
@@ -768,24 +772,24 @@ function scanDirectory(
       : undefined;
     const sseHasTickSchema = hasSseHandler && sseExports.includes("tickSchema");
 
-    // Scan theme renderers
-    const themeRenderers: ScannedThemeRenderer[] = [];
+    // Scan UI renderers
+    const renderers: ScannedViewRenderer[] = [];
     const streamRenderers: ScannedStreamRenderer[] = [];
     const autoDependencies = new Set<string>();
 
     for (const entry of entries) {
-      // Theme directory: _theme.{themeId}/
+      // Renderer directory: _renderer.{rendererKey}/
       if (entry.isDirectory()) {
-        const themeMatch = entry.name.match(/^_theme\.(.+)$/);
-        if (themeMatch) {
-          const themeId = themeMatch[1];
-          const themeDirPath = path.join(currentDir, entry.name);
-          themeRenderers.push(
-            ...scanThemeDirectory(themeDirPath, themeId, generatedDir, streamRenderers),
+        const rendererMatch = entry.name.match(/^_renderer\.(.+)$/);
+        if (rendererMatch) {
+          const rendererKey = rendererMatch[1];
+          const rendererDirPath = path.join(currentDir, entry.name);
+          renderers.push(
+            ...scanRendererDirectory(rendererDirPath, rendererKey, generatedDir, streamRenderers),
           );
-          for (const rendererFile of fs.readdirSync(themeDirPath, { withFileTypes: true })) {
+          for (const rendererFile of fs.readdirSync(rendererDirPath, { withFileTypes: true })) {
             if (rendererFile.isFile() && rendererFile.name.endsWith(".tsx")) {
-              for (const token of detectRouteTokens(path.join(themeDirPath, rendererFile.name))) {
+              for (const token of detectRouteTokens(path.join(rendererDirPath, rendererFile.name))) {
                 if (token !== viewId) autoDependencies.add(token);
               }
             }
@@ -793,17 +797,17 @@ function scanDirectory(
         }
       }
 
-      // Single-file theme shorthand: _theme.{themeId}.tsx
+      // Single-file renderer shorthand: _renderer.{rendererKey}.tsx
       if (entry.isFile()) {
-        const themeFileMatch = entry.name.match(/^_theme\.(.+)\.tsx$/);
-        if (themeFileMatch) {
-          const themeId = themeFileMatch[1];
+        const rendererFileMatch = entry.name.match(/^_renderer\.(.+)\.tsx$/);
+        if (rendererFileMatch) {
+          const rendererKey = rendererFileMatch[1];
           const filePath = path.join(currentDir, entry.name);
           for (const token of detectRouteTokens(filePath)) {
             if (token !== viewId) autoDependencies.add(token);
           }
-          themeRenderers.push({
-            themeId,
+          renderers.push({
+            rendererKey,
             rendererId: "default",
             type: "page",
             relativePath: relativeFromGenerated(generatedDir, filePath),
@@ -823,7 +827,7 @@ function scanDirectory(
         methodModules,
         handlerExports,
         methods,
-        themeRenderers,
+        renderers,
         streamRenderers,
         sseRelativePath,
         sseRelativePaths,
@@ -839,10 +843,10 @@ function scanDirectory(
     }
   }
 
-  // Recurse into child directories (excluding theme dirs)
+  // Recurse into child directories (excluding renderer dirs)
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    if (entry.name.startsWith("_theme.")) continue;
+    if (entry.name.startsWith("_renderer.")) continue;
     if (entry.name.startsWith(".") && entry.name !== ".well-known") continue;
 
     const childDir = path.join(currentDir, entry.name);
@@ -854,7 +858,7 @@ function scanDirectory(
 
 /**
  * Scan the `bp-routes/` directory tree and build a data structure
- * describing all routes, theme renderers, components, and fragments.
+ * describing all routes, UI renderers, components, and fragments.
  *
  * @param baseDir - The directory containing `bp-routes/`. The
  *   `.bp-generated/` output directory is placed as a sibling.
@@ -866,21 +870,21 @@ export function scanRoutes(baseDir: string, dependencyAliases: Record<string, st
   const pluginImportPath = toJsImport(relativeFromGenerated(generatedDir, pluginIndexPath));
   const pluginExports = detectNamedExports(pluginIndexPath, ["Plugin", "ServiceConfig"]);
   const pluginLifecycleOverrides = scanPluginLifecycleOverrides(pluginIndexPath);
-  const themeDir = path.resolve(baseDir, "theme");
-  const themeFragments: ScannedThemeFragment[] = fs.existsSync(themeDir)
-    ? fs.readdirSync(themeDir, { withFileTypes: true }).flatMap((entry) => {
+  const shellDir = path.resolve(baseDir, "shell");
+  const shellFragments: ScannedShellFragment[] = fs.existsSync(shellDir)
+    ? fs.readdirSync(shellDir, { withFileTypes: true }).flatMap((entry) => {
       if (!entry.name.startsWith("_")) return [];
       const id = entry.name.slice(1).replace(/\.tsx?$/, "");
       const source = entry.isDirectory()
-        ? path.join(themeDir, entry.name, "index.tsx")
-        : path.join(themeDir, entry.name);
+        ? path.join(shellDir, entry.name, "index.tsx")
+        : path.join(shellDir, entry.name);
       if (!/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/.test(id) || !fs.existsSync(source)) return [];
       return [{ id, kind: entry.isDirectory() ? "block" as const : "fragment" as const, relativePath: relativeFromGenerated(generatedDir, source) }];
     }).sort((a, b) => a.id.localeCompare(b.id))
     : [];
 
   if (!fs.existsSync(routesDir)) {
-    return { routes: [], themeFragments, dependencyAliases, generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
+    return { routes: [], shellFragments, dependencyAliases, generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
   }
 
   const routes: ScannedRoute[] = [];
@@ -905,5 +909,5 @@ export function scanRoutes(baseDir: string, dependencyAliases: Record<string, st
     return aSeg.length - bSeg.length;
   });
 
-  return { routes, themeFragments, dependencyAliases, generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
+  return { routes, shellFragments, dependencyAliases, generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
 }

@@ -58,7 +58,7 @@ In addition to well-known endpoints, services expose **view routes** declared in
 
 A view route MUST accept content negotiation (see section 3) and respond with either:
 - `application/json` (the canonical response shape per the view's schema)
-- `text/html` (a theme-rendered representation; theme determined per section 3.3)
+- `text/html` (rendered with the app shell's server-resolved renderer compatibility key)
 
 A view route MAY also support `application/vnd.betterportal.metadata+json` for tooling.
 
@@ -119,16 +119,13 @@ Accept: text/html; mode=embed      - embedded render (third-party iframe-substit
 
 If `mode` is omitted, the server SHOULD respond as `mode=page`.
 
-### 3.3 Theme selection
+### 3.3 Shell and renderer resolution
 
-The chosen theme is the **lowest-priority** of:
+The control plane persists `app.shell.serviceId`. During scoped config delivery it resolves the selected shell manifest and supplies the read-only app context `shell: { serviceId, service, renderer }`. `service` is the shell contract identity (for example `bootstrap1`); `renderer` is the service-view compatibility key (for example `bootstrap5`).
 
-1. `theme` parameter on the Accept header: `Accept: text/html; theme=bootstrap1`.
-2. `X-BP-Theme` request header.
-3. Theme negotiated from the `Origin`/`Referer` (the theme that loaded the page is the calling theme).
-4. The service's default theme.
+Browser requests resolve the app from trusted request addressing such as `Origin`, `Referer`, and the effective host. The service uses only the resolved app shell renderer. Client-supplied `theme` Accept parameters, `X-BP-Theme`, `_theme` query values, and standalone `X-BP-Tenant-Id` / `X-BP-App-Id` headers do not select app or renderer context and are silently ignored.
 
-If the negotiated theme is not supported by the view, the server returns `406` with a JSON body listing `supportedThemes`.
+`X-BP-Tenant-Id` and `X-BP-App-Id` establish context only inside a verified S2S or delegated envelope that also supplies the required service identity and service token. If the app shell is unresolved, or the view has no exact renderer match, the service returns `406`; there is no renderer fallback.
 
 ### 3.4 Fragment / component selectors
 
@@ -169,7 +166,7 @@ Status codes follow HTTP conventions:
 | 401 | Missing or invalid bearer token (see `auth.md`). |
 | 403 | Authenticated but lacks required `permissions`/`audiences`/`minimumTier`. |
 | 404 | Path not registered or `fragmentId`/`componentId` unknown. |
-| 406 | Accept type or theme unsupported. |
+| 406 | Accept type, shell renderer, or render mode unsupported. |
 | 409 | Resource conflict (e.g., tenant already exists). |
 | 422 | Semantically invalid (vs. 400 for shape failures). |
 | 503 | Service is not ready, commonly because scoped config has not synced yet. |
@@ -208,9 +205,10 @@ Registry references are distribution coordinates, not runtime IDs. For example, 
 |---|---|---|
 | `Accept` | every view request | content negotiation (section 3) |
 | `Authorization: Bearer <token>` | protected routes, config endpoints | see `auth.md` |
-| `X-BP-Tenant-Id` | service config read/write | tenant scope; MUST match the ticket if a ticket is present |
-| `X-BP-App-Id` | service config read/write (app-scoped) | app scope under the tenant |
-| `X-BP-Theme` | view requests | override theme (see section 3.3) |
+| `X-BP-Tenant-Id` | verified S2S/delegated calls; service config | tenant scope; ignored for normal browser context resolution |
+| `X-BP-App-Id` | verified S2S/delegated calls; service config | app scope; ignored for normal browser context resolution |
+| `X-BP-Service-Id` | S2S/delegated calls | source service instance identity |
+| `X-BP-Service-Authorization` | delegated calls | service bearer token; the normal `Authorization` header retains the original user JWT |
 | `HX-*` | HTMX requests | per htmx.org spec; servers MAY use to detect HTMX swaps |
 
 ## 7. Standard response headers

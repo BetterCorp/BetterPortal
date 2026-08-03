@@ -50,7 +50,7 @@ data: A plain text message
 
 ### 1.3 Themed rendering
 
-A view MAY associate each tick's data with a per-theme HTML renderer. Clients select that renderer by passing `?_f=<location>.<fragmentId>` on the SSE connect URL:
+A view MAY associate each tick's data with a renderer-specific HTML fragment. Clients select the fragment id by passing `?_f=<location>.<fragmentId>` on the SSE connect URL; the renderer compatibility key still comes exclusively from the resolved app shell:
 
 ```
 GET /hello/__sse?_f=nav.clock
@@ -120,7 +120,7 @@ A view declares SSE support in its manifest entry:
 }
 ```
 
-`themedRenderers` lists `<location>.<fragmentId>` keys that have a per-theme `renderTick` function defined.
+`renderers` lists `<location>.<fragmentId>` keys that have a renderer-specific `renderTick` function defined.
 
 ### 1.8 CORS
 
@@ -176,7 +176,11 @@ data: {<ScopedServiceConfig JSON>}
     {
       "appId": "betterportal-web",
       "tenantId": "betterportal",
-      "themeId": "bootstrap1",
+      "shell": {
+        "serviceId": "019f0000-0000-7000-8000-000000000001",
+        "service": "bootstrap1",
+        "renderer": "bootstrap5"
+      },
       "config": { ... }                    // values for this service, this app
     }
   ]

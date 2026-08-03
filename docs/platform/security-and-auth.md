@@ -110,10 +110,10 @@ Authress and WorkOS app config expose `loginUI` with `default`, `clean`, and `re
 
 For WorkOS, application/client credentials and webhook secrets are app-scoped service config. Tenant-level WorkOS defaults must not contain app/client credentials. WorkOS permission slugs use short `bp_<shortId>_<permission>` keys backed by the service's `workosStatePath` mapping file; labels include service title, app path, service path, route kind, methods, view id, and action. BP runtime authorization still reads mirrored `app.auth.roles`. WorkOS permission webhook events are not processed.
 
-Service API keys are service identities, not admin identities. Config Manager accepts them only on explicit service-facing endpoints. Authoritative services may self-mutate only their own app binding: auth services can replace `app.auth.roles` for apps whose `app.auth.serviceId` is their tenant service id or shared activation id, and theme services can update theme config for apps whose `app.shell.serviceId` is their tenant service id or shared activation id. Every synced auth permission must reference an enabled route mounted on that app.
+Service API keys are service identities, not admin identities. Config Manager accepts them only on explicit service-facing endpoints. Authoritative services may self-mutate only their own app binding: auth services can replace `app.auth.roles` for apps whose `app.auth.serviceId` is their tenant service id or shared activation id, and shell services can update visual theme config for apps whose `app.shell.serviceId` is their tenant service id or shared activation id. Every synced auth permission must reference an enabled route mounted on that app.
 
 ## CORS
 
-Services only allow configured app origins. If a service cannot resolve the calling app from `bp-config.yaml`, HTML requests may fail because the service cannot infer the active theme.
+Services only allow configured app origins. Normal browser context is resolved from Origin/Referer/effective host; standalone `X-BP-Tenant-Id` and `X-BP-App-Id` are ignored. Those headers establish context only in a verified S2S/delegated envelope. If the calling app or its shell manifest cannot be resolved, HTML requests return 406 rather than accepting a client-selected renderer.
 
 When adding a service, make sure its `sec-config.yaml` points to the correct repo-level `bp-config.yaml`.

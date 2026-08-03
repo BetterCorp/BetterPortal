@@ -39,7 +39,7 @@ import {
 import { loadEmbeddedAsset } from "./assets.js";
 import { EmbeddedDeveloperResources } from "./resources.js";
 import { registry } from "./.bp-generated/registry.js";
-import { renderEmbeddedHostPage, type EmbeddedRouteLink } from "./theme/index.js";
+import { renderEmbeddedHostPage, type EmbeddedRouteLink } from "./shell/index.js";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -169,6 +169,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         description: "Minimal htmx theme for embedding BetterPortal content without iframes.",
         category: "theme",
         capabilities: ["theme"],
+        shell: { service: "embedded", renderer: "embedded", fragments: [] },
         developerResources: EmbeddedDeveloperResources
       },
       registry

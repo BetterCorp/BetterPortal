@@ -3,7 +3,7 @@ import { css } from "jsx-htmx";
 import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework";
 import {
   betterPortalChromeAttributes,
-  type BetterPortalThemeChrome
+  type BetterPortalShellChrome
 } from "@betterportal/theme-runtime";
 
 export interface EmbeddedShellContext {
@@ -31,7 +31,7 @@ export interface EmbeddedHostPageContext {
   initialServiceId?: string;
   initialRouteError?: string;
   routeLinks: EmbeddedRouteLink[];
-  chrome?: BetterPortalThemeChrome;
+  chrome?: BetterPortalShellChrome;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
   managementDiscoveryUrl?: string;
@@ -45,7 +45,8 @@ export const EmbeddedManifest: PluginManifest = createPluginManifest({
   category: "theme",
   deploymentModes: ["bp-hosted", "customer-hosted", "self-hosted"],
   capabilities: ["theme", "theme.embed", "theme.htmx"],
-  supportedThemes: ["embedded"],
+  supportedRenderers: ["embedded"],
+  shell: { service: "embedded", renderer: "embedded", fragments: [] },
   supportedRenderModes: ["fragment", "embed"],
   views: [],
   configSchemas: [],

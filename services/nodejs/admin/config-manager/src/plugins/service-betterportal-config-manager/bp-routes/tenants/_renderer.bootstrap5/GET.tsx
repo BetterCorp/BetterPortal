@@ -146,6 +146,11 @@ export function render(data: ResponseData): HtmlRenderable {
                   <div class="small mb-1"><strong>Tenant:</strong> {app.tenantId}</div>
                   <div class="small mb-1"><strong>Hostnames:</strong> {app.hostnames.join(", ")}</div>
                   <div class="small mb-1"><strong>Shell:</strong> <span class="font-monospace">{app.shellServiceId ?? "not selected"}</span></div>
+                  {app.shellService && app.shellRenderer ? (
+                    <div class="small mb-1"><strong>Contract:</strong> {app.shellService} · <span class="font-monospace">{app.shellRenderer}</span></div>
+                  ) : app.shellServiceId ? (
+                    <div class="small text-warning mb-1">Shell manifest unavailable</div>
+                  ) : null}
                   <div class="small mb-1"><strong>Auth:</strong> <span class="font-monospace">{app.authServiceId ?? "not selected"}</span></div>
                   <div class="small mb-2"><strong>Routes:</strong> {app.routeCount}</div>
                   <div class="btn-group btn-group-sm">
@@ -248,7 +253,7 @@ export function render(data: ResponseData): HtmlRenderable {
               <select class="form-select" name="shellServiceId" data-bp-tenant-scoped="">
                 <option value="">No shell selected</option>
                 {data.shellServices.map((service) => (
-                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title}</option>
+                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title} · {service.service} · {service.renderer}</option>
                 ))}
               </select>
             </div>
@@ -305,10 +310,10 @@ export function render(data: ResponseData): HtmlRenderable {
               <select class="form-select" name="shellServiceId" data-bp-tenant-scoped="">
                 <option value="">No shell selected</option>
                 {data.shellServices.map((service) => (
-                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title}</option>
+                  <option value={service.id} data-bp-tenant-id={service.tenantId}>{service.title} · {service.service} · {service.renderer}</option>
                 ))}
               </select>
-              <div class="form-text">Only theme-capable services registered for this app's tenant should be selected.</div>
+              <div class="form-text">Only services with a synced shell manifest are available.</div>
             </div>
             <div class="mb-3">
               <label class="form-label">Auth provider</label>

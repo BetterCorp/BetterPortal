@@ -211,7 +211,7 @@ export function renderThemeLlmsUi(context: ThemeLlmsContext, resources: Readonly
   const lines = [
     `# ${context.app.title} UI`,
     "",
-    "> Follow the active theme's declared resources when generating or reviewing BetterPortal UI.",
+    "> Follow the active shell's declared resources when generating or reviewing BetterPortal UI.",
     "",
     "Service UI is server-rendered HTML/HTMX. Do not introduce a SPA router, iframe, client state framework, or hardcoded service hostname.",
     "",

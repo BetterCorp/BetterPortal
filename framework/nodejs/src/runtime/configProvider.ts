@@ -96,6 +96,32 @@ export function describeEmbeddedContextResolution(
   };
 }
 
+export function resolveAppShell(config: BetterPortalConfig, app: BetterPortalApp) {
+  const serviceId = app.shell?.serviceId;
+  if (!serviceId) return undefined;
+
+  const keys = new Set([serviceId]);
+  const direct = config.tenants.flatMap((tenant) => tenant.services).find((service) => service.id === serviceId)
+    ?? config.platformServices.find((service) => service.id === serviceId);
+  if (direct?.serviceId) keys.add(direct.serviceId);
+
+  const activation = config.sharedServiceActivations.find((candidate) => candidate.enabled && candidate.id === serviceId);
+  const shared = activation
+    ? config.sharedServiceCatalog.find((candidate) => candidate.enabled && candidate.id === activation.sharedServiceId)
+    : undefined;
+  if (shared) {
+    keys.add(shared.id);
+    if (shared.serviceId) keys.add(shared.serviceId);
+  }
+
+  const shell = config.manifestCache.find((entry) => keys.has(entry.serviceId))?.shell as
+    | { service?: unknown; renderer?: unknown }
+    | undefined;
+  return typeof shell?.service === "string" && typeof shell.renderer === "string"
+    ? { serviceId, service: shell.service, renderer: shell.renderer }
+    : undefined;
+}
+
 function buildResolvedContext(config: BetterPortalConfig, appId: string | null): BetterPortalResolvedRequestContext | null {
   if (!appId) {
     return null;
@@ -111,7 +137,13 @@ function buildResolvedContext(config: BetterPortalConfig, appId: string | null):
     return null;
   }
 
-  return { tenant, app };
+  return {
+    tenant,
+    app: {
+      ...app,
+      shell: resolveAppShell(config, app)
+    }
+  };
 }
 
 export interface BetterPortalContextResolutionCandidate {

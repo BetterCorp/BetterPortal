@@ -128,14 +128,14 @@ type WizardManifestView = {
   renderable?: boolean;
   methods?: unknown[];
   html?: {
-    themeRenderers?: Record<string, {
+    renderers?: Record<string, {
       renderModes?: unknown[];
     }>;
   };
 };
 
 function hasPageRenderer(view: WizardManifestView): boolean {
-  const renderers = view.html?.themeRenderers;
+  const renderers = view.html?.renderers;
   if (!renderers) return view.renderable !== false;
   return Object.values(renderers).some((renderer) =>
     Array.isArray(renderer.renderModes) && renderer.renderModes.includes("page")
@@ -1094,8 +1094,8 @@ export function registerAdminApiRoutes(
       ? body.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
       : stringArray(body.tags);
     const capabilities = stringArray(manifest?.capabilities);
-    const supportedThemes = stringArray(manifest?.supportedThemes).map((theme) => `theme.${theme}`);
-    const tags = [...new Set([...explicitTags, ...capabilities, ...supportedThemes])];
+    const supportedRenderers = stringArray(manifest?.supportedRenderers).map((renderer) => `renderer.${renderer}`);
+    const tags = [...new Set([...explicitTags, ...capabilities, ...supportedRenderers])];
     const category = typeof body.category === "string" && body.category.trim()
       ? body.category.trim()
       : typeof manifest?.category === "string" && manifest.category.trim()

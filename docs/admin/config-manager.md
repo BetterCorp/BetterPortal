@@ -127,8 +127,8 @@ Menus should link only to app page routes backed by service page renderers. API,
 
 ## Theme fragment editor
 
-The fragment editor is driven by the active theme's cached manifest. With no active theme there are no theme fragment controls. A `_name.tsx` definition is one replaceable fragment; `_name/index.tsx` is an ordered fragment block. Settings are stored under the active theme service-instance UUID, so switching themes switches both the available definitions and their saved choices.
+The fragment editor is driven by the selected shell's cached manifest. With no shell there are no shell fragment controls. A `shell/_name.tsx` definition is one replaceable fragment; `shell/_name/index.tsx` is an ordered fragment block. Settings are stored under the shell service-instance UUID, so switching shells switches both the available definitions and their saved choices.
 
 An unset value uses the theme default. `none` is the explicit empty value. Service fragments are selected from synced manifest metadata and the app route allowlist; the editor never fetches service or theme manifests from the browser.
 
-Legacy `app.fragments` and `app.slots` values remain read-only fallbacks until an administrator saves an explicit setting for that theme fragment. New edits write only `app.themeFragments`.
+Legacy `app.fragments` and `app.slots` values remain read-only fallbacks until an administrator saves an explicit setting for that theme fragment. New edits write only `app.shellFragments`.

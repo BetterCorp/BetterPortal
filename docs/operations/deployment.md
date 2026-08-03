@@ -2,7 +2,7 @@
 
 BetterPortal deploys as multiple independently running services.
 
-At minimum, a deployment needs a theme service and at least one business service. Admin and auth services can be added as needed.
+At minimum, a deployment needs a shell service and at least one business service. Admin and auth services can be added as needed.
 
 ## Deployment units
 

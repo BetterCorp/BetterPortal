@@ -109,13 +109,8 @@ export function createViewDefinition<
   };
 }
 
-function resolveTheme(html: HtmlRepresentationSupport, requestedTheme?: string): string | null {
-  if (!requestedTheme) return null;
-  return requestedTheme in html.themeRenderers ? requestedTheme : null;
-}
-
-function resolveMode(html: HtmlRepresentationSupport, theme: string, requestedMode?: RenderMode): RenderMode | null {
-  const renderer = html.themeRenderers[theme];
+function resolveMode(html: HtmlRepresentationSupport, rendererKey: string, requestedMode?: RenderMode): RenderMode | null {
+  const renderer = html.renderers[rendererKey];
   if (!renderer) return null;
   if (!requestedMode) return renderer.renderModes[0] ?? null;
   return renderer.renderModes.includes(requestedMode) ? requestedMode : null;
@@ -125,7 +120,8 @@ export function negotiateViewResponse<ResponseSchema extends AnySchema>(
   view: BetterPortalViewDefinition<AnySchema, AnySchema, AnySchema, AnySchema, ResponseSchema>,
   acceptHeader: string | undefined,
   jsonBody: Infer<ResponseSchema>,
-  renderHtml: ((theme: string, mode: RenderMode, body: Infer<ResponseSchema>) => HtmlRenderable) | undefined
+  rendererKey: string | undefined,
+  renderHtml: ((renderer: string, mode: RenderMode, body: Infer<ResponseSchema>) => HtmlRenderable) | undefined
 ): NegotiatedViewResponse {
   const requested = resolveRequestedRepresentation(acceptHeader);
   const validatedJsonBody = view.schemas.response.parse(jsonBody) as JsonValue;
@@ -168,8 +164,7 @@ export function negotiateViewResponse<ResponseSchema extends AnySchema>(
     };
   }
 
-  const theme = resolveTheme(view.html, requested.theme);
-  if (!theme) {
+  if (!rendererKey || !(rendererKey in view.html.renderers)) {
     return {
       status: 406,
       contentType: "application/json",
@@ -178,7 +173,7 @@ export function negotiateViewResponse<ResponseSchema extends AnySchema>(
       }
     };
   }
-  const mode = resolveMode(view.html, theme, requested.mode);
+  const mode = resolveMode(view.html, rendererKey, requested.mode);
   if (!mode) {
     return {
       status: 406,
@@ -191,8 +186,8 @@ export function negotiateViewResponse<ResponseSchema extends AnySchema>(
 
   return {
     status: 200,
-    contentType: `text/html; theme=${theme}; mode=${mode}`,
-    body: renderHtml(theme, mode, jsonBody)
+    contentType: `text/html; mode=${mode}`,
+    body: renderHtml(rendererKey, mode, jsonBody)
   };
 }
 

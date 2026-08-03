@@ -4,7 +4,7 @@
 **Endpoint:** `GET /.well-known/bp/schema.json`
 **Content-Type:** `application/json`
 
-A flattened, machine-readable catalog of a service's routes, themes, fragments, and components. Tools (theme nav builder, fragment editor, route designer) read this instead of crawling the manifest.
+A flattened, machine-readable catalog of a service's routes, renderer contracts, fragments, and components. Tools read this instead of crawling the manifest.
 
 ## Shape
 
@@ -17,11 +17,11 @@ A flattened, machine-readable catalog of a service's routes, themes, fragments, 
       "path": "/hello",
       "methods": ["GET"],
       "paramNames": [],
-      "themes": ["bootstrap1", "embedded"],
+      "renderers": ["bootstrap5", "embedded"],
       "hasFragments": true,
       "fragments": [
-        { "fragmentLocation": "nav", "fragmentId": "clock",   "themes": ["bootstrap1"] },
-        { "fragmentLocation": "nav", "fragmentId": "profile", "themes": ["bootstrap1"] }
+        { "fragmentLocation": "nav", "fragmentId": "clock",   "renderers": ["bootstrap5"] },
+        { "fragmentLocation": "nav", "fragmentId": "profile", "renderers": ["bootstrap5"] }
       ],
       "components": ["showcase-cards", "showcase-forms", ...]
     },
@@ -39,15 +39,15 @@ A flattened, machine-readable catalog of a service's routes, themes, fragments, 
 | `routes[].path` | Public path. `:param` syntax intact. |
 | `routes[].methods` | Same as `manifest.views[].methods`. |
 | `routes[].paramNames` | Ordered list of `:param` names extracted from `path`. |
-| `routes[].themes` | Themes that have at least one renderer for this view. |
+| `routes[].renderers` | Renderer compatibility keys implemented by this view. |
 | `routes[].hasFragments` | `true` iff the route has any fragment renderer. |
-| `routes[].fragments` | Per-fragment record. `themes[]` lists which themes implement this fragment. |
+| `routes[].fragments` | Per-fragment record. `renderers[]` lists which renderer contracts implement this fragment. |
 | `routes[].components` | Named component renderers (queryable via `?_c=<id>`). |
 
 ## Why have this in addition to the manifest?
 
 - The manifest is rich and nested. `schema.json` is a flat shape better suited to admin tooling traversal.
-- It guarantees `fragments[]` and `components[]` are advertised explicitly. The manifest's `themeRenderers` structure requires extracting them by walking renderer slot IDs.
+- It guarantees `fragments[]` and `components[]` are advertised explicitly. The manifest's `renderers` structure requires extracting them by walking renderer slot IDs.
 - It can include cross-cutting fields that don't belong on the manifest (computed aggregates, link tables).
 
 ## Caching

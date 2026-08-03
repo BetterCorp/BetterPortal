@@ -2,15 +2,15 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { js, type RawText } from "jsx-htmx";
 
-export interface ThemeRuntimeAsset {
+export interface ShellRuntimeAsset {
   body: string;
   contentType: string;
 }
 
-export type BetterPortalThemeChromeValue = string | number | boolean;
-export type BetterPortalThemeChrome = Readonly<Record<string, BetterPortalThemeChromeValue>>;
+export type BetterPortalShellChromeValue = string | number | boolean;
+export type BetterPortalShellChrome = Readonly<Record<string, BetterPortalShellChromeValue>>;
 
-export interface BetterPortalThemeAdapter {
+export interface BetterPortalShellAdapter {
   syncProfileMirror?(): void;
   cleanupTransientUi?(): void;
   syncOverlays?(): void;
@@ -30,19 +30,19 @@ export interface BetterPortalThemeAdapter {
     outlet: Element | null
   ): void;
   applyChrome?(
-    chrome: BetterPortalThemeChrome,
-    previousChrome: BetterPortalThemeChrome,
+    chrome: BetterPortalShellChrome,
+    previousChrome: BetterPortalShellChrome,
     root: Element
   ): void;
 }
 
 declare global {
   interface Window {
-    BetterPortalThemeAdapter?: BetterPortalThemeAdapter;
+    BetterPortalShellAdapter?: BetterPortalShellAdapter;
   }
 }
 
-export type BetterPortalThemeRuntimeSource = string | RawText;
+export type BetterPortalShellRuntimeSource = string | RawText;
 export const BETTERPORTAL_BROWSER_SOURCE_PREAMBLE = "var __name=function(f){return f};";
 
 function chromeDataKey(rawKey: string): string | null {
@@ -54,7 +54,7 @@ function chromeDataKey(rawKey: string): string | null {
 }
 
 export function betterPortalChromeAttributes(
-  chrome?: BetterPortalThemeChrome
+  chrome?: BetterPortalShellChrome
 ): Record<string, string> {
   const attributes: Record<string, string> = {};
   for (const [rawKey, value] of Object.entries(chrome ?? {})) {
@@ -75,9 +75,9 @@ const resolveRuntimeAsset = (path: string, label: string): string => {
 };
 const HtmxPath = resolveRuntimeAsset("htmx.org/dist/htmx.min.js", "HTMX core");
 const HtmxSsePath = resolveRuntimeAsset("htmx.org/dist/ext/hx-sse.min.js", "the HTMX SSE extension");
-const VendorAssetCache = new Map<string, Promise<ThemeRuntimeAsset>>();
+const VendorAssetCache = new Map<string, Promise<ShellRuntimeAsset>>();
 
-function readTextAsset(filePath: string): Promise<ThemeRuntimeAsset> {
+function readTextAsset(filePath: string): Promise<ShellRuntimeAsset> {
   return readFile(filePath, "utf8").then((body) => ({
     body,
     contentType: "application/javascript; charset=utf-8"
@@ -86,7 +86,7 @@ function readTextAsset(filePath: string): Promise<ThemeRuntimeAsset> {
 
 export const BETTERPORTAL_HTMX_EXTENSIONS = "bp-shell, sse";
 
-export function betterPortalShellRuntimeSource(themeId: string): string {
+export function betterPortalShellRuntimeSource(): string {
   // esbuild/tsx wraps functions with __name() for .name preservation;
   // shim it for the browser where that helper doesn't exist
   const body = js(() => {
@@ -102,7 +102,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
 
       const HX_METHODS = ["hx-get", "hx-post", "hx-put", "hx-delete", "hx-patch"] as const;
       const DOWNLOAD_ATTR = "hx-download";
-      const themeAdapter = window.BetterPortalThemeAdapter ?? {};
+      const shellAdapter = window.BetterPortalShellAdapter ?? {};
 
       // -- DOM helpers --
 
@@ -120,7 +120,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
       const profileMirror = () => document.querySelector("[data-bp-profile-mirror]");
 
       const syncProfileMirror = () => {
-        if (themeAdapter.syncProfileMirror) { themeAdapter.syncProfileMirror(); return; }
+        if (shellAdapter.syncProfileMirror) { shellAdapter.syncProfileMirror(); return; }
         const slot = profileSlot();
         const mirror = profileMirror();
         if (!slot || !mirror) return;
@@ -208,7 +208,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         }
         const previousChrome = activeChrome;
         activeChrome = { ...nextChrome };
-        themeAdapter.applyChrome?.(activeChrome, previousChrome, root);
+        shellAdapter.applyChrome?.(activeChrome, previousChrome, root);
       };
 
       const applyChromeFromResponse = (detail: any) => {
@@ -221,16 +221,16 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
 
       // -- Theme presentation lifecycle --
 
-      const cleanupTeleportedModals = () => { themeAdapter.cleanupTransientUi?.(); };
+      const cleanupTeleportedModals = () => { shellAdapter.cleanupTransientUi?.(); };
       const cleanupTeleportedOffcanvas = () => {};
-      const scheduleBootstrapOverlaySync = () => { themeAdapter.syncOverlays?.(); };
-      const closeContainingOffcanvas = (source: Element | null | undefined) => { themeAdapter.closeContainingOverlay?.(source); };
-      const teleportModals = (root: Element) => { themeAdapter.prepareContent?.(root); };
+      const scheduleBootstrapOverlaySync = () => { shellAdapter.syncOverlays?.(); };
+      const closeContainingOffcanvas = (source: Element | null | undefined) => { shellAdapter.closeContainingOverlay?.(source); };
+      const teleportModals = (root: Element) => { shellAdapter.prepareContent?.(root); };
       const teleportOffcanvas = (_root: Element) => {};
-      const initBootstrapComponents = (root: Element | null) => { themeAdapter.initComponents?.(root); };
-      const disposeBootstrapComponents = (root: Element | null) => { themeAdapter.disposeComponents?.(root); };
+      const initBootstrapComponents = (root: Element | null) => { shellAdapter.initComponents?.(root); };
+      const disposeBootstrapComponents = (root: Element | null) => { shellAdapter.disposeComponents?.(root); };
       const scrollPageToTop = () => {
-        if (themeAdapter.scrollToTop) themeAdapter.scrollToTop();
+        if (shellAdapter.scrollToTop) shellAdapter.scrollToTop();
         else window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       };
       const shouldScrollMainSwap = (detail: any): boolean => {
@@ -264,12 +264,12 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
       };
 
       const setLoading = (loading: boolean) => {
-        if (themeAdapter.setLoading) { themeAdapter.setLoading(loading, mainOutlet()); return; }
+        if (shellAdapter.setLoading) { shellAdapter.setLoading(loading, mainOutlet()); return; }
         mainOutlet()?.toggleAttribute("data-bp-loading", loading);
       };
 
       const clearError = () => {
-        if (themeAdapter.clearError) { themeAdapter.clearError(); return; }
+        if (shellAdapter.clearError) { shellAdapter.clearError(); return; }
         const node = errorNode();
         if (!node) return;
         node.innerHTML = "";
@@ -277,8 +277,8 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
       };
 
       const showRequestErrorModal = (status: number, content: string) => {
-        if (themeAdapter.showRequestError) {
-          themeAdapter.showRequestError(status, content);
+        if (shellAdapter.showRequestError) {
+          shellAdapter.showRequestError(status, content);
           return;
         }
         const text = document.createElement("div");
@@ -300,7 +300,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
       };
 
       const replaceMainWithError = (title: string, message: string, action: any, context?: string) => {
-        if (themeAdapter.replaceMainWithError) { themeAdapter.replaceMainWithError(title, message, action, context, mainOutlet()); return; }
+        if (shellAdapter.replaceMainWithError) { shellAdapter.replaceMainWithError(title, message, action, context, mainOutlet()); return; }
         const outlet = mainOutlet();
         if (!outlet) return;
         outlet.innerHTML =
@@ -1251,7 +1251,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
           const state = (el as any)._htmx ?? ((el as any)._htmx = {});
           if (state.preload) return;
 
-          const headers: Record<string, string> = { Accept: "text/html; theme=bootstrap1; mode=page" };
+          const headers: Record<string, string> = { Accept: "text/html; mode=page" };
           attachBpHeaders(headers, action);
           const serviceId = serviceContextFor(el).id;
           state.preload = {
@@ -1892,7 +1892,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
             const mode = isMainTarget(ctx.target) ? "page" : "fragment";
             const hasAcceptHeader = Object.keys(ctx.request.headers).some((key) => key.toLowerCase() === "accept");
             if (!hasAcceptHeader) {
-              ctx.request.headers["Accept"] = "text/html; theme=bootstrap1; mode=" + mode;
+              ctx.request.headers["Accept"] = "text/html; mode=" + mode;
             }
           }
 
@@ -2241,28 +2241,27 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
       });
     })();
   });
-  return `${BETTERPORTAL_BROWSER_SOURCE_PREAMBLE}${body}`.replaceAll("theme=bootstrap1", `theme=${themeId}`);
+  return `${BETTERPORTAL_BROWSER_SOURCE_PREAMBLE}${body}`;
 }
 
 
-export interface BuildBetterPortalThemeRuntimeOptions {
-  themeId: string;
-  adapterSource?: BetterPortalThemeRuntimeSource;
+export interface BuildBetterPortalShellRuntimeOptions {
+  adapterSource?: BetterPortalShellRuntimeSource;
 }
 
-export async function buildBetterPortalThemeRuntimeAsset(
-  options: BuildBetterPortalThemeRuntimeOptions
-): Promise<ThemeRuntimeAsset> {
+export async function buildBetterPortalShellRuntimeAsset(
+  options: BuildBetterPortalShellRuntimeOptions
+): Promise<ShellRuntimeAsset> {
   const [htmx, sse] = await Promise.all([readTextAsset(HtmxPath), readTextAsset(HtmxSsePath)]);
   return {
-    body: [htmx.body, BETTERPORTAL_BROWSER_SOURCE_PREAMBLE, options.adapterSource, betterPortalShellRuntimeSource(options.themeId), sse.body]
+    body: [htmx.body, BETTERPORTAL_BROWSER_SOURCE_PREAMBLE, options.adapterSource, betterPortalShellRuntimeSource(), sse.body]
       .filter(Boolean)
       .join("\n;\n"),
     contentType: "application/javascript; charset=utf-8"
   };
 }
 
-export async function loadThemeRuntimeVendorAsset(assetPath: string): Promise<ThemeRuntimeAsset | null> {
+export async function loadShellRuntimeVendorAsset(assetPath: string): Promise<ShellRuntimeAsset | null> {
   const normalized = assetPath.replace(/^\/+/, "");
   const path = normalized === "htmx.min.js"
     ? HtmxPath
