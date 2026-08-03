@@ -124,3 +124,11 @@ The menu editor controls the BP shell navigation.
 Prefer shell menu entries over building persistent inner menus inside services.
 
 Menus should link only to app page routes backed by service page renderers. API, raw, dependency, and fragment-only routes can exist in app route allowlists, but they should not be generated or selected as menu entries.
+
+## Theme fragment editor
+
+The fragment editor is driven by the active theme's cached manifest. With no active theme there are no theme fragment controls. A `_name.tsx` definition is one replaceable fragment; `_name/index.tsx` is an ordered fragment block. Settings are stored under the active theme service-instance UUID, so switching themes switches both the available definitions and their saved choices.
+
+An unset value uses the theme default. `none` is the explicit empty value. Service fragments are selected from synced manifest metadata and the app route allowlist; the editor never fetches service or theme manifests from the browser.
+
+Legacy `app.fragments` and `app.slots` values remain read-only fallbacks until an administrator saves an explicit setting for that theme fragment. New edits write only `app.themeFragments`.

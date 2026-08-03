@@ -341,6 +341,13 @@ export function emitRegistry(scanResult: ScanResult): string {
   // -- Collect imports ------------------------------------------------
 
   const imports: Array<{ alias: string; path: string }> = [];
+  const themeFragmentImports = scanResult.themeFragments.map((fragment, index) => ({
+    fragment,
+    alias: `themeFragment${index}`
+  }));
+  for (const item of themeFragmentImports) {
+    imports.push({ alias: item.alias, path: toJsImport(item.fragment.relativePath) });
+  }
 
   // Map from theme import name -> ScannedThemeRenderer (for each route)
   const routeThemeImports = new Map<
@@ -462,6 +469,9 @@ export function emitRegistry(scanResult: ScanResult): string {
   lines.push(`import type { BetterPortalRegistry } from "@betterportal/framework";`);
   lines.push("");
   lines.push("export const registry: BetterPortalRegistry = {");
+  if (Object.keys(scanResult.dependencyAliases).length > 0) {
+    lines.push(`  dependencies: ${JSON.stringify(scanResult.dependencyAliases)},`);
+  }
   lines.push("  routes: [");
 
   // -- Emit routes ----------------------------------------------------
@@ -537,6 +547,18 @@ export function emitRegistry(scanResult: ScanResult): string {
     lines.push(`    }${routeComma}`);
   }
 
+  lines.push("  ],");
+  lines.push("  themeFragments: [");
+  for (const { fragment, alias } of themeFragmentImports) {
+    lines.push("    {");
+    lines.push(`      id: ${JSON.stringify(fragment.id)},`);
+    lines.push(`      kind: ${JSON.stringify(fragment.kind)},`);
+    lines.push(`      title: ${alias}.title,`);
+    lines.push(`      description: ${alias}.description,`);
+    if (fragment.kind === "block") lines.push(`      defaultItems: ${alias}.defaultItems,`);
+    lines.push(`      render: ${alias}.render`);
+    lines.push("    },");
+  }
   lines.push("  ]");
   lines.push("};");
   lines.push("");

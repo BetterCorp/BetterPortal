@@ -27,6 +27,7 @@ export * from "./runtime/registry.js";
 export * from "./runtime/serviceConfig.js";
 export * from "./runtime/tenantResolution.js";
 export * from "./runtime/view.js";
+export * from "./runtime/element.js";
 export * from "./runtime/handler.js";
 export * from "./runtime/streamHandler.js";
 export * from "./runtime/configStore.js";

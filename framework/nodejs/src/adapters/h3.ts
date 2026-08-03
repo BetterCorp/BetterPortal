@@ -3,7 +3,7 @@ import type { HttpMethod } from "../contracts/common.js";
 import type { JsonValue } from "../contracts/json.js";
 import type { BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
 import type { BetterPortalObservability, ObservabilityAttributes } from "../contracts/observability.js";
-import type { BetterPortalRegistry, RegisteredRoute, RouteUiAttributes, RouteUiOptions, ViewRenderContext } from "../contracts/registry.js";
+import type { BPElementReference, BetterPortalRegistry, RegisteredRoute, RouteUiAttributes, RouteUiOptions, ViewRenderContext } from "../contracts/registry.js";
 import type {
   ApiAuthRequirement,
   FileResponseOptions,
@@ -267,7 +267,7 @@ export function createH3Router(
       const register = methodRegistrar(app, method);
       register(route.path, async (event) => {
         return withRequestObservability(event, route, method, options, (obs) =>
-          handleRouteRequest(registry.routes, route, method, event, obs, options)
+          handleRouteRequest(registry.routes, registry.dependencies ?? {}, route, method, event, obs, options)
         );
       });
     }
@@ -474,7 +474,7 @@ function routePathsMatch(left: string, right: string): boolean {
   if (a.length !== b.length) return false;
   return a.every((segment, index) => {
     const other = b[index];
-    return segment === other || segment.startsWith(":") || other.startsWith(":");
+    return segment === other || pathParamName(segment) !== null || pathParamName(other) !== null;
   });
 }
 
@@ -597,9 +597,49 @@ function createRouteUiAttributes(url: string, options: RouteUiOptions = {}, form
   return attrs;
 }
 
+function createElementResolver(
+  extraContext: RequiredHandlerContext,
+  dependencyAliases: Readonly<Record<string, string>>
+): ViewRenderContext["element"] {
+  return (reference: BPElementReference) => {
+    if (!reference.fragment.trim()) return { unavailable: "fragment_required" };
+
+    if (reference.service === "theme") {
+      const themeServiceId = extraContext.app.shell?.serviceId;
+      const origin = themeServiceId ? serviceOrigin(extraContext, themeServiceId) : null;
+      if (!themeServiceId || !origin) return { unavailable: "theme_unavailable" };
+      const path = `/.well-known/bp/theme/fragment/${encodeURIComponent(reference.fragment)}`;
+      return { serviceId: themeServiceId, url: appendQuery(path, reference.args?.query, origin) };
+    }
+
+    if (!reference.path?.startsWith("/")) return { unavailable: "service_path_required" };
+    const pluginId = dependencyAliases[reference.service] ?? reference.service;
+    const serviceIds = new Set(extraContext.tenant.services
+      .filter((service) => service.enabled && (service.serviceId === pluginId || service.id === pluginId))
+      .map((service) => service.id));
+    const mounts = extraContext.app.routes.filter((mount) => {
+      const servicePath = routeMountServicePath(mount);
+      return mount.enabled !== false
+        && serviceIds.has(mount.serviceId)
+        && Boolean(servicePath)
+        && routePathsMatch(servicePath!, reference.path!);
+    });
+    if (mounts.length !== 1) return { unavailable: mounts.length ? "ambiguous_provider" : "service_unavailable" };
+    const mount = mounts[0];
+    const origin = serviceOrigin(extraContext, mount.serviceId);
+    if (!origin) return { unavailable: "service_unavailable" };
+    const servicePath = fillAppPath(routeMountServicePath(mount)!, reference.args?.params);
+    return {
+      serviceId: mount.serviceId,
+      url: renderUrl(servicePath, { absolute: true, origin, query: reference.args?.query, fragment: reference.fragment })
+    };
+  };
+}
+
 function createViewRenderContext(
   route: RegisteredRoute,
   ctx: RouteHandlerContext,
+  dependencyAliases: Readonly<Record<string, string>>,
   theme: string,
   mode: import("../contracts/common.js").RenderMode,
   kind: "page" | "fragment" | "component",
@@ -621,7 +661,8 @@ function createViewRenderContext(
       current: (options = {}) => ui(current(options), options),
       fragment: ui,
       form
-    }
+    },
+    element: createElementResolver(ctx as RequiredHandlerContext, dependencyAliases)
   };
 }
 function createServiceRouteUrlBuilder(routes: ReadonlyArray<RegisteredRoute>, extraContext: RequiredHandlerContext, currentServiceId?: string): RouteHandlerContext["routeUrl"] {
@@ -777,6 +818,7 @@ async function withSpan<T>(
 
 async function handleRouteRequest(
   registryRoutes: ReadonlyArray<RegisteredRoute>,
+  dependencyAliases: Readonly<Record<string, string>>,
   route: RegisteredRoute,
   method: HttpMethod,
   event: BetterPortalEvent,
@@ -1010,7 +1052,7 @@ async function handleRouteRequest(
   const requestedKind: "page" | "component" | "fragment" =
     fragmentKey ? "fragment" : componentId ? "component" : "page";
   const requestedKey = fragmentKey ?? componentId ?? undefined;
-  const renderContext = createViewRenderContext(route, ctx, themeId, representation.mode ?? "page", requestedKind, requestedKey, handlerStatus);
+  const renderContext = createViewRenderContext(route, ctx, dependencyAliases, themeId, representation.mode ?? "page", requestedKind, requestedKey, handlerStatus);
 
   // Status-specific renderer lookup (any non-undefined status code)
   if (handlerStatus !== 200) {

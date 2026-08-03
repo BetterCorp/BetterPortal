@@ -57,13 +57,6 @@ export interface Bootstrap1HostPageContext {
   initialRouteStatus?: number;
   routeLinks: Bootstrap1RouteLink[];
   navItems?: Bootstrap1NavItem[];
-  resolvedFragments: Record<string, Array<{
-    fragmentId: string;
-    serviceId: string;
-    pluginId?: string;
-    url: string;
-    fragmentKey: string;
-  }>>;
   loginUrl?: string;
   logoutUrl?: string;
   chrome?: BetterPortalThemeChrome;
@@ -2127,18 +2120,6 @@ function buildServiceMap(routeLinks: Bootstrap1RouteLink[]): Record<string, stri
   return map;
 }
 
-function appendFragmentKey(url: string, fragmentKey: string): string {
-  return `${url}${url.includes("?") ? "&" : "?"}_f=${fragmentKey}`;
-}
-
-// Mirrors fragmentTriggerSpec in ../index.ts - fragments listen for
-// conventional reload events (fired via HX-Trigger, e.g. auth login/logout).
-function fragmentTriggerSpec(fragmentKey: string, pluginId?: string): string {
-  const triggers = ["load", `bp:fragment:${fragmentKey} from:body`];
-  if (pluginId) triggers.push(`bp:fragments:${pluginId} from:body`);
-  return triggers.join(", ");
-}
-
 export function renderBrand(brandName: string, logoUrl?: string, id?: string): HtmlRenderable {
   return (
     <div
@@ -2192,7 +2173,6 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
           </div>
         </div>
       </div>
-      <div data-bp-background-fragments="" hidden></div>
       <div class="bp-admin">
         <aside class="bp-admin__sidebar">
           {renderBrand(context.brandName, context.logoUrl)}
@@ -2229,24 +2209,12 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
             <div
               class="bp-admin__profile-shell"
               id="bp-frag-nav"
-              hx-get="/.well-known/bp/theme/fragments?location=nav"
-              hx-trigger="bp:fragments-changed from:body"
+              hx-get="/.well-known/bp/theme/fragment/nav"
+              hx-trigger="load, bp:fragments-changed from:body"
               hx-swap="innerHTML"
               data-bp-no-route=""
             >
-              {(context.resolvedFragments["nav"] ?? []).map((frag) => (
-                <div
-                  data-bp-fragment={frag.fragmentId}
-                  data-bp-fragment-location="nav"
-                  data-bp-service={frag.serviceId}
-                  hx-get={appendFragmentKey(frag.url, frag.fragmentKey)}
-                  hx-trigger={fragmentTriggerSpec(frag.fragmentKey, frag.pluginId)}
-                  hx-target="this"
-                  hx-swap="innerHTML"
-                >
-                  <span class="placeholder-glow"><span class="placeholder col-12 rounded-pill"></span></span>
-                </div>
-              ))}
+              <span class="placeholder-glow"><span class="placeholder col-12 rounded-pill"></span></span>
             </div>
             <div class="bp-admin__topbar-progress" id="bp-topbar-progress"></div>
           </header>
@@ -2302,24 +2270,11 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
             <footer
               class="bp-admin__footer"
               id="bp-frag-footer"
-              hx-get="/.well-known/bp/theme/fragments?location=footer"
-              hx-trigger="bp:fragments-changed from:body"
+              hx-get="/.well-known/bp/theme/fragment/footer"
+              hx-trigger="load, bp:fragments-changed from:body"
               hx-swap="innerHTML"
               data-bp-no-route=""
             >
-              {(context.resolvedFragments["footer"] ?? []).map((frag) => (
-                <div
-                  data-bp-fragment={frag.fragmentId}
-                  data-bp-fragment-location="footer"
-                  data-bp-service={frag.serviceId}
-                  hx-get={appendFragmentKey(frag.url, frag.fragmentKey)}
-                  hx-trigger={fragmentTriggerSpec(frag.fragmentKey, frag.pluginId)}
-                  hx-target="this"
-                  hx-swap="innerHTML"
-                >
-                  <span class="placeholder-glow"><span class="placeholder col-12 rounded-pill"></span></span>
-                </div>
-              ))}
             </footer>
           </section>
         </section>

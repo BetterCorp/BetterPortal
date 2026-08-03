@@ -31,7 +31,6 @@ export interface EmbeddedHostPageContext {
   initialServiceId?: string;
   initialRouteError?: string;
   routeLinks: EmbeddedRouteLink[];
-  backgroundServices: Array<{ serviceId: string; origin: string }>;
   chrome?: BetterPortalThemeChrome;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
@@ -153,13 +152,11 @@ function EmbeddedBody(context: EmbeddedHostPageContext): HtmlRenderable {
       data-bp-embedded-root=""
       data-bp-services={JSON.stringify(serviceMap)}
       data-bp-routes={JSON.stringify(context.routeLinks)}
-      data-bp-background-services={JSON.stringify(context.backgroundServices)}
       data-bp-initial-service={context.initialServiceId}
       data-bp-menu-health="false"
       {...betterPortalChromeAttributes(context.chrome)}
       hx-ext="bp-shell"
     >
-      <div data-bp-background-fragments="" hidden></div>
       <div
         id="bp-main"
         class="bp-embedded__main"

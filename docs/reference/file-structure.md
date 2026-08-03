@@ -43,6 +43,8 @@ Small platform integration packages belong under `plugins/nodejs`.
 
 Themes belong under `themes/nodejs`.
 
+Theme packages declare their `theme/` directory in `package.json`. Top-level `_name.tsx` files define singular theme fragments, while `_name/index.tsx` defines an ordered fragment block. Generated registries remain under `.bp-generated/` and are not edited by hand.
+
 ## Package output
 
 Published service and theme packages include runtime build output and plugin metadata only:

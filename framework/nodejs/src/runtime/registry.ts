@@ -156,6 +156,7 @@ export interface ManifestBaseFields {
   apiContracts?: PluginManifest["apiContracts"];
   m2mRequests?: PluginManifest["m2mRequests"];
   developerResources?: PluginManifest["developerResources"];
+  theme?: PluginManifest["theme"];
   cacheHints?: PluginManifest["cacheHints"];
 }
 
@@ -268,6 +269,17 @@ export function buildManifestFromRegistry(
     apiContracts,
     m2mRequests: base.m2mRequests ?? [],
     developerResources: base.developerResources ?? [],
+    ...(registry.themeFragments?.length || base.theme ? {
+      theme: {
+        fragments: registry.themeFragments?.map((fragment) => ({
+          id: fragment.id,
+          kind: fragment.kind,
+          title: fragment.title,
+          description: fragment.description,
+          defaultItems: [...(fragment.defaultItems ?? [])]
+        })) ?? [...(base.theme?.fragments ?? [])]
+      }
+    } : {}),
     cacheHints: base.cacheHints ?? { metadataTtlSeconds: 1800 }
   };
 }

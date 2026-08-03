@@ -37,7 +37,7 @@ const asset = await buildBetterPortalThemeRuntimeAsset({
 
 `js()` returns safe `RawText`. Pass it directly to the runtime builder or place it directly inside a `<script>` element. Do not call `.toString()` and do not wrap it with `raw()`.
 
-The shared runtime owns service/app URL rewriting, managed BP headers, header-aware preload, HTMX lifecycle handling, downloads, history, authentication failures, SSE, background fragments, and route chrome state.
+The shared runtime owns service/app URL rewriting, managed BP headers, header-aware preload, HTMX lifecycle handling, downloads, history, authentication failures, SSE, `bp-element` states, and route chrome state. It never discovers service schemas in the browser.
 
 For initial shell rendering, spread `betterPortalChromeAttributes(route.chrome)` onto the element marked `data-bp-shell-root`. After route responses, the runtime parses every `bp-chrome-*` content-type parameter, updates the corresponding `data-bp-chrome-*` attributes, removes stale attributes, and calls the optional typed `applyChrome(chrome, previousChrome, root)` adapter hook. Themes should normally use CSS against the data attributes and reserve `applyChrome` for presentation that cannot be expressed in CSS. Themes must not register duplicate HTMX chrome listeners or infer authentication state from chrome values.
 

@@ -10,6 +10,7 @@
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
     "test": "node --import tsx --test tests/runtime.test.ts && bsb-plugin-cli test",
+    "bp:gen": "bp run gen",
     "bp:types": "bp run types",
     "bp:contract": "bp run contract",
     "publish:bp": "bp publish",
@@ -49,6 +50,7 @@
     "orgId": "betterportal",
     "hooks": {
       "afterSchemas": [
+        "bp:gen",
         "bp:types"
       ],
       "afterBuild": [
@@ -59,6 +61,9 @@
   "betterportal": {
     "definitions": [
       "src/plugins/service-betterportal-theme-embedded/index.ts"
+    ],
+    "themes": [
+      "src/plugins/service-betterportal-theme-embedded/theme"
     ]
   },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",

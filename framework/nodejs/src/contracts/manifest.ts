@@ -44,6 +44,20 @@ export const DeveloperResourceSchema = av.object({
 }, { unknownKeys: "strip" });
 export type DeveloperResource = Infer<typeof DeveloperResourceSchema>;
 
+export const ThemeFragmentDescriptorSchema = av.object({
+  id: av.string().pattern("^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"),
+  kind: av.enum_(["fragment", "block"] as const),
+  title: av.string().minLength(1),
+  description: av.string(),
+  defaultItems: av.array(av.string().minLength(1)).default([])
+});
+export type ThemeFragmentDescriptor = Infer<typeof ThemeFragmentDescriptorSchema>;
+
+export const ThemeManifestSchema = av.object({
+  fragments: av.array(ThemeFragmentDescriptorSchema).default([])
+});
+export type ThemeManifest = Infer<typeof ThemeManifestSchema>;
+
 export const PluginManifestSchema = av.object({
   protocolVersion: av.literal(1),
   pluginId: PluginIdSchema,
@@ -63,6 +77,7 @@ export const PluginManifestSchema = av.object({
   apiContracts: av.array(ApiContractDescriptorSchema).default([]),
   m2mRequests: av.array(M2MRequestDescriptorSchema).default([]),
   developerResources: av.array(DeveloperResourceSchema).default([]),
+  theme: av.optional(ThemeManifestSchema),
   cacheHints: av.object({
     metadataTtlSeconds: av.int().min(0).default(1800)
   }, { unknownKeys: "strip" }).default({ metadataTtlSeconds: 1800 })

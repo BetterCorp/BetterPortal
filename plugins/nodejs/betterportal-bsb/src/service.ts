@@ -38,6 +38,8 @@ import {
   type BetterPortalResolvedRequestContext,
   type BetterPortalObservability,
   type BetterPortalRegistry,
+  type BetterPortalThemeFragmentItem,
+  type RegisteredThemeFragment,
   type RegisteredRoute,
   type BetterPortalThemeConfig,
   type JwtVerifier,
@@ -55,7 +57,8 @@ import {
   type ServiceConfigStore,
   type ServiceConfigTicketClaims,
   type RouteHandlerContext,
-  type TenantAppValidation
+  type TenantAppValidation,
+  toHtmlString
 } from "@betterportal/framework";
 import { createH3Router, isBpManagementAuthPath, isBpManagementAuthRoute, type H3AuthContext } from "@betterportal/framework/lib/adapters/h3.js";
 import { BootstrapStateStore, type BootstrapStateFile } from "./bootstrapState.js";
@@ -67,6 +70,7 @@ import {
   eventHeaders,
   getEventPeerIp,
   handleCorsRequest,
+  htmlResponse,
   jsonResponse,
   type BetterPortalEvent,
   type BetterPortalH3App
@@ -272,6 +276,7 @@ export abstract class BPService<
         menu: [...(a.menu ?? [])],
         slots: [...(a.slots ?? [])],
         fragments: a.fragments,
+        themeFragments: a.themeFragments,
         auth: a.auth
       })) as any
     } as unknown as PlatformConfig;
@@ -283,6 +288,95 @@ export abstract class BPService<
   protected abstract definition(): BPServiceDefinition;
 
   protected onRegistered?(registry: BetterPortalRegistry, obs: Observable): void | Promise<void>;
+
+  private registerThemeFragmentRoutes(registry: BetterPortalRegistry): void {
+    if (!registry.themeFragments?.length) return;
+    this.app.get("/.well-known/bp/theme/fragment/**", async (event) => {
+      let id: string;
+      try {
+        id = decodeURIComponent(event.url.pathname.slice("/.well-known/bp/theme/fragment/".length));
+      } catch {
+        return new Response("", { status: 400 });
+      }
+      const definition = registry.themeFragments!.find((fragment) => fragment.id === id);
+      if (!definition) return new Response("", { status: 404 });
+      const requestContext = this.resolveHandlerContext(event);
+      const activeTheme = requestContext.tenant?.services.find((service) => service.id === requestContext.app?.shell?.serviceId);
+      if (!requestContext.tenant || !requestContext.app || activeTheme?.serviceId !== this.manifest.pluginId) {
+        return new Response("", { status: 404 });
+      }
+      const app = requestContext.app;
+      const activeThemeServiceId = app.shell!.serviceId;
+      const settings = app.themeFragments?.[activeThemeServiceId] ?? {};
+      const setting = settings[id];
+      if (setting?.mode === "none") return new Response(null, { status: 204 });
+
+      const renderBuiltIn = (fragment: RegisteredThemeFragment): string => toHtmlString(fragment.render({
+        tenant: requestContext.tenant!,
+        app,
+        config: this.effectiveServiceConfig(requestContext.tenant!.id, app.id),
+        request: { url: event.url.toString() },
+        fragmentId: fragment.id,
+        items: []
+      }));
+      const renderItem = (item: any): string => {
+        if (item?.source === "theme") {
+          const child = registry.themeFragments!.find((fragment) => fragment.id === item.fragmentId && fragment.kind === "fragment");
+          return child ? renderBuiltIn(child) : "";
+        }
+        if (item?.source !== "service") return "";
+        if (typeof item.targetPath !== "string" || !item.targetPath.startsWith("/")) return "";
+        const service = requestContext.tenant!.services.find((candidate) => candidate.enabled && candidate.id === item.serviceId);
+        const mounted = app.routes.some((route) => route.enabled !== false
+          && route.serviceId === item.serviceId
+          && (route.resolvedServicePath ?? route.targetPath) === item.targetPath);
+        if (!service || !mounted) return "";
+        const serviceUrl = new URL(service.hostname);
+        const target = new URL(item.targetPath, serviceUrl);
+        if (target.origin !== serviceUrl.origin) return "";
+        target.searchParams.set("_f", item.fragmentId);
+        const escape = (value: string) => value.replace(/[&<>"']/g, (character) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+        })[character]!);
+        return `<bp-element data-bp-element data-bp-state="loading" aria-busy="true" data-bp-service="${escape(item.serviceId)}" hx-get="${escape(target.toString())}" hx-trigger="load, bp:element-retry" hx-target="this" hx-swap="none"></bp-element>`;
+      };
+
+      if (definition.kind === "fragment") {
+        const html = setting?.mode === "override" ? renderItem(setting.item) : renderBuiltIn(definition);
+        return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
+      }
+      const legacyFragments = app.fragments[definition.id] ?? [];
+      const legacySlots = app.slots.flatMap((slot) => {
+        if (!slot.enabled || !slot.slotId.startsWith(`${definition.id}.`)) return [];
+        const route = app.routes.find((candidate) => candidate.enabled !== false
+          && candidate.serviceId === slot.serviceId
+          && candidate.viewId === slot.viewId);
+        const targetPath = route?.resolvedServicePath ?? route?.targetPath;
+        return targetPath ? [{ source: "service" as const, serviceId: slot.serviceId, fragmentId: slot.slotId, targetPath }] : [];
+      });
+      let configuredItems: BetterPortalThemeFragmentItem[];
+      if (setting?.mode === "items") configuredItems = setting.items;
+      else if (setting?.mode === "override") configuredItems = [setting.item];
+      else if (setting === undefined && legacyFragments.length > 0) configuredItems = legacyFragments
+        .filter((item) => item.enabled)
+        .map((item) => ({
+          source: "service" as const,
+          ...item,
+          fragmentId: item.fragmentId.includes(".") ? item.fragmentId : `${definition.id}.${item.fragmentId}`
+        }));
+      else if (setting === undefined && legacySlots.length > 0) configuredItems = legacySlots;
+      else configuredItems = (definition.defaultItems ?? []).map((fragmentId) => ({ source: "theme" as const, fragmentId }));
+      const html = toHtmlString(definition.render({
+        tenant: requestContext.tenant,
+        app,
+        config: this.effectiveServiceConfig(requestContext.tenant.id, app.id),
+        request: { url: event.url.toString() },
+        fragmentId: definition.id,
+        items: configuredItems.map(renderItem)
+      }));
+      return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
+    });
+  }
 
   protected controlPlaneCredentials(): { url: string; apiKey: string } | null {
     if (!this.resolvedCpUrl || !this.resolvedApiKey) return null;
@@ -659,6 +753,7 @@ export abstract class BPService<
     registerBpWellKnownRoutes(this.app, this.manifest, bpSchema, {
       health: () => this.renderHealth()
     });
+    this.registerThemeFragmentRoutes(def.registry);
 
     if (this.onRegistered) {
       const registeredSpan = this.observability.startSpan("bp.plugin.on_registered", {
@@ -837,6 +932,7 @@ export abstract class BPService<
         raw?: boolean;
         apiContracts?: unknown[];
         demoScenarios?: unknown[];
+        fragments?: Array<{ fragmentId: string; targetPath: string }>;
       }> = {};
       for (const view of this.manifest.views) {
         const viewWithAuth = view as unknown as {
@@ -855,6 +951,15 @@ export abstract class BPService<
         };
         const themeRenderers = viewWithAuth.html?.themeRenderers ?? {};
         const renderable = Object.keys(themeRenderers).length > 0;
+        const fragments: Array<{ fragmentId: string; targetPath: string }> = [];
+        const seenFragments = new Set<string>();
+        for (const theme of Object.values(themeRenderers) as any[]) {
+          for (const renderer of theme?.renderers ?? []) {
+            if (typeof renderer?.slotId !== "string" || renderer.slotId === "main" || seenFragments.has(renderer.slotId)) continue;
+            seenFragments.add(renderer.slotId);
+            fragments.push({ fragmentId: renderer.slotId, targetPath: view.path });
+          }
+        }
         const schemas = Object.fromEntries(
           [
             ["params", viewWithAuth.paramsSchema],
@@ -877,7 +982,8 @@ export abstract class BPService<
           ...(Object.keys(schemas).length ? { schemas } : {}),
           ...(viewWithAuth.raw === true ? { raw: true } : {}),
           ...(Array.isArray(viewWithAuth.apiContracts) && viewWithAuth.apiContracts.length ? { apiContracts: viewWithAuth.apiContracts } : {}),
-          ...(view.demoScenarios.length ? { demoScenarios: [...view.demoScenarios] } : {})
+          ...(view.demoScenarios.length ? { demoScenarios: [...view.demoScenarios] } : {}),
+          ...(fragments.length ? { fragments } : {})
         };
       }
       const response = await fetch(pollUrl, {
@@ -900,6 +1006,7 @@ export abstract class BPService<
           apiContracts: this.manifest.apiContracts,
           m2mRequests: this.manifest.m2mRequests,
           developerResources: this.manifest.developerResources,
+          theme: this.manifest.theme,
           ...(this.publishedAuthProvider ? { authProvider: this.publishedAuthProvider } : {}),
           viewIndex
         })
@@ -1360,7 +1467,8 @@ export abstract class BPService<
         routes: [...app.routes],
         menu: [...app.menu],
         slots: [...app.slots],
-        fragments: { ...app.fragments }
+        fragments: { ...app.fragments },
+        themeFragments: { ...app.themeFragments }
       }
     };
   }

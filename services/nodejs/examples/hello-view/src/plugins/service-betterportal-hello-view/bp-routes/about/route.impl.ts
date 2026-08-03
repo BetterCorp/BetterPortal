@@ -58,7 +58,7 @@ export const handleGet = createHandler(
       },
       {
         title: "Themes",
-        text: "Themes render the shell and negotiate content from services. They keep navigation, profile fragments, background fragments, and chrome behavior outside business services."
+        text: "Themes render the shell and negotiate content from services. They keep navigation, declared theme fragments, fragment blocks, and chrome behavior outside business services."
       },
       {
         title: "Auth",

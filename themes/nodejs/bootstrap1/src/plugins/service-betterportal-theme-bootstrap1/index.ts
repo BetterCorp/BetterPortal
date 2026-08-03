@@ -48,6 +48,7 @@ import { isUserFacingRoute, renderBootstrap1HostPage, renderNavItems, shellStyle
 import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap1Asset } from "./assets.js";
 import { Bootstrap1DeveloperResources } from "./resources.js";
+import { registry } from "./.bp-generated/registry.js";
 
 // Parse-only base for relative request URLs. Never emit this origin.
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
@@ -174,12 +175,6 @@ function resolveSafeServiceTarget(
  * Any service response can fire these via the HX-Trigger header (e.g. auth
  * after login/logout); fragments that listen reload, everyone else ignores.
  */
-function fragmentTriggerSpec(fragmentKey: string, pluginId?: string): string {
-  const triggers = ["load", `bp:fragment:${fragmentKey} from:body`];
-  if (pluginId) triggers.push(`bp:fragments:${pluginId} from:body`);
-  return triggers.join(", ");
-}
-
 function resolveSafeServiceViewTarget(
   service: { hostname: string } | { endpointBaseUrl: string },
   route: Parameters<typeof buildServiceViewUrl>[1],
@@ -250,8 +245,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         developerResources: Bootstrap1DeveloperResources,
         configSchemas: THEME_CONFIG_SCHEMAS as any
       },
-      // Theme exposes manual routes (not bp-routes/) - registered in onRegistered.
-      registry: { routes: [] }
+      registry
     };
   }
 
@@ -357,7 +351,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.get("/.well-known/bp/theme/style", (event) => this.handleThemeStyle(event));
     this.app.get("/.well-known/bp/theme/brand", (event) => this.handleThemeBrand(event));
     this.app.get("/.well-known/bp/theme/nav", (event) => this.handleThemeNav(event));
-    this.app.get("/.well-known/bp/theme/fragments", (event) => this.handleThemeFragments(event));
 
     this.app.get("/**", (event) => this.handleIndex(event));
   }
@@ -511,59 +504,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const navItems = this.buildAppNavItems(portalConfig, requestContext, currentPath, url.origin);
     const rendered = renderNavItems(navItems, mobile);
     const html = Array.isArray(rendered) ? rendered.map((r) => toHtmlString(r as any)).join("") : toHtmlString(rendered as any);
-    return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
-  }
-
-  private buildLocationFragments(
-    portalConfig: any,
-    requestContext: any,
-    location: string,
-    themeOrigin: string
-  ): Array<{ fragmentId: string; serviceId: string; pluginId?: string; url: string; fragmentKey: string }> {
-    const appFragments = (requestContext.app as any).fragments as Record<string, Array<{ serviceId: string; fragmentId: string; targetPath: string; enabled: boolean }>> | undefined;
-    const assignments = appFragments?.[location] ?? [];
-    return assignments
-      .filter((a) => a.enabled)
-      .map((a) => {
-        const binding = resolveServiceForTenant(portalConfig, a.serviceId, requestContext);
-        if (!binding) return null;
-        const safeTarget = resolveSafeServiceTarget(binding.service, a.targetPath, themeOrigin);
-        if (!safeTarget.ok) return null;
-        // Load-triggered fragments must be absolute before client JS runs.
-        return {
-          fragmentId: a.fragmentId,
-          serviceId: a.serviceId,
-          pluginId: (binding.service as { serviceId?: string }).serviceId,
-          url: safeTarget.url,
-          fragmentKey: `${location}.${a.fragmentId}`
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
-  }
-
-  private async handleThemeFragments(event: BetterPortalEvent): Promise<Response> {
-    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
-    const location = url.searchParams.get("location") ?? "nav";
-    const portalConfig = this.requirePortalConfig();
-    const requestContext = resolveThemeRequestContext(
-      portalConfig,
-      eventHeaders(event),
-      resolveThemeHostname(eventHeaders(event), this.headerTrustOptions()) ?? undefined,
-      this.headerTrustOptions()
-    );
-    if (!requestContext) {
-      this.logThemeContextResolutionFailure(event);
-      return htmlResponse("", 200, "text/html; mode=fragment");
-    }
-    this.tagRequestContext(event, requestContext.tenant.id, requestContext.app.id);
-
-    const frags = this.buildLocationFragments(portalConfig, requestContext, location, url.origin);
-    const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const appendFragmentKey = (targetUrl: string, fragmentKey: string) =>
-      `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}_f=${fragmentKey}`;
-    const html = frags.map((f) =>
-      `<div data-bp-fragment="${escape(f.fragmentId)}" data-bp-fragment-location="${escape(location)}" data-bp-service="${escape(f.serviceId)}" hx-get="${escape(appendFragmentKey(f.url, f.fragmentKey))}" hx-trigger="${escape(fragmentTriggerSpec(f.fragmentKey, f.pluginId))}" hx-target="this" hx-swap="innerHTML"><span class="placeholder-glow"><span class="placeholder col-12 rounded-pill"></span></span></div>`
-    ).join("");
     return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
   }
 
@@ -1196,61 +1136,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           ? initialSafeTarget.error
           : undefined;
 
-      const resolvedFragments: Record<string, Array<{
-        fragmentId: string;
-        serviceId: string;
-        pluginId?: string;
-        url: string;
-        fragmentKey: string;
-      }>> = {};
-
-      // New fragments config
-      const appFragments = (requestContext.app as any).fragments as Record<string, Array<{ serviceId: string; fragmentId: string; targetPath: string; enabled: boolean }>> | undefined;
-
-      if (appFragments && Object.keys(appFragments).length > 0) {
-        for (const [location, assignments] of Object.entries(appFragments)) {
-          resolvedFragments[location] = assignments
-            .filter(a => a.enabled)
-            .map(a => {
-              const binding = resolveServiceForTenant(portalConfig, a.serviceId, requestContext);
-              if (!binding) return null;
-              const safeTarget = resolveSafeServiceTarget(binding.service, a.targetPath, themeOrigin);
-              if (!safeTarget.ok) return null;
-              // Load-triggered fragments must be absolute before client JS runs.
-              return {
-                fragmentId: a.fragmentId,
-                serviceId: a.serviceId,
-                pluginId: (binding.service as { serviceId?: string }).serviceId,
-                url: safeTarget.url,
-                fragmentKey: `${location}.${a.fragmentId}`
-              };
-            })
-            .filter((x): x is NonNullable<typeof x> => x !== null);
-        }
-      } else {
-        // Backward compat: map old slots to fragments
-        for (const slot of requestContext.app.slots) {
-          if (!slot.enabled) continue;
-          const dotIdx = slot.slotId.indexOf(".");
-          if (dotIdx === -1) continue;
-          const location = slot.slotId.slice(0, dotIdx);
-          const id = slot.slotId.slice(dotIdx + 1);
-          const binding = resolveServiceForTenant(portalConfig, slot.serviceId, requestContext);
-          if (!binding) continue;
-          if (!resolvedFragments[location]) resolvedFragments[location] = [];
-          const viewPath = inferServicePathFromViewId(slot.viewId);
-          const safeTarget = resolveSafeServiceTarget(binding.service, viewPath, themeOrigin);
-          if (!safeTarget.ok) continue;
-          resolvedFragments[location].push({
-            fragmentId: id,
-            serviceId: slot.serviceId,
-            pluginId: (binding.service as { serviceId?: string }).serviceId,
-            url: safeTarget.url,
-            fragmentKey: slot.slotId
-          });
-        }
-      }
-
       const originPolicy = buildOriginPolicy(requestContext);
 
       const baseTheme = this.applyThemeServiceConfig(
@@ -1303,7 +1188,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           initialServiceId: currentRoute?.serviceId,
           routeLinks,
           navItems: navItems as any,
-          resolvedFragments,
           loginUrl,
           chrome: currentRoute?.chrome,
           aiManifestUrl: "/.well-known/bp/ai.json",

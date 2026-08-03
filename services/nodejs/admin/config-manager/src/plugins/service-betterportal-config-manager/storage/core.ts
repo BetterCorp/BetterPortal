@@ -691,7 +691,8 @@ export abstract class BaseStorage implements PlatformConfigStore {
             routes: [],
             menu: [],
             slots: [],
-            fragments: {}
+            fragments: {},
+            themeFragments: {}
           }
         }
       } : {})
@@ -790,6 +791,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
               .map(([loc, frags]) => [loc, frags.filter((f) => serviceKeySet.has(f.serviceId))])
               .filter(([, frags]) => (frags as unknown[]).length > 0)
           ),
+      themeFragments: isThemeCaller ? app.themeFragments : {},
       auth: app.auth
     };
   }

@@ -38,6 +38,7 @@ import {
 } from "@betterportal/plugin-bsb";
 import { loadEmbeddedAsset } from "./assets.js";
 import { EmbeddedDeveloperResources } from "./resources.js";
+import { registry } from "./.bp-generated/registry.js";
 import { renderEmbeddedHostPage, type EmbeddedRouteLink } from "./theme/index.js";
 
 const PluginConfigSchema = av.object({
@@ -170,7 +171,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         capabilities: ["theme"],
         developerResources: EmbeddedDeveloperResources
       },
-      registry: { routes: [] }
+      registry
     };
   }
 
@@ -375,15 +376,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           };
         })
         .filter((route): route is EmbeddedRouteLink => route !== null);
-      const backgroundServices = Array.from(new Map(
-        routeLinks
-          .filter((route) => route.requestUrl)
-          .map((route) => [route.serviceId, {
-            serviceId: route.serviceId,
-            origin: new URL(route.requestUrl!).origin
-          }])
-      ).values());
-
       const initialRouteBinding = currentRoute
         ? resolveServiceForTenant(portalConfig, currentRoute.serviceId, requestContext)
         : null;
@@ -429,7 +421,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           initialRouteError,
           initialServiceId: currentRoute?.serviceId,
           routeLinks,
-          backgroundServices,
           chrome: currentRoute?.chrome,
           aiManifestUrl: "/.well-known/bp/ai.json",
           automationCatalogUrl: discoveryUrls?.catalogUrl,

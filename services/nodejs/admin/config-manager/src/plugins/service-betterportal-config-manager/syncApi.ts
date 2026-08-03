@@ -12,9 +12,10 @@ import type {
   BetterPortalRouteMount,
   BetterPortalConfig,
   DeveloperResource,
+  ThemeManifest,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { DeveloperResourceSchema, deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
+import { DeveloperResourceSchema, ThemeManifestSchema, deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, isApiRoute } from "./routeMounts.js";
 
@@ -56,6 +57,7 @@ export interface CachedManifestView {
   apiContracts: JsonValue[];
   /** Example payloads advertised by the service route. */
   demoScenarios: JsonValue[];
+  fragments: Array<{ fragmentId: string; targetPath: string }>;
 }
 
 export interface CachedManifest {
@@ -67,6 +69,7 @@ export interface CachedManifest {
   apiContracts: JsonValue[];
   m2mRequests: JsonValue[];
   developerResources: DeveloperResource[];
+  theme?: ThemeManifest;
   viewIndex: Record<string, CachedManifestView>;
   configSchemas: ConfigSchemaDescriptor[];
   webhooks: WebhookEventDescriptor[];
@@ -136,6 +139,7 @@ function normalizeManifest(input: {
   apiContracts?: JsonValue[];
   m2mRequests?: JsonValue[];
   developerResources?: DeveloperResource[];
+  theme?: ThemeManifest;
   viewIndex?: Record<string, {
     viewId: string;
     path: string;
@@ -148,6 +152,7 @@ function normalizeManifest(input: {
     raw?: boolean;
     apiContracts?: JsonValue[];
     demoScenarios?: JsonValue[];
+    fragments?: Array<{ fragmentId: string; targetPath: string }>;
     permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
   }>;
 }): CachedManifest {
@@ -165,7 +170,10 @@ function normalizeManifest(input: {
       ...(v.schemas && typeof v.schemas === "object" ? { schemas: v.schemas } : {}),
       ...(v.raw === true ? { raw: true } : {}),
       apiContracts: Array.isArray(v.apiContracts) ? v.apiContracts : [],
-      demoScenarios: Array.isArray(v.demoScenarios) ? v.demoScenarios : []
+      demoScenarios: Array.isArray(v.demoScenarios) ? v.demoScenarios : [],
+      fragments: Array.isArray(v.fragments) ? v.fragments.filter((fragment) =>
+        typeof fragment?.fragmentId === "string" && typeof fragment?.targetPath === "string"
+      ) : []
     };
   }
 
@@ -186,6 +194,7 @@ function normalizeManifest(input: {
         }
       })
       : [],
+    ...(input.theme ? { theme: ThemeManifestSchema.parse(input.theme) } : {}),
     viewIndex: normalizedViews,
     configSchemas: Array.isArray(input.configSchemas) ? input.configSchemas : [],
     webhooks: Array.isArray(input.webhooks) ? input.webhooks : [],
@@ -206,6 +215,7 @@ export async function reconcileServiceRegistry(
     apiContracts?: JsonValue[];
     m2mRequests?: JsonValue[];
     developerResources?: DeveloperResource[];
+    theme?: ThemeManifest;
   } = {}
 ): Promise<CachedManifest> {
   const viewIndex: NonNullable<Parameters<typeof normalizeManifest>[0]["viewIndex"]> = {};
@@ -236,7 +246,15 @@ export async function reconcileServiceRegistry(
         ...(scenario.description ? { description: scenario.description } : {}),
         ...(scenario.match ? { match: scenario.match } : {}),
         response: scenario.response
-      }))
+      })),
+      fragments: [...new Map(Object.values(route.themeRenderers).flatMap((theme) =>
+        theme.fragments.flatMap((fragment) => {
+          const fragmentId = fragment.fragmentLocation && fragment.fragmentId
+            ? `${fragment.fragmentLocation}.${fragment.fragmentId}`
+            : fragment.rendererId;
+          return [[fragmentId, { fragmentId, targetPath: route.path }] as const];
+        })
+      )).values()]
     };
   }
 
@@ -395,6 +413,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
         apiContracts?: JsonValue[];
         m2mRequests?: JsonValue[];
         developerResources?: DeveloperResource[];
+        theme?: ThemeManifest;
         viewIndex?: Record<string, {
           viewId: string;
           path: string;
@@ -407,6 +426,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           raw?: boolean;
           apiContracts?: JsonValue[];
           demoScenarios?: JsonValue[];
+          fragments?: Array<{ fragmentId: string; targetPath: string }>;
           permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
         }>;
       } | null;
@@ -444,6 +464,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           apiContracts: body.apiContracts,
           m2mRequests: body.m2mRequests,
           developerResources: body.developerResources,
+          theme: body.theme,
           viewIndex: body.viewIndex,
           configSchemas: body.configSchemas,
           webhooks: body.webhooks

@@ -224,6 +224,32 @@ const pageUrl = ctx.uiRouteUrl?.("reports.detail"); // href or GET navigation
 
 Do not use `uiRouteUrl` for HTMX requests, form actions, `fetch`, SSE, or downloads. Those requests would target the app/theme origin instead of the service and can return 404.
 
+For a reusable UI fragment from another declared service dependency, use the typed `BPElement` helper and pass the renderer `ctx`:
+
+```tsx
+import { BPElement } from "@betterportal/framework";
+
+<BPElement
+  ctx={ctx}
+  service="crm"
+  path="/customers/:customerId"
+  fragment="profile.summary"
+  args={{ params: { customerId }, query: { compact: true } }}
+>
+  <bp-loading>Loading profile…</bp-loading>
+  <bp-ok><div class="card"><template /></div></bp-ok>
+  <bp-status code="404">Customer not found.</bp-status>
+  <bp-status code="5xx">CRM is unavailable.</bp-status>
+  <bp-nok>Profile unavailable.</bp-nok>
+</BPElement>
+```
+
+`service` is the dependency alias from `betterportal.json`; codegen records its canonical plugin id from `betterportal.lock.json`, and the server resolves the concrete app-mounted service UUID. Authors do not use service UUIDs or `absolute: true`. `ctx` is consumed on the server and is never serialized. The path must be app-allowlisted. Use `service="theme"` with no `path` to reference an active-theme singular fragment, for example `fragment="theme-selector"`.
+
+The shared HTMX pipeline performs the request and adds managed BetterPortal headers. `bp-loading` is the initial state. `bp-ok` is optional; when present it must contain exactly one empty `<template />` insertion point. `bp-status` accepts exact codes, `40x`, or `4xx`, in that priority order. `bp-nok` handles unavailable dependencies, unmatched errors, and network failures. Omitted states render nothing. A 204 response is successful empty content.
+
+Use `routeUrl` for same-service actions and `uiRouteUrl` for mounted GET navigation. Use `BPElement` for UI components from another service or the active theme; do not parse cross-service references into arbitrary `hx-*` attributes.
+
 Do not manually scan `ctx.app.routes` and `ctx.tenant.services` unless the framework helper cannot express the case. App routes store service-instance UUIDs; `ctx.serviceId` is usually the plugin id.
 
 HTTP methods are service manifest metadata. Do not make route methods user-editable; config-manager sync updates persisted route methods from the latest manifest.

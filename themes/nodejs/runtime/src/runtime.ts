@@ -349,44 +349,114 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
       })();
       const unresolvedServiceOrigin = "https://betterportal.invalid";
 
-      const loadBackgroundFragments = async () => {
-        const outlet = document.querySelector("[data-bp-background-fragments]");
-        if (!(outlet instanceof HTMLElement) || outlet.dataset.bpLoaded === "1") return;
-        outlet.dataset.bpLoaded = "1";
-        const byService = new Map<string, { serviceId: string; origin: string }>();
-        for (const route of buildServiceRouteMap()) {
-          if (route.serviceId && route.serviceOrigin && !byService.has(route.serviceId)) {
-            byService.set(route.serviceId, { serviceId: route.serviceId, origin: route.serviceOrigin });
-          }
+      interface BPElementStates {
+        loading?: string;
+        ok?: string;
+        nok?: string;
+        statuses: Array<{ code: string; content: string }>;
+      }
+
+      const bpElementStates = new WeakMap<Element, BPElementStates>();
+      const bpElementAuthRetried = new WeakSet<Element>();
+      const directStateChildren = (element: Element) => Array.from(element.children)
+        .filter((child) => ["BP-LOADING", "BP-OK", "BP-NOK", "BP-STATUS"].includes(child.tagName));
+
+      const initializeBpElement = (element: Element) => {
+        if (bpElementStates.has(element)) return;
+        const states: BPElementStates = { statuses: [] };
+        for (const child of directStateChildren(element)) {
+          if (child.tagName === "BP-LOADING") states.loading = child.innerHTML;
+          else if (child.tagName === "BP-OK") states.ok = child.innerHTML;
+          else if (child.tagName === "BP-NOK") states.nok = child.innerHTML;
+          else states.statuses.push({ code: child.getAttribute("code") || "", content: child.innerHTML });
         }
-        try {
-          const configured = JSON.parse(shellRoot()?.getAttribute("data-bp-background-services") || "[]");
-          for (const service of Array.isArray(configured) ? configured : []) {
-            if (service?.serviceId && service?.origin && !byService.has(service.serviceId)) {
-              byService.set(service.serviceId, { serviceId: service.serviceId, origin: service.origin });
-            }
-          }
-        } catch { /* ignore malformed optional background service metadata */ }
-        const escapeAttr = (value: string) => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-        const nodes: string[] = [];
-        await Promise.all(Array.from(byService.values()).map(async (service) => {
-          try {
-            const base = service.origin.replace(/\/+$/, "");
-            const response = await fetch(base + "/.well-known/bp/schema.json", { headers: { Accept: "application/json" }, cache: "default", mode: "cors" });
-            if (!response.ok) return;
-            const schema = await response.json();
-            for (const route of schema.routes || []) {
-              for (const fragment of route.fragments || []) {
-                if (fragment.fragmentLocation !== "background" || !fragment.fragmentId) continue;
-                const key = "background." + fragment.fragmentId;
-                const url = base + route.path + (route.path.includes("?") ? "&" : "?") + "_f=" + encodeURIComponent(key);
-                nodes.push('<div data-bp-fragment="' + escapeAttr(fragment.fragmentId) + '" data-bp-fragment-location="background" data-bp-service="' + escapeAttr(service.serviceId) + '" hx-get="' + escapeAttr(url) + '" hx-trigger="load, bp:fragments-changed from:body" hx-target="this" hx-swap="innerHTML"></div>');
-              }
-            }
-          } catch { /* service unavailable; skip background fragments */ }
-        }));
-        outlet.innerHTML = nodes.join("");
-        if (typeof htmx.process === "function") htmx.process(outlet);
+        bpElementStates.set(element, states);
+        const initial = element.getAttribute("data-bp-state") === "nok" ? states.nok : states.loading;
+        element.innerHTML = initial ?? "";
+      };
+
+      const initializeBpElements = (root: ParentNode) => {
+        if (root instanceof Element && root.matches("bp-element[data-bp-element]")) initializeBpElement(root);
+        root.querySelectorAll?.("bp-element[data-bp-element]").forEach(initializeBpElement);
+      };
+
+      const statusSpecificity = (pattern: string, status: number): number => {
+        const value = String(status);
+        if (pattern === value) return 3;
+        if (/^[1-5][0-9]x$/i.test(pattern) && pattern.slice(0, 2) === value.slice(0, 2)) return 2;
+        if (/^[1-5]xx$/i.test(pattern) && pattern[0] === value[0]) return 1;
+        return 0;
+      };
+
+      const injectElementResponse = (templateHtml: string, responseHtml: string): string => {
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = templateHtml;
+        const template = wrapper.querySelector("template");
+        if (template) {
+          const response = document.createElement("template");
+          response.innerHTML = responseHtml;
+          template.replaceWith(response.content);
+        }
+        return wrapper.innerHTML;
+      };
+
+      const swapBpElementContent = (element: Element, html: string) => {
+        if (typeof htmx.swap === "function") {
+          void htmx.swap({ text: html, sourceElement: element, target: element, swap: "innerHTML" });
+        } else {
+          element.innerHTML = html;
+          initializeBpElements(element);
+        }
+      };
+
+      const renderBpElementState = (element: Element, status: number, responseHtml = "") => {
+        initializeBpElement(element);
+        const states = bpElementStates.get(element)!;
+        element.setAttribute("aria-busy", "false");
+        element.toggleAttribute("data-bp-status", status > 0);
+        if (status > 0) element.setAttribute("data-bp-status", String(status));
+
+        if (status === 204) {
+          element.setAttribute("data-bp-state", "empty");
+          swapBpElementContent(element, "");
+          return;
+        }
+        if (status >= 200 && status < 300) {
+          bpElementAuthRetried.delete(element);
+          element.setAttribute("data-bp-state", "ok");
+          swapBpElementContent(element, states.ok === undefined ? responseHtml : injectElementResponse(states.ok, responseHtml));
+          return;
+        }
+        const matched = states.statuses
+          .map((state) => ({ ...state, specificity: statusSpecificity(state.code, status) }))
+          .filter((state) => state.specificity > 0)
+          .sort((a, b) => b.specificity - a.specificity)[0];
+        element.setAttribute("data-bp-state", matched ? "status" : "nok");
+        swapBpElementContent(element, injectElementResponse(matched?.content ?? states.nok ?? "", responseHtml));
+      };
+
+      const showBpElementLoading = (element: Element) => {
+        initializeBpElement(element);
+        element.setAttribute("data-bp-state", "loading");
+        element.setAttribute("aria-busy", "true");
+        element.removeAttribute("data-bp-status");
+        element.innerHTML = bpElementStates.get(element)?.loading ?? "";
+      };
+
+      const requestBpElement = (source: unknown): Element | null =>
+        source instanceof Element ? source.closest("bp-element[data-bp-element]") : null;
+
+      const themeModeKey = "bp.theme.mode:" + window.location.host;
+      const applyThemeMode = (mode: string) => {
+        const selected = ["light", "dark", "system"].includes(mode) ? mode : "system";
+        const concrete = selected === "system"
+          ? (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : selected;
+        document.documentElement.setAttribute("data-bs-theme", concrete);
+        document.querySelectorAll("[data-bp-theme-mode]").forEach((button) =>
+          button.setAttribute("aria-pressed", String(button.getAttribute("data-bp-theme-mode") === selected))
+        );
+        triggerBodyEvent("bp:theme-mode-changed", { mode: selected, concrete });
       };
 
       const serviceIdByOrigin: Record<string, string> = (() => {
@@ -1662,7 +1732,9 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         setActiveRoute(window.location.pathname);
         resolveServiceLinks(document.body);
         initBootstrapComponents(document.body);
-        void loadBackgroundFragments();
+        initializeBpElements(document.body);
+        try { applyThemeMode(localStorage.getItem(themeModeKey) || document.documentElement.getAttribute("data-bs-theme") || "system"); }
+        catch { applyThemeMode(document.documentElement.getAttribute("data-bs-theme") || "system"); }
         if (!hasLoaded()) setLoading(true);
         // P14: kick off menu service health checks for the admin shell only.
         if (shellRoot()?.getAttribute("data-bp-menu-health") !== "false") {
@@ -1670,6 +1742,14 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
           setInterval(runMenuHealthChecks, 60 * 60 * 1000);
           syncMenuVisibility();
         }
+      });
+
+      document.addEventListener("click", (event) => {
+        const button = (event.target as Element)?.closest?.("[data-bp-theme-mode]");
+        const mode = button?.getAttribute("data-bp-theme-mode");
+        if (!mode) return;
+        try { localStorage.setItem(themeModeKey, mode); } catch { /* preference remains session-only */ }
+        applyThemeMode(mode);
       });
 
       const syncMenuVisibility = () => {
@@ -1766,6 +1846,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
           if (!elt || !elt.getAttribute) return;
           if (elt instanceof Element && elt.closest("[data-bp-no-route]")) return;
           if (elt instanceof Element) resolveServiceLinks(elt, false);
+          if (elt instanceof Element) initializeBpElements(elt);
           if (elt instanceof Element && elt.hasAttribute(DOWNLOAD_ATTR)) bindDownload(elt);
           for (const attr of HX_METHODS) {
             const val = elt.getAttribute(attr);
@@ -1790,7 +1871,10 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         },
 
         htmx_after_process(elt: any) {
-          if (elt instanceof Element) resolveServiceLinks(elt, false);
+          if (elt instanceof Element) {
+            resolveServiceLinks(elt, false);
+            initializeBpElements(elt);
+          }
         },
 
         htmx_config_request(elt: any, detail: any) {
@@ -1862,6 +1946,8 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         // Show loading state: main panel gets glaze, fragments get overlay
         htmx_before_request(_elt: any, detail: any) {
           const source = detail.ctx?.sourceElement;
+          const bpElement = requestBpElement(source);
+          if (bpElement) showBpElementLoading(bpElement);
           const preload = (source as any)?._htmx?.preload;
           if (preload && preload.action === detail.ctx?.request?.action && Date.now() < preload.expiresAt) {
             detail.ctx.fetch = () => preload.prefetch;
@@ -1906,6 +1992,21 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
             }
           }
           applyChromeFromResponse(detail);
+
+          const bpElement = requestBpElement(source);
+          if (bpElement && !isMainTarget(target)) {
+            const responseText = ctx?.text || "";
+            if (status === 401 && !bpElementAuthRetried.has(bpElement)) {
+              bpElementAuthRetried.add(bpElement);
+              void refreshStoredHeadersOnce(true).then((refreshed) => {
+                if (refreshed) htmx.trigger(bpElement, "bp:element-retry");
+                else renderBpElementState(bpElement, status, responseText);
+              });
+            } else {
+              renderBpElementState(bpElement, status || 0, responseText);
+            }
+            return false;
+          }
 
           // JSON is data, never markup - block it from swapping into ANY target
           // regardless of status. Scripts that want the body (login) read it via
@@ -1988,6 +2089,13 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         htmx_after_request(_elt: any, detail: any) {
           scheduleBootstrapOverlaySync();
           applyChromeFromResponse(detail);
+          const bpElement = requestBpElement(detail.ctx?.sourceElement);
+          if (bpElement
+            && bpElement.getAttribute("data-bp-state") === "loading"
+            && detail.ctx?.response?.status
+            && !(detail.ctx.response.status === 401 && bpElementAuthRetried.has(bpElement))) {
+            renderBpElementState(bpElement, detail.ctx.response.status, detail.ctx?.text || "");
+          }
           // Apply BP-SetHeader / BP-RemoveHeader directives from EVERY response
           // (success or error) before anything else - e.g. login's Authorization.
           try {
@@ -2065,6 +2173,7 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
           // Resolve links after swaps without re-processing the swap target.
           // Re-processing #bp-main can re-fire its hx-trigger="load" request.
           resolveServiceLinks(target, false);
+          initializeBpElements(target);
           initBootstrapComponents(target);
 
           // Sync profile mirror for mobile offcanvas
@@ -2084,6 +2193,10 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
 
         htmx_response_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;
+          const bpElement = requestBpElement(ctx?.sourceElement);
+          if (bpElement && bpElement.getAttribute("data-bp-state") === "loading") {
+            renderBpElementState(bpElement, ctx?.response?.status || 0, ctx?.text || "");
+          }
           if (!requestTargetsMain(detail)) return;
           setLoading(false);
 
@@ -2101,6 +2214,8 @@ export function betterPortalShellRuntimeSource(themeId: string): string {
         htmx_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;
           const target = ctx?.target;
+          const bpElement = requestBpElement(ctx?.sourceElement);
+          if (bpElement) renderBpElementState(bpElement, 0);
 
           // Clear fragment loading on error
           if (target instanceof Element && !isMainTarget(target)) {

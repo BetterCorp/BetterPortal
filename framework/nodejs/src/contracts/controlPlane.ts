@@ -91,6 +91,7 @@ export interface ScopedApp {
   readonly menu: BetterPortalApp["menu"];
   readonly slots: BetterPortalApp["slots"];
   readonly fragments: BetterPortalApp["fragments"];
+  readonly themeFragments: BetterPortalApp["themeFragments"];
   readonly auth?: BetterPortalApp["auth"];
 }
 

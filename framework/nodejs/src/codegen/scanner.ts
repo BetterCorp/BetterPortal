@@ -68,8 +68,16 @@ export interface ScannedRoute {
   autoDependencies: string[];
 }
 
+export interface ScannedThemeFragment {
+  id: string;
+  kind: "fragment" | "block";
+  relativePath: string;
+}
+
 export interface ScanResult {
   routes: ScannedRoute[];
+  themeFragments: ScannedThemeFragment[];
+  dependencyAliases: Record<string, string>;
   generatedDir: string;
   pluginImportPath: string;
   pluginExports: string[];
@@ -851,16 +859,28 @@ function scanDirectory(
  * @param baseDir - The directory containing `bp-routes/`. The
  *   `.bp-generated/` output directory is placed as a sibling.
  */
-export function scanRoutes(baseDir: string): ScanResult {
+export function scanRoutes(baseDir: string, dependencyAliases: Record<string, string> = {}): ScanResult {
   const routesDir = path.resolve(baseDir, "bp-routes");
   const generatedDir = path.resolve(baseDir, ".bp-generated");
   const pluginIndexPath = path.resolve(baseDir, "index.ts");
   const pluginImportPath = toJsImport(relativeFromGenerated(generatedDir, pluginIndexPath));
   const pluginExports = detectNamedExports(pluginIndexPath, ["Plugin", "ServiceConfig"]);
   const pluginLifecycleOverrides = scanPluginLifecycleOverrides(pluginIndexPath);
+  const themeDir = path.resolve(baseDir, "theme");
+  const themeFragments: ScannedThemeFragment[] = fs.existsSync(themeDir)
+    ? fs.readdirSync(themeDir, { withFileTypes: true }).flatMap((entry) => {
+      if (!entry.name.startsWith("_")) return [];
+      const id = entry.name.slice(1).replace(/\.tsx?$/, "");
+      const source = entry.isDirectory()
+        ? path.join(themeDir, entry.name, "index.tsx")
+        : path.join(themeDir, entry.name);
+      if (!/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/.test(id) || !fs.existsSync(source)) return [];
+      return [{ id, kind: entry.isDirectory() ? "block" as const : "fragment" as const, relativePath: relativeFromGenerated(generatedDir, source) }];
+    }).sort((a, b) => a.id.localeCompare(b.id))
+    : [];
 
   if (!fs.existsSync(routesDir)) {
-    return { routes: [], generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
+    return { routes: [], themeFragments, dependencyAliases, generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
   }
 
   const routes: ScannedRoute[] = [];
@@ -885,5 +905,5 @@ export function scanRoutes(baseDir: string): ScanResult {
     return aSeg.length - bSeg.length;
   });
 
-  return { routes, generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
+  return { routes, themeFragments, dependencyAliases, generatedDir, pluginImportPath, pluginExports, pluginLifecycleOverrides };
 }

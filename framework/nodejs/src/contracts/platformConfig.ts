@@ -183,6 +183,24 @@ export const BetterPortalFragmentAssignmentSchema = av.object({
 }, { unknownKeys: "strip" });
 export type BetterPortalFragmentAssignment = Infer<typeof BetterPortalFragmentAssignmentSchema>;
 
+export const BetterPortalThemeFragmentItemSchema = av.union([
+  av.object({ source: av.literal("theme"), fragmentId: NonEmptyStringSchema }),
+  av.object({
+    source: av.literal("service"),
+    serviceId: UuidV7Schema,
+    fragmentId: NonEmptyStringSchema,
+    targetPath: NonEmptyStringSchema
+  })
+]);
+export type BetterPortalThemeFragmentItem = Infer<typeof BetterPortalThemeFragmentItemSchema>;
+
+export const BetterPortalThemeFragmentSettingSchema = av.union([
+  av.object({ mode: av.literal("none") }),
+  av.object({ mode: av.literal("override"), item: BetterPortalThemeFragmentItemSchema }),
+  av.object({ mode: av.literal("items"), items: av.array(BetterPortalThemeFragmentItemSchema).default([]) })
+]);
+export type BetterPortalThemeFragmentSetting = Infer<typeof BetterPortalThemeFragmentSettingSchema>;
+
 export const BetterPortalAppSchema = av.object({
   id: UuidV7Schema,
   tenantId: UuidV7Schema,
@@ -200,6 +218,8 @@ export const BetterPortalAppSchema = av.object({
   menu: av.array(BetterPortalMenuItemSchema).default([]),
   slots: av.array(BetterPortalSlotAssignmentSchema).default([]),
   fragments: av.record(av.array(BetterPortalFragmentAssignmentSchema)).default({}),
+  /** Theme service instance UUID -> theme fragment id -> explicit setting. Missing means theme default. */
+  themeFragments: av.record(av.record(BetterPortalThemeFragmentSettingSchema)).default({}),
   auth: av.optional(AppAuthConfigSchema),
   statusViewIds: av.optional(av.record(NonEmptyStringSchema))
 }, { unknownKeys: "strip" });
@@ -305,6 +325,7 @@ export const ServiceManifestCacheEntrySchema = av.object({
   m2mRequests: av.array(av.any()).default([]),
   apiContracts: av.array(av.any()).default([]),
   developerResources: av.array(av.any()).default([]),
+  theme: av.optional(av.any()),
   viewIndex: av.record(av.object({
     viewId: NonEmptyStringSchema,
     path: NonEmptyStringSchema,
@@ -321,7 +342,8 @@ export const ServiceManifestCacheEntrySchema = av.object({
     schemas: av.optional(av.record(av.any())),
     raw: av.optional(av.bool()),
     apiContracts: av.array(av.any()).default([]),
-    demoScenarios: av.array(av.any()).default([])
+    demoScenarios: av.array(av.any()).default([]),
+    fragments: av.array(av.object({ fragmentId: NonEmptyStringSchema, targetPath: NonEmptyStringSchema })).default([])
   }, { unknownKeys: "strip" })).default({})
 }, { unknownKeys: "strip" });
 export type ServiceManifestCacheEntry = Infer<typeof ServiceManifestCacheEntrySchema>;

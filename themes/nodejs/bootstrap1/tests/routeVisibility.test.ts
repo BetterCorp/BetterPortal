@@ -46,7 +46,6 @@ test("fullscreen chrome keeps the normal shell and does not imply auth", () => {
     assetBaseUrl: "/assets",
     currentPath: "/login",
     routeLinks: [],
-    resolvedFragments: {},
     chrome: { fullScreen: true }
   });
   assert.match(html, /data-bp-chrome-full-screen="true"/);

@@ -217,6 +217,22 @@ function checkDuplicateViewIds(routes: ScannedRoute[], errors: ValidationError[]
   }
 }
 
+function checkDuplicateThemeFragmentIds(result: ScanResult, errors: ValidationError[]): void {
+  const seen = new Map<string, string>();
+  for (const fragment of result.themeFragments) {
+    const existing = seen.get(fragment.id);
+    if (existing) {
+      errors.push({
+        file: fragment.relativePath,
+        message: `Duplicate theme fragment id "${fragment.id}". Also defined at "${existing}".`,
+        severity: "error"
+      });
+    } else {
+      seen.set(fragment.id, fragment.relativePath);
+    }
+  }
+}
+
 function checkConflictingPaths(routes: ScannedRoute[], errors: ValidationError[]): void {
   const seen = new Map<string, ScannedRoute>();
 
@@ -315,6 +331,7 @@ export function validateScanResult(result: ScanResult): ValidationError[] {
   // Cross-route checks
   checkDuplicateViewIds(result.routes, errors);
   checkConflictingPaths(result.routes, errors);
+  checkDuplicateThemeFragmentIds(result, errors);
 
   // Per-route checks
   for (const route of result.routes) {

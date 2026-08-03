@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { scanRoutes } from "../src/codegen/scanner.js";
@@ -38,12 +38,45 @@ function scannedRoute(overrides: Partial<ScannedRoute> = {}): ScannedRoute {
 function scanResult(route: ScannedRoute): ScanResult {
   return {
     routes: [route],
+    themeFragments: [],
+    dependencyAliases: {},
     generatedDir: ".bp-generated",
     pluginImportPath: "../index.js",
     pluginExports: ["Plugin"],
     pluginLifecycleOverrides: []
   };
 }
+
+test("theme fragment folders distinguish singular fragments from blocks", () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-theme-fragments-"));
+  try {
+    const themeDir = join(baseDir, "theme");
+    mkdirSync(join(themeDir, "_nav"), { recursive: true });
+    writeFileSync(join(themeDir, "_theme-selector.tsx"), "export const render = () => '';\n");
+    writeFileSync(join(themeDir, "_nav", "index.tsx"), "export const render = () => '';\n");
+    writeFileSync(join(themeDir, "index.tsx"), "export const shell = true;\n");
+
+    assert.deepEqual(scanRoutes(baseDir).themeFragments.map(({ id, kind }) => ({ id, kind })), [
+      { id: "nav", kind: "block" },
+      { id: "theme-selector", kind: "fragment" }
+    ]);
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("theme fragment ids cannot collide between a file and block", () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-theme-fragment-conflict-"));
+  try {
+    const themeDir = join(baseDir, "theme");
+    mkdirSync(join(themeDir, "_nav"), { recursive: true });
+    writeFileSync(join(themeDir, "_nav.tsx"), "export const render = () => '';\n");
+    writeFileSync(join(themeDir, "_nav", "index.tsx"), "export const render = () => '';\n");
+    assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes('Duplicate theme fragment id "nav"')), true);
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
+});
 
 function lifecycleIssues(source: string) {
   const baseDir = mkdtempSync(join(tmpdir(), "bp-lifecycle-"));

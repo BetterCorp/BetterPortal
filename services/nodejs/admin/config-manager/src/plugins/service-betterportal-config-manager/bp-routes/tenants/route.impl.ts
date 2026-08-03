@@ -244,7 +244,8 @@ async function createApp(body: Record<string, unknown>): Promise<void> {
     routes: [],
     menu: [],
     slots: [],
-    fragments: {}
+    fragments: {},
+    themeFragments: {}
   };
   if (authServiceId) {
     app.auth = buildAppAuthConfig(config, tenantId, authServiceId, undefined, roleAuthorityValue(body.roleAuthority));

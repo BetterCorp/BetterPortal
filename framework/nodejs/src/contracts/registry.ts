@@ -2,7 +2,7 @@ import type { BaseSchema } from "anyvali";
 import type { HttpMethod, RenderMode } from "./common.js";
 import type { CacheHints } from "./view.js";
 import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteUrlOptions, SSEHandler } from "./route.js";
-import type { BetterPortalRouteChrome } from "./platformConfig.js";
+import type { BetterPortalApp, BetterPortalRouteChrome, BetterPortalTenant } from "./platformConfig.js";
 import type { ApiContractDescriptor } from "./m2m.js";
 import type { BpStreamHandler, StreamRendererSet } from "./streaming.js";
 import type { HtmlRenderable } from "../runtime/view.js";
@@ -15,6 +15,26 @@ export interface RouteUiOptions extends RouteUrlOptions {
 }
 
 export type RouteUiAttributes = Readonly<Record<string, string>>;
+
+export interface BPElementArgs {
+  readonly params?: Readonly<Record<string, string | number | boolean>>;
+  readonly query?: Readonly<Record<string, string | number | boolean | null | undefined>>;
+}
+
+export interface BPElementReference {
+  /** Dependency alias from betterportal.json, a canonical plugin id, or "theme". */
+  readonly service: string;
+  /** Service route path from the dependency contract. Required for service fragments. */
+  readonly path?: string;
+  readonly fragment: string;
+  readonly args?: BPElementArgs;
+}
+
+export interface ResolvedBPElementReference {
+  readonly url?: string;
+  readonly serviceId?: string;
+  readonly unavailable?: string;
+}
 
 export interface ViewRenderContext {
   readonly request: {
@@ -44,6 +64,8 @@ export interface ViewRenderContext {
     fragment(url: string, options?: RouteUiOptions): RouteUiAttributes;
     form(url: string, options?: RouteUiOptions): RouteUiAttributes;
   };
+  /** Resolve an app-allowlisted fragment request. Context is consumed server-side. */
+  readonly element: (reference: BPElementReference) => ResolvedBPElementReference;
 }
 // -- Theme renderer types ----------------------------------------------
 
@@ -164,9 +186,30 @@ export interface RegisteredRoute {
   };
 }
 
+export interface ThemeFragmentRenderContext {
+  readonly tenant: BetterPortalTenant;
+  readonly app: BetterPortalApp;
+  readonly config?: Readonly<Record<string, unknown>>;
+  readonly request: { readonly url: string };
+  readonly fragmentId: string;
+  readonly items: ReadonlyArray<HtmlRenderable>;
+}
+
+export interface RegisteredThemeFragment {
+  readonly id: string;
+  readonly kind: "fragment" | "block";
+  readonly title: string;
+  readonly description: string;
+  readonly defaultItems?: ReadonlyArray<string>;
+  readonly render: (context: ThemeFragmentRenderContext) => HtmlRenderable;
+}
+
 // -- Registry ----------------------------------------------------------
 
 /** The complete compiled registry - output of codegen. */
 export interface BetterPortalRegistry {
+  /** Dependency alias -> canonical plugin id, generated from betterportal.lock.json. */
+  readonly dependencies?: Readonly<Record<string, string>>;
   readonly routes: ReadonlyArray<RegisteredRoute>;
+  readonly themeFragments?: ReadonlyArray<RegisteredThemeFragment>;
 }

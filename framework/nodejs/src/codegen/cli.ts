@@ -11,6 +11,10 @@ interface BetterPortalConfig {
   themes?: string[];
 }
 
+interface BetterPortalLock {
+  dependencies?: Record<string, { pluginId?: string }>;
+}
+
 function findPackageJson(startDir: string): string | null {
   let dir = startDir;
   while (true) {
@@ -39,18 +43,28 @@ function run(): void {
   const config = readBetterPortalConfig(packageJsonPath);
   const packageDir = path.dirname(packageJsonPath);
   const routeDirs = config.routes ?? [];
+  const themeDirs = config.themes ?? [];
+  const lockPath = path.join(packageDir, "betterportal.lock.json");
+  const lock = fs.existsSync(lockPath)
+    ? JSON.parse(fs.readFileSync(lockPath, "utf-8")) as BetterPortalLock
+    : {};
+  const dependencyAliases = Object.fromEntries(
+    Object.entries(lock.dependencies ?? {}).flatMap(([alias, dependency]) =>
+      dependency.pluginId ? [[alias, dependency.pluginId]] : []
+    )
+  );
 
-  if (routeDirs.length === 0) {
-    console.error('[bp-codegen] No "betterportal.routes" configured in package.json.');
+  if (routeDirs.length === 0 && themeDirs.length === 0) {
+    console.error('[bp-codegen] No "betterportal.routes" or "betterportal.themes" configured in package.json.');
     process.exit(1);
   }
 
   let totalRoutes = 0;
   let hasErrors = false;
 
-  for (const routeDir of routeDirs) {
-    const baseDir = path.resolve(packageDir, routeDir, "..");
-    const scanResult = scanRoutes(baseDir);
+  const baseDirs = [...new Set([...routeDirs, ...themeDirs].map((dir) => path.resolve(packageDir, dir, "..")))];
+  for (const baseDir of baseDirs) {
+    const scanResult = scanRoutes(baseDir, dependencyAliases);
 
     // Validate
     const errors = validateScanResult(scanResult);
