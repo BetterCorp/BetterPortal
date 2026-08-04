@@ -237,20 +237,19 @@ import { BPElement } from "@betterportal/framework";
   args={{ params: { customerId }, query: { compact: true } }}
 >
   <bp-loading>Loading profile…</bp-loading>
-  <bp-ok><div class="card"><template /></div></bp-ok>
   <bp-status code="404">Customer not found.</bp-status>
   <bp-status code="5xx">CRM is unavailable.</bp-status>
   <bp-nok>Profile unavailable.</bp-nok>
 </BPElement>
 ```
 
-`service` is the dependency alias from `betterportal.json`; codegen records its canonical plugin id from `betterportal.lock.json`, and the server resolves the concrete app-mounted service UUID. Authors do not use service UUIDs or `absolute: true`. `ctx` is consumed on the server and is never serialized. The path must be app-allowlisted. Use `service="shell"` with no `path` to reference an active-shell singular fragment, for example `fragment="theme-selector"`.
+`service` is the dependency alias/key from `betterportal.json`; codegen records its canonical plugin id from `betterportal.lock.json`, and the server resolves the concrete app-mounted service UUID. Authors do not use service titles, hostnames, runtime UUIDs, or `absolute: true`. The dependency must be active and the path must be app-allowlisted. Use `service="shell"` with no `path` to reference an active-shell singular fragment, for example `fragment="theme-selector"`.
 
-The shared HTMX pipeline performs the request and adds managed BetterPortal headers. `bp-loading` is the initial state. `bp-ok` is optional; when present it must contain exactly one empty `<template />` insertion point. `bp-status` accepts exact codes, `40x`, or `4xx`, in that priority order. `bp-nok` handles unavailable dependencies, unmatched errors, and network failures. Omitted states render nothing. A 204 response is successful empty content.
+The shared HTMX pipeline performs the request and adds managed BetterPortal headers. `bp-loading` is the initial state. Omit `bp-ok` for the normal case: a successful response is inserted directly, exactly as if `<bp-ok><template /></bp-ok>` had been supplied. Add `bp-ok` only to wrap or decorate success content; when present it must contain exactly one empty `<template />` insertion point. `bp-status` accepts exact codes, `40x`, or `4xx`, in that priority order. `bp-nok` handles unavailable dependencies, unmatched errors, and network failures. Omitted states render nothing. A 204 response is successful empty content.
 
 Use `routeUrl` for same-service actions and `uiRouteUrl` for mounted GET navigation. Use `BPElement` for UI components from another service or the active shell; do not parse cross-service references into arbitrary `hx-*` attributes.
 
-Do not manually scan `ctx.app.routes` and `ctx.tenant.services` unless the framework helper cannot express the case. App routes store service-instance UUIDs; `ctx.serviceId` is usually the plugin id.
+Raw app routes and tenant services are intentionally absent from renderer context. Use `ctx.url` for route resolution and `BPElement` for dependency or shell fragments.
 
 HTTP methods are service manifest metadata. Do not make route methods user-editable; config-manager sync updates persisted route methods from the latest manifest.
 
@@ -283,15 +282,32 @@ Rules:
 - Bootstrap1 already renders the shell/header context for the active route. Do not add duplicate top-level page headings like `<h1 class="h4 mb-3">...</h1>` in Bootstrap1 renderers unless the heading is part of the service content itself.
 
 ```tsx
-import type { HtmlRenderable } from "@betterportal/framework";
+import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../route.impl.js";
 
-export function render(data: ResponseData): HtmlRenderable {
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   return <section>{data.title}</section>;
 }
 ```
 
 Renderer `data` must be typed from the route response. Codegen warns on missing, `any`, or `unknown` render parameters.
+
+`ViewRenderContext` is server-resolved presentation context and is never serialized automatically. Its limited `tenant` projection contains `id`, `slug`, `title`, and `branding`. Its limited `app` projection contains `id`, `tenantId`, `slug`, `title`, `defaultRoute`, resolved `shell`, and navigation-only auth references (`serviceId`, `loginViewId`, and `logoutViewId`). It intentionally excludes services, routes, hostnames, origin policy, theme configuration, auth verification metadata, roles, permissions, keys, and M2M configuration. Authorization and business logic remain in the route handler.
+
+Auth references are stable view IDs, never URL paths. Resolve browser navigation through the app mount:
+
+```tsx
+const loginHref = ctx.app.auth
+  ? ctx.url.uiRoute(ctx.app.auth.loginViewId ?? "login.index", {
+      serviceId: ctx.app.auth.serviceId,
+      query: { returnTo: ctx.url.current() }
+    })
+  : null;
+
+const loginAttributes = loginHref ? ctx.routeUi.link(loginHref) : {};
+```
+
+Do not add renderer-only links or platform context to the route response schema merely to make HTML rendering possible. JSON/API clients do not need that presentation plumbing.
 
 Service-rendered HTML can reference service routes with `{view.id}` tokens:
 

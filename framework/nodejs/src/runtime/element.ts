@@ -1,5 +1,4 @@
 import type { BPElementArgs, ViewRenderContext } from "../contracts/registry.js";
-import type { HtmlRenderable } from "./view.js";
 
 export interface BPElementProps {
   readonly ctx: ViewRenderContext;
@@ -30,7 +29,7 @@ function validateOkTemplate(children: string): void {
 }
 
 /** Typed JSX helper. `ctx` resolves the request server-side and is never serialized. */
-export function BPElement(props: BPElementProps): HtmlRenderable {
+export function BPElement(props: BPElementProps): string {
   const children = renderChildren(props.children);
   validateOkTemplate(children);
   const resolved = props.ctx.element({ service: props.service, path: props.path, fragment: props.fragment, args: props.args });

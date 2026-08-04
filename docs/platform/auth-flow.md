@@ -110,7 +110,7 @@ export const AppAuthConfigSchema = av.object({
 export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 ```
 
-`loginViewId` / `logoutViewId` / `refreshViewId` are **view ids**, not URL paths. The framework resolves them to paths at render time via the synced route registry. This is so admins can rename URLs without touching auth config. The view-id resolver is a separate refactor tracked outside this spec.
+`loginViewId` / `logoutViewId` / `refreshViewId` are **view ids**, not URL paths. The framework resolves them through the synced app route registry, so administrators can rename mounted URLs without changing auth configuration. Legacy path values are migrated by Config Manager against routes belonging to the configured auth service.
 
 Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Each permission entry binds a specific role grant to a specific API endpoint and CRUD action set. Services receive these via app config sync and use them to authorize requests.
 
@@ -581,4 +581,3 @@ Separate refactor. App config + theme rendering switch from URL paths to view id
 - Multi-app SSO within same tenant. Not in V1 because apps live on separate origins.
 - Cross-service refresh-token revocation. Per-service jti revocation lists are out of scope; rely on short TTL.
 - Optional auth providers exposing `/.well-known/openid-configuration` for OIDC discovery. Useful for third-party clients but not required for BetterPortal-internal flows.
-- View-id refactor (paths -> ids in app config). Required for cleanest `loginViewId`/`logoutViewId` UX. Tracked separately.

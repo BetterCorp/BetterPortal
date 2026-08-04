@@ -77,6 +77,9 @@ async function withServer(
   options: { tenant?: BetterPortalTenant; serviceId?: string; router?: H3RouterObservabilityOptions } = {}
 ): Promise<void> {
   const h3 = createBetterPortalApp();
+  h3.use("/**", (event) => {
+    (event as unknown as { __bpApp: BetterPortalApp }).__bpApp = app;
+  });
   createH3Router(registry, h3, {
     ...options.router,
     resolveContext: options.router?.resolveContext ?? (() => ({ tenant: options.tenant ?? tenant, app })),
@@ -93,6 +96,120 @@ async function withServer(
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 }
+
+test("HTML renderers receive limited tenant and app presentation context", async () => {
+  const serviceId = uuidv7();
+  const shellServiceId = uuidv7();
+  const brandedTenant = {
+    ...tenant,
+    branding: { brandName: "Acme", logoUrl: "https://app.local/logo.svg", primaryColor: "#123456" }
+  };
+  const app = {
+    id: uuidv7(),
+    tenantId: tenant.id,
+    slug: "app",
+    title: "App",
+    hostnames: ["app.local"],
+    originOverrides: [],
+    refererOverrides: [],
+    shell: { serviceId: shellServiceId, service: "bootstrap1", renderer: "bootstrap5" },
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/page",
+    routes: [{ id: uuidv7(), path: "/page", serviceId, viewId: "page.index", enabled: true, methods: ["GET"] }],
+    menu: [],
+    slots: [],
+    fragments: {},
+    auth: {
+      serviceId,
+      loginViewId: "login.index",
+      logoutViewId: "logout.index",
+      refreshViewId: "refresh.index",
+      expectedIssuer: "https://auth.local",
+      expectedAudience: "app",
+      jwksUri: "https://auth.local/.well-known/jwks.json",
+      roles: []
+    }
+  } as unknown as BetterPortalApp;
+  const pageRoute = {
+    ...route("/page", "page.index"),
+    auth: { required: true, permissions: [] },
+    renderers: {
+      bootstrap5: {
+        pages: [{
+          rendererId: "default",
+          type: "page",
+          method: "GET",
+          render: (_data: unknown, context: import("../src/contracts/registry.js").ViewRenderContext) => JSON.stringify(context)
+        }],
+        components: [],
+        fragments: []
+      }
+    },
+    statusRenderers: {
+      bootstrap5: {
+        401: {
+          pages: [{
+            rendererId: "default",
+            type: "page",
+            method: "GET",
+            render: (_data: unknown, context: import("../src/contracts/registry.js").ViewRenderContext) => JSON.stringify(context)
+          }]
+        }
+      }
+    }
+  } satisfies RegisteredRoute;
+
+  const claims: JwtClaims = {
+    iss: "https://auth.local",
+    aud: "app",
+    sub: "user",
+    exp: Math.floor(Date.now() / 1000) + 60,
+    iat: Math.floor(Date.now() / 1000),
+    jti: uuidv7(),
+    realm: "runtime",
+    tenantId: tenant.id,
+    appId: app.id,
+    roles: [],
+    tokenType: "access"
+  };
+
+  await withServer(app, { routes: [pageRoute] }, async (baseUrl) => {
+    const unauthorized = await fetch(`${baseUrl}/page`, { headers: { accept: "text/html" } });
+    assert.equal(unauthorized.status, 401);
+    assert.equal((JSON.parse(await unauthorized.text()) as { app: { title: string } }).app.title, "App");
+
+    const response = await fetch(`${baseUrl}/page`, { headers: { accept: "text/html", authorization: "Bearer valid" } });
+    assert.equal(response.status, 200);
+    const context = JSON.parse(await response.text()) as Record<string, any>;
+    assert.deepEqual(context.tenant, {
+      id: tenant.id,
+      slug: "tenant",
+      title: "Tenant",
+      branding: brandedTenant.branding
+    });
+    assert.deepEqual(context.app, {
+      id: app.id,
+      tenantId: tenant.id,
+      slug: "app",
+      title: "App",
+      defaultRoute: "/page",
+      shell: { serviceId: shellServiceId, service: "bootstrap1", renderer: "bootstrap5" },
+      auth: { serviceId, loginViewId: "login.index", logoutViewId: "logout.index" }
+    });
+    assert.equal(context.app.auth.expectedIssuer, undefined);
+    assert.equal(context.app.routes, undefined);
+  }, {
+    tenant: brandedTenant,
+    serviceId,
+    router: {
+      resolveAuth: () => ({
+        verifier: { verify: async () => claims },
+        tenantId: tenant.id,
+        appId: app.id
+      })
+    }
+  });
+});
 
 test("authenticated BP well-known routes use route-aware auth and skip app activation", async () => {
   const app: BetterPortalApp = {

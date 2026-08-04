@@ -65,6 +65,38 @@ export function hashApiKey(apiKey: string): string {
   return createHash("sha256").update(apiKey).digest("hex");
 }
 
+const DefaultAuthViewIds = {
+  login: "login.index",
+  logout: "logout.index",
+  refresh: "refresh.index"
+} as const;
+
+function canonicalAuthViewId(
+  app: BetterPortalApp,
+  serviceId: string,
+  value: string | undefined,
+  kind: keyof typeof DefaultAuthViewIds
+): string {
+  const fallback = DefaultAuthViewIds[kind];
+  if (!value) return fallback;
+  if (!value.startsWith("/")) return value;
+  const route = app.routes.find((candidate) =>
+    candidate.serviceId === serviceId
+    && [candidate.path, candidate.resolvedServicePath, candidate.targetPath].includes(value)
+  );
+  return route?.viewId ?? (value === `/${kind}` ? fallback : value);
+}
+
+export function migrateAuthViewIds(config: BetterPortalConfig): BetterPortalConfig {
+  for (const app of config.apps) {
+    if (!app.auth) continue;
+    app.auth.loginViewId = canonicalAuthViewId(app, app.auth.serviceId, app.auth.loginViewId, "login");
+    app.auth.logoutViewId = canonicalAuthViewId(app, app.auth.serviceId, app.auth.logoutViewId, "logout");
+    app.auth.refreshViewId = canonicalAuthViewId(app, app.auth.serviceId, app.auth.refreshViewId, "refresh");
+  }
+  return config;
+}
+
 export function getAvailableServiceInstanceIdsForApp(
   config: BetterPortalConfig,
   app: Pick<BetterPortalApp, "id" | "tenantId">
@@ -95,6 +127,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
 
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
     config = migrateOfficialPluginIds(config);
+    migrateAuthViewIds(config);
     this.ensurePlatformRootRole(config);
     for (const app of config.apps) {
       if (app.auth) {
@@ -109,7 +142,6 @@ export abstract class BaseStorage implements PlatformConfigStore {
       if (app.auth.expectedAudience === "authress") {
         app.auth.expectedAudience = "betterportal-runtime";
       }
-      app.auth.refreshViewId ??= "/refresh";
     }
     return config;
   }

@@ -831,6 +831,10 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
         ? "0 4px 20px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05)"
         : "0 4px 20px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.7)"
     },
+    ".bp-shell__main .card:has(.dropdown-menu.show)": {
+      position: "relative",
+      zIndex: 1021
+    },
     ".bp-shell__main .card-header": {
       background: "transparent",
       borderBottom: mode === "dark"

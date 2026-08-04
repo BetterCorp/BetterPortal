@@ -202,6 +202,8 @@ export function renderThemeLlmsDev(context: ThemeLlmsContext): string {
     "",
     "For TypeScript, use `bp client install <registry-ref-or-plugin-id>` and `bp client sync`. For another language, consume `/.well-known/bp/schema.json` or a registry schema directly.",
     "Service requests use `routeUrl`, not `uiRouteUrl`; `uiRouteUrl` is only for GET navigation through a mounted page route.",
+    "HTML renderers receive `ViewRenderContext` as their second argument. Its limited `tenant` and `app` projections are presentation-only; authorization and business data remain in the route handler.",
+    "App auth login/logout references are view IDs, not paths. Resolve them with `ctx.url.uiRoute(viewId, { serviceId })`; do not add renderer-only navigation to the JSON response schema.",
     ""
   ].join("\n");
 }
@@ -214,6 +216,8 @@ export function renderThemeLlmsUi(context: ThemeLlmsContext, resources: Readonly
     "> Follow the active shell's declared resources when generating or reviewing BetterPortal UI.",
     "",
     "Service UI is server-rendered HTML/HTMX. Do not introduce a SPA router, iframe, client state framework, or hardcoded service hostname.",
+    "For cross-service fragments, use `BPElement` with the dependency alias/key declared in `betterportal.json`; never use a title, runtime service UUID, hostname, or absolute URL. Use the reserved `shell` alias for active-shell fragments.",
+    "Omit `bp-ok` to insert a successful fragment directly. Add `bp-ok` only to wrap success content, and include exactly one `<template />` insertion point.",
     "",
     "## Theme resources",
     ""

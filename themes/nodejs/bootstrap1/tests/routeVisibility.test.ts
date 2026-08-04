@@ -52,3 +52,15 @@ test("fullscreen chrome keeps the normal shell and does not imply auth", () => {
   assert.match(html, /class="bp-admin"/);
   assert.doesNotMatch(html, /data-bp-auth-mode/);
 });
+
+test("open card dropdowns rise above later cards", () => {
+  const html = renderBootstrap1Shell({
+    title: "Test",
+    brandName: "Test",
+    themeMode: "light",
+    themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets",
+    bodyHtml: ""
+  });
+  assert.match(html, /\.bp-shell__main \.card:has\(\.dropdown-menu\.show\)/);
+});

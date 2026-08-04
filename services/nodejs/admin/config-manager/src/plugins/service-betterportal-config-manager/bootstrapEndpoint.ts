@@ -282,9 +282,9 @@ export async function registerBootstrapEndpoint(input: {
     // serviceId carries the shared activation id; consumers resolve URL via the service resolver.
     const appAuth = {
       serviceId: authActivationId,
-      loginViewId: "/login",
-      logoutViewId: "/logout",
-      refreshViewId: "/refresh",
+      loginViewId: "login.index",
+      logoutViewId: "logout.index",
+      refreshViewId: "refresh.index",
       expectedIssuer: issuerFromServiceUrl(authHostFromBody),
       expectedAudience: "betterportal-runtime",
       jwksUri: `${authHostFromBody}/.well-known/jwks.json`,

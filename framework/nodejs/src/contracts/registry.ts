@@ -36,7 +36,36 @@ export interface ResolvedBPElementReference {
   readonly unavailable?: string;
 }
 
+export interface ViewTenantContext {
+  readonly id: string;
+  readonly slug: string;
+  readonly title: string;
+  readonly branding: Readonly<BetterPortalTenant["branding"]>;
+}
+
+export interface ViewAppContext {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly slug: string;
+  readonly title: string;
+  readonly defaultRoute: string;
+  readonly shell?: {
+    readonly serviceId: string;
+    readonly service: string;
+    readonly renderer: string;
+  };
+  readonly auth?: {
+    readonly serviceId: string;
+    readonly loginViewId?: string;
+    readonly logoutViewId?: string;
+  };
+}
+
 export interface ViewRenderContext {
+  /** Stable, non-secret tenant presentation context. */
+  readonly tenant: ViewTenantContext;
+  /** Stable, non-secret app presentation and navigation context. */
+  readonly app: ViewAppContext;
   readonly request: {
     readonly method: HttpMethod;
     readonly path: string;
@@ -84,7 +113,7 @@ export interface RegisteredViewRenderer {
   readonly fragmentId?: string;
   /** The render function exported by the theme file. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly render: (data: any, context?: ViewRenderContext) => HtmlRenderable;
+  readonly render: (data: any, context: ViewRenderContext) => HtmlRenderable;
   /**
    * SSE tick renderer - fragments only.
    * Sourced from `_<location>.<fragmentId>.sse.tsx`'s `renderTick` export.

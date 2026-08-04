@@ -6,10 +6,11 @@ import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-m
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
-import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
+import { purgeServiceReferences } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import {
   BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
   PROVIDER_ROLE_AUTHORITY_CAPABILITY,
@@ -26,6 +27,9 @@ class MemoryStorage extends BaseStorage {
   async saveConfig(config: BetterPortalConfig): Promise<void> {
     this.value = config;
     this.notifyListeners();
+  }
+  assertValid(): void {
+    this.validateConfigReferences(this.value);
   }
 }
 
@@ -251,6 +255,116 @@ test("shared activation manifest lookup falls back to its shared service", () =>
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
 });
 
+test("legacy auth paths migrate to mounted view IDs", () => {
+  const { config, appId, sourceId } = s2sConfig();
+  const app = config.apps.find((candidate) => candidate.id === appId)!;
+  app.routes.push(
+    { id: uuidv7(), kind: "page", path: "/sign-in", serviceId: sourceId, viewId: "login.index", targetPath: "/login", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/sign-out", serviceId: sourceId, viewId: "logout.index", resolvedServicePath: "/logout", enabled: true, methods: ["GET", "POST"] },
+    { id: uuidv7(), kind: "api", path: `/_bp/service/${sourceId}/refresh`, serviceId: sourceId, viewId: "refresh.index", targetPath: "/refresh", enabled: true, methods: ["POST"] }
+  );
+  app.auth = {
+    serviceId: sourceId,
+    loginViewId: "/login",
+    logoutViewId: "/logout",
+    refreshViewId: "/refresh",
+    expectedIssuer: "https://auth.example",
+    expectedAudience: "app",
+    jwksUri: "https://auth.example/.well-known/jwks.json",
+    roles: []
+  };
+
+  migrateAuthViewIds(config);
+
+  assert.equal(app.auth.loginViewId, "login.index");
+  assert.equal(app.auth.logoutViewId, "logout.index");
+  assert.equal(app.auth.refreshViewId, "refresh.index");
+});
+
+test("shared activation purge removes every linked reference", () => {
+  const value = s2sConfig();
+  const activationId = value.sourceId;
+  const app = value.config.apps[0];
+  const routeId = uuidv7();
+  const keepRouteId = uuidv7();
+  const webhookId = uuidv7();
+  const now = new Date().toISOString();
+
+  value.config.tenants[0].services = value.config.tenants[0].services.filter((service) => service.id !== activationId);
+  value.config.sharedServiceCatalog.push({
+    id: "org.example.shared",
+    title: "Shared service",
+    baseUrl: "https://shared.example",
+    supportedDeploymentModes: ["self-hosted"],
+    owner: "bp",
+    tags: [],
+    enabled: true
+  });
+  value.config.sharedServiceActivations.push({
+    id: activationId,
+    tenantId: value.tenantId,
+    sharedServiceId: "org.example.shared",
+    activatedAt: now,
+    enabled: true
+  });
+  app.shell = { serviceId: activationId };
+  app.routes = [
+    { id: routeId, kind: "page", path: "/shared", serviceId: activationId, viewId: "shared.index", enabled: true, methods: ["GET"] },
+    { id: keepRouteId, kind: "page", path: "/keep", serviceId: value.targetId, viewId: "keep.index", enabled: true, methods: ["GET"] }
+  ];
+  app.menu = [
+    { id: uuidv7(), type: "link", title: "Shared", routeId, enabled: true, authStatus: "show", serviceStatus: "show", children: [] },
+    { id: uuidv7(), type: "link", title: "Keep", routeId: keepRouteId, enabled: true, authStatus: "show", serviceStatus: "show", children: [] }
+  ];
+  app.slots = [{ slotId: "main", serviceId: activationId, viewId: "shared.index", enabled: true }];
+  app.fragments = { nav: [{ serviceId: activationId, fragmentId: "profile", targetPath: "/profile", enabled: true }] };
+  app.auth = {
+    serviceId: value.targetId,
+    roles: [{
+      id: "admin",
+      title: "Admin",
+      permissions: [{ serviceId: activationId, viewId: "shared.index", permissions: ["read"] }]
+    }]
+  } as BetterPortalConfig["apps"][number]["auth"];
+  value.config.webhooks.targets.push({
+    id: webhookId,
+    tenantId: value.tenantId,
+    appId: value.appId,
+    serviceId: activationId,
+    eventId: "shared.changed",
+    url: "https://listener.example/hook",
+    secret: "secret",
+    createdAt: now,
+    enabled: true,
+    maxAttempts: 10
+  });
+
+  const summary = purgeServiceReferences(value.config, value.tenantId, activationId);
+  value.config.sharedServiceActivations = value.config.sharedServiceActivations.filter((activation) => activation.id !== activationId);
+
+  assert.deepEqual(summary, {
+    routesRemoved: 1,
+    menuItemsRemoved: 1,
+    slotsRemoved: 1,
+    fragmentsRemoved: 1,
+    roleGrantsRemoved: 1,
+    shellCleared: 1,
+    authCleared: 0,
+    m2mBindingsRemoved: 1,
+    m2mGrantsRemoved: 1,
+    webhooksRemoved: 1
+  });
+  assert.equal(app.routes[0]?.id, keepRouteId);
+  assert.equal(app.menu[0]?.routeId, keepRouteId);
+  assert.equal(app.shell, undefined);
+  assert.deepEqual(app.slots, []);
+  assert.deepEqual(app.fragments, {});
+  assert.deepEqual(app.auth?.roles[0]?.permissions, []);
+  assert.deepEqual(value.config.m2m, { bindings: [], grants: [] });
+  assert.deepEqual(value.config.webhooks.targets, []);
+  new MemoryStorage(value.config).assertValid();
+});
+
 test("route designer exposes conflicts, stale views, and service identity", () => {
   const route = (id: string, path: string, serviceId: string, viewId: string, kind: "page" | "api" = "page") => ({
     id,
@@ -369,8 +483,21 @@ test("service registration stays browser-mediated and tenant history follows the
       message: "Ready for approval",
       candidates: [{ targetServiceId: "target-a", targetServiceTitle: "CRM", targetServiceType: "org.example.crm", targetViewId: "crm.update" }]
     }],
-    sharedServiceCatalog: [],
-    sharedServiceActivations: [],
+    sharedServiceCatalog: [{
+      id: "org.example.shared",
+      title: "Shared",
+      baseUrl: "https://shared.example",
+      tags: [],
+      installed: true,
+      enabled: true
+    }],
+    sharedServiceActivations: [{
+      id: "activation-a",
+      tenantId: "tenant-a",
+      sharedServiceId: "org.example.shared",
+      activatedAt: new Date().toISOString(),
+      enabled: true
+    }],
     apps: [{ id: "app-a", tenantId: "tenant-a", title: "App A" }],
     tenantApps: { "tenant-a": [{ id: "app-a", title: "App A" }] },
     adminApiBase: "/.well-known/bp/admin"
@@ -382,6 +509,7 @@ test("service registration stays browser-mediated and tenant history follows the
   assert.match(html, /id="bp-tenant-service-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /id="bp-change-hostname-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /id="bp-shared-service-form"[^>]*data-bp-config="rewrite=false"/);
+  assert.match(html, /shared-services\/org\.example\.shared\/activations\?tenantId=tenant-a[^>]*data-bp-error-modal=""/);
   assert.match(html, /<script>\s*\(\(\) => \{/);
   assert.doesNotMatch(html, /&quot;bp-tenant-service-form&quot;/);
 });

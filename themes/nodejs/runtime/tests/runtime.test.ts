@@ -65,6 +65,7 @@ test("shared shell owns bp-element states without browser schema discovery", () 
   assert.match(source, /bp-element\[data-bp-element\]/);
   assert.match(source, /statusSpecificity/);
   assert.match(source, /bp:element-retry/);
+  assert.match(source, /states\.ok===void 0\?responseHtml/);
   assert.doesNotMatch(source, /loadBackgroundFragments/);
   assert.doesNotMatch(source, /\.well-known\/bp\/schema\.json/);
 });

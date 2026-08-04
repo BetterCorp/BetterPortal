@@ -78,6 +78,7 @@ type RequiredHandlerContext =
   Omit<Partial<RouteHandlerContext>, "response" | "file">
   & Pick<RouteHandlerContext, "tenant" | "app">;
 type RouteUrlOptions = NonNullable<RouteHandlerContext["routeUrl"]> extends (viewId: string, options?: infer T) => unknown ? T : never;
+type ViewRenderContextSource = Pick<RouteHandlerContext, "tenant" | "app" | "method" | "path" | "params" | "query" | "routeUrl" | "uiRouteUrl">;
 
 export interface H3AuthContext {
   readonly verifier?: JwtVerifier;
@@ -617,7 +618,7 @@ function createElementResolver(
 
 function createViewRenderContext(
   route: RegisteredRoute,
-  ctx: RouteHandlerContext,
+  ctx: ViewRenderContextSource,
   dependencyAliases: Readonly<Record<string, string>>,
   renderer: string,
   mode: import("../contracts/common.js").RenderMode,
@@ -632,6 +633,27 @@ function createViewRenderContext(
   const ui = (url: string, options?: RouteUiOptions) => createRouteUiAttributes(url, options);
   const form = (url: string, options?: RouteUiOptions) => createRouteUiAttributes(url, options, true);
   return {
+    tenant: {
+      id: ctx.tenant.id,
+      slug: ctx.tenant.slug,
+      title: ctx.tenant.title,
+      branding: { ...ctx.tenant.branding }
+    },
+    app: {
+      id: ctx.app.id,
+      tenantId: ctx.app.tenantId,
+      slug: ctx.app.slug,
+      title: ctx.app.title,
+      defaultRoute: ctx.app.defaultRoute,
+      ...(ctx.app.shell ? { shell: { ...ctx.app.shell } } : {}),
+      ...(ctx.app.auth ? {
+        auth: {
+          serviceId: ctx.app.auth.serviceId,
+          ...(ctx.app.auth.loginViewId ? { loginViewId: ctx.app.auth.loginViewId } : {}),
+          ...(ctx.app.auth.logoutViewId ? { logoutViewId: ctx.app.auth.logoutViewId } : {})
+        }
+      } : {})
+    },
     request: { method: ctx.method, path: ctx.path, params: ctx.params, query: ctx.query },
     route: { viewId: route.viewId, path: route.path, renderer, mode, kind, key, status },
     url: { current, path, route: routeUrl, uiRoute },
@@ -870,13 +892,29 @@ async function handleRouteRequest(
     return rejectUnallowedAppRoute(obs, route, method, extraContext, routeAllowance.reason ?? "route_not_mounted_for_app");
   }
 
+  const routeUrl = createServiceRouteUrlBuilder(registryRoutes, extraContext, routerOptions.serviceId);
+  const uiRouteUrl = createUiRouteUrlBuilder(event, extraContext, routerOptions.serviceId);
+  const earlyRenderContext = (status: number): ViewRenderContext | undefined => {
+    const renderer = rendererFromEvent(event);
+    return renderer ? createViewRenderContext(route, {
+      tenant: extraContext.tenant,
+      app: extraContext.app,
+      method,
+      path: url.pathname,
+      params,
+      query: query as Record<string, unknown>,
+      routeUrl,
+      uiRouteUrl
+    }, dependencyAliases, renderer, "page", "page", undefined, status) : undefined;
+  };
+
   // -- Auth resolution (per spec section 0.5) ----------------------
 
   const apiAuth: ApiAuthRequirement = route.auth;
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs);
   if (authResult.error) {
-    return renderAuthError(route, event, authResult.status, authResult.error, authResult.requiredPermissions);
+    return renderAuthError(route, event, authResult.status, authResult.error, authResult.requiredPermissions, earlyRenderContext(authResult.status));
   }
 
   // -- Tenant/app activation check (validateTenantApp hook -> 426) -----
@@ -891,7 +929,7 @@ async function handleRouteRequest(
           appId: tenantApp.appId,
           reason: validation.reason ?? "(unspecified)"
         });
-        return renderUpgradeRequired(route, event, validation);
+        return renderUpgradeRequired(route, event, validation, earlyRenderContext(426));
       }
     } catch (err) {
       obs?.logger.warn("validateTenantApp threw: {msg}", { msg: (err as Error).message });
@@ -899,7 +937,7 @@ async function handleRouteRequest(
       return renderUpgradeRequired(route, event, {
         allowed: false,
         reason: "Tenant-app validation error"
-      });
+      }, earlyRenderContext(426));
     }
   }
 
@@ -923,8 +961,8 @@ async function handleRouteRequest(
     responseHeaders: event.res.headers,
     setStatus: (status) => { event.res.status = status; },
     serviceId: routerOptions.serviceId,
-    routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, routerOptions.serviceId),
-    uiRouteUrl: createUiRouteUrlBuilder(event, extraContext, routerOptions.serviceId),
+    routeUrl,
+    uiRouteUrl,
     response: responseHelper,
     file: fileResponseHelper,
     ...(obs ? { obs } : {})
@@ -1546,7 +1584,8 @@ function renderAuthError(
   event: BetterPortalEvent,
   status: number,
   message: string,
-  requiredPermissions: ReadonlyArray<RequiredPermissionDescriptor> = []
+  requiredPermissions: ReadonlyArray<RequiredPermissionDescriptor> = [],
+  context?: ViewRenderContext
 ): Response {
   const renderer = rendererFromEvent(event);
   const acceptHeader = acceptHeaderFromEvent(event);
@@ -1564,9 +1603,9 @@ function renderAuthError(
   // target as a fragment rather than replacing the shell.
   if (renderer && (representation.kind === "html")) {
     const statusRenderer = resolveStatusRenderer(route, renderer, status, "page", undefined, "GET");
-    if (statusRenderer) {
+    if (statusRenderer && context) {
       try {
-        const html = statusRenderer.render({ error: message, status, requiredPermissions });
+        const html = statusRenderer.render({ error: message, status, requiredPermissions }, context);
         return new Response(toHtmlString(html), {
           status,
           headers: { ...corsHeaders, "content-type": htmlContentType("status", route.chrome) }
@@ -1606,7 +1645,8 @@ function readTenantAppFromEvent(event: BetterPortalEvent): { tenantId: string; a
 function renderUpgradeRequired(
   route: RegisteredRoute,
   event: BetterPortalEvent,
-  validation: import("../contracts/auth.js").TenantAppValidation
+  validation: import("../contracts/auth.js").TenantAppValidation,
+  context?: ViewRenderContext
 ): Response {
   const renderer = rendererFromEvent(event);
   const acceptHeader = acceptHeaderFromEvent(event);
@@ -1621,13 +1661,13 @@ function renderUpgradeRequired(
 
   if (renderer && representation.kind === "html") {
     const statusRenderer = resolveStatusRenderer(route, renderer, status, "page", undefined, "GET");
-    if (statusRenderer) {
+    if (statusRenderer && context) {
       try {
         const html = statusRenderer.render({
           status,
           reason: validation.reason,
           upgradeUrl: validation.upgradeUrl
-        });
+        }, context);
         return htmlResponse(toHtmlString(html), status, htmlContentType("status", route.chrome));
       } catch {
         // fall through to JSON

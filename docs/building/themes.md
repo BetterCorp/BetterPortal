@@ -92,7 +92,7 @@ export function render(ctx: ShellFragmentRenderContext): HtmlRenderable {
 }
 ```
 
-`ShellFragmentRenderContext` supplies the tenant, app, shell service configuration, request URL, fragment id, and server-resolved block items. Cross-service URLs are not constructed by shell code. Service views reuse a singular active-shell fragment with `<BPElement ctx={ctx} service="shell" fragment="theme-selector">`; see [Routes and views](./routes-and-views.md).
+`ShellFragmentRenderContext` supplies the tenant, app, shell service configuration, request URL, fragment id, and server-resolved block items. Cross-service URLs are not constructed by shell code. Service views reuse a singular active-shell fragment with `<BPElement ctx={ctx} service="shell" fragment="theme-selector" />`; a successful response inserts directly when `bp-ok` is omitted. See [Routes and views](./routes-and-views.md).
 
 There is no reserved `background` location and no browser-side fragment discovery. A theme that needs a background block declares `_background/index.tsx` explicitly.
 

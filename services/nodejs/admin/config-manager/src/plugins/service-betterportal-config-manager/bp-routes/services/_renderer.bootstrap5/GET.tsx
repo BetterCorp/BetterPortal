@@ -145,6 +145,7 @@ function renderServiceCard(
                 hx-delete={`${data.adminApiBase}/shared-services/${encodeURIComponent(service.serviceId ?? service.id)}/activations?tenantId=${encodeURIComponent(service.tenantId)}`}
                 hx-target="#bp-services-alerts"
                 hx-swap="innerHTML"
+                data-bp-error-modal=""
                 hx-confirm="Deactivate this shared service?">
                 Deactivate
               </button>
@@ -248,6 +249,7 @@ function renderCatalogCard(
                 hx-delete={`${data.adminApiBase}/shared-services/${encodeURIComponent(item.id)}/activations?tenantId=${encodeURIComponent(selectedTenantId)}`}
                 hx-target="#bp-services-alerts"
                 hx-swap="innerHTML"
+                data-bp-error-modal=""
                 hx-confirm="Deactivate this shared service for the selected tenant?"
               >
                 Deactivate

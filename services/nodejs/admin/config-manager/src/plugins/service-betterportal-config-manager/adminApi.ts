@@ -601,10 +601,21 @@ function collectServiceDeleteBlockers(config: BetterPortalConfig, tenantId: stri
     }
   }
 
+  for (const binding of config.m2m.bindings) {
+    if (binding.tenantId === tenantId && (binding.sourceServiceId === serviceId || binding.targetServiceId === serviceId)) {
+      blockers.push(`M2M binding ${binding.requestId} (${binding.id})`);
+    }
+  }
+  for (const target of config.webhooks.targets) {
+    if (target.tenantId === tenantId && target.serviceId === serviceId) {
+      blockers.push(`webhook target ${target.eventId} (${target.id})`);
+    }
+  }
+
   return blockers;
 }
 
-function purgeTenantServiceReferences(config: BetterPortalConfig, tenantId: string, serviceId: string): {
+export function purgeServiceReferences(config: BetterPortalConfig, tenantId: string, serviceId: string): {
   routesRemoved: number;
   menuItemsRemoved: number;
   slotsRemoved: number;
@@ -612,6 +623,9 @@ function purgeTenantServiceReferences(config: BetterPortalConfig, tenantId: stri
   roleGrantsRemoved: number;
   shellCleared: number;
   authCleared: number;
+  m2mBindingsRemoved: number;
+  m2mGrantsRemoved: number;
+  webhooksRemoved: number;
 } {
   const summary = {
     routesRemoved: 0,
@@ -620,7 +634,10 @@ function purgeTenantServiceReferences(config: BetterPortalConfig, tenantId: stri
     fragmentsRemoved: 0,
     roleGrantsRemoved: 0,
     shellCleared: 0,
-    authCleared: 0
+    authCleared: 0,
+    m2mBindingsRemoved: 0,
+    m2mGrantsRemoved: 0,
+    webhooksRemoved: 0
   };
 
   for (const app of config.apps.filter((candidate) => candidate.tenantId === tenantId)) {
@@ -659,6 +676,21 @@ function purgeTenantServiceReferences(config: BetterPortalConfig, tenantId: stri
       if (app.fragments[location].length === 0) delete app.fragments[location];
     }
   }
+
+  const bindingIds = new Set(config.m2m.bindings
+    .filter((binding) => binding.tenantId === tenantId && (binding.sourceServiceId === serviceId || binding.targetServiceId === serviceId))
+    .map((binding) => binding.id));
+  const bindingsBefore = config.m2m.bindings.length;
+  config.m2m.bindings = config.m2m.bindings.filter((binding) => !bindingIds.has(binding.id));
+  summary.m2mBindingsRemoved = bindingsBefore - config.m2m.bindings.length;
+
+  const grantsBefore = config.m2m.grants.length;
+  config.m2m.grants = config.m2m.grants.filter((grant) => !bindingIds.has(grant.bindingId));
+  summary.m2mGrantsRemoved = grantsBefore - config.m2m.grants.length;
+
+  const webhooksBefore = config.webhooks.targets.length;
+  config.webhooks.targets = config.webhooks.targets.filter((target) => target.tenantId !== tenantId || target.serviceId !== serviceId);
+  summary.webhooksRemoved = webhooksBefore - config.webhooks.targets.length;
 
   return summary;
 }
@@ -848,24 +880,29 @@ function migrateTenantServiceToShared(
   };
 }
 
-function linkedServiceError(blockers: string[]): string {
-  return `Service is still linked and cannot be deleted. Remove these references first: ${blockers.slice(0, 8).join("; ")}${blockers.length > 8 ? `; and ${blockers.length - 8} more` : ""}`;
+function linkedServiceError(blockers: string[], action = "deleted"): string {
+  return `Service is still linked and cannot be ${action}. Remove these references first: ${blockers.slice(0, 8).join("; ")}${blockers.length > 8 ? `; and ${blockers.length - 8} more` : ""}`;
 }
 
-function linkedServiceHtmxError(tenantId: string, serviceId: string, blockers: string[]): Response {
+function linkedServiceHtmxError(blockers: string[], options: {
+  heading: string;
+  actionUrl: string;
+  confirm: string;
+  buttonLabel: string;
+}): Response {
   const items = blockers.slice(0, 8).map((blocker) => `<li>${escapeHtml(blocker)}</li>`).join("");
   const more = blockers.length > 8 ? `<li>${blockers.length - 8} more references</li>` : "";
   return htmlResponse(`
     <div class="alert alert-warning">
-      <div class="fw-semibold mb-2">Service is still linked and cannot be deleted.</div>
+      <div class="fw-semibold mb-2">${escapeHtml(options.heading)}</div>
       <ul class="mb-3">${items}${more}</ul>
       <button
         class="btn btn-sm btn-danger"
-        hx-post="${API_BASE}/tenants/${encodeURIComponent(tenantId)}/services/${encodeURIComponent(serviceId)}/purge"
+        hx-post="${escapeHtml(options.actionUrl)}"
         hx-target="#bp-services-alerts"
         hx-swap="innerHTML"
-        hx-confirm="Purge all routes, menu entries, fragments, slots, auth links and role grants for this service, then delete it?"
-      >Purge references and delete service</button>
+        hx-confirm="${escapeHtml(options.confirm)}"
+      >${escapeHtml(options.buttonLabel)}</button>
     </div>
   `, 409, "text/html; mode=fragment");
 }
@@ -1220,12 +1257,68 @@ export function registerAdminApiRoutes(
     if (!tenantId) return wantsHtmx(event) ? htmxError("tenantId required") : jsonResponse({ error: "tenantId required" }, 400);
 
     const config = await store.loadConfig();
+    const activations = config.sharedServiceActivations.filter((activation) =>
+      activation.sharedServiceId === sharedServiceId
+      && activation.tenantId === tenantId
+      && activation.appId === appId
+    );
+    if (activations.length === 0) {
+      return wantsHtmx(event) ? htmxError("Shared service activation not found", 404) : jsonResponse({ error: "Shared service activation not found" }, 404);
+    }
+    const blockers = activations.flatMap((activation) => collectServiceDeleteBlockers(config, tenantId, activation.id));
+    if (blockers.length > 0) {
+      const message = linkedServiceError(blockers, "deactivated");
+      if (!wantsHtmx(event)) return jsonResponse({ error: message, blockers }, 409);
+      const query = new URLSearchParams({ tenantId });
+      if (appId) query.set("appId", appId);
+      return linkedServiceHtmxError(blockers, {
+        heading: "Service is still linked and cannot be deactivated.",
+        actionUrl: `${API_BASE}/shared-services/${encodeURIComponent(sharedServiceId)}/activations/purge?${query}`,
+        confirm: "Purge all routes, menu entries, fragments, slots, auth links, role grants, M2M connections and webhooks for this activation, then deactivate it?",
+        buttonLabel: "Purge references and deactivate service"
+      });
+    }
     config.sharedServiceActivations = config.sharedServiceActivations.filter((activation) =>
       !(activation.sharedServiceId === sharedServiceId && activation.tenantId === tenantId && activation.appId === appId)
     );
     await store.saveConfig(config);
     if (wantsHtmx(event)) return htmxReload(`/services?tenantId=${encodeURIComponent(tenantId)}`);
     return jsonResponse({ ok: true });
+  });
+
+  app.post(`${API_BASE}/shared-services/:sharedServiceId/activations/purge`, async (event) => {
+    const sharedServiceId = getParam(event, "sharedServiceId");
+    if (!sharedServiceId) return jsonResponse({ error: "sharedServiceId required" }, 400);
+    const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
+    const tenantId = url.searchParams.get("tenantId") ?? "";
+    const appId = url.searchParams.get("appId") ?? undefined;
+    if (!tenantId) return wantsHtmx(event) ? htmxError("tenantId required") : jsonResponse({ error: "tenantId required" }, 400);
+
+    const config = await store.loadConfig();
+    const activations = config.sharedServiceActivations.filter((activation) =>
+      activation.sharedServiceId === sharedServiceId
+      && activation.tenantId === tenantId
+      && activation.appId === appId
+    );
+    if (activations.length === 0) {
+      return wantsHtmx(event) ? htmxError("Shared service activation not found", 404) : jsonResponse({ error: "Shared service activation not found" }, 404);
+    }
+
+    const summaries = activations.map((activation) => purgeServiceReferences(config, tenantId, activation.id));
+    config.sharedServiceActivations = config.sharedServiceActivations.filter((activation) => !activations.includes(activation));
+    await store.saveConfig(config);
+    const removed = (key: keyof (typeof summaries)[number]): number => summaries.reduce((total, summary) => total + summary[key], 0);
+
+    if (wantsHtmx(event)) {
+      return htmlResponse(`
+        <div class="alert alert-success">
+          Shared service deactivated. Purged ${removed("routesRemoved")} route(s), ${removed("slotsRemoved")} slot(s), ${removed("fragmentsRemoved")} fragment(s), ${removed("roleGrantsRemoved")} role grant(s), ${removed("shellCleared")} shell binding(s), ${removed("authCleared")} auth binding(s), ${removed("m2mBindingsRemoved")} M2M connection(s), and ${removed("webhooksRemoved")} webhook(s).
+        </div>
+        <div hx-get="/services?tenantId=${encodeURIComponent(tenantId)}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></div>
+      `, 200, "text/html; mode=fragment");
+    }
+
+    return jsonResponse({ ok: true, summaries } as unknown as JsonValue);
   });
 
   // Tenants
@@ -1286,7 +1379,12 @@ export function registerAdminApiRoutes(
     const blockers = collectServiceDeleteBlockers(config, tenantId, serviceId);
     if (blockers.length > 0) {
       const message = linkedServiceError(blockers);
-      return wantsHtmx(event) ? linkedServiceHtmxError(tenantId, serviceId, blockers) : jsonResponse({ error: message, blockers }, 409);
+      return wantsHtmx(event) ? linkedServiceHtmxError(blockers, {
+        heading: "Service is still linked and cannot be deleted.",
+        actionUrl: `${API_BASE}/tenants/${encodeURIComponent(tenantId)}/services/${encodeURIComponent(serviceId)}/purge`,
+        confirm: "Purge all routes, menu entries, fragments, slots, auth links, role grants, M2M connections and webhooks for this service, then delete it?",
+        buttonLabel: "Purge references and delete service"
+      }) : jsonResponse({ error: message, blockers }, 409);
     }
 
     tenant.services = tenant.services.filter((s) => s.id !== serviceId);
@@ -1311,14 +1409,14 @@ export function registerAdminApiRoutes(
     const service = tenant.services.find((candidate) => candidate.id === serviceId);
     if (!service) return wantsHtmx(event) ? htmxError("Service not found", 404) : jsonResponse({ error: "Service not found" }, 404);
 
-    const summary = purgeTenantServiceReferences(config, tenantId, serviceId);
+    const summary = purgeServiceReferences(config, tenantId, serviceId);
     tenant.services = tenant.services.filter((candidate) => candidate.id !== serviceId);
     await store.saveConfig(config);
 
     if (wantsHtmx(event)) {
       return htmlResponse(`
         <div class="alert alert-success">
-          Service deleted. Purged ${summary.routesRemoved} route(s), ${summary.slotsRemoved} slot(s), ${summary.fragmentsRemoved} fragment(s), ${summary.roleGrantsRemoved} role grant(s), ${summary.shellCleared} shell binding(s), and ${summary.authCleared} auth binding(s).
+          Service deleted. Purged ${summary.routesRemoved} route(s), ${summary.slotsRemoved} slot(s), ${summary.fragmentsRemoved} fragment(s), ${summary.roleGrantsRemoved} role grant(s), ${summary.shellCleared} shell binding(s), ${summary.authCleared} auth binding(s), ${summary.m2mBindingsRemoved} M2M connection(s), and ${summary.webhooksRemoved} webhook(s).
         </div>
         <div hx-get="/services?tenantId=${encodeURIComponent(tenantId)}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></div>
       `, 200, "text/html; mode=fragment");

@@ -440,9 +440,9 @@ function buildAppAuthConfig(
       authService?.capabilities ?? [],
       requestedRoleAuthority ?? (existing?.serviceId === authServiceId ? existing.roleAuthority : undefined)
     ),
-    loginViewId: existing?.loginViewId ?? "/login",
-    logoutViewId: existing?.logoutViewId ?? "/logout",
-    refreshViewId: existing?.refreshViewId ?? "/refresh",
+    loginViewId: existing?.loginViewId ?? "login.index",
+    logoutViewId: existing?.logoutViewId ?? "logout.index",
+    refreshViewId: existing?.refreshViewId ?? "refresh.index",
     provider: existing?.serviceId === authServiceId ? existing.provider : (
       providerKind === "authress.io"
         ? { kind: "authress.io", roleClaimPath: "roles", subjectClaimPath: "sub" }

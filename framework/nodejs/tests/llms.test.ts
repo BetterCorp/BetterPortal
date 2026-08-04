@@ -7,6 +7,7 @@ import { createBetterPortalApp, createBetterPortalNodeHandler } from "../src/run
 import {
   buildThemeAiManifest,
   renderThemeLlmsApi,
+  renderThemeLlmsDev,
   renderThemeLlmsIndex,
   renderThemeLlmsUi,
   type ThemeLlmsContext
@@ -42,6 +43,7 @@ const resource: DeveloperResource = {
 test("theme LLM documents provide concise task-specific discovery", () => {
   const index = renderThemeLlmsIndex(context);
   const api = renderThemeLlmsApi(context);
+  const dev = renderThemeLlmsDev(context);
   const ui = renderThemeLlmsUi(context, [resource]);
 
   assert.match(index, /\/llms-api\.txt/);
@@ -49,7 +51,11 @@ test("theme LLM documents provide concise task-specific discovery", () => {
   assert.match(index, /\/llms-ui\.txt/);
   assert.match(api, /https:\/\/orders\.example\.com\/\.well-known\/bp\/schema\.json/);
   assert.match(api, /automation\/llms-api\.txt/);
+  assert.match(dev, /ViewRenderContext/);
+  assert.match(dev, /view IDs, not paths/);
   assert.match(ui, /\.well-known\/bp\/resources\/ui\.skill/);
+  assert.match(ui, /dependency alias\/key/);
+  assert.match(ui, /Omit `bp-ok`/);
 });
 
 test("theme LLM documents hide unavailable root management links", () => {

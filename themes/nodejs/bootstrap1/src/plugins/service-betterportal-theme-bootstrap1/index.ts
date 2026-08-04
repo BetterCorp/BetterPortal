@@ -16,13 +16,11 @@ import {
   buildServiceViewUrl,
   buildOriginPolicy,
   htmlResponse,
-  inferServicePathFromViewId,
   registerServiceConfigRoutes,
   resolveServiceForTenant,
   resolveAppRoute,
   resolveRequestContextDetailed,
   resolveThemeRequestContext,
-  serviceBaseUrl,
   eventObservability,
   eventHeaders,
   jsonResponse,
@@ -135,36 +133,6 @@ function escapeHtml(value: unknown): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function resolveSafeServiceTarget(
-  service: { hostname: string } | { endpointBaseUrl: string },
-  path: string,
-  themeOrigin: string
-): SafeServiceTarget {
-  const baseUrl = serviceBaseUrl(service);
-  const serviceOrigin = normalizeOrigin(baseUrl);
-  if (!serviceOrigin) {
-    return {
-      ok: false,
-      error: "Invalid BetterPortal route: content service must use an absolute http(s) origin."
-    };
-  }
-
-  if (sameOrigin(serviceOrigin, themeOrigin)) {
-    return {
-      ok: false,
-      error: "Invalid BetterPortal route: content service resolves to the theme origin."
-    };
-  }
-
-  const resolvedPath = path.startsWith("/") ? path : `/${path}`;
-  return {
-    ok: true,
-    origin: serviceOrigin,
-    path: resolvedPath,
-    url: `${baseUrl}${resolvedPath}`
-  };
 }
 
 /**
@@ -1160,11 +1128,16 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const discoveryUrls = this.resolveThemeAiContext(activeEvent);
       if (appAuth?.serviceId) {
         const authBinding = resolveServiceForTenant(portalConfig, appAuth.serviceId, requestContext);
-        if (authBinding) {
-          const loginPath = appAuth.loginViewId
-            ? inferServicePathFromViewId(appAuth.loginViewId)
-            : "/login";
-          const safeLogin = resolveSafeServiceTarget(authBinding.service, loginPath, themeOrigin);
+        const loginViewId = appAuth.loginViewId ?? "login.index";
+        const loginRoute = requestContext.app.routes.find((route) =>
+          route.enabled !== false
+          && (route.kind ?? "page") === "page"
+          && route.serviceId === appAuth.serviceId
+          && route.viewId === loginViewId
+          && (route.methods.length === 0 || route.methods.some((method) => method.toUpperCase() === "GET"))
+        );
+        if (authBinding && loginRoute) {
+          const safeLogin = resolveSafeServiceViewTarget(authBinding.service, loginRoute, loginRoute.path, themeOrigin);
           if (safeLogin.ok) loginUrl = safeLogin.url;
         }
       }
