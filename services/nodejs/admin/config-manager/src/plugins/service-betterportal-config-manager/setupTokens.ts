@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
-import { signSetupToken } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, signSetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 
 interface PendingSetup {
@@ -438,19 +438,19 @@ function applyAuthProviderMetadata(appAuth: AppAuthConfig, authProvider: AuthPro
   appAuth.expectedIssuer = authProvider.issuer;
   appAuth.expectedAudience = authProvider.audience;
   appAuth.jwksUri = authProvider.jwksUri;
+  if (authProvider.publicKeys) appAuth.publicKeys = authProvider.publicKeys;
 }
 
 function normalizeAuthProviderMetadata(value: unknown): AuthProviderRuntimeMetadata | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const raw = value as Record<string, unknown>;
-  if (typeof raw.issuer !== "string" || raw.issuer.trim().length === 0) return undefined;
-  if (typeof raw.audience !== "string" || raw.audience.trim().length === 0) return undefined;
-  if (typeof raw.jwksUri !== "string" || raw.jwksUri.trim().length === 0) return undefined;
-  return {
-    issuer: raw.issuer.trim().replace(/\/+$/, ""),
-    audience: raw.audience.trim(),
-    jwksUri: raw.jwksUri.trim()
-  };
+  try {
+    const parsed = AuthProviderRuntimeMetadataSchema.parse(value);
+    const issuer = parsed.issuer.trim().replace(/\/+$/, "");
+    const audience = parsed.audience.trim();
+    const jwksUri = parsed.jwksUri.trim();
+    return issuer && audience && jwksUri ? { ...parsed, issuer, audience, jwksUri } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function hashApiKey(apiKey: string): Promise<string> {

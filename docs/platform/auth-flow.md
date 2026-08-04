@@ -48,7 +48,7 @@ This document supersedes `docs/platform/security-and-auth.md` once Phase 2 lands
 - Login is a view on the auth service. Form is themed by the app's theme.
 - Login handler signs a JWT (RS256, private key local to auth service), returns it via `BP-SetHeader` response header.
 - Client-side BP shim stores the header in localStorage and attaches it to all subsequent requests on this origin.
-- Each service verifies the JWT against the auth service's JWKS endpoint. Service enforces route-level requirements.
+- Each service verifies the JWT against the auth service's pushed public JWKS, with the published JWKS endpoint as a network fallback. Service enforces route-level requirements.
 
 ---
 
@@ -120,7 +120,7 @@ export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 
 Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Each permission entry binds a specific role grant to a specific API endpoint and CRUD action set. Services receive these via app config sync and use them to authorize requests.
 
-`expectedIssuer`, `expectedAudience`, and `jwksUri` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`, and config-manager writes them onto app auth bindings when the service is installed, synced, or selected. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL/application id or WorkOS client id/API key, remain service config and are separate from BP runtime token verification. Provider config must not duplicate the app-owned after-login or after-logout navigation targets.
+`expectedIssuer`, `expectedAudience`, `jwksUri`, and `publicKeys` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`; config-manager persists the public keys on every sync and applies them when the service is selected, independent of install/binding order. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL/application id or WorkOS client id/API key, remain service config and are separate from BP runtime token verification. Provider config must not duplicate the app-owned after-login or after-logout navigation targets.
 
 Authress and WorkOS app config support `loginUI`: `default` keeps the provider-specific current login presentation, `clean` shows a neutral BetterPortal sign-in button, and `redirect` uses the clean presentation but starts the provider redirect automatically. WorkOS custom in-app AuthKit is a separate auth flow and must add explicit routes/API handling; do not treat `loginUI` as custom credential collection.
 
@@ -361,7 +361,7 @@ Same mitigation. The verifier never reads `alg` from the token to choose verific
 
 ### `kid` injection / path traversal
 
-JWKS lookup is performed only via jwks-rsa client against the configured JWKS URL. The verifier never uses `kid` as a filesystem path or arbitrary URL. `kid` format is validated against `^[A-Za-z0-9_-]+$` before lookup.
+JWKS lookup uses pushed `app.auth.publicKeys` when available and the configured JWKS URL only as a fallback. The verifier never uses `kid` as a filesystem path or arbitrary URL. `kid` format is validated against `^[A-Za-z0-9_-]+$` before lookup.
 
 ### `jku` / `x5u` header trust
 

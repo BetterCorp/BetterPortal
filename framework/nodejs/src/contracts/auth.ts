@@ -91,10 +91,16 @@ export type AppAuthProviderConfig = Infer<typeof AppAuthProviderConfigSchema>;
 export const AuthRoleAuthoritySchema = av.enum_(["provider", "betterportal"] as const);
 export type AuthRoleAuthority = Infer<typeof AuthRoleAuthoritySchema>;
 
+export const PublicJwksSchema = av.object({
+  keys: av.array(av.record(av.any()))
+}, { unknownKeys: "strip" });
+export type PublicJwks = Infer<typeof PublicJwksSchema>;
+
 export const AuthProviderRuntimeMetadataSchema = av.object({
   issuer: NonEmptyStringSchema,
   audience: NonEmptyStringSchema,
-  jwksUri: NonEmptyStringSchema
+  jwksUri: NonEmptyStringSchema,
+  publicKeys: av.optional(PublicJwksSchema)
 }, { unknownKeys: "strip" });
 export type AuthProviderRuntimeMetadata = Infer<typeof AuthProviderRuntimeMetadataSchema>;
 
@@ -125,9 +131,7 @@ export const AppAuthConfigSchema = av.object({
   jwksUri: NonEmptyStringSchema,
   /** Public JWKS pushed by the auth service at /install and on key rotation.
    *  CP-side JWT verification uses these static keys, never fetches jwksUri. */
-  publicKeys: av.optional(av.object({
-    keys: av.array(av.record(av.any()))
-  }, { unknownKeys: "strip" })),
+  publicKeys: av.optional(PublicJwksSchema),
   roles: av.array(AppAuthRoleSchema).default([])
 }, { unknownKeys: "strip" });
 export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;

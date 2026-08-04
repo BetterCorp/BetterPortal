@@ -668,7 +668,8 @@ export abstract class BPService<
     this.publishedAuthProvider = {
       issuer: input.issuer.replace(/\/+$/, ""),
       audience: input.audience,
-      jwksUri: input.jwksUri
+      jwksUri: input.jwksUri,
+      publicKeys: { keys: input.jwks.keys.map((key) => ({ ...key })) }
     };
     this.app.get("/.well-known/jwks.json", () =>
       new Response(payload, {

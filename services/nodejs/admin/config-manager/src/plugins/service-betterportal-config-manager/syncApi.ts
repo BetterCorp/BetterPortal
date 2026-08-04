@@ -1,6 +1,7 @@
 import { createEventStream } from "h3";
 import type {
   ConfigSchemaDescriptor,
+  AppAuthConfig,
   AuthProviderRuntimeMetadata,
   BetterPortalH3App,
   BetterPortalEvent,
@@ -15,7 +16,7 @@ import type {
   ShellManifest,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { DeveloperResourceSchema, ShellManifestSchema, deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManifestSchema, deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, isApiRoute } from "./routeMounts.js";
 
@@ -125,16 +126,15 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 function normalizeAuthProviderMetadata(value: unknown): AuthProviderRuntimeMetadata | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const raw = value as Record<string, unknown>;
-  if (typeof raw.issuer !== "string" || raw.issuer.trim().length === 0) return undefined;
-  if (typeof raw.audience !== "string" || raw.audience.trim().length === 0) return undefined;
-  if (typeof raw.jwksUri !== "string" || raw.jwksUri.trim().length === 0) return undefined;
-  return {
-    issuer: raw.issuer.trim().replace(/\/+$/, ""),
-    audience: raw.audience.trim(),
-    jwksUri: raw.jwksUri.trim()
-  };
+  try {
+    const parsed = AuthProviderRuntimeMetadataSchema.parse(value);
+    const issuer = parsed.issuer.trim().replace(/\/+$/, "");
+    const audience = parsed.audience.trim();
+    const jwksUri = parsed.jwksUri.trim();
+    return issuer && audience && jwksUri ? { ...parsed, issuer, audience, jwksUri } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeManifest(input: {
@@ -227,6 +227,7 @@ export async function reconcileServiceRegistry(
     m2mRequests?: JsonValue[];
     developerResources?: DeveloperResource[];
     shell?: ShellManifest;
+    authProvider?: AuthProviderRuntimeMetadata;
   } = {}
 ): Promise<CachedManifest> {
   const viewIndex: NonNullable<Parameters<typeof normalizeManifest>[0]["viewIndex"]> = {};
@@ -652,10 +653,11 @@ async function updateServiceMetadata(
 }
 
 function applyAuthProviderMetadata(
-  appAuth: { expectedIssuer: string; expectedAudience: string; jwksUri: string },
+  appAuth: AppAuthConfig,
   authProvider: AuthProviderRuntimeMetadata
 ): void {
   appAuth.expectedIssuer = authProvider.issuer;
   appAuth.expectedAudience = authProvider.audience;
   appAuth.jwksUri = authProvider.jwksUri;
+  if (authProvider.publicKeys) appAuth.publicKeys = authProvider.publicKeys;
 }

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { generateKeyPair, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
-import { getCachedManifestForService, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { getCachedManifestForService, reconcileServiceRegistry, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
@@ -30,6 +30,10 @@ class MemoryStorage extends BaseStorage {
   }
   assertValid(): void {
     this.validateConfigReferences(this.value);
+  }
+  canonicalize(): BetterPortalConfig {
+    this.value = this.canonicalizeConfig(this.value);
+    return this.value;
   }
 }
 
@@ -282,6 +286,37 @@ test("app auth redirects require one enabled GET page mount", () => {
   storage.assertValid();
   app.routes[0]!.enabled = false;
   assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin must reference exactly one enabled GET page view/);
+});
+
+test("auth provider sync persists public JWKS and repairs later app bindings", async () => {
+  const value = s2sConfig();
+  const pair = generateKeyPair();
+  const publicKeys = { keys: [publicKeyToJwk(pair.publicKeyPem, pair.kid)] };
+  const app = value.config.apps[0]!;
+  app.auth = {
+    serviceId: value.sourceId,
+    expectedIssuer: "https://auth.example.invalid",
+    expectedAudience: "app",
+    jwksUri: "https://auth.example.invalid/.well-known/jwks.json",
+    roles: []
+  };
+  const storage = new MemoryStorage(value.config);
+
+  await reconcileServiceRegistry(storage, value.sourceId, { routes: [] } as never, {
+    authProvider: {
+      issuer: "https://auth.example.invalid",
+      audience: "app",
+      jwksUri: "https://auth.example.invalid/.well-known/jwks.json",
+      publicKeys
+    }
+  });
+
+  assert.deepEqual(value.config.tenants[0]!.services[0]!.authProvider?.publicKeys, publicKeys);
+  assert.deepEqual(app.auth.publicKeys, publicKeys);
+
+  delete app.auth.publicKeys;
+  const canonicalized = storage.canonicalize();
+  assert.deepEqual(canonicalized.apps[0]!.auth?.publicKeys, publicKeys);
 });
 
 test("legacy auth paths migrate to mounted view IDs", () => {

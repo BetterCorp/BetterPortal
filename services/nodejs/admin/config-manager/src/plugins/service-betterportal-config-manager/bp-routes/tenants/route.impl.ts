@@ -444,7 +444,7 @@ function buildAppAuthConfig(
   requestedRoleAuthority?: AuthRoleAuthority
 ): AppAuthConfig {
   const authService = authServicesForTenant(config, tenantId).find((service) => service.id === authServiceId);
-  const publicKeys = existing?.publicKeys ?? findKnownAuthPublicKeys(config, authServiceId);
+  const publicKeys = authService?.authProvider?.publicKeys ?? existing?.publicKeys ?? findKnownAuthPublicKeys(config, authServiceId);
   const providerKind = authService?.serviceId === "org.betterportal.auth.authress-io"
     ? "authress.io" as const
     : "betterportal.default" as const;

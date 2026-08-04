@@ -136,6 +136,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
           app.auth.expectedIssuer = authProvider.issuer;
           app.auth.expectedAudience = authProvider.audience;
           app.auth.jwksUri = authProvider.jwksUri;
+          if (authProvider.publicKeys) app.auth.publicKeys = authProvider.publicKeys;
         }
       }
       if (app.auth?.provider?.kind !== "authress.io") continue;

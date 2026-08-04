@@ -32,8 +32,9 @@ The selected auth service owns the BP runtime verifier metadata for the app:
 - `expectedIssuer`
 - `expectedAudience`
 - `jwksUri`
+- `publicKeys`
 
-Auth services publish those values with `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })` during install/redeem and service sync. Config-manager stores the non-secret metadata on the service registration/shared service and copies it onto app auth bindings. Users should choose the auth provider, not manually edit BP token issuer/audience/JWKS fields.
+Auth services publish those values and their public JWKS with `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })` during install/redeem and every service sync. Config-manager stores the non-secret keys on the service registration/shared service and copies them onto app auth bindings regardless of whether installation or app selection happened first. Services prefer `app.auth.publicKeys`; `jwksUri` is the network fallback and must be reachable even when the issuer is a synthetic stable identifier.
 
 Role ids are provider-facing identifiers. For Authress, the value emitted in the configured role claim path must match the BP role id exactly; the BP role title is display text only. Role ids may use letters, numbers, `.`, `_`, `:`, and `-`, must start with a letter or number, and are limited to 64 characters.
 

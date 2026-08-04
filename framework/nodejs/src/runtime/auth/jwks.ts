@@ -26,10 +26,15 @@ async function getJwksKeys(options: JwksLookupOptions): Promise<Map<string, stri
     return existing.keys;
   }
 
-  const response = await fetch(options.jwksUri, {
-    headers: { accept: "application/json" },
-    signal: AbortSignal.timeout(5000)
-  });
+  let response: Response;
+  try {
+    response = await fetch(options.jwksUri, {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(5000)
+    });
+  } catch (error) {
+    throw new Error(`JWKS fetch failed: ${options.jwksUri}: ${networkErrorDetails(error)}`, { cause: error });
+  }
   const contentType = response.headers.get("content-type") ?? "";
   const text = await response.text();
   if (!response.ok) {
@@ -65,6 +70,23 @@ async function getJwksKeys(options: JwksLookupOptions): Promise<Map<string, stri
 
   clientCache.set(cacheKey, { keys, jwksUri: options.jwksUri, lastUsed: now });
   return keys;
+}
+
+function networkErrorDetails(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const cause = error.cause instanceof Error
+    ? error.cause as Error & { code?: unknown; syscall?: unknown; hostname?: unknown; address?: unknown; port?: unknown }
+    : undefined;
+  const fields = [
+    error.message,
+    cause?.code ? `code=${String(cause.code)}` : undefined,
+    cause?.syscall ? `syscall=${String(cause.syscall)}` : undefined,
+    cause?.hostname ? `hostname=${String(cause.hostname)}` : undefined,
+    cause?.address ? `address=${String(cause.address)}` : undefined,
+    cause?.port ? `port=${String(cause.port)}` : undefined,
+    cause?.message ? `cause=${cause.message}` : undefined
+  ];
+  return fields.filter(Boolean).join(" ");
 }
 
 export async function getSigningKeyForKid(
