@@ -292,6 +292,7 @@ test("auth provider sync persists public JWKS and repairs later app bindings", a
   const value = s2sConfig();
   const pair = generateKeyPair();
   const publicKeys = { keys: [publicKeyToJwk(pair.publicKeyPem, pair.kid)] };
+  value.config.tenants[0]!.services[0]!.title = "Stale service title";
   const app = value.config.apps[0]!;
   app.auth = {
     serviceId: value.sourceId,
@@ -303,6 +304,7 @@ test("auth provider sync persists public JWKS and repairs later app bindings", a
   const storage = new MemoryStorage(value.config);
 
   await reconcileServiceRegistry(storage, value.sourceId, { routes: [] } as never, {
+    title: "Current manifest title",
     authProvider: {
       issuer: "https://auth.example.invalid",
       audience: "app",
@@ -312,6 +314,7 @@ test("auth provider sync persists public JWKS and repairs later app bindings", a
   });
 
   assert.deepEqual(value.config.tenants[0]!.services[0]!.authProvider?.publicKeys, publicKeys);
+  assert.equal(value.config.tenants[0]!.services[0]!.title, "Current manifest title");
   assert.deepEqual(app.auth.publicKeys, publicKeys);
 
   delete app.auth.publicKeys;

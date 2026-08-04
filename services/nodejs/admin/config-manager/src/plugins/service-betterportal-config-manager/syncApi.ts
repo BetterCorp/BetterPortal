@@ -575,7 +575,7 @@ async function updateServiceMetadata(
     cacheManifest(service.id, manifest);
     service.capabilities = manifest.capabilities;
     if (manifest.authProvider) service.authProvider = manifest.authProvider;
-    if (manifest.title && (!service.title || service.title === service.serviceId)) service.title = manifest.title;
+    if (manifest.title) service.title = manifest.title;
     changed = true;
   }
   const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
@@ -584,7 +584,7 @@ async function updateServiceMetadata(
     cacheManifest(platform.id, manifest);
     platform.capabilities = manifest.capabilities;
     if (manifest.authProvider) platform.authProvider = manifest.authProvider;
-    if (manifest.title && (!platform.title || platform.title === platform.serviceId)) platform.title = manifest.title;
+    if (manifest.title) platform.title = manifest.title;
     changed = true;
   }
   const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
@@ -596,7 +596,7 @@ async function updateServiceMetadata(
     }
     shared.tags = [...new Set([...(shared.tags ?? []), ...manifest.capabilities])];
     if (manifest.authProvider) shared.authProvider = manifest.authProvider;
-    if (manifest.title && (!shared.title || shared.title === shared.id || shared.title === shared.serviceId)) shared.title = manifest.title;
+    if (manifest.title) shared.title = manifest.title;
     changed = true;
   }
   for (const app of config.apps) {
