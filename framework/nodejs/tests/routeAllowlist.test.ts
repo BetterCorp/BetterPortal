@@ -7,7 +7,7 @@ import type { JwtClaims } from "../src/contracts/auth.js";
 import type { BetterPortalRegistry, RegisteredRoute } from "../src/contracts/registry.js";
 import { createHandler, createRawHandler } from "../src/runtime/handler.js";
 import type { RouteHandler } from "../src/contracts/route.js";
-import type { BetterPortalApp, BetterPortalTenant } from "../src/contracts/platformConfig.js";
+import type { BetterPortalApp, BetterPortalResolvedApp, BetterPortalTenant } from "../src/contracts/platformConfig.js";
 import { createBetterPortalApp, createBetterPortalNodeHandler } from "../src/runtime/h3.js";
 import { uuidv7 } from "../src/runtime/uuid.js";
 
@@ -560,6 +560,105 @@ test("uiRouteUrl only resolves GET page mounts", async () => {
     });
   }, { tenant: scopedTenant, serviceId: pluginId });
 });
+
+test("route helpers resolve dependency services from the application route index", async () => {
+  const sourcePluginId = "service.test.source";
+  const authPluginId = "service.test.auth";
+  const sourceServiceId = uuidv7();
+  const authServiceId = uuidv7();
+  const scopedTenant: BetterPortalTenant = {
+    ...tenant,
+    services: [{
+      id: sourceServiceId,
+      hostname: "http://source.local",
+      serviceId: sourcePluginId,
+      capabilities: [],
+      deploymentMode: "self-hosted",
+      createdAt: new Date(0).toISOString(),
+      enabled: true
+    }, {
+      id: authServiceId,
+      hostname: "http://auth.local",
+      serviceId: authPluginId,
+      capabilities: [],
+      deploymentMode: "self-hosted",
+      createdAt: new Date(0).toISOString(),
+      enabled: true
+    }]
+  };
+  const selfMount = {
+    id: uuidv7(), kind: "page" as const, path: "/self", serviceId: sourceServiceId,
+    viewId: "self.index", enabled: true, methods: ["GET"]
+  };
+  const app: BetterPortalResolvedApp = {
+    id: uuidv7(),
+    tenantId: scopedTenant.id,
+    slug: "app",
+    title: "App",
+    hostnames: ["https://app.local"],
+    originOverrides: [],
+    refererOverrides: [],
+    shell: { serviceId: sourceServiceId, service: "test", renderer: "bootstrap5" },
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/self",
+    routes: [selfMount],
+    appRoutes: [selfMount, {
+      id: uuidv7(), kind: "page", path: "/login", serviceId: authServiceId,
+      viewId: "login.index", resolvedServicePath: "/login", enabled: true, methods: ["GET"]
+    }, {
+      id: uuidv7(), kind: "api", path: `/_bp/service/${authServiceId}/exchange`, serviceId: authServiceId,
+      viewId: "auth.exchange", resolvedServicePath: "/exchange", enabled: true, methods: ["POST"]
+    }],
+    menu: [],
+    slots: [],
+    fragments: {}
+  };
+
+  const sourceRoute = {
+    ...route("/self", "self.index", (ctx) => ({
+      aliasService: ctx.routeUrl?.("auth.exchange", { serviceId: "auth", absolute: true }) ?? null,
+      instanceService: ctx.routeUrl?.("auth.exchange", { serviceId: authServiceId }) ?? null,
+      aliasUi: ctx.uiRouteUrl?.("login.index", { serviceId: "auth" }) ?? null,
+      localCollision: ctx.routeUrl?.("auth.exchange") ?? null
+    }), av.any()),
+    renderers: {
+      bootstrap5: {
+        pages: [{
+          rendererId: "default",
+          type: "page" as const,
+          method: "GET" as const,
+          render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => JSON.stringify({
+            service: ctx.url.route("auth.exchange", { serviceId: "auth", absolute: true }),
+            ui: ctx.url.uiRoute("login.index", { serviceId: "auth" })
+          })
+        }],
+        components: [],
+        fragments: []
+      }
+    }
+  } satisfies RegisteredRoute;
+
+  await withServer(app, {
+    dependencies: { auth: authPluginId },
+    routes: [sourceRoute]
+  }, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/self`, { headers: { accept: "application/json" } });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      aliasService: "http://auth.local/exchange",
+      instanceService: "/exchange",
+      aliasUi: "/login",
+      localCollision: null
+    });
+    const html = await fetch(`${baseUrl}/self`, { headers: { accept: "text/html" } });
+    assert.equal(html.status, 200);
+    assert.deepEqual(JSON.parse(await html.text()), {
+      service: "http://auth.local/exchange",
+      ui: "/login"
+    });
+  }, { tenant: scopedTenant, serviceId: sourcePluginId });
+});
+
 test("route caller modes default to user and delegated calls verify both credentials", async () => {
   const serviceId = uuidv7();
   const sourceServiceId = uuidv7();

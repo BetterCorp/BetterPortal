@@ -232,6 +232,10 @@ export interface BetterPortalResolvedShell {
 
 export type BetterPortalResolvedApp = Omit<BetterPortalApp, "shell"> & {
   readonly shell?: BetterPortalResolvedShell;
+  /** Full application route index supplied to scoped services for cross-service lookup. */
+  readonly appRoutes?: ReadonlyArray<BetterPortalApp["routes"][number]>;
+  /** Full application fragment index supplied to scoped services for cross-service lookup. */
+  readonly appFragments?: BetterPortalApp["fragments"];
 };
 
 export const BetterPortalConfigManagementAuthSchema = av.object({

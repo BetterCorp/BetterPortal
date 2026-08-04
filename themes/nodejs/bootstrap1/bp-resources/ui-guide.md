@@ -13,7 +13,7 @@ Use Bootstrap 5 classes and server-rendered JSX/HTMX. BetterPortal service rende
 ## Forms and mutations
 
 - Use real `<form>` elements and labelled controls. Validation text uses `.invalid-feedback` or `.form-text`.
-- Use `ctx.routeUrl()` for form actions, HTMX calls, downloads and SSE. `ctx.uiRouteUrl()` is only for GET navigation through a mounted page route.
+- In renderers, use `ctx.url.route()` for form actions, HTMX calls, downloads and SSE. `ctx.url.uiRoute()` is only for GET navigation through a mounted page route. For another service, pass its declared dependency alias as `serviceId`; both helpers resolve the active app-mounted provider. Handler equivalents are `ctx.routeUrl()` and `ctx.uiRouteUrl()`.
 - Use `<BPElement ctx={ctx} service="dependency-alias" path="/contract/path" fragment="location.id">` for cross-service UI fragments. `service` is the dependency alias/key declared in `betterportal.json`; never put service titles, UUIDs, hostnames, or absolute URLs in renderer code. The server consumes `ctx` and resolves the active app-mounted provider.
 - Use `service="shell"` and a singular shell fragment id to reuse active-shell UI such as `theme-selector`. Add `bp-loading`, status-specific `bp-status`, and `bp-nok` states as needed. Omit `bp-ok` to insert successful content directly; add it only to wrap success content, with exactly one `<template />`.
 - The renderer's second argument is `ViewRenderContext`. Use its limited `tenant`/`app` presentation projections and `ctx.url` helpers; keep authorization and business data in the handler. Auth navigation fields are view IDs and must be resolved with `ctx.url.uiRoute()`.

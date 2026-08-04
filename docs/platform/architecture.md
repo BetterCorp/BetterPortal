@@ -40,6 +40,8 @@ BetterPortal instead makes the browser the composition point. The shell stays st
 
 The config manager can edit this file through BetterPortal APIs.
 
+Scoped service snapshots keep authorization and lookup separate. `routes` and `fragments` contain the current service's allowlisted records; `appRoutes` and `appFragments` contain read-only application-wide indexes used to resolve mounted dependency services. Application indexes never authorize an inbound service request.
+
 Tenant services are direct one-tenant bindings. Shared services are registered once in the shared catalog and activated into tenants/apps. Apps reference the activation id for shell, auth, routes, fragments, slots, and role grants. This keeps a shared provider such as auth or a shell reusable while preserving a concrete per-tenant/app service instance id.
 
 ## Runtime contracts

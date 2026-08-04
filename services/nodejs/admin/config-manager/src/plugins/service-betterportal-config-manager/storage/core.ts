@@ -722,9 +722,11 @@ export abstract class BaseStorage implements PlatformConfigStore {
           app: {
             ...this.scopeApp(config, app, [], false, false),
             routes: [],
+            appRoutes: [],
             menu: [],
             slots: [],
             fragments: {},
+            appFragments: {},
             shellFragments: {}
           }
         }
@@ -806,6 +808,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
       defaultRoute: app.defaultRoute,
       // Themes and authoritative auth services need the full route allowlist.
       routes: isShellCaller || isAuthCaller ? app.routes : app.routes.filter((r) => serviceKeySet.has(r.serviceId)),
+      appRoutes: app.routes,
       menu: app.menu,
       slots: isShellCaller ? app.slots : app.slots.filter((s) => serviceKeySet.has(s.serviceId)),
       fragments: isShellCaller
@@ -815,6 +818,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
               .map(([loc, frags]) => [loc, frags.filter((f) => serviceKeySet.has(f.serviceId))])
               .filter(([, frags]) => (frags as unknown[]).length > 0)
           ),
+      appFragments: app.fragments,
       shellFragments: isShellCaller ? app.shellFragments : {},
       auth: app.auth
     };

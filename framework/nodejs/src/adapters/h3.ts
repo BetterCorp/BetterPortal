@@ -288,7 +288,7 @@ export function createH3Router(
           route,
           "GET",
           options,
-          (obs) => handleStreamSse(registry.routes, route, streamGetHandler, event, obs, options),
+          (obs) => handleStreamSse(registry.routes, registry.dependencies ?? {}, route, streamGetHandler, event, obs, options),
           { "bp.route.stream_sse": true }
         );
       });
@@ -597,7 +597,7 @@ function createElementResolver(
     const serviceIds = new Set(extraContext.tenant.services
       .filter((service) => service.enabled && (service.serviceId === pluginId || service.id === pluginId))
       .map((service) => service.id));
-    const mounts = extraContext.app.routes.filter((mount) => {
+    const mounts = appRouteIndex(extraContext.app).filter((mount) => {
       const servicePath = routeMountServicePath(mount);
       return mount.enabled !== false
         && serviceIds.has(mount.serviceId)
@@ -666,14 +666,61 @@ function createViewRenderContext(
     element: createElementResolver(ctx as RequiredHandlerContext, dependencyAliases)
   };
 }
-function createServiceRouteUrlBuilder(routes: ReadonlyArray<RegisteredRoute>, extraContext: RequiredHandlerContext, currentServiceId?: string): RouteHandlerContext["routeUrl"] {
+function appRouteIndex(app: RequiredHandlerContext["app"]): ReadonlyArray<RequiredHandlerContext["app"]["routes"][number]> {
+  return app.appRoutes ?? app.routes;
+}
+
+function serviceReferenceIds(
+  extraContext: RequiredHandlerContext,
+  reference: string,
+  dependencyAliases: Readonly<Record<string, string>>
+): Set<string> {
+  const serviceKey = dependencyAliases[reference] ?? reference;
+  const ids = new Set<string>([serviceKey]);
+  for (const service of extraContext.tenant.services) {
+    if (!service.enabled || (service.id !== serviceKey && service.serviceId !== serviceKey)) continue;
+    ids.add(service.id);
+    if (service.serviceId) ids.add(service.serviceId);
+  }
+  return ids;
+}
+
+function createServiceRouteUrlBuilder(
+  routes: ReadonlyArray<RegisteredRoute>,
+  extraContext: RequiredHandlerContext,
+  dependencyAliases: Readonly<Record<string, string>>,
+  currentServiceId?: string
+): RouteHandlerContext["routeUrl"] {
   return (viewId, options = {}) => {
     const targetServiceId = options.serviceId ?? currentServiceId;
-    const route = routes.find((candidate) => candidate.viewId === viewId);
-    if (!route) return null;
-    const origin = options.absolute && targetServiceId ? serviceOrigin(extraContext, targetServiceId, options.origin) : undefined;
+    if (!targetServiceId) return null;
+    const targetIds = serviceReferenceIds(extraContext, targetServiceId, dependencyAliases);
+    const currentIds = currentServiceId
+      ? serviceReferenceIds(extraContext, currentServiceId, dependencyAliases)
+      : new Set<string>();
+    const isCurrentService = [...targetIds].some((id) => currentIds.has(id));
+
+    if (isCurrentService) {
+      const route = routes.find((candidate) => candidate.viewId === viewId);
+      if (!route) return null;
+      const origin = options.absolute ? serviceOrigin(extraContext, targetServiceId, options.origin) : undefined;
+      if (options.absolute && !origin) return null;
+      return appendQuery(fillAppPath(route.path, options.params), options.query, origin ?? undefined);
+    }
+
+    const mounts = appRouteIndex(extraContext.app).filter((candidate) =>
+      candidate.enabled !== false
+      && candidate.viewId === viewId
+      && targetIds.has(candidate.serviceId)
+      && Boolean(routeMountServicePath(candidate))
+    );
+    const targets = new Map(mounts.map((mount) => [`${mount.serviceId}\0${routeMountServicePath(mount)}`, mount]));
+    if (targets.size !== 1) return null;
+    const mount = [...targets.values()][0];
+    const servicePath = routeMountServicePath(mount)!;
+    const origin = options.absolute ? serviceOrigin(extraContext, mount.serviceId, options.origin) : undefined;
     if (options.absolute && !origin) return null;
-    return appendQuery(fillAppPath(route.path, options.params), options.query, origin ?? undefined);
+    return appendQuery(fillAppPath(servicePath, options.params), options.query, origin ?? undefined);
   };
 }
 
@@ -699,19 +746,19 @@ function rewriteServiceRouteTokens(
   return rewritten;
 }
 
-function createUiRouteUrlBuilder(event: BetterPortalEvent, extraContext: RequiredHandlerContext, currentServiceId?: string): RouteHandlerContext["uiRouteUrl"] {
+function createUiRouteUrlBuilder(
+  event: BetterPortalEvent,
+  extraContext: RequiredHandlerContext,
+  dependencyAliases: Readonly<Record<string, string>>,
+  currentServiceId?: string
+): RouteHandlerContext["uiRouteUrl"] {
   return (viewId, options = {}) => {
     const targetServiceId = options.serviceId ?? currentServiceId;
     if (!targetServiceId) return null;
 
-    const serviceIds = new Set<string>([targetServiceId]);
-    for (const service of extraContext.tenant.services) {
-      if (service.enabled && (service.id === targetServiceId || service.serviceId === targetServiceId)) {
-        serviceIds.add(service.id);
-      }
-    }
+    const serviceIds = serviceReferenceIds(extraContext, targetServiceId, dependencyAliases);
 
-    const route = extraContext.app.routes.find((candidate) =>
+    const route = appRouteIndex(extraContext.app).find((candidate) =>
       candidate.enabled !== false
       && (candidate.kind ?? "page") === "page"
       && methodAllowed(candidate.methods, "GET")
@@ -892,8 +939,8 @@ async function handleRouteRequest(
     return rejectUnallowedAppRoute(obs, route, method, extraContext, routeAllowance.reason ?? "route_not_mounted_for_app");
   }
 
-  const routeUrl = createServiceRouteUrlBuilder(registryRoutes, extraContext, routerOptions.serviceId);
-  const uiRouteUrl = createUiRouteUrlBuilder(event, extraContext, routerOptions.serviceId);
+  const routeUrl = createServiceRouteUrlBuilder(registryRoutes, extraContext, dependencyAliases, routerOptions.serviceId);
+  const uiRouteUrl = createUiRouteUrlBuilder(event, extraContext, dependencyAliases, routerOptions.serviceId);
   const earlyRenderContext = (status: number): ViewRenderContext | undefined => {
     const renderer = rendererFromEvent(event);
     return renderer ? createViewRenderContext(route, {
@@ -1221,6 +1268,7 @@ async function handleStreamRepresentation(
  */
 async function handleStreamSse(
   registryRoutes: ReadonlyArray<RegisteredRoute>,
+  dependencyAliases: Readonly<Record<string, string>>,
   route: RegisteredRoute,
   handler: AnyStreamHandler,
   event: BetterPortalEvent,
@@ -1260,8 +1308,8 @@ async function handleStreamSse(
     callerMode: authResult.callerMode,
     ...extraContext,
     serviceId: routerOptions.serviceId,
-    routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, routerOptions.serviceId),
-    uiRouteUrl: createUiRouteUrlBuilder(event, extraContext, routerOptions.serviceId),
+    routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, dependencyAliases, routerOptions.serviceId),
+    uiRouteUrl: createUiRouteUrlBuilder(event, extraContext, dependencyAliases, routerOptions.serviceId),
     response: responseHelper,
     file: fileResponseHelper,
     ...(obs ? { obs } : {})

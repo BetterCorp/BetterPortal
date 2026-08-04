@@ -88,9 +88,13 @@ export interface ScopedApp {
   readonly themeConfig: BetterPortalApp["themeConfig"];
   readonly defaultRoute: string;
   readonly routes: ReadonlyArray<BetterPortalApp["routes"][number]>;
+  /** Full application route index for cross-service URL resolution. Never used as this service's inbound allowlist. */
+  readonly appRoutes?: ReadonlyArray<BetterPortalApp["routes"][number]>;
   readonly menu: BetterPortalApp["menu"];
   readonly slots: BetterPortalApp["slots"];
   readonly fragments: BetterPortalApp["fragments"];
+  /** Full application fragment index for cross-service fragment resolution. */
+  readonly appFragments?: BetterPortalApp["fragments"];
   readonly shellFragments: BetterPortalApp["shellFragments"];
   readonly auth?: BetterPortalApp["auth"];
 }

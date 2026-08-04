@@ -8,7 +8,7 @@ description: Build BetterPortal service UI that fits the active Bootstrap1 shell
 1. Read the active app's `/llms-api.txt` and this theme's UI guide.
 2. Identify the service view, methods, schemas, required permissions and stable `viewId`.
 3. Render server-side JSX/HTMX for the `bootstrap1` theme. Return only service content, never the shell.
-4. Use `ctx.routeUrl()` for service requests and `ctx.uiRouteUrl()` only for GET page navigation.
+4. In renderers, use `ctx.url.route()` for service requests and `ctx.url.uiRoute()` only for GET page navigation. Pass a declared dependency alias as `serviceId` for another service.
 5. Use the framework `BPElement` JSX helper with `ctx` for cross-service or active-shell fragments. Reference the dependency alias/key declared in `betterportal.json`, never a title, service UUID, hostname, or absolute URL. Omit `bp-ok` for direct success insertion; an explicit wrapping `bp-ok` must have exactly one `<template />`.
 6. Prefer Bootstrap components and native HTML controls. Add custom CSS or JavaScript only when the theme and platform primitives cannot express the behavior.
 7. Include loading, empty, validation, forbidden and service-unavailable states.

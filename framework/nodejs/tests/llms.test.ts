@@ -53,6 +53,7 @@ test("theme LLM documents provide concise task-specific discovery", () => {
   assert.match(api, /automation\/llms-api\.txt/);
   assert.match(dev, /ViewRenderContext/);
   assert.match(dev, /view IDs, not paths/);
+  assert.match(dev, /declared dependency alias/);
   assert.match(ui, /\.well-known\/bp\/resources\/ui\.skill/);
   assert.match(ui, /dependency alias\/key/);
   assert.match(ui, /Omit `bp-ok`/);

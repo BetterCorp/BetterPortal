@@ -205,21 +205,22 @@ Requests are not grants. An administrator approves a compatible provider in Conf
 
 Use `this.m2mClient(requestId, tenantId, appId)` for pure service automation. For a user-initiated operation, use `this.delegatedM2mClient(requestId, ctx)` so the generated client sends the original BP user JWT plus a fresh service proof. The target verifies both credentials. Do not manually construct or forward these headers.
 
-Handlers that need to request another service view should use `ctx.routeUrl(viewId, options)`. It resolves the registered service route and, when `absolute: true`, uses the service hostname/base URL. Use it for HTMX requests, form actions, `fetch`, SSE, and downloads.
+Handlers that need to request a service view should use `ctx.routeUrl(viewId, options)`. With no `serviceId`, it resolves the current service registry. For another service, pass its declared dependency alias/key; BetterPortal maps the alias through `betterportal.lock.json`, then resolves the active concrete service and service path from the synced application route index. A plugin ID or concrete service-instance UUID is also accepted for platform-owned dynamic references, but application code should prefer declared dependency aliases. The target route must be mounted in the app. When `absolute: true`, the result uses the target service hostname/base URL. Use it for HTMX requests, form actions, `fetch`, SSE, and downloads.
 
 ```ts
 const url = ctx.routeUrl?.("reports.detail.index", {
+  serviceId: "reports",
   absolute: true,
   params: { reportId },
   query: { token }
 });
 ```
 
-Use `ctx.uiRouteUrl(viewId, options)` only for GET browser navigation through the app shell, such as links and `HX-Location` redirects. It resolves enabled GET page mounts and, when `absolute: true`, uses the app hostname/base URL. It returns `null` for API and mutation-only routes.
+Use `ctx.uiRouteUrl(viewId, options)` only for GET browser navigation through the app shell, such as links and `HX-Location` redirects. It uses the same dependency-alias resolution against the synced application route index, resolves enabled GET page mounts, and when `absolute: true` uses the app hostname/base URL. It returns `null` for API and mutation-only routes.
 
 ```ts
-const submitUrl = ctx.routeUrl?.("reports.update"); // hx-post, form action, fetch
-const pageUrl = ctx.uiRouteUrl?.("reports.detail"); // href or GET navigation
+const submitUrl = ctx.routeUrl?.("reports.update", { serviceId: "reports" }); // hx-post, form action, fetch
+const pageUrl = ctx.uiRouteUrl?.("reports.detail", { serviceId: "reports" }); // href or GET navigation
 ```
 
 Do not use `uiRouteUrl` for HTMX requests, form actions, `fetch`, SSE, or downloads. Those requests would target the app/theme origin instead of the service and can return 404.
@@ -247,7 +248,7 @@ import { BPElement } from "@betterportal/framework";
 
 The shared HTMX pipeline performs the request and adds managed BetterPortal headers. `bp-loading` is the initial state. Omit `bp-ok` for the normal case: a successful response is inserted directly, exactly as if `<bp-ok><template /></bp-ok>` had been supplied. Add `bp-ok` only to wrap or decorate success content; when present it must contain exactly one empty `<template />` insertion point. `bp-status` accepts exact codes, `40x`, or `4xx`, in that priority order. `bp-nok` handles unavailable dependencies, unmatched errors, and network failures. Omitted states render nothing. A 204 response is successful empty content.
 
-Use `routeUrl` for same-service actions and `uiRouteUrl` for mounted GET navigation. Use `BPElement` for UI components from another service or the active shell; do not parse cross-service references into arbitrary `hx-*` attributes.
+Use `routeUrl` for service actions and `uiRouteUrl` for mounted GET navigation. Both accept a declared dependency alias in `serviceId`; omit it for the current service. Use `BPElement` for UI components from another service or the active shell; do not parse cross-service references into arbitrary `hx-*` attributes.
 
 Raw app routes and tenant services are intentionally absent from renderer context. Use `ctx.url` for route resolution and `BPElement` for dependency or shell fragments.
 
@@ -293,6 +294,8 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
 Renderer `data` must be typed from the route response. Codegen warns on missing, `any`, or `unknown` render parameters.
 
 `ViewRenderContext` is server-resolved presentation context and is never serialized automatically. Its limited `tenant` projection contains `id`, `slug`, `title`, and `branding`. Its limited `app` projection contains `id`, `tenantId`, `slug`, `title`, `defaultRoute`, resolved `shell`, and navigation-only auth references (`serviceId`, `loginViewId`, and `logoutViewId`). It intentionally excludes services, routes, hostnames, origin policy, theme configuration, auth verification metadata, roles, permissions, keys, and M2M configuration. Authorization and business logic remain in the route handler.
+
+Renderer URL helpers are `ctx.url.route()` and `ctx.url.uiRoute()`, corresponding to handler `ctx.routeUrl()` and `ctx.uiRouteUrl()`. Both accept a declared dependency alias as `serviceId` and resolve it from the server-only application route index; the raw index is not exposed to renderer code.
 
 Auth references are stable view IDs, never URL paths. Resolve browser navigation through the app mount:
 

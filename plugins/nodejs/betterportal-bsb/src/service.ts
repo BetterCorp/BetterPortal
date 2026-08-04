@@ -1476,9 +1476,11 @@ export abstract class BPService<
         shell: app.shell,
         defaultRoute: app.defaultRoute,
         routes: [...app.routes],
+        appRoutes: [...(app.appRoutes ?? app.routes)],
         menu: [...app.menu],
         slots: [...app.slots],
         fragments: { ...app.fragments },
+        appFragments: { ...(app.appFragments ?? app.fragments) },
         shellFragments: { ...app.shellFragments }
       }
     };

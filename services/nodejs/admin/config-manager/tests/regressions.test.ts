@@ -281,6 +281,28 @@ test("legacy auth paths migrate to mounted view IDs", () => {
   assert.equal(app.auth.refreshViewId, "refresh.index");
 });
 
+test("ordinary service scopes include separate application route and fragment indexes", async () => {
+  const { config, tenantId, sourceId, targetId } = s2sConfig();
+  const app = config.apps[0];
+  app.routes = [
+    { id: uuidv7(), kind: "page", path: "/source", serviceId: sourceId, viewId: "source.index", enabled: true, methods: ["GET"] },
+    { id: uuidv7(), kind: "page", path: "/target", serviceId: targetId, viewId: "target.index", enabled: true, methods: ["GET"] }
+  ];
+  app.fragments = {
+    nav: [
+      { serviceId: sourceId, fragmentId: "source", targetPath: "/source", enabled: true },
+      { serviceId: targetId, fragmentId: "target", targetPath: "/target", enabled: true }
+    ]
+  };
+
+  const scoped = await new MemoryStorage(config).getScopedConfig("org.example.source", "tenant", tenantId);
+  const scopedApp = scoped.apps[0];
+  assert.deepEqual(scopedApp.routes.map((route) => route.serviceId), [sourceId]);
+  assert.deepEqual(scopedApp.appRoutes?.map((route) => route.serviceId), [sourceId, targetId]);
+  assert.deepEqual(scopedApp.fragments.nav?.map((fragment) => fragment.serviceId), [sourceId]);
+  assert.deepEqual(scopedApp.appFragments?.nav?.map((fragment) => fragment.serviceId), [sourceId, targetId]);
+});
+
 test("shared activation purge removes every linked reference", () => {
   const value = s2sConfig();
   const activationId = value.sourceId;

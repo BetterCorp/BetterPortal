@@ -189,6 +189,8 @@ data: {<ScopedServiceConfig JSON>}
 
 Only tenants/apps that bind this service (per `bp-config.yaml`) are included. The service uses this to resolve incoming requests without reading the full `bp-config.yaml`.
 
+Each scoped app keeps service-owned `routes` and `fragments` as the inbound allowlist. It also carries read-only `appRoutes` and `appFragments` indexes for application-wide cross-service lookup. URL and fragment resolvers may read the application indexes, but MUST NOT use them to authorize an incoming route for the current service. Older cached snapshots may omit the application indexes; runtimes fall back to service-local lookup until the next sync.
+
 ### 2.3 Reconnection
 
 The connecting service is responsible for reconnecting on close (with a 5-second delay or backoff). The control plane MAY close idle connections after a long timeout.

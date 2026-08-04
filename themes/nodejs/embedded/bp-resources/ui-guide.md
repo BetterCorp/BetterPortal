@@ -7,7 +7,7 @@ The Embedded theme renders BetterPortal service content inside a lightweight hos
 - Return service content only; the theme owns the host document and main outlet.
 - Use semantic HTML, visible labels, keyboard-operable controls and responsive wrapping.
 - Prefer one column. Avoid persistent navigation, wide tables, fixed positioning and viewport-sized panels.
-- Use `ctx.routeUrl()` for service requests. Use `ctx.uiRouteUrl()` only for GET page navigation.
+- In renderers, use `ctx.url.route()` for service requests. Use `ctx.url.uiRoute()` only for GET page navigation. Pass a declared dependency alias as `serviceId` when resolving another app-mounted service. Handler equivalents are `ctx.routeUrl()` and `ctx.uiRouteUrl()`.
 - Use normal forms and HTMX swaps. Provide loading, empty, validation and error states.
 - Use `hx-download` for authenticated files and `HX-Trigger` events for passive refresh.
 - Do not add a SPA framework, iframe, client router, state library or hardcoded service URL.

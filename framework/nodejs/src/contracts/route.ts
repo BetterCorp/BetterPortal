@@ -102,7 +102,7 @@ export interface MultipartRequest {
 }
 
 export interface RouteUrlOptions {
-  /** Defaults to this handler's service id. Accepts either plugin id or service-instance UUID. */
+  /** Defaults to this handler's service id. Accepts a declared dependency alias, plugin id, or service-instance UUID. */
   serviceId?: string;
   params?: Record<string, string | number | boolean | null | undefined>;
   query?: Record<string, string | number | boolean | null | undefined>;

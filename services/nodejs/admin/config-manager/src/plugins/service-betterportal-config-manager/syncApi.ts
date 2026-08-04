@@ -289,23 +289,26 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
     }
   }
 
+  const resolveRoutes = (routes: ScopedServiceConfig["apps"][number]["routes"]) => routes.map((route) => {
+    const cached = manifestCache.get(route.serviceId)
+      ?? manifestCache.get(serviceManifestKeys.get(route.serviceId) ?? "");
+    if (!cached) return route;
+    const view = cached.viewIndex[route.viewId];
+    if (!view) return route;
+    const chrome = view.chrome || route.chrome
+      ? { ...(view.chrome ?? {}), ...(route.chrome ?? {}) }
+      : undefined;
+    return {
+      ...route,
+      resolvedServicePath: view.path,
+      ...(chrome ? { chrome } : {})
+    };
+  });
+
   const apps = scoped.apps.map((app) => ({
     ...app,
-    routes: app.routes.map((route) => {
-      const cached = manifestCache.get(route.serviceId)
-        ?? manifestCache.get(serviceManifestKeys.get(route.serviceId) ?? "");
-      if (!cached) return route;
-      const view = cached.viewIndex[route.viewId];
-      if (!view) return route;
-      const chrome = view.chrome || route.chrome
-        ? { ...(view.chrome ?? {}), ...(route.chrome ?? {}) }
-        : undefined;
-      return {
-        ...route,
-        resolvedServicePath: view.path,
-        ...(chrome ? { chrome } : {})
-      };
-    })
+    routes: resolveRoutes(app.routes),
+    ...(app.appRoutes ? { appRoutes: resolveRoutes(app.appRoutes) } : {})
   }));
   return { ...scoped, apps };
 }
