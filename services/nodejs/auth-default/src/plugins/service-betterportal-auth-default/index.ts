@@ -16,7 +16,6 @@ import {
   loadOrGenerateKeyPair,
   publicKeyToJwk,
   type BpTokenIssuer,
-  type ConfigSchemaDescriptor,
   type JwtVerifier,
   type RsaKeyPair,
   type TenantAppValidation
@@ -57,40 +56,6 @@ const EventSchemas = createEventSchemas({
   onBroadcast: {}
 });
 
-export interface DefaultAuthAppConfig {
-  loginRedirectPath?: string;
-  logoutRedirectPath?: string;
-}
-
-export function resolveDefaultAuthAppConfig(raw: Record<string, unknown> | undefined): DefaultAuthAppConfig {
-  const loginRedirectPath = typeof raw?.loginRedirectPath === "string" && raw.loginRedirectPath.trim()
-    ? raw.loginRedirectPath.trim()
-    : undefined;
-  const logoutRedirectPath = typeof raw?.logoutRedirectPath === "string" && raw.logoutRedirectPath.trim()
-    ? raw.logoutRedirectPath.trim()
-    : undefined;
-  return {
-    ...(loginRedirectPath ? { loginRedirectPath } : {}),
-    ...(logoutRedirectPath ? { logoutRedirectPath } : {})
-  };
-}
-
-const DefaultAuthConfigSchemas: ConfigSchemaDescriptor[] = [{
-  id: "auth.default.app",
-  title: "Default Auth Config",
-  description: "App-scoped default auth settings.",
-  scope: "app",
-  jsonSchema: { loginRedirectPath: "string", logoutRedirectPath: "string" },
-  groups: [
-    { id: "login", title: "Login", description: "Routes used after signing in.", order: 10, optional: true },
-    { id: "logout", title: "Logout", description: "Routes used after signing out.", order: 20, optional: true }
-  ],
-  fields: [
-    { key: "loginRedirectPath", title: "Logged In Route", description: "Tenant route shown after signing in when no next path is supplied.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 10, defaultValue: "/", ui: { control: "select", optionsSource: "app.routes" }, required: false },
-    { key: "logoutRedirectPath", title: "Logged Out Route", description: "Tenant route shown after signing out.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "logout", order: 10, defaultValue: "/", ui: { control: "select", optionsSource: "app.routes" }, required: false }
-  ]
-}];
-
 export interface AuthRuntime {
   readonly tokenIssuer: BpTokenIssuer;
   readonly userStore: UserStore;
@@ -115,8 +80,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         pluginId: "org.betterportal.auth.default",
         title: "BetterPortal Default Auth",
         description: "JWT-issuing auth service (RS256 + JWKS + bcrypt user store).",
-        capabilities: ["auth"],
-        configSchemas: DefaultAuthConfigSchemas
+        capabilities: ["auth"]
       },
       registry
     };

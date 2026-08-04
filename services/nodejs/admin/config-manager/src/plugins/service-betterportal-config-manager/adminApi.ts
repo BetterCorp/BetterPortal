@@ -648,8 +648,13 @@ export function purgeServiceReferences(config: BetterPortalConfig, tenantId: str
     if (app.auth?.serviceId === serviceId) {
       delete app.auth;
       summary.authCleared += 1;
-    } else if (app.auth?.roles) {
-      for (const role of app.auth.roles) {
+    } else if (app.auth) {
+      if (app.auth.redirects) {
+        if (app.auth.redirects.afterLogin?.serviceId === serviceId) delete app.auth.redirects.afterLogin;
+        if (app.auth.redirects.afterLogout?.serviceId === serviceId) delete app.auth.redirects.afterLogout;
+        if (Object.keys(app.auth.redirects).length === 0) delete app.auth.redirects;
+      }
+      for (const role of app.auth.roles ?? []) {
         const before = role.permissions.length;
         role.permissions = role.permissions.filter((grant) => grant.serviceId !== serviceId);
         summary.roleGrantsRemoved += before - role.permissions.length;
@@ -2079,6 +2084,13 @@ export function registerAdminApiRoutes(
     const menuReferenceCount = countMenuRouteReferences((appDef as unknown as { menu?: unknown }).menu, routeId);
     if (menuReferenceCount > 0) {
       const message = `Cannot delete route "${route.title ?? route.path}" because ${menuReferenceCount} menu item${menuReferenceCount === 1 ? "" : "s"} reference it. Remove the menu reference first.`;
+      return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
+    }
+    const redirectReference = Object.entries(appDef.auth?.redirects ?? {}).find(([, target]) =>
+      target?.serviceId === route.serviceId && target.viewId === route.viewId
+    );
+    if (redirectReference) {
+      const message = `Cannot delete route "${route.title ?? route.path}" because the app uses it for auth ${redirectReference[0]} navigation.`;
       return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
     }
     appDef.routes = appDef.routes.filter((r) => r.id !== routeId);

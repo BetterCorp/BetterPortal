@@ -23,6 +23,8 @@ Automation and AI clients must preserve these directives too: apply `BP-SetHeade
 
 Auth is optional at the platform layer. `auth-default` provides a JWT-based provider with JWKS discovery, `auth-authress-io` integrates Authress, and `auth-workos` integrates WorkOS AuthKit. Apps bind a provider through `app.auth.serviceId`, which points at a tenant service id or shared-service activation id.
 
+After-login and after-logout navigation belongs to the app, not the provider's addon config. Store each target in `app.auth.redirects` as `{ serviceId, viewId }`; Config Manager resolves it to the app's unique enabled GET page mount. Explicit request return paths take precedence, followed by the configured view and then `app.defaultRoute`.
+
 Services declare route-level auth requirements in view metadata.
 
 The selected auth service owns the BP runtime verifier metadata for the app:

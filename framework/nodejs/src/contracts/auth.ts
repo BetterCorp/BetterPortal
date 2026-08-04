@@ -98,6 +98,18 @@ export const AuthProviderRuntimeMetadataSchema = av.object({
 }, { unknownKeys: "strip" });
 export type AuthProviderRuntimeMetadata = Infer<typeof AuthProviderRuntimeMetadataSchema>;
 
+export const AppAuthViewReferenceSchema = av.object({
+  serviceId: UuidV7Schema,
+  viewId: NonEmptyStringSchema
+}, { unknownKeys: "strip" });
+export type AppAuthViewReference = Infer<typeof AppAuthViewReferenceSchema>;
+
+export const AppAuthRedirectsSchema = av.object({
+  afterLogin: av.optional(AppAuthViewReferenceSchema),
+  afterLogout: av.optional(AppAuthViewReferenceSchema)
+}, { unknownKeys: "strip" });
+export type AppAuthRedirects = Infer<typeof AppAuthRedirectsSchema>;
+
 export const AppAuthConfigSchema = av.object({
   serviceId: UuidV7Schema,
   provider: av.optional(AppAuthProviderConfigSchema),
@@ -105,6 +117,7 @@ export const AppAuthConfigSchema = av.object({
   loginViewId: av.optional(NonEmptyStringSchema),
   logoutViewId: av.optional(NonEmptyStringSchema),
   refreshViewId: av.optional(NonEmptyStringSchema),
+  redirects: av.optional(AppAuthRedirectsSchema),
   expectedIssuer: NonEmptyStringSchema,
   expectedAudience: NonEmptyStringSchema,
   /** Reference URL only - published by the auth service for clients/browsers.

@@ -2,6 +2,7 @@ import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
   createHandler,
+  resolveAppAuthRedirect,
   type ApiAuthRequirement,
   type CacheHints,
   type BetterPortalRouteChrome
@@ -55,13 +56,6 @@ export const chrome: BetterPortalRouteChrome = { fullScreen: true };
 export const auth: ApiAuthRequirement = { required: false, permissions: [] };
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: [] };
 
-function normalizeRedirect(raw: string | undefined): string {
-  const redirect = raw?.trim();
-  if (!redirect) return "/";
-  if (redirect.startsWith("http://") || redirect.startsWith("https://")) return redirect;
-  return redirect.startsWith("/") ? redirect : `/${redirect}`;
-}
-
 function secondsUntilJwtExpiry(token: string): number | undefined {
   const [, payload] = token.split(".");
   if (!payload) return undefined;
@@ -95,10 +89,10 @@ export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema, headers: HeadersSchema },
   async (ctx) => {
     const appConfig = resolveAuthressAppConfig(ctx.config);
-    const nextUrl = normalizeRedirect((ctx.query as Infer<typeof QuerySchema>).next ?? (ctx.query as Infer<typeof QuerySchema>).redirect ?? appConfig?.loginRedirectPath);
+    const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", (ctx.query as Infer<typeof QuerySchema>).next ?? (ctx.query as Infer<typeof QuerySchema>).redirect);
     const browserConfig = resolveAuthressBrowserConfig(ctx.config);
     if ((ctx.query as Infer<typeof QuerySchema>).action === "logout") {
-      const loggedOutUrl = normalizeRedirect(appConfig?.logoutRedirectPath);
+      const loggedOutUrl = resolveAppAuthRedirect(ctx, "afterLogout");
       ctx.bpHeaders?.remove("Authorization");
       ctx.bpHeaders?.remove("X-BP-Refresh");
       if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
@@ -154,7 +148,7 @@ export const handlePost = createHandler(
   async (ctx) => {
     const request = ctx.request as Infer<typeof RequestSchema>;
     const config = resolveAuthressAppConfig(ctx.config);
-    const nextUrl = normalizeRedirect(request.next ?? (ctx.query as Infer<typeof QuerySchema>).next ?? config?.loginRedirectPath);
+    const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", request.next ?? (ctx.query as Infer<typeof QuerySchema>).next);
     const loginUI = config?.loginUI ?? "default";
     if (!config) {
       return { status: "error" as const, message: "Authress config is missing authressApiUrl or applicationId.", loginUI, scopes: [], nextUrl };

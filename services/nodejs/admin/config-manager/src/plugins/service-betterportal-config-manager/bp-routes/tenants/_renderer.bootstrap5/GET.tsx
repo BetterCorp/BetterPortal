@@ -24,8 +24,42 @@ function tenantsScript(): HtmlRenderable {
       field.hidden = !authSelect.value || supported.length < 2;
     };
 
+    const syncRedirectView = (form, prefix, preferred = "") => {
+      const serviceSelect = form.querySelector("[name=" + prefix + "ServiceId]");
+      const viewSelect = form.querySelector("[name=" + prefix + "ViewId]");
+      if (!serviceSelect || !viewSelect) return;
+      viewSelect.replaceChildren(new Option("Use app default", ""));
+      (form.bpPageViews || [])
+        .filter((view) => view.serviceId === serviceSelect.value)
+        .forEach((view) => viewSelect.add(new Option(view.title + " · " + view.path + " · " + view.viewId, view.viewId)));
+      viewSelect.value = preferred;
+      viewSelect.disabled = !serviceSelect.value;
+    };
+
+    const loadAuthRedirects = (form, data) => {
+      form.bpPageViews = data.pageViews || [];
+      form.querySelector("[data-bp-auth-redirects]").hidden = !data.authServiceId;
+      ["afterLogin", "afterLogout"].forEach((prefix) => {
+        const serviceSelect = form.querySelector("[name=" + prefix + "ServiceId]");
+        if (!serviceSelect) return;
+        serviceSelect.replaceChildren(new Option("Use app default", ""));
+        [...new Map(form.bpPageViews.map((view) => [view.serviceId, view.serviceTitle])).entries()]
+          .forEach(([serviceId, title]) => serviceSelect.add(new Option(title + " · " + serviceId, serviceId)));
+        const target = data.authRedirects?.[prefix];
+        serviceSelect.value = target?.serviceId || "";
+        syncRedirectView(form, prefix, target?.viewId || "");
+      });
+    };
+
     document.querySelectorAll("form").forEach((form) => {
-      form.querySelector("[name=authServiceId]")?.addEventListener("change", () => syncRoleAuthority(form));
+      form.querySelector("[name=authServiceId]")?.addEventListener("change", (event) => {
+        syncRoleAuthority(form);
+        const redirects = form.querySelector("[data-bp-auth-redirects]");
+        if (redirects) redirects.hidden = !event.currentTarget.value;
+      });
+      ["afterLogin", "afterLogout"].forEach((prefix) => {
+        form.querySelector("[name=" + prefix + "ServiceId]")?.addEventListener("change", () => syncRedirectView(form, prefix));
+      });
     });
 
     const addAppForm = document.getElementById("bp-add-app-form");
@@ -62,6 +96,7 @@ function tenantsScript(): HtmlRenderable {
         const authSelect = form.querySelector("[name=authServiceId]");
         authSelect.value = data.authServiceId || "";
         syncRoleAuthority(form, data.roleAuthority);
+        loadAuthRedirects(form, data);
         if (window.htmx) window.htmx.process(form);
       });
     });
@@ -336,6 +371,34 @@ export function render(data: ResponseData): HtmlRenderable {
                 <option value="betterportal">BetterPortal</option>
               </select>
             </div>
+            <fieldset class="border rounded p-3 mb-3" data-bp-auth-redirects="" hidden>
+              <legend class="float-none w-auto px-2 fs-6">Auth navigation</legend>
+              <div class="mb-3">
+                <label class="form-label">After sign-in service</label>
+                <select class="form-select" name="afterLoginServiceId">
+                  <option value="">Use app default</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">After sign-in view</label>
+                <select class="form-select" name="afterLoginViewId" disabled>
+                  <option value="">Use app default</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">After sign-out service</label>
+                <select class="form-select" name="afterLogoutServiceId">
+                  <option value="">Use app default</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">After sign-out view</label>
+                <select class="form-select" name="afterLogoutViewId" disabled>
+                  <option value="">Use app default</option>
+                </select>
+              </div>
+              <div class="form-text mt-2">Blank uses the app's default route. Only enabled GET page views with one mount are available.</div>
+            </fieldset>
             <div class="alert alert-danger d-none" id="bp-edit-app-error"></div>
             <button type="submit" class="btn btn-primary w-100">Save</button>
           </form>

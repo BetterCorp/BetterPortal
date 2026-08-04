@@ -33,6 +33,7 @@ export * from "./runtime/streamHandler.js";
 export * from "./runtime/configStore.js";
 export * from "./runtime/configTicket.js";
 export * from "./runtime/auth/envelope.js";
+export * from "./runtime/auth/redirect.js";
 export * from "./runtime/auth/issuer.js";
 export * from "./runtime/auth/jwks.js";
 export * from "./runtime/auth/keypair.js";

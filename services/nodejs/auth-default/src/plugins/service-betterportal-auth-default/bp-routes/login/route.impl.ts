@@ -1,13 +1,13 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
+  resolveAppAuthRedirect,
   type ApiAuthRequirement,
   type CacheHints,
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
 import { createHandler } from "../../.bp-generated/route-runtime.js";
 import type { Plugin } from "../../index.js";
-import { resolveDefaultAuthAppConfig } from "../../index.js";
 
 export const QuerySchema = av.object({
   action: av.optional(av.string()).describe("Optional login route action, currently supports logout."),
@@ -74,21 +74,13 @@ function runtimeFrom(ctx: { plugin?: Pick<Plugin, "runtime"> }): Plugin["runtime
   return runtime;
 }
 
-function normalizeRedirect(raw: string | undefined): string {
-  const redirect = raw?.trim();
-  if (!redirect) return "/";
-  if (redirect.startsWith("http://") || redirect.startsWith("https://")) return redirect;
-  return redirect.startsWith("/") ? redirect : `/${redirect}`;
-}
-
 export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema },
   (ctx) => {
     const runtime = runtimeFrom(ctx);
     const requiresFirstAdmin = runtime.userStore.hasNoUsers();
     if ((ctx.query as Infer<typeof QuerySchema>).action === "logout") {
-      const config = resolveDefaultAuthAppConfig(ctx.config);
-      const nextUrl = normalizeRedirect(config.logoutRedirectPath);
+      const nextUrl = resolveAppAuthRedirect(ctx, "afterLogout");
       ctx.bpHeaders?.remove("Authorization");
       ctx.bpHeaders?.remove("X-BP-Refresh");
       if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
@@ -103,8 +95,7 @@ export const handleGet = createHandler(
     // Valid token already on the request - no point rendering a login form.
     // First-admin setup still wins: a token can outlive a wiped user store.
     if (ctx.user && !requiresFirstAdmin) {
-      const config = resolveDefaultAuthAppConfig(ctx.config);
-      const next = (ctx.query as { next?: string }).next || config.loginRedirectPath;
+      const next = resolveAppAuthRedirect(ctx, "afterLogin", (ctx.query as { next?: string }).next);
       return {
         status: "ok" as const,
         message: "Already signed in.",
@@ -116,7 +107,7 @@ export const handleGet = createHandler(
           name: ctx.user.name
         },
         logoutUrl: ctx.routeUrl?.("login.index", { query: { action: "logout" } }) ?? "/login?action=logout",
-        ...(next ? { nextUrl: next } : {})
+        nextUrl: next
       };
     }
 
@@ -179,8 +170,7 @@ export const handlePost = createHandler(
     // Login is rendered in the theme's auth-only page state. After credentials
     // are stored, navigate the browser back to the tenant route so the normal
     // shell is rendered from a clean page request.
-    const config = resolveDefaultAuthAppConfig(ctx.config);
-    const next = body.next || (ctx.query as { next?: string }).next || config.loginRedirectPath || "/";
+    const next = resolveAppAuthRedirect(ctx, "afterLogin", body.next || (ctx.query as { next?: string }).next);
     ctx.responseHeaders?.set("HX-Redirect", next);
     // Auth state changed - reload this service's fragments (nav profile etc.).
     // Fragments listening on this key re-fetch; absent fragments ignore it.

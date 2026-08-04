@@ -255,6 +255,35 @@ test("shared activation manifest lookup falls back to its shared service", () =>
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
 });
 
+test("app auth redirects require one enabled GET page mount", () => {
+  const value = s2sConfig();
+  const app = value.config.apps[0]!;
+  app.routes = [{
+    id: uuidv7(),
+    kind: "page",
+    path: "/dashboard",
+    serviceId: value.targetId,
+    viewId: "dashboard.index",
+    enabled: true,
+    methods: ["GET"]
+  }];
+  app.auth = {
+    serviceId: value.sourceId,
+    expectedIssuer: "https://auth.example",
+    expectedAudience: "app",
+    jwksUri: "https://auth.example/.well-known/jwks.json",
+    roles: [],
+    redirects: {
+      afterLogin: { serviceId: value.targetId, viewId: "dashboard.index" }
+    }
+  };
+
+  const storage = new MemoryStorage(value.config);
+  storage.assertValid();
+  app.routes[0]!.enabled = false;
+  assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin must reference exactly one enabled GET page view/);
+});
+
 test("legacy auth paths migrate to mounted view IDs", () => {
   const { config, appId, sourceId } = s2sConfig();
   const app = config.apps.find((candidate) => candidate.id === appId)!;
@@ -481,6 +510,8 @@ test("tenant edit script targets the active checkbox, not its hidden fallback", 
     tenantsPath: "/tenants"
   }));
   assert.match(html, /input\[type=checkbox\]\[name=active\]/);
+  assert.match(html, /name="afterLoginServiceId"/);
+  assert.match(html, /name="afterLogoutViewId"/);
 });
 
 test("service registration stays browser-mediated and tenant history follows the request", () => {

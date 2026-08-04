@@ -103,6 +103,10 @@ export const AppAuthConfigSchema = av.object({
   loginViewId: av.optional(av.string()),       // view id on the auth service (not a path)
   logoutViewId: av.optional(av.string()),
   refreshViewId: av.optional(av.string()),
+  redirects: av.optional(av.object({
+    afterLogin: av.optional(av.object({ serviceId: av.string(), viewId: av.string() })),
+    afterLogout: av.optional(av.object({ serviceId: av.string(), viewId: av.string() }))
+  })),
   expectedIssuer: av.string().minLength(1),
   expectedAudience: av.string().minLength(1),
   roles: av.array(AppAuthRoleSchema).default([])
@@ -112,9 +116,11 @@ export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 
 `loginViewId` / `logoutViewId` / `refreshViewId` are **view ids**, not URL paths. The framework resolves them through the synced app route registry, so administrators can rename mounted URLs without changing auth configuration. Legacy path values are migrated by Config Manager against routes belonging to the configured auth service.
 
+`app.auth.redirects.afterLogin` and `afterLogout` are app-owned navigation targets. Each stores a concrete service-instance UUID plus a view id; Config Manager resolves that pair to the app's mounted URL at request time. They are edited under Tenants & Apps as service + view selections, not under an auth provider's addon config. Only one enabled GET page mount may match a target. An explicit `next`/`redirect` request value wins; otherwise the configured view is used, then `app.defaultRoute`.
+
 Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Each permission entry binds a specific role grant to a specific API endpoint and CRUD action set. Services receive these via app config sync and use them to authorize requests.
 
-`expectedIssuer`, `expectedAudience`, and `jwksUri` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`, and config-manager writes them onto app auth bindings when the service is installed, synced, or selected. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL/application id or WorkOS client id/API key, remain service config and are separate from BP runtime token verification.
+`expectedIssuer`, `expectedAudience`, and `jwksUri` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`, and config-manager writes them onto app auth bindings when the service is installed, synced, or selected. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL/application id or WorkOS client id/API key, remain service config and are separate from BP runtime token verification. Provider config must not duplicate the app-owned after-login or after-logout navigation targets.
 
 Authress and WorkOS app config support `loginUI`: `default` keeps the provider-specific current login presentation, `clean` shows a neutral BetterPortal sign-in button, and `redirect` uses the clean presentation but starts the provider redirect automatically. WorkOS custom in-app AuthKit is a separate auth flow and must add explicit routes/API handling; do not treat `loginUI` as custom credential collection.
 

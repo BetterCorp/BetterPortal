@@ -36,6 +36,23 @@ const AppItemSchema = av.object({
   shellRenderer: av.optional(av.string().minLength(1)),
   authServiceId: av.optional(av.string().minLength(1)),
   roleAuthority: av.optional(RoleAuthoritySchema),
+  authRedirects: av.optional(av.object({
+    afterLogin: av.optional(av.object({
+      serviceId: av.string().minLength(1),
+      viewId: av.string().minLength(1)
+    }, { unknownKeys: "strip" })),
+    afterLogout: av.optional(av.object({
+      serviceId: av.string().minLength(1),
+      viewId: av.string().minLength(1)
+    }, { unknownKeys: "strip" }))
+  }, { unknownKeys: "strip" })),
+  pageViews: av.array(av.object({
+    serviceId: av.string().minLength(1),
+    serviceTitle: av.string().minLength(1),
+    viewId: av.string().minLength(1),
+    title: av.string().minLength(1),
+    path: av.string().minLength(1)
+  }, { unknownKeys: "strip" })).default([]),
   routeCount: av.int().min(0)
 }, { unknownKeys: "strip" });
 
@@ -160,6 +177,8 @@ async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseDat
       shellService: shell?.service,
       shellRenderer: shell?.renderer,
       authServiceId: a.auth?.serviceId,
+      authRedirects: a.auth?.redirects,
+      pageViews: selectableAppPageViews(config, a),
       roleAuthority: a.auth
         ? resolveRoleAuthority(
             authServices.find((service) => service.id === a.auth?.serviceId)?.capabilities ?? [],
@@ -299,6 +318,7 @@ async function updateApp(body: Record<string, unknown>): Promise<void> {
         roles: existingRoles
       };
       ensureAuthRouteMounts(config, appDef);
+      updateAuthRedirects(appDef, body);
     }
   } else {
     delete appDef.auth;
@@ -443,6 +463,7 @@ function buildAppAuthConfig(
     loginViewId: existing?.loginViewId ?? "login.index",
     logoutViewId: existing?.logoutViewId ?? "logout.index",
     refreshViewId: existing?.refreshViewId ?? "refresh.index",
+    ...(existing?.redirects ? { redirects: existing.redirects } : {}),
     provider: existing?.serviceId === authServiceId ? existing.provider : (
       providerKind === "authress.io"
         ? { kind: "authress.io", roleClaimPath: "roles", subjectClaimPath: "sub" }
@@ -454,6 +475,66 @@ function buildAppAuthConfig(
     ...(publicKeys ? { publicKeys } : {}),
     roles: existing?.roles ?? []
   };
+}
+
+function selectableAppPageViews(config: BetterPortalConfig, app: BetterPortalApp): Array<{
+  serviceId: string;
+  serviceTitle: string;
+  viewId: string;
+  title: string;
+  path: string;
+}> {
+  const candidates = app.routes.filter(isEnabledPageView);
+  return candidates
+    .filter((route) => candidates.filter((candidate) =>
+      candidate.serviceId === route.serviceId && candidate.viewId === route.viewId
+    ).length === 1)
+    .map((route) => ({
+      serviceId: route.serviceId,
+      serviceTitle: serviceTitle(config, app.tenantId, route.serviceId),
+      viewId: route.viewId,
+      title: route.title?.trim() || route.viewId,
+      path: route.path
+    }));
+}
+
+function isEnabledPageView(route: BetterPortalRouteMount): boolean {
+  return route.enabled && (route.kind ?? "page") === "page" && route.methods.includes("GET");
+}
+
+function serviceTitle(config: BetterPortalConfig, tenantId: string, serviceId: string): string {
+  const tenantService = config.tenants
+    .find((tenant) => tenant.id === tenantId)
+    ?.services.find((service) => service.id === serviceId);
+  if (tenantService) return tenantService.title?.trim() || tenantService.serviceId || serviceId;
+
+  const platformService = config.platformServices.find((service) => service.id === serviceId);
+  if (platformService) return platformService.title?.trim() || platformService.serviceId || serviceId;
+
+  const activation = config.sharedServiceActivations.find((candidate) => candidate.id === serviceId);
+  const shared = activation
+    ? config.sharedServiceCatalog.find((service) => service.id === activation.sharedServiceId)
+    : undefined;
+  return shared?.title ?? shared?.serviceId ?? serviceId;
+}
+
+function updateAuthRedirects(app: BetterPortalApp, body: Record<string, unknown>): void {
+  if (!app.auth) return;
+  const redirects = { ...app.auth.redirects };
+  for (const [kind, prefix] of [["afterLogin", "afterLogin"], ["afterLogout", "afterLogout"]] as const) {
+    if (body[`${prefix}ServiceId`] === undefined && body[`${prefix}ViewId`] === undefined) continue;
+    const serviceId = stringValue(body[`${prefix}ServiceId`]);
+    const viewId = stringValue(body[`${prefix}ViewId`]);
+    const matches = serviceId && viewId
+      ? app.routes.filter((route) => isEnabledPageView(route) && route.serviceId === serviceId && route.viewId === viewId)
+      : [];
+    if (serviceId && viewId && matches.length === 1) {
+      redirects[kind] = { serviceId, viewId };
+    } else {
+      delete redirects[kind];
+    }
+  }
+  app.auth.redirects = Object.keys(redirects).length ? redirects : undefined;
 }
 
 function issuerFromAuthService(hostname: string | undefined): string {

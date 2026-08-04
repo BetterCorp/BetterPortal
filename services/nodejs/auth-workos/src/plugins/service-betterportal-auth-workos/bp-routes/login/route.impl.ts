@@ -2,6 +2,7 @@ import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
   createHandler,
+  resolveAppAuthRedirect,
   type ApiAuthRequirement,
   type BetterPortalRouteChrome,
   type CacheHints
@@ -56,13 +57,6 @@ function pluginFrom(ctx: { plugin?: unknown }): Plugin {
   return plugin;
 }
 
-function normalizeRedirect(raw: string | undefined): string {
-  const redirect = raw?.trim();
-  if (!redirect) return "/";
-  if (redirect.startsWith("http://") || redirect.startsWith("https://")) return redirect;
-  return redirect.startsWith("/") ? redirect : `/${redirect}`;
-}
-
 function firstString(...values: Array<string | null | undefined>): string | undefined {
   return values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
 }
@@ -72,7 +66,7 @@ export const handleGet = createHandler(
   async (ctx) => {
     const query = ctx.query as Infer<typeof QuerySchema>;
     const config = resolveWorkOSAppConfig(ctx.config);
-    const nextUrl = normalizeRedirect(query.state ?? query.next ?? query.redirect ?? config?.loginRedirectPath);
+    const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", query.state ?? query.next ?? query.redirect);
 
     if (query.action === "logout") {
       ctx.bpHeaders?.remove("Authorization");
@@ -83,7 +77,7 @@ export const handleGet = createHandler(
         message: "Signed out.",
         loginUI: config?.loginUI ?? "default",
         loggedOut: true,
-        nextUrl: normalizeRedirect(config?.logoutRedirectPath)
+        nextUrl: resolveAppAuthRedirect(ctx, "afterLogout")
       };
     }
 

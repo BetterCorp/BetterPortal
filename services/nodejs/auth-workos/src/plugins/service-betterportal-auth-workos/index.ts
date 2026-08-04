@@ -82,8 +82,6 @@ export interface WorkOSAppConfig {
   domainHint?: string;
   scopes?: string;
   loginUI?: "default" | "clean" | "redirect";
-  loginRedirectPath?: string;
-  logoutRedirectPath?: string;
   roleClaimPath?: string;
   webhookSecret?: string;
 }
@@ -113,8 +111,6 @@ export function resolveWorkOSAppConfig(raw: Record<string, unknown> | undefined)
     ...(nonEmptyString(raw?.domainHint) ? { domainHint: nonEmptyString(raw?.domainHint) } : {}),
     ...(nonEmptyString(raw?.scopes) ? { scopes: nonEmptyString(raw?.scopes) } : {}),
     ...(raw?.loginUI === "clean" || raw?.loginUI === "redirect" ? { loginUI: raw.loginUI } : {}),
-    ...(nonEmptyString(raw?.loginRedirectPath) ? { loginRedirectPath: nonEmptyString(raw?.loginRedirectPath) } : {}),
-    ...(nonEmptyString(raw?.logoutRedirectPath) ? { logoutRedirectPath: nonEmptyString(raw?.logoutRedirectPath) } : {}),
     ...(nonEmptyString(raw?.roleClaimPath) ? { roleClaimPath: nonEmptyString(raw?.roleClaimPath) } : {}),
     ...(nonEmptyString(raw?.webhookSecret) ? { webhookSecret: nonEmptyString(raw?.webhookSecret) } : {})
   };
@@ -142,8 +138,6 @@ export const WorkOSConfigSchemas: ConfigSchemaDescriptor[] = [
       domainHint: "string",
       scopes: "string",
       loginUI: "string",
-      loginRedirectPath: "string",
-      logoutRedirectPath: "string",
       roleClaimPath: "string",
       webhookSecret: "string"
     },
@@ -162,8 +156,6 @@ export const WorkOSConfigSchemas: ConfigSchemaDescriptor[] = [
       { key: "domainHint", title: "Domain Hint", description: "Optional WorkOS domain hint.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 40, required: false },
       { key: "scopes", title: "Scopes", description: "Space-separated provider scopes.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 50, defaultValue: "openid profile email", required: false },
       { key: "loginUI", title: "Login UI", description: "Default provider UI, clean button UI, or clean UI with automatic redirect.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 60, defaultValue: "default", ui: { control: "select", options: [{ value: "default", label: "Default" }, { value: "clean", label: "Clean" }, { value: "redirect", label: "Redirect" }] }, required: false },
-      { key: "loginRedirectPath", title: "Logged In Route", description: "Tenant route shown after signing in when no next path is supplied.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 70, defaultValue: "/", ui: { control: "select", optionsSource: "app.routes" }, required: false },
-      { key: "logoutRedirectPath", title: "Logged Out Route", description: "Tenant route shown after signing out.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 80, defaultValue: "/", ui: { control: "select", optionsSource: "app.routes" }, required: false },
       { key: "roleClaimPath", title: "Role Claim Path", description: "Dot path to roles in the WorkOS access token.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "claims", order: 10, defaultValue: "roles", required: false },
       { key: "webhookSecret", title: "Webhook Secret", description: "WorkOS webhook signing secret for role sync events.", scope: "app", visibility: "secret", ownership: "bp", sourceOfTruth: "bp", groupId: "sync", order: 10, required: false }
     ]

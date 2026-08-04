@@ -78,8 +78,6 @@ export interface AuthressAppConfig {
   jwksUri: string;
   scopes?: string;
   loginUI?: "default" | "clean" | "redirect";
-  loginRedirectPath?: string;
-  logoutRedirectPath?: string;
   roleClaimPath?: string;
   subjectClaimPath?: string;
   nameClaimPath?: string;
@@ -121,8 +119,6 @@ export function resolveAuthressAppConfig(raw: Record<string, unknown> | undefine
     ...(nonEmptyString(raw?.expectedAudience) ? { expectedAudience: nonEmptyString(raw?.expectedAudience) } : {}),
     jwksUri: nonEmptyString(raw?.jwksUri) ?? `${authressApiUrl}/.well-known/openid-configuration/jwks`,
     ...(raw?.loginUI === "clean" || raw?.loginUI === "redirect" ? { loginUI: raw.loginUI } : {}),
-    ...(nonEmptyString(raw?.loginRedirectPath) ? { loginRedirectPath: nonEmptyString(raw?.loginRedirectPath) } : {}),
-    ...(nonEmptyString(raw?.logoutRedirectPath) ? { logoutRedirectPath: nonEmptyString(raw?.logoutRedirectPath) } : {}),
     ...(nonEmptyString(raw?.roleClaimPath) ? { roleClaimPath: nonEmptyString(raw?.roleClaimPath) } : {}),
     ...(nonEmptyString(raw?.subjectClaimPath) ? { subjectClaimPath: nonEmptyString(raw?.subjectClaimPath) } : {}),
     ...(nonEmptyString(raw?.nameClaimPath) ? { nameClaimPath: nonEmptyString(raw?.nameClaimPath) } : {}),
@@ -147,8 +143,6 @@ export const AuthressConfigSchemas: ConfigSchemaDescriptor[] = [
       jwksUri: "string",
       scopes: "string",
       loginUI: "string",
-      loginRedirectPath: "string",
-      logoutRedirectPath: "string",
       roleClaimPath: "string",
       subjectClaimPath: "string",
       nameClaimPath: "string",
@@ -172,8 +166,6 @@ export const AuthressConfigSchemas: ConfigSchemaDescriptor[] = [
       { key: "jwksUri", title: "JWKS URI", description: "Optional JWKS endpoint override. Blank uses Authress API URL + /.well-known/openid-configuration/jwks.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "jwt", order: 30, required: false },
       { key: "scopes", title: "Scopes", description: "Space-separated scopes requested by the browser login flow.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 10, required: false },
       { key: "loginUI", title: "Login UI", description: "Default provider UI, clean button UI, or clean UI with automatic redirect.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 20, defaultValue: "default", ui: { control: "select", options: [{ value: "default", label: "Default" }, { value: "clean", label: "Clean" }, { value: "redirect", label: "Redirect" }] }, required: false },
-      { key: "loginRedirectPath", title: "Logged In Route", description: "Tenant route shown after signing in when no next path is supplied.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 30, defaultValue: "/", ui: { control: "select", optionsSource: "app.routes" }, required: false },
-      { key: "logoutRedirectPath", title: "Logged Out Route", description: "Tenant route shown after signing out.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "login", order: 40, defaultValue: "/", ui: { control: "select", optionsSource: "app.routes" }, required: false },
       { key: "roleClaimPath", title: "Role Claim Path", description: "Dot path to roles in the Authress token.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "claims", order: 10, defaultValue: "roles", required: false },
       { key: "subjectClaimPath", title: "Subject Claim Path", description: "Dot path to the user subject in the Authress token.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "claims", order: 20, defaultValue: "sub", required: false },
       { key: "nameClaimPath", title: "Name Claim Path", description: "Dot path to display name in the Authress token.", scope: "app", visibility: "protected", ownership: "bp", sourceOfTruth: "bp", groupId: "claims", order: 30, defaultValue: "name", required: false },
