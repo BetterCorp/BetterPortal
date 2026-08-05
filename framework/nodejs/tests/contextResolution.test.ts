@@ -26,6 +26,10 @@ test("browser context ignores standalone BP scope headers and resolves shell fro
     host: "service.example"
   }), null);
 
+  assert.equal(resolveEmbeddedRequestContext(config, {
+    host: "portal.example"
+  })?.app.id, appId);
+
   const resolved = resolveEmbeddedRequestContext(config, {
     origin: "https://portal.example",
     "x-bp-tenant-id": uuidv7(),

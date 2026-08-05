@@ -319,10 +319,29 @@ export function betterPortalShellRuntimeSource(): string {
           case 401: return "Session expired. Sign in again to continue.";
           case 403: return "Access denied for this view.";
           case 404: return "View not found.";
+          case 500: return "The service could not complete this request.";
           case 502:
-          case 503: return "Service unavailable. Try again shortly.";
+          case 503:
+          case 504: return "Service unavailable. Try again shortly.";
           default: return "Request failed. Try again.";
         }
+      };
+
+      const errorTitle = (status: number) => {
+        switch (status) {
+          case 403: return "Access Denied";
+          case 404: return "View Not Found";
+          case 500: return "Internal Server Error";
+          case 502:
+          case 503:
+          case 504: return "Service Unavailable";
+          default: return "Request Failed";
+        }
+      };
+
+      const isThemedStatusResponse = (ctx: any) => {
+        const contentType = ctx?.response?.headers?.get?.("content-type") || "";
+        return contentType.includes("text/html") && /(?:^|;)\s*mode=status(?:;|$)/i.test(contentType);
       };
 
       const isThemeOriginUrl = (url: string) => {
@@ -1657,6 +1676,7 @@ export function betterPortalShellRuntimeSource(): string {
         source: Element | null | undefined
       ) => {
         const route = routeContextFromSource(source);
+        applyChrome(null);
         setActiveRoute(route.path);
         const tn = titleNode();
         if (tn) tn.textContent = route.title;
@@ -1986,8 +2006,8 @@ export function betterPortalShellRuntimeSource(): string {
           }
         },
 
-        // Let htmx v4 swap HTTP error HTML by default. Only block data
-        // responses and handle BP's auth-refresh/login escape hatch here.
+        // Only explicit themed status HTML may replace the main outlet on an
+        // HTTP error. All other error bodies are data, not trusted shell UI.
         htmx_before_swap(_elt: any, detail: any) {
           const ctx = detail.ctx;
           const status = ctx?.response?.status;
@@ -2043,9 +2063,6 @@ export function betterPortalShellRuntimeSource(): string {
                 syncMenuVisibility();
               }
             }
-            // Themed status views (adapter content-type "...; mode=status") are
-            // real server-rendered error states - let them swap like any view
-            // (e.g. register POST 400 re-rendering its form with the message).
             const source = ctx?.sourceElement;
             if (status === 401 && source instanceof Element && source.closest("#bp-login-form")) {
               return false;
@@ -2081,11 +2098,11 @@ export function betterPortalShellRuntimeSource(): string {
               }
               return false;
             }
-            if (!isJson) {
+            if (isThemedStatusResponse(ctx)) {
               disposeBootstrapComponents(target);
               return;
             }
-            return false; // cancel swap - htmx:error handles the UI
+            return false;
           }
           if (isMainTarget(target)) {
             disposeBootstrapComponents(target);
@@ -2210,13 +2227,20 @@ export function betterPortalShellRuntimeSource(): string {
           setLoading(false);
 
           const status = ctx?.response?.status || 0;
+          if (status === 401 || isThemedStatusResponse(ctx)) return;
+          const source = ctx?.sourceElement instanceof Element ? ctx.sourceElement : activeRouteLink();
           if ([502, 503, 504].includes(status)) {
-            const source = ctx.sourceElement instanceof Element ? ctx.sourceElement : activeRouteLink();
             const serviceId =
               source?.getAttribute("data-bp-service") ||
               currentServiceId();
             scheduleDevServiceRecovery(serviceId, ctx.request?.action, source, window.location.pathname);
           }
+          renderRouteError(
+            errorTitle(status),
+            errorMessage(status),
+            bannerActionForStatus(status),
+            source
+          );
         },
 
         // htmx v4 reports network, timeout, target, and swap failures here.

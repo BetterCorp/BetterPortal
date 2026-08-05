@@ -1206,11 +1206,13 @@ export abstract class BPService<
 
   // CORS
 
-  protected async resolveCorsContext(event: BetterPortalEvent): Promise<BetterPortalResolvedRequestContext | null> {
+  protected async resolveRequestContext(event: BetterPortalEvent): Promise<BetterPortalResolvedRequestContext | null> {
     if (this.scopedConfig) {
-      const origin = event.req.headers.get("origin");
-      if (!origin) return null;
-      return this.resolveFromScopedConfig(origin);
+      const portalConfig = this.getPortalConfig();
+      const context = portalConfig
+        ? resolveEmbeddedRequestContext(portalConfig, eventHeaders(event), this.headerTrustOptions(event))
+        : null;
+      return context ? this.resolveScopedContextById(context.tenant.id, context.app.id) : null;
     }
 
     if (!this.configProvider) {
@@ -1283,7 +1285,7 @@ export abstract class BPService<
       // Public-discovery: CORS open to any origin, but ALSO try to resolve scope
       // so themed responses (login page, etc.) know which theme + tenant context to render under.
       try {
-        const ctx = await this.resolveCorsContext(event);
+        const ctx = await this.resolveRequestContext(event);
         if (ctx) this.applyRequestContext(event, ctx);
       } catch {
         // ignore - public path stays open even if scope can't be resolved
@@ -1314,7 +1316,7 @@ export abstract class BPService<
         }) || undefined;
       }
 
-      const context = this.managementRequestContext() ?? await this.resolveCorsContext(event);
+      const context = this.managementRequestContext() ?? await this.resolveRequestContext(event);
       if (context) this.applyRequestContext(event, context);
 
       const corsResult = handleCorsRequest(event, {
@@ -1331,6 +1333,12 @@ export abstract class BPService<
     }
 
     if (!origin) {
+      try {
+        const context = await this.resolveRequestContext(event);
+        if (context) this.applyRequestContext(event, context);
+      } catch (error) {
+        this.logContextResolutionFailure(event, "embedded", error);
+      }
       return handleCorsRequest(event, {
         origin: [],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -1343,7 +1351,7 @@ export abstract class BPService<
 
     let requestContext: BetterPortalResolvedRequestContext | null = null;
     try {
-      requestContext = await this.resolveCorsContext(event);
+      requestContext = await this.resolveRequestContext(event);
     } catch (error) {
       this.logContextResolutionFailure(event, "embedded", error);
     }
@@ -1427,25 +1435,6 @@ export abstract class BPService<
         }),
         ...app.originOverrides.map((originOverride) => originOverride.replace(/\/+$/, ""))
       ]))];
-  }
-
-  private resolveFromScopedConfig(origin: string): BetterPortalResolvedRequestContext | null {
-    if (!this.scopedConfig) return null;
-
-    for (const app of this.scopedConfig.apps) {
-      const origins = app.hostnames.flatMap((h) => {
-        if (h.startsWith("http://") || h.startsWith("https://")) return [h];
-        return [`http://${h}`, `https://${h}`];
-      });
-
-      if (origins.includes(origin)) {
-        const tenant = this.scopedConfig.tenants.find((t) => t.id === app.tenantId) ?? null;
-        if (!tenant || !tenant.active) return null;
-        return this.resolveScopedRequestContext(tenant, app);
-      }
-    }
-
-    return null;
   }
 
   private resolveScopedContextById(tenantId: string, appId: string): BetterPortalResolvedRequestContext | null {
