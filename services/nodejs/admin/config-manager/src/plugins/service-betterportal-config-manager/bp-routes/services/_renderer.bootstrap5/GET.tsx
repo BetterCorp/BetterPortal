@@ -506,7 +506,7 @@ export function render(data: ResponseData): HtmlRenderable {
               <label class="form-label">Display Name</label>
               <input class="form-control" type="text" name="title" placeholder="Auto-filled from manifest" />
             </div>
-            <div class="alert alert-secondary small" id="bp-tenant-service-preview">Manifest details are loaded from the service before it is added.</div>
+            <div class="alert alert-secondary small" id="bp-tenant-service-preview" role="status" aria-live="polite">Manifest details are loaded from the service before it is added.</div>
             <button type="submit" class="btn btn-primary w-100">Register Service</button>
           </form>
         </div>
@@ -589,6 +589,31 @@ export function render(data: ResponseData): HtmlRenderable {
     if (!alerts) return;
     alerts.innerHTML = '<div class="alert alert-' + kind + '">' + escapeHtml(message) + '</div>';
   };
+  const setTenantStatus = (kind, message) => {
+    if (!tenantPreview) return;
+    tenantPreview.className = "alert alert-" + kind + " small";
+    tenantPreview.textContent = message;
+  };
+  const showToast = (message) => {
+    let container = document.getElementById("bp-toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "bp-toast-container";
+      container.className = "toast-container position-fixed bottom-0 end-0 p-3";
+      container.style.zIndex = "1090";
+      document.body.appendChild(container);
+    }
+    const toast = document.createElement("div");
+    toast.className = "toast align-items-center text-bg-success border-0";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    toast.setAttribute("aria-atomic", "true");
+    toast.innerHTML = '<div class="d-flex"><div class="toast-body">' + escapeHtml(message) + '</div>' +
+      '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>';
+    container.appendChild(toast);
+    toast.addEventListener("hidden.bs.toast", () => toast.remove(), { once: true });
+    window.bootstrap?.Toast?.getOrCreateInstance(toast, { delay: 5000 })?.show();
+  };
   const setPreview = (preview, manifest) => {
     if (!preview) return;
     const capabilities = Array.isArray(manifest.capabilities) ? manifest.capabilities.join(", ") : "";
@@ -655,7 +680,7 @@ export function render(data: ResponseData): HtmlRenderable {
     await refreshServices();
   };
   const installTenant = async (registered) => {
-    setAlert("secondary", "Installing service...");
+    setTenantStatus("secondary", "Installing service...");
     try {
       const install = await postJson(adminApiBase + "/services/begin-install", {
         serviceUrl: registered.serviceUrl,
@@ -666,7 +691,10 @@ export function render(data: ResponseData): HtmlRenderable {
         setupToken: install.setupToken,
         cpUrl: install.cpUrl
       });
-      setAlert("success", "Service installed. Waiting for sync...");
+      setTenantStatus("success", "Service installed. Refreshing services...");
+      const panel = document.getElementById("bp-add-service-panel");
+      window.bootstrap?.Offcanvas?.getInstance(panel)?.hide();
+      showToast((registered.title || "Service") + " registered successfully.");
       await refreshServices();
     } catch (error) {
       try {
@@ -729,22 +757,22 @@ export function render(data: ResponseData): HtmlRenderable {
     const tenantId = String(fd.get("tenantId") || "").trim();
     const baseUrl = String(fd.get("baseUrl") || "").trim().replace(/\\/+$/, "");
     if (!tenantId) {
-      setAlert("danger", "Tenant is required");
+      setTenantStatus("danger", "Tenant is required");
       return;
     }
     if (!baseUrl) {
-      setAlert("danger", "Service URL is required");
+      setTenantStatus("danger", "Service URL is required");
       return;
     }
     if (submit) submit.disabled = true;
     try {
-      setAlert("secondary", "Loading service manifest...");
+      setTenantStatus("secondary", "Loading service manifest...");
       const manifest = await loadManifest(baseUrl);
       setPreview(tenantPreview, manifest);
       const titleInput = tenantForm.querySelector('input[name="title"]');
       if (titleInput && !titleInput.value) titleInput.value = manifest.title;
       const schema = await loadSchema(baseUrl, manifest);
-      setAlert("secondary", "Registering service...");
+      setTenantStatus("secondary", "Registering service...");
       const registered = await postJson(adminApiBase + "/wizard/register", {
         tenantId,
         hostname: baseUrl,
@@ -753,7 +781,7 @@ export function render(data: ResponseData): HtmlRenderable {
       });
       await installTenant(registered);
     } catch (error) {
-      setAlert("danger", error instanceof Error ? error.message : String(error));
+      setTenantStatus("danger", error instanceof Error ? error.message : String(error));
     } finally {
       if (submit) submit.disabled = false;
     }

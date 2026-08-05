@@ -2784,7 +2784,7 @@ function renderConfigControl(
   return `<input class="form-control" type="${inputType}" name="${name}" value="${escapeHtml(value)}" placeholder="${placeholderAttr}" ${attrs}${disabledAttr} />`;
 }
 
-function renderConfigClientShell(d: {
+export function renderConfigClientShell(d: {
   hostname: string;
   tenantId: string;
   appId: string;
@@ -2872,6 +2872,26 @@ function renderConfigClientShell(d: {
     const data = await readJson(response, "config");
     if (!response.ok) throw new Error(data.error || data.message || "config HTTP " + response.status);
     return data.values || {};
+  };
+  const writeValues = async (token, appId, values, clearKeys = []) => {
+    const headers = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: "Bearer " + token,
+      "x-bp-tenant-id": cfg.tenantId
+    };
+    if (appId) headers["x-bp-app-id"] = appId;
+    const payload = { tenantId: cfg.tenantId, values };
+    if (appId) payload.appId = appId;
+    if (clearKeys.length > 0) payload.clearKeys = clearKeys;
+    const response = await fetch(serviceBase() + "/.well-known/bp/config", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload)
+    });
+    const data = await readJson(response, "config write");
+    if (!response.ok) throw new Error(data.error || data.message || "config HTTP " + response.status);
+    return data;
   };
   const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
   const compareOrder = (left, right) => {
@@ -2972,13 +2992,16 @@ function renderConfigClientShell(d: {
     const layout = schemaLayout(schema);
     const fields = layout.fields;
     const scope = selectedScope === "app" ? "app" : "tenant";
-    const selectedAppId = scope === "app" ? appId : "";
+    const apps = cfg.tenantApps || [];
+    const selectedAppId = scope === "app"
+      ? (apps.some((app) => app.id === appId) ? appId : apps[0]?.id || "")
+      : "";
     const tenantValues = await loadValues(token, "");
     const appValues = selectedAppId ? await loadValues(token, selectedAppId) : {};
     const scopeSelector = '<div class="row g-2 mb-3"><div class="col-5"><label class="form-label">Scope</label>' +
       '<select class="form-select" data-bp-config-scope><option value="tenant"' + (scope === "tenant" ? " selected" : "") + '>Tenant defaults</option><option value="app"' + (scope === "app" ? " selected" : "") + '>App override</option></select></div>' +
       '<div class="col-7"><label class="form-label">App</label><select class="form-select" data-bp-config-app ' + (scope === "app" ? "" : "disabled") + '><option value="">Select app...</option>' +
-      (cfg.tenantApps || []).map((app) => '<option value="' + escapeHtml(app.id) + '"' + (app.id === selectedAppId ? " selected" : "") + '>' + escapeHtml(app.title) + '</option>').join("") +
+      apps.map((app) => '<option value="' + escapeHtml(app.id) + '"' + (app.id === selectedAppId ? " selected" : "") + '>' + escapeHtml(app.title) + '</option>').join("") +
       '</select></div></div>';
     if (scope === "app" && !selectedAppId) {
       body.innerHTML = scopeSelector + '<div class="alert alert-info">Select an app to edit overrides.</div>';
@@ -3021,8 +3044,88 @@ function renderConfigClientShell(d: {
       const content = sectionFields.map(renderField).join("");
       return '<div class="border rounded p-3 mb-3" data-bp-config-section="' + escapeHtml(section.id) + '">' + header + content + '</div>';
     }).join("");
-    body.innerHTML = scopeSelector + '<form data-bp-config-form>' + sectionsHtml + '<div data-bp-save-status></div><button type="submit" class="btn btn-primary w-100">Save Configuration</button></form>';
+    const transferActions = '<div class="d-flex justify-content-end gap-2 mb-3">' +
+      '<button type="button" class="btn btn-sm btn-link text-decoration-none p-0" data-bp-config-export>Export</button>' +
+      '<button type="button" class="btn btn-sm btn-link text-decoration-none p-0" data-bp-config-import>Import</button>' +
+      '<input type="file" accept="application/json,.json" hidden data-bp-config-import-file />' +
+      '</div>';
+    body.innerHTML = scopeSelector + transferActions + '<form data-bp-config-form>' + sectionsHtml + '<div data-bp-save-status></div><button type="submit" class="btn btn-primary w-100">Save Configuration</button></form>';
     wireScopeControls(schema, token);
+    const currentValues = scope === "app" ? appValues : tenantValues;
+    const importFile = root.querySelector("[data-bp-config-import-file]");
+    root.querySelector("[data-bp-config-export]")?.addEventListener("click", () => {
+      const values = {};
+      let omittedSecrets = 0;
+      for (const field of fields) {
+        if (!hasOwn(currentValues, field.key)) continue;
+        if (field.visibility === "secret" && currentValues[field.key] === "__redacted__") {
+          omittedSecrets += 1;
+          continue;
+        }
+        values[field.key] = currentValues[field.key];
+      }
+      const exported = {
+        format: "betterportal.service-config",
+        version: 1,
+        serviceId: cfg.serviceId,
+        tenantId: cfg.tenantId,
+        scope,
+        ...(selectedAppId ? { appId: selectedAppId } : {}),
+        values
+      };
+      const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(exported, null, 2) + "\\n"], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = String(cfg.serviceId || "service").replace(/[^a-z0-9._-]+/gi, "-") + "-" + scope + ".json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+      setStatus("ok", "Configuration exported." + (omittedSecrets ? " Stored secrets were omitted." : ""));
+    });
+    root.querySelector("[data-bp-config-import]")?.addEventListener("click", () => importFile?.click());
+    importFile?.addEventListener("change", async () => {
+      const file = importFile.files?.[0];
+      importFile.value = "";
+      if (!file) return;
+      setStatus("info", "Importing configuration...");
+      try {
+        const imported = JSON.parse(await file.text());
+        if (!imported || typeof imported !== "object" || Array.isArray(imported)) throw new Error("Import must be a JSON object.");
+        if (imported.format !== "betterportal.service-config" || imported.version !== 1) throw new Error("Unsupported config export format.");
+        if (imported.serviceId !== cfg.serviceId) throw new Error("This export belongs to a different service.");
+        if (!["tenant", "app"].includes(imported.scope)) throw new Error("Import scope must be tenant or app.");
+        if (imported.scope !== scope) throw new Error("Select the " + imported.scope + " scope before importing this file.");
+        if (!imported.values || typeof imported.values !== "object" || Array.isArray(imported.values)) throw new Error("Import values must be a JSON object.");
+        const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+        const unknownKeys = Object.keys(imported.values).filter((key) => !fieldsByKey.has(key));
+        if (unknownKeys.length > 0) throw new Error("Unknown config fields: " + unknownKeys.join(", "));
+        const values = {};
+        const clearKeys = [];
+        for (const field of fields) {
+          if (hasOwn(imported.values, field.key)) {
+            if (field.visibility !== "secret" || imported.values[field.key] !== "__redacted__") {
+              values[field.key] = imported.values[field.key];
+            }
+          } else if (field.visibility !== "secret") {
+            clearKeys.push(field.key);
+          }
+        }
+        const scopeLabel = selectedAppId
+          ? "the selected app override"
+          : "the tenant defaults";
+        if (!window.confirm("Replace " + scopeLabel + " with this import? Existing stored secrets are preserved unless the file supplies replacements.")) {
+          setStatus("info", "Import cancelled.");
+          return;
+        }
+        await writeValues(token, selectedAppId, values, clearKeys);
+        document.body.dispatchEvent(new CustomEvent("bp:config-saved"));
+        await renderForm(schema, token, scope, selectedAppId);
+        setStatus("ok", "Configuration imported.");
+      } catch (error) {
+        setStatus("error", error instanceof Error ? error.message : String(error));
+      }
+    });
     root.querySelectorAll("[data-bp-override-key]").forEach((checkbox) => {
       checkbox.addEventListener("change", () => {
         const field = checkbox.closest("[data-bp-field]");
@@ -3045,24 +3148,14 @@ function renderConfigClientShell(d: {
         if (!key) return;
         button.disabled = true;
         setStatus("info", "Resetting " + key + "...");
-        const response = await fetch(serviceBase() + "/.well-known/bp/config", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            Authorization: "Bearer " + token,
-            "x-bp-tenant-id": cfg.tenantId
-          },
-          body: JSON.stringify({ tenantId: cfg.tenantId, values: {}, clearKeys: [key] })
-        });
-        if (!response.ok) {
-          const error = await readJson(response, "reset").catch((err) => ({ error: err.message || "HTTP " + response.status }));
-          setStatus("error", error.error || "Reset failed.");
+        try {
+          await writeValues(token, "", {}, [key]);
+          document.body.dispatchEvent(new CustomEvent("bp:config-saved"));
+          await renderForm(schema, token, "tenant", "");
+        } catch (error) {
+          setStatus("error", error instanceof Error ? error.message : String(error));
           button.disabled = false;
-          return;
         }
-        document.body.dispatchEvent(new CustomEvent("bp:config-saved"));
-        await renderForm(schema, token, "tenant", "");
       });
     });
     root.querySelector("[data-bp-config-form]")?.addEventListener("submit", async (event) => {
@@ -3091,31 +3184,17 @@ function renderConfigClientShell(d: {
           if (value !== undefined && value !== "(unchanged)") valuesToSave[field.key] = value;
         }
       }
-      const payload = { tenantId: cfg.tenantId, values: valuesToSave };
-      if (selectedAppId) payload.appId = selectedAppId;
-      if (clearKeys.length > 0) payload.clearKeys = clearKeys;
-      const headers = {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: "Bearer " + token,
-        "x-bp-tenant-id": cfg.tenantId
-      };
-      if (selectedAppId) headers["x-bp-app-id"] = selectedAppId;
-      const response = await fetch(serviceBase() + "/.well-known/bp/config", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) {
-        const error = await readJson(response, "save").catch((err) => ({ error: err.message || "HTTP " + response.status }));
-        if (saveStatus) saveStatus.innerHTML = '<div class="alert alert-danger">' + escapeHtml(error.error || "Save failed") + '</div>';
-        setStatus("error", error.error || "Save failed.");
+      try {
+        await writeValues(token, selectedAppId, valuesToSave, clearKeys);
+        document.body.dispatchEvent(new CustomEvent("bp:config-saved"));
+        await renderForm(schema, token, scope, selectedAppId);
+        setStatus("ok", "Configuration saved.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (saveStatus) saveStatus.innerHTML = '<div class="alert alert-danger">' + escapeHtml(message) + '</div>';
+        setStatus("error", message);
         if (submitButton) submitButton.disabled = false;
-        return;
       }
-      document.body.dispatchEvent(new CustomEvent("bp:config-saved"));
-      await renderForm(schema, token, scope, selectedAppId);
-      setStatus("ok", "Configuration saved.");
     });
     setStatus("ok", "Configuration loaded.");
   };

@@ -10,7 +10,7 @@ import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, 
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
-import { purgeServiceReferences } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
+import { purgeServiceReferences, renderConfigClientShell } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import {
   BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
   PROVIDER_ROLE_AUTHORITY_CAPABILITY,
@@ -598,11 +598,42 @@ test("service registration stays browser-mediated and tenant history follows the
   assert.match(html, /\/apps\/app-a\/m2m\/connections/);
   assert.match(html, /Connect CRM \/ org\.example\.crm/);
   assert.match(html, /id="bp-tenant-service-form"[^>]*data-bp-config="rewrite=false"/);
+  assert.match(html, /id="bp-tenant-service-preview"[^>]*aria-live="polite"/);
+  assert.match(html, /bp-toast-container/);
+  assert.match(html, /Toast\?\.getOrCreateInstance/);
+  assert.match(html, /Offcanvas\?\.getInstance\(panel\)\?\.hide/);
+  assert.match(html, /setTenantStatus\("secondary", "Installing service\.\.\."\)/);
+  const script = /<script>\s*([\s\S]*)<\/script>/.exec(html)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
   assert.match(html, /id="bp-change-hostname-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /id="bp-shared-service-form"[^>]*data-bp-config="rewrite=false"/);
   assert.match(html, /shared-services\/org\.example\.shared\/activations\?tenantId=tenant-a[^>]*data-bp-error-modal=""/);
   assert.match(html, /<script>\s*\(\(\) => \{/);
   assert.doesNotMatch(html, /&quot;bp-tenant-service-form&quot;/);
+});
+
+test("service config editor transfers scoped values and defaults the first app", () => {
+  const html = renderConfigClientShell({
+    hostname: "https://service.example",
+    tenantId: "tenant-a",
+    serviceInstanceId: "service-instance-a",
+    serviceId: "org.example.service",
+    serviceTitle: "Example Service",
+    appId: "",
+    adminApiBase: "/.well-known/bp/admin",
+    tenantApps: [{ id: "app-a", title: "App A" }]
+  });
+
+  assert.match(html, /data-bp-config-export/);
+  assert.match(html, /data-bp-config-import/);
+  assert.match(html, /betterportal\.service-config/);
+  assert.match(html, /apps\[0\]\?\.id/);
+  assert.match(html, /Stored secrets were omitted/);
+  assert.match(html, /Unknown config fields/);
+  const script = /<script>([\s\S]*)<\/script>/.exec(html)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
 });
 
 test("role edits replace the deferred form action", () => {
