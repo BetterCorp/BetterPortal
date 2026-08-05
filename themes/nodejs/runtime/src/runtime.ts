@@ -377,6 +377,7 @@ export function betterPortalShellRuntimeSource(): string {
 
       const bpElementStates = new WeakMap<Element, BPElementStates>();
       const bpElementAuthRetried = new WeakSet<Element>();
+      const bpElementStateSwaps = new WeakSet<Element>();
       const directStateChildren = (element: Element) => Array.from(element.children)
         .filter((child) => ["BP-LOADING", "BP-OK", "BP-NOK", "BP-STATUS"].includes(child.tagName));
 
@@ -421,7 +422,14 @@ export function betterPortalShellRuntimeSource(): string {
 
       const swapBpElementContent = (element: Element, html: string) => {
         if (typeof htmx.swap === "function") {
-          void htmx.swap({ text: html, sourceElement: element, target: element, swap: "innerHTML" });
+          bpElementStateSwaps.add(element);
+          try {
+            void Promise.resolve(htmx.swap({ text: html, sourceElement: element, target: element, swap: "innerHTML" }))
+              .finally(() => bpElementStateSwaps.delete(element));
+          } catch (error) {
+            bpElementStateSwaps.delete(element);
+            throw error;
+          }
         } else {
           element.innerHTML = html;
           initializeBpElements(element);
@@ -429,6 +437,7 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const renderBpElementState = (element: Element, status: number, responseHtml = "") => {
+        if (bpElementStateSwaps.has(element)) return;
         initializeBpElement(element);
         const states = bpElementStates.get(element)!;
         element.setAttribute("aria-busy", "false");
@@ -2023,7 +2032,7 @@ export function betterPortalShellRuntimeSource(): string {
           applyChromeFromResponse(detail);
 
           const bpElement = requestBpElement(source);
-          if (bpElement && !isMainTarget(target)) {
+          if (bpElement && !isMainTarget(target) && !bpElementStateSwaps.has(bpElement)) {
             const responseText = ctx?.text || "";
             if (status === 401 && !bpElementAuthRetried.has(bpElement)) {
               bpElementAuthRetried.add(bpElement);
