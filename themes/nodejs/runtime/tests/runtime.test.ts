@@ -36,6 +36,14 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   assert.equal(BETTERPORTAL_HTMX_EXTENSIONS, "bp-shell, sse");
 });
 
+test("history restoration uses the shell fragment route pipeline", () => {
+  const source = betterPortalShellRuntimeSource();
+  assert.match(source, /htmx:before:history:restore/);
+  assert.match(source, /hx-sync","#bp-main:replace"/);
+  assert.match(source, /event\.preventDefault\(\)/);
+  assert.match(source, /triggerShellLink\(detail\.path,serviceUrl,true\)/);
+});
+
 test("chrome attributes are normalized for initial shell rendering", () => {
   assert.deepEqual(betterPortalChromeAttributes({
     fullScreen: true,

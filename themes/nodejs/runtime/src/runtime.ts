@@ -1022,6 +1022,7 @@ export function betterPortalShellRuntimeSource(): string {
         link.setAttribute("hx-trigger", "load");
         link.setAttribute("hx-target", "#bp-main");
         link.setAttribute("hx-swap", "innerHTML");
+        link.setAttribute("hx-sync", "#bp-main:replace");
         link.setAttribute(replace ? "hx-replace-url" : "hx-push-url", tenantUrl);
         link.setAttribute("data-bp-no-route", "");
         link.hidden = true;
@@ -1816,6 +1817,14 @@ export function betterPortalShellRuntimeSource(): string {
         if (detail?.history?.path) {
           detail.history.path = tenantUrlForServiceUrl(detail.history.path);
         }
+      });
+      document.addEventListener("htmx:before:history:restore", (event: Event) => {
+        const detail = (event as CustomEvent<{ path?: string }>).detail;
+        if (!detail?.path) return;
+        const serviceUrl = serviceUrlForTenantUrl(detail.path);
+        if (serviceUrl === detail.path) return;
+        event.preventDefault();
+        triggerShellLink(detail.path, serviceUrl, true);
       });
 
       document.body.addEventListener("click", (event) => {
