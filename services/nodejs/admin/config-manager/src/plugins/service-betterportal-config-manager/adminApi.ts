@@ -115,6 +115,10 @@ function requiredRouteString(body: Record<string, unknown>, key: string, label: 
   return { value };
 }
 
+function routesReloadPath(appId: string, apiServiceId?: string): string {
+  return `/routes?appId=${encodeURIComponent(appId)}${apiServiceId ? `&apiServiceId=${encodeURIComponent(apiServiceId)}` : ""}`;
+}
+
 function routeParamNames(path: string): string[] {
   return [...new Set(path.split("/").flatMap((segment) => {
     const match = segment.match(/^:([A-Za-z_][A-Za-z0-9_]*)$/);
@@ -201,6 +205,7 @@ type WizardManifestView = {
   title: string;
   renderable?: boolean;
   methods?: unknown[];
+  dependencies?: unknown[];
   html?: {
     renderers?: Record<string, {
       renderModes?: unknown[];
@@ -2072,6 +2077,7 @@ export function registerAdminApiRoutes(
     if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
     const parsed = parseRouteCreateBody(body);
     if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route.");
+    if (parsed.route.kind === "api") return validationError(event, "Service/API routes are created by service manifest sync.");
     const serviceError = validateRegisteredRouteService(config, appDef, parsed.route.serviceId);
     if (serviceError) return validationError(event, serviceError);
     if (appDef.routes.some((candidate) => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
@@ -2081,7 +2087,7 @@ export function registerAdminApiRoutes(
     appDef.routes.push(route);
     addRouteDependencies(appDef, route);
     await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(`/routes?appId=${encodeURIComponent(appId)}`);
+    if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId));
     return jsonResponse({ ok: true, id: route.id } as unknown as JsonValue, 201);
   });
 
@@ -2095,6 +2101,9 @@ export function registerAdminApiRoutes(
     if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
     const route = appDef.routes.find((r) => r.id === routeId);
     if (!route) return wantsHtmx(event) ? htmxError("Route not found", 404) : jsonResponse({ error: "Route not found" }, 404);
+    if (route.kind === "api" && Object.keys(body).some((key) => key !== "enabled")) {
+      return validationError(event, "Service/API route identity and metadata are managed by service manifest sync.");
+    }
 
     if (body.path !== undefined) {
       const path = trimmedString(body, "path");
@@ -2178,7 +2187,7 @@ export function registerAdminApiRoutes(
     }
 
     await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(`/routes?appId=${encodeURIComponent(appId)}`);
+    if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId, route.kind === "api" ? route.serviceId : undefined));
     return jsonResponse({ ok: true });
   });
 
@@ -2191,6 +2200,10 @@ export function registerAdminApiRoutes(
     if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
     const route = appDef.routes.find((r) => r.id === routeId);
     if (!route) return wantsHtmx(event) ? htmxAlert("Route not found.") : jsonResponse({ error: "Route not found" }, 404);
+    if (route.kind === "api") {
+      const message = "Service/API routes are managed by service manifest sync and cannot be deleted manually.";
+      return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
+    }
     const menuReferenceCount = countMenuRouteReferences((appDef as unknown as { menu?: unknown }).menu, routeId);
     if (menuReferenceCount > 0) {
       const message = `Cannot delete route "${route.title ?? route.path}" because ${menuReferenceCount} menu item${menuReferenceCount === 1 ? "" : "s"} reference it. Remove the menu reference first.`;
@@ -2327,6 +2340,7 @@ export function registerAdminApiRoutes(
     let capabilities: string[] = [];
     let serviceRoutes: Array<{ viewId: string; path: string; renderable?: boolean; methods?: string[] }> = [];
     let viewMeta = new Map<string, { title: string; renderable: boolean; pageRenderable: boolean; methods: string[] }>();
+    let dependencyViewIds = new Set<string>();
     const schemaText = typeof body.schema === "string" ? body.schema : "";
     if (schemaText) {
       try {
@@ -2341,7 +2355,13 @@ export function registerAdminApiRoutes(
         serviceId = schema.manifest?.pluginId;
         capabilities = Array.isArray(schema.manifest?.capabilities) ? schema.manifest.capabilities.filter((value): value is string => typeof value === "string") : [];
         serviceRoutes = schema.routes ?? [];
-        viewMeta = new Map((schema.manifest?.views ?? []).map((v) => [v.viewId, {
+        const manifestViews = schema.manifest?.views ?? [];
+        dependencyViewIds = new Set(manifestViews.flatMap((view) =>
+          Array.isArray(view.dependencies)
+            ? view.dependencies.filter((value): value is string => typeof value === "string")
+            : []
+        ));
+        viewMeta = new Map(manifestViews.map((v) => [v.viewId, {
           title: v.title,
           renderable: v.renderable !== false,
           pageRenderable: hasPageRenderer(v),
@@ -2398,7 +2418,7 @@ export function registerAdminApiRoutes(
             viewId: r.viewId,
             targetPath: r.path,
             title: routeTitle,
-            enabled: true,
+            enabled: renderable || dependencyViewIds.has(r.viewId),
             methods: routeMethodsFromManifest(r.methods)
           });
           existingPaths.add(mountPath);

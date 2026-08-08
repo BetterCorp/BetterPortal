@@ -315,15 +315,28 @@ test("shared activation manifest lookup falls back to its shared service", () =>
 test("manifest sync preserves stale app auth redirects for repair", async () => {
   const value = s2sConfig();
   const app = value.config.apps[0]!;
-  app.routes = [{
-    id: uuidv7(),
-    kind: "page",
-    path: "/dashboard",
-    serviceId: value.targetId,
-    viewId: "dashboard.index",
-    enabled: true,
-    methods: ["GET"]
-  }];
+  const pageRouteId = uuidv7();
+  const apiRouteId = uuidv7();
+  app.routes = [
+    {
+      id: pageRouteId,
+      kind: "page",
+      path: "/dashboard",
+      serviceId: value.targetId,
+      viewId: "dashboard.index",
+      enabled: true,
+      methods: ["GET"]
+    },
+    {
+      id: apiRouteId,
+      kind: "api",
+      path: `/_bp/service/${value.targetId}/dashboard-data`,
+      serviceId: value.targetId,
+      viewId: "dashboard.data",
+      enabled: true,
+      methods: ["GET"]
+    }
+  ];
   app.auth = {
     serviceId: value.sourceId,
     expectedIssuer: "https://auth.example",
@@ -338,7 +351,8 @@ test("manifest sync preserves stale app auth redirects for repair", async () => 
   const storage = new MemoryStorage(value.config);
   storage.assertValid();
   await reconcileServiceRegistry(storage, value.targetId, { routes: [] } as never);
-  assert.equal(app.routes[0]!.enabled, false);
+  assert.equal(app.routes.find((route) => route.id === pageRouteId)?.enabled, false);
+  assert.equal(app.routes.some((route) => route.id === apiRouteId), false);
   assert.deepEqual(app.auth.redirects?.afterLogin, {
     serviceId: value.targetId,
     viewId: "dashboard.index"
@@ -346,6 +360,64 @@ test("manifest sync preserves stale app auth redirects for repair", async () => 
   storage.assertValid();
   app.auth.redirects!.afterLogin!.serviceId = uuidv7();
   assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin references unavailable service instance/);
+});
+
+test("manifest sync owns API mounts and moves newly renderable views to visual routes", async () => {
+  const value = s2sConfig();
+  const app = value.config.apps[0]!;
+  const movedRouteId = uuidv7();
+  app.routes = [
+    {
+      id: uuidv7(),
+      kind: "page",
+      path: "/dashboard",
+      serviceId: value.targetId,
+      viewId: "dashboard.index",
+      enabled: true,
+      methods: ["GET"]
+    },
+    {
+      id: movedRouteId,
+      kind: "api",
+      path: "/_bp/service/org.example.target/moved",
+      serviceId: value.targetId,
+      viewId: "moved.index",
+      enabled: true,
+      methods: ["GET"]
+    }
+  ];
+  const registryRoute = (viewId: string, path: string, raw: boolean, dependencies: string[] = []) => ({
+    viewId,
+    path,
+    paramNames: [],
+    methods: ["GET"],
+    raw,
+    renderers: raw ? {} : { bootstrap5: { pages: [{}], components: [], fragments: [] } },
+    auth: { required: false, permissions: [] },
+    schemas: {},
+    robots: [],
+    dependencies,
+    apiContracts: [],
+    demoScenarios: []
+  });
+
+  await reconcileServiceRegistry(new MemoryStorage(value.config), value.targetId, {
+    routes: [
+      registryRoute("dashboard.index", "/dashboard", false, ["dashboard.data"]),
+      registryRoute("dashboard.data", "/dashboard-data", true),
+      registryRoute("jobs.run", "/jobs/run", true),
+      registryRoute("moved.index", "/moved", false)
+    ]
+  } as never);
+
+  const dependency = app.routes.find((route) => route.viewId === "dashboard.data");
+  assert.equal(dependency?.kind, "api");
+  assert.equal(dependency?.enabled, true);
+  assert.equal(app.routes.find((route) => route.viewId === "jobs.run")?.enabled, false);
+  const moved = app.routes.find((route) => route.id === movedRouteId);
+  assert.equal(moved?.kind, "page");
+  assert.equal(moved?.enabled, false);
+  assert.equal(moved?.path, `/${value.targetId}/moved`);
 });
 
 test("auth provider sync persists public JWKS and repairs later app bindings", async () => {
@@ -530,6 +602,7 @@ test("route designer exposes conflicts, stale views, and service identity", () =
     title: "Route Designer",
     apps: [{ id: "app-a", title: "App A", tenantId: "tenant-a" }],
     selectedAppId: "app-a",
+    openApiServiceId: "service-b",
     routes: [
       route("root-a", "/", "service-a", "welcome.index"),
       route("root-b", "/", "service-a", "welcome.index"),
@@ -552,7 +625,9 @@ test("route designer exposes conflicts, stale views, and service identity", () =
   assert.match(html, /Manifest view unavailable/);
   assert.match(html, /TRG One Theme · service\.trg-one\.crm/);
   assert.match(html, /bp-api-routes-service-a/);
-  assert.match(html, /bp-api-routes-service-b/);
+  assert.match(html, /id="bp-api-routes-service-b" class="accordion-collapse collapse show"/);
+  assert.match(html, /data-bs-target="#bp-api-routes-service-a" aria-expanded="false"/);
+  assert.doesNotMatch(html, /Delete API route/);
   assert.doesNotMatch(html, /└─/);
 });
 

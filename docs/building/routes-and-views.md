@@ -217,7 +217,9 @@ An internal, root-relative `<a href>` is browser-visible navigation and must res
 
 For OAuth, the user-facing "Continue with ..." anchor should target a mounted page/view route. That view may initiate the external provider redirect with the normal BP response/header flow. The provider callback can remain an API route, but it must redirect back to a mounted page route after completing authentication. `data-bp-no-route` is not a workaround for service links: it disables routing entirely and leaves a root-relative URL pointed at the theme origin.
 
-Config-manager sync normalizes non-renderable/raw/dependency routes to `kind: "api"` on the next service sync. Existing API routes mounted at raw paths such as `/refresh` are rewritten to the deterministic `/_bp/service/...` path. Page routes are not rewritten unless the manifest now says the selected view is non-renderable. If a view disappears from a service manifest, config-manager disables matching app routes instead of deleting them.
+Config-manager owns Service/API route mounts as a synchronized projection of each active service manifest. Newly published API-only views are added to every applicable app disabled by default; API routes declared as dependencies of a mounted route are enabled automatically. Administrators may enable or disable these mounts, but cannot create, edit, or delete them manually. Sync updates their path, methods, and view identity, removes API views that disappear, and moves a route into the Visual Routes section (disabled, with a generated app path) if its manifest view becomes renderable.
+
+Visual routes remain administrator-owned. If a page view disappears from a service manifest, config-manager disables its app route and preserves its app path, title, menu references, and auth redirect references for repair instead of deleting it.
 
 Routes can declare API contracts for explicit service-to-service binding. Machine callers are opt-in at the route boundary; omitting `auth.callers` means user-only.
 

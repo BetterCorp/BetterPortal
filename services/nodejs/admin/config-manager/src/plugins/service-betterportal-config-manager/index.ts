@@ -566,6 +566,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const config = await this.storage.loadConfig();
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
+    const openApiServiceId = url.searchParams.get("apiServiceId") ?? undefined;
     const selectedApp = selectedAppId ? config.apps.find((a) => a.id === selectedAppId) : undefined;
     const selectedTenant = selectedApp ? config.tenants.find((t) => t.id === selectedApp.tenantId) : undefined;
 
@@ -649,6 +650,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       title: "Route Designer",
       apps: config.apps.map((a) => ({ id: a.id, title: a.title, tenantId: a.tenantId })),
       selectedAppId,
+      openApiServiceId,
       routes: routeModel,
       availableServices,
       adminApiBase: "/.well-known/bp/admin",

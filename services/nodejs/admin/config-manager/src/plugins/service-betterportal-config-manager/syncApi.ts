@@ -19,7 +19,8 @@ import type {
 import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManifestSchema, deriveKeyId, eventObservability, jsonResponse, toJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
-import { apiRoutePath, isApiRoute } from "./routeMounts.js";
+import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
+import { getAvailableServiceInstanceIdsForApp } from "./storage/core.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
 
@@ -565,6 +566,7 @@ function sameMethods(left: string[], right: string[]): boolean {
 }
 
 function addMissingDependencyRoutes(app: { routes: BetterPortalRouteMount[] }, sourceRoute: BetterPortalRouteMount, manifest: CachedManifest): boolean {
+  if (!sourceRoute.enabled) return false;
   const sourceView = manifest.viewIndex[sourceRoute.viewId];
   if (!sourceView) return false;
 
@@ -572,7 +574,14 @@ function addMissingDependencyRoutes(app: { routes: BetterPortalRouteMount[] }, s
   for (const dependencyViewId of sourceView.dependencies) {
     const dependency = manifest.viewIndex[dependencyViewId];
     if (!dependency) continue;
-    if (app.routes.some((route) => route.serviceId === sourceRoute.serviceId && route.viewId === dependencyViewId)) continue;
+    const existing = app.routes.find((route) => route.serviceId === sourceRoute.serviceId && route.viewId === dependencyViewId);
+    if (existing) {
+      if (!existing.enabled) {
+        existing.enabled = true;
+        changed = true;
+      }
+      continue;
+    }
 
     const methods = normalizeMethods(dependency.methods);
     app.routes.push({
@@ -639,11 +648,20 @@ async function updateServiceMetadata(
     changed = true;
   }
   for (const app of config.apps) {
+    const appServiceIds = getAvailableServiceInstanceIdsForApp(config, app);
+    const syncedServiceIds = new Set([...routeServiceIds].filter((id) => appServiceIds.has(id)));
+    const staleApiRouteIds = new Set(app.routes
+      .filter((route) => syncedServiceIds.has(route.serviceId) && route.kind === "api" && !manifest.viewIndex[route.viewId])
+      .map((route) => route.id));
+    if (staleApiRouteIds.size > 0) {
+      app.routes = app.routes.filter((route) => !staleApiRouteIds.has(route.id));
+      changed = true;
+    }
     if (manifest.authProvider && app.auth && routeServiceIds.has(app.auth.serviceId)) {
       applyAuthProviderMetadata(app.auth, manifest.authProvider);
       changed = true;
     }
-    for (const route of app.routes.filter((candidate) => routeServiceIds.has(candidate.serviceId))) {
+    for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
       const view = manifest.viewIndex[route.viewId];
       if (!view) {
         if (route.enabled !== false) {
@@ -658,14 +676,15 @@ async function updateServiceMetadata(
         route.methods = methods;
         changed = true;
       }
-      const selectedServicePath = route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
+      const wasApi = route.kind === "api";
+      const selectedServicePath = !wasApi && view.renderable !== false && route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
         ? route.servicePathVariant
         : view.path;
       if (route.targetPath !== selectedServicePath) {
         route.targetPath = selectedServicePath;
         changed = true;
       }
-      const routeIsApi = isApiRoute(route, view.renderable);
+      const routeIsApi = view.renderable === false;
       if (routeIsApi) {
         const nextPath = apiRoutePath(manifest.serviceId, selectedServicePath);
         if (route.kind !== "api") {
@@ -680,15 +699,49 @@ async function updateServiceMetadata(
           delete route.query;
           changed = true;
         }
-      } else if (route.kind !== "page") {
-        route.kind = "page";
-        changed = true;
+        if (route.servicePathVariant !== undefined) {
+          delete route.servicePathVariant;
+          changed = true;
+        }
+        if (route.fixedParams !== undefined) {
+          delete route.fixedParams;
+          changed = true;
+        }
+        if (route.title !== view.viewId) {
+          route.title = view.viewId;
+          changed = true;
+        }
+      } else {
+        if (wasApi) {
+          route.kind = "page";
+          route.enabled = false;
+          route.path = pageRoutePath(manifest.serviceId, selectedServicePath);
+          changed = true;
+        }
       }
       if (!route.title && view.viewId) {
         route.title = view.viewId;
         changed = true;
       }
       if (addMissingDependencyRoutes(app, route, manifest)) changed = true;
+    }
+    for (const serviceId of syncedServiceIds) {
+      for (const view of Object.values(manifest.viewIndex).filter((candidate) => candidate.renderable === false)) {
+        if (app.routes.some((route) => route.serviceId === serviceId && route.viewId === view.viewId)) continue;
+        const methods = normalizeMethods(view.methods);
+        app.routes.push({
+          id: uuidv7(),
+          kind: "api",
+          path: apiRoutePath(manifest.serviceId, view.path),
+          serviceId,
+          viewId: view.viewId,
+          targetPath: view.path,
+          title: view.viewId,
+          enabled: false,
+          methods: methods.length ? methods : ["GET"]
+        });
+        changed = true;
+      }
     }
   }
   if (changed) await store.saveConfig(config);

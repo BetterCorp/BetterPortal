@@ -579,21 +579,25 @@ function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
   }
 
   const serviceIds = [...new Set(apiRoutes.map((route) => route.serviceId))];
+  const openServiceId = data.openApiServiceId && serviceIds.includes(data.openApiServiceId)
+    ? data.openApiServiceId
+    : serviceIds[0];
   return (
     <div class="accordion" id="bp-api-routes-accordion">
-      {serviceIds.map((serviceId, index) => {
+      {serviceIds.map((serviceId) => {
         const routes = apiRoutes.filter((route) => route.serviceId === serviceId);
         const panelId = `bp-api-routes-${domId(serviceId)}`;
+        const open = serviceId === openServiceId;
         return (
           <div class="accordion-item">
             <h3 class="accordion-header">
-              <button class={`accordion-button ${index === 0 ? "" : "collapsed"}`} type="button" data-bs-toggle="collapse" data-bs-target={`#${panelId}`}>
+              <button class={`accordion-button ${open ? "" : "collapsed"}`} type="button" data-bs-toggle="collapse" data-bs-target={`#${panelId}`} aria-expanded={open ? "true" : "false"} aria-controls={panelId}>
                 <span data-bp-route-service-label={serviceId}>{serviceLabel(data.availableServices, serviceId)}</span>
                 <span class="font-monospace small text-secondary ms-2">{serviceId}</span>
                 <span class="badge text-bg-secondary ms-2">{routes.length}</span>
               </button>
             </h3>
-            <div id={panelId} class={`accordion-collapse collapse ${index === 0 ? "show" : ""}`} data-bs-parent="#bp-api-routes-accordion">
+            <div id={panelId} class={`accordion-collapse collapse ${open ? "show" : ""}`} data-bs-parent="#bp-api-routes-accordion">
               <div class="accordion-body p-0">
                 <table class="table table-sm mb-0 align-middle">
                   <thead>
@@ -603,7 +607,6 @@ function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
                       <th>View</th>
                       <th>Methods</th>
                       <th>On</th>
-                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -629,15 +632,6 @@ function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
                               hx-target="#bp-main"
                               hx-swap="innerHTML"
                             >{route.enabled ? "on" : "off"}</button>
-                          </td>
-                          <td>
-                            <button
-                              class="btn btn-sm btn-outline-danger"
-                              hx-delete={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
-                              hx-confirm="Delete API route?"
-                              hx-target="#bp-routes-alerts"
-                              hx-swap="innerHTML"
-                            >x</button>
                           </td>
                         </tr>
                       );

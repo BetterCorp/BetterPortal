@@ -53,6 +53,7 @@ export const ResponseSchema = av.object({
   title: av.string().minLength(1),
   apps: av.array(AppSummarySchema),
   selectedAppId: av.optional(av.string()),
+  openApiServiceId: av.optional(av.string()),
   routes: av.array(RouteItemSchema),
   availableServices: av.array(AvailableServiceSchema).default([]),
   adminApiBase: av.string().minLength(1),
