@@ -272,7 +272,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     }
   }
 
-  protected async resolveCorsContext(event: BetterPortalEvent): Promise<BetterPortalResolvedRequestContext | null> {
+  protected override async resolveRequestContext(event: BetterPortalEvent): Promise<BetterPortalResolvedRequestContext | null> {
     const config = await this.storage.loadConfig();
     const context = resolveEmbeddedRequestContext(config, eventHeaders(event));
     if (!context) {
