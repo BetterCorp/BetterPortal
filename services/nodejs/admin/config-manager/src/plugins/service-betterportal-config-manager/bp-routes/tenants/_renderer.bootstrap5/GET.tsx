@@ -32,6 +32,11 @@ function tenantsScript(): HtmlRenderable {
       (form.bpPageViews || [])
         .filter((view) => view.serviceId === serviceSelect.value)
         .forEach((view) => viewSelect.add(new Option(view.title + " · " + view.path + " · " + view.viewId, view.viewId)));
+      if (preferred && ![...viewSelect.options].some((option) => option.value === preferred)) {
+        const unavailable = new Option(preferred + " — unavailable", preferred, true, true);
+        unavailable.disabled = true;
+        viewSelect.add(unavailable);
+      }
       viewSelect.value = preferred;
       viewSelect.disabled = !serviceSelect.value;
     };
@@ -46,6 +51,11 @@ function tenantsScript(): HtmlRenderable {
         [...new Map(form.bpPageViews.map((view) => [view.serviceId, view.serviceTitle])).entries()]
           .forEach(([serviceId, title]) => serviceSelect.add(new Option(title + " · " + serviceId, serviceId)));
         const target = data.authRedirects?.[prefix];
+        if (target?.serviceId && ![...serviceSelect.options].some((option) => option.value === target.serviceId)) {
+          const unavailable = new Option(target.serviceId + " — unavailable", target.serviceId, true, true);
+          unavailable.disabled = true;
+          serviceSelect.add(unavailable);
+        }
         serviceSelect.value = target?.serviceId || "";
         syncRedirectView(form, prefix, target?.viewId || "");
       });
@@ -449,7 +459,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   <option value="">Use app default</option>
                 </select>
               </div>
-              <div class="form-text mt-2">Blank uses the app's default route. Only enabled GET page views with one mount are available.</div>
+              <div class="form-text mt-2">Blank uses the app's default route. Only enabled GET page views with one unique path are selectable; stale targets remain visible for repair.</div>
             </fieldset>
             {seoFields()}
             <div class="alert alert-danger d-none" id="bp-edit-app-error"></div>

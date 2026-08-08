@@ -116,7 +116,7 @@ export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 
 `loginViewId` / `logoutViewId` / `refreshViewId` are **view ids**, not URL paths. The framework resolves them through the synced app route registry, so administrators can rename mounted URLs without changing auth configuration. Legacy path values are migrated by Config Manager against routes belonging to the configured auth service.
 
-`app.auth.redirects.afterLogin` and `afterLogout` are app-owned navigation targets. Each stores a concrete service-instance UUID plus a view id; Config Manager resolves that pair to the app's mounted URL at request time. They are edited under Tenants & Apps as service + view selections, not under an auth provider's addon config. Only one enabled GET page mount may match a target. An explicit `next`/`redirect` request value wins; otherwise the configured view is used, then `app.defaultRoute`.
+`app.auth.redirects.afterLogin` and `afterLogout` are app-owned navigation targets. Each stores a concrete service-instance UUID plus a view id; Config Manager resolves that pair to the app's mounted URL at request time. They are edited under Tenants & Apps as service + view selections, not under an auth provider's addon config. New selections require one unique enabled GET page path. Manifest sync preserves a target that later becomes stale so an administrator can repair it; unresolved targets fall back to `app.defaultRoute`. An explicit `next`/`redirect` request value still wins.
 
 Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Each permission entry binds a specific role grant to a specific API endpoint and CRUD action set. Services receive these via app config sync and use them to authorize requests.
 

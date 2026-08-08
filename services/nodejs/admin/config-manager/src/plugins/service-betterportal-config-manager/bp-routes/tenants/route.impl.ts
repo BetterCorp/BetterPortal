@@ -501,11 +501,7 @@ function selectableAppPageViews(config: BetterPortalConfig, app: BetterPortalApp
   title: string;
   path: string;
 }> {
-  const candidates = app.routes.filter(isEnabledPageView);
-  return candidates
-    .filter((route) => candidates.filter((candidate) =>
-      candidate.serviceId === route.serviceId && candidate.viewId === route.viewId
-    ).length === 1)
+  return uniqueEnabledPageViews(app)
     .map((route) => ({
       serviceId: route.serviceId,
       serviceTitle: serviceTitle(config, app.tenantId, route.serviceId),
@@ -517,6 +513,19 @@ function selectableAppPageViews(config: BetterPortalConfig, app: BetterPortalApp
 
 function isEnabledPageView(route: BetterPortalRouteMount): boolean {
   return route.enabled && (route.kind ?? "page") === "page" && route.methods.includes("GET");
+}
+
+function uniqueEnabledPageViews(app: BetterPortalApp): BetterPortalRouteMount[] {
+  const groups = new Map<string, BetterPortalRouteMount[]>();
+  for (const route of app.routes.filter(isEnabledPageView)) {
+    const key = `${route.serviceId}\0${route.viewId}`;
+    const routes = groups.get(key) ?? [];
+    routes.push(route);
+    groups.set(key, routes);
+  }
+  return [...groups.values()].flatMap((routes) =>
+    new Set(routes.map((route) => route.path)).size === 1 ? [routes[0]!] : []
+  );
 }
 
 function serviceTitle(config: BetterPortalConfig, tenantId: string, serviceId: string): string {
@@ -539,13 +548,17 @@ function updateAuthRedirects(app: BetterPortalApp, body: Record<string, unknown>
   if (!app.auth) return;
   const redirects = { ...app.auth.redirects };
   for (const [kind, prefix] of [["afterLogin", "afterLogin"], ["afterLogout", "afterLogout"]] as const) {
-    if (body[`${prefix}ServiceId`] === undefined && body[`${prefix}ViewId`] === undefined) continue;
+    if (body[`${prefix}ServiceId`] === undefined || body[`${prefix}ViewId`] === undefined) continue;
     const serviceId = stringValue(body[`${prefix}ServiceId`]);
     const viewId = stringValue(body[`${prefix}ViewId`]);
-    const matches = serviceId && viewId
-      ? app.routes.filter((route) => isEnabledPageView(route) && route.serviceId === serviceId && route.viewId === viewId)
-      : [];
-    if (serviceId && viewId && matches.length === 1) {
+    const paths = new Set(serviceId && viewId
+      ? app.routes
+        .filter((route) => isEnabledPageView(route) && route.serviceId === serviceId && route.viewId === viewId)
+        .map((route) => route.path)
+      : []);
+    const existing = redirects[kind];
+    const preservesStaleTarget = existing?.serviceId === serviceId && existing.viewId === viewId;
+    if (serviceId && viewId && (paths.size === 1 || preservesStaleTarget)) {
       redirects[kind] = { serviceId, viewId };
     } else {
       delete redirects[kind];

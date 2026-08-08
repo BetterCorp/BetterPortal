@@ -312,7 +312,7 @@ test("shared activation manifest lookup falls back to its shared service", () =>
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
 });
 
-test("app auth redirects require one unique enabled GET page path", () => {
+test("manifest sync preserves stale app auth redirects for repair", async () => {
   const value = s2sConfig();
   const app = value.config.apps[0]!;
   app.routes = [{
@@ -337,13 +337,15 @@ test("app auth redirects require one unique enabled GET page path", () => {
 
   const storage = new MemoryStorage(value.config);
   storage.assertValid();
-  app.routes.push({ ...app.routes[0]!, id: uuidv7() });
+  await reconcileServiceRegistry(storage, value.targetId, { routes: [] } as never);
+  assert.equal(app.routes[0]!.enabled, false);
+  assert.deepEqual(app.auth.redirects?.afterLogin, {
+    serviceId: value.targetId,
+    viewId: "dashboard.index"
+  });
   storage.assertValid();
-  app.routes[1]!.path = "/other-dashboard";
-  assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin must resolve to exactly one enabled GET page path/);
-  app.routes.pop();
-  app.routes[0]!.enabled = false;
-  assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin must resolve to exactly one enabled GET page path/);
+  app.auth.redirects!.afterLogin!.serviceId = uuidv7();
+  assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin references unavailable service instance/);
 });
 
 test("auth provider sync persists public JWKS and repairs later app bindings", async () => {
@@ -608,6 +610,8 @@ test("tenant edit script targets the active checkbox, not its hidden fallback", 
   assert.match(html, /input\[type=checkbox\]\[name=active\]/);
   assert.match(html, /name="afterLoginServiceId"/);
   assert.match(html, /name="afterLogoutViewId"/);
+  assert.match(html, /stale targets remain visible for repair/);
+  assert.match(html, /unavailable/);
 });
 
 test("service registration stays browser-mediated and tenant history follows the request", () => {
