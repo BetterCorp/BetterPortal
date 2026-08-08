@@ -16,6 +16,7 @@ import {
   buildServiceViewUrl,
   eventHeaders,
   eventObservability,
+  eventSessionId,
   htmlResponse,
   jsonResponse,
   resolveAppRoute,
@@ -331,7 +332,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async handleIndex(event: BetterPortalEvent): Promise<Response> {
-    return withObservedEvent(event, this.observability, "theme.embedded.index", async (activeEvent, span) => {
+    return withObservedEvent(event, this.observability, "theme.embedded.index", async (activeEvent) => {
       const sourceHostname = resolveThemeHostname(eventHeaders(activeEvent), this.headerTrustOptions());
       const portalConfig = this.getPortalConfig();
       if (!portalConfig) {
@@ -431,7 +432,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           chrome: currentRoute?.chrome,
           aiManifestUrl: "/.well-known/bp/ai.json",
           automationCatalogUrl: discoveryUrls?.catalogUrl,
-          managementDiscoveryUrl: discoveryUrls?.management.discoveryUrl
+          managementDiscoveryUrl: discoveryUrls?.management.discoveryUrl,
+          sessionId: eventSessionId(activeEvent)
         }),
         {
           status: 200,
@@ -439,8 +441,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
             "content-type": "text/html; charset=utf-8",
             ...(sourceHostname ? { "x-bp-source-hostname": sourceHostname } : {}),
             "cache-control": "no-store",
-            "x-bp-allowed-origin": originPolicy.allowedOrigins[0] ?? "",
-            "x-bp-trace-id": span.traceId
+            "x-bp-allowed-origin": originPolicy.allowedOrigins[0] ?? ""
           }
         }
       );

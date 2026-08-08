@@ -3,11 +3,14 @@ import { STATUS_CODES } from "node:http";
 import { JsonValue } from "../contracts/json.js";
 import {
   type BetterPortalObservability,
+  type BetterPortalRemoteTraceContext,
   type HttpOutcomeDiagnostic,
   type HttpOutcomeSource,
   type ObservabilityAttributes
 } from "../contracts/observability.js";
 import { toHtmlString, type HeaderMap } from "./http.js";
+import { baggageWithSession, requestPropagation, type BetterPortalRequestPropagation } from "./traceContext.js";
+import { uuidv7 } from "./uuid.js";
 import { type NegotiatedViewResponse } from "./view.js";
 
 export type BetterPortalEvent = import("h3").H3Event;
@@ -21,12 +24,15 @@ type BetterPortalRouteRegistrarName = "get" | "post" | "put" | "patch" | "delete
 export interface BetterPortalAppOptions {
   createRequestObservability?: (
     name: string,
-    attributes: ObservabilityAttributes
+    attributes: ObservabilityAttributes,
+    parent?: BetterPortalRemoteTraceContext
   ) => BetterPortalObservability;
 }
 
 type ObservedEventState = {
-  observability: BetterPortalObservability;
+  rootObservability?: BetterPortalObservability;
+  currentObservability?: BetterPortalObservability;
+  propagation: BetterPortalRequestPropagation;
   startedAt: number;
   diagnostic?: ResolvedHttpOutcomeDiagnostic;
 };
@@ -56,7 +62,27 @@ function responseByteCount(response: Response): number {
 }
 
 export function eventObservability(event: BetterPortalEvent): BetterPortalObservability | undefined {
-  return observedEventState(event)?.observability;
+  return observedEventState(event)?.currentObservability;
+}
+
+export function eventSessionId(event: BetterPortalEvent): string | undefined {
+  return observedEventState(event)?.propagation.sessionId;
+}
+
+export function eventTracePropagation(event: BetterPortalEvent): BetterPortalRequestPropagation {
+  const state = observedEventState(event);
+  const obs = state?.currentObservability;
+  return {
+    ...(state?.propagation ?? {}),
+    ...(obs ? {
+      parent: {
+        traceId: obs.traceId,
+        spanId: obs.spanId,
+        traceFlags: state?.propagation.parent?.traceFlags ?? 1,
+        ...(state?.propagation.parent?.traceState ? { traceState: state.propagation.parent.traceState } : {})
+      }
+    } : {})
+  };
 }
 
 function setEventDiagnostic(
@@ -104,16 +130,35 @@ export function getEventPeerIp(event: BetterPortalEvent): string | undefined {
 export function createBetterPortalApp(options: BetterPortalAppOptions = {}): BetterPortalH3App {
   const app = new H3({
     onRequest: (event) => {
+      const incomingTraceParent = event.req.headers.get("traceparent");
+      const incoming = requestPropagation(event.req.headers);
+      const isDocumentNavigation = event.req.method === "GET" && (
+        event.req.headers.get("sec-fetch-dest") === "document"
+        || (!event.req.headers.get("hx-request") && (event.req.headers.get("accept") ?? "").includes("text/html"))
+      );
+      const sessionId = incoming.sessionId ?? (isDocumentNavigation ? uuidv7() : undefined);
+      const propagation: BetterPortalRequestPropagation = {
+        ...incoming,
+        ...(sessionId ? {
+          sessionId,
+          baggage: baggageWithSession(incoming.baggage, sessionId)
+        } : {})
+      };
+      const attributes = {
+        ...requestAttributes(event),
+        ...(sessionId ? { "bp.session.id": sessionId } : {}),
+        ...(incomingTraceParent ? { "bp.trace.remote_parent_valid": Boolean(incoming.parent) } : {})
+      };
       const obs = options.createRequestObservability?.(
         "bp.http.request",
-        requestAttributes(event)
+        attributes,
+        incoming.parent
       );
-      if (obs) {
-        (event as unknown as { __bpObservedEvent?: ObservedEventState }).__bpObservedEvent = {
-          observability: obs,
-          startedAt: performance.now()
-        };
-      }
+      (event as unknown as { __bpObservedEvent?: ObservedEventState }).__bpObservedEvent = {
+        ...(obs ? { rootObservability: obs, currentObservability: obs } : {}),
+        propagation,
+        startedAt: performance.now()
+      };
     },
     onResponse: async (response, event) => {
       event.res.headers.forEach((value, name) => {
@@ -121,7 +166,8 @@ export function createBetterPortalApp(options: BetterPortalAppOptions = {}): Bet
       });
 
       const state = observedEventState(event);
-      if (!state) return;
+      const rootObservability = state?.rootObservability;
+      if (!state || !rootObservability) return;
 
       const durationMs = roundedDuration(performance.now() - state.startedAt);
       const requestUrl = getRequestURL(event);
@@ -147,14 +193,14 @@ export function createBetterPortalApp(options: BetterPortalAppOptions = {}): Bet
       const message = "BP REQUEST: {method} {path} -> {status} in {durationMs}ms callerIp={callerIp} host={host} referer={referer} tenant={tenantId} app={appId} requestBytes={requestBytes} responseBytes={responseBytes} outcome={outcomeCode} reason={outcomeReason}";
 
       if (response.status >= 500) {
-        state.observability.logger.error(message, attrs);
+        rootObservability.logger.error(message, attrs);
       } else if (response.status >= 400) {
-        state.observability.logger.warn(message, attrs);
+        rootObservability.logger.warn(message, attrs);
       } else {
-        state.observability.logger.info(message, attrs);
+        rootObservability.logger.info(message, attrs);
       }
 
-      state.observability.end({
+      rootObservability.end({
         "http.response.status_code": response.status,
         "duration.ms": durationMs,
         ...httpOutcomeAttributes(event, response, diagnostic)
@@ -456,10 +502,13 @@ export async function withObservedEvent<T>(
   handler: (event: BetterPortalEvent, span: BetterPortalObservability) => Promise<T> | T,
   attributes: ObservabilityAttributes = {}
 ): Promise<T> {
-  const span = observability.startSpan(name, {
+  const span = (eventObservability(event) ?? observability).startSpan(name, {
     ...requestAttributes(event),
     ...attributes
   });
+  const state = observedEventState(event);
+  const previousObservability = state?.currentObservability;
+  if (state) state.currentObservability = span;
 
   try {
     const result = await handler(event, span);
@@ -486,5 +535,7 @@ export async function withObservedEvent<T>(
       "http.response.status_code": event.res.status || 500
     });
     throw error;
+  } finally {
+    if (state?.currentObservability === span) state.currentObservability = previousObservability;
   }
 }

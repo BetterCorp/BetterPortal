@@ -103,6 +103,23 @@ export function betterPortalShellRuntimeSource(): string {
       const HX_METHODS = ["hx-get", "hx-post", "hx-put", "hx-delete", "hx-patch"] as const;
       const DOWNLOAD_ATTR = "hx-download";
       const shellAdapter = window.BetterPortalShellAdapter ?? {};
+      const createSessionId = () => {
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        let timestamp = Date.now();
+        for (let index = 5; index >= 0; index -= 1) {
+          bytes[index] = timestamp % 256;
+          timestamp = Math.floor(timestamp / 256);
+        }
+        bytes[6] = (bytes[6] & 0x0f) | 0x70;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+      };
+      const configuredSessionId = document.querySelector('meta[name="betterportal:session-id"]')?.getAttribute("content") || "";
+      const sessionId = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(configuredSessionId)
+        ? configuredSessionId.toLowerCase()
+        : createSessionId();
+      document.documentElement.setAttribute("data-bp-session-id", sessionId);
 
       // -- DOM helpers --
 
@@ -664,6 +681,14 @@ export function betterPortalShellRuntimeSource(): string {
           if (requestHeaders[name] !== undefined) continue; // explicit wins
           requestHeaders[name] = entry.value;
         }
+        const baggageName = Object.keys(requestHeaders).find((name) => name.toLowerCase() === "baggage") ?? "baggage";
+        const members = (requestHeaders[baggageName] || "")
+          .split(",")
+          .map((member) => member.trim())
+          .filter((member) => member && !member.startsWith("bp.session_id="));
+        members.unshift(`bp.session_id=${sessionId}`);
+        while (members.length > 64 || new TextEncoder().encode(members.join(",")).byteLength > 8192) members.pop();
+        requestHeaders[baggageName] = members.join(",");
       };
 
       /**
@@ -897,11 +922,13 @@ export function betterPortalShellRuntimeSource(): string {
       const checkServiceHealth = async (serviceId: string) => {
         const url = serviceHealthUrl(serviceId);
         if (!url) return false;
+        const headers: Record<string, string> = { Accept: "application/json" };
+        attachBpHeaders(headers, url, serviceId);
         try {
           const response = await fetch(url, {
             method: "GET",
             cache: "no-store",
-            headers: { Accept: "application/json" }
+            headers
           });
           return response.ok;
         } catch {
@@ -1210,15 +1237,17 @@ export function betterPortalShellRuntimeSource(): string {
         const action = isThisReference(rawAction)
           ? resolveThisServiceUrl(form, context)
           : new URL(rawAction, context.origin || window.location.origin).href;
+        const headers: Record<string, string> = {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded"
+        };
+        attachBpHeaders(headers, action, context.id);
         try {
           const response = await fetch(action, {
             method: "POST",
             mode: "cors",
             credentials: "include",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/x-www-form-urlencoded"
-            },
+            headers,
             body: new URLSearchParams(fd as any)
           });
           applyBpHeaderDirectives(response, action);
@@ -1816,7 +1845,10 @@ export function betterPortalShellRuntimeSource(): string {
         const results: Record<string, boolean> = {};
         await Promise.all(entries.map(async ([sid, origin]) => {
           try {
-            const r = await fetch(`${origin.replace(/\/+$/, "")}/.well-known/bp/health`, { method: "GET", mode: "cors", cache: "no-store" });
+            const url = `${origin.replace(/\/+$/, "")}/.well-known/bp/health`;
+            const headers: Record<string, string> = { Accept: "application/json" };
+            attachBpHeaders(headers, url, sid);
+            const r = await fetch(url, { method: "GET", mode: "cors", cache: "no-store", headers });
             results[sid] = r.ok;
           } catch { results[sid] = false; }
         }));

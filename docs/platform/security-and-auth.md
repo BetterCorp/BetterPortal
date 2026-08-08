@@ -81,7 +81,9 @@ A complete service envelope resolves tenant/app from these headers before `Origi
 
 Each installed service owns an RS256 private key generated after installation. Config-manager stores its public key and distributes relevant bindings and grants in scoped snapshots; it does not mint S2S tokens. Tokens are short-lived and target-bound.
 
-Use `this.m2mClient(requestId, tenantId, appId)` as the runtime for a generated client in pure service automation. In a user-initiated handler, use `this.delegatedM2mClient(requestId, ctx)`; it preserves the inbound BP user token and signs a fresh secondary service token for each request.
+Inside a request handler, use `this.m2mClient(requestId, ctx)` as the runtime for a generated pure-service client so the outbound span inherits the active request trace. Use `this.m2mClient(requestId, tenantId, appId)` only for background automation without a request context. In a user-initiated handler, use `this.delegatedM2mClient(requestId, ctx)`; it preserves the inbound BP user token, signs a fresh secondary service token, and propagates the active W3C trace context.
+
+`traceparent`, `tracestate`, and `baggage` are observability metadata, not security credentials. A syntactically valid remote parent may join a trace, but it never establishes tenant/app context or caller identity. `bp.session_id` baggage must be a UUIDv7 and remains untrusted even when it originated from a BetterPortal shell.
 
 Revocation removes the binding and grant. Already-issued tokens fail after the target receives the next scoped sync. If the same dependency is needed later, it returns to pending approval and approval creates fresh binding/grant IDs; revoked records are never silently reactivated. When config-manager is unavailable, the last-known-good snapshot remains active, so revocation enforcement occurs when each target next syncs.
 

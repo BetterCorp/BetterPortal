@@ -13,6 +13,7 @@ export interface EmbeddedShellContext {
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
   managementDiscoveryUrl?: string;
+  sessionId?: string;
 }
 
 export interface EmbeddedRouteLink {
@@ -35,6 +36,7 @@ export interface EmbeddedHostPageContext {
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
   managementDiscoveryUrl?: string;
+  sessionId?: string;
 }
 
 export const EmbeddedManifest: PluginManifest = createPluginManifest({
@@ -69,6 +71,7 @@ function EmbeddedDocument(context: EmbeddedShellContext): HtmlRenderable {
         <meta name="betterportal:ai-manifest" content={context.aiManifestUrl ?? "/.well-known/bp/ai.json"} />
         {context.automationCatalogUrl ? <meta name="betterportal:automation-catalog" content={context.automationCatalogUrl} /> : ""}
         {context.managementDiscoveryUrl ? <meta name="betterportal:management-discovery" content={context.managementDiscoveryUrl} /> : ""}
+        {context.sessionId ? <meta name="betterportal:session-id" content={context.sessionId} /> : ""}
         <title>{context.title}</title>
         <script src={`${context.assetBaseUrl}/embedded-core.js`} defer></script>
         <style>{css({
@@ -185,6 +188,7 @@ export function renderEmbeddedHostPage(context: EmbeddedHostPageContext): string
     aiManifestUrl: context.aiManifestUrl,
     automationCatalogUrl: context.automationCatalogUrl,
     managementDiscoveryUrl: context.managementDiscoveryUrl,
+    sessionId: context.sessionId,
     bodyHtml: EmbeddedBody(context)
   });
 }

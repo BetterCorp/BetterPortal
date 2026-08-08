@@ -53,7 +53,7 @@ function applyWellKnownCors(event: BetterPortalEvent): Response | undefined {
   event.res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   event.res.headers.set(
     "Access-Control-Allow-Headers",
-    "Authorization,Content-Type,Accept,HX-Request,HX-Current-URL,HX-Target,HX-Trigger,HX-Trigger-Name,X-BP-Tenant-Id,X-BP-App-Id,X-BP-Trace-Id"
+    "Authorization,Content-Type,Accept,HX-Request,HX-Current-URL,HX-Target,HX-Trigger,HX-Trigger-Name,X-BP-Tenant-Id,X-BP-App-Id,traceparent,tracestate,baggage"
   );
   event.res.headers.set(
     "Access-Control-Expose-Headers",

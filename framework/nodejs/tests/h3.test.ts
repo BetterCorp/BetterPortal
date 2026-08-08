@@ -6,9 +6,12 @@ import { createNoopObservability } from "../src/contracts/observability.js";
 import {
   createBetterPortalApp,
   createBetterPortalNodeHandler,
+  eventSessionId,
+  eventTracePropagation,
   jsonResponse,
   withCoreHttpOutcome
 } from "../src/runtime/h3.js";
+import type { BetterPortalRemoteTraceContext } from "../src/contracts/observability.js";
 
 function recordingObservability(records: Array<{ name: string; attributes: ObservabilityAttributes }>): BetterPortalObservability {
   const wrap = (base: BetterPortalObservability, name: string): BetterPortalObservability => new Proxy(base, {
@@ -43,6 +46,74 @@ test("middleware response headers survive error responses", async () => {
     assert.equal(response.status, 409);
     assert.equal(response.headers.get("access-control-allow-origin"), "https://root.example");
     assert.equal(await response.text(), "details");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("request observability inherits W3C context and correlates a shell session", async () => {
+  const traceId = "019fe2a68278704eb8793bf90ce062a3";
+  const parentSpanId = "878e449c3e33bb71";
+  const sessionId = "019fe2a6-8278-704e-b879-3bf90ce062a3";
+  let receivedParent: BetterPortalRemoteTraceContext | undefined;
+  let receivedAttributes: ObservabilityAttributes | undefined;
+  let activeSpanId = "";
+  const app = createBetterPortalApp({
+    createRequestObservability: (_name, attributes, parent) => {
+      receivedParent = parent;
+      receivedAttributes = attributes;
+      return createNoopObservability({
+        trace: { traceId: parent?.traceId ?? traceId, spanId: "server-span" },
+        attributes
+      });
+    }
+  });
+  app.get("/trace", (event) => {
+    const propagation = eventTracePropagation(event);
+    activeSpanId = propagation.parent?.spanId ?? "";
+    return jsonResponse({ sessionId: eventSessionId(event) ?? "" });
+  });
+
+  const server = createServer(createBetterPortalNodeHandler(app));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    assert(address && typeof address === "object");
+    const response = await fetch(`http://127.0.0.1:${address.port}/trace`, {
+      headers: {
+        traceparent: `00-${traceId}-${parentSpanId}-01`,
+        tracestate: "vendor=value",
+        baggage: `bp.session_id=${sessionId}`
+      }
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(receivedParent, { traceId, spanId: parentSpanId, traceFlags: 1, traceState: "vendor=value" });
+    assert.equal(receivedAttributes?.["bp.session.id"], sessionId);
+    assert.notEqual(activeSpanId, "server-span");
+    assert.equal((await response.json() as { sessionId: string }).sessionId, sessionId);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("document requests receive a new UUIDv7 session without trace headers", async () => {
+  const sessions: string[] = [];
+  const app = createBetterPortalApp({ createRequestObservability: () => createNoopObservability() });
+  app.get("/", (event) => {
+    const sessionId = eventSessionId(event) ?? "";
+    sessions.push(sessionId);
+    return new Response(sessionId, { headers: { "content-type": "text/html" } });
+  });
+  const server = createServer(createBetterPortalNodeHandler(app));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    assert(address && typeof address === "object");
+    const url = `http://127.0.0.1:${address.port}/`;
+    await fetch(url, { headers: { accept: "text/html" } });
+    await fetch(url, { headers: { accept: "text/html" } });
+    assert.match(sessions[0], /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    assert.notEqual(sessions[0], sessions[1]);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }

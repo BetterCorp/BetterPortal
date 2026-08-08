@@ -22,6 +22,7 @@ import {
   resolveRequestContextDetailed,
   resolveThemeRequestContext,
   eventObservability,
+  eventSessionId,
   eventHeaders,
   jsonResponse,
   resolveThemeHostname,
@@ -966,7 +967,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async handleIndex(event: BetterPortalEvent): Promise<Response> {
-    return withObservedEvent(event, this.observability, "theme.bootstrap1.index", async (activeEvent, span) => {
+    return withObservedEvent(event, this.observability, "theme.bootstrap1.index", async (activeEvent) => {
       const sourceHostname = resolveThemeHostname(eventHeaders(activeEvent), this.headerTrustOptions());
       // Theme reads config from the synced cache delivered by CM. If the first sync
       // hasn't completed yet (fresh service, CP unreachable), surface a friendly hint.
@@ -1172,7 +1173,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           chrome: currentRoute?.chrome,
           aiManifestUrl: "/.well-known/bp/ai.json",
           automationCatalogUrl: discoveryUrls?.catalogUrl,
-          managementDiscoveryUrl: discoveryUrls?.management.discoveryUrl
+          managementDiscoveryUrl: discoveryUrls?.management.discoveryUrl,
+          sessionId: eventSessionId(activeEvent)
         }),
         {
           status: routeNotFound ? 404 : 200,
@@ -1180,8 +1182,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
             "content-type": "text/html; charset=utf-8",
             ...(sourceHostname ? { "x-bp-source-hostname": sourceHostname } : {}),
             "cache-control": "no-store",
-            "x-bp-allowed-origin": originPolicy.allowedOrigins[0] ?? "",
-            "x-bp-trace-id": span.traceId
+            "x-bp-allowed-origin": originPolicy.allowedOrigins[0] ?? ""
           }
         }
       );

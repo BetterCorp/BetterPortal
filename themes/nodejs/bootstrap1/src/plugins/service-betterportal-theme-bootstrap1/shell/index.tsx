@@ -40,6 +40,7 @@ export interface Bootstrap1ShellContext {
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
   managementDiscoveryUrl?: string;
+  sessionId?: string;
 }
 
 export interface Bootstrap1HostPageContext {
@@ -63,6 +64,7 @@ export interface Bootstrap1HostPageContext {
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
   managementDiscoveryUrl?: string;
+  sessionId?: string;
 }
 
 export const Bootstrap1Manifest: PluginManifest = createPluginManifest({
@@ -2091,6 +2093,7 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
         <meta name="betterportal:ai-manifest" content={context.aiManifestUrl ?? "/.well-known/bp/ai.json"} />
         {context.automationCatalogUrl ? <meta name="betterportal:automation-catalog" content={context.automationCatalogUrl} /> : ""}
         {context.managementDiscoveryUrl ? <meta name="betterportal:management-discovery" content={context.managementDiscoveryUrl} /> : ""}
+        {context.sessionId ? <meta name="betterportal:session-id" content={context.sessionId} /> : ""}
         <title>{context.title}</title>
         <link rel="icon" type="image/png" sizes="16x16" href={context.faviconUrl ?? `${context.assetBaseUrl}/betterportal-favicon-16.png`} />
         <link rel="icon" type="image/png" sizes="32x32" href={context.faviconUrl ?? `${context.assetBaseUrl}/betterportal-favicon-32.png`} />
@@ -2304,6 +2307,7 @@ export function renderBootstrap1HostPage(context: Bootstrap1HostPageContext): st
     aiManifestUrl: context.aiManifestUrl,
     automationCatalogUrl: context.automationCatalogUrl,
     managementDiscoveryUrl: context.managementDiscoveryUrl,
+    sessionId: context.sessionId,
     bodyHtml: Bootstrap1LandingBody(context)
   });
 }

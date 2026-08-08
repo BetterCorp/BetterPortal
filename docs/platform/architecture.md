@@ -68,3 +68,11 @@ The framework records one request span for every HTTP request and adds `bp.http.
 Framework-owned failures are classified at the point where the response is created. Service handlers should call `ctx.diagnostic({ code, reason, attributes? })` before returning a custom error response so domain failures remain searchable without parsing bodies. Handled 4xx responses are diagnostic outcomes, not thrown span errors; unexpected exceptions still mark their handler/render span as an error.
 
 For an unclassified response outside 200-399, the request wrapper falls back to JSON fields in this order: `reason`, `error`, `message`, `detail`; then bounded textual response content; then the HTTP status phrase. It reads at most 2 KiB from a cloned text/JSON body and marks truncation. Developers remain responsible for keeping error bodies and explicit diagnostic attributes free of secrets or unnecessary personal data.
+
+## Distributed tracing
+
+HTTP services accept and propagate the W3C `traceparent` and `tracestate` headers. A valid incoming parent creates a new server span in the same trace; malformed trace headers are ignored and recorded as diagnostic attributes rather than rejecting the request. BetterPortal-generated trace IDs are UUIDv7-derived 32-character hexadecimal values, while every span receives its own random 16-character hexadecimal ID.
+
+Generated S2S clients create a `bp.s2s.request` client span and make the target HTTP span its child. Use `this.m2mClient(requestId, ctx)` inside a route handler so the call is parented to the active handler. The legacy `(requestId, tenantId, appId)` form remains appropriate for background automation and starts a new trace because no request parent exists.
+
+The shell assigns one UUIDv7 correlation ID per full document load and sends it as `baggage: bp.session_id=<uuidv7>`. It is attached to spans as `bp.session.id`, linking separate user-action traces without creating one unbounded browser trace. This value is untrusted telemetry only and must never influence authentication, authorization, tenancy, rate limits, or data access.

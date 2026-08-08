@@ -24,6 +24,11 @@ export const BetterPortalTraceContextSchema = av.object({
 }, { unknownKeys: "strip" });
 export type BetterPortalTraceContext = Infer<typeof BetterPortalTraceContextSchema>;
 
+export interface BetterPortalRemoteTraceContext extends BetterPortalTraceContext {
+  readonly traceFlags: number;
+  readonly traceState?: string;
+}
+
 export const BetterPortalResourceSchema = av.intersection([
   av.object({
     serviceName: av.string().minLength(1),

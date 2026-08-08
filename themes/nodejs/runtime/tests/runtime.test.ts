@@ -36,6 +36,15 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   assert.equal(BETTERPORTAL_HTMX_EXTENSIONS, "bp-shell, sse");
 });
 
+test("shell correlates runtime requests with per-document W3C baggage", () => {
+  const source = betterPortalShellRuntimeSource();
+  assert.match(source, /betterportal:session-id/);
+  assert.match(source, /data-bp-session-id/);
+  assert.match(source, /bp\.session_id=/);
+  assert.doesNotMatch(source, /sessionStorage/);
+  assert.doesNotMatch(source, /X-BP-Trace-Id/i);
+});
+
 test("history restoration uses the shell fragment route pipeline", () => {
   const source = betterPortalShellRuntimeSource();
   assert.match(source, /htmx:before:history:restore/);

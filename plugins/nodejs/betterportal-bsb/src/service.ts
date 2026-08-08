@@ -61,6 +61,7 @@ import {
   type RouteSitemapEntry,
   type JsonValue,
   type TenantAppValidation,
+  formatTraceParent,
   toHtmlString
 } from "@betterportal/framework";
 import { createH3Router, isBpManagementAuthPath, isBpManagementAuthRoute, type H3AuthContext } from "@betterportal/framework/lib/adapters/h3.js";
@@ -71,6 +72,7 @@ import {
   createBetterPortalNodeHandler,
   annotateCoreHttpOutcome,
   eventObservability,
+  eventTracePropagation,
   eventHeaders,
   getEventPeerIp,
   handleCorsRequest,
@@ -181,6 +183,7 @@ export interface BPServiceClientRuntime {
   readonly baseUrl: string;
   readonly headers: Record<string, string> | (() => Record<string, string>);
   readonly token: () => string;
+  readonly fetch: typeof globalThis.fetch;
 }
 
 // Base class
@@ -444,7 +447,21 @@ export abstract class BPService<
    * Resolve an installed-service dependency from the last-known-good snapshot.
    * The returned shape is accepted directly by generated BP clients.
    */
-  public m2mClient(requestId: string, tenantId: string, appId: string): BPServiceClientRuntime {
+  public m2mClient(
+    requestId: string,
+    ctx: Pick<RouteHandlerContext, "tenant" | "app" | "obs" | "rawEvent">
+  ): BPServiceClientRuntime;
+  public m2mClient(requestId: string, tenantId: string, appId: string): BPServiceClientRuntime;
+  public m2mClient(
+    requestId: string,
+    tenantOrContext: string | Pick<RouteHandlerContext, "tenant" | "app" | "obs" | "rawEvent">,
+    appIdArgument?: string
+  ): BPServiceClientRuntime {
+    const tenantId = typeof tenantOrContext === "string" ? tenantOrContext : tenantOrContext.tenant.id;
+    const appId = typeof tenantOrContext === "string" ? appIdArgument : tenantOrContext.app.id;
+    if (!appId) throw new Error("BetterPortal app id is required for S2S calls");
+    const parent = typeof tenantOrContext === "string" ? undefined : tenantOrContext.obs;
+    const event = typeof tenantOrContext === "string" ? undefined : tenantOrContext.rawEvent as BetterPortalEvent | undefined;
     const { keyPair, binding, target } = this.resolveM2MClient(requestId, tenantId, appId, "service");
     return {
       baseUrl: target.hostname.replace(/\/+$/, ""),
@@ -460,12 +477,13 @@ export abstract class BPService<
         tenantId,
         appId,
         bindingId: binding.id
-      })
+      }),
+      fetch: this.m2mFetch({ requestId, mode: "service", tenantId, appId, binding, target }, parent, event)
     };
   }
 
   /** Resolve an installed-service dependency while preserving the current BP user identity. */
-  public delegatedM2mClient(requestId: string, ctx: Pick<RouteHandlerContext, "tenant" | "app" | "user" | "rawEvent">): BPServiceClientRuntime {
+  public delegatedM2mClient(requestId: string, ctx: Pick<RouteHandlerContext, "tenant" | "app" | "user" | "obs" | "rawEvent">): BPServiceClientRuntime {
     if (!ctx.user) throw new Error("Delegated S2S calls require an authenticated BP user");
     const event = ctx.rawEvent as BetterPortalEvent | undefined;
     const authorization = event?.req.headers.get("authorization") ?? "";
@@ -490,7 +508,65 @@ export abstract class BPService<
         "X-BP-Tenant-Id": tenantId,
         "X-BP-App-Id": appId
       }),
-      token: () => userToken
+      token: () => userToken,
+      fetch: this.m2mFetch({ requestId, mode: "delegated", tenantId, appId, binding, target }, ctx.obs, event)
+    };
+  }
+
+  private m2mFetch(
+    context: {
+      requestId: string;
+      mode: M2MCallerMode;
+      tenantId: string;
+      appId: string;
+      binding: { sourceServiceId: string; targetServiceId: string };
+      target: { hostname: string };
+    },
+    parent?: BetterPortalObservability,
+    event?: BetterPortalEvent
+  ): typeof globalThis.fetch {
+    return async (input, init) => {
+      const request = new Request(input, init);
+      const url = new URL(request.url);
+      const attributes = {
+        "http.request.method": request.method,
+        "server.address": url.host,
+        "url.path": url.pathname,
+        "bp.s2s.request_id": context.requestId,
+        "bp.s2s.mode": context.mode,
+        "bp.s2s.source_service_id": context.binding.sourceServiceId,
+        "bp.s2s.target_service_id": context.binding.targetServiceId,
+        "bp.tenant.id": context.tenantId,
+        "bp.app.id": context.appId
+      };
+      const span = parent?.startSpan("bp.s2s.request", attributes)
+        ?? createBsbObservability(this.createTrace("bp.s2s.request", attributes));
+      const propagation = event ? eventTracePropagation(event) : {};
+      const headers = new Headers(request.headers);
+      headers.set("traceparent", formatTraceParent({
+        traceId: span.traceId,
+        spanId: span.spanId,
+        traceFlags: propagation.parent?.traceFlags ?? 1
+      }));
+      if (propagation.parent?.traceState) headers.set("tracestate", propagation.parent.traceState);
+      else headers.delete("tracestate");
+      if (propagation.baggage) headers.set("baggage", propagation.baggage);
+      else headers.delete("baggage");
+      const tracedRequest = new Request(request, { headers });
+      const startedAt = performance.now();
+      try {
+        const response = await globalThis.fetch(tracedRequest);
+        span.end({
+          "http.response.status_code": response.status,
+          "duration.ms": Math.round((performance.now() - startedAt) * 100) / 100
+        });
+        return response;
+      } catch (error) {
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        span.error(normalized, { "error.name": normalized.name });
+        span.end({ "duration.ms": Math.round((performance.now() - startedAt) * 100) / 100 });
+        throw error;
+      }
     };
   }
 
@@ -772,8 +848,9 @@ export abstract class BPService<
       "bp.plugin.category": "service"
     });
     this.app = createBetterPortalApp({
-      createRequestObservability: (name, attributes) =>
-        createBsbObservability(this.createTrace(name, attributes))
+      createRequestObservability: (name, attributes, parent) => parent
+        ? createBsbObservability(this.createObservable({ t: parent.traceId, s: parent.spanId }, attributes).startSpan(name, attributes))
+        : createBsbObservability(this.createTrace(name, attributes))
     });
     this.server = createServer(createBetterPortalNodeHandler(this.app));
     if (this.bp.bpConfigPath) {
@@ -1339,7 +1416,7 @@ export abstract class BPService<
     const requestedHeaders = event.req.headers.get("access-control-request-headers");
     const allowHeaders = requestedHeaders?.trim().length
       ? requestedHeaders.split(",").map((v) => v.trim())
-      : ["Accept", "Authorization", "Content-Type", "HX-Current-URL", "HX-Request", "HX-Target", "HX-Trigger", "HX-Trigger-Name", "X-BP-App-Id", "X-BP-Tenant-Id", "X-BP-Service-Id", "X-BP-Service-Authorization", "BP-SetHeader", "BP-RemoveHeader"];
+      : ["Accept", "Authorization", "Content-Type", "HX-Current-URL", "HX-Request", "HX-Target", "HX-Trigger", "HX-Trigger-Name", "X-BP-App-Id", "X-BP-Tenant-Id", "X-BP-Service-Id", "X-BP-Service-Authorization", "BP-SetHeader", "BP-RemoveHeader", "traceparent", "tracestate", "baggage"];
 
     const origin = event.req.headers.get("origin");
     const authorization = event.req.headers.get("authorization");
