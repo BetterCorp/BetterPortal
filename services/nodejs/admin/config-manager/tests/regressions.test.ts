@@ -593,6 +593,7 @@ test("route designer exposes conflicts, stale views, and service identity", () =
     path,
     serviceId,
     viewId,
+    targetPath: path,
     methods: ["GET"],
     title: viewId,
     renderable: kind === "page",
@@ -606,12 +607,36 @@ test("route designer exposes conflicts, stale views, and service identity", () =
     routes: [
       route("root-a", "/", "service-a", "welcome.index"),
       route("root-b", "/", "service-a", "welcome.index"),
+      route("reports", "/reports/:reportId", "service-a", "reports.view"),
       route("stale", "/calculators/investment", "service-a", "retirement.index"),
       route("api-a", "/_bp/service/crm/a", "service-a", "crm.api", "api"),
       route("api-b", "/_bp/service/theme/b", "service-b", "theme.api", "api")
     ],
     availableServices: [
-      { id: "service-a", title: "TRG One Theme", hostname: "https://crm.example", serviceId: "service.trg-one.crm", manifestLoaded: true, views: [] },
+      {
+        id: "service-a",
+        title: "TRG One Theme",
+        hostname: "https://crm.example",
+        serviceId: "service.trg-one.crm",
+        manifestLoaded: true,
+        views: [{
+          viewId: "reports.view",
+          title: "Report",
+          path: "/reports/:reportId",
+          pathVariants: [],
+          methods: ["GET"],
+          renderable: true,
+          dependencies: []
+        }, {
+          viewId: "reports.view.pdf",
+          title: "Report PDF",
+          path: "/reports/:reportId/pdf",
+          pathVariants: [],
+          methods: ["POST"],
+          renderable: true,
+          dependencies: []
+        }]
+      },
       { id: "service-b", title: "TRG One Theme", hostname: "https://theme.example", serviceId: "service.trg-one.theme", manifestLoaded: true, views: [] }
     ],
     adminApiBase: "/.well-known/bp/admin",
@@ -623,6 +648,11 @@ test("route designer exposes conflicts, stale views, and service identity", () =
   assert.match(html, /data-bp-path-group="\/calculators"/);
   assert.match(html, /retirement\.index — unavailable in current manifest/);
   assert.match(html, /Manifest view unavailable/);
+  assert.match(html, /data-bp-route-conflict/);
+  assert.match(html, /This service view and path are already mounted in this app/);
+  assert.match(html, /\/reports\/:reportId\/pdf/);
+  assert.match(html, /data-bp-add-route-submit/);
+  assert.doesNotMatch(html, /wantedPath \+ .*unavailable/);
   assert.match(html, /TRG One Theme · service\.trg-one\.crm/);
   assert.match(html, /bp-api-routes-service-a/);
   assert.match(html, /id="bp-api-routes-service-b" class="accordion-collapse collapse show"/);
@@ -687,6 +717,47 @@ test("tenant edit script targets the active checkbox, not its hidden fallback", 
   assert.match(html, /name="afterLogoutViewId"/);
   assert.match(html, /stale targets remain visible for repair/);
   assert.match(html, /unavailable/);
+});
+
+test("service API route state is shown only by the On control", () => {
+  const html = String(renderRoutes({
+    title: "Route Designer",
+    apps: [{ id: "app-a", title: "App A", tenantId: "tenant-a" }],
+    selectedAppId: "app-a",
+    routes: [{
+      id: "api-a",
+      kind: "api",
+      path: "/_bp/service/service-a/reports",
+      serviceId: "service-a",
+      viewId: "reports.api",
+      targetPath: "/reports",
+      fixedParams: {},
+      methods: ["GET"],
+      title: "reports.api",
+      renderable: false,
+      enabled: false
+    }],
+    availableServices: [{
+      id: "service-a",
+      title: "Reports",
+      hostname: "https://reports.example",
+      serviceId: "service.reports",
+      manifestLoaded: true,
+      views: [{
+        viewId: "reports.api",
+        title: "Reports API",
+        path: "/reports",
+        pathVariants: [],
+        methods: ["GET"],
+        renderable: false,
+        dependencies: []
+      }]
+    }],
+    adminApiBase: "/.well-known/bp/admin",
+    serviceBaseUrl: "https://config.example"
+  }));
+  assert.match(html, />off<\/button>/);
+  assert.doesNotMatch(html, />Disabled<|Manifest view unavailable/);
 });
 
 test("service registration stays browser-mediated and tenant history follows the request", () => {

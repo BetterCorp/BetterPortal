@@ -13,13 +13,17 @@ function scriptJson(value: unknown): string {
     .replace(/\u2029/g, "\\u2029");
 }
 
-function manifestLoaderScript(services: ResponseData["availableServices"]): string {
+function manifestLoaderScript(
+  services: ResponseData["availableServices"],
+  routes: ResponseData["routes"]
+): string {
   return `
 (() => {
   const state = { token: Date.now() + ":" + Math.random() };
   window.__bpRouteDesignerManifest = state;
   const isCurrent = () => window.__bpRouteDesignerManifest === state;
   const services = ${scriptJson(services)};
+  const mountedRoutes = ${scriptJson(routes.filter((route) => route.kind !== "api" && route.renderable !== false))};
   const byServiceId = new Map(services.map((service) => [
     service.id,
     { ...service, views: Array.isArray(service.views) ? service.views : [] }
@@ -134,6 +138,27 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
     return byServiceId.get(serviceId)?.views.find((candidate) => candidate.viewId === viewId);
   };
 
+  const syncCreateConflict = (form, servicePath) => {
+    if (form.dataset.bpRouteMode !== "create") return false;
+    const serviceId = form.querySelector("[data-bp-route-service]")?.value || "";
+    const viewId = form.querySelector("[data-bp-route-view]")?.value || "";
+    const conflict = !!serviceId && !!viewId && !!servicePath && mountedRoutes.some((route) =>
+      route.serviceId === serviceId
+        && route.viewId === viewId
+        && (route.servicePathVariant || route.targetPath || "") === servicePath
+    );
+    const submit = form.closest("form")?.querySelector("[data-bp-add-route-submit]");
+    const message = form.closest("form")?.querySelector("[data-bp-route-conflict]");
+    submit?.classList.toggle("d-none", conflict);
+    message?.classList.toggle("d-none", !conflict);
+    if (message) {
+      message.textContent = conflict
+        ? "This service view and path are already mounted in this app. Select another view or service path."
+        : "";
+    }
+    return conflict;
+  };
+
   const syncParamFields = (form, renderable = true) => {
     const container = form.querySelector("[data-bp-route-params]");
     const servicePathSelect = form.querySelector("[data-bp-service-path]");
@@ -147,15 +172,20 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
     try { storedValues = JSON.parse(container.dataset.fixedParams || "{}"); } catch {}
 
     const variants = view ? Array.from(new Set([view.path, ...(view.pathVariants || [])].filter(Boolean))) : [];
-    const wantedPath = servicePathSelect.dataset.selectedPath || servicePathSelect.value || view?.path || "";
+    const editing = form.dataset.bpRouteMode === "edit";
+    const wantedPath = servicePathSelect.dataset.selectedPath || (editing ? servicePathSelect.value : "") || view?.path || "";
     servicePathSelect.replaceChildren();
     for (const path of variants) servicePathSelect.add(new Option(path, path, false, path === wantedPath));
-    if (wantedPath && !variants.includes(wantedPath)) {
-      servicePathSelect.add(new Option(wantedPath + " — unavailable", wantedPath, true, true));
+    const stalePath = editing && !!wantedPath && !variants.includes(wantedPath);
+    if (stalePath) {
+      servicePathSelect.add(new Option(wantedPath, wantedPath, true, true));
     }
     if (!servicePathSelect.value && variants.length) servicePathSelect.value = variants[0];
     servicePathSelect.dataset.selectedPath = servicePathSelect.value;
     servicePathSelect.disabled = !view;
+    const pathWarning = form.querySelector("[data-bp-service-path-warning]");
+    pathWarning?.classList.toggle("d-none", !stalePath);
+    syncCreateConflict(form, servicePathSelect.value);
 
     if (!renderable) {
       container.replaceChildren();
@@ -243,7 +273,10 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
     const view = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-route-view]");
     if (view) view.dataset.selectedView = "";
     const servicePath = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-service-path]");
-    if (servicePath) servicePath.dataset.selectedPath = "";
+    if (servicePath) {
+      servicePath.dataset.selectedPath = "";
+      servicePath.value = "";
+    }
     const form = event.target.closest("[data-bp-route-form]");
     if (form) syncForm(form);
   });
@@ -252,7 +285,10 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
     if (!event.target?.matches?.("[data-bp-route-view]")) return;
     event.target.dataset.selectedView = event.target.value;
     const servicePath = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-service-path]");
-    if (servicePath) servicePath.dataset.selectedPath = "";
+    if (servicePath) {
+      servicePath.dataset.selectedPath = "";
+      servicePath.value = "";
+    }
     const option = event.target.selectedOptions?.[0];
     const title = event.target.closest("[data-bp-route-form]")?.querySelector("[name=title]");
     const form = event.target.closest("[data-bp-route-form]");
@@ -394,6 +430,7 @@ function routeFormFields(
           data-selected-path={route?.servicePathVariant ?? route?.targetPath ?? selectedMeta?.path ?? ""}
         ></select>
         <div class="form-text">For optional service routes, choose the concrete path this app route targets.</div>
+        <div class="form-text text-warning d-none" data-bp-service-path-warning="">Stored service path is no longer published by this view.</div>
       </div>
       <div
         class="mb-3 d-none"
@@ -611,17 +648,12 @@ function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
                   </thead>
                   <tbody>
                     {routes.map((route) => {
-                      const warning = routeWarning(data.availableServices, route);
                       return (
                         <tr class={route.enabled ? "" : "text-secondary"} data-bp-route-id={route.id}>
                           <td class="font-monospace small">{route.path}</td>
                           <td class="font-monospace small">{route.targetPath ?? ""}</td>
                           <td class="small">
                             <span data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId}>{viewLabel(data.availableServices, route.serviceId, route.viewId)}</span>
-                            <div class="d-flex flex-wrap gap-1 mt-1">
-                              {!route.enabled ? <span class="badge text-bg-secondary">Disabled</span> : ""}
-                              {warning ? <span class="badge text-bg-warning">{warning}</span> : ""}
-                            </div>
                           </td>
                           <td class="small font-monospace">{methodsLabel(route.methods)}</td>
                           <td>
@@ -743,11 +775,12 @@ export function render(data: ResponseData): HtmlRenderable {
         <div class="offcanvas-body">
           {hasServices ? (
             <form id="bp-add-route-form" hx-post={`${apiBase}/apps/${data.selectedAppId}/routes`} hx-target="#bp-main" hx-swap="innerHTML">
-              <div data-bp-route-form="">
+              <div data-bp-route-form="" data-bp-route-mode="create">
               {routeFormFields("bp-add-route", data.availableServices)}
               </div>
               <div class="alert alert-danger d-none" id="bp-add-route-error"></div>
-              <button type="submit" class="btn btn-primary w-100">Add Route</button>
+              <div class="alert alert-warning d-none" data-bp-route-conflict="" role="status"></div>
+              <button type="submit" class="btn btn-primary w-100" data-bp-add-route-submit="">Add Route</button>
             </form>
           ) : noServicesBanner(data.serviceBaseUrl)}
         </div>
@@ -766,7 +799,7 @@ export function render(data: ResponseData): HtmlRenderable {
               hx-target="#bp-main"
               hx-swap="innerHTML"
             >
-              <div data-bp-route-form="">
+              <div data-bp-route-form="" data-bp-route-mode="edit" data-bp-route-id={route.id}>
               {routeFormFields(`bp-edit-route-${route.id}`, data.availableServices, route)}
               </div>
               <button type="submit" class="btn btn-primary w-100">Save Changes</button>
@@ -774,7 +807,7 @@ export function render(data: ResponseData): HtmlRenderable {
           </div>
         </div>
       ))}
-      <script>{js(manifestLoaderScript(data.availableServices))}</script>
+      <script>{js(manifestLoaderScript(data.availableServices, data.routes))}</script>
     </div>
   );
 }

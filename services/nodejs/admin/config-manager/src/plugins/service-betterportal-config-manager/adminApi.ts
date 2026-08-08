@@ -437,6 +437,26 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   return { route };
 }
 
+function serviceRouteTargetKey(route: Pick<BetterPortalRouteMount, "serviceId" | "viewId" | "targetPath" | "servicePathVariant">): string | undefined {
+  const servicePath = route.servicePathVariant
+    ?? route.targetPath
+    ?? getManifestCache().get(route.serviceId)?.viewIndex[route.viewId]?.path;
+  return servicePath
+    ? `${route.serviceId}\u0000${route.viewId}\u0000${appRoutePatternKey(servicePath)}`
+    : undefined;
+}
+
+function hasDuplicateServiceRouteTarget(
+  appDef: BetterPortalApp,
+  route: Pick<BetterPortalRouteMount, "serviceId" | "viewId" | "targetPath" | "servicePathVariant">,
+  excludeRouteId?: string
+): boolean {
+  const key = serviceRouteTargetKey(route);
+  return !!key && appDef.routes.some((candidate) =>
+    candidate.id !== excludeRouteId && serviceRouteTargetKey(candidate) === key
+  );
+}
+
 function countMenuRouteReferences(items: unknown, routeId: string): number {
   if (!Array.isArray(items)) return 0;
   let count = 0;
@@ -1129,6 +1149,9 @@ export function registerAdminApiRoutes(
     const body = await readFormOrJsonBody(event);
     const parsed = parseRouteCreateBody(body);
     if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route");
+    if (hasDuplicateServiceRouteTarget(appDef, parsed.route)) {
+      return validationError(event, "This service view and path are already mounted in this app.");
+    }
     const route = { id: uuidv7(), ...parsed.route };
     appDef.routes.push(route);
     addRouteDependencies(appDef, route);
@@ -2083,6 +2106,9 @@ export function registerAdminApiRoutes(
     if (appDef.routes.some((candidate) => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
       return validationError(event, `A route already exists at ${parsed.route.path}.`);
     }
+    if (hasDuplicateServiceRouteTarget(appDef, parsed.route)) {
+      return validationError(event, "This service view and path are already mounted in this app.");
+    }
     const route: BetterPortalRouteMount = { ...parsed.route, id: uuidv7() };
     appDef.routes.push(route);
     addRouteDependencies(appDef, route);
@@ -2104,6 +2130,7 @@ export function registerAdminApiRoutes(
     if (route.kind === "api" && Object.keys(body).some((key) => key !== "enabled")) {
       return validationError(event, "Service/API route identity and metadata are managed by service manifest sync.");
     }
+    const originalServiceTargetKey = serviceRouteTargetKey(route);
 
     if (body.path !== undefined) {
       const path = trimmedString(body, "path");
@@ -2184,6 +2211,10 @@ export function registerAdminApiRoutes(
 
     if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(route.path))) {
       return validationError(event, `A route already exists at ${route.path}.`);
+    }
+    const updatedServiceTargetKey = serviceRouteTargetKey(route);
+    if (updatedServiceTargetKey !== originalServiceTargetKey && hasDuplicateServiceRouteTarget(appDef, route, route.id)) {
+      return validationError(event, "This service view and path are already mounted in this app.");
     }
 
     await store.saveConfig(config);
