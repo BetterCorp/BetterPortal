@@ -44,6 +44,8 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
         viewId: String(view.viewId || ""),
         title: String(view.title || view.viewId || ""),
         path: String(view.path || ""),
+        pathVariants: Array.isArray(view.pathVariants) ? view.pathVariants.map(String) : [],
+        paramsSchema: view.paramsSchema && typeof view.paramsSchema === "object" ? view.paramsSchema : undefined,
         methods: Array.isArray(view.methods) ? view.methods.map(String) : [],
         renderable: viewRenderable(view),
         dependencies: Array.isArray(view.dependencies) ? view.dependencies.map(String) : []
@@ -118,6 +120,98 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
       field.disabled = !renderable;
       if (field.name === "path" || field.name === "title") field.required = renderable;
     });
+    syncParamFields(form, renderable);
+  };
+
+  const pathParamNames = (path) => Array.from(new Set(String(path || "").split("/").flatMap((segment) => {
+    const match = segment.match(/^:([A-Za-z_][A-Za-z0-9_]*)$/);
+    return match ? [match[1]] : [];
+  })));
+
+  const selectedViewMeta = (form) => {
+    const serviceId = form.querySelector("[data-bp-route-service]")?.value || "";
+    const viewId = form.querySelector("[data-bp-route-view]")?.value || "";
+    return byServiceId.get(serviceId)?.views.find((candidate) => candidate.viewId === viewId);
+  };
+
+  const syncParamFields = (form, renderable = true) => {
+    const container = form.querySelector("[data-bp-route-params]");
+    const servicePathSelect = form.querySelector("[data-bp-service-path]");
+    if (!container || !servicePathSelect) return;
+    const view = selectedViewMeta(form);
+    const existingValues = {};
+    container.querySelectorAll("[data-bp-fixed-param]").forEach((input) => {
+      existingValues[input.dataset.bpFixedParam] = input.value;
+    });
+    let storedValues = {};
+    try { storedValues = JSON.parse(container.dataset.fixedParams || "{}"); } catch {}
+
+    const variants = view ? Array.from(new Set([view.path, ...(view.pathVariants || [])].filter(Boolean))) : [];
+    const wantedPath = servicePathSelect.dataset.selectedPath || servicePathSelect.value || view?.path || "";
+    servicePathSelect.replaceChildren();
+    for (const path of variants) servicePathSelect.add(new Option(path, path, false, path === wantedPath));
+    if (wantedPath && !variants.includes(wantedPath)) {
+      servicePathSelect.add(new Option(wantedPath + " — unavailable", wantedPath, true, true));
+    }
+    if (!servicePathSelect.value && variants.length) servicePathSelect.value = variants[0];
+    servicePathSelect.dataset.selectedPath = servicePathSelect.value;
+    servicePathSelect.disabled = !view;
+
+    if (!renderable) {
+      container.replaceChildren();
+      container.classList.add("d-none");
+      form.querySelectorAll("button[type=submit]").forEach((button) => { button.disabled = false; });
+      return;
+    }
+
+    const servicePath = servicePathSelect.value;
+    const appPath = form.querySelector("[name=path]")?.value || "";
+    const dynamicParams = new Set(pathParamNames(appPath));
+    const names = pathParamNames(servicePath);
+    container.replaceChildren();
+    container.classList.toggle("d-none", names.length === 0);
+    let complete = true;
+    const properties = view?.paramsSchema?.properties || {};
+    for (const name of names) {
+      const dynamic = dynamicParams.has(name);
+      const value = existingValues[name] ?? storedValues[name] ?? "";
+      const rule = properties[name] && typeof properties[name] === "object" ? properties[name] : {};
+      const maxLength = Math.min(Number.isInteger(rule.maxLength) ? rule.maxLength : 100, 100);
+      const minLength = Number.isInteger(rule.minLength) ? rule.minLength : 1;
+      const validFixed = value.length >= minLength && value.length <= maxLength
+        && (!rule.pattern || (() => { try { return new RegExp(rule.pattern).test(value); } catch { return false; } })());
+      const resolved = dynamic || validFixed;
+      complete = complete && resolved;
+      const row = document.createElement("div");
+      row.className = "border rounded p-2 mb-2 " + (resolved ? "border-success bg-success-subtle" : "border-danger bg-danger-subtle");
+      const header = document.createElement("div");
+      header.className = "d-flex align-items-center justify-content-between gap-2";
+      const code = document.createElement("code");
+      code.textContent = ":" + name;
+      const badge = document.createElement("span");
+      badge.className = "badge " + (resolved ? "text-bg-success" : "text-bg-danger");
+      badge.textContent = dynamic ? "From app path" : validFixed ? "Fixed value" : "Value required";
+      header.append(code, badge);
+      row.append(header);
+      if (!dynamic) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "form-control form-control-sm mt-2";
+        input.name = "fixedParam." + name;
+        input.value = value;
+        input.required = true;
+        input.minLength = minLength;
+        input.maxLength = maxLength;
+        if (rule.pattern) input.pattern = rule.pattern;
+        input.placeholder = "Fixed value for :" + name;
+        input.dataset.bpFixedParam = name;
+        row.append(input);
+      }
+      container.append(row);
+    }
+    form.querySelectorAll("button[type=submit]").forEach((button) => {
+      button.disabled = renderable && !complete;
+    });
   };
 
   const syncAllForms = () => {
@@ -148,6 +242,8 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
     if (!event.target?.matches?.("[data-bp-route-service]")) return;
     const view = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-route-view]");
     if (view) view.dataset.selectedView = "";
+    const servicePath = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-service-path]");
+    if (servicePath) servicePath.dataset.selectedPath = "";
     const form = event.target.closest("[data-bp-route-form]");
     if (form) syncForm(form);
   });
@@ -155,11 +251,43 @@ function manifestLoaderScript(services: ResponseData["availableServices"]): stri
     if (!isCurrent()) return;
     if (!event.target?.matches?.("[data-bp-route-view]")) return;
     event.target.dataset.selectedView = event.target.value;
+    const servicePath = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-service-path]");
+    if (servicePath) servicePath.dataset.selectedPath = "";
     const option = event.target.selectedOptions?.[0];
     const title = event.target.closest("[data-bp-route-form]")?.querySelector("[name=title]");
     const form = event.target.closest("[data-bp-route-form]");
     if (title && option?.value && option.dataset.renderable !== "false") title.value = option.textContent?.trim() || option.value;
     if (form) syncRouteUiFields(form);
+  });
+  document.addEventListener("change", (event) => {
+    if (!isCurrent()) return;
+    if (!event.target?.matches?.("[data-bp-service-path]")) return;
+    event.target.dataset.selectedPath = event.target.value;
+    const form = event.target.closest("[data-bp-route-form]");
+    if (form) syncRouteUiFields(form);
+  });
+  document.addEventListener("input", (event) => {
+    if (!isCurrent()) return;
+    if (!event.target?.matches?.("[name=path], [data-bp-fixed-param]")) return;
+    const form = event.target.closest("[data-bp-route-form]");
+    if (!form) return;
+    if (event.target.matches("[name=path]")) {
+      syncRouteUiFields(form);
+      return;
+    }
+    const valid = !!event.target.value.trim() && event.target.checkValidity();
+    const row = event.target.closest(".border");
+    row?.classList.toggle("border-success", valid);
+    row?.classList.toggle("bg-success-subtle", valid);
+    row?.classList.toggle("border-danger", !valid);
+    row?.classList.toggle("bg-danger-subtle", !valid);
+    const badge = row?.querySelector(".badge");
+    if (badge) {
+      badge.className = "badge " + (valid ? "text-bg-success" : "text-bg-danger");
+      badge.textContent = valid ? "Fixed value" : "Value required";
+    }
+    const incomplete = !!form.querySelector("[data-bp-route-params] .border-danger");
+    form.querySelectorAll("button[type=submit]").forEach((button) => { button.disabled = incomplete; });
   });
 
   const loadManifest = async (service) => {
@@ -256,6 +384,23 @@ function routeFormFields(
         <label class="form-label">Mount path</label>
         <input type="text" class="form-control font-monospace" name="path" value={route?.path ?? ""} placeholder="/dashboard" required={isRenderable} disabled={!isRenderable} pattern="/.*" data-bp-ui-route-field="" />
         <div class="form-text">URL path users will see in this app. Service-side path is resolved from the view id at sync time.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Service path</label>
+        <select
+          class="form-select font-monospace"
+          name="servicePathVariant"
+          data-bp-service-path=""
+          data-selected-path={route?.servicePathVariant ?? route?.targetPath ?? selectedMeta?.path ?? ""}
+        ></select>
+        <div class="form-text">For optional service routes, choose the concrete path this app route targets.</div>
+      </div>
+      <div
+        class="mb-3 d-none"
+        data-bp-route-params=""
+        data-fixed-params={JSON.stringify(route?.fixedParams ?? {})}
+      >
+        <label class="form-label">Route parameters</label>
       </div>
       <div class="mb-3">
         <label class="form-label">Display Title</label>

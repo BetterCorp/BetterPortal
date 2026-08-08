@@ -53,6 +53,34 @@ bp-routes/
 
 That registers both `/tenants/services` and `/tenants/:tenantId/services` against the same view. `ctx.params.tenantId` is `undefined` on the list route and populated on the tenant-specific route.
 
+Required folders use `[id]`; optional whole-segment folders use `[[id]]`. Catch-all parameters are not supported. Generated manifests use `:id` exclusively. Legacy app configuration containing `{id}` is migrated once by Config Manager, and new brace-style paths are rejected.
+
+Declare route parameter validation in the metadata `index.ts` with `ParamsSchema`:
+
+```ts
+import * as av from "anyvali";
+
+export const ParamsSchema = av.object({
+  planId: av.string().minLength(1).maxLength(40)
+});
+```
+
+Pass that same exported schema to the method's handler factory so `ctx.params` receives its precise inferred type:
+
+```ts
+import { ParamsSchema } from "./index.js";
+import { createHandler } from "../../../.bp-generated/route-runtime.js";
+
+export default createHandler(
+  { response: ResponseSchema, params: ParamsSchema },
+  (ctx) => ({ planId: ctx.params.planId })
+);
+```
+
+The adapter validates `ctx.params` before the handler runs. Every supplied path parameter must be non-empty and at most 100 characters; `ParamsSchema` may apply stricter validation. Path params are strings. As with other API schemas, `av.object` already strips unknown keys; do not add `{ unknownKeys: "strip" }`.
+
+Optional filesystem routes remain separate runtime patterns but are one manifest view. The view's canonical `path` is the most specific pattern and `pathVariants` lists every concrete pattern. Config Manager's Route Designer lets an app mount select the intended service variant.
+
 ## Metadata and method files
 
 `index.ts` is metadata only. It owns the stable identity and route-level hints:
@@ -152,6 +180,19 @@ Route dependencies are service-declared view ids that must be mounted with a rou
 - `kind: "page"` routes are visual app routes. Their app path, title, query, chrome, and menu usage are app-owned.
 - `kind: "api"` routes are service-locked allowlist routes. Config-manager mounts them under `/_bp/service/{service-slug}/{service-path}` and keeps `targetPath`/`resolvedServicePath` pointed at the service-owned path from the manifest.
 
+App and service paths are separate mappings. Every service parameter must be supplied by a same-named `:param` segment in the app path or by a fixed value:
+
+```ts
+{
+  path: "/plans",
+  viewId: "plans.$planId.index",
+  servicePathVariant: "/plans/:planId",
+  fixedParams: { planId: "default1" }
+}
+```
+
+The Route Designer shows each required service parameter. A dynamic app-path match is green; an unresolved parameter is red and blocks saving until a fixed value is valid. Fixed values are limited to 1–100 characters and also honor stricter compatible `ParamsSchema` string constraints from the manifest. Static app routes take precedence over dynamic patterns regardless of configuration order. Synthetic path groups are presentation only and are never stored or submitted.
+
 By default, a user-facing capability should be one renderable route that provides both its API contract/handlers and its HTML renderer. Content negotiation serves JSON to API clients and HTML to the UI. Do not create a separate API-only route when the renderable route can own the operation.
 
 Use `kind: "api"` only when there is a specific reason the endpoint has no UI: provider callbacks, webhooks, machine-only/internal dependencies, raw files, streams, or similar protocol endpoints. An API route is never an application navigation destination, and the user must never be left viewing it. Browser-mediated protocol endpoints such as OAuth callbacks must immediately redirect to an enabled page route after completing their work.
@@ -223,6 +264,8 @@ const submitUrl = ctx.routeUrl?.("reports.update", { serviceId: "reports" }); //
 const pageUrl = ctx.uiRouteUrl?.("reports.detail", { serviceId: "reports" }); // href or GET navigation
 ```
 
+Both URL helpers choose a service path variant that can be completely filled by the supplied parameters. They return `null` when a placeholder remains or when more than one app mount is ambiguous; they never emit a literal `:param` URL.
+
 Do not use `uiRouteUrl` for HTMX requests, form actions, `fetch`, SSE, or downloads. Those requests would target the app/theme origin instead of the service and can return 404.
 
 For a reusable UI fragment from another declared service dependency, use the typed `BPElement` helper and pass the renderer `ctx`:
@@ -253,6 +296,49 @@ Use `routeUrl` for service actions and `uiRouteUrl` for mounted GET navigation. 
 Raw app routes and tenant services are intentionally absent from renderer context. Use `ctx.url` for route resolution and `BPElement` for dependency or shell fragments.
 
 HTTP methods are service manifest metadata. Do not make route methods user-editable; config-manager sync updates persisted route methods from the latest manifest.
+
+## Sitemap and robots
+
+Shell services serve `/robots.txt`, `/sitemap.xml`, and sitemap chunks centrally. Themes do not implement these endpoints. Config Manager syncs route auth and SEO metadata into the app route index; old entries without an explicit `auth.required` value are treated as private until the service resyncs.
+
+An anonymous static GET page is included automatically unless the app or route excludes it. Dynamic routes declare a provider in their metadata `index.ts`:
+
+```ts
+import {
+  RobotsAgent,
+  type RouteSitemapProvider,
+  type RouteRobotsPolicy
+} from "@betterportal/framework";
+import { listPublicPlans } from "../../plans.js";
+
+export const sitemap: RouteSitemapProvider = async ({ tenant, app, signal }) =>
+  (await listPublicPlans({ tenantId: tenant.id, appId: app.id, signal })).map((plan) => ({
+    params: { planId: plan.id },
+    lastModified: plan.updatedAt,
+    changeFrequency: "weekly",
+    priority: 0.7
+  }));
+
+export const robots: RouteRobotsPolicy = [
+  { userAgent: RobotsAgent.All, access: "allow" },
+  { userAgent: RobotsAgent.GPTBot, access: "disallow" }
+];
+```
+
+`sitemap` may also be `true`, `false`, or a static metadata object containing `lastModified`, `changeFrequency`, and `priority`. `false` omits the route from sitemap output but does not create a robots disallow; declare `robots` separately when both are intended. Providers return parameter values and metadata only; the shell owns the mounted app path, canonical origin, encoding, deduplication, sorting, XML escaping, and 50,000-URL/50 MB chunking. Provider parameter values are limited to 100 characters unless the service applies stricter validation.
+
+`robots` is advisory crawler policy, never authorization. Authenticated, disabled, API-only, non-GET, unmounted, and unresolved dynamic routes do not enter the sitemap. Authentication remains enforced even when a route supplies SEO metadata.
+
+Services expose app-scoped provider data at `GET /.well-known/bp/seo`. It is resolved through the normal trusted Origin/host context and is not global public discovery. Shells probe every service with an anonymous mounted GET page, deduplicate in-flight work, cache successes according to the app setting, cache failures for five minutes, and clear the cache after scoped-config updates. Services whose mounted routes are all authenticated or have unknown legacy auth metadata are not probed.
+
+App SEO settings are:
+
+- `visibility`: `auto` (default), `public`, or `private`.
+- `serviceFailure`: `omit-service` (default), `known-routes`, or `error`.
+- `serviceCache`: `none`, `1h`, `24h` (default), or `7d`.
+- `canonicalOrigin`: optional explicit HTTP(S) origin; otherwise the shell uses the configured app hostname matched by the request.
+
+`omit-service` removes an inaccessible service's URLs and disallows its mounted prefixes. `known-routes` retains concrete static URLs already known to Config Manager but omits failed dynamic expansion. `error` returns 503 for the entire SEO response. The shell checks every service with an anonymous mounted GET page, not only dynamic providers, and requires its probe response to permit the app origin through CORS; services that contain only authenticated or unknown-auth routes are not probed. Expired success data is never served stale after a failed refresh.
 
 ## UI renderers
 

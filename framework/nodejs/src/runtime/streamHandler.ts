@@ -15,10 +15,12 @@ export interface StreamHandlerSchemas<
   TItem extends BaseSchema<unknown, unknown>,
   TSummary extends BaseSchema<unknown, unknown> | undefined = undefined,
   TQuery extends BaseSchema<unknown, unknown> | undefined = undefined,
-  THeaders extends BaseSchema<unknown, unknown> | undefined = undefined
+  THeaders extends BaseSchema<unknown, unknown> | undefined = undefined,
+  TParamsSchema extends BaseSchema<unknown, unknown> | undefined = undefined
 > {
   readonly item: TItem;
   readonly summary?: TSummary;
+  readonly params?: TParamsSchema;
   readonly query?: TQuery;
   readonly headers?: THeaders;
 }
@@ -65,12 +67,13 @@ export function createStreamHandler<
   THeaders extends BaseSchema<unknown, unknown> | undefined = undefined,
   TParams = Record<string, string>,
   TPlugin = unknown,
-  TServiceConfig = Record<string, unknown>
+  TServiceConfig = Record<string, unknown>,
+  TParamsSchema extends BaseSchema<unknown, unknown> | undefined = undefined
 >(
-  schemas: StreamHandlerSchemas<TItem, TSummary, TQuery, THeaders>,
+  schemas: StreamHandlerSchemas<TItem, TSummary, TQuery, THeaders, TParamsSchema>,
   handler: (
     ctx: RouteHandlerContext<
-      TParams,
+      SchemaOutput<TParamsSchema, TParams>,
       SchemaOutput<TQuery, Record<string, unknown>>,
       SchemaOutput<THeaders, Record<string, string>>,
       Record<string, unknown>,
@@ -81,7 +84,7 @@ export function createStreamHandler<
 ): BpStreamHandler<
   Infer<TItem>,
   SummaryReturn<TSummary>,
-  TParams,
+  SchemaOutput<TParamsSchema, TParams>,
   SchemaOutput<TQuery, Record<string, unknown>>,
   SchemaOutput<THeaders, Record<string, string>>
 > {
@@ -100,7 +103,7 @@ export function createStreamHandler<
     run: handler as BpStreamHandler<
       Infer<TItem>,
       SummaryReturn<TSummary>,
-      TParams,
+      SchemaOutput<TParamsSchema, TParams>,
       SchemaOutput<TQuery, Record<string, unknown>>,
       SchemaOutput<THeaders, Record<string, string>>
     >["run"]
@@ -114,12 +117,13 @@ export namespace createStreamHandler {
       TSummary extends BaseSchema<unknown, unknown> | undefined = undefined,
       TQuery extends BaseSchema<unknown, unknown> | undefined = undefined,
       THeaders extends BaseSchema<unknown, unknown> | undefined = undefined,
-      TParams = Record<string, string>
+      TParams = Record<string, string>,
+      TParamsSchema extends BaseSchema<unknown, unknown> | undefined = undefined
     >(
-      schemas: StreamHandlerSchemas<TItem, TSummary, TQuery, THeaders>,
+      schemas: StreamHandlerSchemas<TItem, TSummary, TQuery, THeaders, TParamsSchema>,
       handler: (
         ctx: RouteHandlerContext<
-          TParams,
+          SchemaOutput<TParamsSchema, TParams>,
           SchemaOutput<TQuery, Record<string, unknown>>,
           SchemaOutput<THeaders, Record<string, string>>,
           Record<string, unknown>,
@@ -130,7 +134,7 @@ export namespace createStreamHandler {
     ) => BpStreamHandler<
       Infer<TItem>,
       SummaryReturn<TSummary>,
-      TParams,
+      SchemaOutput<TParamsSchema, TParams>,
       SchemaOutput<TQuery, Record<string, unknown>>,
       SchemaOutput<THeaders, Record<string, string>>
     >;

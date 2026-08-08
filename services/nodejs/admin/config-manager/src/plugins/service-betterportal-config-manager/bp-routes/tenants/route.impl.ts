@@ -46,6 +46,12 @@ const AppItemSchema = av.object({
       viewId: av.string().minLength(1)
     }, { unknownKeys: "strip" }))
   }, { unknownKeys: "strip" })),
+  seo: av.object({
+    visibility: av.enum_(["auto", "public", "private"] as const),
+    serviceFailure: av.enum_(["known-routes", "omit-service", "error"] as const),
+    serviceCache: av.enum_(["none", "1h", "24h", "7d"] as const),
+    canonicalOrigin: av.optional(av.string())
+  }, { unknownKeys: "strip" }),
   pageViews: av.array(av.object({
     serviceId: av.string().minLength(1),
     serviceTitle: av.string().minLength(1),
@@ -178,6 +184,12 @@ async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseDat
       shellRenderer: shell?.renderer,
       authServiceId: a.auth?.serviceId,
       authRedirects: a.auth?.redirects,
+      seo: {
+        visibility: a.seo?.visibility ?? "auto",
+        serviceFailure: a.seo?.serviceFailure ?? "omit-service",
+        serviceCache: a.seo?.serviceCache ?? "24h",
+        canonicalOrigin: a.seo?.canonicalOrigin
+      },
       pageViews: selectableAppPageViews(config, a),
       roleAuthority: a.auth
         ? resolveRoleAuthority(
@@ -269,6 +281,7 @@ async function createApp(body: Record<string, unknown>): Promise<void> {
     ...(shellServiceId ? { shell: { serviceId: shellServiceId } } : {}),
     themeConfig: (body.themeConfig as BetterPortalThemeConfig | undefined) ?? { mode: "system", bootstrap: {}, light: {}, dark: {} },
     defaultRoute: stringValue(body.defaultRoute) || "/",
+    seo: seoConfigFromBody(body),
     routes: [],
     menu: [],
     slots: [],
@@ -298,6 +311,10 @@ async function updateApp(body: Record<string, unknown>): Promise<void> {
   if (slug) appDef.slug = slug;
   if (body.hostnames !== undefined || body.hostname !== undefined) {
     appDef.hostnames = hostnamesFromBody(body);
+  }
+  if (["seoVisibility", "seoServiceFailure", "seoServiceCache", "seoCanonicalOrigin"]
+    .some((key) => body[key] !== undefined)) {
+    appDef.seo = seoConfigFromBody(body);
   }
 
   const shellServiceId = stringValue(body.shellServiceId);
@@ -599,6 +616,31 @@ function hostnamesFromBody(body: Record<string, unknown>): string[] {
   }
   const raw = stringValue(body.hostnames) || stringValue(body.hostname);
   return raw.split(",").map((hostname) => hostname.trim()).filter(Boolean);
+}
+
+function seoConfigFromBody(body: Record<string, unknown>): NonNullable<BetterPortalApp["seo"]> {
+  const visibility = body.seoVisibility === "public" || body.seoVisibility === "private"
+    ? body.seoVisibility
+    : "auto";
+  const serviceFailure = body.seoServiceFailure === "known-routes" || body.seoServiceFailure === "error"
+    ? body.seoServiceFailure
+    : "omit-service";
+  const serviceCache = body.seoServiceCache === "none" || body.seoServiceCache === "1h" || body.seoServiceCache === "7d"
+    ? body.seoServiceCache
+    : "24h";
+  const canonicalOrigin = stringValue(body.seoCanonicalOrigin);
+  if (canonicalOrigin) {
+    const url = new URL(canonicalOrigin);
+    if (!["http:", "https:"].includes(url.protocol) || url.origin !== canonicalOrigin.replace(/\/+$/, "")) {
+      throw new TypeError("Canonical origin must be an http(s) origin without a path.");
+    }
+  }
+  return {
+    visibility,
+    serviceFailure,
+    serviceCache,
+    ...(canonicalOrigin ? { canonicalOrigin: canonicalOrigin.replace(/\/+$/, "") } : {})
+  };
 }
 
 function stringValue(value: unknown): string {

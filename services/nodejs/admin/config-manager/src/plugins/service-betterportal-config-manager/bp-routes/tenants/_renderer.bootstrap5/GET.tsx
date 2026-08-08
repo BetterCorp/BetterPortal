@@ -95,12 +95,62 @@ function tenantsScript(): HtmlRenderable {
         shellSelect.value = data.shellServiceId || "";
         const authSelect = form.querySelector("[name=authServiceId]");
         authSelect.value = data.authServiceId || "";
+        form.querySelector("[name=seoVisibility]").value = data.seo?.visibility || "auto";
+        form.querySelector("[name=seoServiceFailure]").value = data.seo?.serviceFailure || "omit-service";
+        form.querySelector("[name=seoServiceCache]").value = data.seo?.serviceCache || "24h";
+        form.querySelector("[name=seoCanonicalOrigin]").value = data.seo?.canonicalOrigin || "";
         syncRoleAuthority(form, data.roleAuthority);
         loadAuthRedirects(form, data);
         if (window.htmx) window.htmx.process(form);
       });
     });
   })()`);
+}
+
+function seoFields(): HtmlRenderable {
+  return (
+    <fieldset class="border rounded p-3 mb-3">
+      <legend class="float-none w-auto px-2 fs-6">Robots &amp; sitemap</legend>
+      <div class="mb-3">
+        <label class="form-label">Visibility</label>
+        <select class="form-select" name="seoVisibility">
+          <option value="auto" selected>Auto</option>
+          <option value="public">Public</option>
+          <option value="private">Private</option>
+        </select>
+        <div class="form-text">Auto publishes only synced, anonymous GET page routes. Unknown or authenticated routes remain private.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Service failure policy</label>
+        <select class="form-select" name="seoServiceFailure">
+          <option value="omit-service" selected>Omit unavailable service</option>
+          <option value="known-routes">Keep known static routes</option>
+          <option value="error">Return 503</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Service SEO cache</label>
+        <select class="form-select" name="seoServiceCache">
+          <option value="none">No success cache</option>
+          <option value="1h">1 hour</option>
+          <option value="24h" selected>24 hours</option>
+          <option value="7d">7 days</option>
+        </select>
+        <div class="form-text">Failed probes are cached for five minutes. Success data is not served stale after a failed refresh.</div>
+      </div>
+      <div>
+        <label class="form-label">Canonical origin (optional)</label>
+        <input
+          type="url"
+          class="form-control font-monospace"
+          name="seoCanonicalOrigin"
+          placeholder="https://example.com"
+          pattern="https?://[^/]+/?"
+        />
+        <div class="form-text">Defaults to the configured hostname matched by the request.</div>
+      </div>
+    </fieldset>
+  );
 }
 
 export function render(data: ResponseData): HtmlRenderable {
@@ -188,6 +238,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   ) : null}
                   <div class="small mb-1"><strong>Auth:</strong> <span class="font-monospace">{app.authServiceId ?? "not selected"}</span></div>
                   <div class="small mb-2"><strong>Routes:</strong> {app.routeCount}</div>
+                  <div class="small mb-2"><strong>SEO:</strong> {app.seo.visibility} · {app.seo.serviceFailure} · {app.seo.serviceCache}</div>
                   <div class="btn-group btn-group-sm">
                     <button
                       class="btn btn-outline-primary"
@@ -312,6 +363,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 <option value="betterportal">BetterPortal</option>
               </select>
             </div>
+            {seoFields()}
             <div class="alert alert-danger d-none" id="bp-app-error"></div>
             <button type="submit" class="btn btn-primary w-100">Create App</button>
           </form>
@@ -399,6 +451,7 @@ export function render(data: ResponseData): HtmlRenderable {
               </div>
               <div class="form-text mt-2">Blank uses the app's default route. Only enabled GET page views with one mount are available.</div>
             </fieldset>
+            {seoFields()}
             <div class="alert alert-danger d-none" id="bp-edit-app-error"></div>
             <button type="submit" class="btn btn-primary w-100">Save</button>
           </form>

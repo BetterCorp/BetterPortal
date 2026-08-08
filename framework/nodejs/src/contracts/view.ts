@@ -75,6 +75,7 @@ export const ViewMetadataSchema = av.object({
   title: NonEmptyStringSchema,
   description: NonEmptyStringSchema,
   path: NonEmptyStringSchema,
+  pathVariants: av.array(NonEmptyStringSchema).default([]),
   methods: av.array(HttpMethodSchema).minItems(1),
   paramsSchema: JsonObjectSchema,
   querySchema: JsonObjectSchema,
@@ -87,6 +88,17 @@ export const ViewMetadataSchema = av.object({
   streaming: av.optional(ViewStreamingSupportSchema),
   html: HtmlRepresentationSupportSchema,
   auth: ApiAuthRequirementSchema,
+  sitemap: av.optional(av.object({
+    kind: av.enum_(["default", "exclude", "metadata", "provider"] as const),
+    lastModified: av.optional(av.string().format("date-time")),
+    changeFrequency: av.optional(av.enum_(["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"] as const)),
+    priority: av.optional(av.number().min(0).max(1))
+  })),
+  robots: av.array(av.object({
+    userAgent: NonEmptyStringSchema,
+    access: av.enum_(["allow", "disallow"] as const),
+    crawlDelaySeconds: av.optional(av.int().min(0).max(86400))
+  })).default([]),
   role: av.optional(ViewRoleSchema),
   dependencies: av.array(NonEmptyStringSchema).default([]),
   chrome: av.optional(BetterPortalRouteChromeSchema),

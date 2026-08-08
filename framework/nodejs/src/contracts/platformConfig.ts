@@ -135,6 +135,23 @@ export const BetterPortalRouteMountSchema = av.object({
   path: NonEmptyStringSchema,
   serviceId: UuidV7Schema,
   viewId: NonEmptyStringSchema,
+  /** Selected service path when a view exposes more than one path variant. */
+  servicePathVariant: av.optional(NonEmptyStringSchema),
+  /** Values supplied to service path params that are not present in the app path. */
+  fixedParams: av.optional(av.record(av.string().minLength(1).maxLength(100))),
+  /** Manifest-derived SEO metadata injected by the control plane. */
+  authRequired: av.optional(av.bool()),
+  sitemap: av.optional(av.object({
+    kind: av.enum_(["default", "exclude", "metadata", "provider"] as const),
+    lastModified: av.optional(av.string().format("date-time")),
+    changeFrequency: av.optional(av.enum_(["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"] as const)),
+    priority: av.optional(av.number().min(0).max(1))
+  })),
+  robots: av.optional(av.array(av.object({
+    userAgent: NonEmptyStringSchema,
+    access: av.enum_(["allow", "disallow"] as const),
+    crawlDelaySeconds: av.optional(av.int().min(0).max(86400))
+  }))),
   /** @deprecated Use resolvedServicePath (CP-injected). Kept one release for migration. */
   targetPath: av.optional(NonEmptyStringSchema),
   /** Service path resolved by control plane from manifest cache. Injected on sync delivery. */
@@ -148,6 +165,18 @@ export const BetterPortalRouteMountSchema = av.object({
   chrome: av.optional(BetterPortalRouteChromeSchema)
 }, { unknownKeys: "strip" });
 export type BetterPortalRouteMount = Infer<typeof BetterPortalRouteMountSchema>;
+
+export const BetterPortalSeoConfigSchema = av.object({
+  visibility: av.enum_(["auto", "public", "private"] as const).default("auto"),
+  serviceFailure: av.enum_(["known-routes", "omit-service", "error"] as const).default("omit-service"),
+  serviceCache: av.enum_(["none", "1h", "24h", "7d"] as const).default("24h"),
+  canonicalOrigin: av.optional(av.string().format("url"))
+}, { unknownKeys: "strip" }).default({
+  visibility: "auto",
+  serviceFailure: "omit-service",
+  serviceCache: "24h"
+});
+export type BetterPortalSeoConfig = Infer<typeof BetterPortalSeoConfigSchema>;
 
 // -- Menu (separate from routes) --------------------------------------
 
@@ -213,6 +242,7 @@ export const BetterPortalAppSchema = av.object({
   themeConfig: BetterPortalThemeConfigSchema,
   layoutId: av.optional(NonEmptyStringSchema),
   defaultRoute: NonEmptyStringSchema.default("/"),
+  seo: av.optional(BetterPortalSeoConfigSchema),
   routes: av.array(BetterPortalRouteMountSchema).default([]),
   menu: av.array(BetterPortalMenuItemSchema).default([]),
   slots: av.array(BetterPortalSlotAssignmentSchema).default([]),
@@ -350,9 +380,23 @@ export const ServiceManifestCacheEntrySchema = av.object({
   viewIndex: av.record(av.object({
     viewId: NonEmptyStringSchema,
     path: NonEmptyStringSchema,
+    pathVariants: av.array(NonEmptyStringSchema).default([]),
     methods: av.array(NonEmptyStringSchema).default([]),
     renderers: av.array(NonEmptyStringSchema).default([]),
     role: av.optional(NonEmptyStringSchema),
+    authRequired: av.optional(av.bool()),
+    paramsSchema: av.optional(av.record(av.any())),
+    sitemap: av.optional(av.object({
+      kind: av.enum_(["default", "exclude", "metadata", "provider"] as const),
+      lastModified: av.optional(av.string().format("date-time")),
+      changeFrequency: av.optional(av.enum_(["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"] as const)),
+      priority: av.optional(av.number().min(0).max(1))
+    })),
+    robots: av.array(av.object({
+      userAgent: NonEmptyStringSchema,
+      access: av.enum_(["allow", "disallow"] as const),
+      crawlDelaySeconds: av.optional(av.int().min(0).max(86400))
+    })).default([]),
     chrome: av.optional(BetterPortalRouteChromeSchema),
     dependencies: av.array(NonEmptyStringSchema).default([]),
     permissions: av.array(av.object({

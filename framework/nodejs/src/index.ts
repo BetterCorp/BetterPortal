@@ -9,6 +9,7 @@ export * from "./contracts/observability.js";
 export * from "./contracts/platformConfig.js";
 export * from "./contracts/registry.js";
 export * from "./contracts/route.js";
+export * from "./contracts/seo.js";
 export * from "./contracts/serviceConfig.js";
 export * from "./contracts/streaming.js";
 export * from "./contracts/view.js";

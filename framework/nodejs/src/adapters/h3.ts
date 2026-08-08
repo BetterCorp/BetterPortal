@@ -132,6 +132,26 @@ function headersFromEvent(event: BetterPortalEvent): Record<string, string> {
   return result;
 }
 
+function parseRouteParams(
+  rawParams: Record<string, string>,
+  schema: RegisteredRoute["schemas"]["params"]
+): Record<string, string> | Response {
+  for (const [name, value] of Object.entries(rawParams)) {
+    if (!value || value.length > 100) {
+      return jsonResponse({ error: `Invalid path parameter: ${name}` }, 400);
+    }
+  }
+  if (!schema) return rawParams;
+  try {
+    return schema.parse(rawParams) as Record<string, string>;
+  } catch (error) {
+    return jsonResponse({
+      error: "Invalid path parameters",
+      detail: error instanceof Error ? error.message : String(error)
+    }, 400);
+  }
+}
+
 function escapeContentDispositionValue(value: string): string {
   return value.replace(/["\\\r\n]/g, "_");
 }
@@ -302,8 +322,10 @@ export function createH3Router(
         const url = getRequestURL(event);
         const rawQuery = queryFromUrl(url);
         const query = route.schemas.query ? route.schemas.query.parse(rawQuery) : rawQuery;
-        const params: Record<string, string> =
+        const rawParams: Record<string, string> =
           (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
+        const params = parseRouteParams(rawParams, route.schemas.params);
+        if (params instanceof Response) return params;
 
         const result = sseHandler({
           event,
@@ -459,7 +481,7 @@ function routePathsMatch(left: string, right: string): boolean {
 }
 
 function routeMountServicePath(routeMount: BetterPortalApp["routes"][number]): string | undefined {
-  return routeMount.resolvedServicePath ?? routeMount.targetPath;
+  return routeMount.resolvedServicePath ?? routeMount.servicePathVariant ?? routeMount.targetPath;
 }
 
 function methodAllowed(methods: ReadonlyArray<string> | undefined, method: HttpMethod): boolean {
@@ -512,18 +534,35 @@ function appAllowsRoute(
 
 function pathParamName(segment: string): string | null {
   if (segment.startsWith(":") && segment.length > 1) return segment.slice(1);
-  const match = segment.match(/^\{([A-Za-z_][A-Za-z0-9_]*)\}$/);
-  return match?.[1] ?? null;
+  return null;
 }
 
-function fillAppPath(path: string, params: RouteUrlOptions["params"] = {}): string {
+function fillAppPath(path: string, params: RouteUrlOptions["params"] = {}): string | null {
   const [pathPart, queryPart] = path.split("?", 2);
+  let unresolved = false;
   const resolved = pathPart.split("/").map((segment) => {
     const name = pathParamName(segment);
     const value = name ? params[name] : undefined;
-    return name && value !== null && value !== undefined ? encodeURIComponent(String(value)) : segment;
+    if (name && (value === null || value === undefined)) {
+      unresolved = true;
+      return "";
+    }
+    return name ? encodeURIComponent(String(value)) : segment;
   }).join("/");
+  if (unresolved) return null;
   return queryPart ? `${resolved}?${queryPart}` : resolved;
+}
+
+function selectRegisteredRoute(
+  routes: ReadonlyArray<RegisteredRoute>,
+  viewId: string,
+  params: RouteUrlOptions["params"] = {}
+): RegisteredRoute | null {
+  const matches = routes
+    .filter((candidate) => candidate.viewId === viewId)
+    .filter((candidate) => candidate.paramNames.every((name) => params[name] !== null && params[name] !== undefined))
+    .sort((a, b) => b.paramNames.length - a.paramNames.length);
+  return matches[0] ?? null;
 }
 
 function appOrigin(app: BetterPortalApp, override?: string): string {
@@ -608,7 +647,11 @@ function createElementResolver(
     const mount = mounts[0];
     const origin = serviceOrigin(extraContext, mount.serviceId);
     if (!origin) return { unavailable: "service_unavailable" };
-    const servicePath = fillAppPath(routeMountServicePath(mount)!, reference.args?.params);
+    const servicePath = fillAppPath(routeMountServicePath(mount)!, {
+      ...mount.fixedParams,
+      ...(reference.args?.params ?? {})
+    });
+    if (!servicePath) return { unavailable: "path_params_required" };
     return {
       serviceId: mount.serviceId,
       url: renderUrl(servicePath, { absolute: true, origin, query: reference.args?.query, fragment: reference.fragment })
@@ -701,11 +744,12 @@ function createServiceRouteUrlBuilder(
     const isCurrentService = [...targetIds].some((id) => currentIds.has(id));
 
     if (isCurrentService) {
-      const route = routes.find((candidate) => candidate.viewId === viewId);
+      const route = selectRegisteredRoute(routes, viewId, options.params);
       if (!route) return null;
       const origin = options.absolute ? serviceOrigin(extraContext, targetServiceId, options.origin) : undefined;
       if (options.absolute && !origin) return null;
-      return appendQuery(fillAppPath(route.path, options.params), options.query, origin ?? undefined);
+      const path = fillAppPath(route.path, options.params);
+      return path ? appendQuery(path, options.query, origin ?? undefined) : null;
     }
 
     const mounts = appRouteIndex(extraContext.app).filter((candidate) =>
@@ -720,7 +764,8 @@ function createServiceRouteUrlBuilder(
     const servicePath = routeMountServicePath(mount)!;
     const origin = options.absolute ? serviceOrigin(extraContext, mount.serviceId, options.origin) : undefined;
     if (options.absolute && !origin) return null;
-    return appendQuery(fillAppPath(servicePath, options.params), options.query, origin ?? undefined);
+    const path = fillAppPath(servicePath, { ...mount.fixedParams, ...(options.params ?? {}) });
+    return path ? appendQuery(path, options.query, origin ?? undefined) : null;
   };
 }
 
@@ -758,21 +803,27 @@ function createUiRouteUrlBuilder(
 
     const serviceIds = serviceReferenceIds(extraContext, targetServiceId, dependencyAliases);
 
-    const route = appRouteIndex(extraContext.app).find((candidate) =>
+    const routes = appRouteIndex(extraContext.app).filter((candidate) =>
       candidate.enabled !== false
       && (candidate.kind ?? "page") === "page"
       && methodAllowed(candidate.methods, "GET")
       && candidate.viewId === viewId
       && serviceIds.has(candidate.serviceId)
     );
-    if (!route) return null;
+    const resolved = routes.flatMap((route) => {
+      const path = fillAppPath(route.path, options.params);
+      return path ? [{ route, path }] : [];
+    });
+    const uniquePaths = new Map(resolved.map((entry) => [entry.path, entry]));
+    if (uniquePaths.size !== 1) return null;
+    const { path } = [...uniquePaths.values()][0];
 
     const origin = options.absolute
       ? options.origin
         ? appOrigin(extraContext.app, options.origin)
         : requestAppOrigin(extraContext.app, event) ?? appOrigin(extraContext.app)
       : undefined;
-    return appendQuery(fillAppPath(route.path, options.params), options.query, origin);
+    return appendQuery(path, options.query, origin);
   };
 }
 
@@ -875,7 +926,11 @@ async function handleRouteRequest(
 ): Promise<Response> {
   const methodRoute = route.methodRoutes?.[method];
   const handler = methodRoute?.handler ?? route.handlers[method];
-  const schemas = methodRoute?.schemas ?? route.schemas;
+  const schemas = {
+    ...route.schemas,
+    ...(methodRoute?.schemas ?? {}),
+    params: methodRoute?.schemas.params ?? route.schemas.params
+  };
   if (!handler) {
     return jsonResponse({ error: `No handler for ${method} ${route.path}` }, 405);
   }
@@ -926,7 +981,9 @@ async function handleRouteRequest(
     : undefined;
 
   // Path params - H3 populates event.context.params for `:paramName` routes
-  const params: Record<string, string> = (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
+  const rawParams: Record<string, string> = (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
+  const params = parseRouteParams(rawParams, schemas.params);
+  if (params instanceof Response) return params;
 
   const extraContext = await resolveRequiredHandlerContext(event, routerOptions, route);
   if (!extraContext) {
@@ -1277,10 +1334,17 @@ async function handleStreamSse(
 ): Promise<Response | BodyInit> {
   const url = getRequestURL(event);
   const rawQuery = queryFromUrl(url);
-  const sseSchemas = route.methodRoutes?.GET?.schemas ?? route.schemas;
+  const methodSchemas = route.methodRoutes?.GET?.schemas;
+  const sseSchemas = {
+    ...route.schemas,
+    ...(methodSchemas ?? {}),
+    params: methodSchemas?.params ?? route.schemas.params
+  };
   const query = sseSchemas.query ? sseSchemas.query.parse(rawQuery) : rawQuery;
-  const params: Record<string, string> =
+  const rawParams: Record<string, string> =
     (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
+  const params = parseRouteParams(rawParams, sseSchemas.params);
+  if (params instanceof Response) return params;
 
   // The frame stream carries the same data as the view route - enforce the
   // same auth requirement.

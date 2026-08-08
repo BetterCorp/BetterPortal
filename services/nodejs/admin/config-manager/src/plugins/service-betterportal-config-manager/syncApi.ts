@@ -16,7 +16,8 @@ import type {
   ShellManifest,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManifestSchema, deriveKeyId, eventObservability, jsonResponse, uuidv7 } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManifestSchema, deriveKeyId, eventObservability, jsonResponse, toJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
+import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, isApiRoute } from "./routeMounts.js";
 
@@ -42,9 +43,19 @@ function validateServicePublicKey(publicKeyPem: string, keyId: string): { public
 export interface CachedManifestView {
   viewId: string;
   path: string;
+  pathVariants: string[];
   methods: string[];
   renderers: string[];
   role?: string;
+  authRequired?: boolean;
+  paramsSchema?: Record<string, JsonValue>;
+  sitemap?: {
+    kind: "default" | "exclude" | "metadata" | "provider";
+    lastModified?: string;
+    changeFrequency?: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
+    priority?: number;
+  };
+  robots: Array<{ userAgent: string; access: "allow" | "disallow"; crawlDelaySeconds?: number }>;
   chrome?: BetterPortalRouteChrome;
   dependencies: string[];
   /** Per-view permission requirements from the service's auth.permissions[]. */
@@ -152,9 +163,14 @@ function normalizeManifest(input: {
   viewIndex?: Record<string, {
     viewId: string;
     path: string;
+    pathVariants?: string[];
     methods: string[];
     renderers?: string[];
     role?: string;
+    authRequired?: boolean;
+    paramsSchema?: Record<string, JsonValue>;
+    sitemap?: CachedManifestView["sitemap"];
+    robots?: Array<{ userAgent: string; access: "allow" | "disallow"; crawlDelaySeconds?: number }>;
     chrome?: BetterPortalRouteChrome;
     dependencies?: string[];
     renderable?: boolean;
@@ -171,9 +187,14 @@ function normalizeManifest(input: {
     normalizedViews[vid] = {
       viewId: v.viewId,
       path: v.path,
+      pathVariants: Array.isArray(v.pathVariants) ? v.pathVariants : [],
       methods: v.methods ?? [],
       renderers: Array.isArray(v.renderers) ? v.renderers.filter((value): value is string => typeof value === "string" && value.length > 0) : [],
       ...(v.role ? { role: v.role } : {}),
+      ...(typeof v.authRequired === "boolean" ? { authRequired: v.authRequired } : {}),
+      ...(v.paramsSchema ? { paramsSchema: v.paramsSchema } : {}),
+      ...(v.sitemap ? { sitemap: v.sitemap } : {}),
+      robots: Array.isArray(v.robots) ? v.robots : [],
       ...(v.chrome ? { chrome: v.chrome } : {}),
       dependencies: Array.isArray(v.dependencies) ? v.dependencies.filter((value): value is string => typeof value === "string" && value.length > 0) : [],
       permissions: v.permissions ?? [],
@@ -231,7 +252,15 @@ export async function reconcileServiceRegistry(
   } = {}
 ): Promise<CachedManifest> {
   const viewIndex: NonNullable<Parameters<typeof normalizeManifest>[0]["viewIndex"]> = {};
+  const routeGroups = new Map<string, typeof registry.routes[number][]>();
   for (const route of registry.routes) {
+    const group = routeGroups.get(route.viewId) ?? [];
+    group.push(route);
+    routeGroups.set(route.viewId, group);
+  }
+  for (const group of routeGroups.values()) {
+    const routes = [...group].sort((a, b) => b.paramNames.length - a.paramNames.length || b.path.length - a.path.length);
+    const route = routes[0];
     const renderable = route.raw === true
       ? false
       : Object.values(route.renderers).some((set) =>
@@ -240,9 +269,14 @@ export async function reconcileServiceRegistry(
     viewIndex[route.viewId] = {
       viewId: route.viewId,
       path: route.path,
+      pathVariants: routes.length > 1 ? routes.map((candidate) => candidate.path) : [],
       methods: [...route.methods],
       renderers: Object.keys(route.renderers),
       ...(route.role ? { role: route.role } : {}),
+      authRequired: route.auth.required,
+      ...(route.schemas.params ? { paramsSchema: toJsonSchemaDocument(route.schemas.params) as Record<string, JsonValue> } : {}),
+      sitemap: sitemapMetadata(route.sitemap),
+      robots: [...(route.robots ?? [])],
       ...(route.chrome ? { chrome: route.chrome } : {}),
       dependencies: [...(route.dependencies ?? [])],
       permissions: route.auth.permissions ?? [],
@@ -301,7 +335,12 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
       : undefined;
     return {
       ...route,
-      resolvedServicePath: view.path,
+      resolvedServicePath: route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
+        ? route.servicePathVariant
+        : view.path,
+      ...(typeof view.authRequired === "boolean" ? { authRequired: view.authRequired } : {}),
+      ...(view.sitemap ? { sitemap: view.sitemap } : {}),
+      robots: [...view.robots],
       ...(chrome ? { chrome } : {})
     };
   });
@@ -619,13 +658,16 @@ async function updateServiceMetadata(
         route.methods = methods;
         changed = true;
       }
-      if (route.targetPath !== view.path) {
-        route.targetPath = view.path;
+      const selectedServicePath = route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
+        ? route.servicePathVariant
+        : view.path;
+      if (route.targetPath !== selectedServicePath) {
+        route.targetPath = selectedServicePath;
         changed = true;
       }
       const routeIsApi = isApiRoute(route, view.renderable);
       if (routeIsApi) {
-        const nextPath = apiRoutePath(manifest.serviceId, view.path);
+        const nextPath = apiRoutePath(manifest.serviceId, selectedServicePath);
         if (route.kind !== "api") {
           route.kind = "api";
           changed = true;

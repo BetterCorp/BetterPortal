@@ -14,6 +14,8 @@ const RouteItemSchema = av.object({
   serviceId: av.string().minLength(1),
   viewId: av.string().minLength(1),
   targetPath: av.optional(av.string()),
+  servicePathVariant: av.optional(av.string()),
+  fixedParams: av.record(av.string()).default({}),
   methods: av.array(av.string()).default([]),
   query: av.optional(av.string()),
   title: av.optional(av.string()),
@@ -31,6 +33,8 @@ const AvailableViewSchema = av.object({
   viewId: av.string().minLength(1),
   title: av.string(),
   path: av.string(),
+  pathVariants: av.array(av.string()).default([]),
+  paramsSchema: av.optional(av.record(av.any())),
   methods: av.array(av.string()).default([]),
   renderable: av.bool().default(true),
   dependencies: av.array(av.string()).default([])

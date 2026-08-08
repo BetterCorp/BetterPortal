@@ -57,6 +57,8 @@ import {
   type ServiceConfigStore,
   type ServiceConfigTicketClaims,
   type RouteHandlerContext,
+  type RouteSitemapEntry,
+  type JsonValue,
   type TenantAppValidation,
   toHtmlString
 } from "@betterportal/framework";
@@ -76,6 +78,12 @@ import {
   type BetterPortalH3App
 } from "@betterportal/framework/lib/runtime/h3.js";
 import { createBsbObservability } from "./index.js";
+import {
+  buildSeoDocuments,
+  buildSitemapChunks,
+  buildSitemapIndex,
+  type RuntimeSitemapRoute
+} from "./seo.js";
 
 // Config constraint
 
@@ -230,6 +238,12 @@ export abstract class BPService<
   private s2sKeyPair: RsaKeyPair | null = null;
   private s2sIdentityReady = false;
   private sseAbortController: AbortController | null = null;
+  private readonly seoProbeCache = new Map<string, {
+    expiresAt: number;
+    data?: RuntimeSitemapRoute[];
+    error?: Error;
+    pending?: Promise<RuntimeSitemapRoute[]>;
+  }>();
   protected bootstrapState!: BootstrapStateStore;
 
   /**
@@ -764,6 +778,7 @@ export abstract class BPService<
       health: () => this.renderHealth()
     });
     this.registerShellFragmentRoutes(def.registry);
+    this.registerSeoRoutes();
 
     if (this.onRegistered) {
       const registeredSpan = this.observability.startSpan("bp.plugin.on_registered", {
@@ -907,6 +922,7 @@ export abstract class BPService<
 
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
       this.scopedConfig = rawConfig as ScopedServiceConfig;
+      this.seoProbeCache.clear();
       this.updateS2SIdentityState(obs);
       // Persist for restart resilience - the service owns its cache; CM's
       // bp-config.yaml is never shared.
@@ -933,11 +949,15 @@ export abstract class BPService<
       // POST manifest with the poll so CP can cache it for resolvedServicePath injection
       // AND surface per-view permission requirements to the admin role editor.
       const viewIndex: Record<string, {
-        viewId: string; path: string; methods: string[]; role?: string;
+        viewId: string; path: string; pathVariants: string[]; methods: string[]; role?: string;
         renderers: string[];
         chrome?: BetterPortalRouteChrome;
         dependencies: string[];
         permissions: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
+        authRequired?: boolean;
+        paramsSchema?: Record<string, unknown>;
+        sitemap?: unknown;
+        robots?: unknown[];
         renderable: boolean;
         schemas?: Record<string, unknown>;
         raw?: boolean;
@@ -947,7 +967,7 @@ export abstract class BPService<
       }> = {};
       for (const view of this.manifest.views) {
         const viewWithAuth = view as unknown as {
-          auth?: { permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }> };
+          auth?: { required?: boolean; permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }> };
           chrome?: BetterPortalRouteChrome;
           html?: { renderers?: Record<string, unknown> };
           dependencies?: string[];
@@ -959,6 +979,9 @@ export abstract class BPService<
           jsonResponseSchema?: unknown;
           metadataResponseSchema?: unknown;
           apiContracts?: unknown[];
+          pathVariants?: string[];
+          sitemap?: unknown;
+          robots?: unknown[];
         };
         const renderers = viewWithAuth.html?.renderers ?? {};
         const renderable = Object.keys(renderers).length > 0;
@@ -984,12 +1007,19 @@ export abstract class BPService<
         viewIndex[view.viewId] = {
           viewId: view.viewId,
           path: view.path,
+          pathVariants: [...(viewWithAuth.pathVariants ?? [])],
           methods: [...view.methods],
           renderers: Object.keys(renderers),
           ...(view.role ? { role: view.role } : {}),
           ...(viewWithAuth.chrome ? { chrome: viewWithAuth.chrome } : {}),
           dependencies: [...(viewWithAuth.dependencies ?? [])],
           permissions: viewWithAuth.auth?.permissions ?? [],
+          ...(typeof viewWithAuth.auth?.required === "boolean" ? { authRequired: viewWithAuth.auth.required } : {}),
+          ...(viewWithAuth.paramsSchema && typeof viewWithAuth.paramsSchema === "object"
+            ? { paramsSchema: viewWithAuth.paramsSchema as Record<string, unknown> }
+            : {}),
+          ...(viewWithAuth.sitemap ? { sitemap: viewWithAuth.sitemap } : {}),
+          robots: [...(viewWithAuth.robots ?? [])],
           renderable,
           ...(Object.keys(schemas).length ? { schemas } : {}),
           ...(viewWithAuth.raw === true ? { raw: true } : {}),
@@ -1778,6 +1808,278 @@ export abstract class BPService<
           : "awaiting-sync"
       }
     }, status);
+  }
+
+  private localServiceInstanceIds(context: BetterPortalResolvedRequestContext): Set<string> {
+    const ids = new Set(this.scopedConfig?.m2m?.localServiceIds ?? []);
+    if (this.scopedConfig?.serviceIdentity?.id) ids.add(this.scopedConfig.serviceIdentity.id);
+    return ids;
+  }
+
+  private normalizeSitemapEntries(value: unknown): RouteSitemapEntry[] {
+    if (!Array.isArray(value)) throw new TypeError("sitemap provider must return an array");
+    return value.map((raw, index) => {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        throw new TypeError(`sitemap entry ${index} must be an object`);
+      }
+      const entry = raw as Record<string, unknown>;
+      const params: Record<string, string | number | boolean> = {};
+      if (entry.params !== undefined) {
+        if (!entry.params || typeof entry.params !== "object" || Array.isArray(entry.params)) {
+          throw new TypeError(`sitemap entry ${index}.params must be an object`);
+        }
+        for (const [name, value] of Object.entries(entry.params as Record<string, unknown>)) {
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
+            || !["string", "number", "boolean"].includes(typeof value)
+            || String(value).length < 1
+            || String(value).length > 100) {
+            throw new TypeError(`sitemap entry ${index} has invalid parameter ${name}`);
+          }
+          params[name] = value as string | number | boolean;
+        }
+      }
+      let lastModified: string | undefined;
+      if (entry.lastModified !== undefined) {
+        const date = entry.lastModified instanceof Date ? entry.lastModified : new Date(String(entry.lastModified));
+        if (Number.isNaN(date.getTime())) throw new TypeError(`sitemap entry ${index}.lastModified is invalid`);
+        lastModified = date.toISOString();
+      }
+      const frequencies = new Set(["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"]);
+      if (entry.changeFrequency !== undefined && !frequencies.has(String(entry.changeFrequency))) {
+        throw new TypeError(`sitemap entry ${index}.changeFrequency is invalid`);
+      }
+      if (entry.priority !== undefined
+        && (typeof entry.priority !== "number" || entry.priority < 0 || entry.priority > 1)) {
+        throw new TypeError(`sitemap entry ${index}.priority must be between 0 and 1`);
+      }
+      return {
+        ...(Object.keys(params).length ? { params } : {}),
+        ...(lastModified ? { lastModified } : {}),
+        ...(entry.changeFrequency ? { changeFrequency: entry.changeFrequency as RouteSitemapEntry["changeFrequency"] } : {}),
+        ...(typeof entry.priority === "number" ? { priority: entry.priority } : {})
+      };
+    });
+  }
+
+  private async serviceSeoRoutes(
+    context: BetterPortalResolvedRequestContext,
+    signal: AbortSignal
+  ): Promise<RuntimeSitemapRoute[]> {
+    const localIds = this.localServiceInstanceIds(context);
+    const appRoutes = context.app.appRoutes ?? context.app.routes;
+    const providers = new Map(this.registeredRoutes
+      .filter((route) => typeof route.sitemap === "function")
+      .map((route) => [route.viewId, route]));
+    const results: RuntimeSitemapRoute[] = [];
+    for (const mount of appRoutes) {
+      if (!localIds.has(mount.serviceId) || mount.enabled === false || mount.authRequired !== false) continue;
+      const route = providers.get(mount.viewId);
+      if (!route || typeof route.sitemap !== "function") continue;
+      const entries = await route.sitemap({
+        plugin: this,
+        tenant: context.tenant,
+        app: context.app,
+        config: this.effectiveServiceConfig(context.tenant.id, context.app.id),
+        route: {
+          viewId: route.viewId,
+          path: mount.resolvedServicePath ?? mount.servicePathVariant ?? mount.targetPath ?? route.path
+        },
+        signal
+      });
+      results.push({ routeId: mount.id, entries: this.normalizeSitemapEntries(entries) });
+    }
+    return results;
+  }
+
+  private appRequestOrigin(app: BetterPortalResolvedRequestContext["app"], event: BetterPortalEvent): string {
+    const requestHost = hostFromHeaderValue(event.req.headers.get("host") ?? undefined) ?? "";
+    const configured = app.hostnames.find((hostname) => hostFromHeaderValue(hostname) === requestHost)
+      ?? app.hostnames[0]
+      ?? "";
+    if (configured.startsWith("http://") || configured.startsWith("https://")) return configured.replace(/\/+$/, "");
+    return `https://${configured.replace(/\/+$/, "")}`;
+  }
+
+  private seoCacheTtl(app: BetterPortalResolvedRequestContext["app"]): number {
+    switch (app.seo?.serviceCache ?? "24h") {
+      case "none": return 0;
+      case "1h": return 60 * 60_000;
+      case "7d": return 7 * 24 * 60 * 60_000;
+      default: return 24 * 60 * 60_000;
+    }
+  }
+
+  private probeServiceSeo(
+    context: BetterPortalResolvedRequestContext,
+    serviceId: string,
+    origin: string
+  ): Promise<RuntimeSitemapRoute[]> {
+    const key = `${context.tenant.id}:${context.app.id}:${serviceId}`;
+    const now = Date.now();
+    const cached = this.seoProbeCache.get(key);
+    if (cached?.pending) return cached.pending;
+    if (cached && cached.expiresAt > now) {
+      if (cached.error) return Promise.reject(cached.error);
+      return Promise.resolve(cached.data ?? []);
+    }
+
+    const pending = (async () => {
+      const service = context.tenant.services.find((candidate) => candidate.id === serviceId && candidate.enabled);
+      if (!service) throw new Error(`SEO service instance unavailable: ${serviceId}`);
+      const allowedRouteIds = new Set((context.app.appRoutes ?? context.app.routes)
+        .filter((route) => route.serviceId === serviceId)
+        .map((route) => route.id));
+      const response = await fetch(`${service.hostname.replace(/\/+$/, "")}/.well-known/bp/seo`, {
+        method: "GET",
+        headers: { Accept: "application/json", Origin: origin },
+        signal: AbortSignal.timeout(10_000)
+      });
+      if (!response.ok) throw new Error(`SEO service probe failed: ${serviceId} returned ${response.status}`);
+      const allowedOrigin = response.headers.get("access-control-allow-origin");
+      if (allowedOrigin !== "*" && allowedOrigin !== origin) {
+        throw new Error(`SEO service probe failed: ${serviceId} is not browser-accessible from ${origin}`);
+      }
+      const payload = await response.json() as { routes?: unknown };
+      if (!Array.isArray(payload.routes)) throw new Error(`SEO service probe returned invalid payload: ${serviceId}`);
+      return payload.routes.map((raw, index) => {
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+          throw new TypeError(`SEO service route ${index} is invalid`);
+        }
+        const route = raw as { routeId?: unknown; entries?: unknown };
+        if (typeof route.routeId !== "string") throw new TypeError(`SEO service route ${index}.routeId is invalid`);
+        if (!allowedRouteIds.has(route.routeId)) {
+          throw new TypeError(`SEO service route ${index}.routeId does not belong to service ${serviceId}`);
+        }
+        return { routeId: route.routeId, entries: this.normalizeSitemapEntries(route.entries) };
+      });
+    })();
+    this.seoProbeCache.set(key, { expiresAt: Number.POSITIVE_INFINITY, pending });
+    return pending.then((data) => {
+      this.seoProbeCache.set(key, { expiresAt: Date.now() + this.seoCacheTtl(context.app), data });
+      return data;
+    }).catch((error) => {
+      const normalized = error instanceof Error ? error : new Error(String(error));
+      this.seoProbeCache.set(key, { expiresAt: Date.now() + 5 * 60_000, error: normalized });
+      throw normalized;
+    });
+  }
+
+  private async shellSeoDocuments(event: BetterPortalEvent): Promise<{
+    context: BetterPortalResolvedRequestContext;
+    origin: string;
+    documents: ReturnType<typeof buildSeoDocuments>;
+  } | Response> {
+    const context = await this.resolveRequestContext(event);
+    if (!context) return jsonResponse({ error: "BetterPortal tenant/app context required" }, 400);
+    this.applyRequestContext(event, context);
+    const requestOrigin = this.appRequestOrigin(context.app, event);
+    const canonicalOrigin = context.app.seo?.canonicalOrigin?.replace(/\/+$/, "") ?? requestOrigin;
+    const seoServiceIds = new Set((context.app.appRoutes ?? context.app.routes)
+      .filter((route) =>
+        route.enabled !== false
+        && route.authRequired === false
+        && (route.kind ?? "page") === "page"
+        && route.methods.includes("GET")
+      )
+      .map((route) => route.serviceId));
+    const runtime: RuntimeSitemapRoute[] = [];
+    const failed = new Set<string>();
+    const localIds = this.localServiceInstanceIds(context);
+    let localSeoNeeded = false;
+    await Promise.all([...seoServiceIds].map(async (serviceId) => {
+      if (localIds.has(serviceId)) {
+        localSeoNeeded = true;
+        return;
+      }
+      try {
+        runtime.push(...await this.probeServiceSeo(context, serviceId, requestOrigin));
+      } catch (error) {
+        failed.add(serviceId);
+        eventObservability(event)?.logger.warn("BP SEO: service probe failed service={serviceId} app={appId} reason={reason}", {
+          serviceId,
+          appId: context.app.id,
+          reason: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }));
+    if (localSeoNeeded) {
+      try {
+        runtime.push(...await this.serviceSeoRoutes(context, AbortSignal.timeout(15_000)));
+      } catch (error) {
+        for (const serviceId of seoServiceIds) {
+          if (localIds.has(serviceId)) failed.add(serviceId);
+        }
+        eventObservability(event)?.logger.warn("BP SEO: local provider failed app={appId} reason={reason}", {
+          appId: context.app.id,
+          reason: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+    if (failed.size && (context.app.seo?.serviceFailure ?? "omit-service") === "error") {
+      return jsonResponse({ error: "Sitemap service data unavailable", services: [...failed] }, 503);
+    }
+    return {
+      context,
+      origin: canonicalOrigin,
+      documents: buildSeoDocuments(context.app, canonicalOrigin, runtime, failed)
+    };
+  }
+
+  private registerSeoRoutes(): void {
+    this.app.get("/.well-known/bp/seo", async (event) => {
+      const context = await this.resolveRequestContext(event);
+      if (!context) return jsonResponse({ error: "BetterPortal tenant/app context required" }, 400);
+      this.applyRequestContext(event, context);
+      try {
+        const routes = await this.serviceSeoRoutes(context, AbortSignal.timeout(15_000));
+        return jsonResponse({ routes } as unknown as JsonValue);
+      } catch (error) {
+        return jsonResponse({
+          error: "Unable to build service sitemap data",
+          detail: error instanceof Error ? error.message : String(error)
+        }, 500);
+      }
+    });
+
+    if (!this.manifest.shell) return;
+    this.app.get("/robots.txt", async (event) => {
+      const result = await this.shellSeoDocuments(event);
+      if (result instanceof Response) return result;
+      return new Response(result.documents.robots, {
+        headers: {
+          "content-type": "text/plain; charset=utf-8",
+          "cache-control": "public, max-age=300"
+        }
+      });
+    });
+    this.app.get("/sitemap.xml", async (event) => {
+      const result = await this.shellSeoDocuments(event);
+      if (result instanceof Response) return result;
+      const chunks = buildSitemapChunks(result.documents.sitemap);
+      const body = chunks.length === 1 ? chunks[0] : buildSitemapIndex(result.origin, chunks.length);
+      return new Response(body, {
+        headers: {
+          "content-type": "application/xml; charset=utf-8",
+          "cache-control": "public, max-age=300"
+        }
+      });
+    });
+    this.app.get("/sitemaps/:chunk", async (event) => {
+      const result = await this.shellSeoDocuments(event);
+      if (result instanceof Response) return result;
+      const chunks = buildSitemapChunks(result.documents.sitemap);
+      const value = (event as unknown as { context?: { params?: { chunk?: string } } }).context?.params?.chunk;
+      const index = Number(value?.replace(/\.xml$/, "")) - 1;
+      if (!Number.isInteger(index) || index < 0 || index >= chunks.length || chunks.length === 1) {
+        return new Response("Not found", { status: 404 });
+      }
+      return new Response(chunks[index], {
+        headers: {
+          "content-type": "application/xml; charset=utf-8",
+          "cache-control": "public, max-age=300"
+        }
+      });
+    });
   }
 
   // -- Install endpoint ----------------------------------------------

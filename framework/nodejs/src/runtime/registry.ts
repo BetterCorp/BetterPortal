@@ -8,6 +8,7 @@ import type {
 } from "../contracts/registry.js";
 import type { AdminApiDescriptor, BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
 import type { ViewMetadata } from "../contracts/view.js";
+import { sitemapMetadata } from "../contracts/seo.js";
 import { toJsonSchemaDocument } from "./jsonSchema.js";
 
 // -- Route resolution --------------------------------------------------
@@ -241,19 +242,15 @@ export function buildManifestFromRegistry(
     }
   }
 
-  const seenViewIds = new Set<string>();
-  const views: ViewMetadata[] = registry.routes
-    .filter((route) => {
-      if (seenViewIds.has(route.viewId)) return false;
-      seenViewIds.add(route.viewId);
-
-      // Exclude fragment-only routes (routes that have fragment renderers but no pages)
-      const hasAnyPage = Object.values(route.renderers).some(
+  const groupedRoutes = groupRoutesByViewId(registry.routes);
+  const views: ViewMetadata[] = groupedRoutes
+    .filter(({ primary }) => {
+      const hasAnyPage = Object.values(primary.renderers).some(
         (set) => set.pages.length > 0 || set.stream !== undefined
       );
-      return hasAnyPage || Object.keys(route.renderers).length === 0;
+      return hasAnyPage || Object.keys(primary.renderers).length === 0;
     })
-    .map((route) => routeToViewMetadata(route));
+    .map(({ primary, variants }) => routeToViewMetadata(primary, variants));
 
   return {
     protocolVersion: 1,
@@ -291,7 +288,39 @@ export function buildManifestFromRegistry(
   };
 }
 
-function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
+function groupRoutesByViewId(routes: ReadonlyArray<RegisteredRoute>): Array<{
+  primary: RegisteredRoute;
+  variants: string[];
+}> {
+  const groups = new Map<string, RegisteredRoute[]>();
+  for (const route of routes) {
+    const group = groups.get(route.viewId) ?? [];
+    group.push(route);
+    groups.set(route.viewId, group);
+  }
+  return [...groups.values()].map((group) => {
+    const ordered = [...group].sort((a, b) =>
+      b.paramNames.length - a.paramNames.length || b.path.length - a.path.length
+    );
+    return { primary: ordered[0], variants: ordered.map((route) => route.path) };
+  });
+}
+
+function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<string>): ViewMetadata {
+  for (const rule of route.robots ?? []) {
+    if (!/^[A-Za-z0-9*._-]{1,100}$/.test(rule.userAgent)) {
+      throw new Error(`Route ${route.viewId} has an invalid robots user-agent token: ${rule.userAgent}`);
+    }
+    if (rule.access !== "allow" && rule.access !== "disallow") {
+      throw new Error(`Route ${route.viewId} has an invalid robots access rule`);
+    }
+    if (rule.crawlDelaySeconds !== undefined
+      && (!Number.isInteger(rule.crawlDelaySeconds)
+        || rule.crawlDelaySeconds < 0
+        || rule.crawlDelaySeconds > 86_400)) {
+      throw new Error(`Route ${route.viewId} has an invalid robots crawl delay`);
+    }
+  }
   const rendererSupport: Record<string, {
     defaultRenderer: string;
     renderModes: RenderMode[];
@@ -346,8 +375,9 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
     title: route.title,
     description: route.description,
     path: route.path,
+    pathVariants: variants.length > 1 ? [...variants] : [],
     methods: [...route.methods],
-    paramsSchema: {},
+    paramsSchema: route.schemas.params ? toJsonSchemaDocument(route.schemas.params) : {},
     querySchema: route.schemas.query ? toJsonSchemaDocument(route.schemas.query) : {},
     headersSchema: route.schemas.headers ? toJsonSchemaDocument(route.schemas.headers) : {},
     bodySchema: route.schemas.multipart
@@ -365,6 +395,8 @@ function routeToViewMetadata(route: RegisteredRoute): ViewMetadata {
     } : {}),
     html: { renderers: rendererSupport },
     auth: { ...route.auth, callers: [...(route.auth.callers ?? ["user"])] },
+    sitemap: sitemapMetadata(route.sitemap),
+    robots: [...(route.robots ?? [])],
     ...(route.role ? { role: route.role } : {}),
     dependencies: [...(route.dependencies ?? [])],
     ...(route.chrome ? { chrome: route.chrome } : {}),
@@ -395,7 +427,7 @@ export function buildBpSchema(
 ): BpSchemaOutput {
   return {
     manifest,
-    routes: registry.routes.map((route) => {
+    routes: groupRoutesByViewId(registry.routes).map(({ primary: route, variants }) => {
       const fragMap = new Map<string, { fragmentLocation: string; fragmentId: string; renderers: string[] }>();
       for (const [renderer, set] of Object.entries(route.renderers)) {
         for (const f of set.fragments) {
@@ -410,6 +442,7 @@ export function buildBpSchema(
       return {
         viewId: route.viewId,
         path: route.path,
+        pathVariants: variants.length > 1 ? variants : [],
         methods: [...route.methods],
         paramNames: [...route.paramNames],
         renderers: Object.keys(route.renderers),

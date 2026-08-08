@@ -151,6 +151,7 @@ export interface StatusRenderersByKind {
 
 /** Schema references for a route - all optional except response. */
 export interface RouteSchemas {
+  readonly params?: BaseSchema<unknown, unknown>;
   readonly response?: BaseSchema<unknown, unknown>;
   readonly query?: BaseSchema<unknown, unknown>;
   readonly headers?: BaseSchema<unknown, unknown>;
@@ -190,6 +191,10 @@ export interface RegisteredRoute {
   readonly title: string;
   readonly description: string;
   readonly auth: ApiAuthRequirement;
+  /** Optional sitemap declaration/provider exported by the route. */
+  readonly sitemap?: import("./seo.js").RouteSitemapDeclaration;
+  /** Optional crawler policy exported by the route. */
+  readonly robots?: import("./seo.js").RouteRobotsPolicy;
   /** Optional view role hint (e.g., "auth.login"). Used by discovery flows. */
   readonly role?: string;
   /** ViewIds that should be mounted with this view for API/detail flows. */

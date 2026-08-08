@@ -89,6 +89,7 @@ export type PluginManifest = Infer<typeof PluginManifestSchema>;
 export const BpSchemaRouteSchema = av.object({
   viewId: av.string().minLength(1),
   path: av.string().minLength(1),
+  pathVariants: av.array(av.string().minLength(1)).default([]),
   methods: av.array(HttpMethodSchema).minItems(1),
   paramNames: av.array(av.string().minLength(1)).default([]),
   renderers: av.array(av.string().minLength(1)).default([]),

@@ -113,6 +113,10 @@ When the selected auth service advertises both role authorities, Tenants & Apps 
 
 Tenants & Apps also owns post-auth navigation. After selecting an auth provider, administrators may select an after-sign-in and after-sign-out target as a service + view pair. Config Manager stores these under `app.auth.redirects`; they are not provider addon fields. The selector includes only enabled GET page views with one unambiguous mount. Blank targets fall back to `app.defaultRoute`.
 
+Tenants & Apps also owns app-wide robots and sitemap policy. Visibility defaults to `auto`; an inaccessible service is omitted and its mounted paths are disallowed by default; successful service data defaults to a 24-hour cache; canonical origin defaults to the configured hostname matched by the request. A private app emits a root disallow and an empty sitemap.
+
+The Route Designer understands service `pathVariants` and `:param` segments. Every service parameter must either appear with the same name in the app mount path or have a validated fixed value. Unresolved parameters block saving in both the UI and admin API. Fixed mappings are stored in `route.fixedParams`; a non-primary optional path is stored in `route.servicePathVariant`. Config Manager migrates legacy `{param}` route paths to `:param` once and rejects brace syntax on new writes.
+
 For WorkOS-backed apps, BP permissions sync to short WorkOS permission slugs as `bp_<shortId>_<permission>`; the WorkOS service stores the tenant/service/view mapping in its `workosStatePath` JSON file. WorkOS permission webhook events are intentionally ignored to avoid sync loops. Role webhook events follow the app's selected role authority: WorkOS -> BP in provider mode and BP -> WorkOS in BetterPortal mode.
 
 The normal role API rejects reserved ids, including `root` and `*`. The reserved `*` role is maintained only on the configured management tenant/app as the platform-root wildcard. It grants every route permission only when the request is for `configManagement.adminTenantId` and `configManagement.managementAppId`; outside that exact scope, it is logged as misuse and does not grant access.

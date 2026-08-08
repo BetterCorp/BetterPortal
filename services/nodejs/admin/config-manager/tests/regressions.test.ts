@@ -6,7 +6,7 @@ import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-m
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, reconcileServiceRegistry, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
-import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
@@ -148,6 +148,59 @@ test("duplicate route keys follow runtime route matching", () => {
   assert.equal(appRoutePatternKey("/"), appRoutePatternKey("//"));
   assert.equal(appRoutePatternKey("/users/:id"), appRoutePatternKey("/users/{userId}/"));
   assert.notEqual(appRoutePatternKey("/users/new"), appRoutePatternKey("/users/:id"));
+});
+
+test("legacy route parameter syntax migrates across route and manifest paths", () => {
+  const { config, sourceId } = s2sConfig();
+  config.apps[0].routes.push({
+    id: uuidv7(),
+    kind: "page",
+    path: "/plans/{planId}",
+    serviceId: sourceId,
+    viewId: "plans.detail",
+    servicePathVariant: "/plans/{planId}",
+    targetPath: "/plans/{planId}",
+    resolvedServicePath: "/plans/{planId}",
+    methods: ["GET"],
+    enabled: true
+  });
+  config.manifestCache.push({
+    serviceId: sourceId,
+    fetchedAt: new Date().toISOString(),
+    capabilities: [],
+    m2mRequests: [],
+    apiContracts: [],
+    developerResources: [],
+    configSchemas: [],
+    webhooks: [],
+    viewIndex: {
+      "plans.detail": {
+        viewId: "plans.detail",
+        path: "/plans/{planId}",
+        pathVariants: ["/plans/{planId}"],
+        methods: ["GET"],
+        renderers: [],
+        dependencies: [],
+        permissions: [],
+        renderable: true,
+        apiContracts: [],
+        demoScenarios: [],
+        fragments: [{ fragmentId: "summary", targetPath: "/plans/{planId}/summary" }],
+        robots: []
+      }
+    }
+  });
+
+  const migrated = migrateRouteParamSyntax(config);
+  const route = migrated.apps[0].routes[0];
+  const view = migrated.manifestCache[0].viewIndex["plans.detail"];
+  assert.equal(route.path, "/plans/:planId");
+  assert.equal(route.servicePathVariant, "/plans/:planId");
+  assert.equal(route.targetPath, "/plans/:planId");
+  assert.equal(route.resolvedServicePath, "/plans/:planId");
+  assert.equal(view.path, "/plans/:planId");
+  assert.deepEqual(view.pathVariants, ["/plans/:planId"]);
+  assert.equal(view.fragments[0].targetPath, "/plans/:planId/summary");
 });
 
 test("official legacy plugin IDs migrate without changing external IDs", () => {

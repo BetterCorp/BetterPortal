@@ -115,6 +115,80 @@ function requiredRouteString(body: Record<string, unknown>, key: string, label: 
   return { value };
 }
 
+function routeParamNames(path: string): string[] {
+  return [...new Set(path.split("/").flatMap((segment) => {
+    const match = segment.match(/^:([A-Za-z_][A-Za-z0-9_]*)$/);
+    return match ? [match[1]] : [];
+  }))];
+}
+
+function validateCanonicalRoutePath(path: string, label: string): string | undefined {
+  if (!path.startsWith("/")) return `${label} must start with /.`;
+  if (/\{[^}]+\}/.test(path)) return `${label} must use :param syntax; {param} is no longer supported.`;
+  for (const segment of path.split("/")) {
+    if (segment.startsWith(":") && !/^:[A-Za-z_][A-Za-z0-9_]*$/.test(segment)) {
+      return `${label} contains an invalid parameter segment: ${segment}.`;
+    }
+  }
+  return undefined;
+}
+
+function fixedParamsFromBody(body: Record<string, unknown>): Record<string, string> {
+  const fixed: Record<string, string> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (!key.startsWith("fixedParam.")) continue;
+    const name = key.slice("fixedParam.".length);
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || typeof value !== "string") continue;
+    const normalized = value.trim();
+    if (normalized) fixed[name] = normalized;
+  }
+  return fixed;
+}
+
+function validateFixedParamValue(
+  name: string,
+  value: string,
+  paramsSchema?: Record<string, JsonValue>
+): string | undefined {
+  const properties = paramsSchema?.properties;
+  const schema = properties && typeof properties === "object" && !Array.isArray(properties)
+    ? (properties as Record<string, JsonValue>)[name]
+    : undefined;
+  const rule = schema && typeof schema === "object" && !Array.isArray(schema)
+    ? schema as Record<string, JsonValue>
+    : {};
+  const minLength = typeof rule.minLength === "number" ? rule.minLength : 1;
+  const maxLength = Math.min(typeof rule.maxLength === "number" ? rule.maxLength : 100, 100);
+  if (value.length < minLength || value.length > maxLength) {
+    return `${name} must be between ${minLength} and ${maxLength} characters.`;
+  }
+  if (typeof rule.pattern === "string") {
+    try {
+      if (!new RegExp(rule.pattern).test(value)) return `${name} does not match its service validation pattern.`;
+    } catch {
+      return `${name} has an invalid validation pattern in the service manifest.`;
+    }
+  }
+  return undefined;
+}
+
+function validateRouteParamMapping(
+  appPath: string,
+  servicePath: string,
+  fixedParams: Record<string, string>,
+  paramsSchema?: Record<string, JsonValue>
+): string | undefined {
+  const appParams = new Set(routeParamNames(appPath));
+  for (const name of routeParamNames(servicePath)) {
+    if (appParams.has(name)) continue;
+    const value = fixedParams[name];
+    if (!value) return `Service parameter :${name} must appear in the app path or have a fixed value.`;
+    const valueError = validateFixedParamValue(name, value, paramsSchema);
+    if (valueError) return valueError;
+  }
+  return undefined;
+}
+
 function routeMethodsFromManifest(methods?: string[]): BetterPortalRouteMount["methods"] {
   const normalized = (methods ?? []).filter((method): method is BetterPortalRouteMount["methods"][number] =>
     method === "GET" || method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE" || method === "OPTIONS"
@@ -322,11 +396,21 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   const manifestView = getManifestCache().get(serviceId.value!)?.viewIndex[viewId.value!];
   const renderable = manifestView?.renderable !== false;
   const manifest = getManifestCache().get(serviceId.value!);
-  const serviceRoutePath = manifestView?.path ?? `/${viewId.value!}`;
+  const servicePathVariant = trimmedString(body, "servicePathVariant") ?? manifestView?.path ?? `/${viewId.value!}`;
+  if (manifestView && ![manifestView.path, ...manifestView.pathVariants].includes(servicePathVariant)) {
+    return { error: "Selected service path is not available for this view." };
+  }
+  const serviceRoutePath = servicePathVariant;
 
   const path = renderable ? requiredRouteString(body, "path", "Mount path") : { value: apiRoutePath(manifest?.serviceId ?? serviceId.value!, serviceRoutePath) };
   if (path.error) return { error: path.error };
-  if (!path.value!.startsWith("/")) return { error: "Mount path must start with /." };
+  const pathError = validateCanonicalRoutePath(path.value!, "Mount path");
+  if (pathError) return { error: pathError };
+  const servicePathError = validateCanonicalRoutePath(serviceRoutePath, "Service path");
+  if (servicePathError) return { error: servicePathError };
+  const fixedParams = fixedParamsFromBody(body);
+  const mappingError = validateRouteParamMapping(path.value!, serviceRoutePath, fixedParams, manifestView?.paramsSchema);
+  if (mappingError) return { error: mappingError };
 
   const title = renderable ? requiredRouteString(body, "title", "Display title") : { value: manifestView?.viewId ?? viewId.value! };
   if (title.error) return { error: title.error };
@@ -336,11 +420,13 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
     path: path.value!,
     serviceId: serviceId.value!,
     viewId: viewId.value!,
+    ...(manifestView && servicePathVariant !== manifestView.path ? { servicePathVariant } : {}),
+    ...(Object.keys(fixedParams).length > 0 ? { fixedParams } : {}),
     title: title.value!,
     enabled: true,
     methods: routeMethodsFromManifest(manifestView?.methods)
   };
-  if (manifestView?.path) route.targetPath = manifestView.path;
+  if (manifestView?.path) route.targetPath = serviceRoutePath;
   const query = trimmedString(body, "query");
   if (query && renderable) route.query = query.replace(/^\?+/, "");
   return { route };
@@ -2013,7 +2099,8 @@ export function registerAdminApiRoutes(
     if (body.path !== undefined) {
       const path = trimmedString(body, "path");
       if (!path) return validationError(event, "Mount path is required.");
-      if (!path.startsWith("/")) return validationError(event, "Mount path must start with /.");
+      const pathError = validateCanonicalRoutePath(path, "Mount path");
+      if (pathError) return validationError(event, pathError);
       if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(path))) {
         return validationError(event, `A route already exists at ${path}.`);
       }
@@ -2034,11 +2121,34 @@ export function registerAdminApiRoutes(
     const manifest = getManifestCache().get(route.serviceId);
     const manifestView = manifest?.viewIndex[route.viewId];
     if (manifestView) {
+      const routeIdentityChanged = body.serviceId !== undefined || body.viewId !== undefined;
+      const requestedServicePath = trimmedString(body, "servicePathVariant")
+        ?? (routeIdentityChanged ? undefined : route.servicePathVariant)
+        ?? manifestView.path;
+      if (![manifestView.path, ...manifestView.pathVariants].includes(requestedServicePath)) {
+        return validationError(event, "Selected service path is not available for this view.");
+      }
+      const servicePathError = validateCanonicalRoutePath(requestedServicePath, "Service path");
+      if (servicePathError) return validationError(event, servicePathError);
+      const submittedFixed = fixedParamsFromBody(body);
+      const mappedAppPath = manifestView.renderable === false
+        ? apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath)
+        : route.path;
+      const appParams = new Set(routeParamNames(mappedAppPath));
+      const fixedParams = Object.fromEntries(Object.entries(submittedFixed).filter(([name]) =>
+        routeParamNames(requestedServicePath).includes(name) && !appParams.has(name)
+      ));
+      const mappingError = validateRouteParamMapping(mappedAppPath, requestedServicePath, fixedParams, manifestView.paramsSchema);
+      if (mappingError) return validationError(event, mappingError);
+      if (requestedServicePath === manifestView.path) delete route.servicePathVariant;
+      else route.servicePathVariant = requestedServicePath;
+      if (Object.keys(fixedParams).length > 0) route.fixedParams = fixedParams;
+      else delete route.fixedParams;
       route.methods = routeMethodsFromManifest(manifestView.methods);
-      route.targetPath = manifestView.path;
+      route.targetPath = requestedServicePath;
       if (manifestView.renderable === false) {
         route.kind = "api";
-        route.path = apiRoutePath(manifest?.serviceId ?? route.serviceId, manifestView.path);
+        route.path = apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath);
         route.title = manifestView.viewId;
         delete route.query;
       } else {

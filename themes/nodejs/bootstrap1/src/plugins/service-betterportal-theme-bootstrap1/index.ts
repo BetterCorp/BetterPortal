@@ -150,6 +150,12 @@ function resolveSafeServiceViewTarget(
   themeOrigin: string
 ): SafeServiceTarget {
   const viewUrl = buildServiceViewUrl(service, route, currentPath);
+  if (!viewUrl) {
+    return {
+      ok: false,
+      error: "Invalid BetterPortal route: required route parameters are unresolved."
+    };
+  }
   const parsed = parseAbsoluteHttpUrl(viewUrl);
   if (!parsed) {
     return {

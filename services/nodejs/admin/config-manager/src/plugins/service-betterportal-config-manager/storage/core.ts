@@ -97,6 +97,29 @@ export function migrateAuthViewIds(config: BetterPortalConfig): BetterPortalConf
   return config;
 }
 
+function colonizeRouteParams(path: string | undefined): string | undefined {
+  return path?.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, ":$1");
+}
+
+export function migrateRouteParamSyntax(config: BetterPortalConfig): BetterPortalConfig {
+  for (const app of config.apps) {
+    for (const route of app.routes) {
+      route.path = colonizeRouteParams(route.path)!;
+      route.targetPath = colonizeRouteParams(route.targetPath);
+      route.resolvedServicePath = colonizeRouteParams(route.resolvedServicePath);
+      route.servicePathVariant = colonizeRouteParams(route.servicePathVariant);
+    }
+  }
+  for (const manifest of config.manifestCache) {
+    for (const view of Object.values(manifest.viewIndex)) {
+      view.path = colonizeRouteParams(view.path)!;
+      view.pathVariants = view.pathVariants.map((path) => colonizeRouteParams(path)!);
+      for (const fragment of view.fragments) fragment.targetPath = colonizeRouteParams(fragment.targetPath)!;
+    }
+  }
+  return config;
+}
+
 export function getAvailableServiceInstanceIdsForApp(
   config: BetterPortalConfig,
   app: Pick<BetterPortalApp, "id" | "tenantId">
@@ -325,6 +348,21 @@ export abstract class BaseStorage implements PlatformConfigStore {
       const routeIds = new Set(app.routes.map((route) => route.id));
 
       for (const route of app.routes) {
+        for (const [label, path] of [
+          ["path", route.path],
+          ["servicePathVariant", route.servicePathVariant],
+          ["targetPath", route.targetPath],
+          ["resolvedServicePath", route.resolvedServicePath]
+        ] as const) {
+          if (path && /\{[^}]+\}/.test(path)) {
+            errors.push(`app ${app.id} route ${route.id} ${label} must use :param syntax`);
+          }
+        }
+        for (const [name, value] of Object.entries(route.fixedParams ?? {})) {
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || value.length < 1 || value.length > 100) {
+            errors.push(`app ${app.id} route ${route.id} has invalid fixed parameter: ${name}`);
+          }
+        }
         if (!serviceIdsForApp.has(route.serviceId)) {
           errors.push(`app ${app.id} route ${route.id} references unavailable service instance: ${route.serviceId}`);
         }
@@ -820,6 +858,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
       shell: resolveAppShell(config, app),
       themeConfig: app.themeConfig,
       defaultRoute: app.defaultRoute,
+      seo: app.seo,
       // Themes and authoritative auth services need the full route allowlist.
       routes: isShellCaller || isAuthCaller ? app.routes : app.routes.filter((r) => serviceKeySet.has(r.serviceId)),
       appRoutes: app.routes,

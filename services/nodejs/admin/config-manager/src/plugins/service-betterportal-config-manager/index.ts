@@ -581,6 +581,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               viewId: v.viewId,
               title: v.viewId,
               path: v.path,
+              pathVariants: v.pathVariants,
+              paramsSchema: v.paramsSchema,
               methods: v.methods,
               renderable: v.renderable,
               dependencies: v.dependencies
@@ -633,6 +635,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         serviceId: r.serviceId,
         viewId: r.viewId,
         targetPath: r.targetPath ?? view?.path,
+        servicePathVariant: r.servicePathVariant,
+        fixedParams: r.fixedParams ?? {},
         methods: r.methods,
         query: r.query,
         title: r.title,

@@ -128,6 +128,7 @@ const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
 
 const WELL_KNOWN_EXPORTS = [
   "ResponseSchema",
+  "ParamsSchema",
   "QuerySchema",
   "HeadersSchema",
   "RequestSchema",
@@ -138,6 +139,8 @@ const WELL_KNOWN_EXPORTS = [
   "title",
   "description",
   "auth",
+  "sitemap",
+  "robots",
   "role",
   "dependencies",
   "chrome",
@@ -323,6 +326,7 @@ function detectDefaultExport(filePath: string): boolean {
 
 const ROUTE_SCHEMA_EXPORTS = new Set([
   "ResponseSchema",
+  "ParamsSchema",
   "QuerySchema",
   "HeadersSchema",
   "RequestSchema",
@@ -503,7 +507,15 @@ function buildRoutePaths(segments: string[]): Array<{ httpPath: string; paramNam
   ];
 
   for (const seg of segments) {
-    const optionalParamMatch = seg.match(/^\[\[(\w+)]]$/);
+    if (/^\[/.test(seg)
+      && !/^\[\[[A-Za-z_][A-Za-z0-9_]*]]$/.test(seg)
+      && !/^\[[A-Za-z_][A-Za-z0-9_]*]$/.test(seg)) {
+      throw new Error(`Unsupported route segment "${seg}". Use [id] or [[id]]; catch-all params are not supported.`);
+    }
+    if (/^\{[^}]+\}$/.test(seg)) {
+      throw new Error(`Unsupported route segment "${seg}". Filesystem params use [id] or [[id]] and publish as :id.`);
+    }
+    const optionalParamMatch = seg.match(/^\[\[([A-Za-z_][A-Za-z0-9_]*)]]$/);
     if (optionalParamMatch) {
       const paramName = optionalParamMatch[1];
       variants = variants.flatMap((variant) => [
@@ -516,7 +528,7 @@ function buildRoutePaths(segments: string[]): Array<{ httpPath: string; paramNam
       continue;
     }
 
-    const paramMatch = seg.match(/^\[(\w+)]$/);
+    const paramMatch = seg.match(/^\[([A-Za-z_][A-Za-z0-9_]*)]$/);
     const httpSegment = paramMatch ? `:${paramMatch[1]}` : seg;
     const paramName = paramMatch?.[1];
 
@@ -540,7 +552,7 @@ function buildRoutePaths(segments: string[]): Array<{ httpPath: string; paramNam
  */
 function buildViewId(segments: string[]): string {
   const parts = segments.map((seg) => {
-    const paramMatch = seg.match(/^\[\[?(\w+)]]?$/);
+    const paramMatch = seg.match(/^\[\[?([A-Za-z_][A-Za-z0-9_]*)]]?$/);
     return paramMatch ? `$${paramMatch[1]}` : seg;
   });
   return [...parts, "index"].join(".");

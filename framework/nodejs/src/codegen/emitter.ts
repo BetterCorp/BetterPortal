@@ -118,6 +118,7 @@ function methodImportPath(methodModule: ScannedMethodModule): string {
 
 const SCHEMA_EXPORTS: ReadonlyArray<{ exportName: string; key: string }> = [
   { exportName: "ResponseSchema", key: "response" },
+  { exportName: "ParamsSchema", key: "params" },
   { exportName: "QuerySchema", key: "query" },
   { exportName: "HeadersSchema", key: "headers" },
   { exportName: "RequestSchema", key: "request" },
@@ -127,16 +128,26 @@ const SCHEMA_EXPORTS: ReadonlyArray<{ exportName: string; key: string }> = [
 function emitSchemas(route: ScannedRoute, importAlias: string): string {
   const firstMethod = route.methodModules[0];
   if (firstMethod) {
-    return emitSchemasFromExports(firstMethod.exports, methodImportName(route.viewId, firstMethod.method));
+    const methodAlias = methodImportName(route.viewId, firstMethod.method);
+    const params = route.metadataExports.includes("ParamsSchema")
+      ? [{ key: "params", value: `${importAlias}.ParamsSchema` }]
+      : [];
+    return emitSchemasFromExports(firstMethod.exports, methodAlias, params);
   }
 
   return emitSchemasFromExports(route.handlerExports, importAlias);
 }
 
-function emitSchemasFromExports(exports: ReadonlyArray<string>, importAlias: string): string {
-  const entries: string[] = SCHEMA_EXPORTS
+function emitSchemasFromExports(
+  exports: ReadonlyArray<string>,
+  importAlias: string,
+  extra: ReadonlyArray<{ key: string; value: string }> = []
+): string {
+  const entries: string[] = extra.map((entry) => `${entry.key}: ${entry.value}`);
+  entries.push(...SCHEMA_EXPORTS
     .filter((s) => exports.includes(s.exportName))
-    .map((s) => `${s.key}: ${importAlias}.${s.exportName}`);
+    .filter((s) => !extra.some((entry) => entry.key === s.key))
+    .map((s) => `${s.key}: ${importAlias}.${s.exportName}`));
 
   if (exports.includes("ItemSchema")) {
     if (!exports.includes("ResponseSchema")) {
@@ -485,6 +496,8 @@ export function emitRegistry(scanResult: ScanResult): string {
     const hasTitle = route.metadataExports.includes("title");
     const hasDescription = route.metadataExports.includes("description");
     const hasAuth = route.metadataExports.includes("auth");
+    const hasSitemap = route.metadataExports.includes("sitemap");
+    const hasRobots = route.metadataExports.includes("robots");
     const hasRole = route.metadataExports.includes("role");
     const hasDependencies = route.metadataExports.includes("dependencies");
     const hasChrome = route.metadataExports.includes("chrome");
@@ -513,6 +526,12 @@ export function emitRegistry(scanResult: ScanResult): string {
     lines.push(`      title: ${hasTitle ? `${alias}.title` : JSON.stringify(fallbackTitle)},`);
     lines.push(`      description: ${hasDescription ? `${alias}.description` : `""`},`);
     lines.push(`      auth: ${hasAuth ? `${alias}.auth` : `{ required: false, permissions: [] }`},`);
+    if (hasSitemap) {
+      lines.push(`      sitemap: ${alias}.sitemap,`);
+    }
+    if (hasRobots) {
+      lines.push(`      robots: ${alias}.robots,`);
+    }
     if (hasRole) {
       lines.push(`      role: ${alias}.role,`);
     }

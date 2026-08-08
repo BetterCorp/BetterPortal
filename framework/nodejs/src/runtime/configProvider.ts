@@ -156,6 +156,7 @@ export interface BetterPortalContextResolutionResult {
   context: BetterPortalResolvedRequestContext | null;
   candidates: BetterPortalContextResolutionCandidate[];
   matchedBy?: string;
+  matchedHost?: string;
 }
 
 export function resolveRequestContextDetailed(
@@ -176,7 +177,7 @@ export function resolveRequestContextDetailed(
     });
     const context = buildResolvedContext(config, app?.id ?? null);
     if (context) {
-      return { context, candidates: attempts, matchedBy: candidate.source };
+      return { context, candidates: attempts, matchedBy: candidate.source, matchedHost: candidate.host };
     }
   }
 
@@ -312,8 +313,7 @@ function routeParamName(segment: string): string | null {
   if (segment.startsWith(":") && segment.length > 1) {
     return segment.slice(1);
   }
-  const braceMatch = segment.match(/^\{([A-Za-z_][A-Za-z0-9_]*)\}$/);
-  return braceMatch?.[1] ?? null;
+  return null;
 }
 
 function routePatternMatches(routePath: string, pathname: string): boolean {
@@ -332,7 +332,11 @@ function routePatternMatches(routePath: string, pathname: string): boolean {
 
 export function resolveAppRoute(app: BetterPortalApp, pathname: string): BetterPortalRouteMount | null {
   const normalizedPath = pathname.trim().length > 0 ? pathname : "/";
-  return app.routes.find((route) => route.enabled && routePatternMatches(route.path, normalizedPath)) ?? null;
+  const matches = app.routes.filter((route) => route.enabled && routePatternMatches(route.path, normalizedPath));
+  return matches.sort((a, b) => {
+    const dynamic = (path: string) => splitRoutePath(path).filter((segment) => routeParamName(segment)).length;
+    return dynamic(a.path) - dynamic(b.path);
+  })[0] ?? null;
 }
 
 export function inferServicePathFromViewId(viewId: string): string {
@@ -360,18 +364,29 @@ function extractRouteParams(routePath: string, currentPath: string): Record<stri
   return params;
 }
 
-function interpolatePath(pathTemplate: string, params: Record<string, string>): string {
+function interpolatePath(pathTemplate: string, params: Record<string, string>): string | null {
   const [pathPart, queryPart] = pathTemplate.split("?", 2);
-  const resolvedSegments = splitRoutePath(pathPart).map((segment) => {
+  const resolvedSegments: string[] = [];
+  for (const segment of splitRoutePath(pathPart)) {
     const paramName = routeParamName(segment);
-    return paramName ? (params[paramName] ?? segment) : segment;
-  });
+    if (paramName && params[paramName] === undefined) return null;
+    resolvedSegments.push(paramName ? encodeURIComponent(params[paramName]) : segment);
+  }
 
   const resolvedPath = resolvedSegments.length === 0 ? "/" : `/${resolvedSegments.join("/")}`;
+  let unresolvedQuery = false;
   const resolvedQuery = queryPart?.replace(
-    /(?::([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})/g,
-    (match, colonName: string | undefined, braceName: string | undefined) => params[colonName ?? braceName ?? ""] ?? match
+    /:([A-Za-z_][A-Za-z0-9_]*)/g,
+    (_match, name: string) => {
+      const value = params[name];
+      if (value === undefined) {
+        unresolvedQuery = true;
+        return "";
+      }
+      return encodeURIComponent(value);
+    }
   );
+  if (unresolvedQuery) return null;
 
   return resolvedQuery ? `${resolvedPath}?${resolvedQuery}` : resolvedPath;
 }
@@ -380,15 +395,15 @@ export function buildServiceViewUrl(
   binding: { hostname: string } | { endpointBaseUrl: string },
   route: BetterPortalRouteMount,
   currentPath: string
-): string {
+): string | null {
   const baseUrl = serviceBaseUrl(binding);
-  const params = extractRouteParams(route.path, currentPath) ?? {};
-  const servicePath = route.resolvedServicePath ?? route.targetPath;
+  const params = { ...route.fixedParams, ...(extractRouteParams(route.path, currentPath) ?? {}) };
+  const servicePath = route.resolvedServicePath ?? route.servicePathVariant ?? route.targetPath;
   const resolvedPath = servicePath
     ? interpolatePath(servicePath, params)
     : Object.keys(params).length > 0
       ? interpolatePath(route.path, params)
       : inferServicePathFromViewId(route.viewId);
 
-  return `${baseUrl}${resolvedPath}`;
+  return resolvedPath ? `${baseUrl}${resolvedPath}` : null;
 }
