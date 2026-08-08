@@ -123,6 +123,22 @@ Method files are named exactly by HTTP method: `GET.ts`, `POST.ts`, `PUT.ts`, `P
 
 BetterPortal service APIs do not support cookies. Do not read `Cookie` or emit `Set-Cookie` from route handlers; use `ctx.bpHeaders.set(...)` and `ctx.bpHeaders.remove(...)` for browser-managed state that must accompany later BP requests.
 
+Every final status outside 200-399 receives an HTTP outcome diagnostic. Framework validation, authorization, negotiation, rendering, CORS, config, and discovery failures already use stable core codes. When a handler returns a service-specific error response, set a domain code and concise reason first:
+
+```ts
+ctx.diagnostic({
+  code: "orders.version_conflict",
+  reason: "The order was changed by another request",
+  attributes: { "orders.id": orderId }
+});
+return ctx.response(JSON.stringify({ error: "Order changed; reload and retry" }), {
+  status: 409,
+  headers: { "content-type": "application/json" }
+});
+```
+
+Use stable lowercase dotted codes. Reasons and attributes are observability data, so never include credentials, tokens, secrets, or avoidable personal data. If a custom failure is not annotated, the runtime derives a bounded reason from `reason`, `error`, `message`, or `detail` in a JSON body, then from text content, and finally from the HTTP status. Body inspection is capped at 2 KiB and occurs on a cloned response.
+
 Route handlers can import handler factories from two places:
 
 - `@betterportal/framework` keeps `ctx.plugin` as `unknown` and `ctx.config` as `Record<string, unknown>`.

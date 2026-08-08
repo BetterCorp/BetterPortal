@@ -11,7 +11,11 @@ import {
   type ServiceConfigState,
   type ServiceConfigTicketClaims
 } from "../contracts/serviceConfig.js";
-import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "./h3.js";
+import { jsonResponse, withCoreHttpOutcome, type BetterPortalEvent, type BetterPortalH3App } from "./h3.js";
+
+function configError(body: JsonObject, status: number, code: string, reason: string): Response {
+  return withCoreHttpOutcome(jsonResponse(body, status), { code, reason });
+}
 
 export interface ServiceConfigAccessContext {
   ticket: ServiceConfigTicketClaims;
@@ -113,15 +117,15 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
   options.app.get(basePath, async (event) => {
     const ticket = await resolveTicket(options, event, "config.read");
     if (!ticket) {
-      return jsonResponse({
+      return configError({
         error: "A valid BetterPortal config ticket is required for config.read"
-      }, 401);
+      }, 401, "config.ticket_invalid", "A valid BetterPortal config.read ticket is required");
     }
 
     if (!options.readConfig) {
-      return jsonResponse({
+      return configError({
         error: "This service does not expose dynamic config reads"
-      }, 501);
+      }, 501, "config.read_not_supported", "This service does not expose dynamic config reads");
     }
 
     const requestedAppId = event.req.headers.get("x-bp-app-id") ?? undefined;
@@ -131,9 +135,9 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
       action: "config.read",
       ticket
     }, event))) {
-      return jsonResponse({
+      return configError({
         error: "Config read scope is not allowed for this ticket"
-      }, 403);
+      }, 403, "config.read_scope_denied", "Config read scope is not allowed for this ticket");
     }
 
     const state = await options.readConfig({
@@ -159,34 +163,34 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
   options.app.post(basePath, async (event) => {
     const ticket = await resolveTicket(options, event, "config.write");
     if (!ticket) {
-      return jsonResponse({
+      return configError({
         error: "A valid BetterPortal config ticket is required for config.write"
-      }, 401);
+      }, 401, "config.ticket_invalid", "A valid BetterPortal config.write ticket is required");
     }
 
     if (!options.writeConfig) {
-      return jsonResponse({
+      return configError({
         error: "This service does not expose dynamic config writes"
-      }, 501);
+      }, 501, "config.write_not_supported", "This service does not expose dynamic config writes");
     }
 
     const body = await event.req.json().catch(() => null);
     const parsedWrite = ServiceConfigWriteRequestSchema.safeParse(body);
     if (!parsedWrite.success) {
-      return jsonResponse({
+      return configError({
         error: "Invalid config write payload",
         issues: parsedWrite.issues.map((issue) => ({
           code: issue.code,
           path: issue.path.join("."),
           message: issue.message
         }))
-      }, 400);
+      }, 400, "config.write_payload_invalid", "Invalid config write payload");
     }
 
     if (parsedWrite.data.tenantId !== ticket.tenantId) {
-      return jsonResponse({
+      return configError({
         error: "Config write tenant does not match the ticket tenant"
-      }, 403);
+      }, 403, "config.write_tenant_mismatch", "Config write tenant does not match the ticket tenant");
     }
 
     if (options.validateScope && !(await options.validateScope({
@@ -195,9 +199,9 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
       action: "config.write",
       ticket
     }, event))) {
-      return jsonResponse({
+      return configError({
         error: "Config write scope is not allowed for this ticket"
-      }, 403);
+      }, 403, "config.write_scope_denied", "Config write scope is not allowed for this ticket");
     }
 
     let state: ServiceConfigState | null = null;

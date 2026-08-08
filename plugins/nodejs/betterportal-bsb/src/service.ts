@@ -37,6 +37,7 @@ import {
   type AuthProviderRuntimeMetadata,
   type BetterPortalResolvedRequestContext,
   type BetterPortalObservability,
+  type ObservabilityAttributes,
   type BetterPortalRegistry,
   type BetterPortalShellFragmentItem,
   type RegisteredShellFragment,
@@ -68,12 +69,14 @@ import { ScopedConfigCache } from "./scopedConfigCache.js";
 import {
   createBetterPortalApp,
   createBetterPortalNodeHandler,
+  annotateCoreHttpOutcome,
   eventObservability,
   eventHeaders,
   getEventPeerIp,
   handleCorsRequest,
   htmlResponse,
   jsonResponse,
+  withCoreHttpOutcome,
   type BetterPortalEvent,
   type BetterPortalH3App
 } from "@betterportal/framework/lib/runtime/h3.js";
@@ -89,6 +92,20 @@ import {
 
 const DEFAULT_BOOTSTRAP_STATE_PATH = "./.bp-bootstrap/state.enc";
 const DEFAULT_SCOPED_CONFIG_CACHE_PATH = "./.bp-sync-cache/scoped.json";
+
+function boundedDiagnosticList(values: ReadonlyArray<string>, limit = 4096): string {
+  return values.join(",").slice(0, limit);
+}
+
+function coreJsonResponse(
+  body: JsonValue,
+  status: number,
+  code: string,
+  reason: string,
+  attributes?: ObservabilityAttributes
+): Response {
+  return withCoreHttpOutcome(jsonResponse(body, status), { code, reason, attributes });
+}
 
 export interface BPServiceConfig {
   host: string;
@@ -319,14 +336,31 @@ export abstract class BPService<
       try {
         id = decodeURIComponent(event.url.pathname.slice("/.well-known/bp/shell/fragment/".length));
       } catch {
-        return new Response("", { status: 400 });
+        return withCoreHttpOutcome(new Response("", { status: 400 }), {
+          code: "fragment.request_invalid",
+          reason: "Shell fragment identifier is not valid URL encoding"
+        });
       }
       const definition = registry.shellFragments!.find((fragment) => fragment.id === id);
-      if (!definition) return new Response("", { status: 404 });
+      if (!definition) {
+        return withCoreHttpOutcome(new Response("", { status: 404 }), {
+          code: "fragment.definition_not_found",
+          reason: "Shell fragment is not defined by this service",
+          attributes: { "bp.fragment.id": id }
+        });
+      }
       const requestContext = this.resolveHandlerContext(event);
       const activeShell = (requestContext.app as BetterPortalResolvedRequestContext["app"] | undefined)?.shell;
       if (!requestContext.tenant || !requestContext.app || activeShell?.service !== this.manifest.shell?.service) {
-        return new Response("", { status: 404 });
+        return withCoreHttpOutcome(new Response("", { status: 404 }), {
+          code: "fragment.shell_mismatch",
+          reason: "Shell fragment is unavailable for the resolved app shell",
+          attributes: {
+            "bp.fragment.id": id,
+            "bp.shell.requested": activeShell?.service ?? "",
+            "bp.shell.service": this.manifest.shell?.service ?? ""
+          }
+        });
       }
       const app = requestContext.app;
       const activeShellServiceId = app.shell!.serviceId;
@@ -1283,6 +1317,24 @@ export abstract class BPService<
     };
   }
 
+  private rejectCors(
+    event: BetterPortalEvent,
+    allowHeaders: string[],
+    code: string,
+    reason: string,
+    attributes: ObservabilityAttributes = {}
+  ): Response | undefined {
+    annotateCoreHttpOutcome(event, { code, reason, attributes });
+    return handleCorsRequest(event, {
+      origin: [],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowHeaders,
+      credentials: true,
+      exposeHeaders: [],
+      preflight: { statusCode: 403 }
+    }) || undefined;
+  }
+
   private async handleWithCors(event: BetterPortalEvent): Promise<Response | undefined> {
     const requestedHeaders = event.req.headers.get("access-control-request-headers");
     const allowHeaders = requestedHeaders?.trim().length
@@ -1299,15 +1351,26 @@ export abstract class BPService<
       const secondaryToken = secondaryAuthorization?.startsWith("Bearer ") ? secondaryAuthorization.slice(7) : "";
       const delegated = secondaryAuthorization !== null;
       if (delegated ? (!secondaryToken || !primaryToken || isServiceToken(primaryToken)) : !isServiceToken(primaryToken)) {
-        return jsonResponse({ error: "Invalid S2S authorization envelope" }, 401);
+        return withCoreHttpOutcome(
+          jsonResponse({ error: "Invalid S2S authorization envelope" }, 401),
+          { code: "s2s.envelope_invalid", reason: "Invalid S2S authorization envelope" }
+        );
       }
       const tenantId = event.req.headers.get("x-bp-tenant-id");
       const appId = event.req.headers.get("x-bp-app-id");
       if (!sourceServiceId || !tenantId || !appId) {
-        return jsonResponse({ error: "X-BP-Service-Id, X-BP-Tenant-Id, and X-BP-App-Id are required for S2S calls" }, 401);
+        return withCoreHttpOutcome(
+          jsonResponse({ error: "X-BP-Service-Id, X-BP-Tenant-Id, and X-BP-App-Id are required for S2S calls" }, 401),
+          { code: "s2s.headers_missing", reason: "Service, tenant, and app headers are required for S2S calls" }
+        );
       }
       const context = this.resolveScopedContextById(tenantId, appId);
-      if (!context) return jsonResponse({ error: "S2S tenant/app context is unavailable" }, 401);
+      if (!context) {
+        return withCoreHttpOutcome(
+          jsonResponse({ error: "S2S tenant/app context is unavailable" }, 401),
+          { code: "s2s.context_unavailable", reason: "S2S tenant/app context is unavailable" }
+        );
+      }
       this.applyRequestContext(event, context);
       return undefined;
     }
@@ -1336,14 +1399,16 @@ export abstract class BPService<
     if (origin && this.isConfigManagementPath(event.url.pathname)) {
       const allowedOrigins = await this.managementOrigins();
       if (!allowedOrigins.includes(origin)) {
-        return handleCorsRequest(event, {
-          origin: [],
-          methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        return this.rejectCors(
+          event,
           allowHeaders,
-          credentials: true,
-          exposeHeaders: [],
-          preflight: { statusCode: 403 }
-        }) || undefined;
+          "cors.management_origin_denied",
+          "Request Origin is not allowed for BetterPortal config management",
+          {
+            "bp.cors.origin": origin,
+            "bp.cors.allowed_origins": boundedDiagnosticList(allowedOrigins)
+          }
+        );
       }
 
       const context = this.managementRequestContext() ?? await this.resolveRequestContext(event);
@@ -1369,14 +1434,20 @@ export abstract class BPService<
       } catch (error) {
         this.logContextResolutionFailure(event, "embedded", error);
       }
-      return handleCorsRequest(event, {
+      const corsResult = handleCorsRequest(event, {
         origin: [],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowHeaders,
         credentials: true,
         exposeHeaders: [],
         preflight: { statusCode: 403 }
-      }) || undefined;
+      });
+      return corsResult
+        ? withCoreHttpOutcome(corsResult, {
+            code: "cors.origin_missing",
+            reason: "CORS preflight request is missing the Origin header"
+          })
+        : undefined;
     }
 
     let requestContext: BetterPortalResolvedRequestContext | null = null;
@@ -1387,19 +1458,38 @@ export abstract class BPService<
     }
 
     if (!requestContext) {
-      this.logContextResolutionFailure(event, "embedded", undefined, await this.describeCorsContextFailure(event));
-      return handleCorsRequest(event, {
-        origin: [],
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      const details = await this.describeCorsContextFailure(event);
+      this.logContextResolutionFailure(event, "embedded", undefined, details);
+      return this.rejectCors(
+        event,
         allowHeaders,
-        credentials: true,
-        exposeHeaders: [],
-        preflight: { statusCode: 403 }
-      }) || undefined;
+        "cors.context_unresolved",
+        "No active BetterPortal app matched the request Origin, Referer, or trusted host candidates",
+        {
+          "bp.cors.origin": origin,
+          "bp.cors.candidate_hosts": details?.candidateHosts.slice(0, 4096) ?? "",
+          "bp.cors.configured_app_hosts": details?.configuredAppHosts.slice(0, 4096) ?? ""
+        }
+      );
     }
 
     const allowedOrigins = buildOriginPolicy(requestContext).allowedOrigins;
     this.applyRequestContext(event, requestContext);
+
+    if (!allowedOrigins.includes(origin)) {
+      return this.rejectCors(
+        event,
+        allowHeaders,
+        "cors.origin_denied",
+        "Request Origin is not allowed for the resolved BetterPortal app",
+        {
+          "bp.cors.origin": origin,
+          "bp.cors.allowed_origins": boundedDiagnosticList(allowedOrigins),
+          "bp.tenant.id": requestContext.tenant.id,
+          "bp.app.id": requestContext.app.id
+        }
+      );
+    }
 
     const corsResult = handleCorsRequest(event, {
       origin: allowedOrigins,
@@ -1746,10 +1836,12 @@ export abstract class BPService<
       ? "Service is in setup mode. POST /.well-known/bp/install with {setupToken, cpUrl} to provision."
       : "The service is running in control-plane sync mode, but no tenant/app config has been received.";
 
-    return jsonResponse({
+    return coreJsonResponse({
       error: this.inSetupMode ? "BetterPortal service awaiting setup" : "BetterPortal tenant/app config has not synced yet",
       detail
-    }, 503);
+    }, 503,
+    this.inSetupMode ? "service.setup_required" : "service.config_not_synced",
+    detail);
   }
 
   private resolveConfigEncryptionKey(): string | undefined {
@@ -1776,7 +1868,7 @@ export abstract class BPService<
     const ready = !this.requireBetterPortalConfigSource || this.inSetupMode || synced || localConfig;
     const status = ready ? 200 : 503;
 
-    return jsonResponse({
+    const response = jsonResponse({
       ok: ready,
       ready,
       pluginId: this.manifest.pluginId,
@@ -1808,6 +1900,12 @@ export abstract class BPService<
           : "awaiting-sync"
       }
     }, status);
+    return ready
+      ? response
+      : withCoreHttpOutcome(response, {
+          code: "discovery.health_unready",
+          reason: "BetterPortal tenant/app config has not synced yet"
+        });
   }
 
   private localServiceInstanceIds(context: BetterPortalResolvedRequestContext): Set<string> {
@@ -1970,7 +2068,14 @@ export abstract class BPService<
     documents: ReturnType<typeof buildSeoDocuments>;
   } | Response> {
     const context = await this.resolveRequestContext(event);
-    if (!context) return jsonResponse({ error: "BetterPortal tenant/app context required" }, 400);
+    if (!context) {
+      return coreJsonResponse(
+        { error: "BetterPortal tenant/app context required" },
+        400,
+        "seo.context_unresolved",
+        "BetterPortal tenant/app context is required to build SEO documents"
+      );
+    }
     this.applyRequestContext(event, context);
     const requestOrigin = this.appRequestOrigin(context.app, event);
     const canonicalOrigin = context.app.seo?.canonicalOrigin?.replace(/\/+$/, "") ?? requestOrigin;
@@ -2016,7 +2121,13 @@ export abstract class BPService<
       }
     }
     if (failed.size && (context.app.seo?.serviceFailure ?? "omit-service") === "error") {
-      return jsonResponse({ error: "Sitemap service data unavailable", services: [...failed] }, 503);
+      return coreJsonResponse(
+        { error: "Sitemap service data unavailable", services: [...failed] },
+        503,
+        "seo.service_data_unavailable",
+        "One or more services required for the sitemap were unavailable",
+        { "bp.seo.failed_services": boundedDiagnosticList([...failed]) }
+      );
     }
     return {
       context,
@@ -2028,16 +2139,23 @@ export abstract class BPService<
   private registerSeoRoutes(): void {
     this.app.get("/.well-known/bp/seo", async (event) => {
       const context = await this.resolveRequestContext(event);
-      if (!context) return jsonResponse({ error: "BetterPortal tenant/app context required" }, 400);
+      if (!context) {
+        return coreJsonResponse(
+          { error: "BetterPortal tenant/app context required" },
+          400,
+          "seo.context_unresolved",
+          "BetterPortal tenant/app context is required to build service SEO data"
+        );
+      }
       this.applyRequestContext(event, context);
       try {
         const routes = await this.serviceSeoRoutes(context, AbortSignal.timeout(15_000));
         return jsonResponse({ routes } as unknown as JsonValue);
       } catch (error) {
-        return jsonResponse({
+        return coreJsonResponse({
           error: "Unable to build service sitemap data",
           detail: error instanceof Error ? error.message : String(error)
-        }, 500);
+        }, 500, "seo.generation_failed", "Unable to build service sitemap data");
       }
     });
 
@@ -2071,7 +2189,11 @@ export abstract class BPService<
       const value = (event as unknown as { context?: { params?: { chunk?: string } } }).context?.params?.chunk;
       const index = Number(value?.replace(/\.xml$/, "")) - 1;
       if (!Number.isInteger(index) || index < 0 || index >= chunks.length || chunks.length === 1) {
-        return new Response("Not found", { status: 404 });
+        return withCoreHttpOutcome(new Response("Not found", { status: 404 }), {
+          code: "seo.chunk_not_found",
+          reason: "Requested sitemap chunk does not exist",
+          attributes: { "bp.seo.chunk": value ?? "" }
+        });
       }
       return new Response(chunks[index], {
         headers: {
@@ -2095,14 +2217,29 @@ export abstract class BPService<
       // CORS already handled by handleWithCors for public discovery paths.
       const body = await event.req.json().catch(() => null);
       if (!body || typeof body !== "object") {
-        return jsonResponse({ error: "Request body must be JSON object" }, 400);
+        return coreJsonResponse(
+          { error: "Request body must be JSON object" },
+          400,
+          "service.install_payload_invalid",
+          "Install request body must be a JSON object"
+        );
       }
       const { setupToken, cpUrl } = body as { setupToken?: string; cpUrl?: string };
       if (typeof setupToken !== "string" || setupToken.length === 0) {
-        return jsonResponse({ error: "Missing setupToken" }, 400);
+        return coreJsonResponse(
+          { error: "Missing setupToken" },
+          400,
+          "service.install_payload_invalid",
+          "Install request is missing setupToken"
+        );
       }
       if (typeof cpUrl !== "string" || cpUrl.length === 0) {
-        return jsonResponse({ error: "Missing cpUrl" }, 400);
+        return coreJsonResponse(
+          { error: "Missing cpUrl" },
+          400,
+          "service.install_payload_invalid",
+          "Install request is missing cpUrl"
+        );
       }
 
       const normalizedCp = cpUrl.replace(/\/+$/, "");
@@ -2115,7 +2252,12 @@ export abstract class BPService<
         });
 
         if (claims.cpJwksUri && claims.cpJwksUri !== jwksUri) {
-          return jsonResponse({ error: "Setup token cpJwksUri mismatch" }, 400);
+          return coreJsonResponse(
+            { error: "Setup token cpJwksUri mismatch" },
+            400,
+            "service.install_token_mismatch",
+            "Setup token control-plane JWKS URI does not match cpUrl"
+          );
         }
 
         // Redeem token at CP - exchanges single-use setup token for the real apiKey.
@@ -2135,11 +2277,22 @@ export abstract class BPService<
         if (!redeemResponse.ok) {
           const text = await redeemResponse.text().catch(() => "");
           obs.log.warn("CP redeem failed: status={status} body={body}", { status: redeemResponse.status, body: text });
-          return jsonResponse({ error: "CP rejected redeem", detail: text }, 502);
+          return coreJsonResponse(
+            { error: "CP rejected redeem", detail: text },
+            502,
+            "service.install_redeem_failed",
+            "Control plane rejected the install token",
+            { "http.response.status_code.upstream": redeemResponse.status }
+          );
         }
         const redeemBody = await redeemResponse.json() as { apiKey?: string; cpId?: string; cpJwksUri?: string };
         if (typeof redeemBody.apiKey !== "string" || redeemBody.apiKey.length === 0) {
-          return jsonResponse({ error: "CP redeem response missing apiKey" }, 502);
+          return coreJsonResponse(
+            { error: "CP redeem response missing apiKey" },
+            502,
+            "service.install_redeem_failed",
+            "Control-plane install response did not contain an API key"
+          );
         }
 
         // Persist + log + reconnect to CP.
@@ -2174,11 +2327,11 @@ export abstract class BPService<
         // bootstrap shells must be resolvable before the wizard redirects.
         const synced = await this.connectToControlPlane(obs);
         if (!synced) {
-          return jsonResponse({
+          return coreJsonResponse({
             error: "Install completed, but initial control-plane sync failed",
             installed: true,
             pluginId: this.manifest.pluginId
-          }, 503);
+          }, 503, "service.install_sync_failed", "Initial control-plane sync failed after installation");
         }
 
         return jsonResponse({
@@ -2190,7 +2343,12 @@ export abstract class BPService<
         }, 200);
       } catch (err) {
         obs.log.warn("Install handler error: {msg}", { msg: (err as Error).message });
-        return jsonResponse({ error: "Install failed", detail: (err as Error).message }, 400);
+        return coreJsonResponse(
+          { error: "Install failed", detail: (err as Error).message },
+          400,
+          "service.install_failed",
+          (err as Error).message || "Service installation failed"
+        );
       }
     });
   }
@@ -2199,10 +2357,22 @@ export abstract class BPService<
     this.app.post("/.well-known/bp/hostname-change", async (event) => {
       const body = await event.req.json().catch(() => null) as { changeToken?: string } | null;
       if (!body || typeof body.changeToken !== "string" || body.changeToken.length === 0) {
-        return jsonResponse({ error: "Missing changeToken" }, 400);
+        return coreJsonResponse(
+          { error: "Missing changeToken" },
+          400,
+          "service.hostname_token_missing",
+          "Hostname-change request is missing changeToken"
+        );
       }
       const credentials = this.controlPlaneCredentials();
-      if (!credentials) return jsonResponse({ error: "Service is not installed" }, 409);
+      if (!credentials) {
+        return coreJsonResponse(
+          { error: "Service is not installed" },
+          409,
+          "service.setup_required",
+          "Service must be installed before confirming a hostname change"
+        );
+      }
 
       try {
         const response = await fetch(`${credentials.url}/.well-known/bp/services/confirm-hostname-change`, {
@@ -2218,10 +2388,22 @@ export abstract class BPService<
           })
         });
         const responseBody = await response.json().catch(() => ({ error: `Control plane returned HTTP ${response.status}` }));
-        return jsonResponse(responseBody, response.status);
+        const result = jsonResponse(responseBody, response.status);
+        return response.status >= 200 && response.status < 400
+          ? result
+          : withCoreHttpOutcome(result, {
+              code: "service.hostname_control_plane_rejected",
+              reason: "Control plane rejected the hostname change",
+              attributes: { "http.response.status_code.upstream": response.status }
+            });
       } catch (error) {
         obs.log.warn("Hostname change confirmation failed: {msg}", { msg: (error as Error).message });
-        return jsonResponse({ error: "Could not verify this service with the control plane" }, 502);
+        return coreJsonResponse(
+          { error: "Could not verify this service with the control plane" },
+          502,
+          "service.hostname_verification_failed",
+          (error as Error).message || "Could not verify this service with the control plane"
+        );
       }
     });
   }

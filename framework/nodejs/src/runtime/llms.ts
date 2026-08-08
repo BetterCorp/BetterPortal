@@ -204,6 +204,7 @@ export function renderThemeLlmsDev(context: ThemeLlmsContext): string {
     "Service requests use `routeUrl`, not `uiRouteUrl`; `uiRouteUrl` is only for GET navigation through a mounted page route. For another service, pass its declared dependency alias as `serviceId`; both helpers resolve it through the synced application route index.",
     "HTML renderers receive `ViewRenderContext` as their second argument. Its limited `tenant` and `app` projections are presentation-only; authorization and business data remain in the route handler.",
     "App auth login/logout references are view IDs, not paths. Resolve them with `ctx.url.uiRoute(viewId, { serviceId })`; do not add renderer-only navigation to the JSON response schema.",
+    "Before returning a service-specific response outside HTTP 200-399, call `ctx.diagnostic({ code, reason, attributes? })`. Use stable lowercase dotted codes and never put secrets or tokens in diagnostic data.",
     ""
   ].join("\n");
 }

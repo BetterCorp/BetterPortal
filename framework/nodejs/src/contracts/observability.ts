@@ -7,6 +7,14 @@ export type ObservabilityValue = Infer<typeof ObservabilityValueSchema>;
 export const ObservabilityAttributesSchema = av.record(ObservabilityValueSchema);
 export type ObservabilityAttributes = Infer<typeof ObservabilityAttributesSchema>;
 
+export type HttpOutcomeSource = "core" | "explicit" | "response-body" | "http-status" | "exception";
+
+export interface HttpOutcomeDiagnostic {
+  readonly code: string;
+  readonly reason: string;
+  readonly attributes?: ObservabilityAttributes;
+}
+
 export const BetterPortalLogLevelSchema = av.enum_(["debug", "info", "warn", "error"] as const);
 export type BetterPortalLogLevel = Infer<typeof BetterPortalLogLevelSchema>;
 

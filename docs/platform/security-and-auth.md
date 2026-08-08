@@ -119,4 +119,13 @@ Service API keys are service identities, not admin identities. Config Manager ac
 
 Services only allow configured app origins. Normal browser context is resolved from Origin/Referer/effective host; standalone `X-BP-Tenant-Id` and `X-BP-App-Id` are ignored. Those headers establish context only in a verified S2S/delegated envelope. If the calling app or its shell manifest cannot be resolved, HTML requests return 406 rather than accepting a client-selected renderer.
 
+Genuine browser preflight requests are handled by the shared `BPService` CORS middleware before route authentication. A valid preflight therefore does not require a user token. A denied preflight returns 403 with a stable diagnostic classification:
+
+- `cors.context_unresolved` when no active app matches the Origin, Referer, or trusted host candidates;
+- `cors.origin_denied` when an app resolves but does not allow the Origin;
+- `cors.management_origin_denied` when a config-management request is not from a configured management origin;
+- `cors.origin_missing` when an OPTIONS preflight has no Origin header.
+
+Request spans include the Origin, requested method/headers, candidate hosts, configured app hosts, and allowed origins where applicable. These values explain why CORS failed without treating client-supplied tenant/app headers as trusted context. Do not move authentication ahead of this middleware or add a route-level OPTIONS handler merely to bypass a CORS failure.
+
 When adding a service, make sure its `sec-config.yaml` points to the correct repo-level `bp-config.yaml`.

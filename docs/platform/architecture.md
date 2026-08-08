@@ -56,3 +56,15 @@ Every service route is schema-first:
 | Response schema | Validates handler output before JSON or HTML rendering. |
 
 This keeps service boundaries explicit and inspectable.
+
+## HTTP outcome diagnostics
+
+The framework records one request span for every HTTP request and adds `bp.http.response_kind` for successful and failed responses. Final statuses outside 200-399 must also have:
+
+- `bp.http.outcome_code`: stable machine-readable classification;
+- `bp.http.outcome_reason`: bounded human-readable explanation;
+- `bp.http.outcome_source`: `core`, `explicit`, `response-body`, `http-status`, or `exception`.
+
+Framework-owned failures are classified at the point where the response is created. Service handlers should call `ctx.diagnostic({ code, reason, attributes? })` before returning a custom error response so domain failures remain searchable without parsing bodies. Handled 4xx responses are diagnostic outcomes, not thrown span errors; unexpected exceptions still mark their handler/render span as an error.
+
+For an unclassified response outside 200-399, the request wrapper falls back to JSON fields in this order: `reason`, `error`, `message`, `detail`; then bounded textual response content; then the HTTP status phrase. It reads at most 2 KiB from a cloned text/JSON body and marks truncation. Developers remain responsible for keeping error bodies and explicit diagnostic attributes free of secrets or unnecessary personal data.

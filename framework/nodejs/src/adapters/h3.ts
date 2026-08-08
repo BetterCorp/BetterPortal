@@ -24,9 +24,13 @@ import type { AppAuthConfig, JwtClaims } from "../contracts/auth.js";
 import type { ApiCallerMode } from "../contracts/m2m.js";
 import {
   acceptHeaderFromEvent,
+  annotateCoreHttpOutcome,
+  annotateHttpOutcome,
+  ensureCoreHttpOutcome,
   eventObservability,
   htmlResponse,
   jsonResponse,
+  withCoreHttpOutcome,
   type BetterPortalEvent,
   type BetterPortalH3App
 } from "../runtime/h3.js";
@@ -138,17 +142,24 @@ function parseRouteParams(
 ): Record<string, string> | Response {
   for (const [name, value] of Object.entries(rawParams)) {
     if (!value || value.length > 100) {
-      return jsonResponse({ error: `Invalid path parameter: ${name}` }, 400);
+      return coreJsonResponse(
+        { error: `Invalid path parameter: ${name}` },
+        400,
+        "request.params.invalid",
+        `Invalid path parameter: ${name}`,
+        { "bp.request.parameter": name }
+      );
     }
   }
   if (!schema) return rawParams;
   try {
     return schema.parse(rawParams) as Record<string, string>;
   } catch (error) {
-    return jsonResponse({
+    const reason = error instanceof Error ? error.message : String(error);
+    return coreJsonResponse({
       error: "Invalid path parameters",
-      detail: error instanceof Error ? error.message : String(error)
-    }, 400);
+      detail: reason
+    }, 400, "request.params.invalid", reason);
   }
 }
 
@@ -158,6 +169,48 @@ function escapeContentDispositionValue(value: string): string {
 
 function responseHelper(body: RawResponseBody = null, init: ResponseInit = {}): Response {
   return new Response(body, init);
+}
+
+function coreResponse(
+  response: Response,
+  code: string,
+  reason: string,
+  attributes?: ObservabilityAttributes
+): Response {
+  return withCoreHttpOutcome(response, { code, reason, attributes });
+}
+
+function coreJsonResponse(
+  body: JsonValue,
+  status: number,
+  code: string,
+  reason: string,
+  attributes?: ObservabilityAttributes,
+  headers?: HeadersInit
+): Response {
+  return coreResponse(jsonResponse(body, status, headers), code, reason, attributes);
+}
+
+function parseRequestValue<T>(
+  schema: { parse(value: unknown): T },
+  value: unknown,
+  code: string,
+  target: string
+): { value: T } | { response: Response } {
+  try {
+    return { value: schema.parse(value) };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return {
+      response: coreJsonResponse(
+        { error: `Invalid ${target}`, detail: reason },
+        400,
+        code,
+        reason,
+        { "bp.request.validation_target": target }
+      )
+    };
+  }
 }
 
 function fileResponseHelper(body: RawResponseBody, options: FileResponseOptions = {}): Response {
@@ -846,7 +899,17 @@ function rejectUnallowedAppRoute(
     "bp.tenant.id": extraContext.tenant.id,
     "bp.route_allowlist.reason": reason
   });
-  return jsonResponse({ error: "Route not found" }, 404);
+  return coreJsonResponse(
+    { error: "Route not found" },
+    404,
+    "route.not_mounted",
+    reason,
+    {
+      "bp.route.view_id": route.viewId,
+      "bp.route.path": route.path,
+      "bp.route_allowlist.reason": reason
+    }
+  );
 }
 
 async function withRequestObservability<T>(
@@ -932,7 +995,12 @@ async function handleRouteRequest(
     params: methodRoute?.schemas.params ?? route.schemas.params
   };
   if (!handler) {
-    return jsonResponse({ error: `No handler for ${method} ${route.path}` }, 405);
+    return coreJsonResponse(
+      { error: `No handler for ${method} ${route.path}` },
+      405,
+      "route.handler_missing",
+      `No handler for ${method} ${route.path}`
+    );
   }
 
   // -- Parse inputs -------------------------------------------------
@@ -954,7 +1022,12 @@ async function handleRouteRequest(
         rawMultipart = parsedForm.multipart;
       } catch (err) {
         if (err instanceof MultipartTooLargeError) {
-          return jsonResponse({ error: "Multipart payload too large" }, 413);
+          return coreJsonResponse(
+            { error: "Multipart payload too large" },
+            413,
+            "request.multipart.too_large",
+            err.message
+          );
         }
         rawBody = {};
       }
@@ -971,14 +1044,29 @@ async function handleRouteRequest(
   // pass rawBody (empty {}) through unparsed so routes with both GET + POST handlers
   // don't fail GET because POST's RequestSchema has required fields.
 
-  const query = schemas.query ? schemas.query.parse(rawQuery) : rawQuery;
-  const headers = schemas.headers ? schemas.headers.parse(rawHeaders) : rawHeaders;
-  const request = (schemas.request && METHOD_WRITE_BODY.has(method))
-    ? schemas.request.parse(rawBody)
-    : rawBody;
-  const multipart = schemas.multipart
-    ? schemas.multipart.parse(rawMultipart ?? { fields: {}, files: {} })
-    : undefined;
+  const queryResult = schemas.query
+    ? parseRequestValue(schemas.query, rawQuery, "request.query.invalid", "query parameters")
+    : { value: rawQuery };
+  if ("response" in queryResult) return queryResult.response;
+  const query = queryResult.value;
+
+  const headersResult = schemas.headers
+    ? parseRequestValue(schemas.headers, rawHeaders, "request.headers.invalid", "request headers")
+    : { value: rawHeaders };
+  if ("response" in headersResult) return headersResult.response;
+  const headers = headersResult.value;
+
+  const requestResult = schemas.request && METHOD_WRITE_BODY.has(method)
+    ? parseRequestValue(schemas.request, rawBody, "request.body.invalid", "request body")
+    : { value: rawBody };
+  if ("response" in requestResult) return requestResult.response;
+  const request = requestResult.value;
+
+  const multipartResult = schemas.multipart
+    ? parseRequestValue(schemas.multipart, rawMultipart ?? { fields: {}, files: {} }, "request.multipart.invalid", "multipart request")
+    : { value: undefined };
+  if ("response" in multipartResult) return multipartResult.response;
+  const multipart = multipartResult.value;
 
   // Path params - H3 populates event.context.params for `:paramName` routes
   const rawParams: Record<string, string> = (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
@@ -987,7 +1075,12 @@ async function handleRouteRequest(
 
   const extraContext = await resolveRequiredHandlerContext(event, routerOptions, route);
   if (!extraContext) {
-    return jsonResponse({ error: "BetterPortal tenant/app context required" }, 400);
+    return coreJsonResponse(
+      { error: "BetterPortal tenant/app context required" },
+      400,
+      "route.context_unresolved",
+      "BetterPortal tenant/app context required"
+    );
   }
 
   const routeAllowlistAcceptHeader = acceptHeaderFromEvent(event);
@@ -1018,7 +1111,15 @@ async function handleRouteRequest(
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs);
   if (authResult.error) {
-    return renderAuthError(route, event, authResult.status, authResult.error, authResult.requiredPermissions, earlyRenderContext(authResult.status));
+    return renderAuthError(
+      route,
+      event,
+      authResult.status,
+      authResult.code ?? "auth.unclassified",
+      authResult.error,
+      authResult.requiredPermissions,
+      earlyRenderContext(authResult.status)
+    );
   }
 
   // -- Tenant/app activation check (validateTenantApp hook -> 426) -----
@@ -1064,6 +1165,7 @@ async function handleRouteRequest(
     bpHeaders,
     responseHeaders: event.res.headers,
     setStatus: (status) => { event.res.status = status; },
+    diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
     serviceId: routerOptions.serviceId,
     routeUrl,
     uiRouteUrl,
@@ -1082,18 +1184,18 @@ async function handleRouteRequest(
       applyBpHeadersToEvent(event, bpHeaders);
       return streamed;
     }
-    rawData = await withSpan(obs, "bp.route.handler", {
+    rawData = await withCoreFailure(event, "handler.exception", () => withSpan(obs, "bp.route.handler", {
       "bp.route.view_id": route.viewId,
       "bp.route.path": route.path,
       "http.request.method": method,
       "bp.route.stream_buffered": true
-    }, () => driveStreamBuffered(handler, ctx));
+    }, () => driveStreamBuffered(handler, ctx)));
   } else {
-    rawData = await withSpan(obs, "bp.route.handler", {
+    rawData = await withCoreFailure(event, "handler.exception", () => withSpan(obs, "bp.route.handler", {
       "bp.route.view_id": route.viewId,
       "bp.route.path": route.path,
       "http.request.method": method
-    }, () => (handler as RouteHandler)(ctx));
+    }, () => (handler as RouteHandler)(ctx)));
   }
 
   // -- Emit BP-managed headers -------------------------------------
@@ -1107,6 +1209,12 @@ async function handleRouteRequest(
   // -- Status decision ---------------------------------------------
 
   const handlerStatus = event.res.status && event.res.status !== 0 ? event.res.status : 200;
+  if (handlerStatus < 200 || handlerStatus >= 400) {
+    ensureCoreHttpOutcome(event, {
+      code: "response.status_unclassified",
+      reason: `Handler returned HTTP ${handlerStatus} without an explicit diagnostic`
+    });
+  }
 
   // -- Content negotiation ------------------------------------------
 
@@ -1136,9 +1244,21 @@ async function handleRouteRequest(
   // -- Validate response against schema (all representations) ------
   // Skipped when status indicates no body is expected.
   if (!schemas.response) {
-    return jsonResponse({ error: `Route "${route.viewId}" has no ResponseSchema and did not return a raw Response` }, 500);
+    const reason = `Route "${route.viewId}" has no ResponseSchema and did not return a raw Response`;
+    return coreJsonResponse({ error: reason }, 500, "response.schema_missing", reason);
   }
-  const data = schemas.response.parse(rawData);
+  let data: unknown;
+  try {
+    data = schemas.response.parse(rawData);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return coreJsonResponse(
+      { error: "Response schema validation failed", detail: reason },
+      500,
+      "response.schema_invalid",
+      reason
+    );
+  }
 
   // NDJSON only exists for streaming views; those were handled before
   // negotiation, so reaching here means the view does not stream.
@@ -1147,7 +1267,12 @@ async function handleRouteRequest(
       "http.request.accept": acceptHeader ?? "",
       "bp.representation.kind": representation.kind
     });
-    return jsonResponse({ error: "NDJSON streaming is not supported by this view" }, 406);
+    return coreJsonResponse(
+      { error: "NDJSON streaming is not supported by this view" },
+      406,
+      "representation.ndjson_not_supported",
+      "NDJSON streaming is not supported by this view"
+    );
   }
 
   // JSON - already validated above, no redundant parse
@@ -1161,7 +1286,12 @@ async function handleRouteRequest(
       "http.request.accept": acceptHeader ?? "",
       "bp.representation.kind": representation.kind
     });
-    return jsonResponse({ error: "Renderer could not be resolved from the app shell" }, 406);
+    return coreJsonResponse(
+      { error: "Renderer could not be resolved from the app shell" },
+      406,
+      "representation.renderer_unresolved",
+      "Renderer could not be resolved from the app shell"
+    );
   }
 
   // Determine the renderer kind requested
@@ -1176,17 +1306,27 @@ async function handleRouteRequest(
   if (handlerStatus !== 200) {
     const statusRenderer = resolveStatusRenderer(route, renderer, handlerStatus, requestedKind, requestedKey, method);
     if (statusRenderer) {
-      const html = await withSpan(obs, "bp.view.render", {
+      if (handlerStatus < 200 || handlerStatus >= 400) {
+        ensureCoreHttpOutcome(event, {
+          code: "response.status_unclassified",
+          reason: `Handler returned HTTP ${handlerStatus} without an explicit diagnostic`
+        });
+      }
+      const html = await withCoreFailure(event, "render.status_failed", () => withSpan(obs, "bp.view.render", {
         "bp.route.view_id": route.viewId,
         "bp.view.renderer": renderer,
         "bp.view.kind": requestedKind,
         "bp.view.status": handlerStatus
-      }, () => statusRenderer.render(data, renderContext));
+      }, () => statusRenderer.render(data, renderContext)));
       return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("status", route.chrome));
     }
     // No specific renderer found.
     if (!shouldFallThroughToDefaultRenderer(handlerStatus)) {
       // 4xx/5xx without a specific renderer -> empty body with status.
+      ensureCoreHttpOutcome(event, {
+        code: "response.status_unclassified",
+        reason: `Handler returned HTTP ${handlerStatus} without an explicit diagnostic`
+      });
       return new Response(null, { status: handlerStatus });
     }
     // 2xx without specific -> fall through to default renderer, but keep handlerStatus.
@@ -1202,17 +1342,17 @@ async function handleRouteRequest(
         "bp.view.kind": "fragment",
         "bp.view.key": fragmentKey
       });
-      return jsonResponse({
+      return coreJsonResponse({
         error: `No fragment renderer found for fragment="${fragmentKey}" in renderer "${renderer}"`
-      }, 406);
+      }, 406, "representation.fragment_not_found", `Fragment renderer "${fragmentKey}" was not found`);
     }
 
-    const html = await withSpan(obs, "bp.view.render", {
+    const html = await withCoreFailure(event, "render.fragment_failed", () => withSpan(obs, "bp.view.render", {
       "bp.route.view_id": route.viewId,
       "bp.view.renderer": renderer,
       "bp.view.kind": "fragment",
       "bp.view.key": fragmentKey
-    }, () => resolved.renderer.render(data, renderContext));
+    }, () => resolved.renderer.render(data, renderContext)));
     return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("fragment", route.chrome));
   }
 
@@ -1226,17 +1366,17 @@ async function handleRouteRequest(
         "bp.view.kind": "component",
         "bp.view.key": componentId
       });
-      return jsonResponse({
+      return coreJsonResponse({
         error: `No component renderer found for _c="${componentId}" in renderer "${renderer}"`
-      }, 406);
+      }, 406, "representation.component_not_found", `Component renderer "${componentId}" was not found`);
     }
 
-    const html = await withSpan(obs, "bp.view.render", {
+    const html = await withCoreFailure(event, "render.component_failed", () => withSpan(obs, "bp.view.render", {
       "bp.route.view_id": route.viewId,
       "bp.view.renderer": renderer,
       "bp.view.kind": "component",
       "bp.view.key": componentId
-    }, () => resolved.renderer.render(data, renderContext));
+    }, () => resolved.renderer.render(data, renderContext)));
     return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("fragment", route.chrome));
   }
 
@@ -1248,16 +1388,16 @@ async function handleRouteRequest(
       "bp.view.renderer": renderer,
       "bp.view.kind": "page"
     });
-    return jsonResponse({
+    return coreJsonResponse({
       error: `No page renderer found for renderer "${renderer}"`
-    }, 406);
+    }, 406, "representation.page_not_found", `Page renderer "${renderer}" was not found`);
   }
 
-  const html = await withSpan(obs, "bp.view.render", {
+  const html = await withCoreFailure(event, "render.page_failed", () => withSpan(obs, "bp.view.render", {
     "bp.route.view_id": route.viewId,
     "bp.view.renderer": renderer,
     "bp.view.kind": "page"
-  }, () => resolved.renderer.render(data, renderContext));
+  }, () => resolved.renderer.render(data, renderContext)));
   const mode = representation.mode ?? "page";
   return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(mode, route.chrome));
 }
@@ -1309,11 +1449,11 @@ async function handleStreamRepresentation(
     params: ctx.params,
     query: ctx.query
   };
-  const html = await withSpan(obs, "bp.view.render", {
+  const html = await withCoreFailure(event, "render.stream_shell_failed", () => withSpan(obs, "bp.view.render", {
     "bp.route.view_id": route.viewId,
     "bp.view.renderer": renderer,
     "bp.view.kind": "stream-shell"
-  }, () => streamSet.renderShell(shellCtx));
+  }, () => streamSet.renderShell(shellCtx)));
   return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), 200, htmlContentType("fragment", route.chrome));
 }
 
@@ -1351,12 +1491,22 @@ async function handleStreamSse(
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const authResult = await resolveRequestAuth(route.auth, event, authResolved, route, "GET", obs);
   if (authResult.error) {
-    return jsonResponse({ error: authResult.error, status: authResult.status } as unknown as JsonValue, authResult.status);
+    return coreJsonResponse(
+      { error: authResult.error, status: authResult.status } as unknown as JsonValue,
+      authResult.status,
+      authResult.code ?? "auth.unclassified",
+      authResult.error
+    );
   }
 
   const extraContext = await resolveRequiredHandlerContext(event, routerOptions, route);
   if (!extraContext) {
-    return jsonResponse({ error: "BetterPortal tenant/app context required" }, 400);
+    return coreJsonResponse(
+      { error: "BetterPortal tenant/app context required" },
+      400,
+      "stream.context_unresolved",
+      "BetterPortal tenant/app context required"
+    );
   }
 
   const ctx: RouteHandlerContext = {
@@ -1374,6 +1524,7 @@ async function handleStreamSse(
     serviceId: routerOptions.serviceId,
     routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, dependencyAliases, routerOptions.serviceId),
     uiRouteUrl: createUiRouteUrlBuilder(event, extraContext, dependencyAliases, routerOptions.serviceId),
+    diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
     response: responseHelper,
     file: fileResponseHelper,
     ...(obs ? { obs } : {})
@@ -1436,6 +1587,7 @@ interface AuthResult {
   serviceCaller?: ValidatedServiceClaims;
   callerMode?: ApiCallerMode;
   error?: string;
+  code?: string;
   status: number;
   requiredPermissions?: ReadonlyArray<RequiredPermissionDescriptor>;
 }
@@ -1480,18 +1632,18 @@ async function resolveRequestAuth(
         : undefined;
 
   if (!primary || !callerMode) {
-    if (required) return { status: 401, error: "Authentication required" };
+    if (required) return { status: 401, error: "Authentication required", code: "auth.required" };
     return { status: 200 };
   }
 
   const allowedCallers = apiAuth.callers ?? ["user"];
   if (!allowedCallers.includes(callerMode)) {
-    if (required) return { status: 403, error: `${callerMode} callers are not allowed` };
+    if (required) return { status: 403, error: `${callerMode} callers are not allowed`, code: "auth.caller_not_allowed" };
     return { status: 200 };
   }
 
   if (!authContext) {
-    if (required) return { status: 503, error: "Auth context unavailable" };
+    if (required) return { status: 503, error: "Auth context unavailable", code: "auth.context_unavailable" };
     return { status: 200 };
   }
 
@@ -1503,13 +1655,13 @@ async function resolveRequestAuth(
   const tenantId = event.req.headers.get("x-bp-tenant-id");
   const appId = event.req.headers.get("x-bp-app-id");
   if (!sourceServiceId || !tenantId || !appId) {
-    return { status: 401, error: "Service, tenant, and app headers are required for S2S calls" };
+    return { status: 401, error: "Service, tenant, and app headers are required for S2S calls", code: "s2s.headers_missing" };
   }
   if (tenantId !== authContext.tenantId || appId !== authContext.appId) {
-    return { status: 401, error: "S2S headers do not match the resolved tenant/app" };
+    return { status: 401, error: "S2S headers do not match the resolved tenant/app", code: "s2s.context_mismatch" };
   }
   if (!authContext.serviceVerifier) {
-    if (required) return { status: 503, error: "Service auth context unavailable" };
+    if (required) return { status: 503, error: "Service auth context unavailable", code: "s2s.verifier_unavailable" };
     return { status: 200 };
   }
 
@@ -1527,7 +1679,11 @@ async function resolveRequestAuth(
     } catch (err) {
       obs?.logger.warn("Service token verification failed: {msg}", { msg: (err as Error).message });
       const status = (err as { status?: number }).status === 403 ? 403 : 401;
-      return { status, error: status === 403 ? "Service access denied" : "Invalid service token" };
+      return {
+        status,
+        error: status === 403 ? "Service access denied" : "Invalid service token",
+        code: status === 403 ? "s2s.access_denied" : "s2s.token_invalid"
+      };
     }
   };
 
@@ -1538,10 +1694,16 @@ async function resolveRequestAuth(
   }
 
   if (!secondary || isServiceToken(primary)) {
-    return { status: 401, error: "Delegated calls require a BP user token and a service token" };
+    return {
+      status: 401,
+      error: "Delegated calls require a BP user token and a service token",
+      code: "s2s.delegated_token_invalid"
+    };
   }
   const userResult = await resolveUserRequestAuth(primary, apiAuth, authContext, obs);
-  if (userResult.error || !userResult.user) return userResult.error ? userResult : { status: 401, error: "Valid BP user token required" };
+  if (userResult.error || !userResult.user) return userResult.error
+    ? userResult
+    : { status: 401, error: "Valid BP user token required", code: "s2s.delegated_token_invalid" };
   const serviceCaller = await verifyService(secondary, "delegated");
   if ("status" in serviceCaller) return required ? serviceCaller : { status: 200 };
   return { status: 200, user: userResult.user, serviceCaller, callerMode };
@@ -1556,7 +1718,7 @@ async function resolveUserRequestAuth(
   const required = apiAuth.required;
   const verifier = authContext.verifier;
   if (!verifier) {
-    if (required) return { status: 503, error: "Auth context unavailable" };
+    if (required) return { status: 503, error: "Auth context unavailable", code: "auth.context_unavailable" };
     return { status: 200 };
   }
   let claims: JwtClaims;
@@ -1571,7 +1733,7 @@ async function resolveUserRequestAuth(
     }));
   } catch (err) {
     obs?.logger.warn("JWT verification failed: {msg}", { msg: (err as Error).message });
-    if (required) return { status: 401, error: "Invalid token" };
+    if (required) return { status: 401, error: "Invalid token", code: "auth.token_invalid" };
     return { status: 200 };
   }
 
@@ -1580,7 +1742,7 @@ async function resolveUserRequestAuth(
       t1: claims.tenantId,
       t2: authContext.tenantId
     });
-    if (required) return { status: 401, error: "Token bound to a different tenant" };
+    if (required) return { status: 401, error: "Token bound to a different tenant", code: "auth.token_tenant_mismatch" };
     return { status: 200 };
   }
 
@@ -1589,7 +1751,7 @@ async function resolveUserRequestAuth(
       a1: claims.appId,
       a2: authContext.appId
     });
-    if (required) return { status: 401, error: "Token bound to a different app" };
+    if (required) return { status: 401, error: "Token bound to a different app", code: "auth.token_app_mismatch" };
     return { status: 200 };
   }
 
@@ -1631,6 +1793,7 @@ async function resolveUserRequestAuth(
         return {
           status: 403,
           error: "Insufficient permissions",
+          code: "auth.permissions_insufficient",
           requiredPermissions: apiAuth.permissions
         };
       }
@@ -1695,6 +1858,7 @@ function renderAuthError(
   route: RegisteredRoute,
   event: BetterPortalEvent,
   status: number,
+  code: string,
   message: string,
   requiredPermissions: ReadonlyArray<RequiredPermissionDescriptor> = [],
   context?: ViewRenderContext
@@ -1718,10 +1882,10 @@ function renderAuthError(
     if (statusRenderer && context) {
       try {
         const html = statusRenderer.render({ error: message, status, requiredPermissions }, context);
-        return new Response(toHtmlString(html), {
+        return coreResponse(new Response(toHtmlString(html), {
           status,
           headers: { ...corsHeaders, "content-type": htmlContentType("status", route.chrome) }
-        });
+        }), code, message);
       } catch {
         // fall through to JSON
       }
@@ -1739,13 +1903,36 @@ function renderAuthError(
         </div>
       </section>
     `;
-    return new Response(html, {
+    return coreResponse(new Response(html, {
       status,
       headers: { ...corsHeaders, "content-type": renderer ? htmlContentType("status", route.chrome) : "text/html; charset=utf-8" }
-    });
+    }), code, message);
   }
 
-  return jsonResponse({ error: message, status, requiredPermissions } as unknown as JsonValue, status, corsHeaders);
+  return coreJsonResponse(
+    { error: message, status, requiredPermissions } as unknown as JsonValue,
+    status,
+    code,
+    message,
+    undefined,
+    corsHeaders
+  );
+}
+
+async function withCoreFailure<T>(
+  event: BetterPortalEvent,
+  code: string,
+  handler: () => Promise<T> | T
+): Promise<T> {
+  try {
+    return await handler();
+  } catch (error) {
+    annotateCoreHttpOutcome(event, {
+      code,
+      reason: (error instanceof Error ? error.message : String(error)).slice(0, 2048)
+    });
+    throw error;
+  }
 }
 
 function readTenantAppFromEvent(event: BetterPortalEvent): { tenantId: string; appId: string } | undefined {
@@ -1780,19 +1967,23 @@ function renderUpgradeRequired(
           reason: validation.reason,
           upgradeUrl: validation.upgradeUrl
         }, context);
-        return htmlResponse(toHtmlString(html), status, htmlContentType("status", route.chrome));
+        return coreResponse(
+          htmlResponse(toHtmlString(html), status, htmlContentType("status", route.chrome)),
+          "route.tenant_app_unavailable",
+          validation.reason ?? "Tenant/app is not available for this service"
+        );
       } catch {
         // fall through to JSON
       }
     }
   }
 
-  return jsonResponse({
+  return coreJsonResponse({
     status,
     error: "Upgrade Required",
     reason: validation.reason,
     upgradeUrl: validation.upgradeUrl
-  } as unknown as JsonValue, status, extraHeaders);
+  } as unknown as JsonValue, status, "route.tenant_app_unavailable", validation.reason ?? "Upgrade required", undefined, extraHeaders);
 }
 
 function applyBpHeadersToEvent(
@@ -1849,9 +2040,23 @@ export function registerBpWellKnownRoutes(
     const encodedId = event.url.pathname.slice("/.well-known/bp/resources/".length);
     let id: string;
     try { id = decodeURIComponent(encodedId); }
-    catch { return jsonResponse({ error: "invalid_resource_id" }, 400); }
+    catch {
+      return coreJsonResponse(
+        { error: "invalid_resource_id" },
+        400,
+        "discovery.resource_id_invalid",
+        "Developer resource id is not valid URL encoding"
+      );
+    }
     const resource = manifest.developerResources.find((candidate) => candidate.id === id);
-    if (!resource) return jsonResponse({ error: "resource_not_found" }, 404);
+    if (!resource) {
+      return coreJsonResponse(
+        { error: "resource_not_found" },
+        404,
+        "discovery.resource_not_found",
+        `Developer resource "${id}" was not found`
+      );
+    }
     return new Response(resource.content, {
       headers: {
         "content-type": resource.mediaType,

@@ -2,7 +2,7 @@ import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import { PluginIdSchema, type HttpMethod } from "./common.js";
 import type { JsonValue } from "./json.js";
-import type { BetterPortalObservability } from "./observability.js";
+import type { BetterPortalObservability, HttpOutcomeDiagnostic } from "./observability.js";
 import type { BetterPortalResolvedApp, BetterPortalTenant } from "./platformConfig.js";
 import { AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
 import { ApiCallerModeSchema, type ApiCallerMode, type M2MCallerMode, type ServiceTokenClaims } from "./m2m.js";
@@ -160,6 +160,8 @@ export interface RouteHandlerContext<
   readonly responseHeaders?: Headers;
   /** Set HTTP status without raw event reach-through. */
   readonly setStatus?: (status: number) => void;
+  /** Attach structured diagnostic context to the final HTTP outcome. */
+  readonly diagnostic: (diagnostic: HttpOutcomeDiagnostic) => void;
   /** The service id this handler belongs to. Always present when adapter wires it. */
   readonly serviceId?: string;
   /**

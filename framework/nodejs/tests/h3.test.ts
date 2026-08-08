@@ -1,7 +1,30 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import { createBetterPortalApp, createBetterPortalNodeHandler } from "../src/runtime/h3.js";
+import type { BetterPortalObservability, ObservabilityAttributes } from "../src/contracts/observability.js";
+import { createNoopObservability } from "../src/contracts/observability.js";
+import {
+  createBetterPortalApp,
+  createBetterPortalNodeHandler,
+  jsonResponse,
+  withCoreHttpOutcome
+} from "../src/runtime/h3.js";
+
+function recordingObservability(records: Array<{ name: string; attributes: ObservabilityAttributes }>): BetterPortalObservability {
+  const wrap = (base: BetterPortalObservability, name: string): BetterPortalObservability => new Proxy(base, {
+    get(target, property, receiver) {
+      if (property === "startSpan") {
+        return (childName: string, attributes: ObservabilityAttributes = {}) =>
+          wrap(target.startSpan(childName, attributes), childName);
+      }
+      if (property === "end") {
+        return (attributes: ObservabilityAttributes = {}) => { records.push({ name, attributes }); };
+      }
+      return Reflect.get(target, property, receiver);
+    }
+  });
+  return wrap(createNoopObservability(), "bp.http.request");
+}
 
 test("middleware response headers survive error responses", async () => {
   const app = createBetterPortalApp();
@@ -20,6 +43,63 @@ test("middleware response headers survive error responses", async () => {
     assert.equal(response.status, 409);
     assert.equal(response.headers.get("access-control-allow-origin"), "https://root.example");
     assert.equal(await response.text(), "details");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("HTTP outcomes classify core, inferred, and successful responses", async () => {
+  const records: Array<{ name: string; attributes: ObservabilityAttributes }> = [];
+  const app = createBetterPortalApp({ createRequestObservability: () => recordingObservability(records) });
+  app.get("/classified", () => withCoreHttpOutcome(
+    jsonResponse({ error: "Denied" }, 403),
+    {
+      code: "auth.permissions_insufficient",
+      reason: "Insufficient\npermissions",
+      attributes: {
+        "bp.http.outcome_code": "overridden",
+        "bp.http.response_kind": "overridden"
+      }
+    }
+  ));
+  app.get("/fallback", () => jsonResponse({ error: "Derived failure detail" }, 418));
+  app.get("/large", () => new Response("x".repeat(3_000), {
+    status: 500,
+    headers: { "content-type": "text/plain" }
+  }));
+  app.get("/success", () => jsonResponse({ ok: true }));
+
+  const server = createServer(createBetterPortalNodeHandler(app));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  try {
+    const address = server.address();
+    assert(address && typeof address === "object");
+    const base = `http://127.0.0.1:${address.port}`;
+    assert.equal((await fetch(`${base}/classified`)).status, 403);
+    assert.equal((await fetch(`${base}/fallback`)).status, 418);
+    assert.equal((await fetch(`${base}/large`)).status, 500);
+    assert.equal((await fetch(`${base}/success`)).status, 200);
+
+    const classified = records.find((record) => record.name === "bp.http.request"
+      && record.attributes["bp.http.outcome_code"] === "auth.permissions_insufficient");
+    assert.equal(classified?.attributes["bp.http.outcome_source"], "core");
+    assert.equal(classified?.attributes["bp.http.response_kind"], "json");
+    assert.equal(classified?.attributes["bp.http.outcome_reason"], "Insufficient permissions");
+
+    const fallback = records.find((record) => record.name === "bp.http.request"
+      && record.attributes["bp.http.outcome_reason"] === "Derived failure detail");
+    assert.equal(fallback?.attributes["bp.http.outcome_source"], "response-body");
+
+    const large = records.find((record) => record.name === "bp.http.request"
+      && record.attributes["bp.http.outcome_detail_truncated"] === true);
+    assert.equal(large?.attributes["bp.http.outcome_source"], "response-body");
+    assert.equal((large?.attributes["bp.http.outcome_reason"] as string).length, 2_048);
+
+    const successful = records.find((record) => record.name === "bp.http.request"
+      && record.attributes["http.response.status_code"] === 200);
+    assert.equal(successful?.attributes["bp.http.response_kind"], "json");
+    assert.equal(successful?.attributes["bp.http.outcome_code"], undefined);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
