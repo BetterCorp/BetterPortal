@@ -312,7 +312,7 @@ test("shared activation manifest lookup falls back to its shared service", () =>
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
 });
 
-test("app auth redirects require one enabled GET page mount", () => {
+test("app auth redirects require one unique enabled GET page path", () => {
   const value = s2sConfig();
   const app = value.config.apps[0]!;
   app.routes = [{
@@ -337,8 +337,13 @@ test("app auth redirects require one enabled GET page mount", () => {
 
   const storage = new MemoryStorage(value.config);
   storage.assertValid();
+  app.routes.push({ ...app.routes[0]!, id: uuidv7() });
+  storage.assertValid();
+  app.routes[1]!.path = "/other-dashboard";
+  assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin must resolve to exactly one enabled GET page path/);
+  app.routes.pop();
   app.routes[0]!.enabled = false;
-  assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin must reference exactly one enabled GET page view/);
+  assert.throws(() => storage.assertValid(), /auth\.redirects\.afterLogin must resolve to exactly one enabled GET page path/);
 });
 
 test("auth provider sync persists public JWKS and repairs later app bindings", async () => {

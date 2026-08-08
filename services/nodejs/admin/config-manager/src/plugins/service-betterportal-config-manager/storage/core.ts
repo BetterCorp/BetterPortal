@@ -400,15 +400,15 @@ export abstract class BaseStorage implements PlatformConfigStore {
       }
       for (const [kind, target] of Object.entries(app.auth?.redirects ?? {})) {
         if (!target) continue;
-        const matches = app.routes.filter((route) =>
+        const paths = new Set(app.routes.filter((route) =>
           route.enabled
           && (route.kind ?? "page") === "page"
           && route.methods.includes("GET")
           && route.serviceId === target.serviceId
           && route.viewId === target.viewId
-        );
-        if (matches.length !== 1) {
-          errors.push(`app ${app.id} auth.redirects.${kind} must reference exactly one enabled GET page view: ${target.serviceId}:${target.viewId}`);
+        ).map((route) => route.path));
+        if (paths.size !== 1) {
+          errors.push(`app ${app.id} auth.redirects.${kind} must resolve to exactly one enabled GET page path: ${target.serviceId}:${target.viewId}`);
         }
       }
       for (const role of app.auth?.roles ?? []) {
