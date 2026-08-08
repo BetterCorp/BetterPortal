@@ -47,6 +47,8 @@ export const MyShellAdapterSource = js(() => {
 
 `js()` returns safe `RawText`. Pass it directly as `adapterSource` or place it directly in a `<script>` element; do not call `.toString()` or wrap it with `raw()`.
 
+The optional `showRequestError(status, content, context)` hook receives the initiating `serviceId`. Error UI rendered outside the main outlet must retain that service context so relative HTMX actions continue to resolve to the service that produced the response.
+
 The server emits initial chrome with `betterPortalChromeAttributes(currentRoute?.chrome)`. The browser runtime applies response `bp-chrome-*` values as `data-bp-chrome-*`, removes stale values, and calls the optional typed `applyChrome` hook. Prefer theme CSS for chrome presentation; use the hook only when the theme needs imperative behavior. Chrome is presentation state and never implies authentication.
 
 Theme packages keep their public asset URLs and provide only presentation hooks. Bootstrap1 owns Bootstrap modal/offcanvas and component lifecycle behavior; Embedded owns its loading and error presentation. The required HTMX extension allowlist is `bp-shell, sse`. BetterPortal's header-aware preload is part of `bp-shell`; do not also load the stock preload extension.

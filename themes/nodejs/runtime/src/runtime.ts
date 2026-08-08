@@ -21,7 +21,7 @@ export interface BetterPortalShellAdapter {
   scrollToTop?(): void;
   setLoading?(loading: boolean, outlet: Element | null): void;
   clearError?(): void;
-  showRequestError?(status: number, content: string): void;
+  showRequestError?(status: number, content: string, context: { serviceId?: string }): void;
   replaceMainWithError?(
     title: string,
     message: string,
@@ -293,9 +293,10 @@ export function betterPortalShellRuntimeSource(): string {
         node.classList.remove("is-visible");
       };
 
-      const showRequestErrorModal = (status: number, content: string) => {
+      const showRequestErrorModal = (status: number, content: string, source?: Element | null) => {
+        const serviceId = serviceContextFor(source).id || undefined;
         if (shellAdapter.showRequestError) {
-          shellAdapter.showRequestError(status, content);
+          shellAdapter.showRequestError(status, content, { serviceId });
           return;
         }
         const text = document.createElement("div");
@@ -2085,7 +2086,7 @@ export function betterPortalShellRuntimeSource(): string {
           const isJson = swapContentType.includes("application/json");
           if (status && status >= 400 && source instanceof Element && source.closest("[data-bp-error-modal]") && !isMainTarget(target)) {
             if (target instanceof Element) target.classList.remove("bp-fragment-loading");
-            showRequestErrorModal(status, isJson ? "" : (ctx?.text || ""));
+            showRequestErrorModal(status, isJson ? "" : (ctx?.text || ""), source);
             return false;
           }
           if (isJson) {

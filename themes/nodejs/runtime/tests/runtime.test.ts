@@ -62,6 +62,12 @@ test("main outlet HTTP errors only swap explicit themed status views", () => {
   assert.match(source, /applyChrome\(null\)/);
 });
 
+test("request error overlays inherit the initiating service context", () => {
+  const source = betterPortalShellRuntimeSource();
+  assert.match(source, /serviceContextFor\(source\)\.id/);
+  assert.match(source, /showRequestError\(status,content,\{serviceId\}\)/);
+});
+
 test("chrome attributes are normalized for initial shell rendering", () => {
   assert.deepEqual(betterPortalChromeAttributes({
     fullScreen: true,

@@ -23,6 +23,8 @@ test("marked fragment errors open a dismissible modal", async () => {
   assert.match(source, /source\.closest\("\[data-bp-error-modal\]"\)/);
   assert.match(source, /data-bs-dismiss="modal">Dismiss/);
   assert.match(source, /Modal\.getOrCreateInstance\(modal\)\.show\(\)/);
+  assert.match(source, /modal\.setAttribute\("data-bp-service",context\.serviceId\)/);
+  assert.ok(source.indexOf('modal.setAttribute("data-bp-service",context.serviceId)') < source.indexOf("window.htmx.process(body)"));
 });
 
 test("Bootstrap initializes before shell overlay cleanup", () => {

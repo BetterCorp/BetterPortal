@@ -92,7 +92,7 @@ export const Bootstrap1AdapterSource = js(() => {
       document.querySelector(".bp-admin__content-frame")?.classList.toggle("is-loading", loading);
       document.querySelector("#bp-topbar-progress")?.classList.toggle("is-active", loading);
     },
-    showRequestError(status, content) {
+    showRequestError(status, content, context) {
       if (!bootstrap) {
         window.alert("Request failed (" + status + ")");
         return;
@@ -106,6 +106,8 @@ export const Bootstrap1AdapterSource = js(() => {
         modal.innerHTML = '<div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Request failed</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body" data-bp-request-error-body></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Dismiss</button></div></div></div>';
         document.body.appendChild(modal);
       }
+      if (context.serviceId) modal.setAttribute("data-bp-service", context.serviceId);
+      else modal.removeAttribute("data-bp-service");
       const body = modal.querySelector("[data-bp-request-error-body]");
       if (body) {
         body.innerHTML = content || '<div class="alert alert-danger mb-0">Request failed. Try again.</div>';
