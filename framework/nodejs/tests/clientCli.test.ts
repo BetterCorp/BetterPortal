@@ -11,7 +11,7 @@ import { parseDependencySelector } from "../src/cli/project.js";
 function contract(responseField = "message"): BpSchemaOutput {
   return BpSchemaOutputSchema.parse({
     manifest: {
-      protocolVersion: 1,
+      protocolVersion: 2,
       pluginId: "org.betterportal.config",
       title: "Config",
       description: "Config service",
@@ -23,22 +23,27 @@ function contract(responseField = "message"): BpSchemaOutput {
         title: "Config",
         description: "Read config",
         path: "/",
-        methods: ["GET"],
         paramsSchema: {},
-        querySchema: {},
-        headersSchema: {},
-        bodySchema: {},
-        jsonResponseSchema: {
-          root: { kind: "object", properties: { [responseField]: { kind: "string" } }, required: [responseField] }
-        },
-        metadataResponseSchema: {},
-        html: { renderers: {} },
-        auth: { required: false, permissions: [] },
-        demoScenarios: [],
-        cacheHints: { ttlSeconds: 0, varyBy: [] }
+        operations: [{
+          operationId: "config.read",
+          method: "GET",
+          title: "Read config",
+          description: "Read config",
+          querySchema: {},
+          headersSchema: {},
+          bodySchema: {},
+          jsonResponseSchema: {
+            root: { kind: "object", properties: { [responseField]: { kind: "string" } }, required: [responseField] }
+          },
+          metadataResponseSchema: {},
+          html: { renderers: {} },
+          auth: { required: false, permissions: [] },
+          demoScenarios: [],
+          cacheHints: { ttlSeconds: 0, varyBy: [] }
+        }]
       }]
     },
-    routes: [{ viewId: "config.index", path: "/", methods: ["GET"], paramNames: [], renderers: [], hasFragments: false, fragments: [], components: [] }]
+    routes: [{ viewId: "config.index", path: "/", operations: [{ operationId: "config.read", method: "GET" }], paramNames: [], renderers: [], hasFragments: false, fragments: [], components: [] }]
   });
 }
 
@@ -87,4 +92,33 @@ test("generated clients accept runtime S2S headers", () => {
   const output = emitTypeScriptClient("reports", contract());
   assert.match(output, /runtimeHeaders/);
   assert.match(output, /headers\?: Record<string, string>/);
+});
+
+test("generated clients keep GET and POST contracts separate for one view", () => {
+  const value = contract();
+  value.manifest.views[0].operations.push({
+    operationId: "config.create",
+    method: "POST",
+    title: "Create config",
+    description: "Create config",
+    querySchema: {},
+    headersSchema: {},
+    bodySchema: { root: { kind: "object", properties: { name: { kind: "string" } }, required: ["name"] } },
+    jsonResponseSchema: { root: { kind: "object", properties: { id: { kind: "string" } }, required: ["id"] } },
+    metadataResponseSchema: {},
+    renderable: true,
+    html: { renderers: {} },
+    auth: { required: false, permissions: [], callers: ["user"] },
+    robots: [],
+    dependencies: [],
+    apiContracts: [],
+    demoScenarios: [],
+    cacheHints: { ttlSeconds: 0, varyBy: [] }
+  });
+  value.routes[0].operations.push({ operationId: "config.create", method: "POST" });
+  const output = emitTypeScriptClient("config", value);
+  assert.match(output, /export const configRead/);
+  assert.match(output, /export const configCreate/);
+  assert.match(output, /body\?: \{ "name": string \}/);
+  assert.match(output, /export type ConfigCreateResponse/);
 });

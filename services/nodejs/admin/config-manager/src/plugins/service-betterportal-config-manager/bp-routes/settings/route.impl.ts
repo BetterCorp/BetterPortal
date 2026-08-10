@@ -67,10 +67,10 @@ export const auth: ApiAuthRequirement = {
 };
 
 export const dependencies = [
-  "services.index",
-  "routes.index",
-  "fragments.index",
-  "config.index"
+  "admin.services.view",
+  "admin.routes.view",
+  "admin.fragments.view",
+  "admin.config.view"
 ];
 
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin", "referer"] };

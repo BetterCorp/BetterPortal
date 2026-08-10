@@ -61,7 +61,7 @@ export const ShellManifestSchema = av.object({
 export type ShellManifest = Infer<typeof ShellManifestSchema>;
 
 export const PluginManifestSchema = av.object({
-  protocolVersion: av.literal(1),
+  protocolVersion: av.literal(2),
   pluginId: PluginIdSchema,
   title: av.string().minLength(1),
   description: av.string().minLength(1),
@@ -90,7 +90,10 @@ export const BpSchemaRouteSchema = av.object({
   viewId: av.string().minLength(1),
   path: av.string().minLength(1),
   pathVariants: av.array(av.string().minLength(1)).default([]),
-  methods: av.array(HttpMethodSchema).minItems(1),
+  operations: av.array(av.object({
+    operationId: av.string().minLength(1),
+    method: HttpMethodSchema
+  }, { unknownKeys: "strip" })).minItems(1),
   paramNames: av.array(av.string().minLength(1)).default([]),
   renderers: av.array(av.string().minLength(1)).default([]),
   hasFragments: av.bool().default(false),

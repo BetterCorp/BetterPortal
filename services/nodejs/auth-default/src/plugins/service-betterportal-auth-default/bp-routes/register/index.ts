@@ -1,1 +1,1 @@
-export { title, description, auth, role, dependencies, chrome, cacheHints } from "./route.impl.js";
+export { title, description } from "./route.impl.js";

@@ -1,6 +1,6 @@
 # Authentication & Authorization
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 
 BetterPortal has two authentication surfaces:
 
@@ -71,9 +71,9 @@ GET /.well-known/openid-configuration
 
 Services verify ID tokens by fetching JWKS (cached, with TTL >= 5 minutes). The reference SDK uses `JwksVerifier` (see `framework/nodejs/src/runtime/jwksVerifier.ts`); other SDKs use their stack's equivalent (`jose`, `firebase/php-jwt + web-token`, `golang-jwt`, etc.).
 
-### 1.5 Per-route policy: `ViewAuthRequirement`
+### 1.5 Per-operation policy: `ViewAuthRequirement`
 
-Every view declares an `auth` block in its manifest:
+Every HTTP operation declares an `auth` block in its manifest:
 
 ```jsonc
 {
@@ -85,7 +85,7 @@ Every view declares an `auth` block in its manifest:
 }
 ```
 
-This is **declarative metadata only**. The protocol does not mandate enforcement; the SDK does it. A service MAY use a middleware that reads `auth.required` from the view's registry and rejects with `401` if no valid token, or `403` if a token is present but fails `realm` / `minimumTier` / `audiences` / `permissions` checks.
+This is **declarative metadata only**. The protocol does not mandate enforcement; the SDK does it. A service MAY use middleware that reads `auth.required` from the selected method operation and rejects with `401` if no valid token, or `403` if a token is present but fails `realm` / `minimumTier` / `audiences` / `permissions` checks. Methods sharing one `viewId` do not share auth policy.
 
 ### 1.6 Tier ordering
 

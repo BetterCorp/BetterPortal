@@ -20,7 +20,7 @@ import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManife
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
-import { getAvailableServiceInstanceIdsForApp } from "./storage/core.js";
+import { getAvailableServiceInstanceIdsForApp, legacyOperationId, legacyOperationMethod } from "./storage/core.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
 
@@ -43,13 +43,23 @@ function validateServicePublicKey(publicKeyPem: string, keyId: string): { public
  */
 export interface CachedManifestView {
   viewId: string;
+  title: string;
+  description: string;
   path: string;
   pathVariants: string[];
-  methods: string[];
+  paramsSchema?: Record<string, JsonValue>;
+  operations: CachedManifestOperation[];
+  fragments: Array<{ fragmentId: string; targetPath: string }>;
+}
+
+export interface CachedManifestOperation {
+  operationId: string;
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
+  title: string;
+  description: string;
   renderers: string[];
   role?: string;
-  authRequired?: boolean;
-  paramsSchema?: Record<string, JsonValue>;
+  authRequired: boolean;
   sitemap?: {
     kind: "default" | "exclude" | "metadata" | "provider";
     lastModified?: string;
@@ -71,7 +81,6 @@ export interface CachedManifestView {
   apiContracts: JsonValue[];
   /** Example payloads advertised by the service route. */
   demoScenarios: JsonValue[];
-  fragments: Array<{ fragmentId: string; targetPath: string }>;
 }
 
 export interface CachedManifest {
@@ -163,47 +172,33 @@ function normalizeManifest(input: {
   shell?: ShellManifest;
   viewIndex?: Record<string, {
     viewId: string;
+    title: string;
+    description: string;
     path: string;
     pathVariants?: string[];
-    methods: string[];
-    renderers?: string[];
-    role?: string;
-    authRequired?: boolean;
     paramsSchema?: Record<string, JsonValue>;
-    sitemap?: CachedManifestView["sitemap"];
-    robots?: Array<{ userAgent: string; access: "allow" | "disallow"; crawlDelaySeconds?: number }>;
-    chrome?: BetterPortalRouteChrome;
-    dependencies?: string[];
-    renderable?: boolean;
-    schemas?: Record<string, JsonValue>;
-    raw?: boolean;
-    apiContracts?: JsonValue[];
-    demoScenarios?: JsonValue[];
+    operations: Array<CachedManifestOperation>;
     fragments?: Array<{ fragmentId: string; targetPath: string }>;
-    permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
   }>;
 }): CachedManifest {
   const normalizedViews: Record<string, CachedManifestView> = {};
   for (const [vid, v] of Object.entries(input.viewIndex ?? {})) {
     normalizedViews[vid] = {
       viewId: v.viewId,
+      title: v.title,
+      description: v.description,
       path: v.path,
       pathVariants: Array.isArray(v.pathVariants) ? v.pathVariants : [],
-      methods: v.methods ?? [],
-      renderers: Array.isArray(v.renderers) ? v.renderers.filter((value): value is string => typeof value === "string" && value.length > 0) : [],
-      ...(v.role ? { role: v.role } : {}),
-      ...(typeof v.authRequired === "boolean" ? { authRequired: v.authRequired } : {}),
       ...(v.paramsSchema ? { paramsSchema: v.paramsSchema } : {}),
-      ...(v.sitemap ? { sitemap: v.sitemap } : {}),
-      robots: Array.isArray(v.robots) ? v.robots : [],
-      ...(v.chrome ? { chrome: v.chrome } : {}),
-      dependencies: Array.isArray(v.dependencies) ? v.dependencies.filter((value): value is string => typeof value === "string" && value.length > 0) : [],
-      permissions: v.permissions ?? [],
-      renderable: v.renderable ?? true,
-      ...(v.schemas && typeof v.schemas === "object" ? { schemas: v.schemas } : {}),
-      ...(v.raw === true ? { raw: true } : {}),
-      apiContracts: Array.isArray(v.apiContracts) ? v.apiContracts : [],
-      demoScenarios: Array.isArray(v.demoScenarios) ? v.demoScenarios : [],
+      operations: v.operations.map((operation) => ({
+        ...operation,
+        renderers: Array.isArray(operation.renderers) ? operation.renderers : [],
+        robots: Array.isArray(operation.robots) ? operation.robots : [],
+        dependencies: Array.isArray(operation.dependencies) ? operation.dependencies : [],
+        permissions: Array.isArray(operation.permissions) ? operation.permissions : [],
+        apiContracts: Array.isArray(operation.apiContracts) ? operation.apiContracts : [],
+        demoScenarios: Array.isArray(operation.demoScenarios) ? operation.demoScenarios : []
+      })),
       fragments: Array.isArray(v.fragments) ? v.fragments.filter((fragment) =>
         typeof fragment?.fragmentId === "string" && typeof fragment?.targetPath === "string"
       ) : []
@@ -262,39 +257,58 @@ export async function reconcileServiceRegistry(
   for (const group of routeGroups.values()) {
     const routes = [...group].sort((a, b) => b.paramNames.length - a.paramNames.length || b.path.length - a.path.length);
     const route = routes[0];
-    const renderable = route.raw === true
-      ? false
-      : Object.values(route.renderers).some((set) =>
-        set.pages.length > 0 || set.components.length > 0 || set.fragments.length > 0 || Boolean(set.stream)
-      );
     viewIndex[route.viewId] = {
       viewId: route.viewId,
+      title: route.title,
+      description: route.description,
       path: route.path,
       pathVariants: routes.length > 1 ? routes.map((candidate) => candidate.path) : [],
-      methods: [...route.methods],
-      renderers: Object.keys(route.renderers),
-      ...(route.role ? { role: route.role } : {}),
-      authRequired: route.auth.required,
       ...(route.schemas.params ? { paramsSchema: toJsonSchemaDocument(route.schemas.params) as Record<string, JsonValue> } : {}),
-      sitemap: sitemapMetadata(route.sitemap),
-      robots: [...(route.robots ?? [])],
-      ...(route.chrome ? { chrome: route.chrome } : {}),
-      dependencies: [...(route.dependencies ?? [])],
-      permissions: route.auth.permissions ?? [],
-      renderable,
-      ...(route.raw === true ? { raw: true } : {}),
-      apiContracts: (route.apiContracts ?? []).map((contract) => ({
-        ...contract,
-        viewId: route.viewId,
-        methods: contract.methods ? [...contract.methods] : [...route.methods]
-      })) as JsonValue[],
-      demoScenarios: route.demoScenarios.map((scenario) => toJsonValue({
-        id: scenario.id,
-        title: scenario.title,
-        ...(scenario.description ? { description: scenario.description } : {}),
-        ...(scenario.match ? { match: scenario.match } : {}),
-        response: scenario.response
-      })),
+      operations: route.methods.map((method) => {
+        const operation = route.methodRoutes?.[method];
+        if (!operation) throw new Error(`Route ${route.viewId} is missing operation metadata for ${method}`);
+        const renderers = Object.entries(route.renderers).filter(([, set]) =>
+          set.pages.some((renderer) => renderer.method === method)
+          || set.components.some((renderer) => renderer.method === method)
+          || set.fragments.some((renderer) => renderer.method === method)
+          || (method === "GET" && Boolean(set.stream))
+        ).map(([renderer]) => renderer);
+        return {
+          operationId: operation.operationId,
+          method,
+          title: operation.title,
+          description: operation.description,
+          renderers,
+          ...(operation.role ? { role: operation.role } : {}),
+          authRequired: operation.auth.required,
+          sitemap: sitemapMetadata(operation.sitemap),
+          robots: [...(operation.robots ?? [])],
+          ...(operation.chrome ? { chrome: operation.chrome } : {}),
+          dependencies: [...(operation.dependencies ?? [])],
+          permissions: operation.auth.permissions ?? [],
+          renderable: operation.raw !== true && renderers.length > 0,
+          schemas: {
+            ...(operation.schemas.query ? { query: toJsonSchemaDocument(operation.schemas.query) as JsonValue } : {}),
+            ...(operation.schemas.headers ? { headers: toJsonSchemaDocument(operation.schemas.headers) as JsonValue } : {}),
+            ...(operation.schemas.request ? { request: toJsonSchemaDocument(operation.schemas.request) as JsonValue } : {}),
+            ...(operation.schemas.multipart ? { multipart: toJsonSchemaDocument(operation.schemas.multipart) as JsonValue } : {}),
+            ...(operation.schemas.response ? { response: toJsonSchemaDocument(operation.schemas.response) as JsonValue } : {})
+          },
+          ...(operation.raw === true ? { raw: true } : {}),
+          apiContracts: (operation.apiContracts ?? []).map((contract) => ({
+            ...contract,
+            viewId: route.viewId,
+            methods: [method]
+          })) as JsonValue[],
+          demoScenarios: operation.demoScenarios.map((scenario) => toJsonValue({
+            id: scenario.id,
+            title: scenario.title,
+            ...(scenario.description ? { description: scenario.description } : {}),
+            ...(scenario.match ? { match: scenario.match } : {}),
+            response: scenario.response
+          }))
+        };
+      }),
       fragments: [...new Map(Object.values(route.renderers).flatMap((theme) =>
         theme.fragments.flatMap((fragment) => {
           const fragmentId = fragment.fragmentLocation && fragment.fragmentId
@@ -331,17 +345,24 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
     if (!cached) return route;
     const view = cached.viewIndex[route.viewId];
     if (!view) return route;
-    const chrome = view.chrome || route.chrome
-      ? { ...(view.chrome ?? {}), ...(route.chrome ?? {}) }
+    const operation = view.operations.find((candidate) => route.operations.includes(candidate.operationId) && candidate.renderable)
+      ?? view.operations.find((candidate) => route.operations.includes(candidate.operationId));
+    if (!operation) return route;
+    const resolvedMethods = view.operations
+      .filter((candidate) => route.operations.includes(candidate.operationId))
+      .map((candidate) => candidate.method);
+    const chrome = operation.chrome || route.chrome
+      ? { ...(operation.chrome ?? {}), ...(route.chrome ?? {}) }
       : undefined;
     return {
       ...route,
       resolvedServicePath: route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
         ? route.servicePathVariant
         : view.path,
-      ...(typeof view.authRequired === "boolean" ? { authRequired: view.authRequired } : {}),
-      ...(view.sitemap ? { sitemap: view.sitemap } : {}),
-      robots: [...view.robots],
+      resolvedMethods,
+      authRequired: operation.authRequired,
+      ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
+      robots: [...operation.robots],
       ...(chrome ? { chrome } : {})
     };
   });
@@ -470,22 +491,7 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
         m2mRequests?: JsonValue[];
         developerResources?: DeveloperResource[];
         shell?: ShellManifest;
-        viewIndex?: Record<string, {
-          viewId: string;
-          path: string;
-          methods: string[];
-          renderers?: string[];
-          role?: string;
-          chrome?: BetterPortalRouteChrome;
-          dependencies?: string[];
-          renderable?: boolean;
-          schemas?: Record<string, JsonValue>;
-          raw?: boolean;
-          apiContracts?: JsonValue[];
-          demoScenarios?: JsonValue[];
-          fragments?: Array<{ fragmentId: string; targetPath: string }>;
-          permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
-        }>;
+        viewIndex?: NonNullable<Parameters<typeof normalizeManifest>[0]["viewIndex"]>;
       } | null;
       if (body?.publicKeyPem || body?.keyId) {
         if (typeof body.publicKeyPem !== "string" || typeof body.keyId !== "string") {
@@ -553,28 +559,32 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
   app.post(`${SYNC_PATH}/poll`, pollHandler);
 }
 
-function normalizeMethods(methods: string[]): BetterPortalRouteMount["methods"] {
-  return methods.filter((method): method is BetterPortalRouteMount["methods"][number] =>
-    method === "GET" || method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE" || method === "OPTIONS"
-  );
+function sameOperations(left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean {
+  return left.length === right.length && left.every((operationId) => right.includes(operationId));
 }
 
-function sameMethods(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every((method) => rightSet.has(method));
+function operationIndex(manifest: CachedManifest): Map<string, { view: CachedManifestView; operation: CachedManifestOperation }> {
+  return new Map(Object.values(manifest.viewIndex).flatMap((view) =>
+    view.operations.map((operation) => [operation.operationId, { view, operation }] as const)
+  ));
 }
 
 function addMissingDependencyRoutes(app: { routes: BetterPortalRouteMount[] }, sourceRoute: BetterPortalRouteMount, manifest: CachedManifest): boolean {
   if (!sourceRoute.enabled) return false;
   const sourceView = manifest.viewIndex[sourceRoute.viewId];
   if (!sourceView) return false;
+  const operations = operationIndex(manifest);
+  const dependencies = sourceView.operations
+    .filter((operation) => sourceRoute.operations.includes(operation.operationId))
+    .flatMap((operation) => operation.dependencies);
 
   let changed = false;
-  for (const dependencyViewId of sourceView.dependencies) {
-    const dependency = manifest.viewIndex[dependencyViewId];
+  for (const dependencyOperationId of dependencies) {
+    const dependency = operations.get(dependencyOperationId);
     if (!dependency) continue;
-    const existing = app.routes.find((route) => route.serviceId === sourceRoute.serviceId && route.viewId === dependencyViewId);
+    const existing = app.routes.find((route) =>
+      route.serviceId === sourceRoute.serviceId && route.operations.includes(dependencyOperationId)
+    );
     if (existing) {
       if (!existing.enabled) {
         existing.enabled = true;
@@ -583,17 +593,16 @@ function addMissingDependencyRoutes(app: { routes: BetterPortalRouteMount[] }, s
       continue;
     }
 
-    const methods = normalizeMethods(dependency.methods);
     app.routes.push({
       id: uuidv7(),
       kind: "api",
-      path: apiRoutePath(manifest.serviceId, dependency.path),
+      path: apiRoutePath(manifest.serviceId, dependency.view.path),
       serviceId: sourceRoute.serviceId,
-      viewId: dependencyViewId,
-      targetPath: dependency.path,
-      title: dependency.viewId,
+      viewId: dependency.view.viewId,
+      targetPath: dependency.view.path,
+      title: dependency.operation.title,
       enabled: true,
-      methods: methods.length ? methods : ["GET"]
+      operations: [dependencyOperationId]
     });
     changed = true;
   }
@@ -648,10 +657,31 @@ async function updateServiceMetadata(
     changed = true;
   }
   for (const app of config.apps) {
+    for (const route of app.routes) {
+      if (Array.isArray(route.operations) && route.operations.length > 0) continue;
+      const legacyMethods = (route as unknown as { methods?: string[] }).methods ?? ["GET"];
+      route.operations = legacyMethods.map((method) => legacyOperationId(route.viewId, method));
+    }
     const appServiceIds = getAvailableServiceInstanceIdsForApp(config, app);
     const syncedServiceIds = new Set([...routeServiceIds].filter((id) => appServiceIds.has(id)));
+    const manifestOperations = operationIndex(manifest);
+    for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
+      const view = manifest.viewIndex[route.viewId];
+      if (!view) continue;
+      const resolvedOperations = route.operations.map((operationId) => {
+        const legacyMethod = legacyOperationMethod(operationId);
+        if (!legacyMethod) return operationId;
+        return view.operations.find((operation) => operation.method === legacyMethod)?.operationId ?? operationId;
+      });
+      if (!sameOperations(route.operations, resolvedOperations)) {
+        route.operations = resolvedOperations;
+        changed = true;
+      }
+    }
     const staleApiRouteIds = new Set(app.routes
-      .filter((route) => syncedServiceIds.has(route.serviceId) && route.kind === "api" && !manifest.viewIndex[route.viewId])
+      .filter((route) => syncedServiceIds.has(route.serviceId)
+        && route.kind === "api"
+        && !route.operations.some((operationId) => manifestOperations.get(operationId)?.view.viewId === route.viewId))
       .map((route) => route.id));
     if (staleApiRouteIds.size > 0) {
       app.routes = app.routes.filter((route) => !staleApiRouteIds.has(route.id));
@@ -671,20 +701,36 @@ async function updateServiceMetadata(
         continue;
       }
 
-      const methods = normalizeMethods(view.methods);
-      if (methods.length > 0 && !sameMethods(route.methods, methods)) {
-        route.methods = methods;
+      const validOperations = route.operations.filter((operationId) =>
+        manifestOperations.get(operationId)?.view.viewId === route.viewId
+      );
+      if (validOperations.length === 0) {
+        if (route.enabled !== false) {
+          route.enabled = false;
+          changed = true;
+        }
+        continue;
+      }
+      if (!sameOperations(route.operations, validOperations)) {
+        route.operations = validOperations;
+        changed = true;
+      }
+      const selectedOperations = validOperations.map((operationId) => manifestOperations.get(operationId)!.operation);
+      const pageOperation = selectedOperations.find((candidate) => candidate.method === "GET" && candidate.renderable);
+      const operation = pageOperation ?? selectedOperations[0];
+      if (route.operations.length > 1) {
+        route.operations = [operation.operationId];
         changed = true;
       }
       const wasApi = route.kind === "api";
-      const selectedServicePath = !wasApi && view.renderable !== false && route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
+      const selectedServicePath = !wasApi && pageOperation && route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
         ? route.servicePathVariant
         : view.path;
       if (route.targetPath !== selectedServicePath) {
         route.targetPath = selectedServicePath;
         changed = true;
       }
-      const routeIsApi = view.renderable === false;
+      const routeIsApi = !pageOperation;
       if (routeIsApi) {
         const nextPath = apiRoutePath(manifest.serviceId, selectedServicePath);
         if (route.kind !== "api") {
@@ -707,8 +753,8 @@ async function updateServiceMetadata(
           delete route.fixedParams;
           changed = true;
         }
-        if (route.title !== view.viewId) {
-          route.title = view.viewId;
+        if (route.title !== operation.title) {
+          route.title = operation.title;
           changed = true;
         }
       } else {
@@ -719,28 +765,29 @@ async function updateServiceMetadata(
           changed = true;
         }
       }
-      if (!route.title && view.viewId) {
-        route.title = view.viewId;
+      if (!route.title) {
+        route.title = operation.title;
         changed = true;
       }
       if (addMissingDependencyRoutes(app, route, manifest)) changed = true;
     }
     for (const serviceId of syncedServiceIds) {
-      for (const view of Object.values(manifest.viewIndex).filter((candidate) => candidate.renderable === false)) {
-        if (app.routes.some((route) => route.serviceId === serviceId && route.viewId === view.viewId)) continue;
-        const methods = normalizeMethods(view.methods);
-        app.routes.push({
-          id: uuidv7(),
-          kind: "api",
-          path: apiRoutePath(manifest.serviceId, view.path),
-          serviceId,
-          viewId: view.viewId,
-          targetPath: view.path,
-          title: view.viewId,
-          enabled: false,
-          methods: methods.length ? methods : ["GET"]
-        });
-        changed = true;
+      for (const view of Object.values(manifest.viewIndex)) {
+        for (const operation of view.operations.filter((candidate) => candidate.method !== "GET" || !candidate.renderable)) {
+          if (app.routes.some((route) => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;
+          app.routes.push({
+            id: uuidv7(),
+            kind: "api",
+            path: apiRoutePath(manifest.serviceId, view.path),
+            serviceId,
+            viewId: view.viewId,
+            targetPath: view.path,
+            title: operation.title,
+            enabled: false,
+            operations: [operation.operationId]
+          });
+          changed = true;
+        }
       }
     }
   }

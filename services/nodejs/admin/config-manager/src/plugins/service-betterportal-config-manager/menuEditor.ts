@@ -38,6 +38,7 @@ interface Route {
   title?: string;
   serviceId?: string;
   viewId?: string;
+  operations?: string[];
   targetPath?: string;
 }
 
@@ -91,7 +92,10 @@ function getRoutes(appDef: any): Route[] {
     const view = route.serviceId && route.viewId
       ? getManifestCache().get(route.serviceId)?.viewIndex[route.viewId]
       : undefined;
-    return !isApiRoute(route, view?.renderable);
+    const renderable = view?.operations.some((operation) =>
+      route.operations?.includes(operation.operationId) && operation.method === "GET" && operation.renderable
+    );
+    return !isApiRoute(route, renderable);
   });
 }
 
@@ -138,7 +142,7 @@ function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: s
   const entry = cache.get(serviceId);
   if (!entry) return [];
   return Object.values(entry.viewIndex)
-    .filter((v) => v.renderable)
+    .filter((v) => v.operations.some((operation) => operation.method === "GET" && operation.renderable))
     .map((v) => ({
       viewId: v.viewId,
       title: v.viewId,

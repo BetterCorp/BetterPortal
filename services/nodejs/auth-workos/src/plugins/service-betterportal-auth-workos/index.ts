@@ -958,7 +958,7 @@ function permissionCatalogForRoute(route: BetterPortalRouteMount, mapping: WorkO
   const kind = route.kind ?? "page";
   const appPath = route.path;
   const servicePath = route.resolvedServicePath ?? route.targetPath ?? route.path;
-  const methods = route.methods.length ? route.methods.join(",") : "GET";
+  const methods = route.resolvedMethods?.length ? route.resolvedMethods.join(",") : "unresolved";
   return (["read", "create", "update", "delete"] as const).map((action) => ({
     slug: bpPermissionSlug(mapping.shortId, action),
     serviceName: serviceTitle,

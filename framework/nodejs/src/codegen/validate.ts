@@ -78,6 +78,76 @@ function checkResponseSchema(route: ScannedRoute, errors: ValidationError[]): vo
   }
 }
 
+const OPERATION_EXPORTS = [
+  "operationId",
+  "auth",
+  "QuerySchema",
+  "HeadersSchema",
+  "RequestSchema",
+  "MultipartSchema",
+  "ResponseSchema",
+  "ItemSchema",
+  "SummarySchema",
+  "sitemap",
+  "robots",
+  "role",
+  "dependencies",
+  "chrome",
+  "apiContracts",
+  "cacheHints",
+  "demoScenarios"
+] as const;
+
+function checkOperationMetadata(route: ScannedRoute, errors: ValidationError[]): void {
+  for (const name of OPERATION_EXPORTS) {
+    if (route.metadataExports.includes(name)) {
+      errors.push({
+        file: route.relativePath + "/index.ts",
+        message: `Route metadata "${name}" belongs in each method file that uses it.`,
+        severity: "error"
+      });
+    }
+  }
+
+  for (const methodRoute of route.methodModules) {
+    for (const required of ["operationId", "title", "description", "auth"]) {
+      if (!methodRoute.exports.includes(required)) {
+        errors.push({
+          file: methodRoute.relativePath,
+          message: `Method route "${route.viewId}" ${methodRoute.method} must export ${required}.`,
+          severity: "error"
+        });
+      }
+    }
+    if (methodRoute.operationId !== undefined && !/^[A-Za-z][A-Za-z0-9._-]*$/.test(methodRoute.operationId)) {
+      errors.push({
+        file: methodRoute.relativePath,
+        message: `Operation id "${methodRoute.operationId}" is invalid. Use a stable dot-separated identifier.`,
+        severity: "error"
+      });
+    }
+  }
+}
+
+function checkDuplicateOperationIds(routes: ScannedRoute[], errors: ValidationError[]): void {
+  const seen = new Map<string, string>();
+  for (const route of routes) {
+    for (const methodRoute of route.methodModules) {
+      if (!methodRoute.operationId) continue;
+      const existing = seen.get(methodRoute.operationId);
+      if (existing) {
+        errors.push({
+          file: methodRoute.relativePath,
+          message: `Duplicate operationId "${methodRoute.operationId}". Also defined at "${existing}".`,
+          severity: "error"
+        });
+      } else {
+        seen.set(methodRoute.operationId, methodRoute.relativePath);
+      }
+    }
+  }
+}
+
 function checkRawRenderers(route: ScannedRoute, errors: ValidationError[]): void {
   if (!route.isRaw) return;
   if (route.renderers.length === 0 && route.streamRenderers.length === 0) return;
@@ -330,6 +400,7 @@ export function validateScanResult(result: ScanResult): ValidationError[] {
 
   // Cross-route checks
   checkDuplicateViewIds(result.routes, errors);
+  checkDuplicateOperationIds(result.routes, errors);
   checkConflictingPaths(result.routes, errors);
   checkDuplicateShellFragmentIds(result, errors);
 
@@ -337,6 +408,7 @@ export function validateScanResult(result: ScanResult): ValidationError[] {
   for (const route of result.routes) {
     checkHandlerExports(route, errors);
     checkResponseSchema(route, errors);
+    checkOperationMetadata(route, errors);
     checkRawRenderers(route, errors);
     warnRawHandler(route, errors);
     warnLooseSchemas(route, errors);

@@ -65,6 +65,84 @@ export function hashApiKey(apiKey: string): string {
   return createHash("sha256").update(apiKey).digest("hex");
 }
 
+const LEGACY_OPERATION_PREFIX = "legacy:";
+
+export function legacyOperationId(viewId: string, method: string): string {
+  return `${LEGACY_OPERATION_PREFIX}${viewId}:${method.toUpperCase()}`;
+}
+
+export function legacyOperationMethod(operationId: string): string | undefined {
+  if (!operationId.startsWith(LEGACY_OPERATION_PREFIX)) return undefined;
+  const separator = operationId.lastIndexOf(":");
+  return separator >= LEGACY_OPERATION_PREFIX.length ? operationId.slice(separator + 1) : undefined;
+}
+
+/**
+ * One-time persisted-config migration for the operation-aware manifest format.
+ * Legacy ids remain explicit until the publishing service next syncs, where
+ * they are replaced by the operation ids declared by that service.
+ */
+export function migrateRouteOperations<T>(value: T): T {
+  if (!value || typeof value !== "object") return value;
+  const root = value as Record<string, unknown>;
+  const apps = Array.isArray(root.apps) ? root.apps : [];
+  for (const appValue of apps) {
+    if (!appValue || typeof appValue !== "object") continue;
+    const routes = Array.isArray((appValue as Record<string, unknown>).routes)
+      ? (appValue as Record<string, unknown>).routes as unknown[]
+      : [];
+    for (const routeValue of routes) {
+      if (!routeValue || typeof routeValue !== "object") continue;
+      const route = routeValue as Record<string, unknown>;
+      if (!Array.isArray(route.operations) || route.operations.length === 0) {
+        const viewId = typeof route.viewId === "string" ? route.viewId : "unknown";
+        const methods = Array.isArray(route.methods) && route.methods.length > 0 ? route.methods : ["GET"];
+        route.operations = methods
+          .filter((method): method is string => typeof method === "string")
+          .map((method) => legacyOperationId(viewId, method));
+      }
+      delete route.methods;
+    }
+  }
+
+  const manifests = Array.isArray(root.manifestCache) ? root.manifestCache : [];
+  for (const manifestValue of manifests) {
+    if (!manifestValue || typeof manifestValue !== "object") continue;
+    const viewIndex = (manifestValue as Record<string, unknown>).viewIndex;
+    if (!viewIndex || typeof viewIndex !== "object" || Array.isArray(viewIndex)) continue;
+    for (const viewValue of Object.values(viewIndex as Record<string, unknown>)) {
+      if (!viewValue || typeof viewValue !== "object") continue;
+      const view = viewValue as Record<string, unknown>;
+      if (Array.isArray(view.operations) && view.operations.length > 0) continue;
+      const viewId = typeof view.viewId === "string" ? view.viewId : "unknown";
+      const methods = Array.isArray(view.methods) && view.methods.length > 0 ? view.methods : ["GET"];
+      const renderers = Array.isArray(view.renderers)
+        ? view.renderers.filter((renderer): renderer is string => typeof renderer === "string")
+        : [];
+      const permissions = Array.isArray(view.permissions) ? view.permissions : [];
+      view.operations = methods
+        .filter((method): method is string => typeof method === "string")
+        .map((method) => ({
+          operationId: legacyOperationId(viewId, method),
+          method: method.toUpperCase(),
+          title: typeof view.title === "string" ? view.title : viewId,
+          description: typeof view.description === "string" ? view.description : viewId,
+          renderers,
+          authRequired: view.authRequired === true,
+          robots: Array.isArray(view.robots) ? view.robots : [],
+          dependencies: Array.isArray(view.dependencies) ? view.dependencies : [],
+          permissions,
+          renderable: view.renderable !== false,
+          schemas: view.schemas,
+          raw: view.raw,
+          apiContracts: Array.isArray(view.apiContracts) ? view.apiContracts : [],
+          demoScenarios: Array.isArray(view.demoScenarios) ? view.demoScenarios : []
+        }));
+    }
+  }
+  return value;
+}
+
 const DefaultAuthViewIds = {
   login: "login.index",
   logout: "logout.index",

@@ -1,6 +1,6 @@
 # `/.well-known/bp/schema.json`
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 **Endpoint:** `GET /.well-known/bp/schema.json`
 **Content-Type:** `application/json`
 
@@ -15,7 +15,7 @@ A flattened, machine-readable catalog of a service's routes, renderer contracts,
     {
       "viewId": "hello.index",
       "path": "/hello",
-      "methods": ["GET"],
+      "operations": [{ "operationId": "hello.read", "method": "GET" }],
       "paramNames": [],
       "renderers": ["bootstrap5", "embedded"],
       "hasFragments": true,
@@ -37,7 +37,7 @@ A flattened, machine-readable catalog of a service's routes, renderer contracts,
 | `manifest` | Identical to `/.well-known/bp/manifest`. Duplicated here so callers fetch once. |
 | `routes[].viewId` | Matches `manifest.views[].viewId`. |
 | `routes[].path` | Public path. `:param` syntax intact. |
-| `routes[].methods` | Same as `manifest.views[].methods`. |
+| `routes[].operations` | Operation id/method pairs from the matching manifest view. |
 | `routes[].paramNames` | Ordered list of `:param` names extracted from `path`. |
 | `routes[].renderers` | Renderer compatibility keys implemented by this view. |
 | `routes[].hasFragments` | `true` iff the route has any fragment renderer. |

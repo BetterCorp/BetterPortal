@@ -9,7 +9,7 @@ import { ContractRegistryStore } from "../src/plugins/service-betterportal-regis
 function contract(version: string, description = "Registry test") {
   return BpSchemaOutputSchema.parse({
     manifest: {
-      protocolVersion: 1,
+      protocolVersion: 2,
       pluginId: "org.betterportal.test",
       title: "Test",
       description,

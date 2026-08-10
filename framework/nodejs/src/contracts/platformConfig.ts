@@ -156,12 +156,14 @@ export const BetterPortalRouteMountSchema = av.object({
   targetPath: av.optional(NonEmptyStringSchema),
   /** Service path resolved by control plane from manifest cache. Injected on sync delivery. */
   resolvedServicePath: av.optional(NonEmptyStringSchema),
+  /** HTTP methods resolved from selected operation ids. Injected on sync delivery. */
+  resolvedMethods: av.optional(av.array(HttpMethodSchema).minItems(1)),
   /** Optional query string appended to service request. */
   query: av.optional(av.string()),
   title: av.optional(NonEmptyStringSchema),
   icon: av.optional(NonEmptyStringSchema),
   enabled: av.bool().default(true),
-  methods: av.array(HttpMethodSchema).minItems(1).default(["GET"]),
+  operations: av.array(NonEmptyStringSchema).minItems(1),
   chrome: av.optional(BetterPortalRouteChromeSchema)
 }, { unknownKeys: "strip" });
 export type BetterPortalRouteMount = Infer<typeof BetterPortalRouteMountSchema>;
@@ -379,36 +381,43 @@ export const ServiceManifestCacheEntrySchema = av.object({
   })),
   viewIndex: av.record(av.object({
     viewId: NonEmptyStringSchema,
+    title: NonEmptyStringSchema,
+    description: NonEmptyStringSchema,
     path: NonEmptyStringSchema,
     pathVariants: av.array(NonEmptyStringSchema).default([]),
-    methods: av.array(NonEmptyStringSchema).default([]),
-    renderers: av.array(NonEmptyStringSchema).default([]),
-    role: av.optional(NonEmptyStringSchema),
-    authRequired: av.optional(av.bool()),
     paramsSchema: av.optional(av.record(av.any())),
-    sitemap: av.optional(av.object({
-      kind: av.enum_(["default", "exclude", "metadata", "provider"] as const),
-      lastModified: av.optional(av.string().format("date-time")),
-      changeFrequency: av.optional(av.enum_(["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"] as const)),
-      priority: av.optional(av.number().min(0).max(1))
-    })),
-    robots: av.array(av.object({
-      userAgent: NonEmptyStringSchema,
-      access: av.enum_(["allow", "disallow"] as const),
-      crawlDelaySeconds: av.optional(av.int().min(0).max(86400))
-    })).default([]),
-    chrome: av.optional(BetterPortalRouteChromeSchema),
-    dependencies: av.array(NonEmptyStringSchema).default([]),
-    permissions: av.array(av.object({
-      serviceId: NonEmptyStringSchema,
-      viewId: NonEmptyStringSchema,
-      permissions: av.array(NonEmptyStringSchema).default([])
-    }, { unknownKeys: "strip" })).default([]),
-    renderable: av.bool().default(true),
-    schemas: av.optional(av.record(av.any())),
-    raw: av.optional(av.bool()),
-    apiContracts: av.array(av.any()).default([]),
-    demoScenarios: av.array(av.any()).default([]),
+    operations: av.array(av.object({
+      operationId: NonEmptyStringSchema,
+      method: HttpMethodSchema,
+      title: NonEmptyStringSchema,
+      description: NonEmptyStringSchema,
+      renderers: av.array(NonEmptyStringSchema).default([]),
+      role: av.optional(NonEmptyStringSchema),
+      authRequired: av.bool(),
+      sitemap: av.optional(av.object({
+        kind: av.enum_(["default", "exclude", "metadata", "provider"] as const),
+        lastModified: av.optional(av.string().format("date-time")),
+        changeFrequency: av.optional(av.enum_(["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"] as const)),
+        priority: av.optional(av.number().min(0).max(1))
+      })),
+      robots: av.array(av.object({
+        userAgent: NonEmptyStringSchema,
+        access: av.enum_(["allow", "disallow"] as const),
+        crawlDelaySeconds: av.optional(av.int().min(0).max(86400))
+      })).default([]),
+      chrome: av.optional(BetterPortalRouteChromeSchema),
+      dependencies: av.array(NonEmptyStringSchema).default([]),
+      permissions: av.array(av.object({
+        serviceId: NonEmptyStringSchema,
+        viewId: NonEmptyStringSchema,
+        permissions: av.array(NonEmptyStringSchema).default([])
+      }, { unknownKeys: "strip" })).default([]),
+      renderable: av.bool(),
+      schemas: av.optional(av.record(av.any())),
+      raw: av.optional(av.bool()),
+      apiContracts: av.array(av.any()).default([]),
+      demoScenarios: av.array(av.any()).default([])
+    }, { unknownKeys: "strip" })).minItems(1),
     fragments: av.array(av.object({ fragmentId: NonEmptyStringSchema, targetPath: NonEmptyStringSchema })).default([])
   }, { unknownKeys: "strip" })).default({})
 }, { unknownKeys: "strip" });

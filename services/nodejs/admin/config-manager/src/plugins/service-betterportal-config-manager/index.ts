@@ -578,16 +578,20 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         serviceId: manifest?.serviceId ?? serviceId,
         manifestLoaded: Boolean(manifest),
         views: manifest
-          ? Object.values(manifest.viewIndex).map((v) => ({
-              viewId: v.viewId,
-              title: v.viewId,
-              path: v.path,
-              pathVariants: v.pathVariants,
-              paramsSchema: v.paramsSchema,
-              methods: v.methods,
-              renderable: v.renderable,
-              dependencies: v.dependencies
-            }))
+          ? Object.values(manifest.viewIndex).flatMap((view) =>
+              view.operations.map((operation) => ({
+                viewId: view.viewId,
+                operationId: operation.operationId,
+                title: operation.title,
+                description: operation.description,
+                path: view.path,
+                pathVariants: view.pathVariants,
+                paramsSchema: view.paramsSchema,
+                method: operation.method,
+                renderable: operation.method === "GET" && operation.renderable,
+                dependencies: operation.dependencies
+              }))
+            )
           : []
       };
     };
@@ -628,17 +632,19 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     const routeModel = (selectedApp?.routes ?? []).map((r) => {
       const view = getCachedManifestForService(config, r.serviceId, cache)?.viewIndex[r.viewId];
-      const renderable = view?.renderable ?? r.kind !== "api";
+      const operations = view?.operations.filter((operation) => r.operations.includes(operation.operationId)) ?? [];
+      const renderable = operations.some((operation) => operation.method === "GET" && operation.renderable) || (!view && r.kind !== "api");
       return {
         id: r.id,
-        kind: isApiRoute(r, view?.renderable) ? "api" : "page",
+        kind: isApiRoute(r, renderable) ? "api" : "page",
         path: r.path,
         serviceId: r.serviceId,
         viewId: r.viewId,
         targetPath: r.targetPath ?? view?.path,
         servicePathVariant: r.servicePathVariant,
         fixedParams: r.fixedParams ?? {},
-        methods: r.methods,
+        operations: r.operations,
+        methods: operations.map((operation) => operation.method),
         query: r.query,
         title: r.title,
         renderable,
@@ -675,7 +681,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       routes: (selectedApp?.routes ?? [])
         .filter((r) => {
           const view = getManifestCache().get(r.serviceId)?.viewIndex[r.viewId];
-          return r.enabled && !isApiRoute(r, view?.renderable);
+          const renderable = view?.operations.some((operation) =>
+            r.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderable
+          );
+          return r.enabled && !isApiRoute(r, renderable);
         })
         .map((r) => ({
           id: r.id, path: r.path, title: r.title ?? r.path
@@ -790,12 +799,15 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const servicePermissions = Array.from(servicesById.values()).map((svc) => {
       const cachedManifest = getCachedManifestForService(config, svc.id, cache);
       const views = cachedManifest
-        ? Object.values(cachedManifest.viewIndex).map((v) => ({
-            viewId: v.viewId,
-            path: v.path,
-            methods: v.methods,
-            ...(v.role ? { role: v.role } : {}),
-            requiredPermissions: v.permissions
+        ? Object.values(cachedManifest.viewIndex).map((view) => ({
+            viewId: view.viewId,
+            path: view.path,
+            operations: view.operations.map((operation) => ({
+              operationId: operation.operationId,
+              method: operation.method,
+              ...(operation.role ? { role: operation.role } : {}),
+              requiredPermissions: operation.permissions
+            }))
           }))
         : [];
       return {

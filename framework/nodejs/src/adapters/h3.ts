@@ -276,7 +276,7 @@ async function resolveRequiredHandlerContext(
 }
 
 export function isBpManagementAuthRoute(route: RegisteredRoute): boolean {
-  return route.auth.required && (
+  return Object.values(route.methodRoutes ?? {}).some((operation) => operation?.auth.required) && (
     route.path === "/.well-known/bp"
     || route.path.startsWith("/.well-known/bp/")
   );
@@ -458,6 +458,9 @@ function requestAttributes(
     "network.protocol.name": requestUrl.protocol.replace(":", ""),
     "bp.route.path": route.path,
     "bp.route.view_id": route.viewId,
+    ...route.methodRoutes?.[method]?.operationId
+      ? { "bp.route.operation_id": route.methodRoutes[method]!.operationId }
+      : {},
     ...(requestIp ? { "client.address": requestIp } : {}),
     ...extra
   };
@@ -513,6 +516,7 @@ function logNegotiationFailure(
     status: 406,
     reason,
     "bp.route.view_id": route.viewId,
+    "bp.route.operation_id": route.methodRoutes?.[method]?.operationId ?? "",
     ...attributes
   });
 }
@@ -537,10 +541,6 @@ function routeMountServicePath(routeMount: BetterPortalApp["routes"][number]): s
   return routeMount.resolvedServicePath ?? routeMount.servicePathVariant ?? routeMount.targetPath;
 }
 
-function methodAllowed(methods: ReadonlyArray<string> | undefined, method: HttpMethod): boolean {
-  return (methods?.length ? methods : ["GET"]).some((candidate) => candidate.toUpperCase() === method);
-}
-
 function appAllowsRoute(
   app: BetterPortalApp,
   route: RegisteredRoute,
@@ -552,11 +552,14 @@ function appAllowsRoute(
   // is declared by the route and must not depend on being mounted as an app page.
   if (route.path.startsWith("/.well-known/")) return { allowed: true };
 
+  const operationId = route.methodRoutes?.[method]?.operationId;
+  if (!operationId) return { allowed: false, reason: "operation_not_registered" };
+  const legacyOperationId = `legacy:${route.viewId}:${method}`;
   const appRoute = app.routes.find((candidate) => {
     const servicePath = routeMountServicePath(candidate);
     return candidate.enabled !== false
       && candidate.viewId === route.viewId
-      && methodAllowed(candidate.methods, method)
+      && (candidate.operations.includes(operationId) || candidate.operations.includes(legacyOperationId))
       && (!servicePath || routePathsMatch(servicePath, route.path));
   });
   if (appRoute) return { allowed: true };
@@ -859,7 +862,7 @@ function createUiRouteUrlBuilder(
     const routes = appRouteIndex(extraContext.app).filter((candidate) =>
       candidate.enabled !== false
       && (candidate.kind ?? "page") === "page"
-      && methodAllowed(candidate.methods, "GET")
+      && (candidate.resolvedMethods?.includes("GET") ?? false)
       && candidate.viewId === viewId
       && serviceIds.has(candidate.serviceId)
     );
@@ -894,6 +897,7 @@ function rejectUnallowedAppRoute(
     method,
     reason,
     "bp.route.view_id": route.viewId,
+    "bp.route.operation_id": route.methodRoutes?.[method]?.operationId ?? "",
     "bp.route.path": route.path,
     "bp.app.id": extraContext.app.id,
     "bp.tenant.id": extraContext.tenant.id,
@@ -906,6 +910,7 @@ function rejectUnallowedAppRoute(
     reason,
     {
       "bp.route.view_id": route.viewId,
+      "bp.route.operation_id": route.methodRoutes?.[method]?.operationId ?? "",
       "bp.route.path": route.path,
       "bp.route_allowlist.reason": reason
     }
@@ -988,13 +993,13 @@ async function handleRouteRequest(
   routerOptions: H3RouterObservabilityOptions = {}
 ): Promise<Response> {
   const methodRoute = route.methodRoutes?.[method];
-  const handler = methodRoute?.handler ?? route.handlers[method];
+  const handler = methodRoute?.handler;
   const schemas = {
     ...route.schemas,
     ...(methodRoute?.schemas ?? {}),
     params: methodRoute?.schemas.params ?? route.schemas.params
   };
-  if (!handler) {
+  if (!handler || !methodRoute) {
     return coreJsonResponse(
       { error: `No handler for ${method} ${route.path}` },
       405,
@@ -1107,13 +1112,14 @@ async function handleRouteRequest(
 
   // -- Auth resolution (per spec section 0.5) ----------------------
 
-  const apiAuth: ApiAuthRequirement = route.auth;
+  const apiAuth: ApiAuthRequirement = methodRoute.auth;
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs);
   if (authResult.error) {
     return renderAuthError(
       route,
       event,
+      method,
       authResult.status,
       authResult.code ?? "auth.unclassified",
       authResult.error,
@@ -1134,12 +1140,12 @@ async function handleRouteRequest(
           appId: tenantApp.appId,
           reason: validation.reason ?? "(unspecified)"
         });
-        return renderUpgradeRequired(route, event, validation, earlyRenderContext(426));
+        return renderUpgradeRequired(route, event, method, validation, earlyRenderContext(426));
       }
     } catch (err) {
       obs?.logger.warn("validateTenantApp threw: {msg}", { msg: (err as Error).message });
       // Fail-open: validation error treated as block.
-      return renderUpgradeRequired(route, event, {
+      return renderUpgradeRequired(route, event, method, {
         allowed: false,
         reason: "Tenant-app validation error"
       }, earlyRenderContext(426));
@@ -1186,6 +1192,7 @@ async function handleRouteRequest(
     }
     rawData = await withCoreFailure(event, "handler.exception", () => withSpan(obs, "bp.route.handler", {
       "bp.route.view_id": route.viewId,
+      "bp.route.operation_id": methodRoute.operationId,
       "bp.route.path": route.path,
       "http.request.method": method,
       "bp.route.stream_buffered": true
@@ -1193,6 +1200,7 @@ async function handleRouteRequest(
   } else {
     rawData = await withCoreFailure(event, "handler.exception", () => withSpan(obs, "bp.route.handler", {
       "bp.route.view_id": route.viewId,
+      "bp.route.operation_id": methodRoute.operationId,
       "bp.route.path": route.path,
       "http.request.method": method
     }, () => (handler as RouteHandler)(ctx)));
@@ -1228,9 +1236,10 @@ async function handleRouteRequest(
       title: route.title,
       description: route.description,
       path: route.path,
-      methods: [...route.methods],
-      auth: { ...route.auth, callers: [...(route.auth.callers ?? ["user"])] },
-      cacheHints: route.cacheHints
+      operationId: methodRoute.operationId,
+      method,
+      auth: { ...methodRoute.auth, callers: [...(methodRoute.auth.callers ?? ["user"])] },
+      cacheHints: methodRoute.cacheHints
     } as JsonValue, 200, {
       "content-type": "application/vnd.betterportal.metadata+json; charset=utf-8"
     });
@@ -1314,11 +1323,12 @@ async function handleRouteRequest(
       }
       const html = await withCoreFailure(event, "render.status_failed", () => withSpan(obs, "bp.view.render", {
         "bp.route.view_id": route.viewId,
+        "bp.route.operation_id": methodRoute.operationId,
         "bp.view.renderer": renderer,
         "bp.view.kind": requestedKind,
         "bp.view.status": handlerStatus
       }, () => statusRenderer.render(data, renderContext)));
-      return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("status", route.chrome));
+      return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("status", methodRoute.chrome));
     }
     // No specific renderer found.
     if (!shouldFallThroughToDefaultRenderer(handlerStatus)) {
@@ -1349,11 +1359,12 @@ async function handleRouteRequest(
 
     const html = await withCoreFailure(event, "render.fragment_failed", () => withSpan(obs, "bp.view.render", {
       "bp.route.view_id": route.viewId,
+      "bp.route.operation_id": methodRoute.operationId,
       "bp.view.renderer": renderer,
       "bp.view.kind": "fragment",
       "bp.view.key": fragmentKey
     }, () => resolved.renderer.render(data, renderContext)));
-    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("fragment", route.chrome));
+    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("fragment", methodRoute.chrome));
   }
 
   // Component request via `_c` query param
@@ -1373,11 +1384,12 @@ async function handleRouteRequest(
 
     const html = await withCoreFailure(event, "render.component_failed", () => withSpan(obs, "bp.view.render", {
       "bp.route.view_id": route.viewId,
+      "bp.route.operation_id": methodRoute.operationId,
       "bp.view.renderer": renderer,
       "bp.view.kind": "component",
       "bp.view.key": componentId
     }, () => resolved.renderer.render(data, renderContext)));
-    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("fragment", route.chrome));
+    return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType("fragment", methodRoute.chrome));
   }
 
   // Page request - only page renderers allowed
@@ -1395,11 +1407,12 @@ async function handleRouteRequest(
 
   const html = await withCoreFailure(event, "render.page_failed", () => withSpan(obs, "bp.view.render", {
     "bp.route.view_id": route.viewId,
+    "bp.route.operation_id": methodRoute.operationId,
     "bp.view.renderer": renderer,
     "bp.view.kind": "page"
   }, () => resolved.renderer.render(data, renderContext)));
   const mode = representation.mode ?? "page";
-  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(mode, route.chrome));
+  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), handlerStatus, htmlContentType(mode, methodRoute.chrome));
 }
 
 // -- Streaming routes (spec/streaming.md) ----------------------------
@@ -1454,7 +1467,7 @@ async function handleStreamRepresentation(
     "bp.view.renderer": renderer,
     "bp.view.kind": "stream-shell"
   }, () => streamSet.renderShell(shellCtx)));
-  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), 200, htmlContentType("fragment", route.chrome));
+  return htmlResponse(rewriteServiceRouteTokens(toHtmlString(html), ctx.routeUrl, obs), 200, htmlContentType("fragment", route.methodRoutes?.[method]?.chrome));
 }
 
 /**
@@ -1488,8 +1501,12 @@ async function handleStreamSse(
 
   // The frame stream carries the same data as the view route - enforce the
   // same auth requirement.
+  const operation = route.methodRoutes?.GET;
+  if (!operation) {
+    return coreJsonResponse({ error: "Streaming GET operation metadata is missing" }, 500, "route.operation_missing", "Streaming GET operation metadata is missing");
+  }
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
-  const authResult = await resolveRequestAuth(route.auth, event, authResolved, route, "GET", obs);
+  const authResult = await resolveRequestAuth(operation.auth, event, authResolved, route, "GET", obs);
   if (authResult.error) {
     return coreJsonResponse(
       { error: authResult.error, status: authResult.status } as unknown as JsonValue,
@@ -1857,6 +1874,7 @@ function formatRequiredPermissions(requiredPermissions: ReadonlyArray<RequiredPe
 function renderAuthError(
   route: RegisteredRoute,
   event: BetterPortalEvent,
+  method: HttpMethod,
   status: number,
   code: string,
   message: string,
@@ -1867,6 +1885,7 @@ function renderAuthError(
   const acceptHeader = acceptHeaderFromEvent(event);
   const representation = resolveRequestedRepresentation(acceptHeader);
   const corsHeaders = corsHeadersFromEvent(event);
+  const chrome = route.methodRoutes?.[method]?.chrome;
 
   // Auth errors NEVER emit navigation headers (HX-Location / HX-Redirect). A
   // service has no reliable knowledge of where the auth provider lives - it only
@@ -1878,13 +1897,13 @@ function renderAuthError(
   // Prefer a route/theme status view so the body swaps cleanly into the htmx
   // target as a fragment rather than replacing the shell.
   if (renderer && (representation.kind === "html")) {
-    const statusRenderer = resolveStatusRenderer(route, renderer, status, "page", undefined, "GET");
+    const statusRenderer = resolveStatusRenderer(route, renderer, status, "page", undefined, method);
     if (statusRenderer && context) {
       try {
         const html = statusRenderer.render({ error: message, status, requiredPermissions }, context);
         return coreResponse(new Response(toHtmlString(html), {
           status,
-          headers: { ...corsHeaders, "content-type": htmlContentType("status", route.chrome) }
+          headers: { ...corsHeaders, "content-type": htmlContentType("status", chrome) }
         }), code, message);
       } catch {
         // fall through to JSON
@@ -1905,7 +1924,7 @@ function renderAuthError(
     `;
     return coreResponse(new Response(html, {
       status,
-      headers: { ...corsHeaders, "content-type": renderer ? htmlContentType("status", route.chrome) : "text/html; charset=utf-8" }
+      headers: { ...corsHeaders, "content-type": renderer ? htmlContentType("status", chrome) : "text/html; charset=utf-8" }
     }), code, message);
   }
 
@@ -1944,6 +1963,7 @@ function readTenantAppFromEvent(event: BetterPortalEvent): { tenantId: string; a
 function renderUpgradeRequired(
   route: RegisteredRoute,
   event: BetterPortalEvent,
+  method: HttpMethod,
   validation: import("../contracts/auth.js").TenantAppValidation,
   context?: ViewRenderContext
 ): Response {
@@ -1951,6 +1971,7 @@ function renderUpgradeRequired(
   const acceptHeader = acceptHeaderFromEvent(event);
   const representation = resolveRequestedRepresentation(acceptHeader);
   const status = 426;
+  const chrome = route.methodRoutes?.[method]?.chrome;
 
   // Honor Retry-After if requested
   const extraHeaders: Record<string, string> = {};
@@ -1959,7 +1980,7 @@ function renderUpgradeRequired(
   }
 
   if (renderer && representation.kind === "html") {
-    const statusRenderer = resolveStatusRenderer(route, renderer, status, "page", undefined, "GET");
+    const statusRenderer = resolveStatusRenderer(route, renderer, status, "page", undefined, method);
     if (statusRenderer && context) {
       try {
         const html = statusRenderer.render({
@@ -1968,7 +1989,7 @@ function renderUpgradeRequired(
           upgradeUrl: validation.upgradeUrl
         }, context);
         return coreResponse(
-          htmlResponse(toHtmlString(html), status, htmlContentType("status", route.chrome)),
+          htmlResponse(toHtmlString(html), status, htmlContentType("status", chrome)),
           "route.tenant_app_unavailable",
           validation.reason ?? "Tenant/app is not available for this service"
         );

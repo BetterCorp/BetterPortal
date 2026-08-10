@@ -8,7 +8,7 @@ This document supersedes `docs/platform/security-and-auth.md` once Phase 2 lands
 
 ## Goals
 
-- **Route-level, fail-safe**: auth is declared on the API route. If a route requires auth and the app forgets to configure an auth provider, the route does not run. Missing/invalid user credentials return 401; unavailable synced auth context returns 503 until the service is ready.
+- **Operation-level, fail-safe**: auth is declared by each HTTP method operation. If an operation requires auth and the app forgets to configure an auth provider, it does not run. Missing/invalid user credentials return 401; unavailable synced auth context returns 503 until the service is ready.
 - **Stateless**: no server-side sessions. JWT in `Authorization: Bearer` header. Works across service boundaries with no shared state.
 - **Theme-agnostic**: themes never read tokens or claims. They react to HTTP status. Auth providers are themselves services with views.
 - **Provider-agnostic**: built-in default service is one option. Auth0, Keycloak, custom OIDC providers are interchangeable as long as they expose JWKS.
@@ -118,7 +118,7 @@ export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 
 `app.auth.redirects.afterLogin` and `afterLogout` are app-owned navigation targets. Each stores a concrete service-instance UUID plus a view id; Config Manager resolves that pair to the app's mounted URL at request time. They are edited under Tenants & Apps as service + view selections, not under an auth provider's addon config. New selections require one unique enabled GET page path. Manifest sync preserves a target that later becomes stale so an administrator can repair it; unresolved targets fall back to `app.defaultRoute`. An explicit `next`/`redirect` request value still wins.
 
-Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Each permission entry binds a specific role grant to a specific API endpoint and CRUD action set. Services receive these via app config sync and use them to authorize requests.
+Roles store permissions as `[{ serviceId, viewId, permissions: [crud...] }]`. Each permission entry binds a role grant to a service view and CRUD action set. Every method operation under that view independently declares the actions it requires; its `operationId` selects the method contract and app allowlist entry. Services receive both through app config sync and authorize the selected operation.
 
 `expectedIssuer`, `expectedAudience`, `jwksUri`, and `publicKeys` are internal verifier fields. Auth provider services publish them through `registerAsAuthProvider({ issuer, audience, jwksUri, jwks })`; config-manager persists the public keys on every sync and applies them when the service is selected, independent of install/binding order. UI users should not manually configure those BP-token verifier values. Provider-specific settings, such as Authress API URL/application id or WorkOS client id/API key, remain service config and are separate from BP runtime token verification. Provider config must not duplicate the app-owned after-login or after-logout navigation targets.
 
@@ -144,7 +144,7 @@ Default-auth owns its local user store, so its first-admin registration assigns 
 
 ### Every service
 
-- Verify JWT on incoming requests when `route.auth.required === true`.
+- Verify JWT on incoming requests when the selected `operation.auth.required === true`.
 - Enforce tenant/app match against request context.
 - Enforce route permissions against `app.auth.roles[]` map.
 - Strip unknown request headers (already the `anyvali` object default).
@@ -161,7 +161,7 @@ Default-auth owns its local user store, so its first-admin registration assigns 
 
 ### Permission Manager UI (admin app)
 
-- Reads service manifests via control plane to assemble the canonical permission catalog (`PluginManifest.permissions[]` + per-view CRUD declarations).
+- Reads service manifests via control plane to assemble the canonical permission catalog (`PluginManifest.permissions[]` + per-operation CRUD requirements).
 - Renders UI for an admin to define `app.auth.roles[]` and assign permissions.
 - POSTs role definitions to config-manager as part of app config.
 - **Display-only catalog**. Not stored as canonical truth - services own their manifest, this UI just aggregates.
@@ -259,7 +259,7 @@ On every BP-managed fetch/HTMX request:
 
 ### Cross-cutting concerns
 
-- **CORS**: services allow the `BP-*` prefix wildcard in `Access-Control-Allow-Headers` and expose it in `Access-Control-Expose-Headers`. Standard headers (`Authorization` etc.) are added via the route's declared `headers` schema, which feeds the per-route preflight allowance.
+- **CORS**: services explicitly allow the BP request headers plus W3C `traceparent`, `tracestate`, and `baggage` in `Access-Control-Allow-Headers`. Response headers used by the shell are listed in `Access-Control-Expose-Headers`; browsers do not support prefix wildcards for these lists.
 - **localStorage budget**: total stored headers capped at ~8KB per app (cookie-equivalent). Exceed -> oldest non-locked headers dropped.
 - **localStorage race**: last-write-wins. Concurrent requests are fine because services should not race on the same header name. Locking prevents the case that matters (auth).
 - **BP UI knows nothing about tokens**. It manages the header store as opaque key/value pairs. Token expiry timing and refresh scheduling are driven by JavaScript provided by the auth service's nav fragment.
@@ -272,12 +272,12 @@ The adapter (`framework/nodejs/src/adapters/h3.ts`) inserts an auth resolver ste
 
 ```
 1. Read Authorization header.
-   absent + route.auth.required=false -> ctx.user = null, continue to handler
-   absent + route.auth.required=true  -> 401, render status view, stop
+   absent + operation.auth.required=false -> ctx.user = null, continue to handler
+   absent + operation.auth.required=true  -> 401, render status view, stop
 
 2. Resolve auth context from synced app config.
-   unavailable + route.auth.required=false -> ctx.user = null, continue to handler
-   unavailable + route.auth.required=true  -> 503, render status view, stop
+   unavailable + operation.auth.required=false -> ctx.user = null, continue to handler
+   unavailable + operation.auth.required=true  -> 503, render status view, stop
 
 3. Verify JWT signature via JWKS for app.auth.serviceId.
    Hardcoded algorithms: ["RS256"]. Never read alg from token.
@@ -296,8 +296,8 @@ The adapter (`framework/nodejs/src/adapters/h3.ts`) inserts an auth resolver ste
 7. Verify claims.appId === request __bpAppId.
    fail -> 401 if required else ctx.user = null, continue
 
-8. Resolve route.auth.permissions[] against claims.roles via app.auth.roles[].
-   Each route.auth.permissions[] entry is { serviceId, viewId, permissions: [...] }.
+8. Resolve operation.auth.permissions[] against claims.roles via app.auth.roles[].
+   Each operation.auth.permissions[] entry is { serviceId, viewId, permissions: [...] }.
    For required permissions, check at least one of claims.roles maps to that entry.
    fail -> 403 if required else ctx.user = null, continue
 
@@ -306,7 +306,7 @@ The adapter (`framework/nodejs/src/adapters/h3.ts`) inserts an auth resolver ste
 
 **Critical invariant**: `ctx.user` is either fully populated or `null`. Never partial. Handlers using `ctx.user` can trust every field is present and validated.
 
-**Optional auth pattern**: `route.auth.required = false` lets handlers run for both anonymous and authenticated users. The handler checks `if (ctx.user) { ... }`. Useful for views that show different content based on login state.
+**Optional auth pattern**: `operation.auth.required = false` lets handlers run for both anonymous and authenticated users. The handler checks `if (ctx.user) { ... }`. Useful for operations that show different content based on login state.
 
 ---
 
@@ -433,7 +433,7 @@ Lives in the admin app (probably `services/nodejs/admin/config-manager` or a sib
 
 ### Reads
 
-- All service manifests via control-plane sync (`PluginManifest.permissions[]` and per-view CRUD declarations from `route.auth.permissions[]`).
+- All service manifests via control-plane sync (`PluginManifest.permissions[]` and per-operation CRUD requirements from `operation.auth.permissions[]`).
 - Current `app.auth.roles[]` for the app being edited.
 
 ### Writes

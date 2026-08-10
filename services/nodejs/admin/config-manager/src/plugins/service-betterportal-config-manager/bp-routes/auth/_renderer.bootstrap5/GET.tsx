@@ -287,7 +287,15 @@ export function render(data: ResponseData): HtmlRenderable {
                             <li class="ms-2">
                               <code>{v.viewId}</code>
                               <span class="text-secondary"> {v.path}</span>
-                              {v.role ? <span class="badge text-bg-info ms-1">{v.role}</span> : null}
+                              <div class="ms-3">
+                                {v.operations.map((operation) => (
+                                  <div>
+                                    <code>{operation.operationId}</code>
+                                    <span class="badge text-bg-secondary ms-1">{operation.method}</span>
+                                    {operation.role ? <span class="badge text-bg-info ms-1">{operation.role}</span> : null}
+                                  </div>
+                                ))}
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -414,7 +422,14 @@ export function render(data: ResponseData): HtmlRenderable {
                           <tbody>
                             {s.views.map((v) => (
                               <tr data-bp-permission-row="">
-                                <td class="font-monospace small">{v.viewId}</td>
+                                <td class="small">
+                                  <div class="font-monospace">{v.viewId}</div>
+                                  {v.operations.map((operation) => (
+                                    <div class="text-secondary">
+                                      <code>{operation.operationId}</code> · {operation.method}
+                                    </div>
+                                  ))}
+                                </td>
                                 <td>
                                   <select
                                     class="form-select form-select-sm"

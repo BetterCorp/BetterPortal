@@ -16,8 +16,9 @@ function scannedRoute(overrides: Partial<ScannedRoute> = {}): ScannedRoute {
     metadataExports: [],
     methodModules: [{
       method: "GET",
+      operationId: "download.read",
       relativePath: "../bp-routes/download/GET.ts",
-      exports: ["default", "ResponseSchema"],
+      exports: ["default", "operationId", "title", "description", "auth", "ResponseSchema"],
       isRaw: false,
       looseSchemas: []
     }],
@@ -30,14 +31,14 @@ function scannedRoute(overrides: Partial<ScannedRoute> = {}): ScannedRoute {
     hasSummarySchema: false,
     isRaw: false,
     looseSchemas: [],
-    autoDependencies: [],
+    autoDependenciesByMethod: {},
     ...overrides
   };
 }
 
-function scanResult(route: ScannedRoute): ScanResult {
+function scanResult(route: ScannedRoute | ScannedRoute[]): ScanResult {
   return {
-    routes: [route],
+    routes: Array.isArray(route) ? route : [route],
     shellFragments: [],
     dependencyAliases: {},
     generatedDir: ".bp-generated",
@@ -46,6 +47,36 @@ function scanResult(route: ScannedRoute): ScanResult {
     pluginLifecycleOverrides: []
   };
 }
+
+test("method contracts cannot be flattened into route metadata", () => {
+  const issues = validateScanResult(scanResult(scannedRoute({
+    metadataExports: ["viewId", "title", "description", "operationId", "auth", "RequestSchema"]
+  })));
+
+  for (const name of ["operationId", "auth", "RequestSchema"]) {
+    assert.equal(issues.some((issue) =>
+      issue.severity === "error" && issue.message.includes(`metadata "${name}" belongs in each method file`)
+    ), true);
+  }
+});
+
+test("operation ids are unique across a service", () => {
+  const first = scannedRoute();
+  const second = scannedRoute({
+    viewId: "download.other",
+    path: "/other",
+    relativePath: "../bp-routes/other",
+    methodModules: [{
+      ...first.methodModules[0],
+      relativePath: "../bp-routes/other/GET.ts"
+    }]
+  });
+  const issues = validateScanResult(scanResult([first, second]));
+
+  assert.equal(issues.some((issue) =>
+    issue.severity === "error" && issue.message.includes('Duplicate operationId "download.read"')
+  ), true);
+});
 
 test("shell fragment folders distinguish singular fragments from blocks", () => {
   const baseDir = mkdtempSync(join(tmpdir(), "bp-shell-fragments-"));

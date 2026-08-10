@@ -43,18 +43,20 @@ function manifestLoaderScript(
 
   const manifestViews = (manifest) => {
     if (!Array.isArray(manifest?.views)) return [];
-    return manifest.views
-      .map((view) => ({
+    return manifest.views.flatMap((view) =>
+      (Array.isArray(view.operations) ? view.operations : []).map((operation) => ({
         viewId: String(view.viewId || ""),
-        title: String(view.title || view.viewId || ""),
+        operationId: String(operation.operationId || ""),
+        title: String(operation.title || operation.operationId || ""),
+        description: String(operation.description || ""),
         path: String(view.path || ""),
         pathVariants: Array.isArray(view.pathVariants) ? view.pathVariants.map(String) : [],
         paramsSchema: view.paramsSchema && typeof view.paramsSchema === "object" ? view.paramsSchema : undefined,
-        methods: Array.isArray(view.methods) ? view.methods.map(String) : [],
-        renderable: viewRenderable(view),
-        dependencies: Array.isArray(view.dependencies) ? view.dependencies.map(String) : []
+        method: String(operation.method || ""),
+        renderable: viewRenderable(operation),
+        dependencies: Array.isArray(operation.dependencies) ? operation.dependencies.map(String) : []
       }))
-      .filter((view) => view.viewId);
+    ).filter((operation) => operation.viewId && operation.operationId);
   };
 
   const syncForm = (form) => {
@@ -64,27 +66,29 @@ function manifestLoaderScript(
     if (!service || !view) return;
 
     const selectedService = service.value;
-    const selectedView = view.dataset.selectedView || view.value || "";
+    const selectedOperation = view.dataset.selectedOperation || view.value || "";
     const placeholder = view.querySelector("option[value='']")?.textContent || "Select view...";
     view.replaceChildren(new Option(placeholder, ""));
 
     for (const svc of byServiceId.values()) {
       for (const routeView of svc.views) {
-        if (routeView.renderable === false && !(svc.id === selectedService && routeView.viewId === selectedView)) continue;
-        const option = new Option(routeView.title || routeView.viewId, routeView.viewId);
+        if (routeView.renderable === false && !(svc.id === selectedService && routeView.operationId === selectedOperation)) continue;
+        const option = new Option((routeView.title || routeView.operationId) + " · " + routeView.method + " · " + routeView.operationId, routeView.operationId);
         option.dataset.serviceId = svc.id;
+        option.dataset.viewId = routeView.viewId;
         option.dataset.renderable = routeView.renderable === false ? "false" : "true";
-        option.disabled = routeView.renderable === false && !(svc.id === selectedService && routeView.viewId === selectedView);
-        option.selected = svc.id === selectedService && routeView.viewId === selectedView;
+        option.disabled = routeView.renderable === false && !(svc.id === selectedService && routeView.operationId === selectedOperation);
+        option.selected = svc.id === selectedService && routeView.operationId === selectedOperation;
         view.appendChild(option);
       }
     }
 
     const selectedExists = Array.from(view.options).some((option) =>
-      option.value === selectedView && option.dataset.serviceId === selectedService
+      option.value === selectedOperation && option.dataset.serviceId === selectedService
     );
-    if (selectedService && selectedView && !selectedExists) {
+    if (selectedService && selectedOperation && !selectedExists) {
       const selectedServiceMeta = byServiceId.get(selectedService);
+      const selectedView = selectedOperation;
       const reason = !selectedServiceMeta
         ? "service unavailable"
         : selectedServiceMeta.manifestLoaded === false
@@ -94,6 +98,7 @@ function manifestLoaderScript(
       option.dataset.serviceId = selectedService;
       option.dataset.renderable = "true";
       option.dataset.unavailable = "true";
+      option.dataset.viewId = form.querySelector("[data-bp-route-view-id]")?.value || "";
       view.appendChild(option);
     }
 
@@ -110,10 +115,12 @@ function manifestLoaderScript(
       if (visible && option.selected) hasSelectedView = true;
     });
     if (hasSelectedView) {
-      view.dataset.selectedView = view.value;
+      view.dataset.selectedOperation = view.value;
     } else {
       view.value = "";
     }
+    const viewId = form.querySelector("[data-bp-route-view-id]");
+    if (viewId) viewId.value = view.selectedOptions?.[0]?.dataset?.viewId || viewId.value || "";
     syncRouteUiFields(form);
   };
 
@@ -134,17 +141,17 @@ function manifestLoaderScript(
 
   const selectedViewMeta = (form) => {
     const serviceId = form.querySelector("[data-bp-route-service]")?.value || "";
-    const viewId = form.querySelector("[data-bp-route-view]")?.value || "";
-    return byServiceId.get(serviceId)?.views.find((candidate) => candidate.viewId === viewId);
+    const operationId = form.querySelector("[data-bp-route-view]")?.value || "";
+    return byServiceId.get(serviceId)?.views.find((candidate) => candidate.operationId === operationId);
   };
 
   const syncCreateConflict = (form, servicePath) => {
     if (form.dataset.bpRouteMode !== "create") return false;
     const serviceId = form.querySelector("[data-bp-route-service]")?.value || "";
-    const viewId = form.querySelector("[data-bp-route-view]")?.value || "";
-    const conflict = !!serviceId && !!viewId && !!servicePath && mountedRoutes.some((route) =>
+    const operationId = form.querySelector("[data-bp-route-view]")?.value || "";
+    const conflict = !!serviceId && !!operationId && !!servicePath && mountedRoutes.some((route) =>
       route.serviceId === serviceId
-        && route.viewId === viewId
+        && Array.isArray(route.operations) && route.operations.includes(operationId)
         && (route.servicePathVariant || route.targetPath || "") === servicePath
     );
     const submit = form.closest("form")?.querySelector("[data-bp-add-route-submit]");
@@ -262,8 +269,9 @@ function manifestLoaderScript(
     });
     document.querySelectorAll("[data-bp-route-view-label]").forEach((node) => {
       const service = byServiceId.get(node.dataset.bpRouteServiceId || "");
-      const routeView = service?.views.find((view) => view.viewId === node.dataset.bpRouteViewLabel);
-      if (routeView) node.textContent = routeView.title || routeView.viewId;
+      const routeView = service?.views.find((view) => view.operationId === node.dataset.bpRouteOperationLabel)
+        || service?.views.find((view) => view.viewId === node.dataset.bpRouteViewLabel);
+      if (routeView) node.textContent = routeView.title || routeView.operationId;
     });
   };
 
@@ -271,7 +279,7 @@ function manifestLoaderScript(
     if (!isCurrent()) return;
     if (!event.target?.matches?.("[data-bp-route-service]")) return;
     const view = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-route-view]");
-    if (view) view.dataset.selectedView = "";
+    if (view) view.dataset.selectedOperation = "";
     const servicePath = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-service-path]");
     if (servicePath) {
       servicePath.dataset.selectedPath = "";
@@ -283,7 +291,9 @@ function manifestLoaderScript(
   document.addEventListener("change", (event) => {
     if (!isCurrent()) return;
     if (!event.target?.matches?.("[data-bp-route-view]")) return;
-    event.target.dataset.selectedView = event.target.value;
+    event.target.dataset.selectedOperation = event.target.value;
+    const viewId = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-route-view-id]");
+    if (viewId) viewId.value = event.target.selectedOptions?.[0]?.dataset?.viewId || "";
     const servicePath = event.target.closest("[data-bp-route-form]")?.querySelector("[data-bp-service-path]");
     if (servicePath) {
       servicePath.dataset.selectedPath = "";
@@ -364,6 +374,7 @@ function routeFormFields(
 ): HtmlRenderable {
   const selectedService = route?.serviceId ?? "";
   const selectedView = route?.viewId ?? "";
+  const selectedOperation = route?.operations?.[0] ?? "";
   const viewOptions = services.flatMap((svc) =>
     svc.views.map((view) => ({
       serviceId: svc.id,
@@ -372,7 +383,7 @@ function routeFormFields(
     }))
   );
   const selectedServiceMeta = services.find((service) => service.id === selectedService);
-  const selectedMeta = viewOptions.find((view) => view.serviceId === selectedService && view.viewId === selectedView);
+  const selectedMeta = viewOptions.find((view) => view.serviceId === selectedService && view.operationId === selectedOperation);
   const selectedViewMissing = Boolean(route && selectedView && !selectedMeta);
   const isRenderable = selectedMeta?.renderable ?? route?.renderable ?? true;
   return (
@@ -390,31 +401,34 @@ function routeFormFields(
         </select>
       </div>
       <div class="mb-3">
-        <label class="form-label">View</label>
-        <select class="form-select" name="viewId" id={`${prefix}-view`} data-bp-route-view="" data-selected-view={selectedView} required>
-          <option value="">Select view...</option>
+        <label class="form-label">Operation</label>
+        <input type="hidden" name="viewId" value={selectedView} data-bp-route-view-id="" />
+        <select class="form-select" name="operationId" id={`${prefix}-view`} data-bp-route-view="" data-selected-operation={selectedOperation} required>
+          <option value="">Select operation...</option>
           {selectedViewMissing ? (
             <option
-              value={selectedView}
+              value={selectedOperation}
               data-service-id={selectedService}
+              data-view-id={selectedView}
               data-renderable={isRenderable ? "true" : "false"}
               data-unavailable="true"
               selected
             >{selectedView} — {!selectedServiceMeta ? "service unavailable" : selectedServiceMeta.manifestLoaded ? "unavailable in current manifest" : "service manifest not loaded"}</option>
           ) : ""}
-          {viewOptions.filter((view) => view.renderable !== false || (view.serviceId === selectedService && view.viewId === selectedView)).map((view) => (
+          {viewOptions.filter((view) => view.renderable !== false || (view.serviceId === selectedService && view.operationId === selectedOperation)).map((view) => (
             <option
-              value={view.viewId}
+              value={view.operationId}
               data-service-id={view.serviceId}
+              data-view-id={view.viewId}
               data-renderable={view.renderable === false ? "false" : "true"}
-              disabled={view.renderable === false && !(view.serviceId === selectedService && view.viewId === selectedView)}
-              selected={view.serviceId === selectedService && view.viewId === selectedView}
+              disabled={view.renderable === false && !(view.serviceId === selectedService && view.operationId === selectedOperation)}
+              selected={view.serviceId === selectedService && view.operationId === selectedOperation}
             >
-              {view.renderable === false ? `[API] ${view.title}` : view.title}
+              {view.title} · {view.method} · {view.operationId}
             </option>
           ))}
         </select>
-        <div class="form-text">Page views create navigation routes. API/dependency views are mounted for service access only.</div>
+        <div class="form-text">Select the method-specific operation to mount. Its view id is derived automatically.</div>
       </div>
       <div class="mb-3">
         <label class="form-label">Mount path</label>
@@ -459,17 +473,20 @@ function serviceLabel(services: ResponseData["availableServices"], serviceId: st
   return identity !== service.title ? `${service.title} · ${identity}` : service.title;
 }
 
-function viewLabel(services: ResponseData["availableServices"], serviceId: string, viewId: string): string {
+function viewLabel(services: ResponseData["availableServices"], serviceId: string, viewId: string, operationId?: string): string {
   const service = services.find((svc) => svc.id === serviceId);
-  const view = service?.views.find((candidate) => candidate.viewId === viewId);
-  return view?.title || viewId;
+  const view = service?.views.find((candidate) => candidate.operationId === operationId)
+    ?? service?.views.find((candidate) => candidate.viewId === viewId);
+  return view ? `${view.title} · ${view.method} · ${view.operationId}` : operationId || viewId;
 }
 
 function routeWarning(services: ResponseData["availableServices"], route: ResponseData["routes"][number]): string | undefined {
   const service = services.find((candidate) => candidate.id === route.serviceId);
   if (!service) return "Service unavailable";
   if (!service.manifestLoaded) return "Service manifest not loaded";
-  if (!service.views.some((candidate) => candidate.viewId === route.viewId)) return "Manifest view unavailable";
+  if (!service.views.some((candidate) =>
+    candidate.viewId === route.viewId && (route.operations ?? []).includes(candidate.operationId)
+  )) return "Manifest operation unavailable";
   return undefined;
 }
 
@@ -563,7 +580,7 @@ function renderPageRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
                     <td>{route.title ?? ""}</td>
                     <td class="small" data-bp-route-service-label={route.serviceId}>{serviceLabel(data.availableServices, route.serviceId)}</td>
                     <td class="small">
-                      <span data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId}>{viewLabel(data.availableServices, route.serviceId, route.viewId)}</span>
+                      <span data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId} data-bp-route-operation-label={route.operations?.[0]}>{viewLabel(data.availableServices, route.serviceId, route.viewId, route.operations?.[0])}</span>
                       <div class="d-flex flex-wrap gap-1 mt-1">
                         {!route.enabled ? <span class="badge text-bg-secondary">Disabled</span> : ""}
                         {warning ? <span class="badge text-bg-warning">{warning}</span> : ""}
@@ -653,7 +670,7 @@ function renderApiRoutes(data: ResponseData, apiBase: string): HtmlRenderable {
                           <td class="font-monospace small">{route.path}</td>
                           <td class="font-monospace small">{route.targetPath ?? ""}</td>
                           <td class="small">
-                            <span data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId}>{viewLabel(data.availableServices, route.serviceId, route.viewId)}</span>
+                            <span data-bp-route-service-id={route.serviceId} data-bp-route-view-label={route.viewId} data-bp-route-operation-label={route.operations?.[0]}>{viewLabel(data.availableServices, route.serviceId, route.viewId, route.operations?.[0])}</span>
                           </td>
                           <td class="small font-monospace">{methodsLabel(route.methods)}</td>
                           <td>

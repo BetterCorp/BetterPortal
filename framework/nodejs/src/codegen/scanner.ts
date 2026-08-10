@@ -31,6 +31,7 @@ export interface ScannedStreamRenderer {
 
 export interface ScannedMethodModule {
   method: string;
+  operationId?: string;
   relativePath: string;
   exports: string[];
   isRaw: boolean;
@@ -65,7 +66,7 @@ export interface ScannedRoute {
   isRaw: boolean;
   /** Exported schema names that use loose anyvali validators. */
   looseSchemas: string[];
-  autoDependencies: string[];
+  autoDependenciesByMethod: Record<string, string[]>;
 }
 
 export interface ScannedShellFragment {
@@ -135,6 +136,7 @@ const WELL_KNOWN_EXPORTS = [
   "MultipartSchema",
   "ItemSchema",
   "SummarySchema",
+  "operationId",
   "viewId",
   "title",
   "description",
@@ -453,7 +455,7 @@ function detectNamedExports(filePath: string, names: ReadonlyArray<string>): str
   return found;
 }
 
-function detectLiteralViewId(filePath: string): string | undefined {
+function detectLiteralExport(filePath: string, exportName: string): string | undefined {
   const source = fs.readFileSync(filePath, "utf-8");
   const sourceFile = ts.createSourceFile(
     path.basename(filePath),
@@ -462,21 +464,21 @@ function detectLiteralViewId(filePath: string): string | undefined {
     true,
     ts.ScriptKind.TS,
   );
-  let viewId: string | undefined;
+  let value: string | undefined;
 
   function visit(node: ts.Node): void {
-    if (viewId || !ts.isVariableStatement(node) || !hasExportModifier(node)) {
+    if (value || !ts.isVariableStatement(node) || !hasExportModifier(node)) {
       ts.forEachChild(node, visit);
       return;
     }
     for (const decl of node.declarationList.declarations) {
       if (
         ts.isIdentifier(decl.name)
-        && decl.name.text === "viewId"
+        && decl.name.text === exportName
         && decl.initializer
         && ts.isStringLiteral(decl.initializer)
       ) {
-        viewId = decl.initializer.text;
+        value = decl.initializer.text;
         return;
       }
     }
@@ -484,7 +486,7 @@ function detectLiteralViewId(filePath: string): string | undefined {
   }
 
   visit(sourceFile);
-  return viewId;
+  return value;
 }
 
 function hasExportModifier(node: ts.Node): boolean {
@@ -744,7 +746,7 @@ function scanDirectory(
   if (hasIndex && segments.length > 0) {
     const indexPath = path.join(currentDir, "index.ts");
     const routePaths = buildRoutePaths(segments);
-    const viewId = detectLiteralViewId(indexPath) ?? buildViewId(segments);
+    const viewId = detectLiteralExport(indexPath, "viewId") ?? buildViewId(segments);
     const metadataExports = detectExports(indexPath);
     const legacyHandlerExports = metadataExports.filter((exp) => HANDLER_NAMES.includes(exp as typeof HANDLER_NAMES[number]));
 
@@ -760,6 +762,7 @@ function scanDirectory(
       }
       methodModules.push({
         method,
+        operationId: detectLiteralExport(filePath, "operationId"),
         relativePath: relativeFromGenerated(generatedDir, filePath),
         exports: [...new Set(exports)],
         isRaw: detectRawHandler(filePath),
@@ -787,7 +790,13 @@ function scanDirectory(
     // Scan UI renderers
     const renderers: ScannedViewRenderer[] = [];
     const streamRenderers: ScannedStreamRenderer[] = [];
-    const autoDependencies = new Set<string>();
+    const autoDependenciesByMethod = new Map<string, Set<string>>();
+    const addAutoDependency = (method: string, token: string) => {
+      if (token === viewId) return;
+      const dependencies = autoDependenciesByMethod.get(method) ?? new Set<string>();
+      dependencies.add(token);
+      autoDependenciesByMethod.set(method, dependencies);
+    };
 
     for (const entry of entries) {
       // Renderer directory: _renderer.{rendererKey}/
@@ -801,8 +810,10 @@ function scanDirectory(
           );
           for (const rendererFile of fs.readdirSync(rendererDirPath, { withFileTypes: true })) {
             if (rendererFile.isFile() && rendererFile.name.endsWith(".tsx")) {
+              const parsed = parseRendererFile(rendererFile.name);
+              const method = parsed?.method ?? "GET";
               for (const token of detectRouteTokens(path.join(rendererDirPath, rendererFile.name))) {
-                if (token !== viewId) autoDependencies.add(token);
+                addAutoDependency(method, token);
               }
             }
           }
@@ -816,7 +827,7 @@ function scanDirectory(
           const rendererKey = rendererFileMatch[1];
           const filePath = path.join(currentDir, entry.name);
           for (const token of detectRouteTokens(filePath)) {
-            if (token !== viewId) autoDependencies.add(token);
+            addAutoDependency("GET", token);
           }
           renderers.push({
             rendererKey,
@@ -850,7 +861,9 @@ function scanDirectory(
         hasSummarySchema: handlerExports.includes("SummarySchema"),
         isRaw: methodModules.some((module) => module.isRaw),
         looseSchemas: [...new Set(methodModules.flatMap((module) => module.looseSchemas))],
-        autoDependencies: [...autoDependencies],
+        autoDependenciesByMethod: Object.fromEntries(
+          [...autoDependenciesByMethod].map(([method, dependencies]) => [method, [...dependencies]])
+        ),
       });
     }
   }

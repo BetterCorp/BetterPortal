@@ -29,6 +29,19 @@ function route(path: string, viewId: string, handler: RouteHandler = () => ({ ok
     paramNames: [],
     schemas: { response },
     handlers: { GET: handler },
+    methodRoutes: {
+      GET: {
+        method: "GET",
+        operationId: viewId,
+        title: viewId,
+        description: "",
+        schemas: { response },
+        handler,
+        auth: { required: false, permissions: [] },
+        cacheHints: {},
+        demoScenarios: []
+      }
+    },
     title: viewId,
     description: "",
     auth: { required: false, permissions: [] },
@@ -115,7 +128,7 @@ test("HTML renderers receive limited tenant and app presentation context", async
     shell: { serviceId: shellServiceId, service: "bootstrap1", renderer: "bootstrap5" },
     themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
     defaultRoute: "/page",
-    routes: [{ id: uuidv7(), path: "/page", serviceId, viewId: "page.index", enabled: true, methods: ["GET"] }],
+    routes: [{ id: uuidv7(), path: "/page", serviceId, viewId: "page.index", enabled: true, operations: ["page.index"] }],
     menu: [],
     slots: [],
     fragments: {},
@@ -132,7 +145,12 @@ test("HTML renderers receive limited tenant and app presentation context", async
   } as unknown as BetterPortalApp;
   const pageRoute = {
     ...route("/page", "page.index"),
-    auth: { required: true, permissions: [] },
+    methodRoutes: {
+      GET: {
+        ...route("/page", "page.index").methodRoutes.GET!,
+        auth: { required: true, permissions: [] }
+      }
+    },
     renderers: {
       bootstrap5: {
         pages: [{
@@ -227,9 +245,12 @@ test("authenticated BP well-known routes use route-aware auth and skip app activ
     slots: [],
     fragments: {}
   };
+  const managementBase = route("/.well-known/bp/config/example", "config.example");
   const managementRoute = {
-    ...route("/.well-known/bp/config/example", "config.example"),
-    auth: { required: true, permissions: [] }
+    ...managementBase,
+    methodRoutes: {
+      GET: { ...managementBase.methodRoutes.GET!, auth: { required: true, permissions: [] } }
+    }
   } satisfies RegisteredRoute;
   let activationChecks = 0;
   const claims: JwtClaims = {
@@ -293,7 +314,7 @@ test("allows only app-mounted generated routes", async () => {
       serviceId,
       viewId: "allowed.index",
       enabled: true,
-      methods: ["GET"]
+      operations: ["allowed.index"]
     }],
     menu: [],
     slots: [],
@@ -334,7 +355,7 @@ test("raw routes return file responses without ResponseSchema negotiation", asyn
       serviceId,
       viewId: "download.index",
       enabled: true,
-      methods: ["GET"]
+      operations: ["download.index"]
     }],
     menu: [],
     slots: [],
@@ -354,6 +375,24 @@ test("raw routes return file responses without ResponseSchema negotiation", asyn
           contentType: "application/pdf",
           size: 3
         }))
+      },
+      methodRoutes: {
+        GET: {
+          method: "GET",
+          operationId: "download.index",
+          title: "Download",
+          description: "",
+          schemas: {},
+          handler: createRawHandler({}, (ctx) => ctx.file(new Uint8Array([1, 2, 3]), {
+            filename: "report.pdf",
+            contentType: "application/pdf",
+            size: 3
+          })),
+          raw: true,
+          auth: { required: false, permissions: [] },
+          cacheHints: {},
+          demoScenarios: []
+        }
       },
       raw: true,
       title: "Download",
@@ -404,14 +443,16 @@ test("builds service and app route URLs for the current plugin service", async (
       serviceId: serviceInstanceId,
       viewId: "reports.detail.index",
       enabled: true,
-      methods: ["GET"]
+      operations: ["reports.detail.index"],
+      resolvedMethods: ["GET"]
     }, {
       id: uuidv7(),
       path: "/self",
       serviceId: serviceInstanceId,
       viewId: "self.index",
       enabled: true,
-      methods: ["GET"]
+      operations: ["self.index"],
+      resolvedMethods: ["GET"]
     }],
     menu: [],
     slots: [],
@@ -472,7 +513,8 @@ test("absolute app route URLs prefer the matched request origin", async () => {
       serviceId: serviceInstanceId,
       viewId: "login.index",
       enabled: true,
-      methods: ["GET"]
+      operations: ["login.index"],
+      resolvedMethods: ["GET"]
     }],
     menu: [],
     slots: [],
@@ -525,10 +567,10 @@ test("uiRouteUrl only resolves GET page mounts", async () => {
     themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
     defaultRoute: "/page",
     routes: [
-      { id: uuidv7(), kind: "page", path: "/page", serviceId: serviceInstanceId, viewId: "page.index", enabled: true, methods: ["GET"] },
-      { id: uuidv7(), kind: "api", path: "/_bp/service/test/api", serviceId: serviceInstanceId, viewId: "api.index", enabled: true, methods: ["GET"] },
-      { id: uuidv7(), kind: "page", path: "/mutate", serviceId: serviceInstanceId, viewId: "mutation.index", enabled: true, methods: ["POST"] },
-      { id: uuidv7(), kind: "page", path: "/self", serviceId: serviceInstanceId, viewId: "self.index", enabled: true, methods: ["GET"] }
+      { id: uuidv7(), kind: "page", path: "/page", serviceId: serviceInstanceId, viewId: "page.index", enabled: true, operations: ["page.index"], resolvedMethods: ["GET"] },
+      { id: uuidv7(), kind: "api", path: "/_bp/service/test/api", serviceId: serviceInstanceId, viewId: "api.index", enabled: true, operations: ["api.index"], resolvedMethods: ["GET"] },
+      { id: uuidv7(), kind: "page", path: "/mutate", serviceId: serviceInstanceId, viewId: "mutation.index", enabled: true, operations: ["mutation.index"], resolvedMethods: ["POST"] },
+      { id: uuidv7(), kind: "page", path: "/self", serviceId: serviceInstanceId, viewId: "self.index", enabled: true, operations: ["self.index"], resolvedMethods: ["GET"] }
     ],
     menu: [],
     slots: [],
@@ -588,7 +630,7 @@ test("route helpers resolve dependency services from the application route index
   };
   const selfMount = {
     id: uuidv7(), kind: "page" as const, path: "/self", serviceId: sourceServiceId,
-    viewId: "self.index", enabled: true, methods: ["GET"]
+    viewId: "self.index", enabled: true, operations: ["self.index"], resolvedMethods: ["GET"]
   };
   const app: BetterPortalResolvedApp = {
     id: uuidv7(),
@@ -604,10 +646,10 @@ test("route helpers resolve dependency services from the application route index
     routes: [selfMount],
     appRoutes: [selfMount, {
       id: uuidv7(), kind: "page", path: "/login", serviceId: authServiceId,
-      viewId: "login.index", resolvedServicePath: "/login", enabled: true, methods: ["GET"]
+      viewId: "login.index", resolvedServicePath: "/login", enabled: true, operations: ["login.index"], resolvedMethods: ["GET"]
     }, {
       id: uuidv7(), kind: "api", path: `/_bp/service/${authServiceId}/exchange`, serviceId: authServiceId,
-      viewId: "auth.exchange", resolvedServicePath: "/exchange", enabled: true, methods: ["POST"]
+      viewId: "auth.exchange", resolvedServicePath: "/exchange", enabled: true, operations: ["auth.exchange"], resolvedMethods: ["POST"]
     }],
     menu: [],
     slots: [],
@@ -673,25 +715,31 @@ test("route caller modes default to user and delegated calls verify both credent
     themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
     defaultRoute: "/delegated",
     routes: [
-      { id: uuidv7(), path: "/delegated", serviceId, viewId: "delegated.action", enabled: true, methods: ["GET"] },
-      { id: uuidv7(), path: "/user", serviceId, viewId: "user.action", enabled: true, methods: ["GET"] }
+      { id: uuidv7(), path: "/delegated", serviceId, viewId: "delegated.action", enabled: true, operations: ["delegated.action"] },
+      { id: uuidv7(), path: "/user", serviceId, viewId: "user.action", enabled: true, operations: ["user.action"] }
     ],
     menu: [],
     slots: [],
     fragments: {}
   };
   const responseSchema = av.object({ mode: av.string(), user: av.bool(), service: av.bool() });
-  const delegatedRoute = {
-    ...route("/delegated", "delegated.action", (ctx) => ({
+  const delegatedBase = route("/delegated", "delegated.action", (ctx) => ({
       mode: ctx.callerMode ?? "none",
       user: Boolean(ctx.user),
       service: Boolean(ctx.serviceCaller)
-    }), responseSchema),
-    auth: { required: true, callers: ["delegated"], permissions: [] }
+    }), responseSchema);
+  const delegatedRoute = {
+    ...delegatedBase,
+    methodRoutes: {
+      GET: { ...delegatedBase.methodRoutes.GET!, auth: { required: true, callers: ["delegated"], permissions: [] } }
+    }
   } satisfies RegisteredRoute;
+  const userBase = route("/user", "user.action");
   const userRoute = {
-    ...route("/user", "user.action"),
-    auth: { required: true, permissions: [] }
+    ...userBase,
+    methodRoutes: {
+      GET: { ...userBase.methodRoutes.GET!, auth: { required: true, permissions: [] } }
+    }
   } satisfies RegisteredRoute;
   const now = Math.floor(Date.now() / 1000);
   const userClaims: JwtClaims = {

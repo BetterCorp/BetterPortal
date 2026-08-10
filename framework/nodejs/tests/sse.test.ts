@@ -27,11 +27,14 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
     export const viewId = "live.index";
     export const title = "Live";
     export const description = "";
+  `);
+  write(join(routeDir, "GET.ts"), `
+    export const operationId = "live.stream";
+    export const title = "Live stream";
+    export const description = "";
     export const auth = { required: false, permissions: [] };
     export const cacheHints = { ttlSeconds: 0, varyBy: [] };
     export const demoScenarios = [];
-  `);
-  write(join(routeDir, "GET.ts"), `
     export const ResponseSchema = {};
     export default function handle() { return { value: "ready" }; }
   `);
@@ -62,13 +65,27 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
 });
 
 test("SSE fragments use the resolved app shell renderer and ignore client overrides", async () => {
+  const handler = () => ({ value: "ready" });
   const route = {
     viewId: "live.index",
     path: "/live",
     methods: ["GET"],
     paramNames: [],
     schemas: {},
-    handlers: { GET: () => ({ value: "ready" }) },
+    handlers: { GET: handler },
+    methodRoutes: {
+      GET: {
+        method: "GET",
+        operationId: "live.stream",
+        title: "Live",
+        description: "",
+        schemas: {},
+        handler,
+        auth: { required: false, permissions: [] },
+        cacheHints: {},
+        demoScenarios: []
+      }
+    },
     title: "Live",
     description: "",
     auth: { required: false, permissions: [] },

@@ -63,4 +63,4 @@ The protocol, manifests, schema descriptors, and registry contracts are language
 
 The resource routes use the manifest's metadata cache hint. App-specific `llms-*` documents and the AI manifest MAY change when scoped configuration changes and SHOULD be revalidated rather than stored indefinitely.
 
-Adding a document or resource is additive within `bp-protocol/1`. Clients MUST ignore unknown fields and unknown resource kinds introduced by a future protocol version.
+Adding a document or resource is additive within `bp-protocol/2`. Clients MUST ignore unknown fields and unknown resource kinds introduced by a future protocol version.

@@ -46,7 +46,7 @@ Tenant services are direct one-tenant bindings. Shared services are registered o
 
 ## Runtime contracts
 
-Every service route is schema-first:
+Every service operation is schema-first. A view groups operations at one service path; each HTTP method keeps its own schemas and policy:
 
 | Contract | Purpose |
 |---|---|
@@ -56,6 +56,8 @@ Every service route is schema-first:
 | Response schema | Validates handler output before JSON or HTML rendering. |
 
 This keeps service boundaries explicit and inspectable.
+
+The stable `operationId` identifies a method contract in app allowlists, generated clients, dependencies, and telemetry. Role grants remain `serviceId + viewId + action`; the selected operation declares the actions it requires.
 
 ## HTTP outcome diagnostics
 
@@ -75,4 +77,6 @@ HTTP services accept and propagate the W3C `traceparent` and `tracestate` header
 
 Generated S2S clients create a `bp.s2s.request` client span and make the target HTTP span its child. Use `this.m2mClient(requestId, ctx)` inside a route handler so the call is parented to the active handler. The legacy `(requestId, tenantId, appId)` form remains appropriate for background automation and starts a new trace because no request parent exists.
 
-The shell assigns one UUIDv7 correlation ID per full document load and sends it as `baggage: bp.session_id=<uuidv7>`. It is attached to spans as `bp.session.id`, linking separate user-action traces without creating one unbounded browser trace. This value is untrusted telemetry only and must never influence authentication, authorization, tenancy, rate limits, or data access.
+The shell assigns one UUIDv7 correlation ID per full document load and sends it as `baggage: bp.session_id=<uuidv7>`. It is attached to spans as `bp.session.id`, linking separate user-action traces without creating one unbounded browser trace. BSB normalizes the exported span attribute to `bp_session_id`; BetterPortal logs inherit the request attribute and expose it as `meta.bp.session.id`. There is no separate journey identifier. This value is untrusted telemetry only and must never influence authentication, authorization, tenancy, rate limits, or data access.
+
+Every BetterPortal CORS preflight surface allows `traceparent`, `tracestate`, and `baggage`. These headers carry telemetry only and remain subject to the same origin resolution as the request; their presence never bypasses CORS, authentication, or route authorization.

@@ -4,7 +4,6 @@ import {
   createHandler,
   uuidv7,
   type DemoScenario,
-  type ApiAuthRequirement,
   type BetterPortalRouteMount,
   type CacheHints,
   type RouteHandlerContext
@@ -93,13 +92,6 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Tenants & Apps";
 export const description = "Manage tenants and applications.";
-
-export const auth: ApiAuthRequirement = {
-  required: true,
-  permissions: [
-    { serviceId: "org.betterportal.config-manager", viewId: "tenants.index", permissions: ["read","create","update","delete"] }
-  ]
-};
 
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin"] };
 
@@ -512,7 +504,7 @@ function selectableAppPageViews(config: BetterPortalConfig, app: BetterPortalApp
 }
 
 function isEnabledPageView(route: BetterPortalRouteMount): boolean {
-  return route.enabled && (route.kind ?? "page") === "page" && route.methods.includes("GET");
+  return route.enabled && (route.kind ?? "page") === "page";
 }
 
 function uniqueEnabledPageViews(app: BetterPortalApp): BetterPortalRouteMount[] {
@@ -583,28 +575,23 @@ function ensureAuthRouteMounts(config: BetterPortalConfig, appDef: BetterPortalA
   const manifest = getCachedManifestForService(config, authServiceId);
   if (!manifest) return;
 
-  const desiredViewIds = ["login.index", "logout.index", "refresh.index", "register.index"];
-  for (const viewId of desiredViewIds) {
-    const view = manifest.viewIndex[viewId];
-    if (!view) continue;
-    if (appDef.routes.some((route) => route.serviceId === authServiceId && route.viewId === viewId)) continue;
-
-    const renderable = view.renderable !== false;
-    const path = renderable ? pageRoutePath(manifest.serviceId, view.path) : apiRoutePath(manifest.serviceId, view.path);
-    const methods = view.methods.filter((method): method is BetterPortalRouteMount["methods"][number] =>
-      method === "GET" || method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE" || method === "OPTIONS"
-    );
-    appDef.routes.push({
-      id: uuidv7(),
-      kind: renderable ? "page" : "api",
-      path,
-      serviceId: authServiceId,
-      viewId,
-      targetPath: view.path,
-      title: viewId.replace(".index", "").replace(/^\w/, (char) => char.toUpperCase()),
-      enabled: true,
-      methods: methods.length ? methods : ["GET"]
-    });
+  const desiredRoles = new Set(["auth.login", "auth.logout", "auth.refresh", "auth.register"]);
+  for (const view of Object.values(manifest.viewIndex)) {
+    for (const operation of view.operations.filter((candidate) => candidate.role && desiredRoles.has(candidate.role))) {
+      if (appDef.routes.some((route) => route.serviceId === authServiceId && route.operations.includes(operation.operationId))) continue;
+      const path = operation.renderable ? pageRoutePath(manifest.serviceId, view.path) : apiRoutePath(manifest.serviceId, view.path);
+      appDef.routes.push({
+        id: uuidv7(),
+        kind: operation.renderable ? "page" : "api",
+        path,
+        serviceId: authServiceId,
+        viewId: view.viewId,
+        targetPath: view.path,
+        title: operation.title,
+        enabled: true,
+        operations: [operation.operationId]
+      });
+    }
   }
 }
 

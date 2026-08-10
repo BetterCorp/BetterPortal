@@ -1,6 +1,6 @@
 # Federated Search
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 **Status:** Draft
 **Capability:** `search.v1`
 

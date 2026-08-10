@@ -47,13 +47,27 @@ test("filesystem parameter names must be canonical identifiers", () => {
 });
 
 function registeredRoute(path: string, paramNames: string[]): RegisteredRoute {
+  const handler = () => ({});
   return {
     viewId: "reports.$reportId.index",
     path,
     methods: ["GET"],
     paramNames,
     schemas: {},
-    handlers: {},
+    handlers: { GET: handler },
+    methodRoutes: {
+      GET: {
+        method: "GET",
+        operationId: "reports.read",
+        title: "Reports",
+        description: "",
+        schemas: {},
+        handler,
+        auth: { required: false, permissions: [] },
+        cacheHints: { ttlSeconds: 0, varyBy: [] },
+        demoScenarios: []
+      }
+    },
     title: "Reports",
     description: "",
     auth: { required: false, permissions: [] },
@@ -106,7 +120,7 @@ const dynamicRoute = {
   serviceId: "019f0000-0000-7000-8000-000000000004",
   viewId: "plans.index",
   enabled: true,
-  methods: ["GET" as const]
+  operations: ["reports.read"]
 };
 
 test("static app routes win and fixed service params resolve without leaking placeholders", () => {

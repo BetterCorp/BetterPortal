@@ -1,7 +1,7 @@
 # BetterPortal v10
 
 [![License: AGPL-3.0-or-Commercial](https://img.shields.io/badge/License-AGPL%203.0%20or%20Commercial-blue.svg)](LICENSE)
-[![Protocol: bp-protocol/1](https://img.shields.io/badge/Protocol-bp--protocol%2F1-green.svg)](spec/README.md)
+[![Protocol: bp-protocol/2](https://img.shields.io/badge/Protocol-bp--protocol%2F2-green.svg)](spec/README.md)
 
 A multi-tenant portal platform composed of independent services unified by a single theme. API-first, HTMX-first, schema-validated.
 

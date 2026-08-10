@@ -126,16 +126,9 @@ const SCHEMA_EXPORTS: ReadonlyArray<{ exportName: string; key: string }> = [
 ];
 
 function emitSchemas(route: ScannedRoute, importAlias: string): string {
-  const firstMethod = route.methodModules[0];
-  if (firstMethod) {
-    const methodAlias = methodImportName(route.viewId, firstMethod.method);
-    const params = route.metadataExports.includes("ParamsSchema")
-      ? [{ key: "params", value: `${importAlias}.ParamsSchema` }]
-      : [];
-    return emitSchemasFromExports(firstMethod.exports, methodAlias, params);
-  }
-
-  return emitSchemasFromExports(route.handlerExports, importAlias);
+  return route.metadataExports.includes("ParamsSchema")
+    ? emitSchemasFromExports(["ParamsSchema"], importAlias)
+    : "{}";
 }
 
 function emitSchemasFromExports(
@@ -187,12 +180,29 @@ function emitMethodRoutes(route: ScannedRoute): string {
   if (route.methodModules.length === 0) return "{}";
   const entries = route.methodModules.map((module) => {
     const alias = methodImportName(route.viewId, module.method);
+    const params = route.metadataExports.includes("ParamsSchema")
+      ? [{ key: "params", value: `${routeImportName(route.viewId)}.ParamsSchema` }]
+      : [];
     const props = [
       `method: ${JSON.stringify(module.method)}`,
-      `schemas: ${emitSchemasFromExports(module.exports, alias)}`,
+      `operationId: ${alias}.operationId`,
+      `title: ${alias}.title`,
+      `description: ${alias}.description`,
+      `schemas: ${emitSchemasFromExports(module.exports, alias, params)}`,
       `handler: ${alias}.default`,
+      `auth: ${alias}.auth`,
+      `cacheHints: ${module.exports.includes("cacheHints") ? `${alias}.cacheHints` : `{ ttlSeconds: 0, varyBy: [] }`}`,
+      `demoScenarios: ${module.exports.includes("demoScenarios") ? `${alias}.demoScenarios` : "[]"}`,
     ];
     if (module.isRaw) props.push("raw: true");
+    for (const metadata of ["sitemap", "robots", "role", "chrome", "apiContracts"] as const) {
+      if (module.exports.includes(metadata)) props.push(`${metadata}: ${alias}.${metadata}`);
+    }
+    const autoDependencies = route.autoDependenciesByMethod[module.method] ?? [];
+    if (module.exports.includes("dependencies") || autoDependencies.length > 0) {
+      const declared = module.exports.includes("dependencies") ? `${alias}.dependencies` : "[]";
+      props.push(`dependencies: [...new Set([...${declared}, ...${JSON.stringify(autoDependencies)}])]`);
+    }
     return `${module.method}: { ${props.join(", ")} }`;
   });
   return `{ ${entries.join(", ")} }`;
@@ -495,15 +505,6 @@ export function emitRegistry(scanResult: ScanResult): string {
 
     const hasTitle = route.metadataExports.includes("title");
     const hasDescription = route.metadataExports.includes("description");
-    const hasAuth = route.metadataExports.includes("auth");
-    const hasSitemap = route.metadataExports.includes("sitemap");
-    const hasRobots = route.metadataExports.includes("robots");
-    const hasRole = route.metadataExports.includes("role");
-    const hasDependencies = route.metadataExports.includes("dependencies");
-    const hasChrome = route.metadataExports.includes("chrome");
-    const hasApiContracts = route.metadataExports.includes("apiContracts");
-    const hasCacheHints = route.metadataExports.includes("cacheHints");
-    const hasDemoScenarios = route.metadataExports.includes("demoScenarios");
 
     // Derive a fallback title from the viewId
     const fallbackTitle = route.viewId
@@ -525,33 +526,6 @@ export function emitRegistry(scanResult: ScanResult): string {
     }
     lines.push(`      title: ${hasTitle ? `${alias}.title` : JSON.stringify(fallbackTitle)},`);
     lines.push(`      description: ${hasDescription ? `${alias}.description` : `""`},`);
-    lines.push(`      auth: ${hasAuth ? `${alias}.auth` : `{ required: false, permissions: [] }`},`);
-    if (hasSitemap) {
-      lines.push(`      sitemap: ${alias}.sitemap,`);
-    }
-    if (hasRobots) {
-      lines.push(`      robots: ${alias}.robots,`);
-    }
-    if (hasRole) {
-      lines.push(`      role: ${alias}.role,`);
-    }
-    if (hasDependencies) {
-      if (route.autoDependencies.length > 0) {
-        lines.push(`      dependencies: [...new Set([...${alias}.dependencies, ...${JSON.stringify(route.autoDependencies)}])],`);
-      } else {
-        lines.push(`      dependencies: ${alias}.dependencies,`);
-      }
-    } else if (route.autoDependencies.length > 0) {
-      lines.push(`      dependencies: ${JSON.stringify(route.autoDependencies)},`);
-    }
-    if (hasChrome) {
-      lines.push(`      chrome: ${alias}.chrome,`);
-    }
-    if (hasApiContracts) {
-      lines.push(`      apiContracts: ${alias}.apiContracts,`);
-    }
-    lines.push(`      cacheHints: ${hasCacheHints ? `${alias}.cacheHints` : `{ ttlSeconds: 0, varyBy: [] }`},`);
-    lines.push(`      demoScenarios: ${hasDemoScenarios ? `${alias}.demoScenarios` : `[]`},`);
     const statusBlock = emitStatusRenderers(byRenderer);
     lines.push(`      renderers: ${emitRenderers(byRenderer)}${(statusBlock || route.hasSseHandler) ? "," : ""}`);
     if (statusBlock) {

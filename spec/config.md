@@ -1,6 +1,6 @@
 # Configuration
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 
 BetterPortal has **two** kinds of config:
 
@@ -148,7 +148,7 @@ apps:
         targetPath: /hello                   # path on the service
         title: Hello
         enabled: true
-        methods: [GET]
+        operations: [hello.read]              # selected manifest operation ids
     menu:                                    # tree; see fragment-html.md section 4 for events
       - id: m-hello
         type: link | group | external | section | divider
@@ -171,6 +171,8 @@ apps:
 - A request's tenant+app is resolved by matching the `Host` header against `apps[].hostnames` (or `originOverrides`).
 - The matched app's `routes[]` are searched in order; longest prefix wins.
 - `routes[].targetPath` is the path the service is hit at; `route.path` is the public path.
+- `routes[].operations` is the allowlist identity. HTTP methods, schemas, auth, and render policy are resolved from those manifest operations and are not copied into app config.
+- Only a renderable GET operation is a navigable page. Non-GET operations remain service/API mounts even when they publish HTML renderers.
 - Services do not write `bp-config.yaml`. Only the admin service (`config-manager`) writes it.
 
 ---

@@ -130,11 +130,15 @@ class BsbLoggerAdapter implements BetterPortalLogger {
   constructor(private readonly observable: Observable) {}
 
   private meta(attributes?: ObservabilityAttributes): [] | [never] {
-    if (attributes === undefined || Object.keys(attributes).length === 0) {
+    const merged = mergeAttributes(
+      this.observable.attributes as ObservabilityAttributes,
+      attributes ?? {}
+    );
+    if (Object.keys(merged).length === 0) {
       return [];
     }
 
-    return [attributes as never];
+    return [merged as never];
   }
 
   debug(message: string, attributes?: ObservabilityAttributes): void {
@@ -150,7 +154,7 @@ class BsbLoggerAdapter implements BetterPortalLogger {
   }
 
   error(message: string | Error, attributes?: ObservabilityAttributes): void {
-    this.observable.log.error(message, ...this.meta(attributes));
+    this.observable.log.error(message instanceof Error ? message.message : message, ...this.meta(attributes));
   }
 }
 

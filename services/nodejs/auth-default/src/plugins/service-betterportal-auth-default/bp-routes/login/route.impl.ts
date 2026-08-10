@@ -55,7 +55,7 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Login";
 export const description = "Authenticate with username and password to receive a JWT.";
 export const role = "auth.login";
-export const dependencies = ["logout.index", "refresh.index", "register.index"];
+export const dependencies = ["auth.login", "auth.logout.view", "auth.refresh", "auth.register.view"];
 export const chrome: BetterPortalRouteChrome = { fullScreen: true };
 
 export const auth: ApiAuthRequirement = {

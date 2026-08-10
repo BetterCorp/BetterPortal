@@ -165,10 +165,22 @@ export interface RouteSchemas {
 
 export interface RegisteredMethodRoute {
   readonly method: HttpMethod;
+  readonly operationId: string;
+  readonly title: string;
+  readonly description: string;
   readonly schemas: RouteSchemas;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly handler: RouteHandler<any, any, any, any, any, any, any> | RawRouteHandler<any, any, any, any, any, any> | BpStreamHandler<any, any, any, any, any>;
   readonly raw?: boolean;
+  readonly auth: ApiAuthRequirement;
+  readonly sitemap?: import("./seo.js").RouteSitemapDeclaration;
+  readonly robots?: import("./seo.js").RouteRobotsPolicy;
+  readonly role?: string;
+  readonly dependencies?: ReadonlyArray<string>;
+  readonly chrome?: BetterPortalRouteChrome;
+  readonly apiContracts?: ReadonlyArray<Omit<ApiContractDescriptor, "viewId" | "methods">>;
+  readonly cacheHints: CacheHints;
+  readonly demoScenarios: ReadonlyArray<DemoScenario>;
 }
 
 // -- Registered route --------------------------------------------------
@@ -190,26 +202,11 @@ export interface RegisteredRoute {
   readonly raw?: boolean;
   readonly title: string;
   readonly description: string;
-  readonly auth: ApiAuthRequirement;
-  /** Optional sitemap declaration/provider exported by the route. */
-  readonly sitemap?: import("./seo.js").RouteSitemapDeclaration;
-  /** Optional crawler policy exported by the route. */
-  readonly robots?: import("./seo.js").RouteRobotsPolicy;
-  /** Optional view role hint (e.g., "auth.login"). Used by discovery flows. */
-  readonly role?: string;
-  /** ViewIds that should be mounted with this view for API/detail flows. */
-  readonly dependencies?: ReadonlyArray<string>;
-  /** Optional shell chrome hints declared by the service route. */
-  readonly chrome?: BetterPortalRouteChrome;
-  /** API contracts implemented by this route for M2M binding. */
-  readonly apiContracts?: ReadonlyArray<Omit<ApiContractDescriptor, "viewId" | "methods"> & { methods?: ReadonlyArray<HttpMethod> }>;
   /**
    * Status code -> renderer map (per theme), broken down by renderer kind.
    * Adapter looks up by (rendererKey, statusCode, kind, optional renderer id).
    */
   readonly statusRenderers?: Readonly<Record<string, Readonly<Record<number, StatusRenderersByKind>>>>;
-  readonly cacheHints: CacheHints;
-  readonly demoScenarios: ReadonlyArray<DemoScenario>;
   /** HTML renderers keyed by compatibility key. */
   readonly renderers: Readonly<Record<string, ViewRendererSet>>;
   /** SSE handler, registered at `{path}/__sse`. */

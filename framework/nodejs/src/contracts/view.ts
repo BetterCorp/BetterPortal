@@ -70,14 +70,11 @@ export const ViewStreamingSupportSchema = av.object({
 }, { unknownKeys: "strip" });
 export type ViewStreamingSupport = Infer<typeof ViewStreamingSupportSchema>;
 
-export const ViewMetadataSchema = av.object({
-  viewId: NonEmptyStringSchema,
+export const ViewOperationMetadataSchema = av.object({
+  operationId: NonEmptyStringSchema,
+  method: HttpMethodSchema,
   title: NonEmptyStringSchema,
   description: NonEmptyStringSchema,
-  path: NonEmptyStringSchema,
-  pathVariants: av.array(NonEmptyStringSchema).default([]),
-  methods: av.array(HttpMethodSchema).minItems(1),
-  paramsSchema: JsonObjectSchema,
   querySchema: JsonObjectSchema,
   headersSchema: JsonObjectSchema,
   bodySchema: JsonObjectSchema,
@@ -105,6 +102,17 @@ export const ViewMetadataSchema = av.object({
   apiContracts: av.array(ApiContractDescriptorSchema).default([]),
   demoScenarios: av.array(ViewDemoScenarioSchema).default([]),
   cacheHints: CacheHintsSchema
+}, { unknownKeys: "strip" });
+export type ViewOperationMetadata = Infer<typeof ViewOperationMetadataSchema>;
+
+export const ViewMetadataSchema = av.object({
+  viewId: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  description: NonEmptyStringSchema,
+  path: NonEmptyStringSchema,
+  pathVariants: av.array(NonEmptyStringSchema).default([]),
+  paramsSchema: JsonObjectSchema,
+  operations: av.array(ViewOperationMetadataSchema).minItems(1)
 }, { unknownKeys: "strip" });
 export type ViewMetadata = Infer<typeof ViewMetadataSchema>;
 

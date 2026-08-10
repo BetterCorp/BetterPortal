@@ -1,6 +1,6 @@
 # Server-Sent Events
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 
 BetterPortal uses Server-Sent Events (SSE) for two purposes:
 

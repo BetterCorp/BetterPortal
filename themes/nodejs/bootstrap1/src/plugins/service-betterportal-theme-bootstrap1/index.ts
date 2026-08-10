@@ -1141,7 +1141,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           && (route.kind ?? "page") === "page"
           && route.serviceId === appAuth.serviceId
           && route.viewId === loginViewId
-          && (route.methods.length === 0 || route.methods.some((method) => method.toUpperCase() === "GET"))
+          && route.resolvedMethods?.includes("GET") === true
         );
         if (authBinding && loginRoute) {
           const safeLogin = resolveSafeServiceViewTarget(authBinding.service, loginRoute, loginRoute.path, themeOrigin);

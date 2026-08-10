@@ -149,7 +149,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
         reply.writeHead(204, {
           "access-control-allow-origin": "*",
           "access-control-allow-methods": "GET,POST,OPTIONS",
-          "access-control-allow-headers": "Accept,Authorization,Content-Type"
+          "access-control-allow-headers": "Accept,Authorization,Content-Type,traceparent,tracestate,baggage"
         });
         reply.end();
         return;

@@ -89,7 +89,7 @@ Revocation removes the binding and grant. Already-issued tokens fail after the t
 
 ## Route policy
 
-Each view can declare:
+Each method operation declares its own route policy:
 
 ```ts
 export const auth = {
@@ -102,6 +102,8 @@ export const auth = {
 ```
 
 The manifest advertises this policy so themes, admin tools, and gateways can reason about access.
+
+Methods sharing one `viewId` do not share policy. Their unique `operationId` values select the correct allowlist and contract, while role grants remain `serviceId + viewId + action`. For example, GET may require `read` and POST may require `create`.
 
 ## Secrets
 

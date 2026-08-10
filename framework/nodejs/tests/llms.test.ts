@@ -89,7 +89,7 @@ test("developer resource ids are safe URL segments", () => {
 
 test("well-known resource routes expose descriptors and inert content", async () => {
   const manifest = PluginManifestSchema.parse({
-    protocolVersion: 1,
+    protocolVersion: 2,
     pluginId: "com.example.theme",
     title: "Theme",
     description: "Test theme",

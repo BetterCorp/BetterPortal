@@ -193,32 +193,28 @@ function validateRouteParamMapping(
   return undefined;
 }
 
-function routeMethodsFromManifest(methods?: string[]): BetterPortalRouteMount["methods"] {
-  const normalized = (methods ?? []).filter((method): method is BetterPortalRouteMount["methods"][number] =>
-    method === "GET" || method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE" || method === "OPTIONS"
-  );
-  return normalized.length ? normalized : ["GET"];
-}
-
 type WizardManifestView = {
   viewId: string;
   title: string;
-  renderable?: boolean;
-  methods?: unknown[];
-  dependencies?: unknown[];
-  html?: {
-    renderers?: Record<string, {
-      renderModes?: unknown[];
-    }>;
-  };
+  path?: string;
+  operations?: Array<{
+    operationId?: unknown;
+    method?: unknown;
+    title?: unknown;
+    renderable?: boolean;
+    dependencies?: unknown[];
+    html?: { renderers?: Record<string, { renderModes?: unknown[] }> };
+  }>;
 };
 
 function hasPageRenderer(view: WizardManifestView): boolean {
-  const renderers = view.html?.renderers;
-  if (!renderers) return view.renderable !== false;
-  return Object.values(renderers).some((renderer) =>
-    Array.isArray(renderer.renderModes) && renderer.renderModes.includes("page")
-  );
+  return (view.operations ?? []).some((operation) => {
+    if (operation.method !== "GET" || operation.renderable === false) return false;
+    const renderers = operation.html?.renderers;
+    return renderers && Object.values(renderers).some((renderer) =>
+      Array.isArray(renderer.renderModes) && renderer.renderModes.includes("page")
+    );
+  });
 }
 
 function appMatchesTenantUrl(app: BetterPortalApp, tenantUrl: string): boolean {
@@ -328,21 +324,22 @@ function automationServiceCatalog(config: BetterPortalConfig, appDef: BetterPort
           ...resource,
           url: `${service.url.replace(/\/+$/, "")}/.well-known/bp/resources/${encodeURIComponent(resource.id)}`
         })),
-        actions: Object.values(manifest?.viewIndex ?? {}).map((view) => ({
+        actions: Object.values(manifest?.viewIndex ?? {}).flatMap((view) => view.operations.map((operation) => ({
           viewId: view.viewId,
+          operationId: operation.operationId,
           path: view.path,
-          methods: view.methods,
-          title: view.viewId,
-          renderable: view.renderable,
-          permissions: view.permissions,
-          role: view.role,
-          chrome: view.chrome,
-          dependencies: view.dependencies,
-          schemas: view.schemas,
-          raw: view.raw === true,
-          apiContracts: view.apiContracts,
-          demoScenarios: view.demoScenarios
-        }))
+          method: operation.method,
+          title: operation.title,
+          renderable: operation.renderable,
+          permissions: operation.permissions,
+          role: operation.role,
+          chrome: operation.chrome,
+          dependencies: operation.dependencies,
+          schemas: operation.schemas,
+          raw: operation.raw === true,
+          apiContracts: operation.apiContracts,
+          demoScenarios: operation.demoScenarios
+        })))
       };
     })
   };
@@ -381,7 +378,8 @@ export function renderAutomationLlmsApi(catalog: ReturnType<typeof automationSer
         `#### ${action.title}`,
         "",
         `- View ID: \`${action.viewId}\``,
-        `- Methods: ${action.methods.map((method) => `\`${method}\``).join(", ")}`,
+        `- Operation ID: \`${action.operationId}\``,
+        `- Method: \`${action.method}\``,
         `- URL: ${base}${action.path}`,
         `- Renderable: ${action.renderable ? "yes" : "no"}`,
         `- Required permissions: \`${JSON.stringify(action.permissions)}\``,
@@ -398,8 +396,12 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   if (serviceId.error) return { error: serviceId.error };
   const viewId = requiredRouteString(body, "viewId", "View");
   if (viewId.error) return { error: viewId.error };
+  const operationId = requiredRouteString(body, "operationId", "Operation");
+  if (operationId.error) return { error: operationId.error };
   const manifestView = getManifestCache().get(serviceId.value!)?.viewIndex[viewId.value!];
-  const renderable = manifestView?.renderable !== false;
+  const manifestOperation = manifestView?.operations.find((operation) => operation.operationId === operationId.value);
+  if (manifestView && !manifestOperation) return { error: "Selected operation is not available for this view." };
+  const renderable = manifestOperation?.method === "GET" && manifestOperation.renderable === true;
   const manifest = getManifestCache().get(serviceId.value!);
   const servicePathVariant = trimmedString(body, "servicePathVariant") ?? manifestView?.path ?? `/${viewId.value!}`;
   if (manifestView && ![manifestView.path, ...manifestView.pathVariants].includes(servicePathVariant)) {
@@ -417,7 +419,7 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   const mappingError = validateRouteParamMapping(path.value!, serviceRoutePath, fixedParams, manifestView?.paramsSchema);
   if (mappingError) return { error: mappingError };
 
-  const title = renderable ? requiredRouteString(body, "title", "Display title") : { value: manifestView?.viewId ?? viewId.value! };
+  const title = renderable ? requiredRouteString(body, "title", "Display title") : { value: manifestOperation?.title ?? operationId.value! };
   if (title.error) return { error: title.error };
 
   const route: Omit<BetterPortalRouteMount, "id"> = {
@@ -429,7 +431,7 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
     ...(Object.keys(fixedParams).length > 0 ? { fixedParams } : {}),
     title: title.value!,
     enabled: true,
-    methods: routeMethodsFromManifest(manifestView?.methods)
+    operations: [operationId.value!]
   };
   if (manifestView?.path) route.targetPath = serviceRoutePath;
   const query = trimmedString(body, "query");
@@ -437,18 +439,18 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   return { route };
 }
 
-function serviceRouteTargetKey(route: Pick<BetterPortalRouteMount, "serviceId" | "viewId" | "targetPath" | "servicePathVariant">): string | undefined {
+function serviceRouteTargetKey(route: Pick<BetterPortalRouteMount, "serviceId" | "viewId" | "operations" | "targetPath" | "servicePathVariant">): string | undefined {
   const servicePath = route.servicePathVariant
     ?? route.targetPath
     ?? getManifestCache().get(route.serviceId)?.viewIndex[route.viewId]?.path;
   return servicePath
-    ? `${route.serviceId}\u0000${route.viewId}\u0000${appRoutePatternKey(servicePath)}`
+    ? `${route.serviceId}\u0000${route.viewId}\u0000${[...route.operations].sort().join(",")}\u0000${appRoutePatternKey(servicePath)}`
     : undefined;
 }
 
 function hasDuplicateServiceRouteTarget(
   appDef: BetterPortalApp,
-  route: Pick<BetterPortalRouteMount, "serviceId" | "viewId" | "targetPath" | "servicePathVariant">,
+  route: Pick<BetterPortalRouteMount, "serviceId" | "viewId" | "operations" | "targetPath" | "servicePathVariant">,
   excludeRouteId?: string
 ): boolean {
   const key = serviceRouteTargetKey(route);
@@ -520,20 +522,26 @@ function addRouteDependencies(appDef: BetterPortalApp, route: BetterPortalRouteM
   const view = manifest?.viewIndex[route.viewId];
   if (!manifest || !view) return;
 
-  for (const dependencyViewId of view.dependencies) {
-    const dependency = manifest.viewIndex[dependencyViewId];
+  const operations = new Map(Object.values(manifest.viewIndex).flatMap((candidateView) =>
+    candidateView.operations.map((operation) => [operation.operationId, { view: candidateView, operation }] as const)
+  ));
+  const dependencies = view.operations
+    .filter((operation) => route.operations.includes(operation.operationId))
+    .flatMap((operation) => operation.dependencies);
+  for (const dependencyOperationId of dependencies) {
+    const dependency = operations.get(dependencyOperationId);
     if (!dependency) continue;
-    if (appDef.routes.some((candidate) => candidate.serviceId === route.serviceId && candidate.viewId === dependencyViewId)) continue;
+    if (appDef.routes.some((candidate) => candidate.serviceId === route.serviceId && candidate.operations.includes(dependencyOperationId))) continue;
     appDef.routes.push({
       id: uuidv7(),
       kind: "api",
-      path: apiRoutePath(manifest.serviceId, dependency.path),
+      path: apiRoutePath(manifest.serviceId, dependency.view.path),
       serviceId: route.serviceId,
-      viewId: dependencyViewId,
-      targetPath: dependency.path,
-      title: dependency.viewId,
+      viewId: dependency.view.viewId,
+      targetPath: dependency.view.path,
+      title: dependency.operation.title,
       enabled: true,
-      methods: routeMethodsFromManifest(dependency.methods)
+      operations: [dependencyOperationId]
     });
   }
 }
@@ -2154,10 +2162,17 @@ export function registerAdminApiRoutes(
       if (!viewId) return validationError(event, "View is required.");
       route.viewId = viewId;
     }
+    if (body.operationId !== undefined) {
+      const operationId = trimmedString(body, "operationId");
+      if (!operationId) return validationError(event, "Operation is required.");
+      route.operations = [operationId];
+    }
     const manifest = getManifestCache().get(route.serviceId);
     const manifestView = manifest?.viewIndex[route.viewId];
     if (manifestView) {
-      const routeIdentityChanged = body.serviceId !== undefined || body.viewId !== undefined;
+      const manifestOperation = manifestView.operations.find((operation) => route.operations.includes(operation.operationId));
+      if (!manifestOperation) return validationError(event, "Selected operation is not available for this view.");
+      const routeIdentityChanged = body.serviceId !== undefined || body.viewId !== undefined || body.operationId !== undefined;
       const requestedServicePath = trimmedString(body, "servicePathVariant")
         ?? (routeIdentityChanged ? undefined : route.servicePathVariant)
         ?? manifestView.path;
@@ -2167,7 +2182,8 @@ export function registerAdminApiRoutes(
       const servicePathError = validateCanonicalRoutePath(requestedServicePath, "Service path");
       if (servicePathError) return validationError(event, servicePathError);
       const submittedFixed = fixedParamsFromBody(body);
-      const mappedAppPath = manifestView.renderable === false
+      const pageRenderable = manifestOperation.method === "GET" && manifestOperation.renderable;
+      const mappedAppPath = !pageRenderable
         ? apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath)
         : route.path;
       const appParams = new Set(routeParamNames(mappedAppPath));
@@ -2180,12 +2196,11 @@ export function registerAdminApiRoutes(
       else route.servicePathVariant = requestedServicePath;
       if (Object.keys(fixedParams).length > 0) route.fixedParams = fixedParams;
       else delete route.fixedParams;
-      route.methods = routeMethodsFromManifest(manifestView.methods);
       route.targetPath = requestedServicePath;
-      if (manifestView.renderable === false) {
+      if (!pageRenderable) {
         route.kind = "api";
         route.path = apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath);
-        route.title = manifestView.viewId;
+        route.title = manifestOperation.title;
         delete route.query;
       } else {
         route.kind = "page";
@@ -2198,14 +2213,20 @@ export function registerAdminApiRoutes(
     }
     if (body.query !== undefined) {
       const query = trimmedString(body, "query");
-      if (isApiRoute(route, manifestView?.renderable)) delete route.query;
+      const renderable = manifestView?.operations.some((operation) =>
+        route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderable
+      );
+      if (isApiRoute(route, renderable)) delete route.query;
       else if (query) route.query = query.replace(/^\?+/, "");
       else delete route.query;
     }
     if (body.title !== undefined) {
       const title = trimmedString(body, "title");
       if (!title) return validationError(event, "Display title is required.");
-      if (!isApiRoute(route, manifestView?.renderable)) route.title = title;
+      const renderable = manifestView?.operations.some((operation) =>
+        route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderable
+      );
+      if (!isApiRoute(route, renderable)) route.title = title;
     }
     if (body.enabled !== undefined) route.enabled = body.enabled === true || body.enabled === "true" || body.enabled === "on";
 
@@ -2369,9 +2390,15 @@ export function registerAdminApiRoutes(
     // and posted to us as a JSON string in form.schema.
     let serviceId: string | undefined;
     let capabilities: string[] = [];
-    let serviceRoutes: Array<{ viewId: string; path: string; renderable?: boolean; methods?: string[] }> = [];
-    let viewMeta = new Map<string, { title: string; renderable: boolean; pageRenderable: boolean; methods: string[] }>();
-    let dependencyViewIds = new Set<string>();
+    let serviceRoutes: Array<{
+      viewId: string;
+      path: string;
+      operationId: string;
+      title: string;
+      renderable: boolean;
+      pageRenderable: boolean;
+    }> = [];
+    let dependencyOperationIds = new Set<string>();
     const schemaText = typeof body.schema === "string" ? body.schema : "";
     if (schemaText) {
       try {
@@ -2381,25 +2408,27 @@ export function registerAdminApiRoutes(
             capabilities?: string[];
             views?: WizardManifestView[];
           };
-          routes?: Array<{ viewId: string; path: string; renderable?: boolean; methods?: string[] }>;
         };
         serviceId = schema.manifest?.pluginId;
         capabilities = Array.isArray(schema.manifest?.capabilities) ? schema.manifest.capabilities.filter((value): value is string => typeof value === "string") : [];
-        serviceRoutes = schema.routes ?? [];
         const manifestViews = schema.manifest?.views ?? [];
-        dependencyViewIds = new Set(manifestViews.flatMap((view) =>
-          Array.isArray(view.dependencies)
-            ? view.dependencies.filter((value): value is string => typeof value === "string")
+        dependencyOperationIds = new Set(manifestViews.flatMap((view) => (view.operations ?? []).flatMap((operation) =>
+          Array.isArray(operation.dependencies)
+            ? operation.dependencies.filter((value): value is string => typeof value === "string")
+            : []
+        )));
+        serviceRoutes = manifestViews.flatMap((view) => (view.operations ?? []).flatMap((operation) =>
+          typeof operation.operationId === "string"
+            ? [{
+              viewId: view.viewId,
+              path: view.path ?? `/${view.viewId}`,
+              operationId: operation.operationId,
+              title: typeof operation.title === "string" ? operation.title : view.title,
+              renderable: operation.renderable === true,
+              pageRenderable: operation.method === "GET" && hasPageRenderer({ ...view, operations: [operation] })
+            }]
             : []
         ));
-        viewMeta = new Map(manifestViews.map((v) => [v.viewId, {
-          title: v.title,
-          renderable: v.renderable !== false,
-          pageRenderable: hasPageRenderer(v),
-          methods: Array.isArray(v.methods)
-            ? v.methods.filter((value): value is string => typeof value === "string")
-            : []
-        }]));
       } catch { /* malformed schema - register without routes */ }
     }
 
@@ -2432,28 +2461,27 @@ export function registerAdminApiRoutes(
 
         for (const r of serviceRoutes) {
           const routeServiceId = serviceId ?? newServiceId;
-          const meta = viewMeta.get(r.viewId);
-          const renderable = meta?.renderable ?? r.renderable !== false;
-          const mountPath = renderable
+          const mountPath = r.pageRenderable
             ? pageRoutePath(routeServiceId, r.path)
             : apiRoutePath(routeServiceId, r.path);
-          if (existingPaths.has(mountPath)) continue;
+          if (r.pageRenderable && existingPaths.has(mountPath)) continue;
+          if (appDef.routes.some((route) => route.serviceId === newServiceId && route.operations.includes(r.operationId))) continue;
 
           const routeId = uuidv7();
-          const routeTitle = meta?.title ?? r.viewId;
+          const routeTitle = r.title;
           appDef.routes.push({
             id: routeId,
-            kind: renderable ? "page" : "api",
+            kind: r.pageRenderable ? "page" : "api",
             path: mountPath,
             serviceId: newServiceId,
             viewId: r.viewId,
             targetPath: r.path,
             title: routeTitle,
-            enabled: renderable || dependencyViewIds.has(r.viewId),
-            methods: routeMethodsFromManifest(r.methods)
+            enabled: r.pageRenderable || dependencyOperationIds.has(r.operationId),
+            operations: [r.operationId]
           });
-          existingPaths.add(mountPath);
-          if (meta?.pageRenderable === true && !isApiRoute({ kind: renderable ? "page" : "api", path: mountPath }, renderable)) {
+          if (r.pageRenderable) existingPaths.add(mountPath);
+          if (r.pageRenderable && !isApiRoute({ kind: "page", path: mountPath }, true)) {
             groupChildren.push({
               id: uuidv7(),
               type: "link",

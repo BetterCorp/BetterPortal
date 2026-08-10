@@ -11,12 +11,15 @@ const PermissionActionSchema = av.enum_(["read", "create", "update", "delete"] a
 const ViewWithPermsSchema = av.object({
   viewId: av.string().minLength(1),
   path: av.string().minLength(1),
-  methods: av.array(av.string()).default([]),
-  role: av.optional(av.string()),
-  requiredPermissions: av.array(av.object({
-    serviceId: av.string().minLength(1),
-    viewId: av.string().minLength(1),
-    permissions: av.array(av.string())
+  operations: av.array(av.object({
+    operationId: av.string().minLength(1),
+    method: av.string().minLength(1),
+    role: av.optional(av.string()),
+    requiredPermissions: av.array(av.object({
+      serviceId: av.string().minLength(1),
+      viewId: av.string().minLength(1),
+      permissions: av.array(av.string())
+    }, { unknownKeys: "strip" })).default([])
   }, { unknownKeys: "strip" })).default([])
 }, { unknownKeys: "strip" });
 

@@ -40,7 +40,7 @@ export const title = "Register First Admin";
 export const description = "Open registration for the very first user. Once any user exists, this endpoint requires admin auth.";
 
 export const role = "auth.register";
-export const dependencies = ["login.index"];
+export const dependencies = ["auth.register", "auth.login.view"];
 export const chrome: BetterPortalRouteChrome = { fullScreen: true };
 
 export const auth: ApiAuthRequirement = {

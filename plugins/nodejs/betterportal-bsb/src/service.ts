@@ -1059,83 +1059,51 @@ export abstract class BPService<
       obs.log.info("Control plane sync bootstrap polling: {url}", { url: pollUrl });
       // POST manifest with the poll so CP can cache it for resolvedServicePath injection
       // AND surface per-view permission requirements to the admin role editor.
-      const viewIndex: Record<string, {
-        viewId: string; path: string; pathVariants: string[]; methods: string[]; role?: string;
-        renderers: string[];
-        chrome?: BetterPortalRouteChrome;
-        dependencies: string[];
-        permissions: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
-        authRequired?: boolean;
-        paramsSchema?: Record<string, unknown>;
-        sitemap?: unknown;
-        robots?: unknown[];
-        renderable: boolean;
-        schemas?: Record<string, unknown>;
-        raw?: boolean;
-        apiContracts?: unknown[];
-        demoScenarios?: unknown[];
-        fragments?: Array<{ fragmentId: string; targetPath: string }>;
-      }> = {};
+      const viewIndex: Record<string, unknown> = {};
       for (const view of this.manifest.views) {
-        const viewWithAuth = view as unknown as {
-          auth?: { required?: boolean; permissions?: Array<{ serviceId: string; viewId: string; permissions: string[] }> };
-          chrome?: BetterPortalRouteChrome;
-          html?: { renderers?: Record<string, unknown> };
-          dependencies?: string[];
-          raw?: boolean;
-          paramsSchema?: unknown;
-          querySchema?: unknown;
-          headersSchema?: unknown;
-          bodySchema?: unknown;
-          jsonResponseSchema?: unknown;
-          metadataResponseSchema?: unknown;
-          apiContracts?: unknown[];
-          pathVariants?: string[];
-          sitemap?: unknown;
-          robots?: unknown[];
-        };
-        const renderers = viewWithAuth.html?.renderers ?? {};
-        const renderable = Object.keys(renderers).length > 0;
         const fragments: Array<{ fragmentId: string; targetPath: string }> = [];
         const seenFragments = new Set<string>();
-        for (const theme of Object.values(renderers) as any[]) {
-          for (const renderer of theme?.renderers ?? []) {
-            if (typeof renderer?.slotId !== "string" || renderer.slotId === "main" || seenFragments.has(renderer.slotId)) continue;
-            seenFragments.add(renderer.slotId);
-            fragments.push({ fragmentId: renderer.slotId, targetPath: view.path });
+        for (const operation of view.operations) {
+          for (const theme of Object.values(operation.html.renderers)) {
+            for (const renderer of theme.renderers) {
+              if (renderer.slotId === "main" || seenFragments.has(renderer.slotId)) continue;
+              seenFragments.add(renderer.slotId);
+              fragments.push({ fragmentId: renderer.slotId, targetPath: view.path });
+            }
           }
         }
-        const schemas = Object.fromEntries(
-          [
-            ["params", viewWithAuth.paramsSchema],
-            ["query", viewWithAuth.querySchema],
-            ["headers", viewWithAuth.headersSchema],
-            ["request", viewWithAuth.bodySchema],
-            ["response", viewWithAuth.jsonResponseSchema],
-            ["metadataResponse", viewWithAuth.metadataResponseSchema]
-          ].filter((entry): entry is [string, unknown] => Boolean(entry[1]))
-        );
         viewIndex[view.viewId] = {
           viewId: view.viewId,
+          title: view.title,
+          description: view.description,
           path: view.path,
-          pathVariants: [...(viewWithAuth.pathVariants ?? [])],
-          methods: [...view.methods],
-          renderers: Object.keys(renderers),
-          ...(view.role ? { role: view.role } : {}),
-          ...(viewWithAuth.chrome ? { chrome: viewWithAuth.chrome } : {}),
-          dependencies: [...(viewWithAuth.dependencies ?? [])],
-          permissions: viewWithAuth.auth?.permissions ?? [],
-          ...(typeof viewWithAuth.auth?.required === "boolean" ? { authRequired: viewWithAuth.auth.required } : {}),
-          ...(viewWithAuth.paramsSchema && typeof viewWithAuth.paramsSchema === "object"
-            ? { paramsSchema: viewWithAuth.paramsSchema as Record<string, unknown> }
-            : {}),
-          ...(viewWithAuth.sitemap ? { sitemap: viewWithAuth.sitemap } : {}),
-          robots: [...(viewWithAuth.robots ?? [])],
-          renderable,
-          ...(Object.keys(schemas).length ? { schemas } : {}),
-          ...(viewWithAuth.raw === true ? { raw: true } : {}),
-          ...(Array.isArray(viewWithAuth.apiContracts) && viewWithAuth.apiContracts.length ? { apiContracts: viewWithAuth.apiContracts } : {}),
-          ...(view.demoScenarios.length ? { demoScenarios: [...view.demoScenarios] } : {}),
+          pathVariants: [...view.pathVariants],
+          paramsSchema: view.paramsSchema,
+          operations: view.operations.map((operation) => ({
+            operationId: operation.operationId,
+            method: operation.method,
+            title: operation.title,
+            description: operation.description,
+            renderers: Object.keys(operation.html.renderers),
+            ...(operation.role ? { role: operation.role } : {}),
+            authRequired: operation.auth.required,
+            ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
+            robots: [...operation.robots],
+            ...(operation.chrome ? { chrome: operation.chrome } : {}),
+            dependencies: [...operation.dependencies],
+            permissions: operation.auth.permissions,
+            renderable: operation.renderable,
+            schemas: {
+              query: operation.querySchema,
+              headers: operation.headersSchema,
+              request: operation.bodySchema,
+              response: operation.jsonResponseSchema,
+              metadataResponse: operation.metadataResponseSchema
+            },
+            ...(operation.raw === true ? { raw: true } : {}),
+            apiContracts: [...operation.apiContracts],
+            demoScenarios: [...operation.demoScenarios]
+          })),
           ...(fragments.length ? { fragments } : {})
         };
       }
@@ -2042,22 +2010,25 @@ export abstract class BPService<
   ): Promise<RuntimeSitemapRoute[]> {
     const localIds = this.localServiceInstanceIds(context);
     const appRoutes = context.app.appRoutes ?? context.app.routes;
-    const providers = new Map(this.registeredRoutes
-      .filter((route) => typeof route.sitemap === "function")
-      .map((route) => [route.viewId, route]));
+    const providers = new Map(this.registeredRoutes.flatMap((route) => {
+      const operation = route.methodRoutes?.GET;
+      return operation && typeof operation.sitemap === "function"
+        ? [[route.viewId, { route, operation }] as const]
+        : [];
+    }));
     const results: RuntimeSitemapRoute[] = [];
     for (const mount of appRoutes) {
       if (!localIds.has(mount.serviceId) || mount.enabled === false || mount.authRequired !== false) continue;
-      const route = providers.get(mount.viewId);
-      if (!route || typeof route.sitemap !== "function") continue;
-      const entries = await route.sitemap({
+      const provider = providers.get(mount.viewId);
+      if (!provider || !mount.operations.includes(provider.operation.operationId) || typeof provider.operation.sitemap !== "function") continue;
+      const entries = await provider.operation.sitemap({
         plugin: this,
         tenant: context.tenant,
         app: context.app,
         config: this.effectiveServiceConfig(context.tenant.id, context.app.id),
         route: {
-          viewId: route.viewId,
-          path: mount.resolvedServicePath ?? mount.servicePathVariant ?? mount.targetPath ?? route.path
+          viewId: provider.route.viewId,
+          path: mount.resolvedServicePath ?? mount.servicePathVariant ?? mount.targetPath ?? provider.route.path
         },
         signal
       });
@@ -2161,7 +2132,6 @@ export abstract class BPService<
         route.enabled !== false
         && route.authRequired === false
         && (route.kind ?? "page") === "page"
-        && route.methods.includes("GET")
       )
       .map((route) => route.serviceId));
     const runtime: RuntimeSitemapRoute[] = [];

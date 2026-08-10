@@ -1,6 +1,6 @@
 # BetterPortal Protocol
 
-**Status:** Draft. Version `bp-protocol/1`.
+**Status:** Draft. Version `bp-protocol/2`.
 
 This directory is the **normative specification** for BetterPortal as a wire protocol. SDKs (`@betterportal/framework` for Node, future siblings for other languages) are implementations of these specs.
 
@@ -20,14 +20,14 @@ If you are writing a service in a language other than TypeScript, this is your s
 | [sse.md](sse.md) | Server-Sent Events conventions: per-view streams (`/__sse`), per-renderer tick output, control-plane config sync. |
 | [streaming.md](streaming.md) | Partial responses: frame envelope, NDJSON streaming, per-frame validation, streamed HTML rendering, deferred components. |
 | [search.md](search.md) | Federated search: `search.v1` capability, provider endpoint, pinned result schema, aggregator rules (viewId link resolution, hiding, custom result HTML). |
-| [conformance.md](conformance.md) | Minimum surface an SDK or service must implement to claim `bp-protocol/1` compliance. |
+| [conformance.md](conformance.md) | Minimum surface an SDK or service must implement to claim `bp-protocol/2` compliance. |
 | [contracts/media-types.md](contracts/media-types.md) | Negotiated media types and the rules between them (existing v10 doc, still normative). |
 
 ## Versioning
 
 The protocol is versioned via the `bp-protocol` token in:
-- `Server` and `User-Agent` headers (informational): `bp-protocol/1`
-- The manifest's `protocolVersion` field (normative): `"protocolVersion": 1`
+- `Server` and `User-Agent` headers (informational): `bp-protocol/2`
+- The manifest's `protocolVersion` field (normative): `"protocolVersion": 2`
 
 Breaking changes bump the integer. Additive changes (new optional fields, new endpoints under `/.well-known/bp/`) do not.
 

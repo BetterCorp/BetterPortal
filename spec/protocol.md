@@ -1,6 +1,6 @@
 # BetterPortal Protocol - HTTP Surface
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 **Status:** Draft
 
 ## 1. Well-known endpoints
@@ -31,7 +31,7 @@ Theme services additionally expose the app-level AI and developer discovery endp
   "ok": true,
   "ready": true,
   "pluginId": "<pluginId>",
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "setupMode": false,
   "config": {
     "synced": true,
@@ -54,7 +54,7 @@ Before a service has synced or loaded local config, only core bootstrap/discover
 
 ### 1.2 Service routes
 
-In addition to well-known endpoints, services expose **view routes** declared in the manifest. Each view advertises one or more paths and HTTP methods. Routes outside `/.well-known/bp/*` are the service's view surface.
+In addition to well-known endpoints, services expose view routes declared in the manifest. A view advertises its path and contains one contract per method in `operations[]`. Routes outside `/.well-known/bp/*` are the service's view surface.
 
 A view route MUST accept content negotiation (see section 3) and respond with either:
 - `application/json` (the canonical response shape per the view's schema)
@@ -75,7 +75,8 @@ Access-Control-Allow-Headers:     Accept, Authorization, Content-Type,
                                   HX-Current-URL, HX-Request, HX-Target,
                                   HX-Trigger, HX-Trigger-Name,
                                   X-BP-Tenant-Id, X-BP-App-Id,
-                                  BP-SetHeader, BP-RemoveHeader
+                                  BP-SetHeader, BP-RemoveHeader,
+                                  traceparent, tracestate, baggage
 Access-Control-Expose-Headers:    HX-Trigger, HX-Trigger-After-Swap,
                                   HX-Trigger-After-Settle, HX-Location,
                                   HX-Push-Url, HX-Redirect, HX-Refresh,
@@ -235,11 +236,11 @@ Services MAY expose Server-Sent Events streams for views (see `sse.md` and secti
 
 ## 10. Versioning
 
-The protocol version is an integer in the manifest's `protocolVersion` field. Version 1 is this document.
+The protocol version is an integer in the manifest's `protocolVersion` field. Version 2 is this document. Version 2 introduces method-specific operation contracts and does not flatten schemas or policy at view level. Protocol-1 manifests and app routes must be migrated by the control plane; protocol-2 producers emit stable `operationId` values and operation allowlists only.
 
 A service MAY advertise multiple versions by exposing multiple manifests at versioned paths (`/.well-known/bp/manifest?v=2`); the unversioned path returns the highest supported.
 
-Clients SHOULD send `BP-Protocol-Version: 1` on requests. If absent, servers assume the latest version they support. If the version is unsupported, return `400` with `error: "unsupported_protocol_version"`.
+Clients SHOULD send `BP-Protocol-Version: 2` on requests. If absent, servers assume the latest version they support. If the version is unsupported, return `400` with `error: "unsupported_protocol_version"`.
 
 ## 11. Out-of-band conventions
 

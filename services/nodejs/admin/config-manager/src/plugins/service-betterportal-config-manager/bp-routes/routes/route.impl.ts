@@ -16,6 +16,7 @@ const RouteItemSchema = av.object({
   targetPath: av.optional(av.string()),
   servicePathVariant: av.optional(av.string()),
   fixedParams: av.record(av.string()).default({}),
+  operations: av.array(av.string()).default([]),
   methods: av.array(av.string()).default([]),
   query: av.optional(av.string()),
   title: av.optional(av.string()),
@@ -31,11 +32,13 @@ const AppSummarySchema = av.object({
 
 const AvailableViewSchema = av.object({
   viewId: av.string().minLength(1),
+  operationId: av.string().minLength(1),
   title: av.string(),
+  description: av.string(),
   path: av.string(),
   pathVariants: av.array(av.string()).default([]),
   paramsSchema: av.optional(av.record(av.any())),
-  methods: av.array(av.string()).default([]),
+  method: av.string().minLength(1),
   renderable: av.bool().default(true),
   dependencies: av.array(av.string()).default([])
 }, { unknownKeys: "strip" });

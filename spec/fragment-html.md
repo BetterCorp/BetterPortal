@@ -1,6 +1,6 @@
 # Fragment HTML Conventions
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 
 This document specifies the HTML conventions a BetterPortal service MUST follow when emitting fragment, page, or component HTML for any theme. The browser-side rewriter (in the theme) depends on these conventions to absolutize URLs, route navigation, and rebind HTMX after swap.
 

@@ -75,7 +75,7 @@ function safeRobotsPrefix(path: string): string {
 }
 
 function routeIsPublic(app: BetterPortalResolvedApp, route: BetterPortalRouteMount): boolean {
-  if (route.enabled === false || (route.kind ?? "page") !== "page" || !route.methods.includes("GET")) return false;
+  if (route.enabled === false || (route.kind ?? "page") !== "page") return false;
   if (route.authRequired !== false) return false;
   if ((app.seo?.visibility ?? "auto") === "private") return false;
   return true;

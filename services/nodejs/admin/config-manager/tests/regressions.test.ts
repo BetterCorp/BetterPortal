@@ -374,7 +374,7 @@ test("manifest sync owns API mounts and moves newly renderable views to visual r
       serviceId: value.targetId,
       viewId: "dashboard.index",
       enabled: true,
-      methods: ["GET"]
+      methods: ["GET", "POST"]
     },
     {
       id: movedRouteId,
@@ -386,24 +386,56 @@ test("manifest sync owns API mounts and moves newly renderable views to visual r
       methods: ["GET"]
     }
   ];
-  const registryRoute = (viewId: string, path: string, raw: boolean, dependencies: string[] = []) => ({
-    viewId,
-    path,
-    paramNames: [],
-    methods: ["GET"],
-    raw,
-    renderers: raw ? {} : { bootstrap5: { pages: [{}], components: [], fragments: [] } },
-    auth: { required: false, permissions: [] },
-    schemas: {},
-    robots: [],
-    dependencies,
-    apiContracts: [],
-    demoScenarios: []
-  });
+  const registryRoute = (viewId: string, path: string, raw: boolean, dependencies: string[] = [], postRenderer = false) => {
+    const methodRoutes: Record<string, unknown> = {
+      GET: {
+        method: "GET",
+        operationId: viewId,
+        title: viewId,
+        description: "",
+        schemas: {},
+        handler: () => ({}),
+        raw,
+        auth: { required: false, permissions: [] },
+        dependencies,
+        cacheHints: { ttlSeconds: 0, varyBy: [] },
+        demoScenarios: []
+      }
+    };
+    if (postRenderer) {
+      methodRoutes.POST = {
+        method: "POST",
+        operationId: `${viewId}.submit`,
+        title: `${viewId} submit`,
+        description: "",
+        schemas: {},
+        handler: () => ({}),
+        auth: { required: false, permissions: [] },
+        dependencies: [],
+        cacheHints: { ttlSeconds: 0, varyBy: [] },
+        demoScenarios: []
+      };
+    }
+    return {
+      viewId,
+      path,
+      paramNames: [],
+      methods: postRenderer ? ["GET", "POST"] : ["GET"],
+      raw,
+      methodRoutes,
+      renderers: raw ? {} : { bootstrap5: { pages: postRenderer ? [{ method: "GET" }, { method: "POST" }] : [{ method: "GET" }], components: [], fragments: [] } },
+      auth: { required: false, permissions: [] },
+      schemas: {},
+      robots: [],
+      dependencies,
+      apiContracts: [],
+      demoScenarios: []
+    };
+  };
 
   await reconcileServiceRegistry(new MemoryStorage(value.config), value.targetId, {
     routes: [
-      registryRoute("dashboard.index", "/dashboard", false, ["dashboard.data"]),
+      registryRoute("dashboard.index", "/dashboard", false, ["dashboard.data"], true),
       registryRoute("dashboard.data", "/dashboard-data", true),
       registryRoute("jobs.run", "/jobs/run", true),
       registryRoute("moved.index", "/moved", false)
@@ -414,6 +446,10 @@ test("manifest sync owns API mounts and moves newly renderable views to visual r
   assert.equal(dependency?.kind, "api");
   assert.equal(dependency?.enabled, true);
   assert.equal(app.routes.find((route) => route.viewId === "jobs.run")?.enabled, false);
+  const dashboardSubmit = app.routes.find((route) => route.operations?.includes("dashboard.index.submit"));
+  assert.equal(dashboardSubmit?.kind, "api");
+  assert.equal(dashboardSubmit?.enabled, false);
+  assert.deepEqual(app.routes.find((route) => route.viewId === "dashboard.index" && route.kind === "page")?.operations, ["dashboard.index"]);
   const moved = app.routes.find((route) => route.id === movedRouteId);
   assert.equal(moved?.kind, "page");
   assert.equal(moved?.enabled, false);
@@ -594,6 +630,7 @@ test("route designer exposes conflicts, stale views, and service identity", () =
     serviceId,
     viewId,
     targetPath: path,
+    operations: [`${viewId}.read`],
     methods: ["GET"],
     title: viewId,
     renderable: kind === "page",
@@ -621,18 +658,22 @@ test("route designer exposes conflicts, stale views, and service identity", () =
         manifestLoaded: true,
         views: [{
           viewId: "reports.view",
+          operationId: "reports.view.read",
           title: "Report",
+          description: "Read report",
           path: "/reports/:reportId",
           pathVariants: [],
-          methods: ["GET"],
+          method: "GET",
           renderable: true,
           dependencies: []
         }, {
           viewId: "reports.view.pdf",
+          operationId: "reports.view.pdf.create",
           title: "Report PDF",
+          description: "Create report PDF",
           path: "/reports/:reportId/pdf",
           pathVariants: [],
-          methods: ["POST"],
+          method: "POST",
           renderable: true,
           dependencies: []
         }]
@@ -647,7 +688,7 @@ test("route designer exposes conflicts, stale views, and service identity", () =
   assert.match(html, /Conflict: 2 route records use this mount path/);
   assert.match(html, /data-bp-path-group="\/calculators"/);
   assert.match(html, /retirement\.index — unavailable in current manifest/);
-  assert.match(html, /Manifest view unavailable/);
+  assert.match(html, /Manifest operation unavailable/);
   assert.match(html, /data-bp-route-conflict/);
   assert.match(html, /This service view and path are already mounted in this app/);
   assert.match(html, /\/reports\/:reportId\/pdf/);

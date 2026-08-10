@@ -83,20 +83,17 @@ Optional filesystem routes remain separate runtime patterns but are one manifest
 
 ## Metadata and method files
 
-`index.ts` is metadata only. It owns the stable identity and route-level hints:
+`index.ts` defines the shared view group: stable view identity, service path, path parameters, and presentation label.
 
 ```ts
 export const viewId = "example.index";
 export const title = "Example View";
 export const description = "Example BetterPortal view";
-export const auth = { required: false, permissions: [] };
-export const chrome = { fullScreen: false };
-export const dependencies = ["example.detail.index"];
 ```
 
-Keep `index.ts` declarative. It should export route metadata such as `viewId`, `title`, `description`, route-level `auth`, `chrome`, `dependencies`, `cacheHints`, `apiContracts`, and demos. Do not put handlers, schema parsing, JSX renderers, request URL parsing, or service calls in `index.ts`.
+Keep `index.ts` declarative. It may export `viewId`, `title`, `description`, and `ParamsSchema`. It must not export handlers, method schemas, `operationId`, auth, chrome, dependencies, API contracts, cache hints, demos, request URL parsing, or service calls.
 
-`auth.permissions` is route-level. Every method file under the same route uses the same route auth requirement, so define action permissions as data on the route requirement, for example `["read"]`, `["create"]`, `["update"]`, or `["delete"]`. If two operations need materially different route identities, split them into separate route directories with separate `viewId`s.
+Each method is a distinct operation under that view. The method file owns its stable `operationId`, label, schemas, auth/permission requirements, dependencies, render policy, chrome, SEO declarations, API contracts, cache hints, and demos. A service-wide `operationId` must be unique and must not be derived from a title.
 
 Each HTTP method has its own file and default-exports its handler:
 
@@ -104,6 +101,11 @@ Each HTTP method has its own file and default-exports its handler:
 // GET.ts
 import * as av from "anyvali";
 import { createHandler } from "../.bp-generated/route-runtime.js";
+
+export const operationId = "example.read";
+export const title = "Read example";
+export const description = "Returns the example view model.";
+export const auth = { required: false, permissions: [] };
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1)
@@ -117,7 +119,11 @@ export default createHandler(
 
 Method files are service API boundaries. They validate inputs, build typed response models, and return JSON/HTML-negotiable data through `createHandler`.
 
-Method files are named exactly by HTTP method: `GET.ts`, `POST.ts`, `PUT.ts`, `PATCH.ts`, `DELETE.ts`, and `OPTIONS.ts`. They may export `QuerySchema`, `HeadersSchema`, `RequestSchema`, `MultipartSchema`, `ResponseSchema`, and a default `createHandler`, `createRawHandler`, or `createStreamHandler`. They should not export route metadata such as `viewId`, `title`, `auth`, `chrome`, or `dependencies`; put those in `index.ts`.
+Method files are named exactly by HTTP method: `GET.ts`, `POST.ts`, `PUT.ts`, `PATCH.ts`, `DELETE.ts`, and `OPTIONS.ts`. Every method file must export `operationId`, `title`, `description`, and `auth`; it may also export `QuerySchema`, `HeadersSchema`, `RequestSchema`, `MultipartSchema`, `ResponseSchema`, `chrome`, `dependencies`, `sitemap`, `robots`, `role`, `cacheHints`, `apiContracts`, and `demoScenarios`, plus one default handler.
+
+`viewId` groups methods that share one service path and path-parameter schema. `operationId` identifies the method-specific contract. A GET and POST may share `viewId = "reports.index"` while publishing independent operations such as `reports.search` and `reports.create`, each with its own request, response, auth, and generated client types.
+
+Only a GET operation with a page renderer is eligible for Visual Routes and browser navigation. A POST, PUT, PATCH, or DELETE operation remains a Service/API route even when it has an HTML renderer for form results or validation errors. Rendering capability does not change the HTTP operation's routing role.
 
 `av.object` strips unknown keys by default. API schemas do not need an `unknownKeys` option for stripping; specify that option only when deliberately choosing non-default behavior.
 
@@ -175,7 +181,7 @@ export type ServiceConfig = MyBpServiceConfig;
 
 `ctx.config` is the BetterPortal-managed service configuration resolved for the current tenant/app scope. It is not the BSB plugin startup config from `this.config`. Use `ctx.config` for customer/tenant/app runtime settings, and use `ctx.plugin` when a route needs methods or state on the running plugin instance.
 
-Export `viewId` for any route referenced by app config, permissions, dependencies, or code. If omitted, codegen derives it from the file path, which is fine for throwaway views but changes when files move. Build validation fails on duplicate view ids.
+Export `viewId` for any view referenced by app configuration, permissions, or code. If omitted, codegen derives it from the file path, which changes when files move. Build validation fails on duplicate view ids and duplicate operation ids.
 
 Use the exported `viewId` in UI code instead of duplicating strings:
 
@@ -187,9 +193,9 @@ export function render(data: ResponseData): HtmlRenderable {
 }
 ```
 
-Route chrome is service-declared presentation metadata. Use `export const chrome = { fullScreen: true }` when a route should use a full-workspace presentation; this does not mark the route as authentication UI. Chrome is a flat object whose values must be `string`, `number`, or `boolean`. The framework emits initial `data-bp-chrome-*` attributes and serializes response values as `bp-chrome-*` content-type parameters, e.g. `text/html; mode=page; bp-chrome-full-screen=true; charset=utf-8`. The shared shell runtime applies new values, removes stale values after navigation, and exposes them to the active shell; shell CSS or the optional typed adapter hook controls presentation. Chrome is also emitted into the service manifest and copied into app route config during sync; an explicit `apps[].routes[].chrome` value overrides the service default.
+Route chrome is operation-owned presentation metadata. Export `chrome = { fullScreen: true }` from the relevant method file when that operation should use a full-workspace presentation. Config Manager copies the selected operation's default chrome into scoped app routes; an explicit app-route chrome value overrides it.
 
-Route dependencies are service-declared view ids that must be mounted with a route for API/detail flows. Use `export const dependencies = ["clients.detail.index"]` when a rendered view calls another service view such as `/clients/:clientId`. Codegen also auto-detects literal `{view.id}` route tokens in renderer files and merges them into dependencies. Config-manager auto-adds dependency routes when the parent route is mounted.
+Route dependencies are service-declared operation ids that must be mounted with the source operation. Export `dependencies = ["clients.detail.read"]` from the method that calls that operation. Codegen also detects literal route tokens in a method renderer and merges them into that renderer method's dependencies. Config Manager auto-adds one dependency mount per operation.
 
 `apps[].routes[]` stores both browser-visible page routes and service/API allowlist routes:
 
@@ -217,7 +223,7 @@ An internal, root-relative `<a href>` is browser-visible navigation and must res
 
 For OAuth, the user-facing "Continue with ..." anchor should target a mounted page/view route. That view may initiate the external provider redirect with the normal BP response/header flow. The provider callback can remain an API route, but it must redirect back to a mounted page route after completing authentication. `data-bp-no-route` is not a workaround for service links: it disables routing entirely and leaves a root-relative URL pointed at the theme origin.
 
-Config-manager owns Service/API route mounts as a synchronized projection of each active service manifest. Newly published API-only views are added to every applicable app disabled by default; API routes declared as dependencies of a mounted route are enabled automatically. Administrators may enable or disable these mounts, but cannot create, edit, or delete them manually. Sync updates their path, methods, and view identity, removes API views that disappear, and moves a route into the Visual Routes section (disabled, with a generated app path) if its manifest view becomes renderable.
+Config-manager owns Service/API route mounts as a synchronized projection of each active service manifest. Newly published API-only operations are added to every applicable app disabled by default; operations declared as dependencies of a mounted operation are enabled automatically. Administrators may enable or disable these mounts, but cannot create, edit, or delete them manually. Sync updates their path, operation identity, and derived method, removes API operations that disappear, and moves an operation into Visual Routes disabled if it becomes renderable.
 
 Visual routes remain administrator-owned. If a page view disappears from a service manifest, config-manager disables its app route and preserves its app path, title, menu references, and auth redirect references for repair instead of deleting it.
 
@@ -242,7 +248,7 @@ export const apiContracts = [{
 }];
 ```
 
-Codegen attaches the current route `viewId` and methods when omitted. Manifest construction rejects a contract mode that is absent from the owning route's `auth.callers`; declaring a contract never makes a user route callable by a service.
+Codegen attaches the owning `viewId` and method to each method-owned API contract. Manifest construction rejects a contract mode absent from that operation's `auth.callers`; declaring a contract never makes a user-only operation callable by a service.
 
 Service-level manifests declare outbound `m2mRequests`. A request chooses exactly one mode and describes the minimum contract it needs:
 
@@ -313,13 +319,29 @@ Use `routeUrl` for service actions and `uiRouteUrl` for mounted GET navigation. 
 
 Raw app routes and tenant services are intentionally absent from renderer context. Use `ctx.url` for route resolution and `BPElement` for dependency or shell fragments.
 
-HTTP methods are service manifest metadata. Do not make route methods user-editable; config-manager sync updates persisted route methods from the latest manifest.
+App routes persist selected `operationId` values. HTTP methods are derived from those manifest operations and are never user-editable.
+
+An app route is an operation allowlist, not a second copy of the service contract. Config Manager normally creates one managed Service/API mount per non-page operation and one administrator-owned Visual Route for a selected renderable GET operation. Existing multi-method mounts migrate to an `operations` set without flattening their contracts.
+
+Role grants deliberately remain `serviceId + viewId + action`. Each operation's own `auth.permissions` declares which CRUD actions it requires, so methods sharing a view can require different grants: a GET can require `read`, while POST requires `create`. `operationId` is the routing, dependency, telemetry, and generated-client identity; titles are labels only.
+
+### Protocol 2 migration
+
+This operation model is a breaking protocol change. To migrate a service:
+
+1. Leave only `viewId`, the shared label/description, and optional `ParamsSchema` in `index.ts`.
+2. Give every method file a stable, service-unique `operationId`.
+3. Move that method's title, description, auth, schemas, dependencies, chrome, SEO, contracts, cache hints, and demos into the method file.
+4. Replace dependency view ids with operation ids.
+5. Regenerate the registry and client contract.
+
+Config Manager converts persisted legacy `methods` arrays to temporary method-qualified operation references while loading old configuration. The next manifest sync resolves those references to the service's published operation ids and splits a legacy multi-method mount into separate operation mounts, keeping only a renderable GET in Visual Routes. New configuration and protocol-2 manifests must use `operations`; runtime code must not publish or depend on flattened method contracts.
 
 ## Sitemap and robots
 
 Shell services serve `/robots.txt`, `/sitemap.xml`, and sitemap chunks centrally. Themes do not implement these endpoints. Config Manager syncs route auth and SEO metadata into the app route index; old entries without an explicit `auth.required` value are treated as private until the service resyncs.
 
-An anonymous static GET page is included automatically unless the app or route excludes it. Dynamic routes declare a provider in their metadata `index.ts`:
+An anonymous static GET page is included automatically unless the app or operation excludes it. Dynamic routes declare a provider in the relevant `GET.ts` operation file:
 
 ```ts
 import {
@@ -494,7 +516,7 @@ Service-rendered HTMX must stay in its lane. Main content may target `#bp-main` 
 
 ## Streaming views
 
-A view that produces data incrementally (fan-out aggregation, slow upstreams) exports `ItemSchema` (+ optional `SummarySchema`) instead of `ResponseSchema`, and builds its handler with `createStreamHandler`. The handler is an async generator; its yields are validated per item and its `return` value becomes the summary.
+A GET operation that produces data incrementally (fan-out aggregation, slow upstreams) exports `ItemSchema` (+ optional `SummarySchema`) from `GET.ts` instead of `ResponseSchema`, and builds its handler with `createStreamHandler`. The handler is an async generator; its yields are validated per item and its `return` value becomes the summary.
 
 ```ts
 export const ItemSchema = av.object({ id: av.string().minLength(1) });

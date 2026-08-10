@@ -2,12 +2,13 @@ import type { HttpMethod, RenderMode } from "../contracts/common.js";
 import type { JsonValue } from "../contracts/json.js";
 import type {
   BetterPortalRegistry,
+  RegisteredMethodRoute,
   RegisteredRoute,
   RegisteredViewRenderer,
   ViewRendererSet
 } from "../contracts/registry.js";
 import type { AdminApiDescriptor, BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
-import type { ViewMetadata } from "../contracts/view.js";
+import type { ViewMetadata, ViewOperationMetadata } from "../contracts/view.js";
 import { sitemapMetadata } from "../contracts/seo.js";
 import { toJsonSchemaDocument } from "./jsonSchema.js";
 
@@ -207,22 +208,21 @@ export function buildManifestFromRegistry(
   capabilities.add("view.metadata");
 
   for (const route of registry.routes) {
-    const callers = route.auth.callers ?? ["user"];
-    for (const contract of route.apiContracts ?? []) {
-      const unsupportedModes = (contract.modes ?? ["service"]).filter((mode) => !callers.includes(mode));
-      if (unsupportedModes.length > 0) {
-        throw new Error(`Route ${route.viewId} publishes ${contract.id} for ${unsupportedModes.join(", ")} callers but does not allow them in auth.callers`);
+    for (const operation of Object.values(route.methodRoutes ?? {})) {
+      if (!operation) continue;
+      const callers = operation.auth.callers ?? ["user"];
+      for (const contract of operation.apiContracts ?? []) {
+        const unsupportedModes = (contract.modes ?? ["service"]).filter((mode) => !callers.includes(mode));
+        if (unsupportedModes.length > 0) {
+          throw new Error(`Operation ${operation.operationId} publishes ${contract.id} for ${unsupportedModes.join(", ")} callers but does not allow them in auth.callers`);
+        }
+        apiContracts.push({
+          ...contract,
+          viewId: route.viewId,
+          methods: [operation.method]
+        });
       }
-      apiContracts.push({
-        ...contract,
-        viewId: route.viewId,
-        methods: contract.methods ? [...contract.methods] : [...route.methods]
-      });
-    }
-
-    // Streaming views (spec/streaming.md section 5)
-    if (route.schemas.item) {
-      capabilities.add("stream.ndjson");
+      if (operation.schemas.item) capabilities.add("stream.ndjson");
     }
 
     for (const [renderer, rendererSet] of Object.entries(route.renderers)) {
@@ -253,7 +253,7 @@ export function buildManifestFromRegistry(
     .map(({ primary, variants }) => routeToViewMetadata(primary, variants));
 
   return {
-    protocolVersion: 1,
+    protocolVersion: 2,
     pluginId: base.pluginId,
     title: base.title,
     description: base.description,
@@ -306,21 +306,24 @@ function groupRoutesByViewId(routes: ReadonlyArray<RegisteredRoute>): Array<{
   });
 }
 
-function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<string>): ViewMetadata {
-  for (const rule of route.robots ?? []) {
+function validateRobots(operation: RegisteredMethodRoute): void {
+  for (const rule of operation.robots ?? []) {
     if (!/^[A-Za-z0-9*._-]{1,100}$/.test(rule.userAgent)) {
-      throw new Error(`Route ${route.viewId} has an invalid robots user-agent token: ${rule.userAgent}`);
+      throw new Error(`Operation ${operation.operationId} has an invalid robots user-agent token: ${rule.userAgent}`);
     }
     if (rule.access !== "allow" && rule.access !== "disallow") {
-      throw new Error(`Route ${route.viewId} has an invalid robots access rule`);
+      throw new Error(`Operation ${operation.operationId} has an invalid robots access rule`);
     }
     if (rule.crawlDelaySeconds !== undefined
       && (!Number.isInteger(rule.crawlDelaySeconds)
         || rule.crawlDelaySeconds < 0
         || rule.crawlDelaySeconds > 86_400)) {
-      throw new Error(`Route ${route.viewId} has an invalid robots crawl delay`);
+      throw new Error(`Operation ${operation.operationId} has an invalid robots crawl delay`);
     }
   }
+}
+
+function operationRendererSupport(route: RegisteredRoute, method: HttpMethod): ViewOperationMetadata["html"] {
   const rendererSupport: Record<string, {
     defaultRenderer: string;
     renderModes: RenderMode[];
@@ -329,14 +332,18 @@ function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<str
   }> = {};
 
   for (const [renderer, set] of Object.entries(route.renderers)) {
+    const pages = set.pages.filter((entry) => entry.method === method);
+    const fragments = set.fragments.filter((entry) => entry.method === method);
+    const components = set.components.filter((entry) => entry.method === method);
+    const stream = method === "GET" ? set.stream : undefined;
     const modes: RenderMode[] = [];
-    const variants: Array<{ id: string; title: string; slotId: string; renderModes: RenderMode[] }> = [];
+    const rendererVariants: Array<{ id: string; title: string; slotId: string; renderModes: RenderMode[] }> = [];
 
-    if (set.pages.length > 0) modes.push("page");
-    if (set.fragments.length > 0 || set.stream) modes.push("fragment");
+    if (pages.length > 0) modes.push("page");
+    if (fragments.length > 0 || stream) modes.push("fragment");
 
-    for (const page of set.pages) {
-      variants.push({
+    for (const page of pages) {
+      rendererVariants.push({
         id: page.rendererId,
         title: page.rendererId === "default" ? "Default Content" : page.rendererId,
         slotId: "main",
@@ -344,11 +351,11 @@ function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<str
       });
     }
 
-    for (const fragment of set.fragments) {
+    for (const fragment of fragments) {
       const slotId = fragment.fragmentLocation && fragment.fragmentId
         ? `${fragment.fragmentLocation}.${fragment.fragmentId}`
         : fragment.rendererId;
-      variants.push({
+      rendererVariants.push({
         id: fragment.rendererId,
         title: fragment.rendererId,
         slotId,
@@ -356,19 +363,74 @@ function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<str
       });
     }
 
+    if (pages.length === 0 && fragments.length === 0 && components.length === 0 && !stream) continue;
     rendererSupport[renderer] = {
       defaultRenderer: "default",
       renderModes: modes,
-      slots: [...new Set(variants.map((r) => r.slotId))],
-      renderers: variants
+      slots: [...new Set(rendererVariants.map((r) => r.slotId))],
+      renderers: rendererVariants
     };
   }
 
-  const renderable = route.raw === true
+  return { renderers: rendererSupport };
+}
+
+function operationToMetadata(route: RegisteredRoute, operation: RegisteredMethodRoute): ViewOperationMetadata {
+  validateRobots(operation);
+  const html = operationRendererSupport(route, operation.method);
+  const renderable = operation.raw === true
     ? false
-    : Object.values(route.renderers).some((set) =>
-      set.pages.length > 0 || set.components.length > 0 || set.fragments.length > 0 || Boolean(set.stream)
-    );
+    : Object.keys(html.renderers).length > 0;
+
+  return {
+    operationId: operation.operationId,
+    method: operation.method,
+    title: operation.title,
+    description: operation.description,
+    querySchema: operation.schemas.query ? toJsonSchemaDocument(operation.schemas.query) : {},
+    headersSchema: operation.schemas.headers ? toJsonSchemaDocument(operation.schemas.headers) : {},
+    bodySchema: operation.schemas.multipart
+      ? toJsonSchemaDocument(operation.schemas.multipart)
+      : operation.schemas.request ? toJsonSchemaDocument(operation.schemas.request) : {},
+    jsonResponseSchema: operation.schemas.response ? toJsonSchemaDocument(operation.schemas.response) : {},
+    metadataResponseSchema: {},
+    renderable,
+    ...(operation.raw === true ? { raw: true } : {}),
+    ...(operation.schemas.item ? {
+      streaming: {
+        itemSchema: toJsonSchemaDocument(operation.schemas.item),
+        ...(operation.schemas.summary ? { summarySchema: toJsonSchemaDocument(operation.schemas.summary) } : {})
+      }
+    } : {}),
+    html,
+    auth: { ...operation.auth, callers: [...(operation.auth.callers ?? ["user"])] },
+    sitemap: sitemapMetadata(operation.sitemap),
+    robots: [...(operation.robots ?? [])],
+    ...(operation.role ? { role: operation.role } : {}),
+    dependencies: [...(operation.dependencies ?? [])],
+    ...(operation.chrome ? { chrome: operation.chrome } : {}),
+    apiContracts: (operation.apiContracts ?? []).map((contract) => ({
+      ...contract,
+      viewId: route.viewId,
+      methods: [operation.method]
+    })),
+    demoScenarios: operation.demoScenarios.map((scenario) => ({
+      id: scenario.id,
+      title: scenario.title,
+      ...(scenario.description ? { description: scenario.description } : {}),
+      ...(scenario.match ? { match: scenario.match } : {}),
+      response: scenario.response as JsonValue
+    })),
+    cacheHints: operation.cacheHints
+  };
+}
+
+function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<string>): ViewMetadata {
+  const operations = route.methods.map((method) => {
+    const operation = route.methodRoutes?.[method];
+    if (!operation) throw new Error(`Route ${route.viewId} is missing operation metadata for ${method}`);
+    return operationToMetadata(route, operation);
+  });
 
   return {
     viewId: route.viewId,
@@ -376,43 +438,8 @@ function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<str
     description: route.description,
     path: route.path,
     pathVariants: variants.length > 1 ? [...variants] : [],
-    methods: [...route.methods],
     paramsSchema: route.schemas.params ? toJsonSchemaDocument(route.schemas.params) : {},
-    querySchema: route.schemas.query ? toJsonSchemaDocument(route.schemas.query) : {},
-    headersSchema: route.schemas.headers ? toJsonSchemaDocument(route.schemas.headers) : {},
-    bodySchema: route.schemas.multipart
-      ? toJsonSchemaDocument(route.schemas.multipart)
-      : route.schemas.request ? toJsonSchemaDocument(route.schemas.request) : {},
-    jsonResponseSchema: route.schemas.response ? toJsonSchemaDocument(route.schemas.response) : {},
-    metadataResponseSchema: {},
-    renderable,
-    ...(route.raw === true ? { raw: true } : {}),
-    ...(route.schemas.item ? {
-      streaming: {
-        itemSchema: toJsonSchemaDocument(route.schemas.item),
-        ...(route.schemas.summary ? { summarySchema: toJsonSchemaDocument(route.schemas.summary) } : {})
-      }
-    } : {}),
-    html: { renderers: rendererSupport },
-    auth: { ...route.auth, callers: [...(route.auth.callers ?? ["user"])] },
-    sitemap: sitemapMetadata(route.sitemap),
-    robots: [...(route.robots ?? [])],
-    ...(route.role ? { role: route.role } : {}),
-    dependencies: [...(route.dependencies ?? [])],
-    ...(route.chrome ? { chrome: route.chrome } : {}),
-    apiContracts: (route.apiContracts ?? []).map((contract) => ({
-      ...contract,
-      viewId: route.viewId,
-      methods: contract.methods ? [...contract.methods] : [...route.methods]
-    })),
-    demoScenarios: route.demoScenarios.map((s) => ({
-      id: s.id,
-      title: s.title,
-      ...(s.description ? { description: s.description } : {}),
-      ...(s.match ? { match: s.match } : {}),
-      response: s.response as JsonValue
-    })),
-    cacheHints: route.cacheHints
+    operations
   };
 }
 
@@ -443,7 +470,11 @@ export function buildBpSchema(
         viewId: route.viewId,
         path: route.path,
         pathVariants: variants.length > 1 ? variants : [],
-        methods: [...route.methods],
+        operations: route.methods.map((method) => {
+          const operation = route.methodRoutes?.[method];
+          if (!operation) throw new Error(`Route ${route.viewId} is missing operation metadata for ${method}`);
+          return { operationId: operation.operationId, method };
+        }),
         paramNames: [...route.paramNames],
         renderers: Object.keys(route.renderers),
         hasFragments: fragMap.size > 0,

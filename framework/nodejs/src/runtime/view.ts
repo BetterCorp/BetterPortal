@@ -40,10 +40,11 @@ export interface CreateViewDefinitionInput<
   ResponseSchema extends AnySchema
 > {
   viewId: string;
+  operationId: string;
   title: string;
   description: string;
   path: string;
-  methods: ReadonlyArray<"GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS">;
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
   schemas: ViewSchemas<ParamsSchema, QuerySchema, HeadersSchema, BodySchema, ResponseSchema>;
   html: HtmlRepresentationSupport;
   auth: ApiAuthRequirement;
@@ -85,20 +86,25 @@ export function createViewDefinition<
     title: input.title,
     description: input.description,
     path: input.path,
-    methods: [...input.methods],
     paramsSchema: toJsonSchemaDocument(input.schemas.params),
-    querySchema: toJsonSchemaDocument(input.schemas.query),
-    headersSchema: toJsonSchemaDocument(input.schemas.headers),
-    bodySchema: toJsonSchemaDocument(input.schemas.body),
-    jsonResponseSchema: toJsonSchemaDocument(input.schemas.response),
-    metadataResponseSchema: toJsonSchemaDocument(ViewMetadataSchema),
-    html: input.html,
-    auth: input.auth,
-    demoScenarios: (input.demoScenarios ?? []).map((scenario) => ({
-      ...scenario,
-      response: input.schemas.response.parse(scenario.response) as JsonValue
-    })),
-    cacheHints: input.cacheHints
+    operations: [{
+      operationId: input.operationId,
+      method: input.method,
+      title: input.title,
+      description: input.description,
+      querySchema: toJsonSchemaDocument(input.schemas.query),
+      headersSchema: toJsonSchemaDocument(input.schemas.headers),
+      bodySchema: toJsonSchemaDocument(input.schemas.body),
+      jsonResponseSchema: toJsonSchemaDocument(input.schemas.response),
+      metadataResponseSchema: toJsonSchemaDocument(ViewMetadataSchema),
+      html: input.html,
+      auth: input.auth,
+      demoScenarios: (input.demoScenarios ?? []).map((scenario) => ({
+        ...scenario,
+        response: input.schemas.response.parse(scenario.response) as JsonValue
+      })),
+      cacheHints: input.cacheHints
+    }]
   });
 
   return {

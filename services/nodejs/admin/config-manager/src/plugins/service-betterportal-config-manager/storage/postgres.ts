@@ -3,6 +3,7 @@ import { BetterPortalConfigSchema, type BetterPortalConfig } from "@betterportal
 import {
   BaseStorage,
   migrateOfficialPluginIds,
+  migrateRouteOperations,
   migrateRouteParamSyntax,
   type PostgresStorageOptions
 } from "./core.js";
@@ -43,7 +44,7 @@ export class PostgresStorage extends BaseStorage {
     }
 
     return this.canonicalizeConfig(migrateRouteParamSyntax(
-      BetterPortalConfigSchema.parse(migrateOfficialPluginIds(result.rows[0].config))
+      BetterPortalConfigSchema.parse(migrateRouteOperations(migrateOfficialPluginIds(result.rows[0].config)))
     ));
   }
 

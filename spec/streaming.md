@@ -1,6 +1,6 @@
 # Streaming & Partial Responses
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 **Status:** Draft
 
 Some views produce data incrementally - fan-out aggregation (search), slow upstreams, long result sets. This document specifies how a view streams **partial responses** so consumers (other services, aggregators, browsers) can act on data as it arrives instead of waiting for the slowest part.
@@ -138,19 +138,21 @@ This stays API-first by construction (every region is a schema'd endpoint), need
 
 ## 5. Manifest declaration
 
-A streaming view adds a `streaming` block to its manifest view entry (`manifest.md` section 1):
+A streaming GET operation adds a `streaming` block to its operation entry:
 
 ```jsonc
 {
   "viewId": "search.index",
   "path": "/search",
-  "methods": ["GET"],
-  ...,
-  "jsonResponseSchema": { ... },        // the DERIVED buffered shape (section 2.1)
-  "streaming": {
-    "itemSchema": { ... },              // anyvali-style descriptor, per manifest.md section 4
-    "summarySchema": { ... }            // optional
-  }
+  "operations": [{
+    "operationId": "search.stream",
+    "method": "GET",
+    "jsonResponseSchema": { ... },
+    "streaming": {
+      "itemSchema": { ... },
+      "summarySchema": { ... }
+    }
+  }]
 }
 ```
 
@@ -161,7 +163,7 @@ Service-level `capabilities` advertise support:
 | `stream.ndjson` | At least one view streams NDJSON frames. |
 | `view.sse-render` | At least one view streams themed HTML frames over SSE. |
 
-Streaming views in protocol version 1 are **GET only**.
+Streaming views in protocol version 2 are **GET only**.
 
 ## 6. Conformance
 

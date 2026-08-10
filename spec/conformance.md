@@ -1,6 +1,6 @@
 # Conformance
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 
 A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the relevant subset of tests below. A future `bp-conformance` CLI will automate this; for now treat this document as the manual checklist.
 

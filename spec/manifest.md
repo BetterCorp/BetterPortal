@@ -1,6 +1,6 @@
 # BetterPortal Manifest
 
-**Version:** `bp-protocol/1`
+**Version:** `bp-protocol/2`
 **Endpoint:** `GET /.well-known/bp/manifest`
 **Content-Type:** `application/json`
 
@@ -10,7 +10,7 @@ The manifest is a service's self-description. Themes and admin tooling read it t
 
 ```jsonc
 {
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "pluginId": "org.betterportal.<name>",
   "title": "<human title>",
   "description": "<short description>",
@@ -73,33 +73,23 @@ Each entry in `views[]`:
   "title": "Hello View",
   "description": "...",
   "path": "/hello",
-  "methods": ["GET", "POST"],
   "paramsSchema": { ... },            // anyvali-style JSON descriptor
-  "querySchema": { ... },
-  "headersSchema": { ... },
-  "bodySchema": { ... },
-  "jsonResponseSchema": { ... },
-  "metadataResponseSchema": { ... },  // optional
-  "streaming": {                      // optional - streaming views only, see streaming.md
-    "itemSchema": { ... },
-    "summarySchema": { ... }
-  },
-  "html": {
-    "renderers": {
-      "bootstrap5": {
-        "defaultRenderer": "default",
-        "renderModes": ["page", "fragment"],
-        "slots": ["main", "nav.profile"],
-        "renderers": [
-          { "id": "default",      "title": "Default Content", "slotId": "main",        "renderModes": ["page", "fragment"] },
-          { "id": "nav.profile",  "title": "nav.profile",     "slotId": "nav.profile", "renderModes": ["fragment"] }
-        ]
-      }
-    }
-  },
-  "auth": { <ViewAuthRequirement> },   // see auth.md
-  "demoScenarios": [ <demo>, ... ],
-  "cacheHints": { "ttlSeconds": 60, "varyBy": ["accept", "origin"] }
+  "operations": [{
+    "operationId": "hello.read",
+    "method": "GET",
+    "title": "Read hello",
+    "description": "...",
+    "querySchema": { ... },
+    "headersSchema": { ... },
+    "bodySchema": { ... },
+    "jsonResponseSchema": { ... },
+    "metadataResponseSchema": { ... },
+    "html": { "renderers": { ... } },
+    "auth": { <ApiAuthRequirement> },
+    "dependencies": [],
+    "demoScenarios": [ <demo>, ... ],
+    "cacheHints": { "ttlSeconds": 60, "varyBy": ["accept", "origin"] }
+  }]
 }
 ```
 
@@ -107,9 +97,10 @@ Each entry in `views[]`:
 
 - `viewId` is unique per service. Convention: `<routeDir>.<filename>` (e.g., `hello.index`).
 - `path` MUST start with `/`. Path parameters use `:name` syntax: `/orders/:orderId`.
-- `methods` lists HTTP verbs the view handles. Auto-derived in the Node SDK from `handleGet`/`handlePost`/etc. exports.
-- Schema fields use a portable JSON descriptor (see section 4) so non-Node SDKs can emit them.
-- `html.renderers` is keyed by renderer compatibility key. Each entry lists the page, component, and fragment renderers the view supports for that renderer contract.
+- `operations` contains at least one method-specific contract. Every `operationId` is unique across the service.
+- `viewId` and the service path group operations; `operationId` is the identity used by app allowlists, dependencies, and generated client functions.
+- Query/header/body/response schemas, auth, renderers, dependencies, chrome, SEO, contracts, and cache policy are operation-owned. They MUST NOT be flattened across methods.
+- Titles are display metadata and MUST NOT be used as identity.
 
 ### Renderer slot semantics
 

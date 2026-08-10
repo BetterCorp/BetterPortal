@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as yaml from "yaml";
 import { BetterPortalConfigSchema, type BetterPortalConfig } from "@betterportal/framework";
-import { BaseStorage, migrateOfficialPluginIds, migrateRouteParamSyntax } from "./core.js";
+import { BaseStorage, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "./core.js";
 
 const EMPTY_CONFIG_YAML = "configManagement:\n  auth:\n    mechanism: none\nplatformServices: []\ntenants: []\napps: []";
 
@@ -19,7 +19,7 @@ export class FileStorage extends BaseStorage {
       ? readFileSync(this.configPath, "utf8")
       : EMPTY_CONFIG_YAML;
     return this.canonicalizeConfig(migrateRouteParamSyntax(
-      BetterPortalConfigSchema.parse(migrateOfficialPluginIds(yaml.parse(raw)))
+      BetterPortalConfigSchema.parse(migrateRouteOperations(migrateOfficialPluginIds(yaml.parse(raw))))
     ));
   }
 

@@ -3,7 +3,7 @@ import { PluginManifestSchema, type PluginManifest } from "../contracts/manifest
 export function createPluginManifest(manifest: Parameters<typeof PluginManifestSchema.parse>[0]): PluginManifest {
   return PluginManifestSchema.parse(
     manifest && typeof manifest === "object" && !Array.isArray(manifest)
-      ? { protocolVersion: 1, ...manifest }
+      ? { protocolVersion: 2, ...manifest }
       : manifest
   );
 }

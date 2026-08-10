@@ -34,7 +34,11 @@ For example, the app route `/docs` can map to the docs service route `/docs`.
 
 ## View
 
-A view is a typed endpoint under `bp-routes/<route>/`. `index.ts` declares metadata; `GET.ts`, `POST.ts`, and other method files declare schemas and handlers.
+A view is a stable path group under `bp-routes/<route>/`. Its `index.ts` declares the shared `viewId`, label, and path-parameter schema.
+
+Each `GET.ts`, `POST.ts`, or other method file declares one independently typed operation with a globally unique `operationId`, its own auth and permission requirements, schemas, dependencies, metadata, and handler. Methods can share one view path without sharing or flattening their contracts.
+
+Only renderable GET operations become navigable app pages. Other methods remain API operations even when they render HTML responses. App allowlists and generated clients identify operations; role grants remain scoped by service, view, and CRUD action.
 
 HTML renderers live beside the view in `_renderer.<renderer>/` as method/status files such as `GET.tsx` or `POST.422.tsx`.
 
