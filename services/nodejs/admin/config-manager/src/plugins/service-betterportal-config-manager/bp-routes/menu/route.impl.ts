@@ -11,7 +11,7 @@ const RouteOptionSchema = av.object({
   id: av.string().minLength(1),
   path: av.string().minLength(1),
   title: av.string()
-}, { unknownKeys: "strip" });
+});
 
 const MenuItemSchema = av.object({
   id: av.string().minLength(1),
@@ -21,13 +21,13 @@ const MenuItemSchema = av.object({
   href: av.optional(av.string()),
   enabled: av.bool(),
   defaultExpanded: av.optional(av.bool())
-}, { unknownKeys: "strip" });
+});
 
 const AppSummarySchema = av.object({
   id: av.string().minLength(1),
   title: av.string().minLength(1),
   tenantId: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
@@ -37,7 +37,7 @@ export const ResponseSchema = av.object({
   routes: av.array(RouteOptionSchema).default([]),
   adminApiBase: av.string().minLength(1),
   serviceBaseUrl: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Menu Designer";

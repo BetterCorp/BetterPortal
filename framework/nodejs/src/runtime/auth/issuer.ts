@@ -1,4 +1,5 @@
 import type { JwtClaims, TokenType } from "../../contracts/auth.js";
+import type { JsonObject } from "../../contracts/json.js";
 import type { JwtVerifier } from "../../contracts/route.js";
 import { uuidv7 } from "../uuid.js";
 import type { RsaKeyPair } from "./keypair.js";
@@ -18,7 +19,7 @@ export interface BpTokenUser {
   appId: string;
   roles?: string[];
   authProvider?: string;
-  refreshContext?: Record<string, unknown>;
+  refreshContext?: JsonObject;
   providerSubject?: string;
   provider?: JwtClaims["provider"];
   name?: string;
@@ -28,7 +29,7 @@ export interface BpTokenUser {
 
 export interface BpTokenPairUser extends BpTokenUser {
   authProvider: string;
-  refreshContext: Record<string, unknown>;
+  refreshContext: JsonObject;
 }
 
 export interface BpIssuedTokenPair {

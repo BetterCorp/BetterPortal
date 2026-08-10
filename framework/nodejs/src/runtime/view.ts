@@ -10,7 +10,7 @@ import {
 } from "../contracts/view.js";
 import type { ApiAuthRequirement } from "../contracts/route.js";
 import { RequestedRepresentation, resolveRequestedRepresentation } from "./media.js";
-import { toJsonSchemaDocument } from "./jsonSchema.js";
+import { toPublishedJsonSchemaDocument } from "./jsonSchema.js";
 
 type AnySchema = av.BaseSchema<unknown, unknown>;
 export interface HtmlRenderableLike {
@@ -86,17 +86,20 @@ export function createViewDefinition<
     title: input.title,
     description: input.description,
     path: input.path,
-    paramsSchema: toJsonSchemaDocument(input.schemas.params),
+    paramsSchema: toPublishedJsonSchemaDocument(input.schemas.params, `${input.viewId} ParamsSchema`),
     operations: [{
       operationId: input.operationId,
       method: input.method,
       title: input.title,
       description: input.description,
-      querySchema: toJsonSchemaDocument(input.schemas.query),
-      headersSchema: toJsonSchemaDocument(input.schemas.headers),
-      bodySchema: toJsonSchemaDocument(input.schemas.body),
-      jsonResponseSchema: toJsonSchemaDocument(input.schemas.response),
-      metadataResponseSchema: toJsonSchemaDocument(ViewMetadataSchema),
+      querySchema: toPublishedJsonSchemaDocument(input.schemas.query, `${input.viewId} ${input.method} QuerySchema`),
+      headersSchema: toPublishedJsonSchemaDocument(input.schemas.headers, `${input.viewId} ${input.method} HeadersSchema`),
+      bodySchema: toPublishedJsonSchemaDocument(input.schemas.body, `${input.viewId} ${input.method} RequestSchema`),
+      jsonResponseSchema: toPublishedJsonSchemaDocument(input.schemas.response, `${input.viewId} ${input.method} ResponseSchema`),
+      metadataResponseSchema: toPublishedJsonSchemaDocument(
+        ViewMetadataSchema,
+        `${input.viewId} ${input.method} MetadataResponseSchema`
+      ),
       html: input.html,
       auth: input.auth,
       demoScenarios: (input.demoScenarios ?? []).map((scenario) => ({

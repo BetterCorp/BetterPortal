@@ -245,6 +245,7 @@ Rules:
 - `index.ts` is required at the leaf and owns only the shared view group: `viewId`, `title`, `description`, and optional `ParamsSchema`.
 - Method files are exact HTTP verb names. Every one exports unique `operationId`, `title`, `description`, `auth`, method schemas as needed, optional method-owned policy/metadata, and one default handler.
 - A GET and POST under one directory intentionally share the view path but remain separate operations. Generated client function and type names derive from `operationId`, never from titles or a flattened view schema.
+- All production BetterPortal schemas must be concrete at every nesting level. Never use `av.any()`, `av.unknown()`, or `unknownKeys: "allow"`; codegen, repository checks, and contract generation reject them even through aliases and re-exports. Use `JsonValueSchema` or `JsonObjectSchema` for deliberate arbitrary JSON, `MultipartRequestSchema` for parsed multipart uploads, and typed `av.record(...)` schemas for extensible keys. TypeScript `unknown` is still correct before validation and is unrelated to `av.unknown()`.
 - Renderers are method/status-specific: `GET.tsx`, `POST.tsx`, `POST.422.tsx`, `422.tsx`. No generic `index.tsx` or `index.GET.tsx` page renderer fallback exists.
 - Fragments: `_<location>.<fragmentId>.METHOD.tsx`.
 - Components: `<componentId>.METHOD.tsx`.
@@ -386,7 +387,7 @@ export default createHandler(
 - Return type matches `Infer<ResponseSchema>` (TS-checked)
 - Runtime: re-parses output through `ResponseSchema` (belt + braces)
 
-`av.object` strips unknown keys by default. Do not add an `unknownKeys` option to API schemas for stripping; specify it only for deliberate non-default behavior.
+`av.object` strips unknown keys by default. Do not add `{ unknownKeys: "strip" }`; codegen warns because it is redundant. Use `{ unknownKeys: "reject" }` when extra fields must fail. `unknownKeys: "allow"` is forbidden; use a typed `av.record(...)` for extensible keys.
 
 A method file owns the complete API operation: its schemas, orchestration, business-rule calls, and response construction. Keep endpoint workflows such as `beginGoogleLogin` out of the plugin class, and do not delegate the whole handler through `ctx.plugin`. The plugin class owns service lifecycle and wiring; it may expose typed shared infrastructure such as repositories, provider clients, or key stores. A handler may use that infrastructure or import pure reusable helpers, but the handler remains responsible for the use case and its HTTP response. Import typed handler factories from the generated `route-runtime.js`; do not use `.forContext<Plugin>()`, cast `ctx.plugin`, or rely on `ctx.plugin!`.
 
@@ -878,12 +879,12 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 - **Adding a new bp-route doesn't auto-register.** You must run `bp-codegen` (or restart with a build that runs it).
 - **`hx-post` to absolute URL bypasses rewriting.** Always use relative paths in JSX; let the runtime rewrite.
 - **Cross-origin `HX-Trigger` requires `exposeHeaders`.** Browsers strip headers not in `Access-Control-Expose-Headers`. Update `plugins/nodejs/betterportal-bsb/src/service.ts` if you add new HX-* response headers.
-- **Schema validation is strict.** Adding a new field to a config or response requires updating the `av.object({...})` and rebuilding. Unknown keys are stripped by default; tighten with `unknownKeys: "strict"` for prod.
-- **Menu data model.** Top-level can be `link | group | external | section | divider`. Group children can only be non-group leaves. Theme renders one level of nesting.
+- **Schema validation is concrete.** Adding a new field to a config or response requires updating the `av.object({...})` and rebuilding. Unknown keys are stripped by default; use `unknownKeys: "reject"` when extra fields must fail. Never use `unknownKeys: "allow"`.
+- **Menu data model.** Items can be `link | group | external | section | divider` and may nest to 32 levels; deeper or circular menus are rejected.
 - **An exact `_renderer.<renderer>` directory must exist** for the app shell's renderer compatibility key. If absent, the service returns 406; there is no fallback.
 - **Don't fetch from theme code at render time.** Theme should only resolve from `bp-config.yaml` + headers. Page content comes from the browser hitting the service directly.
 - **CORS preflight for PUT/DELETE.** Default `BPService` allows full HTTP method set; new custom services should not narrow it unless intentional.
-- **`anyvali`** is the schema lib used everywhere. Imports as `av`. Patterns: `av.object`, `av.string`, `av.int`, `av.bool`, `av.array`, `av.enum_(["a","b"] as const)`, `av.record`, `av.optional`, `.minLength`, `.default`. Objects strip unknown keys by default; specify `unknownKeys` only for non-default behavior.
+- **`anyvali`** is the schema lib used everywhere. Imports as `av`. Patterns: `av.object`, `av.string`, `av.int`, `av.bool`, `av.array`, `av.enum_(["a","b"] as const)`, `av.record`, `av.optional`, `.minLength`, `.default`. Objects strip unknown keys by default; omit explicit `"strip"`, use `"reject"` when required, and never use `"allow"`.
 
 ---
 

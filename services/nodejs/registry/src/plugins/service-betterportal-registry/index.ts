@@ -14,7 +14,7 @@ import { ContractRegistryStore } from "./store.js";
 const PublisherSchema = av.object({
   token: av.string().minLength(16),
   pluginIdPrefixes: av.array(av.string().minLength(1)).minItems(1)
-}, { unknownKeys: "strip" });
+});
 
 const RegistryConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -22,7 +22,7 @@ const RegistryConfigSchema = av.object({
   dataDir: av.string().minLength(1).default("/mnt/temp/bp-registry"),
   publishers: av.record(PublisherSchema).default({}),
   maxBodyBytes: av.int().min(1024).default(10 * 1024 * 1024)
-}, { unknownKeys: "strip" });
+});
 
 const Config = createConfigSchema({
   name: "service-betterportal-registry",

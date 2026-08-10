@@ -43,7 +43,7 @@ A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the
 | Test | Pass criteria |
 |---|---|
 | `GET <view-path>?<invalid-query>` | 400 with `error: "validation_failed"` and `issues[]` describing the field. |
-| Response body validated against `jsonResponseSchema` | Matches the schema exactly. Unknown keys handled per `unknownKeys` rule. |
+| Response body validated against `jsonResponseSchema` | Matches the schema exactly. Unknown keys are stripped by default or rejected when the schema explicitly selects `"reject"`; passthrough is forbidden. |
 
 ### 1.6 Error shape
 

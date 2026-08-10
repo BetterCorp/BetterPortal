@@ -122,3 +122,27 @@ test("generated clients keep GET and POST contracts separate for one view", () =
   assert.match(output, /body\?: \{ "name": string \}/);
   assert.match(output, /export type ConfigCreateResponse/);
 });
+
+test("generated clients preserve recursive JSON value contracts", () => {
+  const value = contract();
+  value.manifest.views[0].operations[0].jsonResponseSchema = {
+    root: { kind: "record", valueSchema: { kind: "ref", ref: "#/definitions/BetterPortalJsonValue" } },
+    definitions: {
+      BetterPortalJsonValue: {
+        kind: "union",
+        variants: [
+          { kind: "null" },
+          { kind: "bool" },
+          { kind: "string" },
+          { kind: "number" },
+          { kind: "array", items: { kind: "ref", ref: "#/definitions/BetterPortalJsonValue" } },
+          { kind: "record", valueSchema: { kind: "ref", ref: "#/definitions/BetterPortalJsonValue" } }
+        ]
+      }
+    }
+  };
+
+  const output = emitTypeScriptClient("config", value);
+  assert.match(output, /export type JsonValue = string \| number/);
+  assert.match(output, /export type ConfigReadResponse = Record<string, JsonValue>/);
+});

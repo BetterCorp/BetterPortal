@@ -1,5 +1,5 @@
 import { createPublicKey } from "node:crypto";
-import type { JwtClaims, TokenType } from "../../contracts/auth.js";
+import type { JwtClaims, PublicJwks, TokenType } from "../../contracts/auth.js";
 import type { JwtVerifier } from "../../contracts/route.js";
 import { verifyJwt, type KeyResolver } from "./tokens.js";
 
@@ -39,7 +39,7 @@ export interface CreateLocalVerifierOptions {
 
 export interface CreateStaticJwksVerifierOptions {
   /** JWKS document - keys pushed by the auth service at /install. */
-  jwks: { keys: ReadonlyArray<Record<string, unknown>> };
+  jwks: PublicJwks;
   expectedIssuer: string;
   expectedAudience: string;
   expectedTokenType?: TokenType;

@@ -47,6 +47,7 @@ import {
   type ManifestBaseFields,
   type M2MCallerMode,
   type PluginManifest,
+  type PublicJwks,
   type ScopedApp,
   type ScopedServiceConfig,
   type RsaKeyPair,
@@ -163,7 +164,7 @@ export const BetterPortalConfigSchema = av.optional(av.object({
   // (the default) means proxy headers are never trusted, even if
   // trustedProxyHeaders/cfProxy are enabled.
   trustedProxyIps: av.array(av.string().minLength(1)).default([])
-}, { unknownKeys: "strip" }));
+}));
 
 // Service definition
 
@@ -776,14 +777,14 @@ export abstract class BPService<
   /** Runtime auth metadata published when this service acts as an auth provider.
    *  Sent during install and sync so config-manager can configure app verifiers
    *  without guessing issuer/audience/JWKS from hostnames. */
-  private publishedJwks: { keys: ReadonlyArray<Record<string, unknown>> } | null = null;
+  private publishedJwks: PublicJwks | null = null;
   private publishedAuthProvider: AuthProviderRuntimeMetadata | null = null;
 
   protected registerAsAuthProvider(input: {
     issuer: string;
     audience: string;
     jwksUri: string;
-    jwks: { keys: ReadonlyArray<Record<string, unknown>> };
+    jwks: PublicJwks;
     cacheMaxAgeSeconds?: number;
   }): void {
     const cacheMaxAge = input.cacheMaxAgeSeconds ?? 600;

@@ -14,7 +14,7 @@ export const RuntimeTokenConfigSchema = av.object({
   refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7),
   runtimeAudiences: av.array(av.string().minLength(1)).minItems(1),
   controlPlaneAudiences: av.array(av.string().minLength(1)).minItems(1)
-}, { unknownKeys: "strip" });
+});
 export type RuntimeTokenConfig = Infer<typeof RuntimeTokenConfigSchema>;
 
 export const DefaultRuntimeAudienceRules: readonly AuthAudienceRule[] = [

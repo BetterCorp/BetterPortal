@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import ts from "typescript";
+import { inspectAnyValiSchemaNode } from "./schemaPolicy.js";
 
 // -- Scanned types ----------------------------------------------------
 
@@ -36,6 +37,8 @@ export interface ScannedMethodModule {
   exports: string[];
   isRaw: boolean;
   looseSchemas: string[];
+  allowUnknownKeysSchemas?: string[];
+  redundantStripSchemas?: string[];
 }
 
 export interface ScannedRoute {
@@ -64,8 +67,10 @@ export interface ScannedRoute {
   hasSummarySchema: boolean;
   /** Whether any route handler is created with createRawHandler(). */
   isRaw: boolean;
-  /** Exported schema names that use loose anyvali validators. */
+  /** Route metadata schema names that use loose anyvali validators. */
   looseSchemas: string[];
+  allowUnknownKeysSchemas?: string[];
+  redundantStripSchemas?: string[];
   autoDependenciesByMethod: Record<string, string[]>;
 }
 
@@ -333,9 +338,15 @@ const ROUTE_SCHEMA_EXPORTS = new Set([
   "HeadersSchema",
   "RequestSchema",
   "MultipartSchema",
+  "ItemSchema",
+  "SummarySchema",
 ]);
 
-function detectLooseSchemas(filePath: string): string[] {
+function detectSchemaPolicy(filePath: string): {
+  looseSchemas: string[];
+  allowUnknownKeysSchemas: string[];
+  redundantStripSchemas: string[];
+} {
   const source = fs.readFileSync(filePath, "utf-8");
   const sourceFile = ts.createSourceFile(
     path.basename(filePath),
@@ -344,16 +355,9 @@ function detectLooseSchemas(filePath: string): string[] {
     true,
     ts.ScriptKind.TS,
   );
-  const loose: string[] = [];
-
-  function isLooseAnyvaliCall(node: ts.Node | undefined): boolean {
-    if (!node || !ts.isCallExpression(node)) return false;
-    const expression = node.expression;
-    return ts.isPropertyAccessExpression(expression)
-      && ts.isIdentifier(expression.expression)
-      && expression.expression.text === "av"
-      && (expression.name.text === "any" || expression.name.text === "unknown");
-  }
+  const looseSchemas: string[] = [];
+  const allowUnknownKeysSchemas: string[] = [];
+  const redundantStripSchemas: string[] = [];
 
   function visit(node: ts.Node): void {
     if (ts.isVariableStatement(node) && hasExportModifier(node)) {
@@ -361,9 +365,12 @@ function detectLooseSchemas(filePath: string): string[] {
         if (
           ts.isIdentifier(decl.name)
           && ROUTE_SCHEMA_EXPORTS.has(decl.name.text)
-          && isLooseAnyvaliCall(decl.initializer)
+          && decl.initializer
         ) {
-          loose.push(decl.name.text);
+          const kinds = new Set(inspectAnyValiSchemaNode(sourceFile, decl.initializer).map((issue) => issue.kind));
+          if (kinds.has("loose")) looseSchemas.push(decl.name.text);
+          if (kinds.has("allow")) allowUnknownKeysSchemas.push(decl.name.text);
+          if (kinds.has("redundant-strip")) redundantStripSchemas.push(decl.name.text);
         }
       }
     }
@@ -371,7 +378,7 @@ function detectLooseSchemas(filePath: string): string[] {
   }
 
   visit(sourceFile);
-  return loose;
+  return { looseSchemas, allowUnknownKeysSchemas, redundantStripSchemas };
 }
 
 function detectRouteTokens(filePath: string): string[] {
@@ -766,7 +773,7 @@ function scanDirectory(
         relativePath: relativeFromGenerated(generatedDir, filePath),
         exports: [...new Set(exports)],
         isRaw: detectRawHandler(filePath),
-        looseSchemas: detectLooseSchemas(filePath),
+        ...detectSchemaPolicy(filePath),
       });
     }
     const methods = methodModules.map((module) => module.method);
@@ -860,7 +867,7 @@ function scanDirectory(
         hasItemSchema: handlerExports.includes("ItemSchema"),
         hasSummarySchema: handlerExports.includes("SummarySchema"),
         isRaw: methodModules.some((module) => module.isRaw),
-        looseSchemas: [...new Set(methodModules.flatMap((module) => module.looseSchemas))],
+        ...detectSchemaPolicy(indexPath),
         autoDependenciesByMethod: Object.fromEntries(
           [...autoDependenciesByMethod].map(([method, dependencies]) => [method, [...dependencies]])
         ),

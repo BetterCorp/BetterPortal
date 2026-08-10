@@ -1,5 +1,5 @@
 import * as av from "anyvali";
-import type { Infer } from "anyvali";
+import type { BaseSchema, Infer, ParseContext, SchemaNode } from "anyvali";
 import {
   DeploymentModeSchema,
   HttpMethodSchema,
@@ -8,7 +8,14 @@ import {
   UuidV7Schema
 } from "./common.js";
 import { AppAuthConfigSchema, AuthProviderRuntimeMetadataSchema } from "./auth.js";
-import { M2MCallerModeSchema } from "./m2m.js";
+import { ConfigSchemaDescriptorSchema } from "./config.js";
+import { JsonObjectSchema } from "./json.js";
+import { ApiContractDescriptorSchema, M2MCallerModeSchema, M2MRequestDescriptorSchema } from "./m2m.js";
+import { DeveloperResourceSchema, ShellManifestSchema, WebhookEventDescriptorSchema } from "./manifest.js";
+import { ViewDemoScenarioSchema } from "./view.js";
+import { BetterPortalRouteChromeSchema } from "./chrome.js";
+export { BetterPortalRouteChromeSchema, BetterPortalRouteChromeValueSchema } from "./chrome.js";
+export type { BetterPortalRouteChrome, BetterPortalRouteChromeValue } from "./chrome.js";
 
 const NonEmptyStringSchema = av.string().minLength(1);
 
@@ -18,7 +25,7 @@ export const BetterPortalBrandingSchema = av.object({
   logoUrl: av.optional(av.string().format("url")),
   primaryColor: av.optional(NonEmptyStringSchema),
   secondaryColor: av.optional(NonEmptyStringSchema)
-}, { unknownKeys: "strip" }).default({});
+}).default({});
 export type BetterPortalBranding = Infer<typeof BetterPortalBrandingSchema>;
 
 export const BetterPortalThemeBootstrapPaletteSchema = av.object({
@@ -30,7 +37,7 @@ export const BetterPortalThemeBootstrapPaletteSchema = av.object({
   danger: av.optional(NonEmptyStringSchema),
   light: av.optional(NonEmptyStringSchema),
   dark: av.optional(NonEmptyStringSchema)
-}, { unknownKeys: "strip" }).default({});
+}).default({});
 export type BetterPortalThemeBootstrapPalette = Infer<typeof BetterPortalThemeBootstrapPaletteSchema>;
 
 export const BetterPortalThemeSurfaceSchema = av.object({
@@ -41,7 +48,7 @@ export const BetterPortalThemeSurfaceSchema = av.object({
   textSoft: av.optional(NonEmptyStringSchema),
   border: av.optional(NonEmptyStringSchema),
   accentSoft: av.optional(NonEmptyStringSchema)
-}, { unknownKeys: "strip" }).default({});
+}).default({});
 export type BetterPortalThemeSurface = Infer<typeof BetterPortalThemeSurfaceSchema>;
 
 export const BetterPortalThemeConfigSchema = av.object({
@@ -50,7 +57,7 @@ export const BetterPortalThemeConfigSchema = av.object({
   bootstrap: BetterPortalThemeBootstrapPaletteSchema,
   light: BetterPortalThemeSurfaceSchema,
   dark: BetterPortalThemeSurfaceSchema
-}, { unknownKeys: "strip" }).default({
+}).default({
   mode: "light",
   bootstrap: {},
   light: {},
@@ -75,12 +82,12 @@ export const TenantServiceRegistrationSchema = av.object({
   createdAt: av.string().format("date-time"),
   lastSeenAt: av.optional(av.string().format("date-time")),
   enabled: av.bool().default(true)
-}, { unknownKeys: "strip" });
+});
 export type TenantServiceRegistration = Infer<typeof TenantServiceRegistrationSchema>;
 
 export const BetterPortalAppShellSchema = av.object({
   serviceId: UuidV7Schema
-}, { unknownKeys: "strip" });
+});
 export type BetterPortalAppShell = Infer<typeof BetterPortalAppShellSchema>;
 
 // -- Platform service (BP-hosted marketplace) -------------------------
@@ -99,7 +106,7 @@ export const PlatformServiceSchema = av.object({
   category: av.optional(NonEmptyStringSchema),
   createdAt: av.string().format("date-time"),
   enabled: av.bool().default(true)
-}, { unknownKeys: "strip" });
+});
 export type PlatformService = Infer<typeof PlatformServiceSchema>;
 
 // -- Tenant -----------------------------------------------------------
@@ -112,22 +119,8 @@ export const BetterPortalTenantSchema = av.object({
   branding: BetterPortalBrandingSchema,
   services: av.array(TenantServiceRegistrationSchema).default([]),
   activatedPlatformServices: av.array(UuidV7Schema).default([])
-}, { unknownKeys: "strip" });
+});
 export type BetterPortalTenant = Infer<typeof BetterPortalTenantSchema>;
-
-export const BetterPortalRouteChromeValueSchema = av.union([av.string(), av.number(), av.bool()]);
-export type BetterPortalRouteChromeValue = Infer<typeof BetterPortalRouteChromeValueSchema>;
-
-export const BetterPortalRouteChromeSchema = av.intersection([
-  av.object({
-    hideMenu: av.optional(av.bool()),
-    hideHeader: av.optional(av.bool()),
-    hideFooter: av.optional(av.bool()),
-    fullScreen: av.optional(av.bool())
-  }, { unknownKeys: "allow" }),
-  av.record(BetterPortalRouteChromeValueSchema)
-]);
-export type BetterPortalRouteChrome = Infer<typeof BetterPortalRouteChromeSchema>;
 
 export const BetterPortalRouteMountSchema = av.object({
   id: UuidV7Schema,
@@ -165,7 +158,7 @@ export const BetterPortalRouteMountSchema = av.object({
   enabled: av.bool().default(true),
   operations: av.array(NonEmptyStringSchema).minItems(1),
   chrome: av.optional(BetterPortalRouteChromeSchema)
-}, { unknownKeys: "strip" });
+});
 export type BetterPortalRouteMount = Infer<typeof BetterPortalRouteMountSchema>;
 
 export const BetterPortalSeoConfigSchema = av.object({
@@ -173,7 +166,7 @@ export const BetterPortalSeoConfigSchema = av.object({
   serviceFailure: av.enum_(["known-routes", "omit-service", "error"] as const).default("omit-service"),
   serviceCache: av.enum_(["none", "1h", "24h", "7d"] as const).default("24h"),
   canonicalOrigin: av.optional(av.string().format("url"))
-}, { unknownKeys: "strip" }).default({
+}).default({
   visibility: "auto",
   serviceFailure: "omit-service",
   serviceCache: "24h"
@@ -182,20 +175,59 @@ export type BetterPortalSeoConfig = Infer<typeof BetterPortalSeoConfigSchema>;
 
 // -- Menu (separate from routes) --------------------------------------
 
-export const BetterPortalMenuItemSchema: any = av.object({
-  id: UuidV7Schema,
-  type: av.enum_(["link", "group", "section", "divider", "external"] as const).default("link"),
-  title: av.optional(NonEmptyStringSchema),
-  icon: av.optional(NonEmptyStringSchema),
-  routeId: av.optional(UuidV7Schema),
-  href: av.optional(av.string()),
-  enabled: av.bool().default(true),
-  serviceStatus: av.enum_(["show", "hide"] as const).default("show"),
-  authStatus: av.enum_(["show", "hide-unauthenticated", "hide-unauthorized"] as const).default("show"),
-  defaultExpanded: av.optional(av.bool()),
-  children: av.array(av.any()).default([])
-}, { unknownKeys: "strip" });
-export type BetterPortalMenuItem = Infer<typeof BetterPortalMenuItemSchema>;
+export interface BetterPortalMenuItem {
+  id: string;
+  type: "link" | "group" | "section" | "divider" | "external";
+  title?: string;
+  icon?: string;
+  routeId?: string;
+  href?: string;
+  enabled: boolean;
+  serviceStatus: "show" | "hide";
+  authStatus: "show" | "hide-unauthenticated" | "hide-unauthorized";
+  defaultExpanded?: boolean;
+  children: BetterPortalMenuItem[];
+}
+
+export const BETTERPORTAL_MENU_MAX_DEPTH = 32;
+
+class MenuDepthExceededSchema extends av.BaseSchema<unknown, never> {
+  _validate(_input: unknown, ctx: ParseContext): undefined {
+    ctx.issues.push({
+      code: av.ISSUE_CODES.TOO_DEEP,
+      message: `Menu nesting exceeds the maximum depth of ${BETTERPORTAL_MENU_MAX_DEPTH}`,
+      path: [...ctx.path],
+      expected: `<= ${BETTERPORTAL_MENU_MAX_DEPTH} menu levels`,
+      received: "too deep"
+    });
+    return undefined;
+  }
+
+  _toNode(): SchemaNode {
+    return { kind: "never", metadata: { description: `Menu nesting is limited to ${BETTERPORTAL_MENU_MAX_DEPTH} levels.` } };
+  }
+}
+
+function menuItemSchema(depth: number): BaseSchema<unknown, BetterPortalMenuItem> {
+  const child = depth < BETTERPORTAL_MENU_MAX_DEPTH
+    ? menuItemSchema(depth + 1)
+    : new MenuDepthExceededSchema();
+  return av.object({
+    id: UuidV7Schema,
+    type: av.enum_(["link", "group", "section", "divider", "external"] as const).default("link"),
+    title: av.optional(NonEmptyStringSchema),
+    icon: av.optional(NonEmptyStringSchema),
+    routeId: av.optional(UuidV7Schema),
+    href: av.optional(av.string()),
+    enabled: av.bool().default(true),
+    serviceStatus: av.enum_(["show", "hide"] as const).default("show"),
+    authStatus: av.enum_(["show", "hide-unauthenticated", "hide-unauthorized"] as const).default("show"),
+    defaultExpanded: av.optional(av.bool()),
+    children: av.array(child).default([])
+  }) as unknown as BaseSchema<unknown, BetterPortalMenuItem>;
+}
+
+export const BetterPortalMenuItemSchema = menuItemSchema(1);
 
 export const BetterPortalSlotAssignmentSchema = av.object({
   slotId: NonEmptyStringSchema,
@@ -203,7 +235,7 @@ export const BetterPortalSlotAssignmentSchema = av.object({
   viewId: NonEmptyStringSchema,
   renderer: av.optional(NonEmptyStringSchema),
   enabled: av.bool().default(true)
-}, { unknownKeys: "strip" });
+});
 export type BetterPortalSlotAssignment = Infer<typeof BetterPortalSlotAssignmentSchema>;
 
 export const BetterPortalFragmentAssignmentSchema = av.object({
@@ -211,7 +243,7 @@ export const BetterPortalFragmentAssignmentSchema = av.object({
   fragmentId: NonEmptyStringSchema,
   targetPath: NonEmptyStringSchema,
   enabled: av.bool().default(true)
-}, { unknownKeys: "strip" });
+});
 export type BetterPortalFragmentAssignment = Infer<typeof BetterPortalFragmentAssignmentSchema>;
 
 export const BetterPortalShellFragmentItemSchema = av.union([
@@ -253,7 +285,7 @@ export const BetterPortalAppSchema = av.object({
   shellFragments: av.record(av.record(BetterPortalShellFragmentSettingSchema)).default({}),
   auth: av.optional(AppAuthConfigSchema),
   statusViewIds: av.optional(av.record(NonEmptyStringSchema))
-}, { unknownKeys: "strip" });
+});
 export type BetterPortalApp = Infer<typeof BetterPortalAppSchema>;
 
 export interface BetterPortalResolvedShell {
@@ -275,7 +307,7 @@ export const BetterPortalConfigManagementAuthSchema = av.object({
   issuer: av.optional(NonEmptyStringSchema),
   audience: av.optional(NonEmptyStringSchema),
   requiredPermissions: av.array(NonEmptyStringSchema).default([])
-}, { unknownKeys: "strip" }).default({
+}).default({
   mechanism: "none",
   requiredPermissions: []
 });
@@ -285,7 +317,7 @@ export const BetterPortalConfigManagementSchema = av.object({
   adminTenantId: av.optional(NonEmptyStringSchema),
   managementAppId: av.optional(NonEmptyStringSchema),
   auth: BetterPortalConfigManagementAuthSchema
-}, { unknownKeys: "strip" }).default({
+}).default({
   auth: {
     mechanism: "none",
     requiredPermissions: []
@@ -314,7 +346,7 @@ export const SharedServiceDefinitionSchema = av.object({
   pricingHint: av.optional(av.enum_(["free", "freemium", "paid"] as const)),
   publishedAt: av.optional(av.string().format("date-time")),
   enabled: av.bool().default(true)
-}, { unknownKeys: "strip" });
+});
 export type SharedServiceDefinition = Infer<typeof SharedServiceDefinitionSchema>;
 
 export const TenantSharedServiceActivationSchema = av.object({
@@ -324,7 +356,7 @@ export const TenantSharedServiceActivationSchema = av.object({
   sharedServiceId: NonEmptyStringSchema,
   activatedAt: av.string().format("date-time"),
   enabled: av.bool().default(true)
-}, { unknownKeys: "strip" });
+});
 export type TenantSharedServiceActivation = Infer<typeof TenantSharedServiceActivationSchema>;
 
 export const M2MBindingSchema = av.object({
@@ -339,7 +371,7 @@ export const M2MBindingSchema = av.object({
   mode: M2MCallerModeSchema.default("service"),
   enabled: av.bool().default(true),
   createdAt: av.string().format("date-time")
-}, { unknownKeys: "strip" });
+});
 export type M2MBinding = Infer<typeof M2MBindingSchema>;
 
 export const M2MGrantSchema = av.object({
@@ -351,13 +383,13 @@ export const M2MGrantSchema = av.object({
   permissions: av.array(NonEmptyStringSchema).default([]),
   enabled: av.bool().default(true),
   createdAt: av.string().format("date-time")
-}, { unknownKeys: "strip" });
+});
 export type M2MGrant = Infer<typeof M2MGrantSchema>;
 
 export const M2MConfigSchema = av.object({
   bindings: av.array(M2MBindingSchema).default([]),
   grants: av.array(M2MGrantSchema).default([])
-}, { unknownKeys: "strip" }).default({ bindings: [], grants: [] });
+}).default({ bindings: [], grants: [] });
 export type M2MConfig = Infer<typeof M2MConfigSchema>;
 
 // -- Manifest cache (CP-side per spec section P8) --------------------
@@ -369,23 +401,19 @@ export const ServiceManifestCacheEntrySchema = av.object({
   title: av.optional(NonEmptyStringSchema),
   authProvider: av.optional(AuthProviderRuntimeMetadataSchema),
   capabilities: av.array(NonEmptyStringSchema).default([]),
-  m2mRequests: av.array(av.any()).default([]),
-  apiContracts: av.array(av.any()).default([]),
-  developerResources: av.array(av.any()).default([]),
-  configSchemas: av.array(av.any()).default([]),
-  webhooks: av.array(av.any()).default([]),
-  shell: av.optional(av.object({
-    service: NonEmptyStringSchema,
-    renderer: NonEmptyStringSchema,
-    fragments: av.array(av.any()).default([])
-  })),
+  m2mRequests: av.array(M2MRequestDescriptorSchema).default([]),
+  apiContracts: av.array(ApiContractDescriptorSchema).default([]),
+  developerResources: av.array(DeveloperResourceSchema).default([]),
+  configSchemas: av.array(ConfigSchemaDescriptorSchema).default([]),
+  webhooks: av.array(WebhookEventDescriptorSchema).default([]),
+  shell: av.optional(ShellManifestSchema),
   viewIndex: av.record(av.object({
     viewId: NonEmptyStringSchema,
     title: NonEmptyStringSchema,
     description: NonEmptyStringSchema,
     path: NonEmptyStringSchema,
     pathVariants: av.array(NonEmptyStringSchema).default([]),
-    paramsSchema: av.optional(av.record(av.any())),
+    paramsSchema: av.optional(JsonObjectSchema),
     operations: av.array(av.object({
       operationId: NonEmptyStringSchema,
       method: HttpMethodSchema,
@@ -411,16 +439,22 @@ export const ServiceManifestCacheEntrySchema = av.object({
         serviceId: NonEmptyStringSchema,
         viewId: NonEmptyStringSchema,
         permissions: av.array(NonEmptyStringSchema).default([])
-      }, { unknownKeys: "strip" })).default([]),
+      })).default([]),
       renderable: av.bool(),
-      schemas: av.optional(av.record(av.any())),
+      schemas: av.optional(av.object({
+        query: av.optional(JsonObjectSchema),
+        headers: av.optional(JsonObjectSchema),
+        request: av.optional(JsonObjectSchema),
+        multipart: av.optional(JsonObjectSchema),
+        response: av.optional(JsonObjectSchema)
+      })),
       raw: av.optional(av.bool()),
-      apiContracts: av.array(av.any()).default([]),
-      demoScenarios: av.array(av.any()).default([])
-    }, { unknownKeys: "strip" })).minItems(1),
+      apiContracts: av.array(ApiContractDescriptorSchema).default([]),
+      demoScenarios: av.array(ViewDemoScenarioSchema).default([])
+    })).minItems(1),
     fragments: av.array(av.object({ fragmentId: NonEmptyStringSchema, targetPath: NonEmptyStringSchema })).default([])
-  }, { unknownKeys: "strip" })).default({})
-}, { unknownKeys: "strip" });
+  })).default({})
+});
 export type ServiceManifestCacheEntry = Infer<typeof ServiceManifestCacheEntrySchema>;
 
 export const WebhookTargetSchema = av.object({
@@ -434,7 +468,7 @@ export const WebhookTargetSchema = av.object({
   createdAt: av.string().format("date-time"),
   enabled: av.bool().default(true),
   maxAttempts: av.int().min(1).max(20).default(10)
-}, { unknownKeys: "strip" });
+});
 export type WebhookTarget = Infer<typeof WebhookTargetSchema>;
 
 export const BetterPortalConfigSchema = av.object({
@@ -448,8 +482,8 @@ export const BetterPortalConfigSchema = av.object({
   m2m: M2MConfigSchema,
   webhooks: av.object({
     targets: av.array(WebhookTargetSchema).default([])
-  }, { unknownKeys: "strip" }).default({ targets: [] })
-}, { unknownKeys: "strip" });
+  }).default({ targets: [] })
+});
 export type BetterPortalConfig = Infer<typeof BetterPortalConfigSchema>;
 
 export interface BetterPortalResolvedRequestContext {
@@ -466,5 +500,5 @@ export interface BetterPortalResolvedServiceBinding {
 export const BetterPortalOriginPolicySchema = av.object({
   allowedOrigins: av.array(av.string().format("url")).default([]),
   allowedReferers: av.array(av.string().format("url")).default([])
-}, { unknownKeys: "strip" });
+});
 export type BetterPortalOriginPolicy = Infer<typeof BetterPortalOriginPolicySchema>;

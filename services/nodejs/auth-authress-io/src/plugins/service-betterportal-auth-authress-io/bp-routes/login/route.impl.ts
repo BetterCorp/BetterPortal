@@ -15,9 +15,9 @@ export const QuerySchema = av.object({
   action: av.optional(av.string()),
   next: av.optional(av.string()),
   redirect: av.optional(av.string())
-}, { unknownKeys: "strip" });
+});
 
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
+export const HeadersSchema = av.object({});
 
 export const RequestSchema = av.object({
   accessToken: av.string().minLength(1),
@@ -26,7 +26,7 @@ export const RequestSchema = av.object({
   name: av.optional(av.string()),
   email: av.optional(av.string()),
   picture: av.optional(av.string())
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const),
@@ -44,8 +44,8 @@ export const ResponseSchema = av.object({
     name: av.optional(av.string()),
     email: av.optional(av.string()),
     picture: av.optional(av.string())
-  }, { unknownKeys: "strip" }))
-}, { unknownKeys: "strip" });
+  }))
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Authress Login";

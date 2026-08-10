@@ -27,6 +27,7 @@ import {
   type BpTokenIssuer,
   type ConfigSchemaDescriptor,
   type JsonValue,
+  type JsonObject,
   type JwtClaims,
   type JwtVerifier,
   type RsaKeyPair,
@@ -50,7 +51,7 @@ const PluginConfigSchema = av.object({
   workosStatePath: av.string().minLength(1).default("./workos-state.json"),
   syncIntervalSeconds: av.int().min(60).default(60 * 60 * 6),
   betterportal: BetterPortalConfigSchema
-}, { unknownKeys: "strip" });
+});
 export type WorkOSPluginConfig = av.Infer<typeof PluginConfigSchema>;
 
 const Config = createConfigSchema(
@@ -92,7 +93,7 @@ export const WorkOSRefreshContextSchema = av.object({
   providerToken: av.string().minLength(1),
   sessionId: av.string().minLength(1),
   organizationId: av.optional(av.string().minLength(1))
-}, { unknownKeys: "strip" });
+});
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
@@ -253,7 +254,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       issuer: this.config.issuer,
       audience: this.config.audience,
       jwksUri: `${this.config.issuer.replace(/\/+$/, "")}/.well-known/jwks.json`,
-      jwks: { keys: [jwk as unknown as Record<string, unknown>] }
+      jwks: { keys: [jwk] }
     });
     this.syncTimer = setInterval(() => {
       void this.syncStaleConfiguredApps();
@@ -506,7 +507,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     appId: string;
     roles: string[];
     authProvider: string;
-    refreshContext: Record<string, unknown>;
+    refreshContext: JsonObject;
     providerSubject: string;
     provider?: JwtClaims["provider"];
     name?: string;

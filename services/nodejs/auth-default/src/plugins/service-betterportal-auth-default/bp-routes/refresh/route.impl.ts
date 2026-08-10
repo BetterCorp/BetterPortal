@@ -7,21 +7,21 @@ import {
 import { createHandler } from "../../.bp-generated/route-runtime.js";
 import type { Plugin } from "../../index.js";
 
-export const QuerySchema = av.object({}, { unknownKeys: "strip" });
+export const QuerySchema = av.object({});
 export const HeadersSchema = av.object({
   "x-bp-refresh": av.optional(av.string().minLength(1))
-}, { unknownKeys: "strip" });
+});
 
 export const RequestSchema = av.object({
   refreshToken: av.optional(av.string().minLength(1).describe("Signed refresh token issued by the auth service."))
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const).describe("Refresh request outcome."),
   message: av.optional(av.string()).describe("Human-readable status or error message for the renderer."),
   accessToken: av.optional(av.string()).describe("New signed JWT access token returned when refresh succeeds."),
   expiresInSeconds: av.optional(av.int().min(1)).describe("New access token lifetime in seconds.")
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Refresh Token";

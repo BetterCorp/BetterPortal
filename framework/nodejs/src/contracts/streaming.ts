@@ -14,14 +14,14 @@ export const StreamErrorFrameSchema = av.object({
     code: av.string().minLength(1),
     path: av.optional(av.string()),
     message: av.string().minLength(1)
-  }, { unknownKeys: "strip" })))
-}, { unknownKeys: "strip" });
+  })))
+});
 export type StreamErrorFrame = Infer<typeof StreamErrorFrameSchema>;
 
 export const StreamEndFrameSchema = av.object({
   kind: av.enum_(["end"] as const),
   count: av.int().min(0)
-}, { unknownKeys: "strip" });
+});
 export type StreamEndFrame = Infer<typeof StreamEndFrameSchema>;
 
 export interface StreamItemFrame<TItem = unknown> {

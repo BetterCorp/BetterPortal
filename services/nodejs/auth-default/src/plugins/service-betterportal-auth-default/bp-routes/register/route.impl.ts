@@ -10,15 +10,15 @@ import type { Plugin } from "../../index.js";
 
 export const QuerySchema = av.object({
   next: av.optional(av.string()).describe("The view path to pass through to login after first-admin registration.")
-}, { unknownKeys: "strip" });
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
+});
+export const HeadersSchema = av.object({});
 
 export const RequestSchema = av.object({
   username: av.string().minLength(1).describe("Username for the first admin account."),
   password: av.string().minLength(8).describe("Password for the first admin account."),
   email: av.optional(av.string()).describe("Email address for the first admin account."),
   name: av.optional(av.string()).describe("Display name for the first admin account.")
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const).describe("Registration request outcome."),
@@ -27,13 +27,13 @@ export const ResponseSchema = av.object({
     id: av.string().describe("Stable UUIDv7 user id."),
     username: av.string().describe("Created account username."),
     isFirstAdmin: av.bool().describe("True when this account is the deployment's first admin.")
-  }, { unknownKeys: "strip" }).describe("Created first-admin user summary.")),
+  }).describe("Created first-admin user summary.")),
   // GET state for the theme renderer: registrations are closed once any user
   // exists; loginUrl (self-origin, absolute) is where the renderer sends the
   // browser in that case - and after a successful first-admin creation.
   registrationOpen: av.optional(av.bool()).describe("True while the auth service has zero users; once false, the renderer should send the browser to login."),
   loginUrl: av.optional(av.string()).describe("Absolute self-origin URL of this auth service's login view, used when registration is closed and after successful first-admin creation.")
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Register First Admin";

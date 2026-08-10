@@ -167,13 +167,48 @@ function warnRawHandler(route: ScannedRoute, errors: ValidationError[]): void {
   });
 }
 
-function warnLooseSchemas(route: ScannedRoute, errors: ValidationError[]): void {
+function checkSchemaPolicy(route: ScannedRoute, errors: ValidationError[]): void {
+  for (const schemaName of route.looseSchemas) {
+    errors.push({
+      file: route.relativePath + "/index.ts",
+      message: `Route "${route.viewId}" exports ${schemaName} containing av.any() or av.unknown(). Published schemas must be concrete; use a specific AnyVali schema, JsonValueSchema, or JsonObjectSchema.`,
+      severity: "error",
+    });
+  }
+  for (const schemaName of route.allowUnknownKeysSchemas ?? []) {
+    errors.push({
+      file: route.relativePath + "/index.ts",
+      message: `Route "${route.viewId}" exports ${schemaName} with unknownKeys: "allow". Validate extension keys with a concrete av.record(...) schema.`,
+      severity: "error"
+    });
+  }
+  for (const schemaName of route.redundantStripSchemas ?? []) {
+    errors.push({
+      file: route.relativePath + "/index.ts",
+      message: `Route "${route.viewId}" exports ${schemaName} with unknownKeys: "strip". Stripping is the default; remove the redundant option.`,
+      severity: "warning"
+    });
+  }
   for (const methodRoute of route.methodModules) {
     for (const schemaName of methodRoute.looseSchemas) {
       errors.push({
         file: methodRoute.relativePath,
-        message: `Route "${route.viewId}" ${methodRoute.method} exports ${schemaName} with av.any() or av.unknown(). Prefer a concrete anyvali schema so BP can validate inputs and outputs.`,
-        severity: "warning",
+        message: `Route "${route.viewId}" ${methodRoute.method} exports ${schemaName} containing av.any() or av.unknown(). Published schemas must be concrete; use a specific AnyVali schema, JsonValueSchema, or JsonObjectSchema.`,
+        severity: "error",
+      });
+    }
+    for (const schemaName of methodRoute.allowUnknownKeysSchemas ?? []) {
+      errors.push({
+        file: methodRoute.relativePath,
+        message: `Route "${route.viewId}" ${methodRoute.method} exports ${schemaName} with unknownKeys: "allow". Validate extension keys with a concrete av.record(...) schema.`,
+        severity: "error"
+      });
+    }
+    for (const schemaName of methodRoute.redundantStripSchemas ?? []) {
+      errors.push({
+        file: methodRoute.relativePath,
+        message: `Route "${route.viewId}" ${methodRoute.method} exports ${schemaName} with unknownKeys: "strip". Stripping is the default; remove the redundant option.`,
+        severity: "warning"
       });
     }
   }
@@ -411,7 +446,7 @@ export function validateScanResult(result: ScanResult): ValidationError[] {
     checkOperationMetadata(route, errors);
     checkRawRenderers(route, errors);
     warnRawHandler(route, errors);
-    warnLooseSchemas(route, errors);
+    checkSchemaPolicy(route, errors);
     checkRenderersMatchMethods(route, errors);
     checkSseMethod(route, errors);
     checkSseFragmentRenderers(route, errors);

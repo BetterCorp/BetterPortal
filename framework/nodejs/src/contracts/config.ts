@@ -11,7 +11,7 @@ export const ConfigFieldGroupDescriptorSchema = av.object({
   description: av.optional(av.string()),
   order: av.optional(av.int()),
   optional: av.optional(av.bool())
-}, { unknownKeys: "strip" });
+});
 export type ConfigFieldGroupDescriptor = Infer<typeof ConfigFieldGroupDescriptorSchema>;
 
 export const ConfigFieldUiDescriptorSchema = av.object({
@@ -34,13 +34,13 @@ export const ConfigFieldUiDescriptorSchema = av.object({
   options: av.optional(av.array(av.object({
     value: NonEmptyStringSchema,
     label: NonEmptyStringSchema
-  }, { unknownKeys: "strip" }))),
+  }))),
   optionsSource: av.optional(av.enum_(["app.routes"] as const)),
   min: av.optional(av.union([av.number(), av.string()])),
   max: av.optional(av.union([av.number(), av.string()])),
   step: av.optional(av.number()),
   rows: av.optional(av.int().min(1))
-}, { unknownKeys: "strip" });
+});
 export type ConfigFieldUiDescriptor = Infer<typeof ConfigFieldUiDescriptorSchema>;
 
 export const ConfigFieldDescriptorSchema = av.object({
@@ -56,7 +56,7 @@ export const ConfigFieldDescriptorSchema = av.object({
   defaultValue: av.optional(JsonValueSchema),
   ui: av.optional(ConfigFieldUiDescriptorSchema),
   required: av.bool().default(false)
-}, { unknownKeys: "strip" });
+});
 export type ConfigFieldDescriptor = Infer<typeof ConfigFieldDescriptorSchema>;
 
 export const ConfigSchemaDescriptorSchema = av.object({
@@ -67,5 +67,5 @@ export const ConfigSchemaDescriptorSchema = av.object({
   jsonSchema: JsonObjectSchema,
   groups: av.optional(av.array(ConfigFieldGroupDescriptorSchema)),
   fields: av.array(ConfigFieldDescriptorSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type ConfigSchemaDescriptor = Infer<typeof ConfigSchemaDescriptorSchema>;

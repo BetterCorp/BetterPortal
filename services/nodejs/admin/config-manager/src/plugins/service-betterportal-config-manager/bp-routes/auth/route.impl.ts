@@ -19,9 +19,9 @@ const ViewWithPermsSchema = av.object({
       serviceId: av.string().minLength(1),
       viewId: av.string().minLength(1),
       permissions: av.array(av.string())
-    }, { unknownKeys: "strip" })).default([])
-  }, { unknownKeys: "strip" })).default([])
-}, { unknownKeys: "strip" });
+    })).default([])
+  })).default([])
+});
 
 const ServiceWithViewsSchema = av.object({
   serviceId: av.string().minLength(1),
@@ -29,44 +29,44 @@ const ServiceWithViewsSchema = av.object({
   hostname: av.string(),
   manifestVersion: av.optional(av.string()),
   views: av.array(ViewWithPermsSchema).default([])
-}, { unknownKeys: "strip" });
+});
 
 const RolePermissionGrantSchema = av.object({
   serviceId: av.string().minLength(1),
   viewId: av.string().minLength(1),
   permissions: av.array(PermissionActionSchema).minItems(1)
-}, { unknownKeys: "strip" });
+});
 
 const AppRoleSchema = av.object({
   id: av.string().minLength(1),
   title: av.string().minLength(1),
   description: av.optional(av.string()),
   permissions: av.array(RolePermissionGrantSchema).default([])
-}, { unknownKeys: "strip" });
+});
 
 const AppSummarySchema = av.object({
   id: av.string().minLength(1),
   tenantId: av.string().minLength(1),
   title: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 const ExternalRoleSyncSchema = av.object({
   serviceTitle: av.string().minLength(1),
   fragmentUrl: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 const ManagedRoleSyncSchema = av.object({
   serviceTitle: av.string().minLength(1),
   syncUrl: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 export const QuerySchema = av.object({
   appId: av.optional(av.string().minLength(1))
-}, { unknownKeys: "strip" });
+});
 
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
+export const HeadersSchema = av.object({});
 
-export const RequestSchema = av.object({}, { unknownKeys: "strip" });
+export const RequestSchema = av.object({});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
@@ -80,7 +80,7 @@ export const ResponseSchema = av.object({
   managedRoleSync: av.optional(ManagedRoleSyncSchema),
   adminApiBase: av.string().default("/.well-known/bp/admin"),
   serviceBaseUrl: av.optional(av.string())
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Permission Manager";

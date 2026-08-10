@@ -125,7 +125,9 @@ Method files are named exactly by HTTP method: `GET.ts`, `POST.ts`, `PUT.ts`, `P
 
 Only a GET operation with a page renderer is eligible for Visual Routes and browser navigation. A POST, PUT, PATCH, or DELETE operation remains a Service/API route even when it has an HTML renderer for form results or validation errors. Rendering capability does not change the HTTP operation's routing role.
 
-`av.object` strips unknown keys by default. API schemas do not need an `unknownKeys` option for stripping; specify that option only when deliberately choosing non-default behavior.
+`av.object` strips unknown keys by default. Omit `{ unknownKeys: "strip" }`; codegen warns because it is redundant. Use `{ unknownKeys: "reject" }` when extra fields must fail validation. `unknownKeys: "allow"` is forbidden because it bypasses the declared schema; model extensible keys with a typed `av.record(...)` instead.
+
+All production BetterPortal schemas must be concrete at every nesting level. Codegen and contract generation reject `av.any()`, `av.unknown()`, and unknown-key passthrough, including values hidden inside arrays, records, unions, imported aliases, or re-exports. For deliberately arbitrary JSON, import `JsonValueSchema` or `JsonObjectSchema` from `@betterportal/framework`; these recursively validate JSON primitives, arrays, and objects and publish a portable recursive contract. They reject functions, `undefined`, non-finite numbers, class instances, and circular structures. TypeScript `unknown` remains appropriate before parsing and is unrelated to `av.unknown()`.
 
 BetterPortal service APIs do not support cookies. Do not read `Cookie` or emit `Set-Cookie` from route handlers; use `ctx.bpHeaders.set(...)` and `ctx.bpHeaders.remove(...)` for browser-managed state that must accompany later BP requests.
 
@@ -491,13 +493,12 @@ export default createRawHandler(
 
 Do not export `ResponseSchema` or HTML renderers for raw routes; codegen rejects both. Use `ctx.response(body, init)` for custom raw responses and `ctx.file(body, options)` for downloadable/inline files. `ctx.file` accepts standard `Response` bodies, including `Uint8Array`, `ArrayBuffer`, `Blob`, and `ReadableStream`.
 
-For multipart uploads, export `MultipartSchema` and use `createRawHandler({ multipart: MultipartSchema }, ...)`. First-pass multipart support is buffered in memory and capped at 25 MiB total file bytes per request.
+For multipart uploads, export the framework's concrete `MultipartRequestSchema` as `MultipartSchema` and use `createRawHandler({ multipart: MultipartSchema }, ...)`. First-pass multipart support is buffered in memory and capped at 25 MiB total file bytes per request.
 
 ```ts
-export const MultipartSchema = av.object({
-  fields: av.record(av.any()),
-  files: av.record(av.any())
-});
+import { MultipartRequestSchema } from "@betterportal/framework";
+
+export const MultipartSchema = MultipartRequestSchema;
 
 export default createRawHandler(
   { multipart: MultipartSchema },

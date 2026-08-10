@@ -1,5 +1,6 @@
 export * from "./contracts/auth.js";
 export * from "./contracts/binding.js";
+export * from "./contracts/chrome.js";
 export * from "./contracts/common.js";
 export * from "./contracts/config.js";
 export * from "./contracts/json.js";

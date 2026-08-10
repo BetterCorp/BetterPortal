@@ -1,6 +1,7 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import { IdentityRealmSchema, UuidV7Schema } from "./common.js";
+import { JsonObjectSchema } from "./json.js";
 
 const NonEmptyStringSchema = av.string().minLength(1);
 const NonEmptyStringArraySchema = av.array(NonEmptyStringSchema).minItems(1);
@@ -22,7 +23,7 @@ export const JwtClaimsSchema = av.object({
   roles: av.array(NonEmptyStringSchema).default([]),
   tokenType: TokenTypeSchema,
   authProvider: av.optional(av.string().minLength(1)),
-  refreshContext: av.optional(av.record(av.any())),
+  refreshContext: av.optional(JsonObjectSchema),
   providerSubject: av.optional(av.string().minLength(1)),
   provider: av.optional(av.object({
     username: av.optional(av.string()),
@@ -30,23 +31,23 @@ export const JwtClaimsSchema = av.object({
     accountId: av.optional(av.union([av.string(), av.number()])),
     nodeId: av.optional(av.string()),
     scope: av.optional(av.string())
-  }, { unknownKeys: "strip" })),
+  })),
   name: av.optional(av.string()),
   email: av.optional(av.string()),
   picture: av.optional(av.string())
-}, { unknownKeys: "strip" });
+});
 export type JwtClaims = Infer<typeof JwtClaimsSchema>;
 
 export const TokenLifetimeConfigSchema = av.object({
   accessTokenSeconds: av.int().min(1).default(60 * 15),
   refreshTokenSeconds: av.int().min(1).default(60 * 60 * 24 * 7)
-}, { unknownKeys: "strip" });
+});
 export type TokenLifetimeConfig = Infer<typeof TokenLifetimeConfigSchema>;
 
 export const AuthAudienceRuleSchema = av.object({
   realm: IdentityRealmSchema,
   audiences: NonEmptyStringArraySchema
-}, { unknownKeys: "strip" });
+});
 export type AuthAudienceRule = Infer<typeof AuthAudienceRuleSchema>;
 
 export const AppAuthPermissionActionSchema = av.enum_(["read", "create", "update", "delete"] as const);
@@ -56,7 +57,7 @@ export const AppAuthPermissionGrantSchema = av.object({
   serviceId: UuidV7Schema,
   viewId: NonEmptyStringSchema,
   permissions: av.array(AppAuthPermissionActionSchema).minItems(1)
-}, { unknownKeys: "strip" });
+});
 export type AppAuthPermissionGrant = Infer<typeof AppAuthPermissionGrantSchema>;
 
 export const AppAuthRoleSchema = av.object({
@@ -64,12 +65,12 @@ export const AppAuthRoleSchema = av.object({
   title: NonEmptyStringSchema,
   description: av.optional(av.string()),
   permissions: av.array(AppAuthPermissionGrantSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type AppAuthRole = Infer<typeof AppAuthRoleSchema>;
 
 export const DefaultAuthProviderConfigSchema = av.object({
   kind: av.literal("betterportal.default")
-}, { unknownKeys: "strip" });
+});
 export type DefaultAuthProviderConfig = Infer<typeof DefaultAuthProviderConfigSchema>;
 
 export const AuthressProviderConfigSchema = av.object({
@@ -79,7 +80,7 @@ export const AuthressProviderConfigSchema = av.object({
   nameClaimPath: av.optional(av.string().minLength(1)),
   emailClaimPath: av.optional(av.string().minLength(1)),
   pictureClaimPath: av.optional(av.string().minLength(1))
-}, { unknownKeys: "strip" });
+});
 export type AuthressProviderConfig = Infer<typeof AuthressProviderConfigSchema>;
 
 export const AppAuthProviderConfigSchema = av.union([
@@ -91,9 +92,19 @@ export type AppAuthProviderConfig = Infer<typeof AppAuthProviderConfigSchema>;
 export const AuthRoleAuthoritySchema = av.enum_(["provider", "betterportal"] as const);
 export type AuthRoleAuthority = Infer<typeof AuthRoleAuthoritySchema>;
 
+export const RsaPublicJwkSchema = av.object({
+  kty: av.literal("RSA"),
+  use: av.literal("sig"),
+  alg: av.literal("RS256"),
+  kid: NonEmptyStringSchema,
+  n: NonEmptyStringSchema,
+  e: NonEmptyStringSchema
+});
+export type RsaPublicJwk = Infer<typeof RsaPublicJwkSchema>;
+
 export const PublicJwksSchema = av.object({
-  keys: av.array(av.record(av.any()))
-}, { unknownKeys: "strip" });
+  keys: av.array(RsaPublicJwkSchema)
+});
 export type PublicJwks = Infer<typeof PublicJwksSchema>;
 
 export const AuthProviderRuntimeMetadataSchema = av.object({
@@ -101,19 +112,19 @@ export const AuthProviderRuntimeMetadataSchema = av.object({
   audience: NonEmptyStringSchema,
   jwksUri: NonEmptyStringSchema,
   publicKeys: av.optional(PublicJwksSchema)
-}, { unknownKeys: "strip" });
+});
 export type AuthProviderRuntimeMetadata = Infer<typeof AuthProviderRuntimeMetadataSchema>;
 
 export const AppAuthViewReferenceSchema = av.object({
   serviceId: UuidV7Schema,
   viewId: NonEmptyStringSchema
-}, { unknownKeys: "strip" });
+});
 export type AppAuthViewReference = Infer<typeof AppAuthViewReferenceSchema>;
 
 export const AppAuthRedirectsSchema = av.object({
   afterLogin: av.optional(AppAuthViewReferenceSchema),
   afterLogout: av.optional(AppAuthViewReferenceSchema)
-}, { unknownKeys: "strip" });
+});
 export type AppAuthRedirects = Infer<typeof AppAuthRedirectsSchema>;
 
 export const AppAuthConfigSchema = av.object({
@@ -133,7 +144,7 @@ export const AppAuthConfigSchema = av.object({
    *  CP-side JWT verification uses these static keys, never fetches jwksUri. */
   publicKeys: av.optional(PublicJwksSchema),
   roles: av.array(AppAuthRoleSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type AppAuthConfig = Infer<typeof AppAuthConfigSchema>;
 
 // -- Tenant-app validation (validateTenantApp hook return) -----------
@@ -143,7 +154,7 @@ export const TenantAppValidationSchema = av.object({
   reason: av.optional(av.string()),
   upgradeUrl: av.optional(av.string()),
   retryAfterSeconds: av.optional(av.int().min(0))
-}, { unknownKeys: "strip" });
+});
 export type TenantAppValidation = Infer<typeof TenantAppValidationSchema>;
 
 // -- CP envelope token claims ----------------------------------------
@@ -160,7 +171,7 @@ export const CpEnvelopeClaimsSchema = av.object({
   originUserJti: av.optional(NonEmptyStringSchema),
   cpId: NonEmptyStringSchema,
   cpJwksUri: NonEmptyStringSchema
-}, { unknownKeys: "strip" });
+});
 export type CpEnvelopeClaims = Infer<typeof CpEnvelopeClaimsSchema>;
 
 // -- Setup token claims (control-plane -> browser) --------------------
@@ -179,6 +190,6 @@ export const SetupTokenClaimsSchema = av.object({
   scope: av.optional(av.object({
     tenantId: UuidV7Schema,
     appId: av.optional(UuidV7Schema)
-  }, { unknownKeys: "strip" }))
-}, { unknownKeys: "strip" });
+  }))
+});
 export type SetupTokenClaims = Infer<typeof SetupTokenClaimsSchema>;

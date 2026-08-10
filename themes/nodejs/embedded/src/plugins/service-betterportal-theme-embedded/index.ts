@@ -46,7 +46,7 @@ const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
   port: av.int().min(1).default(3110),
   betterportal: BetterPortalConfigSchema
-}, { unknownKeys: "strip" });
+});
 
 type SafeServiceTarget =
   | { ok: true; origin: string; path: string; url: string }

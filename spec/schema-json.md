@@ -6,6 +6,8 @@
 
 A flattened, machine-readable catalog of a service's routes, renderer contracts, fragments, and components. Tools read this instead of crawling the manifest.
 
+All AnyVali documents published through the manifest or this endpoint MUST be concrete. The `any` and `unknown` node kinds and object `unknownKeys: "allow"` are forbidden at every nesting level because they cannot provide cross-SDK validation or useful generated client types. Deliberately arbitrary JSON uses the portable recursive `BetterPortalJsonValue` definition published by the framework. Object schemas default to `unknownKeys: "strip"`; source declarations omit that redundant option and use `"reject"` when extra keys must fail validation.
+
 ## Shape
 
 ```jsonc

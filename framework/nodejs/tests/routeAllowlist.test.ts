@@ -588,7 +588,13 @@ test("uiRouteUrl only resolves GET page mounts", async () => {
         uiMutation: ctx.uiRouteUrl?.("mutation.index") ?? null,
         serviceApi: ctx.routeUrl?.("api.index") ?? null,
         serviceMutation: ctx.routeUrl?.("mutation.index") ?? null
-      }), av.any())
+      }), av.object({
+        uiPage: av.nullable(av.string()),
+        uiApi: av.nullable(av.string()),
+        uiMutation: av.nullable(av.string()),
+        serviceApi: av.nullable(av.string()),
+        serviceMutation: av.nullable(av.string())
+      }))
     ]
   }, async (baseUrl) => {
     const response = await fetch(`${baseUrl}/self`, { headers: { accept: "application/json" } });
@@ -662,7 +668,12 @@ test("route helpers resolve dependency services from the application route index
       instanceService: ctx.routeUrl?.("auth.exchange", { serviceId: authServiceId }) ?? null,
       aliasUi: ctx.uiRouteUrl?.("login.index", { serviceId: "auth" }) ?? null,
       localCollision: ctx.routeUrl?.("auth.exchange") ?? null
-    }), av.any()),
+    }), av.object({
+      aliasService: av.nullable(av.string()),
+      instanceService: av.nullable(av.string()),
+      aliasUi: av.nullable(av.string()),
+      localCollision: av.nullable(av.string())
+    })),
     renderers: {
       bootstrap5: {
         pages: [{

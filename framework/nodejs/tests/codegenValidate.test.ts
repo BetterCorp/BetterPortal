@@ -179,7 +179,7 @@ test("raw handlers warn developers to prefer schema based handlers", () => {
   ), true);
 });
 
-test("loose anyvali route schemas warn developers to use concrete schemas", () => {
+test("loose anyvali route schemas fail codegen", () => {
   const issues = validateScanResult(scanResult(scannedRoute({
     methodModules: [{
       method: "POST",
@@ -194,13 +194,72 @@ test("loose anyvali route schemas warn developers to use concrete schemas", () =
   })));
 
   assert.equal(issues.some((issue) =>
-    issue.severity === "warning"
+    issue.severity === "error"
     && issue.message.includes("ResponseSchema")
-    && issue.message.includes("concrete anyvali schema")
+    && issue.message.includes("Published schemas must be concrete")
   ), true);
   assert.equal(issues.some((issue) =>
-    issue.severity === "warning"
+    issue.severity === "error"
     && issue.message.includes("RequestSchema")
-    && issue.message.includes("BP can validate inputs and outputs")
+    && issue.message.includes("JsonValueSchema")
   ), true);
+});
+
+test("nested loose schemas are detected in method files", () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-loose-schema-"));
+  try {
+    const routeDir = join(baseDir, "bp-routes", "data");
+    mkdirSync(routeDir, { recursive: true });
+    writeFileSync(join(baseDir, "index.ts"), "export class Plugin {}\n");
+    writeFileSync(join(routeDir, "index.ts"), `
+      import * as av from "anyvali";
+      export const viewId = "data.index";
+      export const title = "Data";
+      export const description = "Data";
+      export const ParamsSchema = av.object({ id: av.unknown() });
+    `);
+    writeFileSync(join(routeDir, "POST.ts"), `
+      import * as av from "anyvali";
+      export const operationId = "data.create";
+      export const title = "Create data";
+      export const description = "Create data";
+      export const auth = { required: false, permissions: [] };
+      export const RequestSchema = av.object({ values: av.record(av.any()) });
+      export const ResponseSchema = av.object({ value: av.unknown() });
+      export default () => ({});
+    `);
+
+    const issues = validateScanResult(scanRoutes(baseDir));
+    assert.equal(issues.some((issue) =>
+      issue.severity === "error" && issue.message.includes("RequestSchema containing av.any()")
+    ), true);
+    assert.equal(issues.some((issue) =>
+      issue.severity === "error" && issue.message.includes("ResponseSchema containing av.any() or av.unknown()")
+    ), true);
+    assert.equal(issues.some((issue) =>
+      issue.severity === "error" && issue.message.includes("ParamsSchema containing av.any() or av.unknown()")
+    ), true);
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("unknown-key passthrough fails and redundant stripping warns", () => {
+  const issues = validateScanResult(scanResult(scannedRoute({
+    methodModules: [{
+      method: "POST",
+      relativePath: "../bp-routes/data/POST.ts",
+      exports: ["default", "operationId", "title", "description", "auth", "RequestSchema", "ResponseSchema"],
+      isRaw: false,
+      looseSchemas: [],
+      allowUnknownKeysSchemas: ["RequestSchema"],
+      redundantStripSchemas: ["ResponseSchema"]
+    }],
+    methods: ["POST"]
+  })));
+
+  assert.equal(issues.some((issue) => issue.severity === "error"
+    && issue.message.includes('RequestSchema with unknownKeys: "allow"')), true);
+  assert.equal(issues.some((issue) => issue.severity === "warning"
+    && issue.message.includes('ResponseSchema with unknownKeys: "strip"')), true);
 });

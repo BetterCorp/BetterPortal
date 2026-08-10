@@ -21,9 +21,9 @@ export const QuerySchema = av.object({
   redirect: av.optional(av.string()),
   error: av.optional(av.string()),
   error_description: av.optional(av.string())
-}, { unknownKeys: "strip" });
+});
 
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
+export const HeadersSchema = av.object({});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const),
@@ -39,8 +39,8 @@ export const ResponseSchema = av.object({
     name: av.optional(av.string()),
     email: av.optional(av.string()),
     picture: av.optional(av.string())
-  }, { unknownKeys: "strip" }))
-}, { unknownKeys: "strip" });
+  }))
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "WorkOS Login";

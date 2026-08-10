@@ -1,6 +1,7 @@
 import { createEventStream } from "h3";
 import type {
   ConfigSchemaDescriptor,
+  ApiContractDescriptor,
   AppAuthConfig,
   AuthProviderRuntimeMetadata,
   BetterPortalH3App,
@@ -8,15 +9,17 @@ import type {
   BetterPortalRegistry,
   PlatformConfigStore,
   JsonValue,
+  M2MRequestDescriptor,
   ScopedServiceConfig,
   BetterPortalRouteChrome,
   BetterPortalRouteMount,
   BetterPortalConfig,
   DeveloperResource,
   ShellManifest,
+  ViewDemoScenario,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManifestSchema, deriveKeyId, eventObservability, jsonResponse, toJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
@@ -78,9 +81,9 @@ export interface CachedManifestOperation {
   /** True when the service route returns a raw/file Response and is API-only. */
   raw?: boolean;
   /** API contracts implemented by this view. */
-  apiContracts: JsonValue[];
+  apiContracts: ApiContractDescriptor[];
   /** Example payloads advertised by the service route. */
-  demoScenarios: JsonValue[];
+  demoScenarios: ViewDemoScenario[];
 }
 
 export interface CachedManifest {
@@ -89,8 +92,8 @@ export interface CachedManifest {
   title?: string;
   authProvider?: AuthProviderRuntimeMetadata;
   capabilities: string[];
-  apiContracts: JsonValue[];
-  m2mRequests: JsonValue[];
+  apiContracts: ApiContractDescriptor[];
+  m2mRequests: M2MRequestDescriptor[];
   developerResources: DeveloperResource[];
   shell?: ShellManifest;
   viewIndex: Record<string, CachedManifestView>;
@@ -166,8 +169,8 @@ function normalizeManifest(input: {
   capabilities?: string[];
   configSchemas?: ConfigSchemaDescriptor[];
   webhooks?: WebhookEventDescriptor[];
-  apiContracts?: JsonValue[];
-  m2mRequests?: JsonValue[];
+  apiContracts?: ApiContractDescriptor[];
+  m2mRequests?: M2MRequestDescriptor[];
   developerResources?: DeveloperResource[];
   shell?: ShellManifest;
   viewIndex?: Record<string, {
@@ -241,8 +244,8 @@ export async function reconcileServiceRegistry(
     capabilities?: string[];
     configSchemas?: ConfigSchemaDescriptor[];
     webhooks?: WebhookEventDescriptor[];
-    apiContracts?: JsonValue[];
-    m2mRequests?: JsonValue[];
+    apiContracts?: ApiContractDescriptor[];
+    m2mRequests?: M2MRequestDescriptor[];
     developerResources?: DeveloperResource[];
     shell?: ShellManifest;
     authProvider?: AuthProviderRuntimeMetadata;
@@ -264,7 +267,9 @@ export async function reconcileServiceRegistry(
       description: route.description,
       path: route.path,
       pathVariants: routes.length > 1 ? routes.map((candidate) => candidate.path) : [],
-      ...(route.schemas.params ? { paramsSchema: toJsonSchemaDocument(route.schemas.params) as Record<string, JsonValue> } : {}),
+      ...(route.schemas.params ? {
+        paramsSchema: toPublishedJsonSchemaDocument(route.schemas.params, `${route.viewId} ParamsSchema`) as Record<string, JsonValue>
+      } : {}),
       operations: route.methods.map((method) => {
         const operation = route.methodRoutes?.[method];
         if (!operation) throw new Error(`Route ${route.viewId} is missing operation metadata for ${method}`);
@@ -289,25 +294,35 @@ export async function reconcileServiceRegistry(
           permissions: operation.auth.permissions ?? [],
           renderable: operation.raw !== true && renderers.length > 0,
           schemas: {
-            ...(operation.schemas.query ? { query: toJsonSchemaDocument(operation.schemas.query) as JsonValue } : {}),
-            ...(operation.schemas.headers ? { headers: toJsonSchemaDocument(operation.schemas.headers) as JsonValue } : {}),
-            ...(operation.schemas.request ? { request: toJsonSchemaDocument(operation.schemas.request) as JsonValue } : {}),
-            ...(operation.schemas.multipart ? { multipart: toJsonSchemaDocument(operation.schemas.multipart) as JsonValue } : {}),
-            ...(operation.schemas.response ? { response: toJsonSchemaDocument(operation.schemas.response) as JsonValue } : {})
+            ...(operation.schemas.query ? {
+              query: toPublishedJsonSchemaDocument(operation.schemas.query, `${route.viewId} ${operation.method} QuerySchema`) as JsonValue
+            } : {}),
+            ...(operation.schemas.headers ? {
+              headers: toPublishedJsonSchemaDocument(operation.schemas.headers, `${route.viewId} ${operation.method} HeadersSchema`) as JsonValue
+            } : {}),
+            ...(operation.schemas.request ? {
+              request: toPublishedJsonSchemaDocument(operation.schemas.request, `${route.viewId} ${operation.method} RequestSchema`) as JsonValue
+            } : {}),
+            ...(operation.schemas.multipart ? {
+              multipart: toPublishedJsonSchemaDocument(operation.schemas.multipart, `${route.viewId} ${operation.method} MultipartSchema`) as JsonValue
+            } : {}),
+            ...(operation.schemas.response ? {
+              response: toPublishedJsonSchemaDocument(operation.schemas.response, `${route.viewId} ${operation.method} ResponseSchema`) as JsonValue
+            } : {})
           },
           ...(operation.raw === true ? { raw: true } : {}),
           apiContracts: (operation.apiContracts ?? []).map((contract) => ({
             ...contract,
             viewId: route.viewId,
             methods: [method]
-          })) as JsonValue[],
-          demoScenarios: operation.demoScenarios.map((scenario) => toJsonValue({
+          })) as ApiContractDescriptor[],
+          demoScenarios: operation.demoScenarios.map((scenario) => ViewDemoScenarioSchema.parse(toJsonValue({
             id: scenario.id,
             title: scenario.title,
             ...(scenario.description ? { description: scenario.description } : {}),
             ...(scenario.match ? { match: scenario.match } : {}),
             response: scenario.response
-          }))
+          })))
         };
       }),
       fragments: [...new Map(Object.values(route.renderers).flatMap((theme) =>
@@ -488,8 +503,8 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
         capabilities?: string[];
         configSchemas?: ConfigSchemaDescriptor[];
         webhooks?: WebhookEventDescriptor[];
-        apiContracts?: JsonValue[];
-        m2mRequests?: JsonValue[];
+        apiContracts?: ApiContractDescriptor[];
+        m2mRequests?: M2MRequestDescriptor[];
         developerResources?: DeveloperResource[];
         shell?: ShellManifest;
         viewIndex?: NonNullable<Parameters<typeof normalizeManifest>[0]["viewIndex"]>;

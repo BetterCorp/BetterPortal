@@ -10,7 +10,7 @@ import type {
 import type { AdminApiDescriptor, BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
 import type { ViewMetadata, ViewOperationMetadata } from "../contracts/view.js";
 import { sitemapMetadata } from "../contracts/seo.js";
-import { toJsonSchemaDocument } from "./jsonSchema.js";
+import { toPublishedJsonSchemaDocument } from "./jsonSchema.js";
 
 // -- Route resolution --------------------------------------------------
 
@@ -387,19 +387,35 @@ function operationToMetadata(route: RegisteredRoute, operation: RegisteredMethod
     method: operation.method,
     title: operation.title,
     description: operation.description,
-    querySchema: operation.schemas.query ? toJsonSchemaDocument(operation.schemas.query) : {},
-    headersSchema: operation.schemas.headers ? toJsonSchemaDocument(operation.schemas.headers) : {},
+    querySchema: operation.schemas.query
+      ? toPublishedJsonSchemaDocument(operation.schemas.query, `${route.viewId} ${operation.method} QuerySchema`)
+      : {},
+    headersSchema: operation.schemas.headers
+      ? toPublishedJsonSchemaDocument(operation.schemas.headers, `${route.viewId} ${operation.method} HeadersSchema`)
+      : {},
     bodySchema: operation.schemas.multipart
-      ? toJsonSchemaDocument(operation.schemas.multipart)
-      : operation.schemas.request ? toJsonSchemaDocument(operation.schemas.request) : {},
-    jsonResponseSchema: operation.schemas.response ? toJsonSchemaDocument(operation.schemas.response) : {},
+      ? toPublishedJsonSchemaDocument(operation.schemas.multipart, `${route.viewId} ${operation.method} MultipartSchema`)
+      : operation.schemas.request
+        ? toPublishedJsonSchemaDocument(operation.schemas.request, `${route.viewId} ${operation.method} RequestSchema`)
+        : {},
+    jsonResponseSchema: operation.schemas.response
+      ? toPublishedJsonSchemaDocument(operation.schemas.response, `${route.viewId} ${operation.method} ResponseSchema`)
+      : {},
     metadataResponseSchema: {},
     renderable,
     ...(operation.raw === true ? { raw: true } : {}),
     ...(operation.schemas.item ? {
       streaming: {
-        itemSchema: toJsonSchemaDocument(operation.schemas.item),
-        ...(operation.schemas.summary ? { summarySchema: toJsonSchemaDocument(operation.schemas.summary) } : {})
+        itemSchema: toPublishedJsonSchemaDocument(
+          operation.schemas.item,
+          `${route.viewId} ${operation.method} ItemSchema`
+        ),
+        ...(operation.schemas.summary ? {
+          summarySchema: toPublishedJsonSchemaDocument(
+            operation.schemas.summary,
+            `${route.viewId} ${operation.method} SummarySchema`
+          )
+        } : {})
       }
     } : {}),
     html,
@@ -438,7 +454,9 @@ function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<str
     description: route.description,
     path: route.path,
     pathVariants: variants.length > 1 ? [...variants] : [],
-    paramsSchema: route.schemas.params ? toJsonSchemaDocument(route.schemas.params) : {},
+    paramsSchema: route.schemas.params
+      ? toPublishedJsonSchemaDocument(route.schemas.params, `${route.viewId} ParamsSchema`)
+      : {},
     operations
   };
 }

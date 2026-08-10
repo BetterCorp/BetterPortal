@@ -24,13 +24,13 @@ export const ServiceConfigTicketClaimsSchema = av.object({
   serviceId: NonEmptyStringSchema,
   bindingId: av.optional(NonEmptyStringSchema),
   actions: av.array(ServiceConfigActionSchema).minItems(1)
-}, { unknownKeys: "strip" });
+});
 export type ServiceConfigTicketClaims = Infer<typeof ServiceConfigTicketClaimsSchema>;
 
 export const ServiceConfigStateSchema = av.object({
   tenant: av.record(JsonValueSchema).default({}),
   app: av.record(av.record(JsonValueSchema)).default({})
-}, { unknownKeys: "strip" });
+});
 export type ServiceConfigState = Infer<typeof ServiceConfigStateSchema>;
 
 export const ServiceConfigWriteRequestSchema = av.object({
@@ -38,7 +38,7 @@ export const ServiceConfigWriteRequestSchema = av.object({
   appId: av.optional(NonEmptyStringSchema),
   values: JsonObjectSchema,
   clearKeys: av.array(NonEmptyStringSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type ServiceConfigWriteRequest = Infer<typeof ServiceConfigWriteRequestSchema>;
 
 export const ServiceConfigSchemaResponseSchema = av.object({
@@ -48,7 +48,7 @@ export const ServiceConfigSchemaResponseSchema = av.object({
   supportsCustomUi: av.bool().default(false),
   customUiPath: av.optional(NonEmptyStringSchema),
   supportsWrite: av.bool().default(false)
-}, { unknownKeys: "strip" });
+});
 export type ServiceConfigSchemaResponse = Infer<typeof ServiceConfigSchemaResponseSchema>;
 
 export const ServiceConfigReadResponseSchema = av.object({
@@ -56,5 +56,5 @@ export const ServiceConfigReadResponseSchema = av.object({
   tenantId: NonEmptyStringSchema,
   appId: av.optional(NonEmptyStringSchema),
   values: JsonObjectSchema
-}, { unknownKeys: "strip" });
+});
 export type ServiceConfigReadResponse = Infer<typeof ServiceConfigReadResponseSchema>;

@@ -16,13 +16,13 @@ const DocSummarySchema = av.object({
   href: av.string().minLength(1),
   sourcePath: av.string().minLength(1),
   excerpt: av.string()
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
   description: av.string().minLength(1),
   docs: av.array(DocSummarySchema)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "BetterPortal Docs";

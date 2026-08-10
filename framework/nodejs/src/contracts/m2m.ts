@@ -18,7 +18,7 @@ export const ApiContractDescriptorSchema = av.object({
   capabilities: av.array(av.string().minLength(1)).default([]),
   permissions: av.array(av.string().minLength(1)).default([]),
   modes: av.array(M2MCallerModeSchema).minItems(1).default(["service"])
-}, { unknownKeys: "strip" });
+});
 export type ApiContractDescriptor = Infer<typeof ApiContractDescriptorSchema>;
 
 export const M2MRequestDescriptorSchema = av.object({
@@ -32,7 +32,7 @@ export const M2MRequestDescriptorSchema = av.object({
   permissions: av.array(av.string().minLength(1)).default([]),
   mode: M2MCallerModeSchema.default("service"),
   optional: av.bool().default(false)
-}, { unknownKeys: "strip" });
+});
 export type M2MRequestDescriptor = Infer<typeof M2MRequestDescriptorSchema>;
 
 /** Short-lived proof that one installed service instance is calling another. */
@@ -48,5 +48,5 @@ export const ServiceTokenClaimsSchema = av.object({
   exp: av.int().min(1),
   jti: av.string().minLength(1),
   tokenType: av.literal("service")
-}, { unknownKeys: "strip" });
+});
 export type ServiceTokenClaims = Infer<typeof ServiceTokenClaimsSchema>;

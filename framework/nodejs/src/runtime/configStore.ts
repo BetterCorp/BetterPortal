@@ -1,12 +1,11 @@
-import * as av from "anyvali";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ConfigSchemaDescriptor } from "../contracts/config.js";
-import type { JsonValue } from "../contracts/json.js";
+import { JsonObjectSchema, type JsonValue } from "../contracts/json.js";
 import type { ServiceConfigState, ServiceConfigTicketClaims } from "../contracts/serviceConfig.js";
 
-const ValuesSchema = av.record(av.any());
+const ValuesSchema = JsonObjectSchema;
 type ConfigValues = Record<string, JsonValue>;
 type TenantConfigBucket = { tenant: ConfigValues; app: Record<string, ConfigValues> };
 type PersistedServiceConfigState = {

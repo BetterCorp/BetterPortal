@@ -2,6 +2,7 @@ import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
   createHandler,
+  JsonObjectSchema,
   type DemoScenario,
   type ApiAuthRequirement,
   type CacheHints
@@ -22,13 +23,13 @@ const RouteItemSchema = av.object({
   title: av.optional(av.string()),
   renderable: av.bool().default(true),
   enabled: av.bool()
-}, { unknownKeys: "strip" });
+});
 
 const AppSummarySchema = av.object({
   id: av.string().minLength(1),
   title: av.string().minLength(1),
   tenantId: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 const AvailableViewSchema = av.object({
   viewId: av.string().minLength(1),
@@ -37,11 +38,11 @@ const AvailableViewSchema = av.object({
   description: av.string(),
   path: av.string(),
   pathVariants: av.array(av.string()).default([]),
-  paramsSchema: av.optional(av.record(av.any())),
+  paramsSchema: av.optional(JsonObjectSchema),
   method: av.string().minLength(1),
   renderable: av.bool().default(true),
   dependencies: av.array(av.string()).default([])
-}, { unknownKeys: "strip" });
+});
 
 const AvailableServiceSchema = av.object({
   id: av.string().minLength(1),
@@ -50,7 +51,7 @@ const AvailableServiceSchema = av.object({
   serviceId: av.optional(av.string()),
   manifestLoaded: av.bool().default(false),
   views: av.array(AvailableViewSchema).default([])
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
@@ -61,7 +62,7 @@ export const ResponseSchema = av.object({
   availableServices: av.array(AvailableServiceSchema).default([]),
   adminApiBase: av.string().minLength(1),
   serviceBaseUrl: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Route Designer";

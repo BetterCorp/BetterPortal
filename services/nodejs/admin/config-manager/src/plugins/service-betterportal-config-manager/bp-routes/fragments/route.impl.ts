@@ -11,7 +11,7 @@ const AppSummarySchema = av.object({
   id: av.string().minLength(1),
   title: av.string().minLength(1),
   tenantId: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
@@ -19,7 +19,7 @@ export const ResponseSchema = av.object({
   selectedAppId: av.optional(av.string()),
   adminApiBase: av.string().minLength(1),
   serviceBaseUrl: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Fragments";

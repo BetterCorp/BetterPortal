@@ -2,7 +2,7 @@ import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import { HttpMethodSchema, RenderModeSchema } from "./common.js";
 import { JsonObjectSchema, JsonValueSchema } from "./json.js";
-import { BetterPortalRouteChromeSchema } from "./platformConfig.js";
+import { BetterPortalRouteChromeSchema } from "./chrome.js";
 import { ApiAuthRequirementSchema } from "./route.js";
 import { ApiContractDescriptorSchema } from "./m2m.js";
 
@@ -11,7 +11,7 @@ const NonEmptyStringSchema = av.string().minLength(1);
 export const CacheHintsSchema = av.object({
   ttlSeconds: av.int().min(0).default(0),
   varyBy: av.array(NonEmptyStringSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type CacheHints = Infer<typeof CacheHintsSchema>;
 
 export const ViewRendererVariantSchema = av.object({
@@ -19,7 +19,7 @@ export const ViewRendererVariantSchema = av.object({
   title: NonEmptyStringSchema,
   slotId: NonEmptyStringSchema,
   renderModes: av.array(RenderModeSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type ViewRendererVariant = Infer<typeof ViewRendererVariantSchema>;
 
 export const ViewRendererSupportSchema = av.object({
@@ -27,20 +27,20 @@ export const ViewRendererSupportSchema = av.object({
   renderModes: av.array(RenderModeSchema).default([]),
   slots: av.array(NonEmptyStringSchema).default([]),
   renderers: av.array(ViewRendererVariantSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type ViewRendererSupport = Infer<typeof ViewRendererSupportSchema>;
 
 export const HtmlRepresentationSupportSchema = av.object({
   renderers: av.record(ViewRendererSupportSchema).default({})
-}, { unknownKeys: "strip" });
+});
 export type HtmlRepresentationSupport = Infer<typeof HtmlRepresentationSupportSchema>;
 
 export const ViewDemoScenarioMatchSchema = av.object({
-  query: av.optional(av.record(av.any())),
-  params: av.optional(av.record(av.any())),
+  query: av.optional(JsonObjectSchema),
+  params: av.optional(JsonObjectSchema),
   headers: av.optional(av.record(av.string())),
-  request: av.optional(av.record(av.any()))
-}, { unknownKeys: "strip" });
+  request: av.optional(JsonObjectSchema)
+});
 export type ViewDemoScenarioMatch = Infer<typeof ViewDemoScenarioMatchSchema>;
 
 export const ViewDemoScenarioSchema = av.object({
@@ -49,7 +49,7 @@ export const ViewDemoScenarioSchema = av.object({
   description: av.optional(av.string()),
   match: av.optional(ViewDemoScenarioMatchSchema),
   response: JsonValueSchema
-}, { unknownKeys: "strip" });
+});
 export type ViewDemoScenario = Infer<typeof ViewDemoScenarioSchema>;
 
 /**
@@ -67,7 +67,7 @@ export type ViewRole = Infer<typeof ViewRoleSchema>;
 export const ViewStreamingSupportSchema = av.object({
   itemSchema: JsonObjectSchema,
   summarySchema: av.optional(JsonObjectSchema)
-}, { unknownKeys: "strip" });
+});
 export type ViewStreamingSupport = Infer<typeof ViewStreamingSupportSchema>;
 
 export const ViewOperationMetadataSchema = av.object({
@@ -102,7 +102,7 @@ export const ViewOperationMetadataSchema = av.object({
   apiContracts: av.array(ApiContractDescriptorSchema).default([]),
   demoScenarios: av.array(ViewDemoScenarioSchema).default([]),
   cacheHints: CacheHintsSchema
-}, { unknownKeys: "strip" });
+});
 export type ViewOperationMetadata = Infer<typeof ViewOperationMetadataSchema>;
 
 export const ViewMetadataSchema = av.object({
@@ -113,7 +113,7 @@ export const ViewMetadataSchema = av.object({
   pathVariants: av.array(NonEmptyStringSchema).default([]),
   paramsSchema: JsonObjectSchema,
   operations: av.array(ViewOperationMetadataSchema).minItems(1)
-}, { unknownKeys: "strip" });
+});
 export type ViewMetadata = Infer<typeof ViewMetadataSchema>;
 
 export const ViewPermissionDefinitionSchema = av.object({
@@ -121,5 +121,5 @@ export const ViewPermissionDefinitionSchema = av.object({
   title: NonEmptyStringSchema,
   description: NonEmptyStringSchema,
   defaultRoles: av.array(NonEmptyStringSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type ViewPermissionDefinition = Infer<typeof ViewPermissionDefinitionSchema>;

@@ -5,13 +5,13 @@ import { createHandler, resolveAppAuthRedirect, type ApiAuthRequirement, type Ca
 export const QuerySchema = av.object({
   next: av.optional(av.string()),
   redirect: av.optional(av.string())
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok"] as const),
   message: av.string(),
   nextUrl: av.string()
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "WorkOS Logout";

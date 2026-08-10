@@ -9,11 +9,11 @@ import {
 
 // -- Schemas ---------------------------------------------------------
 
-export const QuerySchema = av.object({}, { unknownKeys: "strip" });
+export const QuerySchema = av.object({});
 
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
+export const HeadersSchema = av.object({});
 
-export const RequestSchema = av.object({}, { unknownKeys: "strip" });
+export const RequestSchema = av.object({});
 
 const ConfigManagerServiceSchema = av.object({
   serviceId: av.string().minLength(1),
@@ -23,7 +23,7 @@ const ConfigManagerServiceSchema = av.object({
   healthUrl: av.string().format("url"),
   schemaUrl: av.string().format("url"),
   manifestUrl: av.string().format("url")
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
@@ -31,7 +31,7 @@ export const ResponseSchema = av.object({
   appId: av.string().minLength(1),
   requestTimeoutMs: av.int().min(1),
   services: av.array(ConfigManagerServiceSchema)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 // -- Metadata --------------------------------------------------------

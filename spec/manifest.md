@@ -199,7 +199,7 @@ Top-level wrapper:
 { "kind": "object",
   "properties": { "name": <node>, ... },
   "required": ["name"],
-  "unknownKeys": "strip" | "passthrough" | "strict" }
+  "unknownKeys": "strip" | "reject" }
 
 // Array
 { "kind": "array", "items": <node>, "minItems": 1, "default": [] }

@@ -13,9 +13,10 @@ import {
   resolveEmbeddedRequestContext,
   signServiceConfigTicket,
   uuidv7,
+  BetterPortalMenuItemSchema,
   BetterPortalThemeConfigSchema
 } from "@betterportal/framework";
-import type { TenantServiceRegistration, PlatformService, BetterPortalThemeConfig, BetterPortalConfig, BetterPortalApp, BetterPortalRouteMount, DeploymentMode } from "@betterportal/framework";
+import type { TenantServiceRegistration, PlatformService, BetterPortalThemeConfig, BetterPortalConfig, BetterPortalApp, BetterPortalMenuItem, BetterPortalRouteMount, DeploymentMode } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { generateApiKey, hashApiKey } from "./storage/index.js";
 import { getManifestCache } from "./syncApi.js";
@@ -113,6 +114,20 @@ function requiredRouteString(body: Record<string, unknown>, key: string, label: 
   const value = trimmedString(body, key);
   if (!value) return { error: `${label} is required.` };
   return { value };
+}
+
+function normalizeMenuItem(raw: unknown): BetterPortalMenuItem {
+  const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  return BetterPortalMenuItemSchema.parse({
+    id: typeof item.id === "string" ? item.id : uuidv7(),
+    type: item.type === "group" ? "group" : "link",
+    title: typeof item.title === "string" ? item.title : undefined,
+    icon: typeof item.icon === "string" ? item.icon : undefined,
+    routeId: typeof item.routeId === "string" ? item.routeId : undefined,
+    href: typeof item.href === "string" ? item.href : undefined,
+    enabled: item.enabled !== false,
+    children: Array.isArray(item.children) ? item.children.map(normalizeMenuItem) : []
+  });
 }
 
 function routesReloadPath(appId: string, apiServiceId?: string): string {
@@ -1708,16 +1723,16 @@ export function registerAdminApiRoutes(
       type: av.literal("auth"),
       mutation: av.object({
         roles: av.array(AppAuthRoleSchema)
-      }, { unknownKeys: "strip" })
-    }, { unknownKeys: "strip" }),
+      })
+    }),
     av.object({
       tenantId: av.string().minLength(1),
       appId: av.string().minLength(1),
       type: av.literal("theme"),
       mutation: av.object({
         themeConfig: BetterPortalThemeConfigSchema
-      }, { unknownKeys: "strip" })
-    }, { unknownKeys: "strip" })
+      })
+    })
   ]);
 
   const getAppOr404 = async (appId: string) => {
@@ -2293,19 +2308,7 @@ export function registerAdminApiRoutes(
     const config = await store.loadConfig();
     const appDef = config.apps.find((a) => a.id === appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-    appDef.menu = items.map((raw) => {
-      const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-      return {
-        id: typeof item.id === "string" ? item.id : uuidv7(),
-        type: item.type === "group" ? "group" : "link",
-        title: typeof item.title === "string" ? item.title : undefined,
-        icon: typeof item.icon === "string" ? item.icon : undefined,
-        routeId: typeof item.routeId === "string" ? item.routeId : undefined,
-        href: typeof item.href === "string" ? item.href : undefined,
-        enabled: item.enabled !== false,
-        children: Array.isArray(item.children) ? item.children : []
-      };
-    });
+    appDef.menu = items.map(normalizeMenuItem);
     await store.saveConfig(config);
     return jsonResponse({ ok: true });
   });
@@ -2456,7 +2459,7 @@ export function registerAdminApiRoutes(
       const tenantApps = config.apps.filter((a) => a.tenantId === tenantId);
       for (const appDef of tenantApps) {
         const groupId = uuidv7();
-        const groupChildren: Array<{ id: string; type: string; title: string; routeId: string; enabled: boolean }> = [];
+        const groupChildren: BetterPortalMenuItem[] = [];
         const existingPaths = new Set(appDef.routes.map((r) => r.path));
 
         for (const r of serviceRoutes) {
@@ -2487,21 +2490,24 @@ export function registerAdminApiRoutes(
               type: "link",
               title: routeTitle,
               routeId,
-              enabled: true
+              enabled: true,
+              serviceStatus: "show",
+              authStatus: "show",
+              children: []
             });
           }
         }
 
         if (groupChildren.length > 0) {
-          const menu = (appDef.menu ?? []) as Array<Record<string, unknown>>;
-          menu.push({
+          appDef.menu.push({
             id: groupId,
             type: "group",
             title,
             enabled: true,
+            serviceStatus: "show",
+            authStatus: "show",
             children: groupChildren
           });
-          appDef.menu = menu as typeof appDef.menu;
         }
       }
     }

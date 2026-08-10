@@ -14,14 +14,14 @@ export * from "./postgres.js";
 export const FilePlatformConfigStorageSchema = av.object({
   backend: av.literal("file"),
   configPath: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 export const PostgresPlatformConfigStorageSchema = av.object({
   backend: av.literal("postgres"),
   connectionString: av.string().minLength(1),
   tableName: av.optional(av.string().minLength(1)),
   rowId: av.optional(av.string().minLength(1))
-}, { unknownKeys: "strip" });
+});
 
 export const PlatformConfigStorageSchema = av.union([
   FilePlatformConfigStorageSchema,

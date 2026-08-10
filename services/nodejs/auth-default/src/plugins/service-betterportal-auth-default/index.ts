@@ -33,7 +33,7 @@ const PluginConfigSchema = av.object({
   keyStorePath: av.string().minLength(1).default("./.bp-auth-state/keys.json"),
   userStorePath: av.string().minLength(1).default("./.bp-auth-state/users.json"),
   betterportal: BetterPortalConfigSchema
-}, { unknownKeys: "strip" });
+});
 export type AuthPluginConfig = av.Infer<typeof PluginConfigSchema>;
 
 const Config = createConfigSchema(
@@ -99,7 +99,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       issuer: cfg.issuer,
       audience: cfg.audience,
       jwksUri: `${cfg.issuer.replace(/\/+$/, "")}/.well-known/jwks.json`,
-      jwks: { keys: [jwk as unknown as Record<string, unknown>] }
+      jwks: { keys: [jwk] }
     });
 
     obs.log.info("Auth service initialized: issuer={issuer} audience={audience} kid={kid}", {

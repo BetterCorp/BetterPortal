@@ -99,12 +99,12 @@ const PluginConfigSchema = av.object({
   cpIssuer: av.string().minLength(1),
   /** Required audience for tokens issued by this CP. */
   cpAudience: av.string().minLength(1).default("betterportal-control-plane")
-}, { unknownKeys: "strip" });
+});
 
 const PlatformConfigChangedEventSchema = av.object({
   sourceId: av.string().minLength(1),
   backend: av.enum_(["file", "postgres"] as const)
-}, { unknownKeys: "strip" });
+});
 
 const Config = createConfigSchema(
   {

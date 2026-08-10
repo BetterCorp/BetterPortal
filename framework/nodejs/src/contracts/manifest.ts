@@ -22,7 +22,7 @@ export const AdminApiDescriptorSchema = av.object({
   path: av.string().minLength(1),
   methods: av.array(AdminMethodSchema).minItems(1),
   supportsCustomUi: av.bool().default(false)
-}, { unknownKeys: "strip" });
+});
 export type AdminApiDescriptor = Infer<typeof AdminApiDescriptorSchema>;
 
 export const WebhookEventDescriptorSchema = av.object({
@@ -30,7 +30,7 @@ export const WebhookEventDescriptorSchema = av.object({
   title: av.string().minLength(1),
   description: av.optional(av.string()),
   payloadSchema: JsonObjectSchema
-}, { unknownKeys: "strip" });
+});
 export type WebhookEventDescriptor = Infer<typeof WebhookEventDescriptorSchema>;
 
 export const DeveloperResourceSchema = av.object({
@@ -41,7 +41,7 @@ export const DeveloperResourceSchema = av.object({
   mediaType: av.string().minLength(1).maxLength(128).pattern("^[^\\r\\n]+$"),
   language: av.optional(av.string().minLength(1)),
   content: av.string().minLength(1).maxLength(512 * 1024)
-}, { unknownKeys: "strip" });
+});
 export type DeveloperResource = Infer<typeof DeveloperResourceSchema>;
 
 export const ShellFragmentDescriptorSchema = av.object({
@@ -82,8 +82,8 @@ export const PluginManifestSchema = av.object({
   shell: av.optional(ShellManifestSchema),
   cacheHints: av.object({
     metadataTtlSeconds: av.int().min(0).default(1800)
-  }, { unknownKeys: "strip" }).default({ metadataTtlSeconds: 1800 })
-}, { unknownKeys: "strip" });
+  }).default({ metadataTtlSeconds: 1800 })
+});
 export type PluginManifest = Infer<typeof PluginManifestSchema>;
 
 export const BpSchemaRouteSchema = av.object({
@@ -93,7 +93,7 @@ export const BpSchemaRouteSchema = av.object({
   operations: av.array(av.object({
     operationId: av.string().minLength(1),
     method: HttpMethodSchema
-  }, { unknownKeys: "strip" })).minItems(1),
+  })).minItems(1),
   paramNames: av.array(av.string().minLength(1)).default([]),
   renderers: av.array(av.string().minLength(1)).default([]),
   hasFragments: av.bool().default(false),
@@ -101,13 +101,13 @@ export const BpSchemaRouteSchema = av.object({
     fragmentLocation: av.string().minLength(1),
     fragmentId: av.string().minLength(1),
     renderers: av.array(av.string().minLength(1)).default([])
-  }, { unknownKeys: "strip" })).default([]),
+  })).default([]),
   components: av.array(av.string().minLength(1)).default([])
-}, { unknownKeys: "strip" });
+});
 export type BpSchemaRoute = Infer<typeof BpSchemaRouteSchema>;
 
 export const BpSchemaOutputSchema = av.object({
   manifest: PluginManifestSchema,
   routes: av.array(BpSchemaRouteSchema).default([])
-}, { unknownKeys: "strip" });
+});
 export type BpSchemaOutput = Infer<typeof BpSchemaOutputSchema>;

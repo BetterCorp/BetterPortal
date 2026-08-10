@@ -22,7 +22,7 @@ const TenantItemSchema = av.object({
   title: av.string().minLength(1),
   active: av.bool(),
   serviceCount: av.int().min(0)
-}, { unknownKeys: "strip" });
+});
 
 const AppItemSchema = av.object({
   id: av.string().minLength(1),
@@ -39,27 +39,27 @@ const AppItemSchema = av.object({
     afterLogin: av.optional(av.object({
       serviceId: av.string().minLength(1),
       viewId: av.string().minLength(1)
-    }, { unknownKeys: "strip" })),
+    })),
     afterLogout: av.optional(av.object({
       serviceId: av.string().minLength(1),
       viewId: av.string().minLength(1)
-    }, { unknownKeys: "strip" }))
-  }, { unknownKeys: "strip" })),
+    }))
+  })),
   seo: av.object({
     visibility: av.enum_(["auto", "public", "private"] as const),
     serviceFailure: av.enum_(["known-routes", "omit-service", "error"] as const),
     serviceCache: av.enum_(["none", "1h", "24h", "7d"] as const),
     canonicalOrigin: av.optional(av.string())
-  }, { unknownKeys: "strip" }),
+  }),
   pageViews: av.array(av.object({
     serviceId: av.string().minLength(1),
     serviceTitle: av.string().minLength(1),
     viewId: av.string().minLength(1),
     title: av.string().minLength(1),
     path: av.string().minLength(1)
-  }, { unknownKeys: "strip" })).default([]),
+  })).default([]),
   routeCount: av.int().min(0)
-}, { unknownKeys: "strip" });
+});
 
 const ShellServiceSchema = av.object({
   id: av.string().minLength(1),
@@ -68,7 +68,7 @@ const ShellServiceSchema = av.object({
   serviceId: av.optional(av.string()),
   service: av.string().minLength(1),
   renderer: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 const AuthServiceSchema = av.object({
   id: av.string().minLength(1),
@@ -76,7 +76,7 @@ const AuthServiceSchema = av.object({
   title: av.string().minLength(1),
   serviceId: av.optional(av.string()),
   roleAuthorities: av.array(RoleAuthoritySchema).default(["betterportal"])
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
@@ -87,7 +87,7 @@ export const ResponseSchema = av.object({
   adminApiBase: av.string().minLength(1),
   tenantsPath: av.string().minLength(1),
   serviceBaseUrl: av.optional(av.string())
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Tenants & Apps";

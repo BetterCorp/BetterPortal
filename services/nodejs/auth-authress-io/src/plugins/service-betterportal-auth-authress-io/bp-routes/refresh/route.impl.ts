@@ -10,18 +10,18 @@ import { resolveAuthressAppConfig } from "../../index.js";
 
 export const RequestSchema = av.object({
   refreshToken: av.optional(av.string().minLength(1))
-}, { unknownKeys: "strip" });
+});
 
 export const HeadersSchema = av.object({
   "x-bp-refresh": av.optional(av.string().minLength(1))
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const),
   message: av.optional(av.string()),
   accessToken: av.optional(av.string()),
   expiresInSeconds: av.optional(av.int().min(1))
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Authress Refresh";

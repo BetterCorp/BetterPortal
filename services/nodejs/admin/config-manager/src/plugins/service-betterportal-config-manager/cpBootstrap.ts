@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomBytes, generateKeyPairSync, createPublicKey } from "node:crypto";
+import type { RsaPublicJwk } from "@betterportal/framework";
 
 export interface CpKeyPair {
   privateKeyPem: string;
@@ -11,7 +12,7 @@ export interface CpKeyPair {
 export interface CpBootstrapState {
   keyPair: CpKeyPair;
   /** Public RSA JWK derived from keyPair. */
-  jwk: Record<string, unknown>;
+  jwk: RsaPublicJwk;
   /** Issuer URL used in tokens (iss claim). */
   issuer: string;
   /** Audience for tokens minted by this CP. */
@@ -78,7 +79,7 @@ function loadOrGenerateKeyPair(filePath: string): CpKeyPair {
   return pair;
 }
 
-function publicKeyToJwk(publicKeyPem: string, kid: string): Record<string, unknown> {
+function publicKeyToJwk(publicKeyPem: string, kid: string): RsaPublicJwk {
   const keyObject = createPublicKey(publicKeyPem);
   const jwk = keyObject.export({ format: "jwk" }) as { kty: string; n: string; e: string };
   return {

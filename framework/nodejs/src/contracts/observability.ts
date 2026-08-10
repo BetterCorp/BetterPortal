@@ -21,7 +21,7 @@ export type BetterPortalLogLevel = Infer<typeof BetterPortalLogLevelSchema>;
 export const BetterPortalTraceContextSchema = av.object({
   traceId: av.string().minLength(1),
   spanId: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 export type BetterPortalTraceContext = Infer<typeof BetterPortalTraceContextSchema>;
 
 export interface BetterPortalRemoteTraceContext extends BetterPortalTraceContext {
@@ -36,7 +36,7 @@ export const BetterPortalResourceSchema = av.intersection([
     serviceInstanceId: av.optional(av.string().minLength(1)),
     environment: av.optional(av.string().minLength(1)),
     region: av.optional(av.string().minLength(1))
-  }, { unknownKeys: "allow" }),
+  }),
   av.record(ObservabilityValueSchema)
 ]);
 export type BetterPortalResource = Infer<typeof BetterPortalResourceSchema>;

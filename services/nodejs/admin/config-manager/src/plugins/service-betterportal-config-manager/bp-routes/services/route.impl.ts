@@ -24,24 +24,24 @@ const RegisteredServiceItemSchema = av.object({
   configManifestKnown: av.bool().default(false).describe("True once config-manager has received this service instance manifest via sync."),
   hasConfigurableOptions: av.bool().default(false).describe("True when the service has configurable schema fields or a custom configuration UI."),
   customUiPath: av.optional(av.string()).describe("Service-side path for custom configuration UI, when provided.")
-}, { unknownKeys: "strip" });
+});
 
 const AppByTenantSchema = av.object({
   id: av.string().minLength(1).describe("Stable UUIDv7 app id."),
   title: av.string().minLength(1).describe("Human-readable app title."),
   shellServiceId: av.optional(av.string().minLength(1)).describe("Shell service instance selected by the app.")
-}, { unknownKeys: "strip" });
+});
 
 const AppSummarySchema = av.object({
   id: av.string().minLength(1).describe("Stable UUIDv7 app id."),
   tenantId: av.string().minLength(1).describe("Owning tenant id."),
   title: av.string().minLength(1).describe("Human-readable app title.")
-}, { unknownKeys: "strip" });
+});
 
 const TenantSummarySchema = av.object({
   id: av.string().minLength(1).describe("Stable UUIDv7 tenant id."),
   title: av.string().minLength(1).describe("Human-readable tenant title.")
-}, { unknownKeys: "strip" });
+});
 
 const SharedServiceCatalogItemSchema = av.object({
   id: av.string().minLength(1),
@@ -54,7 +54,7 @@ const SharedServiceCatalogItemSchema = av.object({
   tags: av.array(av.string()).default([]),
   installed: av.bool().default(false),
   enabled: av.bool().default(true)
-}, { unknownKeys: "strip" });
+});
 
 const SharedServiceActivationSchema = av.object({
   id: av.string().minLength(1),
@@ -63,7 +63,7 @@ const SharedServiceActivationSchema = av.object({
   sharedServiceId: av.string().minLength(1),
   activatedAt: av.string().minLength(1),
   enabled: av.bool().default(true)
-}, { unknownKeys: "strip" });
+});
 
 const M2MConnectionCandidateSchema = av.object({
   targetServiceId: av.string().minLength(1),
@@ -104,7 +104,7 @@ export const ResponseSchema = av.object({
   tenantApps: av.record(av.array(AppByTenantSchema)).default({}).describe("Apps keyed by tenant id for configuring tenant or theme-scoped services."),
   adminApiBase: av.string().minLength(1).describe("Base path for config-manager admin API calls."),
   serviceBaseUrl: av.optional(av.string()).describe("Config-manager service origin for browser-mediated admin requests.")
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Service Registry";

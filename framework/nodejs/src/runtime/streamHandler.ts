@@ -99,7 +99,7 @@ export function createStreamHandler<
     [BP_STREAM_HANDLER]: true,
     itemSchema: schemas.item,
     ...(schemas.summary ? { summarySchema: schemas.summary } : {}),
-    responseSchema: av.object(responseShape, { unknownKeys: "strip" }),
+    responseSchema: av.object(responseShape),
     run: handler as BpStreamHandler<
       Infer<TItem>,
       SummaryReturn<TSummary>,

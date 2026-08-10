@@ -59,7 +59,7 @@ const PluginConfigSchema = av.object({
   defaultMode: av.enum_(["light", "dark", "system"] as const).default("system"),
   brandName: av.string().minLength(1).default("BetterPortal"),
   defaultGreetingName: av.string().minLength(1).default("User")
-}, { unknownKeys: "strip" });
+});
 
 const THEME_CONFIG_SCHEMAS: ConfigSchemaDescriptor[] = [
   {

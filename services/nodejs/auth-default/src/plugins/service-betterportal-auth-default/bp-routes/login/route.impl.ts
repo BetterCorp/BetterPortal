@@ -12,15 +12,15 @@ import type { Plugin } from "../../index.js";
 export const QuerySchema = av.object({
   action: av.optional(av.string()).describe("Optional login route action, currently supports logout."),
   next: av.optional(av.string()).describe("The view path that redirected to the login page and should be redirected back to after a successful login.")
-}, { unknownKeys: "strip" });
+});
 
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
+export const HeadersSchema = av.object({});
 
 export const RequestSchema = av.object({
   username: av.string().minLength(1).describe("Username for the account signing in."),
   password: av.string().minLength(1).describe("Password for the account signing in."),
   next: av.optional(av.string()).describe("The view path to soft-navigate to after a successful login.")
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const).describe("Login request outcome."),
@@ -33,7 +33,7 @@ export const ResponseSchema = av.object({
     username: av.string().describe("Account username."),
     email: av.optional(av.string()).describe("User email address, when set."),
     name: av.optional(av.string()).describe("Display name, when set.")
-  }, { unknownKeys: "strip" }).describe("Authenticated user summary.")),
+  }).describe("Authenticated user summary.")),
   // True while the auth service has zero users - the theme renderer redirects
   // to the register view (first-admin setup) instead of showing the login form.
   requiresFirstAdmin: av.optional(av.bool()).describe("True while the auth service has zero users; the theme renderer should redirect to first-admin registration instead of showing the login form."),
@@ -49,7 +49,7 @@ export const ResponseSchema = av.object({
   // Echo of ?next= when already signed in - the theme renderer redirects there
   // immediately instead of showing the signed-in card.
   nextUrl: av.optional(av.string()).describe("Echo of the next path when already signed in; the theme renderer should redirect there immediately.")
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Login";

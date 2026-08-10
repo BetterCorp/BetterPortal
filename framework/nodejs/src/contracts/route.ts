@@ -1,7 +1,7 @@
 import * as av from "anyvali";
-import type { Infer } from "anyvali";
+import type { Infer, ParseContext, SchemaNode } from "anyvali";
 import { PluginIdSchema, type HttpMethod } from "./common.js";
-import type { JsonValue } from "./json.js";
+import { JsonObjectSchema, JsonValueSchema, type JsonObject, type JsonValue } from "./json.js";
 import type { BetterPortalObservability, HttpOutcomeDiagnostic } from "./observability.js";
 import type { BetterPortalResolvedApp, BetterPortalTenant } from "./platformConfig.js";
 import { AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
@@ -19,8 +19,8 @@ export const ApiAuthRequirementSchema = av.object({
     serviceId: PluginIdSchema,
     viewId: av.string().minLength(1),
     permissions: av.array(AppAuthPermissionActionSchema).minItems(1)
-  }, { unknownKeys: "strip" })).default([])
-}, { unknownKeys: "strip" });
+  })).default([])
+});
 type ParsedApiAuthRequirement = Infer<typeof ApiAuthRequirementSchema>;
 export type ApiAuthRequirement = Omit<ParsedApiAuthRequirement, "callers"> & {
   readonly callers?: ReadonlyArray<ApiCallerMode>;
@@ -100,6 +100,44 @@ export interface MultipartRequest {
   fields: Record<string, string | string[]>;
   files: Record<string, UploadedFile | UploadedFile[]>;
 }
+
+class Uint8ArraySchema extends av.BaseSchema<unknown, Uint8Array> {
+  _validate(input: unknown, ctx: ParseContext): Uint8Array | undefined {
+    if (input instanceof Uint8Array) return input;
+    ctx.issues.push({
+      code: av.ISSUE_CODES.INVALID_TYPE,
+      message: "Expected uploaded file bytes",
+      path: [...ctx.path],
+      expected: "Uint8Array",
+      received: input?.constructor?.name ?? typeof input
+    });
+    return undefined;
+  }
+
+  _toNode(): SchemaNode {
+    return this._addDefault({
+      kind: "array",
+      items: { kind: "uint8" },
+      metadata: { contentEncoding: "binary" }
+    });
+  }
+}
+
+const UploadedFileDataSchema: av.BaseSchema<unknown, Uint8Array> = new Uint8ArraySchema();
+const UploadedFileSchema = av.object({
+  fieldName: av.string(),
+  filename: av.string(),
+  contentType: av.string(),
+  size: av.int().min(0),
+  data: UploadedFileDataSchema
+});
+const StringOrStringArraySchema = av.union([av.string(), av.array(av.string())]);
+
+/** Concrete runtime and portable contract for parsed multipart form data. */
+export const MultipartRequestSchema: av.BaseSchema<unknown, MultipartRequest> = av.object({
+  fields: av.record(StringOrStringArraySchema),
+  files: av.record(av.union([UploadedFileSchema, av.array(UploadedFileSchema)]))
+});
 
 export interface RouteUrlOptions {
   /** Defaults to this handler's service id. Accepts a declared dependency alias, plugin id, or service-instance UUID. */
@@ -210,20 +248,20 @@ export type RawRouteHandler<
  * against a scenario for preview/testing.
  */
 export interface DemoScenarioMatch {
-  readonly query?: Record<string, unknown>;
-  readonly params?: Record<string, unknown>;
+  readonly query?: JsonObject;
+  readonly params?: JsonObject;
   readonly headers?: Record<string, string>;
-  readonly request?: Record<string, unknown>;
+  readonly request?: JsonObject;
 }
 
 const NonEmptyStringSchema = av.string().minLength(1);
 
 export const DemoScenarioMatchSchema = av.object({
-  query: av.optional(av.record(av.any())),
-  params: av.optional(av.record(av.any())),
+  query: av.optional(JsonObjectSchema),
+  params: av.optional(JsonObjectSchema),
   headers: av.optional(av.record(av.string())),
-  request: av.optional(av.record(av.any()))
-}, { unknownKeys: "strip" });
+  request: av.optional(JsonObjectSchema)
+});
 
 /**
  * A demo scenario for a route - includes optional match criteria
@@ -242,8 +280,8 @@ export const DemoScenarioSchema = av.object({
   title: NonEmptyStringSchema,
   description: av.optional(av.string()),
   match: av.optional(DemoScenarioMatchSchema),
-  response: av.any()
-}, { unknownKeys: "strip" });
+  response: JsonValueSchema
+});
 export type DemoScenarioInferred = Infer<typeof DemoScenarioSchema>;
 
 // -- SSE handler ------------------------------------------------------

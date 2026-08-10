@@ -10,14 +10,14 @@ import {
 const TenantSchema = av.object({
   id: av.string().minLength(1),
   title: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 const AppSchema = av.object({
   id: av.string().minLength(1),
   tenantId: av.string().minLength(1),
   title: av.string().minLength(1),
   hostnames: av.array(av.string()).default([])
-}, { unknownKeys: "strip" });
+});
 
 const SharedServiceSchema = av.object({
   id: av.string().minLength(1),
@@ -29,7 +29,7 @@ const SharedServiceSchema = av.object({
   tags: av.array(av.string()).default([]),
   enabled: av.bool().default(true),
   active: av.bool().default(false)
-}, { unknownKeys: "strip" });
+});
 
 const EndpointSchema = av.object({
   current: av.string().minLength(1),
@@ -40,7 +40,7 @@ const EndpointSchema = av.object({
   theme: av.string().minLength(1),
   webhooks: av.string().minLength(1),
   webhookEvents: av.string().minLength(1)
-}, { unknownKeys: "strip" });
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
@@ -53,7 +53,7 @@ export const ResponseSchema = av.object({
   sharedServices: av.array(SharedServiceSchema).default([]),
   routeCount: av.int().min(0),
   fragmentCount: av.int().min(0)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "App Settings";

@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
-import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, signSetupToken } from "@betterportal/framework";
+import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, PublicJwks, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, signSetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 
 interface PendingSetup {
@@ -167,7 +167,7 @@ export function registerSetupEndpoints(input: {
       authProvider?: AuthProviderRuntimeMetadata;
       publicKeyPem?: string;
       keyId?: string;
-      jwks?: { keys: ReadonlyArray<Record<string, unknown>> };
+      jwks?: unknown;
     } | null;
     if (!body || typeof body.setupToken !== "string" || typeof body.pluginId !== "string") {
       return jsonResponse({ error: "Missing setupToken or pluginId" }, 400);
@@ -192,6 +192,12 @@ export function registerSetupEndpoints(input: {
     // (pre-assigned UUIDv7) so routes/fragments referencing it resolve.
     // jwks (when provided) lets CM verify tokens issued by this service WITHOUT
     // reaching out to it for JWKS.
+    let jwks: PublicJwks | undefined;
+    try {
+      jwks = body.jwks === undefined ? undefined : PublicJwksSchema.parse(body.jwks);
+    } catch {
+      return jsonResponse({ error: "Invalid RSA JWKS" }, 400);
+    }
     try {
       await registerServiceInPlatformConfig({
         storage: input.storage,
@@ -202,7 +208,7 @@ export function registerSetupEndpoints(input: {
         apiKey,
         publicKeyPem: typeof body.publicKeyPem === "string" ? body.publicKeyPem : undefined,
         keyId: typeof body.keyId === "string" ? body.keyId : undefined,
-        jwks: body.jwks,
+        jwks,
         sharedServiceId: entry.sharedServiceId,
         tenantScope: entry.tenantScope
       });
@@ -272,7 +278,7 @@ async function registerServiceInPlatformConfig(input: {
   apiKey: string;
   publicKeyPem?: string;
   keyId?: string;
-  jwks?: { keys: ReadonlyArray<Record<string, unknown>> };
+  jwks?: PublicJwks;
   sharedServiceId?: string;
   tenantScope?: { tenantId: string; appId?: string };
 }): Promise<void> {
@@ -396,7 +402,7 @@ function isAuthPlugin(pluginId: string): boolean {
 function attachSharedAuthJwks(
   config: BetterPortalConfig,
   sharedServiceId: string,
-  jwks: { keys: ReadonlyArray<Record<string, unknown>> }
+  jwks: PublicJwks
 ): void {
   const publicKeys: NonNullable<AppAuthConfig["publicKeys"]> = {
     keys: jwks.keys.map((key) => ({ ...key }))

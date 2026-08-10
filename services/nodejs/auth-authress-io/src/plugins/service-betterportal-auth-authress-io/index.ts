@@ -21,6 +21,7 @@ import {
   type BpTokenIssuer,
   type ConfigSchemaDescriptor,
   type JwtClaims,
+  type JsonObject,
   type JwtVerifier,
   type RsaKeyPair,
   type ServiceConfigTicketClaims,
@@ -40,7 +41,7 @@ const PluginConfigSchema = av.object({
   keyStorePath: av.string().minLength(1).default("./.bp-authress-state/keys.json"),
   groupCachePath: av.string().minLength(1).default("./.bp-authress-state/groups.json"),
   betterportal: BetterPortalConfigSchema
-}, { unknownKeys: "strip" });
+});
 export type AuthressPluginConfig = av.Infer<typeof PluginConfigSchema>;
 
 const Config = createConfigSchema(
@@ -197,7 +198,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       issuer: this.config.issuer,
       audience: this.config.audience,
       jwksUri: `${this.config.issuer.replace(/\/+$/, "")}/.well-known/jwks.json`,
-      jwks: { keys: [jwk as unknown as Record<string, unknown>] }
+      jwks: { keys: [jwk] }
     });
   }
 
@@ -287,7 +288,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     appId: string;
     roles: string[];
     authProvider: string;
-    refreshContext: Record<string, unknown>;
+    refreshContext: JsonObject;
     providerSubject: string;
     provider?: JwtClaims["provider"];
     name?: string;

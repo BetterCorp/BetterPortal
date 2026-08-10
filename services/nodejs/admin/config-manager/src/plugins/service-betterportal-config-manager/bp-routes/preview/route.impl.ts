@@ -20,14 +20,14 @@ const ServiceViewSchema = av.object({
     demoScenarios: av.array(av.object({
       id: av.string().minLength(1),
       title: av.string()
-    }, { unknownKeys: "strip" }))
-  }, { unknownKeys: "strip" }))
-}, { unknownKeys: "strip" });
+    }))
+  }))
+});
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
   services: av.array(ServiceViewSchema)
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Component Preview";

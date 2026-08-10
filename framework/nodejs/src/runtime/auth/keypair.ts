@@ -1,6 +1,7 @@
 import { generateKeyPairSync, createPublicKey, randomBytes, type KeyObject } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from "node:fs";
 import { dirname } from "node:path";
+import type { RsaPublicJwk } from "../../contracts/auth.js";
 
 export interface RsaKeyPair {
   privateKeyPem: string;
@@ -48,16 +49,7 @@ export function loadOrGenerateKeyPair(filePath: string, options: GenerateKeyPair
   return pair;
 }
 
-export interface JwkRsaPublic {
-  kty: "RSA";
-  use: "sig";
-  alg: "RS256";
-  kid: string;
-  n: string;
-  e: string;
-}
-
-export function publicKeyToJwk(publicKeyPem: string, kid: string): JwkRsaPublic {
+export function publicKeyToJwk(publicKeyPem: string, kid: string): RsaPublicJwk {
   const keyObject = createPublicKey(publicKeyPem);
   const jwk = keyObject.export({ format: "jwk" }) as { kty: string; n: string; e: string };
   if (jwk.kty !== "RSA" || typeof jwk.n !== "string" || typeof jwk.e !== "string") {

@@ -6,14 +6,14 @@ import {
 } from "@betterportal/framework";
 import { createHandler } from "../../.bp-generated/route-runtime.js";
 
-export const QuerySchema = av.object({}, { unknownKeys: "strip" });
-export const HeadersSchema = av.object({}, { unknownKeys: "strip" });
-export const RequestSchema = av.object({}, { unknownKeys: "strip" });
+export const QuerySchema = av.object({});
+export const HeadersSchema = av.object({});
+export const RequestSchema = av.object({});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok"] as const).describe("Logout request outcome."),
   message: av.string().describe("Human-readable logout status for the renderer.")
-}, { unknownKeys: "strip" });
+});
 export type ResponseData = Infer<typeof ResponseSchema>;
 
 export const title = "Logout";
