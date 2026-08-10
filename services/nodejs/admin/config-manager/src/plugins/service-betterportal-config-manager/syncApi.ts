@@ -20,7 +20,7 @@ import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManife
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
-import { getAvailableServiceInstanceIdsForApp, legacyOperationId, legacyOperationMethod } from "./storage/core.js";
+import { getAvailableServiceInstanceIdsForApp, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
 
@@ -172,8 +172,8 @@ function normalizeManifest(input: {
   shell?: ShellManifest;
   viewIndex?: Record<string, {
     viewId: string;
-    title: string;
-    description: string;
+    title?: string;
+    description?: string;
     path: string;
     pathVariants?: string[];
     paramsSchema?: Record<string, JsonValue>;
@@ -183,10 +183,11 @@ function normalizeManifest(input: {
 }): CachedManifest {
   const normalizedViews: Record<string, CachedManifestView> = {};
   for (const [vid, v] of Object.entries(input.viewIndex ?? {})) {
+    const labels = resolveManifestViewLabels(v);
     normalizedViews[vid] = {
       viewId: v.viewId,
-      title: v.title,
-      description: v.description,
+      title: labels.title,
+      description: labels.description,
       path: v.path,
       pathVariants: Array.isArray(v.pathVariants) ? v.pathVariants : [],
       ...(v.paramsSchema ? { paramsSchema: v.paramsSchema } : {}),

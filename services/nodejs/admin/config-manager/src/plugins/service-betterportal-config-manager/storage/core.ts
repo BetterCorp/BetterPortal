@@ -77,6 +77,25 @@ export function legacyOperationMethod(operationId: string): string | undefined {
   return separator >= LEGACY_OPERATION_PREFIX.length ? operationId.slice(separator + 1) : undefined;
 }
 
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+export function resolveManifestViewLabels(view: {
+  viewId?: unknown;
+  title?: unknown;
+  description?: unknown;
+  operations?: unknown;
+}): { title: string; description: string } {
+  const operation = Array.isArray(view.operations)
+    ? view.operations.find((candidate) => candidate && typeof candidate === "object") as Record<string, unknown> | undefined
+    : undefined;
+  const viewId = nonEmptyString(view.viewId) ?? "unknown";
+  const title = nonEmptyString(view.title) ?? nonEmptyString(operation?.title) ?? viewId;
+  const description = nonEmptyString(view.description) ?? nonEmptyString(operation?.description) ?? title;
+  return { title, description };
+}
+
 /**
  * One-time persisted-config migration for the operation-aware manifest format.
  * Legacy ids remain explicit until the publishing service next syncs, where
@@ -113,6 +132,9 @@ export function migrateRouteOperations<T>(value: T): T {
     for (const viewValue of Object.values(viewIndex as Record<string, unknown>)) {
       if (!viewValue || typeof viewValue !== "object") continue;
       const view = viewValue as Record<string, unknown>;
+      const labels = resolveManifestViewLabels(view);
+      view.title = labels.title;
+      view.description = labels.description;
       if (Array.isArray(view.operations) && view.operations.length > 0) continue;
       const viewId = typeof view.viewId === "string" ? view.viewId : "unknown";
       const methods = Array.isArray(view.methods) && view.methods.length > 0 ? view.methods : ["GET"];

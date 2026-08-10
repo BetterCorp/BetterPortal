@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, reconcileServiceRegistry, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
-import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
@@ -201,6 +201,49 @@ test("legacy route parameter syntax migrates across route and manifest paths", (
   assert.equal(view.path, "/plans/:planId");
   assert.deepEqual(view.pathVariants, ["/plans/:planId"]);
   assert.equal(view.fragments[0].targetPath, "/plans/:planId/summary");
+});
+
+test("operation-aware manifest caches backfill missing view labels", () => {
+  const { config, sourceId } = s2sConfig();
+  const raw = structuredClone(config) as unknown as { manifestCache: unknown[] };
+  raw.manifestCache.push({
+    serviceId: sourceId,
+    manifestVersion: "10.1.61",
+    fetchedAt: new Date().toISOString(),
+    capabilities: [],
+    m2mRequests: [],
+    apiContracts: [],
+    developerResources: [],
+    configSchemas: [],
+    webhooks: [],
+    viewIndex: {
+      "fragments.index": {
+        viewId: "fragments.index",
+        path: "/fragments",
+        pathVariants: [],
+        operations: [{
+          operationId: "admin.fragments.read",
+          method: "GET",
+          title: "Fragments",
+          description: "Manage application fragments.",
+          renderers: ["bootstrap5"],
+          authRequired: true,
+          robots: [],
+          dependencies: [],
+          permissions: [],
+          renderable: true,
+          apiContracts: [],
+          demoScenarios: []
+        }],
+        fragments: []
+      }
+    }
+  });
+
+  const parsed = BetterPortalConfigSchema.parse(migrateRouteOperations(raw));
+  const view = parsed.manifestCache[0].viewIndex["fragments.index"];
+  assert.equal(view.title, "Fragments");
+  assert.equal(view.description, "Manage application fragments.");
 });
 
 test("official legacy plugin IDs migrate without changing external IDs", () => {
