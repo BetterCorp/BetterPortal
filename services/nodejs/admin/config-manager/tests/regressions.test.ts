@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
-import { appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
+import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { getCachedManifestForService, reconcileServiceRegistry, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
@@ -11,6 +11,25 @@ import { render as renderTenants } from "../src/plugins/service-betterportal-con
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
 import { purgeServiceReferences, renderConfigClientShell } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
+import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
+import * as adminAuthView from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/GET.js";
+import * as adminConfigView from "../src/plugins/service-betterportal-config-manager/bp-routes/config/GET.js";
+import * as adminFragmentsView from "../src/plugins/service-betterportal-config-manager/bp-routes/fragments/GET.js";
+import * as adminMenuView from "../src/plugins/service-betterportal-config-manager/bp-routes/menu/GET.js";
+import * as adminPreviewView from "../src/plugins/service-betterportal-config-manager/bp-routes/preview/GET.js";
+import * as adminRoutesView from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/GET.js";
+import * as adminServicesView from "../src/plugins/service-betterportal-config-manager/bp-routes/services/GET.js";
+import * as adminTenantsDelete from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/DELETE.js";
+import * as adminTenantsView from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/GET.js";
+import * as adminTenantsCreate from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/POST.js";
+import * as adminTenantsUpdate from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/PUT.js";
+import * as authLoginView from "../../../auth-default/src/plugins/service-betterportal-auth-default/bp-routes/login/GET.js";
+import * as authLogin from "../../../auth-default/src/plugins/service-betterportal-auth-default/bp-routes/login/POST.js";
+import * as authLogoutView from "../../../auth-default/src/plugins/service-betterportal-auth-default/bp-routes/logout/GET.js";
+import * as authLogout from "../../../auth-default/src/plugins/service-betterportal-auth-default/bp-routes/logout/POST.js";
+import * as authRefresh from "../../../auth-default/src/plugins/service-betterportal-auth-default/bp-routes/refresh/POST.js";
+import * as authRegisterView from "../../../auth-default/src/plugins/service-betterportal-auth-default/bp-routes/register/GET.js";
+import * as authRegister from "../../../auth-default/src/plugins/service-betterportal-auth-default/bp-routes/register/POST.js";
 import {
   BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
   PROVIDER_ROLE_AUTHORITY_CAPABILITY,
@@ -36,6 +55,95 @@ class MemoryStorage extends BaseStorage {
     return this.value;
   }
 }
+
+test("root bootstrap mounts every page action with its generated permissions", () => {
+  const configManagerServiceId = uuidv7();
+  const authServiceId = uuidv7();
+  const routes = buildDefaultAdminRoutes(configManagerServiceId, authServiceId);
+  type BootstrapOperation = {
+    operationId: string;
+    auth: { required: boolean; permissions: ReadonlyArray<unknown> };
+    dependencies?: ReadonlyArray<string>;
+  };
+  const operationModules = new Map<string, ReadonlyArray<BootstrapOperation>>([
+    [configManagerServiceId + ":services.index", [adminServicesView]],
+    [configManagerServiceId + ":tenants.index", [adminTenantsView, adminTenantsCreate, adminTenantsUpdate, adminTenantsDelete]],
+    [configManagerServiceId + ":routes.index", [adminRoutesView]],
+    [configManagerServiceId + ":menu.index", [adminMenuView]],
+    [configManagerServiceId + ":fragments.index", [adminFragmentsView]],
+    [configManagerServiceId + ":preview.index", [adminPreviewView]],
+    [configManagerServiceId + ":auth.index", [adminAuthView]],
+    [configManagerServiceId + ":config.index", [adminConfigView]],
+    [authServiceId + ":login.index", [authLoginView, authLogin]],
+    [authServiceId + ":logout.index", [authLogoutView, authLogout]],
+    [authServiceId + ":refresh.index", [authRefresh]],
+    [authServiceId + ":register.index", [authRegisterView, authRegister]]
+  ]);
+
+  for (const route of routes.filter((candidate) => candidate.kind === "page")) {
+    const declaredOperations = operationModules.get(route.serviceId + ":" + route.viewId);
+    assert.ok(declaredOperations, "bootstrap page " + route.viewId + " must declare its method operations");
+    const generatedOperations = declaredOperations.map((operation) => operation.operationId).sort();
+    const mountedOperations = routes
+      .filter((candidate) => candidate.serviceId === route.serviceId && candidate.viewId === route.viewId)
+      .flatMap((candidate) => candidate.operations)
+      .sort();
+    assert.deepEqual(mountedOperations, generatedOperations, "bootstrap page " + route.viewId + " must mount every generated method operation");
+  }
+
+  const expectedOperations = [
+    "admin.auth.view",
+    "admin.config.view",
+    "admin.fragments.view",
+    "admin.menu.view",
+    "admin.preview.view",
+    "admin.routes.view",
+    "admin.services.view",
+    "admin.tenants.create",
+    "admin.tenants.delete",
+    "admin.tenants.update",
+    "admin.tenants.view",
+    "auth.login",
+    "auth.login.view",
+    "auth.logout",
+    "auth.logout.view",
+    "auth.refresh",
+    "auth.register",
+    "auth.register.view"
+  ];
+  assert.deepEqual(routes.flatMap((route) => route.operations).sort(), expectedOperations);
+  const pluginIdByService = new Map([
+    [configManagerServiceId, "org.betterportal.config-manager"],
+    [authServiceId, "org.betterportal.auth.default"]
+  ]);
+  for (const route of routes.filter((candidate) => candidate.kind === "api")) {
+    assert.ok(route.targetPath, "bootstrap API operation " + route.operations[0] + " must have a service target path");
+    assert.equal(
+      route.path,
+      apiRoutePath(pluginIdByService.get(route.serviceId)!, route.targetPath),
+      "bootstrap API operation " + route.operations[0] + " must use the canonical BP service route"
+    );
+  }
+
+  const configManagerOperations = [...operationModules.entries()]
+    .filter(([key]) => key.startsWith(configManagerServiceId + ":"))
+    .flatMap(([, operations]) => operations);
+  for (const operationId of expectedOperations.filter((candidate) => candidate.startsWith("admin."))) {
+    const operation = configManagerOperations.find((candidate) => candidate.operationId === operationId);
+    assert.ok(operation, operationId + " must be generated");
+    assert.equal(operation.auth.required, true, operationId + " must require authentication");
+    assert.ok(operation.auth.permissions.length > 0, operationId + " must declare an automated permission requirement");
+  }
+
+  assert.deepEqual([...adminTenantsView.dependencies].sort(), [
+    "admin.tenants.create",
+    "admin.tenants.delete",
+    "admin.tenants.update"
+  ]);
+  assert.ok(authLoginView.dependencies.includes("auth.login"));
+  assert.ok(authLogoutView.dependencies.includes("auth.logout"));
+  assert.ok(authRegisterView.dependencies.includes("auth.register"));
+});
 
 function s2sConfig(): {
   config: BetterPortalConfig;

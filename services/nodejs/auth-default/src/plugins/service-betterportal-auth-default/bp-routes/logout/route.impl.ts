@@ -19,6 +19,7 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Logout";
 export const description = "Clear the authentication token from the client.";
 export const role = "auth.logout";
+export const dependencies = ["auth.logout"];
 
 export const auth: ApiAuthRequirement = {
   required: false,
