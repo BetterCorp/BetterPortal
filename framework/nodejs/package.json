@@ -39,7 +39,7 @@
     "h3": "^2.0.1-rc.20",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^4.1.0",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "yaml": "^2.8.3"
   },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
