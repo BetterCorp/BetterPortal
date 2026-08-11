@@ -31,7 +31,7 @@
     "@bsb/tests": "^9.6.61",
     "@types/node": "^26.0.0",
     "@types/pg": "^8.20.0",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.11",
     "typescript": "^6.0.3"
   },
   "dependencies": {

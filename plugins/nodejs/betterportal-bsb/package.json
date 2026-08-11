@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.11",
     "typescript": "^6.0.3"
   },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
