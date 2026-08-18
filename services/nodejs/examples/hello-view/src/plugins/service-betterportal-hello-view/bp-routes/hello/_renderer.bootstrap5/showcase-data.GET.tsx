@@ -1,6 +1,6 @@
 /** @jsxImportSource jsx-htmx */
 import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 
 /*
    Data Table (paginated sub-component)

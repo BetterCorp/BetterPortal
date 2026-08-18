@@ -325,6 +325,83 @@ function rendererFromEvent(event: BetterPortalEvent): string | undefined {
   return (event as unknown as { __bpApp?: { shell?: { renderer?: string } } }).__bpApp?.shell?.renderer;
 }
 
+async function prepareSseContext(
+  registryRoutes: ReadonlyArray<RegisteredRoute>,
+  dependencyAliases: Readonly<Record<string, string>>,
+  route: RegisteredRoute,
+  event: BetterPortalEvent,
+  obs: BetterPortalObservability | undefined,
+  routerOptions: H3RouterObservabilityOptions
+): Promise<RouteHandlerContext | Response> {
+  const operation = route.methodRoutes?.GET;
+  if (!operation) {
+    return coreJsonResponse({ error: "SSE GET operation metadata is missing" }, 500, "route.operation_missing", "SSE GET operation metadata is missing");
+  }
+  const url = getRequestURL(event);
+  const rawQuery = queryFromUrl(url);
+  const queryResult = operation.schemas.query
+    ? parseRequestValue(operation.schemas.query, rawQuery, "request.query.invalid", "query parameters")
+    : { value: rawQuery };
+  if ("response" in queryResult) return queryResult.response;
+  const rawParams: Record<string, string> =
+    (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
+  const params = parseRouteParams(rawParams, operation.schemas.params ?? route.schemas.params);
+  if (params instanceof Response) return params;
+
+  const extraContext = await resolveRequiredHandlerContext(event, routerOptions, route);
+  if (!extraContext) {
+    return coreJsonResponse({ error: "BetterPortal tenant/app context required" }, 400, "sse.context_unresolved", "BetterPortal tenant/app context required");
+  }
+  const allowance = appAllowsRoute(extraContext.app, route, "GET", url, acceptHeaderFromEvent(event));
+  if (!allowance.allowed) {
+    return rejectUnallowedAppRoute(obs, route, "GET", extraContext, allowance.reason ?? "route_not_mounted_for_app");
+  }
+
+  const authResolved = await loadAuthContext(event, route, routerOptions, obs);
+  const authResult = await resolveRequestAuth(operation.auth, event, authResolved, route, "GET", obs);
+  if (authResult.error) {
+    return coreJsonResponse(
+      { error: authResult.error, status: authResult.status } as unknown as JsonValue,
+      authResult.status,
+      authResult.code ?? "auth.unclassified",
+      authResult.error
+    );
+  }
+  const tenantApp = readTenantAppFromEvent(event);
+  if (tenantApp && routerOptions.validateTenantApp && !isBpManagementAuthRoute(route)) {
+    let validation: Awaited<ReturnType<NonNullable<H3RouterObservabilityOptions["validateTenantApp"]>>>;
+    try {
+      validation = await routerOptions.validateTenantApp(tenantApp.tenantId, tenantApp.appId);
+    } catch {
+      validation = { allowed: false, reason: "Tenant-app validation error" };
+    }
+    if (!validation.allowed) {
+      return coreJsonResponse({ error: validation.reason ?? "Service unavailable for this app" }, 426, "tenant_app.not_allowed", validation.reason ?? "Service unavailable for this app");
+    }
+  }
+
+  return {
+    params,
+    query: queryResult.value as Record<string, unknown>,
+    headers: headersFromEvent(event),
+    request: {},
+    method: "GET",
+    path: url.pathname,
+    rawEvent: event,
+    user: authResult.user,
+    serviceCaller: authResult.serviceCaller,
+    callerMode: authResult.callerMode,
+    ...extraContext,
+    serviceId: routerOptions.serviceId,
+    routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, dependencyAliases, routerOptions.serviceId),
+    uiRouteUrl: createUiRouteUrlBuilder(event, extraContext, dependencyAliases, routerOptions.serviceId),
+    diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
+    response: responseHelper,
+    file: fileResponseHelper,
+    ...(obs ? { obs } : {})
+  };
+}
+
 // -- Router registration ----------------------------------------------
 
 /**
@@ -372,18 +449,28 @@ export function createH3Router(
       const tickSchema = route.sse.tickSchema;
       app.get(`${route.path}/__sse`, async (event) => {
         return withRequestObservability(event, route, "GET", options, async (obs) => {
-        const url = getRequestURL(event);
-        const rawQuery = queryFromUrl(url);
-        const query = route.schemas.query ? route.schemas.query.parse(rawQuery) : rawQuery;
-        const rawParams: Record<string, string> =
-          (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
-        const params = parseRouteParams(rawParams, route.schemas.params);
-        if (params instanceof Response) return params;
+        const context = await prepareSseContext(
+          registry.routes,
+          registry.dependencies ?? {},
+          route,
+          event,
+          obs,
+          options
+        );
+        if (context instanceof Response) return context;
 
         const result = sseHandler({
           event,
-          params,
-          query: query as Record<string, unknown>,
+          params: context.params as Record<string, string>,
+          query: context.query as Record<string, unknown>,
+          tenant: context.tenant,
+          app: context.app,
+          user: context.user,
+          serviceCaller: context.serviceCaller,
+          callerMode: context.callerMode,
+          serviceId: context.serviceId,
+          routeUrl: context.routeUrl,
+          uiRouteUrl: context.uiRouteUrl,
           ...(obs ? { obs } : {})
         });
 
@@ -400,7 +487,7 @@ export function createH3Router(
         // Generator path: framework drives the stream.
         if (typeof result === "object" && result !== null && Symbol.asyncIterator in (result as object)) {
           // Renderer identity comes only from the server-resolved app shell.
-          const fragmentKey = (rawQuery._f as string | undefined) ?? undefined;
+          const fragmentKey = queryFromUrl(getRequestURL(event))._f as string | undefined;
           let sseRender: ((data: unknown) => unknown) | undefined;
           if (fragmentKey) {
             const renderer = rendererFromEvent(event);
@@ -1485,67 +1572,15 @@ async function handleStreamSse(
   obs: BetterPortalObservability | undefined,
   routerOptions: H3RouterObservabilityOptions
 ): Promise<Response | BodyInit> {
-  const url = getRequestURL(event);
-  const rawQuery = queryFromUrl(url);
-  const methodSchemas = route.methodRoutes?.GET?.schemas;
-  const sseSchemas = {
-    ...route.schemas,
-    ...(methodSchemas ?? {}),
-    params: methodSchemas?.params ?? route.schemas.params
-  };
-  const query = sseSchemas.query ? sseSchemas.query.parse(rawQuery) : rawQuery;
-  const rawParams: Record<string, string> =
-    (event as unknown as { context: { params?: Record<string, string> } }).context?.params ?? {};
-  const params = parseRouteParams(rawParams, sseSchemas.params);
-  if (params instanceof Response) return params;
-
-  // The frame stream carries the same data as the view route - enforce the
-  // same auth requirement.
-  const operation = route.methodRoutes?.GET;
-  if (!operation) {
-    return coreJsonResponse({ error: "Streaming GET operation metadata is missing" }, 500, "route.operation_missing", "Streaming GET operation metadata is missing");
-  }
-  const authResolved = await loadAuthContext(event, route, routerOptions, obs);
-  const authResult = await resolveRequestAuth(operation.auth, event, authResolved, route, "GET", obs);
-  if (authResult.error) {
-    return coreJsonResponse(
-      { error: authResult.error, status: authResult.status } as unknown as JsonValue,
-      authResult.status,
-      authResult.code ?? "auth.unclassified",
-      authResult.error
-    );
-  }
-
-  const extraContext = await resolveRequiredHandlerContext(event, routerOptions, route);
-  if (!extraContext) {
-    return coreJsonResponse(
-      { error: "BetterPortal tenant/app context required" },
-      400,
-      "stream.context_unresolved",
-      "BetterPortal tenant/app context required"
-    );
-  }
-
-  const ctx: RouteHandlerContext = {
-    params,
-    query: query as Record<string, unknown>,
-    headers: headersFromEvent(event),
-    request: {},
-    method: "GET",
-    path: url.pathname,
-    rawEvent: event,
-    user: authResult.user,
-    serviceCaller: authResult.serviceCaller,
-    callerMode: authResult.callerMode,
-    ...extraContext,
-    serviceId: routerOptions.serviceId,
-    routeUrl: createServiceRouteUrlBuilder(registryRoutes, extraContext, dependencyAliases, routerOptions.serviceId),
-    uiRouteUrl: createUiRouteUrlBuilder(event, extraContext, dependencyAliases, routerOptions.serviceId),
-    diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
-    response: responseHelper,
-    file: fileResponseHelper,
-    ...(obs ? { obs } : {})
-  };
+  const ctx = await prepareSseContext(
+    registryRoutes,
+    dependencyAliases,
+    route,
+    event,
+    obs,
+    routerOptions
+  );
+  if (ctx instanceof Response) return ctx;
 
   const renderer = rendererFromEvent(event);
   const streamSet = renderer ? route.renderers[renderer]?.stream : undefined;

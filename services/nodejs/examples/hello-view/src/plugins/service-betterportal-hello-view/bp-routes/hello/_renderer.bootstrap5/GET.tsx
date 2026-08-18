@@ -1,6 +1,6 @@
 /** @jsxImportSource jsx-htmx */
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 
 function statCard(label: string, value: string, change: string, positive: boolean): HtmlRenderable {
   return (

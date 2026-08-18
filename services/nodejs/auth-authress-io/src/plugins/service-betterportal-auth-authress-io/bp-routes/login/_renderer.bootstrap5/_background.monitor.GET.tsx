@@ -2,7 +2,7 @@
 
 import type { HtmlRenderable } from "@betterportal/framework";
 import { js } from "jsx-htmx";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../../../loginFlow.js";
 
 export function render(data: ResponseData): HtmlRenderable {
   if (data.status === "error" || !data.authressApiUrl) return <div></div>;

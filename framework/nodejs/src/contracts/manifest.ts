@@ -100,6 +100,8 @@ export const BpSchemaRouteSchema = av.object({
   fragments: av.array(av.object({
     fragmentLocation: av.string().minLength(1),
     fragmentId: av.string().minLength(1),
+    operationId: av.string().minLength(1),
+    method: HttpMethodSchema,
     renderers: av.array(av.string().minLength(1)).default([])
   })).default([]),
   components: av.array(av.string().minLength(1)).default([])

@@ -3,6 +3,7 @@ import type {
   ConfigSchemaDescriptor,
   ApiContractDescriptor,
   AppAuthConfig,
+  AppAuthPermissionAction,
   AuthProviderRuntimeMetadata,
   BetterPortalH3App,
   BetterPortalEvent,
@@ -16,6 +17,8 @@ import type {
   BetterPortalConfig,
   DeveloperResource,
   ShellManifest,
+  OperationDependency,
+  RenderMode,
   ViewDemoScenario,
   WebhookEventDescriptor
 } from "@betterportal/framework";
@@ -52,7 +55,7 @@ export interface CachedManifestView {
   pathVariants: string[];
   paramsSchema?: Record<string, JsonValue>;
   operations: CachedManifestOperation[];
-  fragments: Array<{ fragmentId: string; targetPath: string }>;
+  fragments: Array<{ fragmentId: string; targetPath: string; operationId: string; method: CachedManifestOperation["method"] }>;
 }
 
 export interface CachedManifestOperation {
@@ -61,6 +64,7 @@ export interface CachedManifestOperation {
   title: string;
   description: string;
   renderers: string[];
+  renderModes: RenderMode[];
   role?: string;
   authRequired: boolean;
   sitemap?: {
@@ -71,9 +75,9 @@ export interface CachedManifestOperation {
   };
   robots: Array<{ userAgent: string; access: "allow" | "disallow"; crawlDelaySeconds?: number }>;
   chrome?: BetterPortalRouteChrome;
-  dependencies: string[];
+  dependencies: OperationDependency[];
   /** Per-view permission requirements from the service's auth.permissions[]. */
-  permissions: Array<{ serviceId: string; viewId: string; permissions: string[] }>;
+  permissions: Array<{ serviceId: string; viewId: string; permissions: AppAuthPermissionAction[] }>;
   /** True if any UI renderer exists (page/fragment/component). API-only views = false. */
   renderable: boolean;
   /** JSON schema documents for request/query/header/response/multipart contracts. */
@@ -84,6 +88,10 @@ export interface CachedManifestOperation {
   apiContracts: ApiContractDescriptor[];
   /** Example payloads advertised by the service route. */
   demoScenarios: ViewDemoScenario[];
+}
+
+export function isPageOperation(operation: Pick<CachedManifestOperation, "method" | "renderModes">): boolean {
+  return operation.method === "GET" && operation.renderModes.includes("page");
 }
 
 export interface CachedManifest {
@@ -100,6 +108,103 @@ export interface CachedManifest {
   configSchemas: ConfigSchemaDescriptor[];
   webhooks: WebhookEventDescriptor[];
   fetchedAt: number;
+}
+
+export interface DerivedRolePermission {
+  roleId: string;
+  serviceId: string;
+  viewId: string;
+  permissions: AppAuthPermissionAction[];
+  requiredBy: Array<{ serviceId: string; operationId: string; method: CachedManifestOperation["method"] }>;
+}
+
+export function deriveRolePermissions(
+  auth: AppAuthConfig,
+  routes: BetterPortalRouteMount[],
+  resolveManifest: (serviceId: string) => CachedManifest | undefined
+): { auth: AppAuthConfig; derived: DerivedRolePermission[] } {
+  const mounted = routes.flatMap((route) => {
+    if (!route.enabled) return [];
+    const manifest = resolveManifest(route.serviceId);
+    const view = manifest?.viewIndex[route.viewId];
+    return manifest && view
+      ? view.operations
+          .filter((operation) => route.operations.includes(operation.operationId))
+          .map((operation) => ({ route, manifest, view, operation }))
+      : [];
+  });
+  const resolveDependency = (source: typeof mounted[number], dependency: OperationDependency) => {
+    const matches = mounted.filter((candidate) =>
+      candidate.operation.operationId === dependency.operationId
+      && candidate.operation.method === dependency.method
+      && (dependency.serviceId
+        ? candidate.manifest.serviceId === dependency.serviceId
+        : candidate.route.serviceId === source.route.serviceId)
+    );
+    return matches.length === 1 ? matches[0] : undefined;
+  };
+  const instanceId = (serviceId: string) => {
+    const ids = [...new Set(mounted.filter((candidate) => candidate.manifest.serviceId === serviceId).map((candidate) => candidate.route.serviceId))];
+    return ids.length === 1 ? ids[0] : undefined;
+  };
+  const derived: DerivedRolePermission[] = [];
+
+  const roles = auth.roles.map((role) => {
+    const permissions = role.permissions.map((grant) => ({ ...grant, permissions: [...grant.permissions] }));
+    const queued = mounted.filter((candidate) => candidate.operation.permissions.every((required) => {
+      const serviceId = required.serviceId === candidate.manifest.serviceId
+        ? candidate.route.serviceId
+        : instanceId(required.serviceId);
+      if (!serviceId) return false;
+      const grant = permissions.find((value) => value.serviceId === serviceId && value.viewId === required.viewId);
+      return required.permissions.every((permission) => grant?.permissions.includes(permission));
+    }));
+    const seen = new Set<string>();
+    while (queued.length > 0) {
+      const source = queued.shift()!;
+      const sourceKey = `${source.route.serviceId}:${source.operation.operationId}:${source.operation.method}`;
+      if (seen.has(sourceKey)) continue;
+      seen.add(sourceKey);
+      for (const requirement of source.operation.dependencies) {
+        const target = resolveDependency(source, requirement);
+        if (!target) continue;
+        queued.push(target);
+        for (const required of target.operation.permissions) {
+          const serviceId = required.serviceId === target.manifest.serviceId
+            ? target.route.serviceId
+            : instanceId(required.serviceId);
+          if (!serviceId) continue;
+          const grant = permissions.find((candidate) => candidate.serviceId === serviceId && candidate.viewId === required.viewId);
+          const additions = required.permissions.filter((permission) => !grant?.permissions.includes(permission));
+          if (grant) grant.permissions = [...new Set([...grant.permissions, ...required.permissions])];
+          else if (required.permissions.length > 0) permissions.push({ serviceId, viewId: required.viewId, permissions: [...required.permissions] });
+          if (additions.length > 0) {
+            const existing = derived.find((candidate) =>
+              candidate.roleId === role.id && candidate.serviceId === serviceId && candidate.viewId === required.viewId
+            );
+            const requiredBy = {
+              serviceId: source.route.serviceId,
+              operationId: source.operation.operationId,
+              method: source.operation.method
+            };
+            if (existing) {
+              existing.permissions = [...new Set([...existing.permissions, ...additions])];
+              if (!existing.requiredBy.some((candidate) =>
+                candidate.serviceId === requiredBy.serviceId
+                && candidate.operationId === requiredBy.operationId
+                && candidate.method === requiredBy.method
+              )) existing.requiredBy.push(requiredBy);
+            } else {
+              derived.push({ roleId: role.id, serviceId, viewId: required.viewId, permissions: additions, requiredBy: [requiredBy] });
+            }
+          }
+        }
+      }
+    }
+    return { ...role, permissions };
+  });
+
+  return { auth: { ...auth, roles }, derived };
 }
 
 const manifestCache = new Map<string, CachedManifest>();
@@ -181,7 +286,7 @@ function normalizeManifest(input: {
     pathVariants?: string[];
     paramsSchema?: Record<string, JsonValue>;
     operations: Array<CachedManifestOperation>;
-    fragments?: Array<{ fragmentId: string; targetPath: string }>;
+    fragments?: Array<{ fragmentId: string; targetPath: string; operationId: string; method: CachedManifestOperation["method"] }>;
   }>;
 }): CachedManifest {
   const normalizedViews: Record<string, CachedManifestView> = {};
@@ -197,6 +302,9 @@ function normalizeManifest(input: {
       operations: v.operations.map((operation) => ({
         ...operation,
         renderers: Array.isArray(operation.renderers) ? operation.renderers : [],
+        renderModes: Array.isArray(operation.renderModes) ? operation.renderModes : operation.renderable
+          ? [operation.method === "GET" ? "page" : "fragment"]
+          : [],
         robots: Array.isArray(operation.robots) ? operation.robots : [],
         dependencies: Array.isArray(operation.dependencies) ? operation.dependencies : [],
         permissions: Array.isArray(operation.permissions) ? operation.permissions : [],
@@ -204,7 +312,10 @@ function normalizeManifest(input: {
         demoScenarios: Array.isArray(operation.demoScenarios) ? operation.demoScenarios : []
       })),
       fragments: Array.isArray(v.fragments) ? v.fragments.filter((fragment) =>
-        typeof fragment?.fragmentId === "string" && typeof fragment?.targetPath === "string"
+        typeof fragment?.fragmentId === "string"
+        && typeof fragment?.targetPath === "string"
+        && typeof fragment?.operationId === "string"
+        && typeof fragment?.method === "string"
       ) : []
     };
   }
@@ -279,12 +390,19 @@ export async function reconcileServiceRegistry(
           || set.fragments.some((renderer) => renderer.method === method)
           || (method === "GET" && Boolean(set.stream))
         ).map(([renderer]) => renderer);
+        const renderModes = [...new Set(Object.values(route.renderers).flatMap((set) => [
+          ...(set.pages.some((renderer) => renderer.method === method) ? ["page" as const] : []),
+          ...(set.fragments.some((renderer) => renderer.method === method) || (method === "GET" && Boolean(set.stream))
+            ? ["fragment" as const]
+            : [])
+        ]))];
         return {
           operationId: operation.operationId,
           method,
           title: operation.title,
           description: operation.description,
           renderers,
+          renderModes,
           ...(operation.role ? { role: operation.role } : {}),
           authRequired: operation.auth.required,
           sitemap: sitemapMetadata(operation.sitemap),
@@ -327,10 +445,14 @@ export async function reconcileServiceRegistry(
       }),
       fragments: [...new Map(Object.values(route.renderers).flatMap((theme) =>
         theme.fragments.flatMap((fragment) => {
+          if (!fragment.method) return [];
+          const operation = route.methodRoutes?.[fragment.method];
+          if (!operation) return [];
           const fragmentId = fragment.fragmentLocation && fragment.fragmentId
             ? `${fragment.fragmentLocation}.${fragment.fragmentId}`
             : fragment.rendererId;
-          return [[fragmentId, { fragmentId, targetPath: route.path }] as const];
+          const key = `${fragmentId}:${operation.operationId}:${fragment.method}`;
+          return [[key, { fragmentId, targetPath: route.path, operationId: operation.operationId, method: fragment.method }] as const];
         })
       )).values()]
     };
@@ -361,7 +483,7 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
     if (!cached) return route;
     const view = cached.viewIndex[route.viewId];
     if (!view) return route;
-    const operation = view.operations.find((candidate) => route.operations.includes(candidate.operationId) && candidate.renderable)
+    const operation = view.operations.find((candidate) => route.operations.includes(candidate.operationId) && isPageOperation(candidate))
       ?? view.operations.find((candidate) => route.operations.includes(candidate.operationId));
     if (!operation) return route;
     const resolvedMethods = view.operations
@@ -383,11 +505,21 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
     };
   });
 
-  const apps = scoped.apps.map((app) => ({
-    ...app,
-    routes: resolveRoutes(app.routes),
-    ...(app.appRoutes ? { appRoutes: resolveRoutes(app.appRoutes) } : {})
-  }));
+  const apps = scoped.apps.map((app) => {
+    const routes = resolveRoutes(app.routes);
+    return {
+      ...app,
+      routes,
+      ...(app.appRoutes ? { appRoutes: resolveRoutes(app.appRoutes) } : {}),
+      ...(app.auth ? {
+        auth: deriveRolePermissions(
+          app.auth,
+          routes,
+          (serviceId) => manifestCache.get(serviceId) ?? manifestCache.get(serviceManifestKeys.get(serviceId) ?? "")
+        ).auth
+      } : {})
+    };
+  });
   return { ...scoped, apps };
 }
 
@@ -585,24 +717,38 @@ function operationIndex(manifest: CachedManifest): Map<string, { view: CachedMan
   ));
 }
 
-function addMissingDependencyRoutes(app: { routes: BetterPortalRouteMount[] }, sourceRoute: BetterPortalRouteMount, manifest: CachedManifest): boolean {
+function addMissingDependencyRoutes(
+  config: BetterPortalConfig,
+  app: BetterPortalConfig["apps"][number],
+  sourceRoute: BetterPortalRouteMount,
+  manifest: CachedManifest
+): boolean {
   if (!sourceRoute.enabled) return false;
   const sourceView = manifest.viewIndex[sourceRoute.viewId];
   if (!sourceView) return false;
-  const operations = operationIndex(manifest);
   const dependencies = sourceView.operations
     .filter((operation) => sourceRoute.operations.includes(operation.operationId))
     .flatMap((operation) => operation.dependencies);
 
   let changed = false;
-  for (const dependencyOperationId of dependencies) {
-    const dependency = operations.get(dependencyOperationId);
-    if (!dependency) continue;
+  const availableServiceIds = getAvailableServiceInstanceIdsForApp(config, app);
+  for (const requirement of dependencies) {
+    const targetServiceIds = requirement.serviceId
+      ? [...availableServiceIds].filter((serviceId) =>
+          getCachedManifestForService(config, serviceId)?.serviceId === requirement.serviceId
+        )
+      : [sourceRoute.serviceId];
+    if (targetServiceIds.length !== 1) continue;
+    const targetServiceId = targetServiceIds[0];
+    const targetManifest = getCachedManifestForService(config, targetServiceId);
+    if (!targetManifest) continue;
+    const dependency = operationIndex(targetManifest).get(requirement.operationId);
+    if (!dependency || dependency.operation.method !== requirement.method) continue;
     const existing = app.routes.find((route) =>
-      route.serviceId === sourceRoute.serviceId && route.operations.includes(dependencyOperationId)
+      route.serviceId === targetServiceId && route.operations.includes(requirement.operationId)
     );
     if (existing) {
-      if (!existing.enabled) {
+      if (existing.enablement !== "disabled" && !existing.enabled) {
         existing.enabled = true;
         changed = true;
       }
@@ -612,17 +758,36 @@ function addMissingDependencyRoutes(app: { routes: BetterPortalRouteMount[] }, s
     app.routes.push({
       id: uuidv7(),
       kind: "api",
-      path: apiRoutePath(manifest.serviceId, dependency.view.path),
-      serviceId: sourceRoute.serviceId,
+      path: apiRoutePath(targetManifest.serviceId, dependency.view.path),
+      serviceId: targetServiceId,
       viewId: dependency.view.viewId,
       targetPath: dependency.view.path,
       title: dependency.operation.title,
       enabled: true,
-      operations: [dependencyOperationId]
+      enablement: "auto",
+      operations: [requirement.operationId]
     });
     changed = true;
   }
   return changed;
+}
+
+function reconcileDependencyRoutes(config: BetterPortalConfig, app: BetterPortalConfig["apps"][number]): boolean {
+  const previous = new Map(app.routes.map((route) => [route.id, `${route.enabled}:${route.enablement ?? ""}`]));
+  for (const route of app.routes) {
+    if (route.kind === "api" && route.enablement === "auto") route.enabled = false;
+  }
+  for (let pass = 0; pass <= app.routes.length; pass++) {
+    let passChanged = false;
+    for (const route of [...app.routes]) {
+      const manifest = getCachedManifestForService(config, route.serviceId);
+      if (manifest && addMissingDependencyRoutes(config, app, route, manifest)) passChanged = true;
+    }
+    if (!passChanged) break;
+  }
+  return app.routes.length !== previous.size || app.routes.some((route) =>
+    previous.get(route.id) !== `${route.enabled}:${route.enablement ?? ""}`
+  );
 }
 
 async function updateServiceMetadata(
@@ -732,7 +897,7 @@ async function updateServiceMetadata(
         changed = true;
       }
       const selectedOperations = validOperations.map((operationId) => manifestOperations.get(operationId)!.operation);
-      const pageOperation = selectedOperations.find((candidate) => candidate.method === "GET" && candidate.renderable);
+      const pageOperation = selectedOperations.find(isPageOperation);
       const operation = pageOperation ?? selectedOperations[0];
       if (route.operations.length > 1) {
         route.operations = [operation.operationId];
@@ -785,11 +950,10 @@ async function updateServiceMetadata(
         route.title = operation.title;
         changed = true;
       }
-      if (addMissingDependencyRoutes(app, route, manifest)) changed = true;
     }
     for (const serviceId of syncedServiceIds) {
       for (const view of Object.values(manifest.viewIndex)) {
-        for (const operation of view.operations.filter((candidate) => candidate.method !== "GET" || !candidate.renderable)) {
+        for (const operation of view.operations.filter((candidate) => !isPageOperation(candidate))) {
           if (app.routes.some((route) => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;
           app.routes.push({
             id: uuidv7(),
@@ -800,12 +964,14 @@ async function updateServiceMetadata(
             targetPath: view.path,
             title: operation.title,
             enabled: false,
+            enablement: "auto",
             operations: [operation.operationId]
           });
           changed = true;
         }
       }
     }
+    if (reconcileDependencyRoutes(config, app)) changed = true;
   }
   if (changed) await store.saveConfig(config);
 }

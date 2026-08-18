@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../../../registrationFlow.js";
 
 /** Tenant-relative path (+query) of an absolute self-origin URL, for hx-push-url. */
 function pushPathOf(url: string | undefined, fallback: string): string {

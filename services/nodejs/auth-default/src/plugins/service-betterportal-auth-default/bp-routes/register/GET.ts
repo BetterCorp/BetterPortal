@@ -1,4 +1,4 @@
 export const operationId = "auth.register.view";
-export { title, description, auth, role, dependencies, chrome, cacheHints } from "./route.impl.js";
-export { ResponseSchema, QuerySchema } from "./route.impl.js";
-export { handleGet as default } from "./route.impl.js";
+export { title, description, auth, role, dependencies, chrome, cacheHints } from "../../registrationFlow.js";
+export { ResponseSchema, QuerySchema } from "../../registrationFlow.js";
+export { handleGet as default } from "../../registrationFlow.js";

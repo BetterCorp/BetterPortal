@@ -6,8 +6,8 @@ import {
   type CacheHints,
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
-import { createHandler } from "../../.bp-generated/route-runtime.js";
-import type { Plugin } from "../../index.js";
+import { createHandler } from "./.bp-generated/route-runtime.js";
+import type { Plugin } from "./index.js";
 
 export const QuerySchema = av.object({
   action: av.optional(av.string()).describe("Optional login route action, currently supports logout."),
@@ -55,7 +55,12 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Login";
 export const description = "Authenticate with username and password to receive a JWT.";
 export const role = "auth.login";
-export const dependencies = ["auth.login", "auth.logout.view", "auth.refresh", "auth.register.view"];
+export const dependencies = [
+  { operationId: "auth.login", method: "POST" },
+  { operationId: "auth.logout.view", method: "GET" },
+  { operationId: "auth.refresh", method: "POST" },
+  { operationId: "auth.register.view", method: "GET" }
+] as const;
 export const chrome: BetterPortalRouteChrome = { fullScreen: true };
 
 export const auth: ApiAuthRequirement = {

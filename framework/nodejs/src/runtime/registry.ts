@@ -242,15 +242,34 @@ export function buildManifestFromRegistry(
     }
   }
 
+  const localOperations = new Set(registry.routes.flatMap((route) =>
+    Object.values(route.methodRoutes ?? {}).flatMap((operation) => operation
+      ? [`${operation.operationId}:${operation.method}`]
+      : [])
+  ));
+  for (const route of registry.routes) {
+    for (const operation of Object.values(route.methodRoutes ?? {})) {
+      if (!operation) continue;
+      for (const dependency of operation.dependencies ?? []) {
+        const targetPluginId = dependency.serviceId ? registry.dependencies?.[dependency.serviceId] : base.pluginId;
+        if (dependency.serviceId && !targetPluginId) {
+          throw new Error(`Operation ${operation.operationId} references unknown dependency alias ${dependency.serviceId}`);
+        }
+        if (targetPluginId === base.pluginId && !localOperations.has(`${dependency.operationId}:${dependency.method}`)) {
+          throw new Error(`Operation ${operation.operationId} references unavailable local dependency ${dependency.operationId} ${dependency.method}`);
+        }
+      }
+    }
+  }
+
   const groupedRoutes = groupRoutesByViewId(registry.routes);
   const views: ViewMetadata[] = groupedRoutes
-    .filter(({ primary }) => {
-      const hasAnyPage = Object.values(primary.renderers).some(
-        (set) => set.pages.length > 0 || set.stream !== undefined
-      );
-      return hasAnyPage || Object.keys(primary.renderers).length === 0;
-    })
-    .map(({ primary, variants }) => routeToViewMetadata(primary, variants));
+    .map(({ primary, variants }) => routeToViewMetadata(
+      primary,
+      variants,
+      registry.dependencies ?? {},
+      base.pluginId
+    ));
 
   return {
     protocolVersion: 2,
@@ -375,7 +394,12 @@ function operationRendererSupport(route: RegisteredRoute, method: HttpMethod): V
   return { renderers: rendererSupport };
 }
 
-function operationToMetadata(route: RegisteredRoute, operation: RegisteredMethodRoute): ViewOperationMetadata {
+function operationToMetadata(
+  route: RegisteredRoute,
+  operation: RegisteredMethodRoute,
+  dependencyAliases: Readonly<Record<string, string>>,
+  pluginId: string
+): ViewOperationMetadata {
   validateRobots(operation);
   const html = operationRendererSupport(route, operation.method);
   const renderable = operation.raw === true
@@ -423,7 +447,16 @@ function operationToMetadata(route: RegisteredRoute, operation: RegisteredMethod
     sitemap: sitemapMetadata(operation.sitemap),
     robots: [...(operation.robots ?? [])],
     ...(operation.role ? { role: operation.role } : {}),
-    dependencies: [...(operation.dependencies ?? [])],
+    dependencies: (operation.dependencies ?? []).map((dependency) => {
+      if (!dependency.serviceId) return { ...dependency };
+      const serviceId = dependencyAliases[dependency.serviceId];
+      if (!serviceId) {
+        throw new Error(`Operation ${operation.operationId} references unknown dependency alias ${dependency.serviceId}`);
+      }
+      return serviceId === pluginId
+        ? { operationId: dependency.operationId, method: dependency.method }
+        : { ...dependency, serviceId };
+    }),
     ...(operation.chrome ? { chrome: operation.chrome } : {}),
     apiContracts: (operation.apiContracts ?? []).map((contract) => ({
       ...contract,
@@ -441,11 +474,16 @@ function operationToMetadata(route: RegisteredRoute, operation: RegisteredMethod
   };
 }
 
-function routeToViewMetadata(route: RegisteredRoute, variants: ReadonlyArray<string>): ViewMetadata {
+function routeToViewMetadata(
+  route: RegisteredRoute,
+  variants: ReadonlyArray<string>,
+  dependencyAliases: Readonly<Record<string, string>> = {},
+  pluginId = ""
+): ViewMetadata {
   const operations = route.methods.map((method) => {
     const operation = route.methodRoutes?.[method];
     if (!operation) throw new Error(`Route ${route.viewId} is missing operation metadata for ${method}`);
-    return operationToMetadata(route, operation);
+    return operationToMetadata(route, operation, dependencyAliases, pluginId);
   });
 
   return {
@@ -473,14 +511,28 @@ export function buildBpSchema(
   return {
     manifest,
     routes: groupRoutesByViewId(registry.routes).map(({ primary: route, variants }) => {
-      const fragMap = new Map<string, { fragmentLocation: string; fragmentId: string; renderers: string[] }>();
+      const fragMap = new Map<string, {
+        fragmentLocation: string;
+        fragmentId: string;
+        operationId: string;
+        method: HttpMethod;
+        renderers: string[];
+      }>();
       for (const [renderer, set] of Object.entries(route.renderers)) {
         for (const f of set.fragments) {
-          if (!f.fragmentLocation || !f.fragmentId) continue;
-          const key = `${f.fragmentLocation}::${f.fragmentId}`;
+          if (!f.fragmentLocation || !f.fragmentId || !f.method) continue;
+          const operation = route.methodRoutes?.[f.method];
+          if (!operation) continue;
+          const key = `${f.fragmentLocation}::${f.fragmentId}::${operation.operationId}::${f.method}`;
           const existing = fragMap.get(key);
           if (existing) existing.renderers.push(renderer);
-          else fragMap.set(key, { fragmentLocation: f.fragmentLocation, fragmentId: f.fragmentId, renderers: [renderer] });
+          else fragMap.set(key, {
+            fragmentLocation: f.fragmentLocation,
+            fragmentId: f.fragmentId,
+            operationId: operation.operationId,
+            method: f.method,
+            renderers: [renderer]
+          });
         }
       }
 

@@ -21,7 +21,7 @@ import { registerAdminApiRoutes } from "./adminApi.js";
 import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
-import { getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
+import { deriveRolePermissions, getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
 import { buildM2MConnectionModel } from "./m2mConnections.js";
 import { setConfigManagerRouteContext } from "./routeContext.js";
 import { isApiRoute } from "./routeMounts.js";
@@ -588,7 +588,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
                 pathVariants: view.pathVariants,
                 paramsSchema: view.paramsSchema,
                 method: operation.method,
-                renderable: operation.method === "GET" && operation.renderable,
+                renderable: operation.method === "GET" && operation.renderModes.includes("page"),
                 dependencies: operation.dependencies
               }))
             )
@@ -633,7 +633,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const routeModel = (selectedApp?.routes ?? []).map((r) => {
       const view = getCachedManifestForService(config, r.serviceId, cache)?.viewIndex[r.viewId];
       const operations = view?.operations.filter((operation) => r.operations.includes(operation.operationId)) ?? [];
-      const renderable = operations.some((operation) => operation.method === "GET" && operation.renderable) || (!view && r.kind !== "api");
+      const renderable = operations.some((operation) => operation.method === "GET" && operation.renderModes.includes("page")) || (!view && r.kind !== "api");
       return {
         id: r.id,
         kind: isApiRoute(r, renderable) ? "api" : "page",
@@ -652,6 +652,24 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       };
     });
 
+    const dependencyWarnings = [...new Set(routeModel.flatMap((route) => {
+      if (!route.enabled) return [];
+      const sourceService = availableServices.find((service) => service.id === route.serviceId);
+      return sourceService?.views
+        .filter((operation) => route.operations.includes(operation.operationId))
+        .flatMap((operation) => operation.dependencies.flatMap((dependency) => {
+          const targetServices = dependency.serviceId
+            ? availableServices.filter((service) => service.serviceId === dependency.serviceId)
+            : sourceService ? [sourceService] : [];
+          const matches = targetServices.flatMap((service) => service.views.filter((candidate) =>
+            candidate.operationId === dependency.operationId && candidate.method === dependency.method
+          ));
+          return matches.length === 1
+            ? []
+            : [`${operation.method} ${operation.operationId} requires exactly one ${dependency.method} ${dependency.serviceId ? `${dependency.serviceId}:` : ""}${dependency.operationId}; found ${matches.length}.`];
+        })) ?? [];
+    }))];
+
     (event as unknown as { __bpResponseModel: unknown }).__bpResponseModel = {
       title: "Route Designer",
       apps: config.apps.map((a) => ({ id: a.id, title: a.title, tenantId: a.tenantId })),
@@ -659,6 +677,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       openApiServiceId,
       routes: routeModel,
       availableServices,
+      dependencyWarnings,
       adminApiBase: "/.well-known/bp/admin",
       serviceBaseUrl: this.cpState.issuer
     };
@@ -682,7 +701,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         .filter((r) => {
           const view = getManifestCache().get(r.serviceId)?.viewIndex[r.viewId];
           const renderable = view?.operations.some((operation) =>
-            r.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderable
+            r.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
           );
           return r.enabled && !isApiRoute(r, renderable);
         })
@@ -837,6 +856,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       && appWithAuth.auth.jwksUri
     );
     const currentRoles: AppRole[] = appWithAuth?.auth?.roles ?? [];
+    const derivedPermissionGrants = selectedApp?.auth
+      ? deriveRolePermissions(
+          selectedApp.auth,
+          selectedApp.routes,
+          (serviceId) => getCachedManifestForService(config, serviceId, cache)
+        ).derived
+      : [];
     const authService = appWithAuth?.auth?.serviceId ? servicesById.get(appWithAuth.auth.serviceId) : undefined;
     const authManifest = authService ? getCachedManifestForService(config, authService.id, cache) : undefined;
     const roleAuthority = resolveRoleAuthority(authManifest?.capabilities ?? [], appWithAuth?.auth?.roleAuthority);
@@ -861,6 +887,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       authConfigured,
       servicePermissions,
       currentRoles,
+      derivedPermissionGrants,
       ...(externalRoleSync ? { externalRoleSync } : {}),
       ...(managedRoleSync ? { managedRoleSync } : {}),
       adminApiBase: "/.well-known/bp/admin",

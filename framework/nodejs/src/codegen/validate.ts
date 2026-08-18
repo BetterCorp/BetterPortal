@@ -99,6 +99,13 @@ const OPERATION_EXPORTS = [
 ] as const;
 
 function checkOperationMetadata(route: ScannedRoute, errors: ValidationError[]): void {
+  if (route.hasRouteImpl) {
+    errors.push({
+      file: route.relativePath + "/route.impl.ts",
+      message: "route.impl files are not supported. Keep each operation contract and handler in its HTTP method file; move genuinely shared domain logic to a named module outside the route directory.",
+      severity: "error"
+    });
+  }
   for (const name of OPERATION_EXPORTS) {
     if (route.metadataExports.includes(name)) {
       errors.push({

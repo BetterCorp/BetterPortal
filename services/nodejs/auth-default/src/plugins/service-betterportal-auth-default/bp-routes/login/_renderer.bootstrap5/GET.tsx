@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../../../loginFlow.js";
 
 function loginScript(): HtmlRenderable {
   // IIFE - htmx executes swapped <script> content as a plain script, where a

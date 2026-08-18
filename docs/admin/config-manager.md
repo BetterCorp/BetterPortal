@@ -131,6 +131,10 @@ Prefer shell menu entries over building persistent inner menus inside services.
 
 Menus should link only to app page routes backed by service page renderers. API, raw, dependency, and fragment-only routes can exist in app route allowlists, but they should not be generated or selected as menu entries.
 
+Operation dependencies are explicit `(service, operationId, method)` references. Config Manager resolves a cross-service dependency through the dependency's canonical plugin id and requires exactly one available app service instance. Required API operations are mounted automatically; an administrator may explicitly pin one on or off, otherwise its effective enabled state follows all enabled parents. Fragment selection is tied to the exact enabled operation mount, not only its service path. Fragment-only operations remain visible to permissions even though they cannot be page or menu routes.
+
+Role grants stored by an administrator remain explicit. At scoped-config delivery, Config Manager derives the least additional grants required by the exact transitive operation dependencies of those explicit grants. The permission editor lists these derived grants separately with the operation that requires them; they are read-only and are never written back as explicit grants. The Route Designer warns when a mounted operation dependency cannot resolve to exactly one active service operation.
+
 ## Theme fragment editor
 
 The fragment editor is driven by the selected shell's cached manifest. With no shell there are no shell fragment controls. A `shell/_name.tsx` definition is one replaceable fragment; `shell/_name/index.tsx` is an ordered fragment block. Settings are stored under the shell service-instance UUID, so switching shells switches both the available definitions and their saved choices.

@@ -35,7 +35,7 @@
   "dependencies": {
     "@betterportal/framework": "10.0.1",
     "@betterportal/plugin-bsb": "10.0.1",
-    "@bsb/base": "^9.6.61",
+    "@bsb/base": "^9.6.66",
     "@workos-inc/node": "^10.7.0",
     "anyvali": "^1.0.6",
     "jsonwebtoken": "^9.0.2",

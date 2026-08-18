@@ -8,8 +8,8 @@ import {
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
 import type { JwtClaims } from "@betterportal/framework";
-import type { Plugin } from "../../index.js";
-import { resolveAuthressAppConfig, resolveAuthressBrowserConfig } from "../../index.js";
+import type { Plugin } from "./index.js";
+import { resolveAuthressAppConfig, resolveAuthressBrowserConfig } from "./index.js";
 
 export const QuerySchema = av.object({
   action: av.optional(av.string()),
@@ -51,7 +51,11 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Authress Login";
 export const description = "Authenticate with Authress and store the Authress bearer token.";
 export const role = "auth.login";
-export const dependencies = ["auth.login", "auth.logout", "auth.refresh"];
+export const dependencies = [
+  { operationId: "auth.login", method: "POST" },
+  { operationId: "auth.logout", method: "GET" },
+  { operationId: "auth.refresh", method: "POST" }
+] as const;
 export const chrome: BetterPortalRouteChrome = { fullScreen: true };
 export const auth: ApiAuthRequirement = { required: false, permissions: [] };
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: [] };

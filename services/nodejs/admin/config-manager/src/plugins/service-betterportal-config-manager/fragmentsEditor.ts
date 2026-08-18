@@ -108,6 +108,7 @@ function availableItems(config: any, app: any, definitions: ShellFragmentDescrip
     return Object.values(manifest?.viewIndex ?? {}).flatMap((view: any) => view.fragments
       .filter((fragment: any) => app.routes.some((route: any) => route.enabled !== false
         && route.serviceId === service.id
+        && route.operations?.includes(fragment.operationId)
         && (route.resolvedServicePath ?? route.targetPath) === fragment.targetPath))
       .map((fragment: any) => ({
         item: { source: "service", serviceId: service.id, fragmentId: fragment.fragmentId, targetPath: fragment.targetPath } as Item,

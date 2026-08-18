@@ -2,7 +2,7 @@
 
 import type { HtmlRenderable } from "@betterportal/framework";
 import { css, js } from "jsx-htmx";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 
 export function render(data: ResponseData): HtmlRenderable {
   const next = data.nextUrl || "/";

@@ -9,10 +9,10 @@ import {
   type RouteHandlerContext
 } from "@betterportal/framework";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, AuthRoleAuthority, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
-import { getConfigManagerRouteContext } from "../../routeContext.js";
-import { getCachedManifestForService } from "../../syncApi.js";
-import { apiRoutePath, pageRoutePath } from "../../routeMounts.js";
-import { resolveRoleAuthority, supportedRoleAuthorities } from "../../roleAuthority.js";
+import { getConfigManagerRouteContext } from "./routeContext.js";
+import { getCachedManifestForService } from "./syncApi.js";
+import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
+import { resolveRoleAuthority, supportedRoleAuthorities } from "./roleAuthority.js";
 
 const RoleAuthoritySchema = av.enum_(["provider", "betterportal"] as const);
 
@@ -579,10 +579,11 @@ function ensureAuthRouteMounts(config: BetterPortalConfig, appDef: BetterPortalA
   for (const view of Object.values(manifest.viewIndex)) {
     for (const operation of view.operations.filter((candidate) => candidate.role && desiredRoles.has(candidate.role))) {
       if (appDef.routes.some((route) => route.serviceId === authServiceId && route.operations.includes(operation.operationId))) continue;
-      const path = operation.renderable ? pageRoutePath(manifest.serviceId, view.path) : apiRoutePath(manifest.serviceId, view.path);
+      const page = operation.method === "GET" && operation.renderModes.includes("page");
+      const path = page ? pageRoutePath(manifest.serviceId, view.path) : apiRoutePath(manifest.serviceId, view.path);
       appDef.routes.push({
         id: uuidv7(),
-        kind: operation.renderable ? "page" : "api",
+        kind: page ? "page" : "api",
         path,
         serviceId: authServiceId,
         viewId: view.viewId,

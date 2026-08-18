@@ -5,6 +5,7 @@ import type {
   JsonValue
 } from "@betterportal/framework";
 import * as av from "anyvali";
+import type { AnyValiDocument, SchemaNode } from "anyvali";
 import {
   AppAuthRoleSchema,
   eventHeaders,
@@ -164,31 +165,25 @@ function fixedParamsFromBody(body: Record<string, unknown>): Record<string, stri
   return fixed;
 }
 
-function validateFixedParamValue(
+export function validateFixedParamValue(
   name: string,
   value: string,
   paramsSchema?: Record<string, JsonValue>
 ): string | undefined {
-  const properties = paramsSchema?.properties;
-  const schema = properties && typeof properties === "object" && !Array.isArray(properties)
-    ? (properties as Record<string, JsonValue>)[name]
-    : undefined;
-  const rule = schema && typeof schema === "object" && !Array.isArray(schema)
-    ? schema as Record<string, JsonValue>
-    : {};
-  const minLength = typeof rule.minLength === "number" ? rule.minLength : 1;
-  const maxLength = Math.min(typeof rule.maxLength === "number" ? rule.maxLength : 100, 100);
-  if (value.length < minLength || value.length > maxLength) {
-    return `${name} must be between ${minLength} and ${maxLength} characters.`;
+  if (value.length > 100) return `${name} must be at most 100 characters.`;
+  if (!paramsSchema) return undefined;
+
+  try {
+    const document = paramsSchema as unknown as AnyValiDocument;
+    const root = document.root;
+    const property = root?.kind === "object" ? root.properties[name] : undefined;
+    if (!property) return `${name} is missing from the service parameter schema.`;
+    const schema = av.importSchema({ ...document, root: property as SchemaNode });
+    const result = schema.safeParse(value);
+    return result.success ? undefined : `${name} is invalid: ${result.issues[0]?.message ?? "schema validation failed"}.`;
+  } catch {
+    return `${name} has an invalid AnyVali schema in the service manifest.`;
   }
-  if (typeof rule.pattern === "string") {
-    try {
-      if (!new RegExp(rule.pattern).test(value)) return `${name} does not match its service validation pattern.`;
-    } catch {
-      return `${name} has an invalid validation pattern in the service manifest.`;
-    }
-  }
-  return undefined;
 }
 
 function validateRouteParamMapping(
@@ -416,7 +411,7 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   const manifestView = getManifestCache().get(serviceId.value!)?.viewIndex[viewId.value!];
   const manifestOperation = manifestView?.operations.find((operation) => operation.operationId === operationId.value);
   if (manifestView && !manifestOperation) return { error: "Selected operation is not available for this view." };
-  const renderable = manifestOperation?.method === "GET" && manifestOperation.renderable === true;
+  const renderable = manifestOperation?.method === "GET" && manifestOperation.renderModes.includes("page");
   const manifest = getManifestCache().get(serviceId.value!);
   const servicePathVariant = trimmedString(body, "servicePathVariant") ?? manifestView?.path ?? `/${viewId.value!}`;
   if (manifestView && ![manifestView.path, ...manifestView.pathVariants].includes(servicePathVariant)) {
@@ -543,10 +538,12 @@ function addRouteDependencies(appDef: BetterPortalApp, route: BetterPortalRouteM
   const dependencies = view.operations
     .filter((operation) => route.operations.includes(operation.operationId))
     .flatMap((operation) => operation.dependencies);
-  for (const dependencyOperationId of dependencies) {
-    const dependency = operations.get(dependencyOperationId);
+  for (const requirement of dependencies) {
+    if (requirement.serviceId) continue;
+    const dependency = operations.get(requirement.operationId);
+    if (dependency?.operation.method !== requirement.method) continue;
     if (!dependency) continue;
-    if (appDef.routes.some((candidate) => candidate.serviceId === route.serviceId && candidate.operations.includes(dependencyOperationId))) continue;
+    if (appDef.routes.some((candidate) => candidate.serviceId === route.serviceId && candidate.operations.includes(requirement.operationId))) continue;
     appDef.routes.push({
       id: uuidv7(),
       kind: "api",
@@ -556,7 +553,8 @@ function addRouteDependencies(appDef: BetterPortalApp, route: BetterPortalRouteM
       targetPath: dependency.view.path,
       title: dependency.operation.title,
       enabled: true,
-      operations: [dependencyOperationId]
+      enablement: "auto",
+      operations: [requirement.operationId]
     });
   }
 }
@@ -2197,7 +2195,7 @@ export function registerAdminApiRoutes(
       const servicePathError = validateCanonicalRoutePath(requestedServicePath, "Service path");
       if (servicePathError) return validationError(event, servicePathError);
       const submittedFixed = fixedParamsFromBody(body);
-      const pageRenderable = manifestOperation.method === "GET" && manifestOperation.renderable;
+      const pageRenderable = manifestOperation.method === "GET" && manifestOperation.renderModes.includes("page");
       const mappedAppPath = !pageRenderable
         ? apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath)
         : route.path;
@@ -2229,7 +2227,7 @@ export function registerAdminApiRoutes(
     if (body.query !== undefined) {
       const query = trimmedString(body, "query");
       const renderable = manifestView?.operations.some((operation) =>
-        route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderable
+        route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
       );
       if (isApiRoute(route, renderable)) delete route.query;
       else if (query) route.query = query.replace(/^\?+/, "");
@@ -2239,11 +2237,14 @@ export function registerAdminApiRoutes(
       const title = trimmedString(body, "title");
       if (!title) return validationError(event, "Display title is required.");
       const renderable = manifestView?.operations.some((operation) =>
-        route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderable
+        route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
       );
       if (!isApiRoute(route, renderable)) route.title = title;
     }
-    if (body.enabled !== undefined) route.enabled = body.enabled === true || body.enabled === "true" || body.enabled === "on";
+    if (body.enabled !== undefined) {
+      route.enabled = body.enabled === true || body.enabled === "true" || body.enabled === "on";
+      route.enablement = route.enabled ? "enabled" : "disabled";
+    }
 
     if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(route.path))) {
       return validationError(event, `A route already exists at ${route.path}.`);
@@ -2417,7 +2418,11 @@ export function registerAdminApiRoutes(
         const manifestViews = schema.manifest?.views ?? [];
         dependencyOperationIds = new Set(manifestViews.flatMap((view) => (view.operations ?? []).flatMap((operation) =>
           Array.isArray(operation.dependencies)
-            ? operation.dependencies.filter((value): value is string => typeof value === "string")
+            ? operation.dependencies.flatMap((value) => value && typeof value === "object"
+              && typeof (value as { operationId?: unknown }).operationId === "string"
+              && (value as { serviceId?: unknown }).serviceId === undefined
+                ? [(value as { operationId: string }).operationId]
+                : [])
             : []
         )));
         serviceRoutes = manifestViews.flatMap((view) => (view.operations ?? []).flatMap((operation) =>

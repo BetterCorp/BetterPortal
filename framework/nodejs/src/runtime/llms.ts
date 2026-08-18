@@ -205,6 +205,8 @@ export function renderThemeLlmsDev(context: ThemeLlmsContext): string {
     "HTML renderers receive `ViewRenderContext` as their second argument. Its limited `tenant` and `app` projections are presentation-only; authorization and business data remain in the route handler.",
     "App auth login/logout references are view IDs, not paths. Resolve them with `ctx.url.uiRoute(viewId, { serviceId })`; do not add renderer-only navigation to the JSON response schema.",
     "Before returning a service-specific response outside HTTP 200-399, call `ctx.diagnostic({ code, reason, attributes? })`. Use stable lowercase dotted codes and never put secrets or tokens in diagnostic data.",
+    "Route dependencies are explicit `{ operationId, method }` objects; for another service add `serviceId` with the installed dependency alias. Renderer route tokens never infer dependencies. Config Manager derives transitive least-privilege role grants from exact mounted dependencies and shows them read-only. A fragment-only GET is a normal API operation, a stream is a finite frame sequence, and SSE is an open-ended GET transport; streamed HTML and SSE inherit the GET operation's auth and permissions.",
+    "Do not patch BetterPortal core packages, Config Manager, theme runtime, generated files, installed clients/contracts, or node_modules from a consumer service/theme. Do not hardcode runtime UUIDs, hostnames, internal routes, or bypass auth/allowlists. Stop, read the docs and generated contract, and re-plan with supported APIs; propose a separate upstream core change if support is genuinely missing.",
     ""
   ].join("\n");
 }
@@ -219,6 +221,7 @@ export function renderThemeLlmsUi(context: ThemeLlmsContext, resources: Readonly
     "Service UI is server-rendered HTML/HTMX. Do not introduce a SPA router, iframe, client state framework, or hardcoded service hostname.",
     "For cross-service fragments, use `BPElement` with the dependency alias/key declared in `betterportal.json`; never use a title, runtime service UUID, hostname, or absolute URL. Use the reserved `shell` alias for active-shell fragments.",
     "Omit `bp-ok` to insert a successful fragment directly. Add `bp-ok` only to wrap success content, and include exactly one `<template />` insertion point.",
+    "Do not patch BetterPortal core/theme runtime, generated files, installed contracts, or node_modules to make a theme work. Do not hardcode runtime UUIDs, service hostnames, or internal routes. Stop, inspect the active shell resources and supported APIs, then re-plan; missing platform support belongs in a separate upstream BetterPortal change.",
     "",
     "## Theme resources",
     ""

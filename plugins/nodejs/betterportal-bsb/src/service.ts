@@ -1062,14 +1062,20 @@ export abstract class BPService<
       // AND surface per-view permission requirements to the admin role editor.
       const viewIndex: Record<string, unknown> = {};
       for (const view of this.manifest.views) {
-        const fragments: Array<{ fragmentId: string; targetPath: string }> = [];
+        const fragments: Array<{ fragmentId: string; targetPath: string; operationId: string; method: string }> = [];
         const seenFragments = new Set<string>();
         for (const operation of view.operations) {
           for (const theme of Object.values(operation.html.renderers)) {
             for (const renderer of theme.renderers) {
-              if (renderer.slotId === "main" || seenFragments.has(renderer.slotId)) continue;
-              seenFragments.add(renderer.slotId);
-              fragments.push({ fragmentId: renderer.slotId, targetPath: view.path });
+              const key = `${renderer.slotId}:${operation.operationId}:${operation.method}`;
+              if (renderer.slotId === "main" || seenFragments.has(key)) continue;
+              seenFragments.add(key);
+              fragments.push({
+                fragmentId: renderer.slotId,
+                targetPath: view.path,
+                operationId: operation.operationId,
+                method: operation.method
+              });
             }
           }
         }
@@ -1086,6 +1092,7 @@ export abstract class BPService<
             title: operation.title,
             description: operation.description,
             renderers: Object.keys(operation.html.renderers),
+            renderModes: [...new Set(Object.values(operation.html.renderers).flatMap((renderer) => renderer.renderModes))],
             ...(operation.role ? { role: operation.role } : {}),
             authRequired: operation.auth.required,
             ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),

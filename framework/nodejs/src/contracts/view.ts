@@ -60,6 +60,13 @@ export type ViewDemoScenario = Infer<typeof ViewDemoScenarioSchema>;
 export const ViewRoleSchema = av.string().minLength(1);
 export type ViewRole = Infer<typeof ViewRoleSchema>;
 
+export const OperationDependencySchema = av.object({
+  serviceId: av.optional(NonEmptyStringSchema),
+  operationId: NonEmptyStringSchema,
+  method: HttpMethodSchema
+});
+export type OperationDependency = Infer<typeof OperationDependencySchema>;
+
 /**
  * Streaming declaration for a view (spec/streaming.md section 5). Present only on
  * streaming views; `jsonResponseSchema` then holds the derived buffered shape.
@@ -97,7 +104,7 @@ export const ViewOperationMetadataSchema = av.object({
     crawlDelaySeconds: av.optional(av.int().min(0).max(86400))
   })).default([]),
   role: av.optional(ViewRoleSchema),
-  dependencies: av.array(NonEmptyStringSchema).default([]),
+  dependencies: av.array(OperationDependencySchema).default([]),
   chrome: av.optional(BetterPortalRouteChromeSchema),
   apiContracts: av.array(ApiContractDescriptorSchema).default([]),
   demoScenarios: av.array(ViewDemoScenarioSchema).default([]),

@@ -9,6 +9,8 @@ BetterPortal uses Server-Sent Events (SSE) for two purposes:
 
 This document specifies both. WebSockets are NOT used by the protocol; if bidirectional comms are needed, define a separate endpoint.
 
+SSE is a transport of the owning GET operation, not a separate route contract. The SSE endpoint inherits the GET operation id, params/query schemas, auth, permissions, dependencies, tenant/app context, service availability checks, and app route allowlist. A normal fragment-only GET is not SSE: it is a finite HTTP response with a fragment renderer. A `createStreamHandler` stream is also finite; its HTML transport may use SSE while preserving the same GET operation identity.
+
 ---
 
 ## 1. Per-view SSE streams

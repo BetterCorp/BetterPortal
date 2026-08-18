@@ -7,6 +7,6 @@ export const auth: ApiAuthRequirement = {
   required: true,
   permissions: [{ serviceId: "org.betterportal.config-manager", viewId: "tenants.index", permissions: ["update"] }]
 };
-export { cacheHints, demoScenarios } from "./route.impl.js";
-export { ResponseSchema } from "./route.impl.js";
-export { handlePut as default } from "./route.impl.js";
+export { cacheHints, demoScenarios } from "../../tenantManagement.js";
+export { ResponseSchema } from "../../tenantManagement.js";
+export { handlePut as default } from "../../tenantManagement.js";

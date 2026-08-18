@@ -31,7 +31,7 @@ function scannedRoute(overrides: Partial<ScannedRoute> = {}): ScannedRoute {
     hasSummarySchema: false,
     isRaw: false,
     looseSchemas: [],
-    autoDependenciesByMethod: {},
+    hasRouteImpl: false,
     ...overrides
   };
 }
@@ -58,6 +58,11 @@ test("method contracts cannot be flattened into route metadata", () => {
       issue.severity === "error" && issue.message.includes(`metadata "${name}" belongs in each method file`)
     ), true);
   }
+});
+
+test("route.impl files fail as shared route god modules", () => {
+  const issues = validateScanResult(scanResult(scannedRoute({ hasRouteImpl: true })));
+  assert.equal(issues.some((issue) => issue.severity === "error" && issue.message.includes("route.impl files are not supported")), true);
 });
 
 test("operation ids are unique across a service", () => {

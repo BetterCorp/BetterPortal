@@ -5,8 +5,8 @@ import {
   type CacheHints,
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
-import { createHandler } from "../../.bp-generated/route-runtime.js";
-import type { Plugin } from "../../index.js";
+import { createHandler } from "./.bp-generated/route-runtime.js";
+import type { Plugin } from "./index.js";
 
 export const QuerySchema = av.object({
   next: av.optional(av.string()).describe("The view path to pass through to login after first-admin registration.")
@@ -40,7 +40,10 @@ export const title = "Register First Admin";
 export const description = "Open registration for the very first user. Once any user exists, this endpoint requires admin auth.";
 
 export const role = "auth.register";
-export const dependencies = ["auth.register", "auth.login.view"];
+export const dependencies = [
+  { operationId: "auth.register", method: "POST" },
+  { operationId: "auth.login.view", method: "GET" }
+] as const;
 export const chrome: BetterPortalRouteChrome = { fullScreen: true };
 
 export const auth: ApiAuthRequirement = {

@@ -119,7 +119,34 @@ test("SSE fragments use the resolved app shell renderer and ignore client overri
       shell: { renderer: "bootstrap5" }
     };
   });
-  createH3Router(registry, app);
+  createH3Router(registry, app, {
+    resolveContext: () => ({
+      tenant: { id: "tenant", slug: "tenant", title: "Tenant", active: true, branding: {}, services: [], activatedPlatformServices: [] },
+      app: {
+        id: "app",
+        tenantId: "tenant",
+        slug: "app",
+        title: "App",
+        hostnames: ["127.0.0.1"],
+        originOverrides: [],
+        refererOverrides: [],
+        themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
+        defaultRoute: "/",
+        routes: [{
+          id: "route",
+          kind: "api",
+          path: "/_bp/service/test/live",
+          serviceId: "service",
+          viewId: "live.index",
+          enabled: true,
+          operations: ["live.stream"],
+          resolvedServicePath: "/live",
+          resolvedMethods: ["GET"]
+        }],
+        menu: [], slots: [], fragments: {}, shellFragments: {}
+      }
+    })
+  });
   const server = createServer(createBetterPortalNodeHandler(app));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();

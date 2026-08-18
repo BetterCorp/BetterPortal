@@ -290,6 +290,14 @@ export interface SSEHandlerContext {
   readonly event: unknown;
   readonly params: Record<string, string>;
   readonly query: Record<string, unknown>;
+  readonly tenant: BetterPortalTenant;
+  readonly app: BetterPortalResolvedApp;
+  readonly user?: ValidatedUserClaims;
+  readonly serviceCaller?: ValidatedServiceClaims;
+  readonly callerMode?: ApiCallerMode;
+  readonly serviceId?: string;
+  readonly routeUrl?: RouteHandlerContext["routeUrl"];
+  readonly uiRouteUrl?: RouteHandlerContext["uiRouteUrl"];
   readonly obs?: BetterPortalObservability;
 }
 

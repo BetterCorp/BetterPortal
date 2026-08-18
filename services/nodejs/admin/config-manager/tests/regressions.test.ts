@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import * as av from "anyvali";
+import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
-import { getCachedManifestForService, reconcileServiceRegistry, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { deriveRolePermissions, getCachedManifestForService, reconcileServiceRegistry, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
-import { purgeServiceReferences, renderConfigClientShell } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
+import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
 import * as adminAuthView from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/GET.js";
 import * as adminConfigView from "../src/plugins/service-betterportal-config-manager/bp-routes/config/GET.js";
@@ -56,6 +57,15 @@ class MemoryStorage extends BaseStorage {
   }
 }
 
+test("fixed route parameters use the published AnyVali schema", () => {
+  const schema = av.exportSchema(av.object({
+    accountId: av.string().format("uuid")
+  }), "portable") as unknown as Record<string, JsonValue>;
+
+  assert.equal(validateFixedParamValue("accountId", "c3f6025d-08fd-4ce7-b50c-43f4435f2e89", schema), undefined);
+  assert.match(validateFixedParamValue("accountId", "not-a-uuid", schema) ?? "", /uuid/i);
+});
+
 test("root bootstrap mounts every page action with its generated permissions", () => {
   const configManagerServiceId = uuidv7();
   const authServiceId = uuidv7();
@@ -63,7 +73,7 @@ test("root bootstrap mounts every page action with its generated permissions", (
   type BootstrapOperation = {
     operationId: string;
     auth: { required: boolean; permissions: ReadonlyArray<unknown> };
-    dependencies?: ReadonlyArray<string>;
+    dependencies?: ReadonlyArray<{ operationId: string; method: string; serviceId?: string }>;
   };
   const operationModules = new Map<string, ReadonlyArray<BootstrapOperation>>([
     [configManagerServiceId + ":services.index", [adminServicesView]],
@@ -135,14 +145,12 @@ test("root bootstrap mounts every page action with its generated permissions", (
     assert.ok(operation.auth.permissions.length > 0, operationId + " must declare an automated permission requirement");
   }
 
-  assert.deepEqual([...adminTenantsView.dependencies].sort(), [
-    "admin.tenants.create",
-    "admin.tenants.delete",
-    "admin.tenants.update"
+  assert.deepEqual(adminTenantsView.dependencies.map((dependency) => dependency.operationId).sort(), [
+    "admin.tenants.create", "admin.tenants.delete", "admin.tenants.update"
   ]);
-  assert.ok(authLoginView.dependencies.includes("auth.login"));
-  assert.ok(authLogoutView.dependencies.includes("auth.logout"));
-  assert.ok(authRegisterView.dependencies.includes("auth.register"));
+  assert.ok(authLoginView.dependencies.some((dependency) => dependency.operationId === "auth.login" && dependency.method === "POST"));
+  assert.ok(authLogoutView.dependencies.some((dependency) => dependency.operationId === "auth.logout" && dependency.method === "POST"));
+  assert.ok(authRegisterView.dependencies.some((dependency) => dependency.operationId === "auth.register" && dependency.method === "POST"));
 });
 
 function s2sConfig(): {
@@ -258,6 +266,61 @@ test("duplicate route keys follow runtime route matching", () => {
   assert.notEqual(appRoutePatternKey("/users/new"), appRoutePatternKey("/users/:id"));
 });
 
+test("role permissions derive exact operation dependencies without mutating explicit grants", () => {
+  const { sourceId, targetId } = s2sConfig();
+  const operation = (operationId: string, dependencies: CachedManifest["viewIndex"][string]["operations"][number]["dependencies"], permissions: CachedManifest["viewIndex"][string]["operations"][number]["permissions"]) => ({
+    operationId,
+    method: "GET" as const,
+    title: operationId,
+    description: operationId,
+    renderers: [],
+    renderModes: [],
+    authRequired: true,
+    robots: [],
+    dependencies,
+    permissions,
+    renderable: false,
+    apiContracts: [],
+    demoScenarios: []
+  });
+  const manifest = (serviceId: string, viewId: string, item: ReturnType<typeof operation>): CachedManifest => ({
+    serviceId,
+    manifestVersion: "1",
+    capabilities: [],
+    apiContracts: [],
+    m2mRequests: [],
+    developerResources: [],
+    viewIndex: { [viewId]: { viewId, title: viewId, description: viewId, path: `/${viewId}`, pathVariants: [], operations: [item], fragments: [] } },
+    configSchemas: [],
+    webhooks: [],
+    fetchedAt: Date.now()
+  });
+  const manifests = new Map([
+    [sourceId, manifest("org.example.source", "source.view", operation("source.read", [{ serviceId: "org.example.target", operationId: "target.read", method: "GET" }], [{ serviceId: "org.example.source", viewId: "source.view", permissions: ["read"] }]))],
+    [targetId, manifest("org.example.target", "target.view", operation("target.read", [], [{ serviceId: "org.example.target", viewId: "target.view", permissions: ["read"] }]))]
+  ]);
+  const routes = [
+    { id: uuidv7(), kind: "page" as const, path: "/source", serviceId: sourceId, viewId: "source.view", enabled: true, operations: ["source.read"] },
+    { id: uuidv7(), kind: "api" as const, path: "/target", serviceId: targetId, viewId: "target.view", enabled: true, operations: ["target.read"] }
+  ];
+  const auth = {
+    serviceId: sourceId,
+    expectedIssuer: "https://auth.example",
+    expectedAudience: "app",
+    jwksUri: "https://auth.example/jwks",
+    roles: [
+      { id: "reader", title: "Reader", permissions: [{ serviceId: sourceId, viewId: "source.view", permissions: ["read" as const] }] },
+      { id: "creator", title: "Creator", permissions: [{ serviceId: sourceId, viewId: "source.view", permissions: ["create" as const] }] }
+    ]
+  };
+
+  const result = deriveRolePermissions(auth, routes, (serviceId) => manifests.get(serviceId));
+  assert.equal(auth.roles[0].permissions.length, 1);
+  assert.deepEqual(result.auth.roles[0].permissions[1], { serviceId: targetId, viewId: "target.view", permissions: ["read"] });
+  assert.equal(result.auth.roles[1].permissions.length, 1);
+  assert.deepEqual(result.derived[0]?.requiredBy, [{ serviceId: sourceId, operationId: "source.read", method: "GET" }]);
+});
+
 test("legacy route parameter syntax migrates across route and manifest paths", () => {
   const { config, sourceId } = s2sConfig();
   config.apps[0].routes.push({
@@ -343,7 +406,7 @@ test("operation-aware manifest caches backfill missing view labels", () => {
           apiContracts: [],
           demoScenarios: []
         }],
-        fragments: []
+        fragments: [{ fragmentId: "summary", targetPath: "/fragments/summary" }]
       }
     }
   });
@@ -352,6 +415,12 @@ test("operation-aware manifest caches backfill missing view labels", () => {
   const view = parsed.manifestCache[0].viewIndex["fragments.index"];
   assert.equal(view.title, "Fragments");
   assert.equal(view.description, "Manage application fragments.");
+  assert.deepEqual(view.fragments[0], {
+    fragmentId: "summary",
+    targetPath: "/fragments/summary",
+    operationId: "admin.fragments.read",
+    method: "GET"
+  });
 });
 
 test("official legacy plugin IDs migrate without changing external IDs", () => {
@@ -537,7 +606,7 @@ test("manifest sync owns API mounts and moves newly renderable views to visual r
       methods: ["GET"]
     }
   ];
-  const registryRoute = (viewId: string, path: string, raw: boolean, dependencies: string[] = [], postRenderer = false) => {
+  const registryRoute = (viewId: string, path: string, raw: boolean, dependencies: Array<{ operationId: string; method: "GET" }> = [], postRenderer = false) => {
     const methodRoutes: Record<string, unknown> = {
       GET: {
         method: "GET",
@@ -586,7 +655,7 @@ test("manifest sync owns API mounts and moves newly renderable views to visual r
 
   await reconcileServiceRegistry(new MemoryStorage(value.config), value.targetId, {
     routes: [
-      registryRoute("dashboard.index", "/dashboard", false, ["dashboard.data"], true),
+      registryRoute("dashboard.index", "/dashboard", false, [{ operationId: "dashboard.data", method: "GET" }], true),
       registryRoute("dashboard.data", "/dashboard-data", true),
       registryRoute("jobs.run", "/jobs/run", true),
       registryRoute("moved.index", "/moved", false)

@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 import { css } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 import { renderMarkdown } from "../../../rendering/markdown.js";
 
 function sectionLabel(section: string): string {

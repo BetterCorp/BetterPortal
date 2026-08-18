@@ -1,6 +1,6 @@
 import type { BaseSchema } from "anyvali";
 import type { HttpMethod, RenderMode } from "./common.js";
-import type { CacheHints } from "./view.js";
+import type { CacheHints, OperationDependency } from "./view.js";
 import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteUrlOptions, SSEHandler } from "./route.js";
 import type { BetterPortalApp, BetterPortalRouteChrome, BetterPortalTenant } from "./platformConfig.js";
 import type { ApiContractDescriptor } from "./m2m.js";
@@ -176,7 +176,7 @@ export interface RegisteredMethodRoute {
   readonly sitemap?: import("./seo.js").RouteSitemapDeclaration;
   readonly robots?: import("./seo.js").RouteRobotsPolicy;
   readonly role?: string;
-  readonly dependencies?: ReadonlyArray<string>;
+  readonly dependencies?: ReadonlyArray<OperationDependency>;
   readonly chrome?: BetterPortalRouteChrome;
   readonly apiContracts?: ReadonlyArray<Omit<ApiContractDescriptor, "viewId" | "methods">>;
   readonly cacheHints: CacheHints;

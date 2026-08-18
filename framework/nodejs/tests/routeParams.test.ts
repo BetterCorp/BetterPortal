@@ -94,6 +94,45 @@ test("manifest groups runtime variants without losing their paths", () => {
   assert.deepEqual(manifest.views[0].pathVariants, ["/reports/:reportId", "/reports"]);
 });
 
+test("fragment-only operations remain in the manifest with explicit dependencies", () => {
+  const route = registeredRoute("/sync/status", []);
+  const registry: BetterPortalRegistry = {
+    routes: [{
+      ...route,
+      methodRoutes: {
+        GET: {
+          ...route.methodRoutes!.GET!,
+          operationId: "sync.status.read",
+          dependencies: [{ operationId: "sync.status.read", method: "GET" }]
+        }
+      },
+      renderers: {
+        bootstrap5: {
+          pages: [],
+          components: [],
+          fragments: [{
+            rendererId: "body.status",
+            rendererKey: "bootstrap5",
+            type: "fragment",
+            method: "GET",
+            fragmentLocation: "body",
+            fragmentId: "status",
+            render: () => "status"
+          }]
+        }
+      }
+    }]
+  };
+  const manifest = buildManifestFromRegistry(registry, { version: "1.0.0" }, {
+    pluginId: "example.sync",
+    title: "Sync",
+    description: "Sync"
+  });
+  assert.equal(manifest.views.length, 1);
+  assert.deepEqual(manifest.views[0].operations[0].dependencies, [{ operationId: "sync.status.read", method: "GET" }]);
+  assert.deepEqual(manifest.views[0].operations[0].html.renderers.bootstrap5.renderModes, ["fragment"]);
+});
+
 function app(routes: BetterPortalApp["routes"]): BetterPortalApp {
   return {
     id: "019f0000-0000-7000-8000-000000000001",

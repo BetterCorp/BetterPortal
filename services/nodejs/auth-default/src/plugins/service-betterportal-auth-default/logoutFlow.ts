@@ -4,7 +4,7 @@ import {
   type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
-import { createHandler } from "../../.bp-generated/route-runtime.js";
+import { createHandler } from "./.bp-generated/route-runtime.js";
 
 export const QuerySchema = av.object({});
 export const HeadersSchema = av.object({});
@@ -19,7 +19,7 @@ export type ResponseData = Infer<typeof ResponseSchema>;
 export const title = "Logout";
 export const description = "Clear the authentication token from the client.";
 export const role = "auth.logout";
-export const dependencies = ["auth.logout"];
+export const dependencies = [{ operationId: "auth.logout", method: "POST" }] as const;
 
 export const auth: ApiAuthRequirement = {
   required: false,

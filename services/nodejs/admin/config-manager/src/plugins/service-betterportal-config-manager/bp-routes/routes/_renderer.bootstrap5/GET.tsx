@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 import { appRoutePatternKey } from "../../../routeMounts.js";
 
 function scriptJson(value: unknown): string {
@@ -54,7 +54,7 @@ function manifestLoaderScript(
         paramsSchema: view.paramsSchema && typeof view.paramsSchema === "object" ? view.paramsSchema : undefined,
         method: String(operation.method || ""),
         renderable: viewRenderable(operation),
-        dependencies: Array.isArray(operation.dependencies) ? operation.dependencies.map(String) : []
+        dependencies: Array.isArray(operation.dependencies) ? operation.dependencies : []
       }))
     ).filter((operation) => operation.viewId && operation.operationId);
   };
@@ -208,7 +208,9 @@ function manifestLoaderScript(
     container.replaceChildren();
     container.classList.toggle("d-none", names.length === 0);
     let complete = true;
-    const properties = view?.paramsSchema?.properties || {};
+    const properties = view?.paramsSchema?.root?.kind === "object"
+      ? view.paramsSchema.root.properties || {}
+      : {};
     for (const name of names) {
       const dynamic = dynamicParams.has(name);
       const value = existingValues[name] ?? storedValues[name] ?? "";
@@ -721,6 +723,12 @@ export function render(data: ResponseData): HtmlRenderable {
 
   return (
     <div class="container-fluid px-0">
+      {(data.dependencyWarnings ?? []).length > 0 ? (
+        <div class="alert alert-warning" role="alert">
+          <strong>Unresolved operation dependencies</strong>
+          <ul class="mb-0 mt-2">{(data.dependencyWarnings ?? []).map((warning) => <li>{warning}</li>)}</ul>
+        </div>
+      ) : null}
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0">{data.title}</h2>
         <button

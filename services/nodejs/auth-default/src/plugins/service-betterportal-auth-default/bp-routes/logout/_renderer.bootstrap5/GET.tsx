@@ -1,6 +1,6 @@
 /** @jsxImportSource jsx-htmx */
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../../../logoutFlow.js";
 
 export function render(_data: ResponseData): HtmlRenderable {
   // Transient view: the response's BP-RemoveHeader directives clear the stored

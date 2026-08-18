@@ -93,7 +93,7 @@ function getRoutes(appDef: any): Route[] {
       ? getManifestCache().get(route.serviceId)?.viewIndex[route.viewId]
       : undefined;
     const renderable = view?.operations.some((operation) =>
-      route.operations?.includes(operation.operationId) && operation.method === "GET" && operation.renderable
+      route.operations?.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
     );
     return !isApiRoute(route, renderable);
   });
@@ -142,7 +142,7 @@ function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: s
   const entry = cache.get(serviceId);
   if (!entry) return [];
   return Object.values(entry.viewIndex)
-    .filter((v) => v.operations.some((operation) => operation.method === "GET" && operation.renderable))
+    .filter((v) => v.operations.some((operation) => operation.method === "GET" && operation.renderModes.includes("page")))
     .map((v) => ({
       viewId: v.viewId,
       title: v.viewId,

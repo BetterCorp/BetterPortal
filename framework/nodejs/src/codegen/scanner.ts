@@ -71,7 +71,7 @@ export interface ScannedRoute {
   looseSchemas: string[];
   allowUnknownKeysSchemas?: string[];
   redundantStripSchemas?: string[];
-  autoDependenciesByMethod: Record<string, string[]>;
+  hasRouteImpl: boolean;
 }
 
 export interface ScannedShellFragment {
@@ -379,16 +379,6 @@ function detectSchemaPolicy(filePath: string): {
 
   visit(sourceFile);
   return { looseSchemas, allowUnknownKeysSchemas, redundantStripSchemas };
-}
-
-function detectRouteTokens(filePath: string): string[] {
-  const source = fs.readFileSync(filePath, "utf-8");
-  const tokens = new Set<string>();
-  const tokenRe = /["'`]\{([A-Za-z0-9_$.-]+)\}["'`]/g;
-  for (const match of source.matchAll(tokenRe)) {
-    tokens.add(match[1]);
-  }
-  return [...tokens];
 }
 
 function detectRenderParamWarning(filePath: string): ScannedViewRenderer["renderParamWarning"] {
@@ -797,13 +787,6 @@ function scanDirectory(
     // Scan UI renderers
     const renderers: ScannedViewRenderer[] = [];
     const streamRenderers: ScannedStreamRenderer[] = [];
-    const autoDependenciesByMethod = new Map<string, Set<string>>();
-    const addAutoDependency = (method: string, token: string) => {
-      if (token === viewId) return;
-      const dependencies = autoDependenciesByMethod.get(method) ?? new Set<string>();
-      dependencies.add(token);
-      autoDependenciesByMethod.set(method, dependencies);
-    };
 
     for (const entry of entries) {
       // Renderer directory: _renderer.{rendererKey}/
@@ -815,15 +798,6 @@ function scanDirectory(
           renderers.push(
             ...scanRendererDirectory(rendererDirPath, rendererKey, generatedDir, streamRenderers),
           );
-          for (const rendererFile of fs.readdirSync(rendererDirPath, { withFileTypes: true })) {
-            if (rendererFile.isFile() && rendererFile.name.endsWith(".tsx")) {
-              const parsed = parseRendererFile(rendererFile.name);
-              const method = parsed?.method ?? "GET";
-              for (const token of detectRouteTokens(path.join(rendererDirPath, rendererFile.name))) {
-                addAutoDependency(method, token);
-              }
-            }
-          }
         }
       }
 
@@ -833,9 +807,6 @@ function scanDirectory(
         if (rendererFileMatch) {
           const rendererKey = rendererFileMatch[1];
           const filePath = path.join(currentDir, entry.name);
-          for (const token of detectRouteTokens(filePath)) {
-            addAutoDependency("GET", token);
-          }
           renderers.push({
             rendererKey,
             rendererId: "default",
@@ -868,9 +839,7 @@ function scanDirectory(
         hasSummarySchema: handlerExports.includes("SummarySchema"),
         isRaw: methodModules.some((module) => module.isRaw),
         ...detectSchemaPolicy(indexPath),
-        autoDependenciesByMethod: Object.fromEntries(
-          [...autoDependenciesByMethod].map(([method, dependencies]) => [method, [...dependencies]])
-        ),
+        hasRouteImpl: entries.some((entry) => entry.isFile() && /^route\.impl\.tsx?$/.test(entry.name)),
       });
     }
   }

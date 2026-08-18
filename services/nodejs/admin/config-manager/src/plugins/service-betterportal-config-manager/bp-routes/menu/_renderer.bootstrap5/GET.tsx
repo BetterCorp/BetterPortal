@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 
 function dragScript(): HtmlRenderable {
   return js(`if (document.body.dataset.bpMenuDragBound !== "1") {

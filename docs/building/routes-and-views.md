@@ -197,7 +197,7 @@ export function render(data: ResponseData): HtmlRenderable {
 
 Route chrome is operation-owned presentation metadata. Export `chrome = { fullScreen: true }` from the relevant method file when that operation should use a full-workspace presentation. Config Manager copies the selected operation's default chrome into scoped app routes; an explicit app-route chrome value overrides it.
 
-Route dependencies are service-declared operation ids that must be mounted with the source operation. Export `dependencies = ["clients.detail.read"]` from the method that calls that operation. Codegen also detects literal route tokens in a method renderer and merges them into that renderer method's dependencies. Config Manager auto-adds one dependency mount per operation.
+Route dependencies are explicit operation references that must be mounted with the source operation. Export `{ operationId, method }` from the method that calls the operation, adding a dependency alias as `serviceId` for cross-service calls. Renderer route tokens never declare dependencies. Config Manager auto-adds one dependency mount per operation.
 
 `apps[].routes[]` stores both browser-visible page routes and service/API allowlist routes:
 
@@ -225,7 +225,7 @@ An internal, root-relative `<a href>` is browser-visible navigation and must res
 
 For OAuth, the user-facing "Continue with ..." anchor should target a mounted page/view route. That view may initiate the external provider redirect with the normal BP response/header flow. The provider callback can remain an API route, but it must redirect back to a mounted page route after completing authentication. `data-bp-no-route` is not a workaround for service links: it disables routing entirely and leaves a root-relative URL pointed at the theme origin.
 
-Config-manager owns Service/API route mounts as a synchronized projection of each active service manifest. Newly published API-only operations are added to every applicable app disabled by default; operations declared as dependencies of a mounted operation are enabled automatically. Administrators may enable or disable these mounts, but cannot create, edit, or delete them manually. Sync updates their path, operation identity, and derived method, removes API operations that disappear, and moves an operation into Visual Routes disabled if it becomes renderable.
+Config-manager owns Service/API route mounts as a synchronized projection of each active service manifest. Newly published API-only operations are added to every applicable app disabled by default; operations declared as dependencies of a mounted operation use automatic enablement. Administrators may pin a mount on or off, but cannot create, edit, or delete it manually. Sync updates its path, operation identity, and derived method, removes API operations that disappear, and moves an operation into Visual Routes disabled if it gains a page renderer.
 
 Visual routes remain administrator-owned. If a page view disappears from a service manifest, config-manager disables its app route and preserves its app path, title, menu references, and auth redirect references for repair instead of deleting it.
 
@@ -334,7 +334,7 @@ This operation model is a breaking protocol change. To migrate a service:
 1. Leave only `viewId`, the shared label/description, and optional `ParamsSchema` in `index.ts`.
 2. Give every method file a stable, service-unique `operationId`.
 3. Move that method's title, description, auth, schemas, dependencies, chrome, SEO, contracts, cache hints, and demos into the method file.
-4. Replace dependency view ids with operation ids.
+4. Replace dependency strings with explicit `{ operationId, method }` references.
 5. Regenerate the registry and client contract.
 
 Config Manager converts persisted legacy `methods` arrays to temporary method-qualified operation references while loading old configuration. The next manifest sync resolves those references to the service's published operation ids and splits a legacy multi-method mount into separate operation mounts, keeping only a renderable GET in Visual Routes. New configuration and protocol-2 manifests must use `operations`; runtime code must not publish or depend on flattened method contracts.
@@ -412,7 +412,7 @@ Rules:
 
 ```tsx
 import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   return <section>{data.title}</section>;
@@ -420,6 +420,35 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
 ```
 
 Renderer `data` must be typed from the route response. Codegen warns on missing, `any`, or `unknown` render parameters.
+
+Do not create `route.impl.ts`. Each HTTP method file owns its operation id, schemas, auth, permissions, dependencies, metadata, and handler boundary. Shared business logic belongs in an intentionally named domain module outside the route directory, not in a route god-module.
+
+## Operation dependencies
+
+Dependencies are explicit operation references exported by the method that uses them:
+
+```ts
+export const dependencies = [
+  { operationId: "sync.status.read", method: "GET" },
+  { serviceId: "reports", operationId: "reports.read", method: "GET" }
+] as const;
+```
+
+Omit `serviceId` for the current service. For another service, `serviceId` is the dependency alias declared in `betterportal.json` and locked by `betterportal.lock.json`; it is not a runtime UUID, title, hostname, or plugin id. Codegen rejects unknown aliases and manifest construction rejects unavailable local operations. Renderer `{view.id}` tokens only resolve URLs and never declare dependencies.
+
+A fragment-only route still has a normal method operation. For example, `/sync/status/GET.ts` owns `sync.status.read`, while `_body.status.GET.tsx` is its fragment representation. Any `/sync` GET or POST operation that uses it must explicitly declare `{ operationId: "sync.status.read", method: "GET" }`. Fragment-only operations are API mounts, participate in permissions, and are never browser navigation pages.
+
+## Fragment, stream, and SSE selection
+
+- Use a normal fragment for one finite request/response region such as `/sync/status`.
+- Use `createStreamHandler` for a finite validated sequence that must support buffered JSON, NDJSON, or progressively rendered HTML.
+- Use SSE for a long-lived server-push feed such as notifications or live status.
+
+SSE and streamed HTML use `<path>/__sse` but do not define a second operation. They inherit the owning GET operation's id, params/query schemas, auth, permissions, dependencies, tenant/app context, and app allowlist.
+
+## Do not patch the platform from a consumer
+
+In a service or theme repository, BetterPortal framework/runtime packages, Config Manager, generated registries/clients/contracts, and `node_modules` are immutable. Do not patch them, hardcode runtime UUIDs or hostnames, bypass auth/allowlists, or hide contract failures behind casts. Stop, inspect this documentation and the generated contract, and re-plan with supported APIs. If support is missing, propose a separate upstream BetterPortal change rather than adding consumer-side duct tape.
 
 `ViewRenderContext` is server-resolved presentation context and is never serialized automatically. Its limited `tenant` projection contains `id`, `slug`, `title`, and `branding`. Its limited `app` projection contains `id`, `tenantId`, `slug`, `title`, `defaultRoute`, resolved `shell`, and navigation-only auth references (`serviceId`, `loginViewId`, and `logoutViewId`). It intentionally excludes services, routes, hostnames, origin policy, theme configuration, auth verification metadata, roles, permissions, keys, and M2M configuration. Authorization and business logic remain in the route handler.
 

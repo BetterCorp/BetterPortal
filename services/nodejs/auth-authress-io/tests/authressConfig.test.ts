@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AUTHRESS_GROUP_CACHE_TTL_MS, AuthressGroupCache } from "../src/groupCache.js";
 import { resolveAuthressAppConfig } from "../src/plugins/service-betterportal-auth-authress-io/index.js";
-import { handlePost as handleRefresh } from "../src/plugins/service-betterportal-auth-authress-io/bp-routes/refresh/route.impl.js";
+import handleRefresh from "../src/plugins/service-betterportal-auth-authress-io/bp-routes/refresh/POST.js";
 
 test("Authress audience validation is opt-in", () => {
   const config = resolveAuthressAppConfig({

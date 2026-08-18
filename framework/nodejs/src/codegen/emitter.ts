@@ -198,11 +198,7 @@ function emitMethodRoutes(route: ScannedRoute): string {
     for (const metadata of ["sitemap", "robots", "role", "chrome", "apiContracts"] as const) {
       if (module.exports.includes(metadata)) props.push(`${metadata}: ${alias}.${metadata}`);
     }
-    const autoDependencies = route.autoDependenciesByMethod[module.method] ?? [];
-    if (module.exports.includes("dependencies") || autoDependencies.length > 0) {
-      const declared = module.exports.includes("dependencies") ? `${alias}.dependencies` : "[]";
-      props.push(`dependencies: [...new Set([...${declared}, ...${JSON.stringify(autoDependencies)}])]`);
-    }
+    if (module.exports.includes("dependencies")) props.push(`dependencies: ${alias}.dependencies`);
     return `${module.method}: { ${props.join(", ")} }`;
   });
   return `{ ${entries.join(", ")} }`;

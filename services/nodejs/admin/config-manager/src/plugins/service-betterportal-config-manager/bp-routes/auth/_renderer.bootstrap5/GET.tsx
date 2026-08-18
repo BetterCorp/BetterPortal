@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 
 function permsScript(apiBase: string, serviceUrl: string, selectedAppId: string | undefined): HtmlRenderable {
   return js(`(() => {
@@ -234,14 +234,25 @@ export function render(data: ResponseData): HtmlRenderable {
                     <table class="table table-sm align-middle">
                       <thead><tr><th>ID</th><th>Title</th><th>Grants</th><th></th></tr></thead>
                       <tbody>
-                        {data.currentRoles.map((r) => (
-                          <tr>
+                        {data.currentRoles.map((r) => {
+                          const derived = (data.derivedPermissionGrants ?? []).filter((grant) => grant.roleId === r.id);
+                          return <tr>
                             <td class="font-monospace small">{r.id}</td>
                             <td>
                               <div>{r.title}</div>
                               {r.description ? <div class="small text-secondary">{r.description}</div> : null}
                             </td>
-                            <td><span class="badge text-bg-secondary">{r.permissions.length} grant{r.permissions.length === 1 ? "" : "s"}</span></td>
+                            <td>
+                              <span class="badge text-bg-secondary">{r.permissions.length} explicit</span>
+                              {derived.length > 0 ? <span class="badge text-bg-info ms-1">{derived.length} derived</span> : null}
+                              {derived.map((grant) => (
+                                <div class="small text-secondary mt-1">
+                                  {grant.permissions.join(", ")} on <span class="font-monospace">{grant.viewId}</span>
+                                  {" via "}
+                                  {grant.requiredBy.map((source) => `${source.method} ${source.operationId}`).join(", ")}
+                                </div>
+                              ))}
+                            </td>
                             <td>
                               <div class="btn-group btn-group-sm">
                                 <button class="btn btn-outline-primary" data-bs-toggle="offcanvas" data-bs-target="#bp-edit-role-panel" data-bp-edit-role={JSON.stringify(r)}>Edit</button>
@@ -254,8 +265,8 @@ export function render(data: ResponseData): HtmlRenderable {
                                 >x</button>
                               </div>
                             </td>
-                          </tr>
-                        ))}
+                          </tr>;
+                        })}
                       </tbody>
                     </table>
                   </div>

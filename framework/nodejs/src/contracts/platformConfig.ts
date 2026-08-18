@@ -5,6 +5,7 @@ import {
   HttpMethodSchema,
   PluginCategorySchema,
   PluginIdSchema,
+  RenderModeSchema,
   UuidV7Schema
 } from "./common.js";
 import { AppAuthConfigSchema, AuthProviderRuntimeMetadataSchema } from "./auth.js";
@@ -12,7 +13,7 @@ import { ConfigSchemaDescriptorSchema } from "./config.js";
 import { JsonObjectSchema } from "./json.js";
 import { ApiContractDescriptorSchema, M2MCallerModeSchema, M2MRequestDescriptorSchema } from "./m2m.js";
 import { DeveloperResourceSchema, ShellManifestSchema, WebhookEventDescriptorSchema } from "./manifest.js";
-import { ViewDemoScenarioSchema } from "./view.js";
+import { OperationDependencySchema, ViewDemoScenarioSchema } from "./view.js";
 import { BetterPortalRouteChromeSchema } from "./chrome.js";
 export { BetterPortalRouteChromeSchema, BetterPortalRouteChromeValueSchema } from "./chrome.js";
 export type { BetterPortalRouteChrome, BetterPortalRouteChromeValue } from "./chrome.js";
@@ -156,6 +157,7 @@ export const BetterPortalRouteMountSchema = av.object({
   title: av.optional(NonEmptyStringSchema),
   icon: av.optional(NonEmptyStringSchema),
   enabled: av.bool().default(true),
+  enablement: av.optional(av.enum_(["auto", "enabled", "disabled"] as const)),
   operations: av.array(NonEmptyStringSchema).minItems(1),
   chrome: av.optional(BetterPortalRouteChromeSchema)
 });
@@ -420,6 +422,7 @@ export const ServiceManifestCacheEntrySchema = av.object({
       title: NonEmptyStringSchema,
       description: NonEmptyStringSchema,
       renderers: av.array(NonEmptyStringSchema).default([]),
+      renderModes: av.array(RenderModeSchema).default([]),
       role: av.optional(NonEmptyStringSchema),
       authRequired: av.bool(),
       sitemap: av.optional(av.object({
@@ -434,7 +437,7 @@ export const ServiceManifestCacheEntrySchema = av.object({
         crawlDelaySeconds: av.optional(av.int().min(0).max(86400))
       })).default([]),
       chrome: av.optional(BetterPortalRouteChromeSchema),
-      dependencies: av.array(NonEmptyStringSchema).default([]),
+      dependencies: av.array(OperationDependencySchema).default([]),
       permissions: av.array(av.object({
         serviceId: NonEmptyStringSchema,
         viewId: NonEmptyStringSchema,
@@ -452,7 +455,12 @@ export const ServiceManifestCacheEntrySchema = av.object({
       apiContracts: av.array(ApiContractDescriptorSchema).default([]),
       demoScenarios: av.array(ViewDemoScenarioSchema).default([])
     })).minItems(1),
-    fragments: av.array(av.object({ fragmentId: NonEmptyStringSchema, targetPath: NonEmptyStringSchema })).default([])
+    fragments: av.array(av.object({
+      fragmentId: NonEmptyStringSchema,
+      targetPath: NonEmptyStringSchema,
+      operationId: NonEmptyStringSchema,
+      method: HttpMethodSchema
+    })).default([])
   })).default({})
 });
 export type ServiceManifestCacheEntry = Infer<typeof ServiceManifestCacheEntrySchema>;

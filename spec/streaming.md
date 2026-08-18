@@ -7,6 +7,8 @@ Some views produce data incrementally - fan-out aggregation (search), slow upstr
 
 > **API-first.** The canonical streamed artifact is a sequence of validated **data frames**. Every other representation - buffered JSON, streamed HTML - is a derivation of that frame stream. A streaming view MUST be fully consumable as data with zero HTML awareness.
 
+A stream is finite and ends with `end` or `error`. Use standalone SSE instead for an open-ended server-push feed, and use an ordinary fragment route for a single finite region refresh. All three representations remain operations: streamed HTML and SSE inherit the owning GET operation's identity and security rather than publishing extra operation ids.
+
 ## 1. Frame envelope
 
 Every streamed message is a **frame** - a JSON object with a `kind` discriminator. The envelope is protocol-defined and identical for every service; the `data` payload schemas are view-defined (declared in the manifest, section 5).

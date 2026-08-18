@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 import { css } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
-import type { ResponseData } from "../route.impl.js";
+import type { ResponseData } from "../GET.js";
 
 function docById(data: ResponseData, id: string): ResponseData["docs"][number] | undefined {
   return data.docs.find((doc) => doc.id === id);

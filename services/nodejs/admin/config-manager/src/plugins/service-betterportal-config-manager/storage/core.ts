@@ -96,6 +96,24 @@ export function resolveManifestViewLabels(view: {
   return { title, description };
 }
 
+function migrateManifestFragments(view: Record<string, unknown>): void {
+  if (!Array.isArray(view.fragments) || !Array.isArray(view.operations)) return;
+  const operations = view.operations.filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object");
+  view.fragments = view.fragments.flatMap((value) => {
+    if (!value || typeof value !== "object") return [];
+    const fragment = value as Record<string, unknown>;
+    if (typeof fragment.operationId === "string" && typeof fragment.method === "string") return [fragment];
+    const operation = operations.find((candidate) =>
+      candidate.method === "GET"
+      && Array.isArray(candidate.renderModes)
+      && candidate.renderModes.includes("fragment")
+    ) ?? operations.find((candidate) => candidate.method === "GET");
+    return typeof operation?.operationId === "string"
+      ? [{ ...fragment, operationId: operation.operationId, method: "GET" }]
+      : [];
+  });
+}
+
 /**
  * One-time persisted-config migration for the operation-aware manifest format.
  * Legacy ids remain explicit until the publishing service next syncs, where
@@ -120,6 +138,9 @@ export function migrateRouteOperations<T>(value: T): T {
           .filter((method): method is string => typeof method === "string")
           .map((method) => legacyOperationId(viewId, method));
       }
+      if (route.enablement !== "auto" && route.enablement !== "enabled" && route.enablement !== "disabled") {
+        route.enablement = route.kind === "api" ? "auto" : route.enabled === false ? "disabled" : "enabled";
+      }
       delete route.methods;
     }
   }
@@ -129,13 +150,46 @@ export function migrateRouteOperations<T>(value: T): T {
     if (!manifestValue || typeof manifestValue !== "object") continue;
     const viewIndex = (manifestValue as Record<string, unknown>).viewIndex;
     if (!viewIndex || typeof viewIndex !== "object" || Array.isArray(viewIndex)) continue;
+    const methodByOperation = new Map<string, string>();
+    for (const candidate of Object.values(viewIndex as Record<string, unknown>)) {
+      if (!candidate || typeof candidate !== "object") continue;
+      const operations = (candidate as Record<string, unknown>).operations;
+      if (!Array.isArray(operations)) continue;
+      for (const operation of operations) {
+        if (!operation || typeof operation !== "object") continue;
+        const record = operation as Record<string, unknown>;
+        if (typeof record.operationId === "string" && typeof record.method === "string") {
+          methodByOperation.set(record.operationId, record.method.toUpperCase());
+        }
+      }
+    }
     for (const viewValue of Object.values(viewIndex as Record<string, unknown>)) {
       if (!viewValue || typeof viewValue !== "object") continue;
       const view = viewValue as Record<string, unknown>;
       const labels = resolveManifestViewLabels(view);
       view.title = labels.title;
       view.description = labels.description;
-      if (Array.isArray(view.operations) && view.operations.length > 0) continue;
+      if (Array.isArray(view.operations) && view.operations.length > 0) {
+        for (const operationValue of view.operations) {
+          if (!operationValue || typeof operationValue !== "object") continue;
+          const operation = operationValue as Record<string, unknown>;
+          if (!Array.isArray(operation.renderModes)) {
+            operation.renderModes = operation.renderable === true
+              ? [operation.method === "GET" ? "page" : "fragment"]
+              : [];
+          }
+          if (Array.isArray(operation.dependencies)) {
+            operation.dependencies = operation.dependencies.flatMap((dependency) => {
+              if (dependency && typeof dependency === "object") return [dependency];
+              if (typeof dependency !== "string") return [];
+              const method = methodByOperation.get(dependency);
+              return method ? [{ operationId: dependency, method }] : [];
+            });
+          }
+        }
+        migrateManifestFragments(view);
+        continue;
+      }
       const viewId = typeof view.viewId === "string" ? view.viewId : "unknown";
       const methods = Array.isArray(view.methods) && view.methods.length > 0 ? view.methods : ["GET"];
       const renderers = Array.isArray(view.renderers)
@@ -150,9 +204,14 @@ export function migrateRouteOperations<T>(value: T): T {
           title: typeof view.title === "string" ? view.title : viewId,
           description: typeof view.description === "string" ? view.description : viewId,
           renderers,
+          renderModes: view.renderable !== false ? [method.toUpperCase() === "GET" ? "page" : "fragment"] : [],
           authRequired: view.authRequired === true,
           robots: Array.isArray(view.robots) ? view.robots : [],
-          dependencies: Array.isArray(view.dependencies) ? view.dependencies : [],
+          dependencies: Array.isArray(view.dependencies)
+            ? view.dependencies.flatMap((dependency) => typeof dependency === "string"
+              ? [{ operationId: dependency, method: methodByOperation.get(dependency) ?? "GET" }]
+              : [])
+            : [],
           permissions,
           renderable: view.renderable !== false,
           schemas: view.schemas,
@@ -160,6 +219,7 @@ export function migrateRouteOperations<T>(value: T): T {
           apiContracts: Array.isArray(view.apiContracts) ? view.apiContracts : [],
           demoScenarios: Array.isArray(view.demoScenarios) ? view.demoScenarios : []
         }));
+      migrateManifestFragments(view);
     }
   }
   return value;
