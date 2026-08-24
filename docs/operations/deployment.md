@@ -8,7 +8,7 @@ At minimum, a deployment needs a shell service and at least one business service
 
 | Unit | Example |
 |---|---|
-| Theme | `@betterportal/theme-bootstrap1`, `@betterportal/theme-bootstrap2`, or `@betterportal/theme-embedded` |
+| Theme | `@betterportal/theme-bootstrap1`, `@betterportal/theme-embedded`, or source-run Bootstrap2 |
 | Admin service | `@betterportal/config-manager` |
 | Docs service | `@betterportal/docs-site` |
 | Business service | `@betterportal/hello-view` |
@@ -39,6 +39,8 @@ npm run bp-codegen
 ## Release publishing
 
 Tag releases publish npm packages, BSB registry schemas, and BetterPortal contracts. The tag is the release version: pushing `v10.0.2` makes CI set every workspace package to `10.0.2` before build/publish. Master builds and tests only; it does not publish.
+
+Workspaces marked `"private": true` are built and remain eligible for BSB schema and BetterPortal contract publication, but are excluded from the npm publish matrix. Bootstrap2 is intentionally private and is not published to npm.
 
 Each publishable BetterPortal plugin package must set:
 
@@ -84,7 +86,6 @@ The `bsb-plugin-watcher` service is the only container that sets `BSB_PLUGINS` a
 ```text
 @betterportal/config-manager@10.1
 @betterportal/theme-bootstrap1@10.1
-@betterportal/theme-bootstrap2@10.1
 @betterportal/theme-embedded@10.1
 @betterportal/auth-default@10.1
 @betterportal/auth-authress-io@10.1
@@ -103,8 +104,6 @@ BP_CONFIG_MANAGER_VAULT_API_KEY_ID
 BP_CONFIG_MANAGER_VAULT_API_SECRET
 BP_BOOTSTRAP1_VAULT_API_KEY_ID
 BP_BOOTSTRAP1_VAULT_API_SECRET
-BP_BOOTSTRAP2_VAULT_API_KEY_ID
-BP_BOOTSTRAP2_VAULT_API_SECRET
 BP_EMBEDDED_VAULT_API_KEY_ID
 BP_EMBEDDED_VAULT_API_SECRET
 BP_AUTH_DEFAULT_VAULT_API_KEY_ID

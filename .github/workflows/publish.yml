@@ -14,6 +14,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       plugin-workspaces: ${{ steps.workspaces.outputs.plugin-workspaces }}
+      npm-workspaces: ${{ steps.workspaces.outputs.npm-workspaces }}
       bp-workspaces: ${{ steps.workspaces.outputs.bp-workspaces }}
     steps:
       - name: Checkout
@@ -23,6 +24,7 @@ jobs:
         id: workspaces
         run: |
           echo "plugin-workspaces=$(node scripts/release/list-plugin-workspaces.mjs)" >> "$GITHUB_OUTPUT"
+          echo "npm-workspaces=$(node scripts/release/list-plugin-workspaces.mjs --publishable)" >> "$GITHUB_OUTPUT"
           echo "bp-workspaces=$(node scripts/release/list-bp-workspaces.mjs)" >> "$GITHUB_OUTPUT"
 
   build-core:
@@ -136,7 +138,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        workspace: ${{ fromJSON(needs.discover-workspaces.outputs.plugin-workspaces) }}
+        workspace: ${{ fromJSON(needs.discover-workspaces.outputs.npm-workspaces) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7

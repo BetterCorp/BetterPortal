@@ -12,6 +12,10 @@ Compact Bootstrap 5 and HTMX shell for operations-heavy BetterPortal apps.
 
 The shell identity is `bootstrap2`; the renderer compatibility key remains `bootstrap5`, so existing Bootstrap 5 service renderers continue to work.
 
+## Distribution
+
+Bootstrap2 is a private, source-run workspace. Release CI builds it and may publish its BSB/BP metadata, but excludes it from npm publication and the npm-backed Coolify watcher.
+
 ## Offline boundary
 
 Bootstrap2 uses a native service worker to precache its versioned Bootstrap CSS/JS, BetterPortal HTMX runtime, images, registration code, and generic offline shell. Dynamic host HTML remains `no-store`. Service HTMX, SSE, WebSocket, authentication, health, and download traffic is never stored by the theme cache.
