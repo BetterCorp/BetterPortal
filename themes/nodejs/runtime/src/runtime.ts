@@ -102,6 +102,7 @@ export function betterPortalShellRuntimeSource(): string {
 
       const HX_METHODS = ["hx-get", "hx-post", "hx-put", "hx-delete", "hx-patch"] as const;
       const DOWNLOAD_ATTR = "hx-download";
+      const NO_ROUTE_SELECTOR = "[data-bp-no-route],[data-bp-no-override],[bp-no-override]";
       const shellAdapter = window.BetterPortalShellAdapter ?? {};
       const createSessionId = () => {
         const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -1379,7 +1380,7 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const sanitizeHtmxTarget = (el: Element) => {
-        if (el.hasAttribute("data-bp-no-route") || el.hasAttribute("data-bp-route-link")) return false;
+        if (el.closest(NO_ROUTE_SELECTOR) || el.hasAttribute("data-bp-route-link")) return false;
         if (!el.hasAttribute("data-bp-explicit-target")) return false;
         const lane = sourceLaneRoot(el);
         if (!lane) return false;
@@ -1402,7 +1403,7 @@ export function betterPortalShellRuntimeSource(): string {
         const source = detail?.ctx?.sourceElement instanceof Element
           ? detail.ctx.sourceElement
           : null;
-        if (!source || source.hasAttribute("data-bp-no-route") || source.hasAttribute("data-bp-route-link")) return false;
+        if (!source || source.closest(NO_ROUTE_SELECTOR) || source.hasAttribute("data-bp-route-link")) return false;
         const lane = sourceLaneRoot(source);
         if (!lane) return false;
         if (!source.hasAttribute("data-bp-explicit-target")) return false;
@@ -1434,6 +1435,7 @@ export function betterPortalShellRuntimeSource(): string {
         for (const el of elements) {
           const bpCfg = bpConfigFor(el);
           if (bpCfg.ignore) continue;
+          if (el.closest(NO_ROUTE_SELECTOR)) continue;
 
           if (applyPreloadConfig(el, bpCfg)) changed = true;
           if (sanitizeHtmxTarget(el)) changed = true;
@@ -1447,7 +1449,6 @@ export function betterPortalShellRuntimeSource(): string {
             bindBpPreload(el);
             continue;
           }
-          if (el.hasAttribute("data-bp-no-route")) continue;
           if (bpCfg.rewrite === false) continue;
 
           const tag = el.tagName;
@@ -1525,17 +1526,21 @@ export function betterPortalShellRuntimeSource(): string {
             }
           }
 
-          // -- Form default action --
-          // A <form> with no hx-method and no native action posts back to the
-          // view that rendered it ("this") - a bare <form> in any BP view is a
-          // working form with zero wiring. Native `action` or an explicit
-          // hx-method opts out of the default.
-          if (tag === "FORM" && !hxMethodAttr && !el.hasAttribute("action")) {
-            el.setAttribute("hx-post", "this");
-            hxMethodAttr = "hx-post";
-            hxMethodVal = "this";
-            newlyHtmxedForms.push(el);
-            changed = true;
+          // Upgrade ordinary internal forms to HTMX. A bare BP form keeps the
+          // established POST-to-current-view default; explicit native GET/POST
+          // semantics are preserved. External and unsupported forms stay native.
+          if (tag === "FORM" && !hxMethodAttr) {
+            const hasAction = el.hasAttribute("action");
+            const nativeAction = (el.getAttribute("action") || "").trim() || "this";
+            const nativeMethod = (el.getAttribute("method") || (hasAction ? "get" : "post")).trim().toLowerCase();
+            const nativeHxMethod = nativeMethod === "post" ? "hx-post" : nativeMethod === "get" ? "hx-get" : null;
+            if (nativeHxMethod && (isThisReference(nativeAction) || isRelativeServicePath(nativeAction))) {
+              el.setAttribute(nativeHxMethod, nativeAction);
+              hxMethodAttr = nativeHxMethod;
+              hxMethodVal = nativeAction;
+              newlyHtmxedForms.push(el);
+              changed = true;
+            }
           }
 
           // Anchor href
@@ -1563,7 +1568,7 @@ export function betterPortalShellRuntimeSource(): string {
           // main content panel with innerHTML. Applied at parse time for EVERY
           // method element (relative, absolute, or "this") so views never have
           // to hand-wire hx-target/hx-swap. Opt out with an explicit hx-target
-          // (e.g. "this") or data-bp="rewrite:false".
+          // (e.g. "this"), bp-no-override, or data-bp-config="rewrite:false".
           if (hxMethodAttr && !hadExplicitTarget) {
             el.setAttribute("hx-target", "#bp-main");
             if (!el.hasAttribute("hx-swap")) el.setAttribute("hx-swap", "innerHTML");
@@ -1915,7 +1920,7 @@ export function betterPortalShellRuntimeSource(): string {
         // already rewrote, PLUS any that were missed (dynamically added, etc.)
         htmx_before_init(elt: any) {
           if (!elt || !elt.getAttribute) return;
-          if (elt instanceof Element && elt.closest("[data-bp-no-route]")) return;
+          if (elt instanceof Element && elt.closest(NO_ROUTE_SELECTOR)) return;
           if (elt instanceof Element) resolveServiceLinks(elt, false);
           if (elt instanceof Element) initializeBpElements(elt);
           if (elt instanceof Element && elt.hasAttribute(DOWNLOAD_ATTR)) bindDownload(elt);
@@ -1976,7 +1981,7 @@ export function betterPortalShellRuntimeSource(): string {
           try {
             const action = ctx.request?.action || "";
             if (!action) return;
-            if (source?.closest?.("[data-bp-no-route]")) {
+            if (source?.closest?.(NO_ROUTE_SELECTOR)) {
               attachBpHeaders(ctx.request.headers, action);
               return;
             }

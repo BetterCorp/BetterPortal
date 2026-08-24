@@ -26,6 +26,8 @@ Each theme owns its configuration schema and defaults. `apps[].themeConfig.boots
 
 Node shells use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and `bp-element` lifecycle states.
 
+The shared runtime automatically upgrades plain internal `<a href="/route">` links and forms using native GET or POST to HTMX requests owned by the rendering service. A bare `<form>` posts to the current service view. Put `bp-no-override` or `data-bp-no-override` on an element or ancestor when native browser navigation/submission is intentional; `data-bp-no-route` remains the shell-owned equivalent. External links/forms and unsupported form methods stay native.
+
 The runtime also propagates one per-document correlation ID as W3C baggage. Shell HTML should include `<meta name="betterportal:session-id" content="<uuidv7>">` using the request session supplied by the framework. If it is absent, the runtime generates a browser fallback; that fallback cannot correlate the initial document request. The runtime exposes the active value on `document.documentElement.dataset.bpSessionId`. Do not store it in cookies or browser storage, sign it as a JWT, or treat it as security context.
 
 The runtime is assembled on the backend in deterministic order: HTMX core, the shell adapter, the BetterPortal shell, and the bundled SSE extension. Browsers never discover or dynamically load HTMX extensions. A missing required asset fails during backend bundle creation.

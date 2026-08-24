@@ -38,6 +38,8 @@ const asset = await buildBetterPortalShellRuntimeAsset({
 
 The shared runtime owns service/app URL rewriting, managed BP headers, header-aware preload, HTMX lifecycle handling, downloads, history, authentication failures, SSE, `bp-element` states, and route chrome state. It never discovers service schemas in the browser.
 
+Plain internal `<a href="/route">` links and forms using native GET or POST are automatically upgraded to HTMX and routed through the owning service. A bare `<form>` posts to its current service view. Use `bp-no-override` (or `data-bp-no-override`) on an element or ancestor to keep native browser behavior; `data-bp-no-route` remains supported for shell-owned elements.
+
 It also reads `<meta name="betterportal:session-id" content="<uuidv7>">` and adds `bp.session_id` to W3C baggage on every runtime-managed request. The ID lasts for one document load, is exposed as `document.documentElement.dataset.bpSessionId`, and is correlation-only. Shells should render the framework-provided request session; the runtime generates a fallback when the meta tag is missing.
 
 For initial shell rendering, spread `betterPortalChromeAttributes(route.chrome)` onto the element marked `data-bp-shell-root`. After route responses, the runtime parses every `bp-chrome-*` content-type parameter, updates the corresponding `data-bp-chrome-*` attributes, removes stale attributes, and calls the optional typed `applyChrome(chrome, previousChrome, root)` adapter hook. Themes should normally use CSS against the data attributes and reserve `applyChrome` for presentation that cannot be expressed in CSS. Themes must not register duplicate HTMX chrome listeners or infer authentication state from chrome values.

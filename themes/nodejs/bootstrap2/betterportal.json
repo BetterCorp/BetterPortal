@@ -1,0 +1,6 @@
+{
+  "$schema": "https://io.betterportal.org/v1/project.schema.json",
+  "registryRef": "betterportal/theme-bootstrap2",
+  "defaultNamespace": "betterportal",
+  "dependencies": {}
+}

@@ -1,28 +1,27 @@
 {
-  "name": "@betterportal/hello-view",
+  "name": "@betterportal/theme-bootstrap2",
   "version": "10.0.1",
-  "description": "BetterPortal v10 example service plugin for Node.js",
+  "description": "BetterPortal v10 Bootstrap2 theme plugin for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
   "scripts": {
-    "bp-codegen": "bp-codegen",
     "build": "bsb-plugin-cli build",
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
-    "test": "bsb-plugin-cli test",
-    "prepublishOnly": "npm run build",
-    "publish:client": "bsb-client-cli publish",
+    "test": "node --import tsx --test tests/routeVisibility.test.ts && bsb-plugin-cli test",
     "bp:gen": "bp run gen",
     "bp:types": "bp run types",
     "bp:contract": "bp run contract",
-    "publish:bp": "bp publish"
+    "publish:bp": "bp publish",
+    "prepublishOnly": "npm run build",
+    "publish:client": "bsb-client-cli publish"
   },
   "keywords": [
     "betterportal",
-    "example",
-    "service",
-    "demo"
+    "theme",
+    "bootstrap",
+    "htmx"
   ],
   "author": "BetterCorp",
   "license": "(AGPL-3.0-only OR Commercial)",
@@ -36,12 +35,15 @@
   "dependencies": {
     "@betterportal/framework": "10.0.1",
     "@betterportal/plugin-bsb": "10.0.1",
+    "@betterportal/theme-runtime": "10.0.1",
     "@bsb/base": "^9.6.70",
     "anyvali": "^1.0.6",
+    "bootstrap": "^5.3.8",
     "jsx-htmx": "4.0.0-beta6"
   },
   "files": [
     "lib/**/*",
+    "bp-resources/**/*",
     "README.md",
     "bsb-plugin.json",
     "betterportal-logo.png"
@@ -59,15 +61,18 @@
     }
   },
   "betterportal": {
-    "routes": [
-      "src/plugins/service-betterportal-hello-view/bp-routes/"
+    "definitions": [
+      "src/plugins/service-betterportal-theme-bootstrap2/index.ts"
+    ],
+    "shells": [
+      "src/plugins/service-betterportal-theme-bootstrap2/shell"
     ]
   },
   "homepage": "https://github.com/BetterCorp/BetterPortal#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BetterCorp/BetterPortal.git",
-    "directory": "services/nodejs/examples/hello-view"
+    "directory": "themes/nodejs/bootstrap2"
   },
   "bugs": {
     "url": "https://github.com/BetterCorp/BetterPortal/issues"

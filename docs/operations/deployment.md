@@ -8,7 +8,7 @@ At minimum, a deployment needs a shell service and at least one business service
 
 | Unit | Example |
 |---|---|
-| Theme | `@betterportal/theme-bootstrap1` |
+| Theme | `@betterportal/theme-bootstrap1`, `@betterportal/theme-bootstrap2`, or `@betterportal/theme-embedded` |
 | Admin service | `@betterportal/config-manager` |
 | Docs service | `@betterportal/docs-site` |
 | Business service | `@betterportal/hello-view` |
@@ -84,6 +84,7 @@ The `bsb-plugin-watcher` service is the only container that sets `BSB_PLUGINS` a
 ```text
 @betterportal/config-manager@10.1
 @betterportal/theme-bootstrap1@10.1
+@betterportal/theme-bootstrap2@10.1
 @betterportal/theme-embedded@10.1
 @betterportal/auth-default@10.1
 @betterportal/auth-authress-io@10.1
@@ -102,6 +103,8 @@ BP_CONFIG_MANAGER_VAULT_API_KEY_ID
 BP_CONFIG_MANAGER_VAULT_API_SECRET
 BP_BOOTSTRAP1_VAULT_API_KEY_ID
 BP_BOOTSTRAP1_VAULT_API_SECRET
+BP_BOOTSTRAP2_VAULT_API_KEY_ID
+BP_BOOTSTRAP2_VAULT_API_SECRET
 BP_EMBEDDED_VAULT_API_KEY_ID
 BP_EMBEDDED_VAULT_API_SECRET
 BP_AUTH_DEFAULT_VAULT_API_KEY_ID

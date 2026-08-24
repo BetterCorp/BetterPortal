@@ -1,0 +1,21 @@
+default:
+  observable:
+    observable-default:
+      plugin: observable-default
+      enabled: true
+      config: {}
+  events:
+    events-default:
+      plugin: events-default
+      enabled: true
+  services:
+    service-betterportal-theme-bootstrap2:
+      plugin: service-betterportal-theme-bootstrap2
+      enabled: true
+      config:
+        host: 0.0.0.0
+        port: 3126
+        betterportal: {}
+        defaultMode: dark
+        brandName: BetterPortal
+        defaultGreetingName: World

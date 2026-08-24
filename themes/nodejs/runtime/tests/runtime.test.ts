@@ -36,6 +36,16 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   assert.equal(BETTERPORTAL_HTMX_EXTENSIONS, "bp-shell, sse");
 });
 
+test("shared shell upgrades native internal navigation with an inherited opt-out", () => {
+  const source = betterPortalShellRuntimeSource();
+
+  assert.match(source, /a\[href\], form/);
+  assert.match(source, /nativeMethod==="post"\?"hx-post":nativeMethod==="get"\?"hx-get":null/);
+  assert.match(source, /isThisReference\(nativeAction\)\|\|isRelativeServicePath\(nativeAction\)/);
+  assert.match(source, /\[data-bp-no-route\],\[data-bp-no-override\],\[bp-no-override\]/);
+  assert.match(source, /el\.closest\(NO_ROUTE_SELECTOR\)/);
+});
+
 test("shell correlates runtime requests with per-document W3C baggage", () => {
   const source = betterPortalShellRuntimeSource();
   assert.match(source, /betterportal:session-id/);
