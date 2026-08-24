@@ -554,7 +554,7 @@ test("menu editing disables drag and optionally follows an assigned view route",
         tenantId: "tenant-a",
         menu: [{ id: "item-a", type: "link", routeId: "route-old", enabled: true }],
         routes: [
-          { id: "route-old", kind: "page", path: "/old", serviceId: "service-a", viewId: "old.index" },
+          { id: "route-old", kind: "page", path: "/old", title: "Existing route title", serviceId: "service-a", viewId: "old.index" },
           { id: "route-new", kind: "page", path: "/new-public", targetPath: "/new-target", serviceId: "service-a", viewId: "new.index" }
         ]
       }]
@@ -570,6 +570,17 @@ test("menu editing disables drag and optionally follows an assigned view route",
   const edit = await invoke("/.well-known/bp/admin/menu-editor/item", "appId=app-a&itemId=item-a&mode=edit-link");
   assert.match(edit, /draggable="false"[^>]*data-bp-menu-editing/);
   assert.match(edit, /name="autoSetPaths"[^>]*checked/);
+
+  const titleEdit = await invoke("/.well-known/bp/admin/menu-editor/item", "appId=app-a&itemId=item-a&mode=edit-title");
+  assert.match(titleEdit, /<form[^>]*id="bp-menu-title-item-a"[^>]*data-bp-menu-editing/);
+  assert.match(titleEdit, /name="title"[^>]*value="Existing route title"/);
+  assert.match(titleEdit, /mode=display-title/);
+  assert.doesNotMatch(titleEdit, /<li\b/);
+
+  const titleDisplay = await invoke("/.well-known/bp/admin/menu-editor/item", "appId=app-a&itemId=item-a&mode=display-title");
+  assert.match(titleDisplay, /<button[^>]*id="bp-menu-title-item-a"/);
+  assert.match(titleDisplay, /Existing route title/);
+  assert.doesNotMatch(titleDisplay, /<li\b/);
 
   const automatic = await invoke("/.well-known/bp/admin/menu-editor/default-target", "appId=app-a&itemId=item-a&serviceId=service-a&viewId=new.index&autoSetPaths=true&path=%2Fold&targetPath=%2Fold-target");
   assert.match(automatic, /name="path"[^>]*value="\/new-public"/);

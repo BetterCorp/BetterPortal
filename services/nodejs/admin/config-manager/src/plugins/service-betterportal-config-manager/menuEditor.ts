@@ -150,21 +150,24 @@ function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: s
     }));
 }
 
-// -- Row renderer (3 modes per item) ----------------------------------
+// -- Row renderer ------------------------------------------------------
 
-type RowMode = "display" | "edit-title" | "edit-external" | "edit-link";
+type RowMode = "display" | "display-title" | "edit-title" | "edit-external" | "edit-link";
 
 function rowAttrs(item: MenuItem, depth: number, editing = false): string {
   return `id="bp-menu-row-${item.id}" draggable="${editing ? "false" : "true"}" data-bp-drag-item="${item.id}" data-bp-drag-type="${item.type}" data-bp-drag-depth="${depth}"${editing ? " data-bp-menu-editing" : ""} style="padding-left: ${depth * 1.5 + 1}rem;"`;
 }
 
+function editableTitleText(item: MenuItem, route: Route | null): string {
+  if (item.type === "section") return item.title || "Section";
+  if (item.type === "external") return item.title || item.href || "External";
+  if (item.type === "group") return item.title || "Group";
+  return item.title || route?.title || route?.path || item.routeId || "(missing)";
+}
+
 function titleDisplayHtml(item: MenuItem, route: Route | null, appId: string): string {
-  const titleText =
-    item.type === "divider" ? "- divider -" :
-    item.type === "section" ? `[${item.title || "Section"}]` :
-    item.type === "external" ? (item.title || item.href || "External") :
-    item.type === "group" ? (item.title || "Group") :
-    item.title || route?.title || route?.path || item.routeId || "(missing)";
+  const editableTitle = editableTitleText(item, route);
+  const titleText = item.type === "divider" ? "- divider -" : item.type === "section" ? `[${editableTitle}]` : editableTitle;
 
   const editAction = item.type === "divider" ? "" : "edit-title";
   const strikeClass = item.enabled ? "" : "text-decoration-line-through opacity-50";
@@ -173,12 +176,26 @@ function titleDisplayHtml(item: MenuItem, route: Route | null, appId: string): s
     return `<span class="text-secondary fst-italic">${escapeHtml(titleText)}</span>`;
   }
 
-  return `<button type="button" class="bp-menu-title-display ${strikeClass}"
+  return `<button type="button" id="bp-menu-title-${item.id}" class="bp-menu-title-display ${strikeClass}"
     style="border:1px solid var(--bs-border-color); border-radius:0.375rem; padding:0.25rem 0.6rem; background:transparent; cursor:text; text-align:left; min-width:200px; font-weight:500;"
     hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-title"
-    hx-target="#bp-menu-row-${item.id}"
+    hx-target="#bp-menu-title-${item.id}"
     hx-swap="outerHTML"
     title="Click to rename">${escapeHtml(titleText)}</button>`;
+}
+
+function titleEditorHtml(item: MenuItem, route: Route | null, appId: string): string {
+  return `<form id="bp-menu-title-${item.id}" data-bp-menu-editing
+    hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML"
+    class="d-flex align-items-center gap-1 flex-grow-1 m-0">
+    <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
+    <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
+    <input type="text" name="title" class="form-control form-control-sm flex-grow-1" value="${escapeHtml(editableTitleText(item, route))}" aria-label="Menu title" autofocus />
+    <button type="submit" class="btn btn-sm btn-success" title="Save">OK</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" title="Cancel"
+      hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display-title"
+      hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML">X</button>
+  </form>`;
 }
 
 function subLineHtml(item: MenuItem, route: Route | null, config: any, appId: string): string {
@@ -249,22 +266,6 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
   const routes = getRoutes(appDef);
   const route = item.routeId ? routes.find((r) => r.id === item.routeId) ?? null : null;
   const typeBadgeClass = item.type === "group" ? "text-bg-warning" : item.type === "external" ? "text-bg-info" : item.type === "link" ? "text-bg-primary" : "text-bg-secondary";
-
-  if (mode === "edit-title") {
-    return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
-      <form hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML"
-        class="d-flex align-items-center gap-2">
-        <span class="badge ${typeBadgeClass}">${escapeHtml(item.type)}</span>
-        <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
-        <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
-        <input type="text" name="title" class="form-control form-control-sm flex-grow-1" value="${escapeHtml(item.title ?? "")}" autofocus />
-        <button type="submit" class="btn btn-sm btn-success" title="Save">OK</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" title="Cancel"
-          hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
-          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">X</button>
-      </form>
-    </li>`;
-  }
 
   if (mode === "edit-external" && item.type === "external") {
     return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
@@ -585,8 +586,17 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     depth = computeDepth(menu, itemId, 0);
     if (depth < 0) depth = 0;
 
+    const route = found.item.routeId
+      ? (appDef.routes ?? []).find((candidate: any) => candidate.id === found.item.routeId) ?? null
+      : null;
+    if (mode === "edit-title") {
+      return htmlResponse(titleEditorHtml(found.item, route, appId), 200, "text/html; mode=fragment");
+    }
+    if (mode === "display-title") {
+      return htmlResponse(titleDisplayHtml(found.item, route, appId), 200, "text/html; mode=fragment");
+    }
+
     if (mode === "edit-link" && found.item.type === "link") {
-      const route = (appDef.routes ?? []).find((r: any) => r.id === found.item.routeId) ?? null;
       const html = await renderEditLink(found.item, route, depth, config, appDef, appId);
       return htmlResponse(html, 200, "text/html; mode=fragment");
     }
@@ -623,18 +633,10 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const appDef2 = getApp(config2, f.appId);
     const found2 = appDef2 ? locate(getMenu(appDef2), f.itemId) : null;
     if (!appDef2 || !found2) return htmlResponse("", 200, "text/html; mode=fragment");
-    const depth = (() => {
-      let d = -1;
-      const walk = (xs: MenuItem[], target: string, cur: number) => {
-        for (const it of xs) {
-          if (it.id === target) { d = cur; return; }
-          if (it.type === "group" && it.children) walk(it.children, target, cur + 1);
-        }
-      };
-      walk(getMenu(appDef2), f.itemId, 0);
-      return d < 0 ? 0 : d;
-    })();
-    return htmlResponse(renderRow(found2.item, depth, "display", config2, appDef2, f.appId), 200, "text/html; mode=fragment", {
+    const route = found2.item.routeId
+      ? (appDef2.routes ?? []).find((candidate: any) => candidate.id === found2.item.routeId) ?? null
+      : null;
+    return htmlResponse(titleDisplayHtml(found2.item, route, f.appId), 200, "text/html; mode=fragment", {
       "HX-Trigger": "bp:menu-changed"
     });
   });
