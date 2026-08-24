@@ -154,8 +154,8 @@ function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: s
 
 type RowMode = "display" | "edit-title" | "edit-external" | "edit-link";
 
-function rowAttrs(item: MenuItem, depth: number): string {
-  return `id="bp-menu-row-${item.id}" draggable="true" data-bp-drag-item="${item.id}" data-bp-drag-type="${item.type}" data-bp-drag-depth="${depth}" style="padding-left: ${depth * 1.5 + 1}rem;"`;
+function rowAttrs(item: MenuItem, depth: number, editing = false): string {
+  return `id="bp-menu-row-${item.id}" draggable="${editing ? "false" : "true"}" data-bp-drag-item="${item.id}" data-bp-drag-type="${item.type}" data-bp-drag-depth="${depth}"${editing ? " data-bp-menu-editing" : ""} style="padding-left: ${depth * 1.5 + 1}rem;"`;
 }
 
 function titleDisplayHtml(item: MenuItem, route: Route | null, appId: string): string {
@@ -251,7 +251,7 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
   const typeBadgeClass = item.type === "group" ? "text-bg-warning" : item.type === "external" ? "text-bg-info" : item.type === "link" ? "text-bg-primary" : "text-bg-secondary";
 
   if (mode === "edit-title") {
-    return `<li ${rowAttrs(item, depth)} class="list-group-item">
+    return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
       <form hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML"
         class="d-flex align-items-center gap-2">
         <span class="badge ${typeBadgeClass}">${escapeHtml(item.type)}</span>
@@ -267,7 +267,7 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
   }
 
   if (mode === "edit-external" && item.type === "external") {
-    return `<li ${rowAttrs(item, depth)} class="list-group-item">
+    return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
       <form hx-post="${API_BASE}/menu-editor/save-external" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML"
         class="d-flex flex-column gap-2">
         <div class="d-flex align-items-center gap-2">
@@ -328,6 +328,19 @@ function renderViewOptions(views: Array<{ viewId: string; title: string; path: s
   ].join("");
 }
 
+function renderPathFields(itemId: string, path: string, targetPath: string): string {
+  return `<div id="bp-paths-${itemId}" class="row g-2">
+    <div class="col-md-6">
+      <label class="form-label small mb-0">Public Path</label>
+      <input type="text" name="path" class="form-control form-control-sm font-monospace" value="${escapeHtml(path)}" required />
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small mb-0">Target Path (service)</label>
+      <input type="text" name="targetPath" class="form-control form-control-sm font-monospace" value="${escapeHtml(targetPath)}" placeholder="/path?param=value" />
+    </div>
+  </div>`;
+}
+
 async function renderEditLink(item: MenuItem, route: Route | null, depth: number, config: any, appDef: any, appId: string): Promise<string> {
   const typeBadgeClass = "text-bg-primary";
   const services = getServicesForApp(config, appDef);
@@ -338,7 +351,7 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
   ].join("");
   const viewOpts = renderViewOptions(views, route?.viewId ?? "");
 
-  return `<li ${rowAttrs(item, depth)} class="list-group-item">
+  return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
     <form hx-post="${API_BASE}/menu-editor/save-link" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML"
       class="d-flex flex-column gap-2">
       <div class="d-flex align-items-center gap-2">
@@ -362,26 +375,25 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
           <label class="form-label small mb-0">View</label>
           <select id="bp-views-${item.id}" name="viewId" class="form-select form-select-sm" required
             hx-get="${API_BASE}/menu-editor/default-target"
-            hx-target="[name=targetPath]"
+            hx-target="#bp-paths-${item.id}"
             hx-swap="outerHTML"
             hx-trigger="change"
             hx-include="closest form">${viewOpts}</select>
         </div>
       </div>
       <div class="row g-2">
-        <div class="col-md-4">
+        <div class="col-md-6">
           <label class="form-label small mb-0">Title (menu)</label>
           <input type="text" name="title" class="form-control form-control-sm" value="${escapeHtml(item.title ?? "")}" placeholder="${escapeHtml(route?.title ?? "")}" />
         </div>
-        <div class="col-md-4">
-          <label class="form-label small mb-0">Public Path</label>
-          <input type="text" name="path" class="form-control form-control-sm font-monospace" value="${escapeHtml(route?.path ?? "")}" required />
-        </div>
-        <div class="col-md-4">
-          <label class="form-label small mb-0">Target Path (service)</label>
-          <input type="text" name="targetPath" class="form-control form-control-sm font-monospace" value="${escapeHtml(route?.targetPath ?? "")}" placeholder="/path?param=value" />
+        <div class="col-md-6 d-flex align-items-end pb-2">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="autoSetPaths" value="true" id="bp-auto-paths-${item.id}" checked />
+            <label class="form-check-label small" for="bp-auto-paths-${item.id}">Auto-set paths when the view changes</label>
+          </div>
         </div>
       </div>
+      ${renderPathFields(item.id, route?.path ?? "", route?.targetPath ?? "")}
       <div class="row g-2">
         <div class="col-md-6">
           <label class="form-label small mb-0">Unavailable service</label>
@@ -667,18 +679,30 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     return htmlResponse(renderViewOptions(views, ""), 200, "text/html; mode=fragment");
   });
 
-  // View change -> returns new targetPath input pre-filled with view's default path
+  // View change -> optionally use the view target and an existing route's public path.
   app.get(`${API_BASE}/menu-editor/default-target`, async (event) => {
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
+    const appId = url.searchParams.get("appId") ?? "";
+    const itemId = url.searchParams.get("itemId") ?? "";
     const serviceId = url.searchParams.get("serviceId") ?? "";
     const viewId = url.searchParams.get("viewId") ?? "";
-    let defaultPath = "";
-    if (serviceId && viewId) {
+    let path = url.searchParams.get("path") ?? "";
+    let targetPath = url.searchParams.get("targetPath") ?? "";
+    if (url.searchParams.get("autoSetPaths") === "true" && serviceId && viewId) {
       const views = lookupServiceViews(serviceId);
-      defaultPath = views.find((v) => v.viewId === viewId)?.path ?? "";
+      targetPath = views.find((v) => v.viewId === viewId)?.path ?? "";
+      const config = await store.loadConfig();
+      const appDef = getApp(config, appId);
+      const assignedRoute = (appDef?.routes ?? []).find((route: Route) =>
+        route.kind !== "api" && route.serviceId === serviceId && route.viewId === viewId
+      );
+      if (assignedRoute) {
+        path = assignedRoute.path;
+        targetPath = assignedRoute.targetPath || targetPath;
+      }
     }
     return htmlResponse(
-      `<input type="text" name="targetPath" class="form-control form-control-sm font-monospace" value="${escapeHtml(defaultPath)}" placeholder="/path?param=value" />`,
+      renderPathFields(itemId, path, targetPath),
       200,
       "text/html; mode=fragment"
     );

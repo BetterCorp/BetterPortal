@@ -30,10 +30,20 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   assert.match(source, /attachBpHeaders\(headers,action\)/);
   assert.match(source, /detail\.ctx\.fetch=\(\)=>preload\.prefetch/);
   assert.match(source, /matchServiceRoute\(elServiceId,pathOnly,"api"\)/);
-  assert.match(source, /resolvedPath\.search\+resolvedPath\.hash/);
+  assert.match(source, /configuredMatch=matchTenantRoute\(pathOnly\)/);
+  assert.match(source, /match\.route\.servicePath\+match\.suffix/);
   assert.match(source, /el\.setAttribute\("href",tenantUrl\)/);
   assert.match(source, /data-bp-shell-route","api"/);
+  assert.doesNotMatch(source, /setAttribute\("hx-push-url",resolvePath\)/);
   assert.equal(BETTERPORTAL_HTMX_EXTENSIONS, "bp-shell, sse");
+});
+
+test("shared HTMX requests declare page or partial response mode", () => {
+  const source = betterPortalShellRuntimeSource();
+
+  assert.match(source, /acceptValue\.trim\(\)\.toLowerCase\(\)===\"text\/html\"/);
+  assert.match(source, /isSseConnect\|\|!isMainTarget\(ctx\.target\)\?\"fragment\":\"page\"/);
+  assert.match(source, /isSseConnect\)ctx\.request\.headers\[\"HX-Request-Type\"\]=\"partial\"/);
 });
 
 test("shared shell upgrades native internal navigation with an inherited opt-out", () => {

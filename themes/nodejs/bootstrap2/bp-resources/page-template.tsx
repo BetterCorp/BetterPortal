@@ -2,10 +2,10 @@
 import type { RegisteredViewRenderer } from "@betterportal/framework";
 
 export const render: RegisteredViewRenderer["render"] = (data, ctx) => (
-  <section class="container-fluid p-3">
+  <section class="container-fluid px-0">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div>
-        <h1 class="h5 mb-1">Work queue</h1>
+        <h1 class="h5 mb-1" data-bp-page-title>Work queue</h1>
         <p class="small text-body-secondary mb-0">Current operational items requiring attention.</p>
       </div>
       <a class="btn btn-sm btn-primary" href={ctx.url.uiRoute("example.create") ?? "#"}>Create</a>

@@ -123,6 +123,8 @@ Method files are named exactly by HTTP method: `GET.ts`, `POST.ts`, `PUT.ts`, `P
 
 `viewId` groups methods that share one service path and path-parameter schema. `operationId` identifies the method-specific contract. A GET and POST may share `viewId = "reports.index"` while publishing independent operations such as `reports.search` and `reports.create`, each with its own request, response, auth, and generated client types.
 
+The optional `role` is provider-neutral discovery metadata. Auth services use `auth.roles.sync.view` for the GET fragment that renders provider-owned role controls, `auth.permissions.sync` for permission synchronization, and `auth.roles.sync` for the POST operation that synchronizes roles. Consumers resolve the operation's published `view.path`; they must not copy a provider's route path.
+
 Only a GET operation with a page renderer is eligible for Visual Routes and browser navigation. A POST, PUT, PATCH, or DELETE operation remains a Service/API route even when it has an HTML renderer for form results or validation errors. Rendering capability does not change the HTTP operation's routing role.
 
 `av.object` strips unknown keys by default. Omit `{ unknownKeys: "strip" }`; codegen warns because it is redundant. Use `{ unknownKeys: "reject" }` when extra fields must fail validation. `unknownKeys: "allow"` is forbidden because it bypasses the declared schema; model extensible keys with a typed `av.record(...)` instead.

@@ -107,17 +107,33 @@ function renderServiceCard(
           <div class="small mb-2"><strong>Created:</strong> {service.createdAt}{service.lastSeenAt ? ` - Last seen: ${service.lastSeenAt}` : ""}</div>
           <div class="d-flex gap-2 flex-wrap align-items-center">
             {service.scope !== "shared" ? (
-              <button
-                class="btn btn-sm btn-outline-secondary"
-                type="button"
-                data-bp-change-hostname=""
-                data-bp-service-id={service.id}
-                data-bp-service-url={normalizeUrl(service.hostname)}
-                data-bs-toggle="offcanvas"
-                data-bs-target="#bp-change-hostname-panel"
-              >
-                Change URL
-              </button>
+              <>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  data-bp-change-hostname=""
+                  data-bp-service-id={service.id}
+                  data-bp-service-url={normalizeUrl(service.hostname)}
+                  data-bs-toggle="offcanvas"
+                  data-bs-target="#bp-change-hostname-panel"
+                >
+                  Change URL
+                </button>
+                {service.serviceId ? (
+                  <button
+                    class="btn btn-sm btn-outline-warning"
+                    type="button"
+                    hidden={true}
+                    data-bp-reconfigure-service=""
+                    data-bp-service-id={service.id}
+                    data-bp-service-plugin-id={service.serviceId}
+                    data-bp-service-url={normalizeUrl(service.hostname)}
+                    data-bp-tenant-id={service.tenantId ?? ""}
+                  >
+                    Reset / reconfigure
+                  </button>
+                ) : ""}
+              </>
             ) : ""}
             {apps.length > 0 && service.hasConfigurableOptions ? (
               <div class="btn-group btn-group-sm">
@@ -655,6 +671,15 @@ export function render(data: ResponseData): HtmlRenderable {
     }
     return manifest;
   };
+  const loadHealth = async (baseUrl) => {
+    const response = await fetch(baseUrl + "/.well-known/bp/health", {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    const health = await response.json().catch(() => null);
+    return response.ok && health && typeof health === "object" ? health : null;
+  };
   const loadSchema = async (baseUrl, manifest) => {
     try {
       const response = await fetch(baseUrl + "/.well-known/bp/schema.json", {
@@ -706,11 +731,52 @@ export function render(data: ResponseData): HtmlRenderable {
       throw error;
     }
   };
+  const reconfigureService = async (button) => {
+    const serviceUrl = button.dataset.bpServiceUrl;
+    const instanceId = button.dataset.bpServiceId;
+    const expectedPluginId = button.dataset.bpServicePluginId;
+    const health = await loadHealth(serviceUrl);
+    if (!health || health.setupMode !== true || health.pluginId !== expectedPluginId) {
+      throw new Error("Service is not in setup mode or its plugin id does not match");
+    }
+    const install = await postJson(adminApiBase + "/services/begin-install", {
+      serviceUrl,
+      instanceId,
+      tenantId: button.dataset.bpTenantId || undefined,
+      reconfigure: true
+    });
+    await postJson(serviceUrl + "/.well-known/bp/install", {
+      setupToken: install.setupToken,
+      cpUrl: install.cpUrl
+    });
+  };
+  document.querySelectorAll("[data-bp-reconfigure-service]").forEach(async (button) => {
+    try {
+      const health = await loadHealth(button.dataset.bpServiceUrl);
+      button.hidden = !(health?.setupMode === true && health.pluginId === button.dataset.bpServicePluginId);
+    } catch { button.hidden = true; }
+  });
   document.addEventListener("click", async (event) => {
     const hostnameButton = event.target?.closest?.("[data-bp-change-hostname]");
     if (hostnameButton && hostnameForm) {
       hostnameForm.elements.instanceId.value = hostnameButton.dataset.bpServiceId || "";
       hostnameForm.elements.baseUrl.value = hostnameButton.dataset.bpServiceUrl || "";
+      return;
+    }
+    const reconfigureButton = event.target?.closest?.("[data-bp-reconfigure-service]");
+    if (reconfigureButton) {
+      event.preventDefault();
+      if (!window.confirm("Replace this service's lost setup with a new BetterPortal configuration?")) return;
+      reconfigureButton.disabled = true;
+      try {
+        setAlert("secondary", "Reconfiguring service...");
+        await reconfigureService(reconfigureButton);
+        setAlert("success", "Service reconfigured. Refreshing services...");
+        await refreshServices();
+      } catch (error) {
+        setAlert("danger", error instanceof Error ? error.message : String(error));
+        reconfigureButton.disabled = false;
+      }
       return;
     }
     const button = event.target?.closest?.("[data-bp-install-shared]");

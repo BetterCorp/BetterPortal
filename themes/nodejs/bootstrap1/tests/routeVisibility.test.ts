@@ -13,7 +13,8 @@ test("SSE requests keep BetterPortal headers", async () => {
   const asset = await loadBootstrap1Asset("bootstrap1-shell.js");
   const source = String(asset?.body);
   const hook = source.slice(source.indexOf("htmx_config_request"), source.indexOf("htmx_before_request"));
-  assert.match(hook, /if\s*\(!isSseConnect\)/);
+  assert.match(hook, /isSseConnect\s*\|\|\s*!isMainTarget\(ctx\.target\)/);
+  assert.match(hook, /if\s*\(isSseConnect\)[\s\S]*HX-Request-Type[\s\S]*partial/);
   assert.match(hook, /attachBpHeaders\(ctx\.request\.headers/);
 });
 

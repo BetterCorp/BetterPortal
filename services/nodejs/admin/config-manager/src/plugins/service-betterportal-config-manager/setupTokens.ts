@@ -11,6 +11,7 @@ interface PendingSetup {
   instanceId: string;
   sharedServiceId?: string;
   tenantScope?: { tenantId: string; appId?: string };
+  expectedPluginId?: string;
   expiresAt: number;
   redeemed: boolean;
 }
@@ -107,17 +108,35 @@ export function registerSetupEndpoints(input: {
       appId?: string;
       sharedServiceId?: string;
       instanceId?: string;
+      reconfigure?: boolean;
     } | null;
     if (!body || typeof body.serviceUrl !== "string" || body.serviceUrl.length === 0) {
       return jsonResponse({ error: "Missing serviceUrl" }, 400);
     }
-    const serviceUrl = body.serviceUrl.replace(/\/+$/, "");
-    const tenantScope = body.tenantId ? { tenantId: body.tenantId, appId: body.appId } : undefined;
+    let serviceUrl = body.serviceUrl.replace(/\/+$/, "");
+    let tenantScope = body.tenantId ? { tenantId: body.tenantId, appId: body.appId } : undefined;
     const sharedServiceId = typeof body.sharedServiceId === "string" && body.sharedServiceId.length > 0
       ? body.sharedServiceId
       : undefined;
     const instanceId = (typeof body.instanceId === "string" && body.instanceId.length > 0)
       ? body.instanceId : uuidv7();
+    let expectedPluginId: string | undefined;
+
+    if (body.reconfigure === true) {
+      const config = await input.storage.loadConfig();
+      const tenant = config.tenants.find((candidate) => candidate.services.some((service) => service.id === instanceId));
+      const existing = tenant?.services.find((service) => service.id === instanceId)
+        ?? config.platformServices.find((service) => service.id === instanceId);
+      if (!existing) return jsonResponse({ error: "Only an existing non-shared service can be reconfigured" }, 404);
+      if (!existing.serviceId) return jsonResponse({ error: "The existing service has no plugin id to verify" }, 409);
+      const requestedOrigin = normalizeServiceOrigin(serviceUrl);
+      if (!requestedOrigin || requestedOrigin !== normalizeServiceOrigin(existing.hostname)) {
+        return jsonResponse({ error: "Reconfiguration must use the service's registered URL" }, 409);
+      }
+      serviceUrl = requestedOrigin;
+      tenantScope = tenant ? { tenantId: tenant.id, appId: undefined } : undefined;
+      expectedPluginId = existing.serviceId;
+    }
 
     const setupToken = signSetupToken({
       privateKeyPem: input.cpState.keyPair.privateKeyPem,
@@ -143,6 +162,7 @@ export function registerSetupEndpoints(input: {
         instanceId,
         sharedServiceId,
         tenantScope,
+        expectedPluginId,
         expiresAt: Date.now() + SETUP_TTL_SECONDS * 1000,
         redeemed: false
       });
@@ -181,6 +201,9 @@ export function registerSetupEndpoints(input: {
     if (entry.expiresAt < Date.now()) {
       pending.delete(jti);
       return jsonResponse({ error: "Setup token expired" }, 400);
+    }
+    if (entry.expectedPluginId && !servicePluginIdsMatch(entry.expectedPluginId, body.pluginId)) {
+      return jsonResponse({ error: "The replacement service plugin id does not match the existing registration" }, 409);
     }
 
     // Mint the real per-service API key. Stored in platform config as a tenant or platform service.
@@ -258,6 +281,10 @@ export function applyVerifiedServiceOrigin(
   return true;
 }
 
+export function servicePluginIdsMatch(expectedPluginId: string | undefined, actualPluginId: string | undefined): boolean {
+  return typeof expectedPluginId === "string" && expectedPluginId.length > 0 && expectedPluginId === actualPluginId;
+}
+
 function readJti(token: string): string | undefined {
   const parts = token.split(".");
   if (parts.length !== 3) return undefined;
@@ -290,7 +317,7 @@ async function registerServiceInPlatformConfig(input: {
   if (input.sharedServiceId) {
     const existing = config.sharedServiceCatalog.find((s) => s.id === input.sharedServiceId);
     if (!existing) throw new Error(`Shared service ${input.sharedServiceId} not found`);
-    if (existing.serviceId && existing.serviceId !== input.pluginId) {
+    if (existing.serviceId && !servicePluginIdsMatch(existing.serviceId, input.pluginId)) {
       throw new Error(`Shared service ${existing.id} is linked to plugin ${existing.serviceId}, not installed plugin ${input.pluginId}`);
     }
     existing.serviceId = input.pluginId;
@@ -310,23 +337,20 @@ async function registerServiceInPlatformConfig(input: {
     const tenant = config.tenants.find((t) => t.id === input.tenantScope!.tenantId);
     if (!tenant) throw new Error(`Tenant ${input.tenantScope.tenantId} not found`);
 
-    // If this service is the auth provider for one of the tenant's apps,
-    // store the JWKS on app.auth.publicKeys so the verifier uses static keys.
-    if (input.jwks && input.tenantScope.appId) {
-      const app = config.apps.find((a) => a.id === input.tenantScope!.appId);
-      const appAuth = (app as { auth?: { serviceId?: string; publicKeys?: unknown } } | undefined)?.auth;
-      if (app && appAuth && appAuth.serviceId === id) {
-        appAuth.publicKeys = input.jwks;
-      }
-    }
-    if (input.authProvider && input.tenantScope.appId) {
-      const app = config.apps.find((a) => a.id === input.tenantScope!.appId);
-      if (app?.auth?.serviceId === id) applyAuthProviderMetadata(app.auth, input.authProvider);
+    // A replacement auth service can rotate its keys, so refresh every app
+    // already bound to this service instance.
+    for (const app of config.apps) {
+      if (app.tenantId !== tenant.id || app.auth?.serviceId !== id) continue;
+      if (input.jwks) app.auth.publicKeys = input.jwks;
+      if (input.authProvider) applyAuthProviderMetadata(app.auth, input.authProvider);
     }
 
     // Update existing registration (bootstrap pre-creates the entry) or insert.
     const existing = tenant.services.find((s) => s.id === id);
     if (existing) {
+      if (existing.serviceId && !servicePluginIdsMatch(existing.serviceId, input.pluginId)) {
+        throw new Error(`Service ${existing.id} is linked to plugin ${existing.serviceId}, not installed plugin ${input.pluginId}`);
+      }
       existing.hostname = input.serviceUrl;
       existing.apiKeyHash = apiKeyHash;
       existing.publicKeyPem = input.publicKeyPem;
@@ -358,6 +382,9 @@ async function registerServiceInPlatformConfig(input: {
   } else {
     const existing = config.platformServices.find((s) => s.id === id);
     if (existing) {
+      if (existing.serviceId && !servicePluginIdsMatch(existing.serviceId, input.pluginId)) {
+        throw new Error(`Service ${existing.id} is linked to plugin ${existing.serviceId}, not installed plugin ${input.pluginId}`);
+      }
       existing.hostname = input.serviceUrl;
       existing.apiKeyHash = apiKeyHash;
       existing.publicKeyPem = input.publicKeyPem;

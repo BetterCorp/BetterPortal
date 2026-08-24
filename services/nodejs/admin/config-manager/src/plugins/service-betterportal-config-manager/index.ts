@@ -25,7 +25,7 @@ import { deriveRolePermissions, getCachedManifestForService, getManifestCache, r
 import { buildM2MConnectionModel } from "./m2mConnections.js";
 import { setConfigManagerRouteContext } from "./routeContext.js";
 import { isApiRoute } from "./routeMounts.js";
-import { resolveRoleAuthority } from "./roleAuthority.js";
+import { resolveRoleAuthority, resolveRoleSyncUrl } from "./roleAuthority.js";
 import {
   describeEmbeddedContextResolution,
   eventHeaders,
@@ -866,16 +866,19 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const authService = appWithAuth?.auth?.serviceId ? servicesById.get(appWithAuth.auth.serviceId) : undefined;
     const authManifest = authService ? getCachedManifestForService(config, authService.id, cache) : undefined;
     const roleAuthority = resolveRoleAuthority(authManifest?.capabilities ?? [], appWithAuth?.auth?.roleAuthority);
-    const externalRoleSync = roleAuthority === "provider" && selectedApp && selectedTenantId && authService && authManifest?.capabilities.includes("auth.roles.sync")
+    const roleSyncUrl = selectedApp && selectedTenantId && authService
+      ? resolveRoleSyncUrl(authService.hostname, authManifest, roleAuthority, selectedTenantId, selectedApp.id)
+      : undefined;
+    const externalRoleSync = roleAuthority === "provider" && authService && roleSyncUrl
       ? {
           serviceTitle: authService.title,
-          fragmentUrl: `${authService.hostname.replace(/\/+$/, "")}/.well-known/bp/config/workos-role-sync?tenantId=${encodeURIComponent(selectedTenantId)}&appId=${encodeURIComponent(selectedApp.id)}`
+          fragmentUrl: roleSyncUrl
         }
       : undefined;
-    const managedRoleSync = roleAuthority === "betterportal" && selectedApp && selectedTenantId && authService && authManifest?.capabilities.includes("auth.roles.authority.betterportal")
+    const managedRoleSync = roleAuthority === "betterportal" && authService && roleSyncUrl
       ? {
           serviceTitle: authService.title,
-          syncUrl: `${authService.hostname.replace(/\/+$/, "")}/.well-known/bp/config/workos-role-sync/roles?tenantId=${encodeURIComponent(selectedTenantId)}&appId=${encodeURIComponent(selectedApp.id)}`
+          syncUrl: roleSyncUrl
         }
       : undefined;
 

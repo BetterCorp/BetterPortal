@@ -461,7 +461,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       display: "flex",
       alignItems: "center",
       gap: "0.55rem",
-      minHeight: 48,
+      minHeight: "48px",
       padding: "0.4rem 0.35rem",
       zIndex: 1
     },
@@ -602,7 +602,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       borderBottom: mode === "dark"
         ? "1px solid rgba(255,255,255,0.06)"
         : "1px solid rgba(0,0,0,0.05)",
-      minHeight: 48,
+      minHeight: "48px",
       padding: "0.35rem 0.75rem",
       background: mode === "dark" ? "#121920" : "#ffffff",
       boxShadow: "none",
@@ -631,6 +631,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       fontWeight: 600
     },
     ".bp-admin__topbar-title": {
+      margin: 0,
       fontSize: "1rem",
       fontWeight: 600,
       letterSpacing: 0,
@@ -748,6 +749,13 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       minHeight: 0,
       position: "relative",
       zIndex: 1,
+      padding: 0
+    },
+    "#bp-main": {
+      boxSizing: "border-box",
+      padding: "1rem"
+    },
+    ".bp-shell[data-bp-chrome-full-screen='true'] #bp-main": {
       padding: 0
     },
 
@@ -2167,6 +2175,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
       data-bp-dev-reload="auto"
       data-bp-login-url={context.loginUrl}
       data-bp-logout-url={context.logoutUrl}
+      data-bp-promote-page-title=""
       {...betterPortalChromeAttributes(context.chrome)}
     >
       <div class="offcanvas offcanvas-start bp-admin__mobile-menu" tabindex={-1} id="bp-mobile-menu" aria-labelledby="bp-mobile-menu-title">
@@ -2216,9 +2225,9 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
               </button>
               <div class="bp-admin__topbar-context">
                 <div class="bp-admin__topbar-label bp-admin__breadcrumb" data-bp-current-breadcrumb="">{currentBreadcrumb}</div>
-                <div class="bp-admin__topbar-title" data-bp-current-title="">
+                <h1 class="bp-admin__topbar-title" data-bp-current-title="">
                   {activeRoute?.title ?? context.title}
-                </div>
+                </h1>
               </div>
             </div>
             <div

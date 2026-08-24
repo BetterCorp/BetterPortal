@@ -16,7 +16,8 @@ test("SSE requests keep BetterPortal headers", async () => {
   const asset = await loadBootstrap2Asset("bootstrap2-shell.js");
   const source = String(asset?.body);
   const hook = source.slice(source.indexOf("htmx_config_request"), source.indexOf("htmx_before_request"));
-  assert.match(hook, /if\s*\(!isSseConnect\)/);
+  assert.match(hook, /isSseConnect\s*\|\|\s*!isMainTarget\(ctx\.target\)/);
+  assert.match(hook, /if\s*\(isSseConnect\)[\s\S]*HX-Request-Type[\s\S]*partial/);
   assert.match(hook, /attachBpHeaders\(ctx\.request\.headers/);
 });
 
@@ -102,4 +103,28 @@ test("open card dropdowns rise above later cards", () => {
     bodyHtml: ""
   });
   assert.match(html, /\.bp-shell__main \.card:has\(\.dropdown-menu\.show\)/);
+});
+
+test("page titles move to the padded shell header", async () => {
+  const html = renderBootstrap2HostPage({
+    title: "Route title",
+    brandName: "Test",
+    themeMode: "dark",
+    themeConfig: { mode: "dark", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets",
+    currentPath: "/",
+    routeLinks: []
+  });
+  assert.match(html, /data-bp-promote-page-title=""/);
+  assert.match(html, /<h1 class="bp-admin__topbar-title" data-bp-current-title="">/);
+  assert.match(html, /#bp-main\s*\{[^}]*padding:\s*1rem/);
+  assert.match(html, /\.bp-admin__topbar\s*\{[^}]*min-height:\s*48px/);
+
+  const asset = await loadBootstrap2Asset("bootstrap2-shell.js");
+  const source = String(asset?.body);
+  assert.match(source, /querySelector\("\[data-bp-page-title\]"\)/);
+  assert.match(source, /querySelector\("h1,h2"\)/);
+  assert.match(source, /data-bp-chrome-full-screen/);
+  assert.match(source, /promotedHeading\.hidden\s*=\s*false/);
+  assert.match(source, /heading\.hidden\s*=\s*true/);
 });

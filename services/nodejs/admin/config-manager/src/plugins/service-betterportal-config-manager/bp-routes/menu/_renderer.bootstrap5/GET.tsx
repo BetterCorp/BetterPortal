@@ -58,6 +58,10 @@ function dragScript(): HtmlRenderable {
     document.body.addEventListener("dragstart", (e) => {
       const li = e.target.closest && e.target.closest("[data-bp-drag-item]");
       if (!li) return;
+      if (document.querySelector("#bp-menu-editor [data-bp-menu-editing]")) {
+        e.preventDefault();
+        return;
+      }
       draggingId = li.dataset.bpDragItem;
       draggingIsGroup = li.dataset.bpDragType === "group";
       e.dataTransfer.effectAllowed = "move";

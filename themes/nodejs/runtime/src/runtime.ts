@@ -134,6 +134,26 @@ export function betterPortalShellRuntimeSource(): string {
       const topbarProgress = () => document.querySelector("#bp-topbar-progress");
       const errorNode = () => document.querySelector("#bp-content-error");
 
+      const syncPageTitle = () => {
+        const root = shellRoot();
+        if (!root?.hasAttribute("data-bp-promote-page-title")) return;
+        const outlet = mainOutlet();
+        const promotedHeading = outlet?.querySelector<HTMLElement>("[data-bp-promoted-page-title]");
+        if (root.getAttribute("data-bp-chrome-full-screen") === "true"
+          || root.getAttribute("data-bp-chrome-hide-header") === "true") {
+          if (promotedHeading) promotedHeading.hidden = false;
+          return;
+        }
+        const heading = outlet?.querySelector<HTMLElement>("[data-bp-page-title]")
+          ?? outlet?.querySelector<HTMLElement>("h1,h2");
+        const title = heading?.textContent?.trim();
+        if (!heading || !title) return;
+        const currentTitle = titleNode();
+        if (currentTitle) currentTitle.textContent = title;
+        heading.setAttribute("data-bp-promoted-page-title", "");
+        heading.hidden = true;
+      };
+
       const profileSlot = () => document.querySelector("[data-bp-slot='nav-profile']");
       const profileMirror = () => document.querySelector("[data-bp-profile-mirror]");
 
@@ -227,6 +247,7 @@ export function betterPortalShellRuntimeSource(): string {
         const previousChrome = activeChrome;
         activeChrome = { ...nextChrome };
         shellAdapter.applyChrome?.(activeChrome, previousChrome, root);
+        syncPageTitle();
       };
 
       const applyChromeFromResponse = (detail: any) => {
@@ -1016,8 +1037,7 @@ export function betterPortalShellRuntimeSource(): string {
         const tryMatch = (filterServiceId: string | null) => {
           for (const route of routes) {
             if (filterServiceId && route.serviceId !== filterServiceId) continue;
-            const routeKind = route.kind ?? (route.tenantPath.startsWith("/_bp/") ? "api" : "page");
-            if (routeKind !== kind) continue;
+            if ((route.kind ?? (route.tenantPath.startsWith("/_bp/") ? "api" : "page")) !== kind) continue;
             if (normalPath === route.servicePath) {
               return { route, suffix: "" };
             }
@@ -1611,8 +1631,17 @@ export function betterPortalShellRuntimeSource(): string {
             const pathOnly = normalizePath(resolvedPath.pathname);
             const query = resolvedPath.search + resolvedPath.hash;
 
-            const match = elServiceId ? matchServiceRoute(elServiceId, pathOnly) : null;
-            const apiMatch = elServiceId ? matchServiceRoute(elServiceId, pathOnly, "api") : null;
+            // A configured tenant/UI path is authoritative. Otherwise treat
+            // the value as a service path and reverse-map it through config.
+            const configuredMatch = matchTenantRoute(pathOnly);
+            const configuredKind = configuredMatch?.route.kind
+              ?? (configuredMatch?.route.tenantPath.startsWith("/_bp/") ? "api" : "page");
+            const match = configuredMatch
+              ? configuredKind === "page" ? configuredMatch : null
+              : elServiceId ? matchServiceRoute(elServiceId, pathOnly) : null;
+            const apiMatch = configuredMatch
+              ? configuredKind === "api" ? configuredMatch : null
+              : elServiceId ? matchServiceRoute(elServiceId, pathOnly, "api") : null;
 
             if (apiMatch && isAnchor && !hxMethodAttr) {
               const tenantUrl = normalizePath(apiMatch.route.tenantPath + apiMatch.suffix) + query;
@@ -1624,9 +1653,12 @@ export function betterPortalShellRuntimeSource(): string {
             }
 
             if (match) {
-              // Known route - rewrite to tenant path and add htmx attrs
+              // Known route - keep/use its configured tenant path and request
+              // the corresponding service path.
               const tenantUrl = normalizePath(match.route.tenantPath + match.suffix) + query;
-              const absoluteServiceUrl = match.route.serviceOrigin + pathOnly + query;
+              const absoluteServiceUrl = match.route.serviceOrigin
+                + normalizePath(match.route.servicePath + match.suffix)
+                + query;
 
               if (isAnchor) el.setAttribute("href", tenantUrl);
               if (hxMethodAttr) {
@@ -1644,14 +1676,6 @@ export function betterPortalShellRuntimeSource(): string {
               el.setAttribute(hxMethodAttr, elServiceOrigin + hxMethodPath);
               el.setAttribute("hx-target", "#bp-main");
               el.setAttribute("hx-swap", "innerHTML");
-              el.setAttribute("data-bp-shell-route", "page");
-            } else if (hasHref && !hxMethodAttr && elServiceOrigin) {
-              // Anchor with unknown service path - still make absolute + page nav
-              const absoluteUrl = elServiceOrigin + resolvePath;
-              el.setAttribute("hx-get", absoluteUrl);
-              el.setAttribute("hx-target", "#bp-main");
-              el.setAttribute("hx-swap", "innerHTML");
-              el.setAttribute("hx-push-url", resolvePath);
               el.setAttribute("data-bp-shell-route", "page");
             }
           }
@@ -1961,16 +1985,14 @@ export function betterPortalShellRuntimeSource(): string {
             : elt instanceof Element
               ? elt
               : null;
-          // Preserve the SSE extension's Accept header, but still run the
-          // shared URL rewrite and BP header attachment below.
           const isSseConnect = source?.hasAttribute?.("hx-sse:connect") || source?.hasAttribute?.("sse-connect");
-          if (!isSseConnect) {
-            const mode = isMainTarget(ctx.target) ? "page" : "fragment";
-            const hasAcceptHeader = Object.keys(ctx.request.headers).some((key) => key.toLowerCase() === "accept");
-            if (!hasAcceptHeader) {
-              ctx.request.headers["Accept"] = "text/html; mode=" + mode;
-            }
+          const mode = isSseConnect || !isMainTarget(ctx.target) ? "fragment" : "page";
+          const acceptHeaderName = Object.keys(ctx.request.headers).find((key) => key.toLowerCase() === "accept") ?? "Accept";
+          const acceptValue = ctx.request.headers[acceptHeaderName];
+          if (!acceptValue || acceptValue.trim().toLowerCase() === "text/html") {
+            ctx.request.headers[acceptHeaderName] = "text/html; mode=" + mode;
           }
+          if (isSseConnect) ctx.request.headers["HX-Request-Type"] = "partial";
 
           // Attach stored BP headers (Authorization etc.) to every BP request -
           // this is what carries the login token to services after sign-in.
@@ -2233,6 +2255,7 @@ export function betterPortalShellRuntimeSource(): string {
             cleanupTeleportedOffcanvas();
             teleportModals(target);
             teleportOffcanvas(target);
+            syncPageTitle();
             if (shouldScrollMainSwap(detail)) scrollPageToTop();
             scheduleBootstrapOverlaySync();
           } else if (target instanceof Element) {
@@ -2261,8 +2284,8 @@ export function betterPortalShellRuntimeSource(): string {
         },
 
         // Update sidebar active state on history navigation
-        htmx_after_history_push() { setActiveRoute(window.location.pathname); },
-        htmx_after_history_replace() { setActiveRoute(window.location.pathname); },
+        htmx_after_history_push() { setActiveRoute(window.location.pathname); syncPageTitle(); },
+        htmx_after_history_replace() { setActiveRoute(window.location.pathname); syncPageTitle(); },
 
         htmx_response_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;

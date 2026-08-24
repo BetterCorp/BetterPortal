@@ -4,7 +4,7 @@ import * as av from "anyvali";
 import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
-import { applyVerifiedServiceOrigin } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
+import { applyVerifiedServiceOrigin, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { deriveRolePermissions, getCachedManifestForService, reconcileServiceRegistry, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
@@ -13,6 +13,7 @@ import { render as renderServices } from "../src/plugins/service-betterportal-co
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
 import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
+import { registerMenuEditorRoutes } from "../src/plugins/service-betterportal-config-manager/menuEditor.js";
 import * as adminAuthView from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/GET.js";
 import * as adminConfigView from "../src/plugins/service-betterportal-config-manager/bp-routes/config/GET.js";
 import * as adminFragmentsView from "../src/plugins/service-betterportal-config-manager/bp-routes/fragments/GET.js";
@@ -34,7 +35,8 @@ import * as authRegister from "../../../auth-default/src/plugins/service-betterp
 import {
   BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY,
   PROVIDER_ROLE_AUTHORITY_CAPABILITY,
-  resolveRoleAuthority
+  resolveRoleAuthority,
+  resolveRoleSyncUrl
 } from "../src/plugins/service-betterportal-config-manager/roleAuthority.js";
 
 class MemoryStorage extends BaseStorage {
@@ -532,6 +534,52 @@ test("shared activation manifest lookup falls back to its shared service", () =>
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
 });
 
+test("service replacement requires the same external plugin id", () => {
+  assert.equal(servicePluginIdsMatch("org.example.crm", "org.example.crm"), true);
+  assert.equal(servicePluginIdsMatch("org.example.crm", "org.example.billing"), false);
+  assert.equal(servicePluginIdsMatch(undefined, "org.example.crm"), false);
+});
+
+test("menu editing disables drag and optionally follows an assigned view route", async () => {
+  const handlers = new Map<string, (event: unknown) => Response | Promise<Response>>();
+  registerMenuEditorRoutes({
+    get: (path: string, handler: (event: unknown) => Response | Promise<Response>) => { handlers.set(`GET ${path}`, handler); },
+    post: (path: string, handler: (event: unknown) => Response | Promise<Response>) => { handlers.set(`POST ${path}`, handler); }
+  } as never, {
+    loadConfig: async () => ({
+      tenants: [{ id: "tenant-a", services: [{ id: "service-a", title: "Service A", enabled: true }] }],
+      platformServices: [],
+      apps: [{
+        id: "app-a",
+        tenantId: "tenant-a",
+        menu: [{ id: "item-a", type: "link", routeId: "route-old", enabled: true }],
+        routes: [
+          { id: "route-old", kind: "page", path: "/old", serviceId: "service-a", viewId: "old.index" },
+          { id: "route-new", kind: "page", path: "/new-public", targetPath: "/new-target", serviceId: "service-a", viewId: "new.index" }
+        ]
+      }]
+    }),
+    saveConfig: async () => undefined
+  } as never);
+  const invoke = async (path: string, query: string) => {
+    const handler = handlers.get(`GET ${path}`);
+    assert.ok(handler);
+    return (await handler({ req: new Request(`https://admin.example${path}?${query}`) })).text();
+  };
+
+  const edit = await invoke("/.well-known/bp/admin/menu-editor/item", "appId=app-a&itemId=item-a&mode=edit-link");
+  assert.match(edit, /draggable="false"[^>]*data-bp-menu-editing/);
+  assert.match(edit, /name="autoSetPaths"[^>]*checked/);
+
+  const automatic = await invoke("/.well-known/bp/admin/menu-editor/default-target", "appId=app-a&itemId=item-a&serviceId=service-a&viewId=new.index&autoSetPaths=true&path=%2Fold&targetPath=%2Fold-target");
+  assert.match(automatic, /name="path"[^>]*value="\/new-public"/);
+  assert.match(automatic, /name="targetPath"[^>]*value="\/new-target"/);
+
+  const manual = await invoke("/.well-known/bp/admin/menu-editor/default-target", "appId=app-a&itemId=item-a&serviceId=service-a&viewId=new.index&path=%2Fcustom&targetPath=%2Fcustom-target");
+  assert.match(manual, /name="path"[^>]*value="\/custom"/);
+  assert.match(manual, /name="targetPath"[^>]*value="\/custom-target"/);
+});
+
 test("manifest sync preserves stale app auth redirects for repair", async () => {
   const value = s2sConfig();
   const app = value.config.apps[0]!;
@@ -1024,7 +1072,20 @@ test("service API route state is shown only by the On control", () => {
 test("service registration stays browser-mediated and tenant history follows the request", () => {
   const html = String(renderServices({
     title: "Service Registry",
-    services: [],
+    services: [{
+      id: "service-a",
+      hostname: "https://service.example",
+      serviceId: "org.example.service",
+      capabilities: [],
+      createdAt: new Date().toISOString(),
+      enabled: true,
+      scope: "tenant",
+      tenantId: "tenant-a",
+      pushBase: "/settings/service/service-a",
+      supportsCustomUi: false,
+      configManifestKnown: true,
+      hasConfigurableOptions: false
+    }],
     tenants: [{ id: "tenant-a", title: "Tenant A" }],
     selectedTenantId: "tenant-a",
     selectedAppId: "app-a",
@@ -1072,6 +1133,9 @@ test("service registration stays browser-mediated and tenant history follows the
   assert.match(html, /Toast\?\.getOrCreateInstance/);
   assert.match(html, /Offcanvas\?\.getInstance\(panel\)\?\.hide/);
   assert.match(html, /setTenantStatus\("secondary", "Installing service\.\.\."\)/);
+  assert.match(html, /data-bp-reconfigure-service=""[^>]*data-bp-service-plugin-id="org\.example\.service"/);
+  assert.match(html, /health\?\.setupMode === true && health\.pluginId === button\.dataset\.bpServicePluginId/);
+  assert.match(html, /reconfigure: true/);
   const script = /<script>\s*([\s\S]*)<\/script>/.exec(html)?.[1];
   assert.ok(script);
   assert.doesNotThrow(() => new Function(script));
@@ -1130,4 +1194,67 @@ test("provider role management is the default when advertised", () => {
   assert.equal(resolveRoleAuthority(capabilities, "betterportal"), "betterportal");
   assert.equal(resolveRoleAuthority(["auth.roles.sync"]), "provider");
   assert.equal(resolveRoleAuthority([], "provider"), "betterportal");
+});
+
+test("role sync controls require a discovered endpoint", () => {
+  const manifest = (capabilities: string[], views: Array<{ path: string; role: string; method: "GET" | "POST" }>): CachedManifest => ({
+    serviceId: "org.example.auth",
+    manifestVersion: "1",
+    capabilities,
+    apiContracts: [],
+    m2mRequests: [],
+    developerResources: [],
+    viewIndex: Object.fromEntries(views.map((view, index) => [`view-${index}`, {
+      viewId: `view-${index}`,
+      title: "Role sync",
+      description: "Role sync",
+      path: view.path,
+      pathVariants: [],
+      operations: [{
+        operationId: `operation-${index}`,
+        method: view.method,
+        title: "Role sync",
+        description: "Role sync",
+        renderers: [],
+        renderModes: [],
+        role: view.role,
+        authRequired: true,
+        robots: [],
+        dependencies: [],
+        permissions: [],
+        renderable: false,
+        apiContracts: [],
+        demoScenarios: []
+      }],
+      fragments: []
+    }])),
+    configSchemas: [],
+    webhooks: [],
+    fetchedAt: Date.now()
+  });
+
+  const localAuth = manifest([BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY], []);
+  assert.equal(resolveRoleSyncUrl("https://auth.example", localAuth, "betterportal", "tenant", "app"), undefined);
+
+  const providerAuth = manifest(["auth.roles.sync"], [
+    { path: "/custom/role-controls", role: "auth.roles.sync.view", method: "GET" }
+  ]);
+  assert.equal(
+    resolveRoleSyncUrl("https://auth.example/base/", providerAuth, "provider", "tenant/a", "app b"),
+    "https://auth.example/base/custom/role-controls?tenantId=tenant%2Fa&appId=app+b"
+  );
+
+  const managedAuth = manifest([BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY], [
+    { path: "/custom/roles", role: "auth.roles.sync", method: "POST" }
+  ]);
+  assert.equal(
+    resolveRoleSyncUrl("https://auth.example", managedAuth, "betterportal", "tenant", "app"),
+    "https://auth.example/custom/roles?tenantId=tenant&appId=app"
+  );
+
+  const ambiguousAuth = manifest([BETTERPORTAL_ROLE_AUTHORITY_CAPABILITY], [
+    { path: "/custom/roles-a", role: "auth.roles.sync", method: "POST" },
+    { path: "/custom/roles-b", role: "auth.roles.sync", method: "POST" }
+  ]);
+  assert.equal(resolveRoleSyncUrl("https://auth.example", ambiguousAuth, "betterportal", "tenant", "app"), undefined);
 });

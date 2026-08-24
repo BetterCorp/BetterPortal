@@ -21,3 +21,5 @@ Registry org: `betterportal`.
 After-login and after-logout destinations are app-owned `app.auth.redirects` view references configured in Tenants & Apps, not provider addon fields.
 
 Role sync keeps BP as the permission source of truth. WorkOS permission slugs are short service-owned keys, `bp_<shortId>_<read|create|update|delete>`, with the full tenant/service/view mapping stored in `workosStatePath`. Roles are mirrored per app from WorkOS role slugs into BP app roles.
+
+The manifest advertises role-sync endpoints through the standard `auth.roles.sync.view`, `auth.permissions.sync`, and `auth.roles.sync` operation roles. Consumers discover their published paths instead of depending on WorkOS route names.
