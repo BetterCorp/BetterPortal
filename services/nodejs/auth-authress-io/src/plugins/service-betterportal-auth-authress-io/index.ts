@@ -27,7 +27,6 @@ import {
   type ServiceConfigTicketClaims,
   type TenantAppValidation
 } from "@betterportal/framework";
-import { registry } from "./.bp-generated/registry.js";
 import { resolve } from "node:path";
 import { AuthressGroupCache } from "../../groupCache.js";
 
@@ -210,8 +209,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         description: "Authress-backed auth service for BetterPortal apps.",
         capabilities: ["auth"],
         configSchemas: AuthressConfigSchemas
-      },
-      registry
+      }
     };
   }
 

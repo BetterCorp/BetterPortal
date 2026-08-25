@@ -10,7 +10,6 @@ import { BPService, BetterPortalConfigSchema } from "@betterportal/plugin-bsb";
 import { resolve } from "node:path";
 import { createStaticJwksVerifier } from "@betterportal/framework";
 import type { JwtVerifier, AppAuthConfig } from "@betterportal/framework";
-import { registry } from "./.bp-generated/registry.js";
 import {
   cpBootstrap,
   type CpBootstrapState
@@ -157,8 +156,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         title: "BetterPortal Config Manager",
         description: "Admin-facing BetterPortal service for discovering and managing service config surfaces.",
         cacheHints: { metadataTtlSeconds: 300 }
-      },
-      registry
+      }
     };
   }
 
@@ -296,7 +294,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     };
   }
 
-  protected async onRegistered(_registry: BetterPortalRegistry, _obs: Observable): Promise<void> {
+  protected async onRegistered(registry: BetterPortalRegistry, _obs: Observable): Promise<void> {
     const resolvedStorage = createStorageFromConfig(this.config.storage, this.cwd);
     this.storage = this.withChangeBroadcasts(resolvedStorage.store, _obs, {
       backend: resolvedStorage.backend

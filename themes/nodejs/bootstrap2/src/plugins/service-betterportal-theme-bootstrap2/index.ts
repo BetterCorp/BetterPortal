@@ -52,7 +52,6 @@ import {
   BOOTSTRAP2_VERSION,
   bootstrap2AssetUrl
 } from "./cache.js";
-import { registry } from "./.bp-generated/registry.js";
 
 // Parse-only base for relative request URLs. Never emit this origin.
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
@@ -224,8 +223,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         shell: { service: "bootstrap2", renderer: "bootstrap5", fragments: [] },
         developerResources: Bootstrap2DeveloperResources,
         configSchemas: THEME_CONFIG_SCHEMAS as any
-      },
-      registry
+      }
     };
   }
 

@@ -26,6 +26,7 @@ export * from "./runtime/http.js";
 export * from "./runtime/manifest.js";
 export * from "./runtime/media.js";
 export * from "./runtime/registry.js";
+export * from "./runtime/generatedRegistry.js";
 export * from "./runtime/serviceConfig.js";
 export * from "./runtime/tenantResolution.js";
 export * from "./runtime/traceContext.js";

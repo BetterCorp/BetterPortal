@@ -221,6 +221,7 @@ interface RenderersByRenderer {
 }
 
 function emitRenderers(
+  route: ScannedRoute,
   renderersByRenderer: Map<string, RenderersByRenderer>,
 ): string {
   if (renderersByRenderer.size === 0) return "{}";
@@ -233,10 +234,13 @@ function emitRenderers(
     const rendererComma = t < rendererEntries.length - 1 ? "," : "";
 
     rendererLines.push(`        ${JSON.stringify(rendererKey)}: {`);
-    rendererLines.push(`          pages: [${emitRendererArray(sets.pages)}],`);
-    rendererLines.push(`          components: [${emitRendererArray(sets.components)}],`);
-    rendererLines.push(`          fragments: [${emitRendererArray(sets.fragments)}]${sets.stream ? "," : ""}`);
+    rendererLines.push(`          pages: [${emitRendererArray(route, sets.pages)}],`);
+    rendererLines.push(`          components: [${emitRendererArray(route, sets.components)}],`);
+    rendererLines.push(`          fragments: [${emitRendererArray(route, sets.fragments)}]${sets.stream ? "," : ""}`);
     if (sets.stream) {
+      const streamMethod = route.methodModules.find((module) => module.exports.includes("ItemSchema"));
+      if (!streamMethod) throw new Error(`Streaming renderer for ${route.viewId} has no stream handler`);
+      const handler = `${methodImportName(route.viewId, streamMethod.method)}.default`;
       const props = [
         `renderShell: ${sets.stream.importName}.renderShell`,
         `renderItem: ${sets.stream.importName}.renderItem`
@@ -247,7 +251,7 @@ function emitRenderers(
       if (sets.stream.renderer.exports.includes("renderError")) {
         props.push(`renderError: ${sets.stream.importName}.renderError`);
       }
-      rendererLines.push(`          stream: { ${props.join(", ")} }`);
+      rendererLines.push(`          stream: ({ ${props.join(", ")} } satisfies StreamRendererSetFor<typeof ${handler}>)`);
     }
     rendererLines.push(`        }${rendererComma}`);
   }
@@ -257,6 +261,7 @@ function emitRenderers(
 }
 
 function emitStatusRenderers(
+  route: ScannedRoute,
   renderersByRenderer: Map<string, RenderersByRenderer>,
 ): string | null {
   const renderersWithStatus = [...renderersByRenderer.entries()].filter(
@@ -276,17 +281,17 @@ function emitStatusRenderers(
       const codeComma = c < codes.length - 1 ? "," : "";
       const props: string[] = [];
       if (bucket.pages.length > 0) {
-        props.push(`pages: [${bucket.pages.map((item) => emitRendererLiteral(item)).join(", ")}]`);
+        props.push(`pages: [${bucket.pages.map((item) => emitRendererLiteral(route, item)).join(", ")}]`);
       }
       if (bucket.components.size > 0) {
         const compEntries = [...bucket.components.entries()].map(
-          ([id, item]) => `${JSON.stringify(id)}: ${emitRendererLiteral(item)}`
+          ([id, item]) => `${JSON.stringify(id)}: ${emitRendererLiteral(route, item)}`
         );
         props.push(`components: { ${compEntries.join(", ")} }`);
       }
       if (bucket.fragments.size > 0) {
         const fragEntries = [...bucket.fragments.entries()].map(
-          ([id, item]) => `${JSON.stringify(id)}: ${emitRendererLiteral(item)}`
+          ([id, item]) => `${JSON.stringify(id)}: ${emitRendererLiteral(route, item)}`
         );
         props.push(`fragments: { ${fragEntries.join(", ")} }`);
       }
@@ -298,7 +303,7 @@ function emitStatusRenderers(
   return lines.join("\n");
 }
 
-function emitRendererLiteral(item: { renderer: ScannedViewRenderer; importName: string }): string {
+function emitRendererLiteral(route: ScannedRoute, item: { renderer: ScannedViewRenderer; importName: string }): string {
   const props: string[] = [
     `rendererId: ${JSON.stringify(item.renderer.rendererId)}`,
     `type: ${JSON.stringify(item.renderer.type)}`
@@ -308,11 +313,13 @@ function emitRendererLiteral(item: { renderer: ScannedViewRenderer; importName: 
   // status code is already the key of the enclosing statusRenderers map.
   if (item.renderer.fragmentLocation) props.push(`fragmentLocation: ${JSON.stringify(item.renderer.fragmentLocation)}`);
   if (item.renderer.fragmentId) props.push(`fragmentId: ${JSON.stringify(item.renderer.fragmentId)}`);
-  props.push(`render: ${item.importName}.render`);
+  const handler = `${methodImportName(route.viewId, item.renderer.method!)}.default`;
+  props.push(`render: (${item.importName}.render satisfies ViewRendererFor<typeof ${handler}>)`);
   return `{ ${props.join(", ")} }`;
 }
 
 function emitRendererArray(
+  route: ScannedRoute,
   items: Array<{ renderer: ScannedViewRenderer; importName: string; sseImportName?: string }>,
 ): string {
   if (items.length === 0) return "";
@@ -333,10 +340,12 @@ function emitRendererArray(
       props.push(`fragmentId: ${JSON.stringify(item.renderer.fragmentId)}`);
     }
 
-    props.push(`render: ${item.importName}.render`);
+    const handler = `${methodImportName(route.viewId, item.renderer.method!)}.default`;
+    props.push(`render: (${item.importName}.render satisfies ViewRendererFor<typeof ${handler}>)`);
 
     if (item.sseImportName) {
-      props.push(`sseRender: ${item.sseImportName}.renderTick`);
+      const sseHandler = `${viewIdToCamel(route.viewId)}Sse.handleSSE`;
+      props.push(`sseRender: (${item.sseImportName}.renderTick satisfies SseRendererFor<typeof ${sseHandler}>)`);
     }
 
     return `{ ${props.join(", ")} }`;
@@ -483,9 +492,9 @@ export function emitRegistry(scanResult: ScanResult): string {
     lines.push(`import * as ${imp.alias} from ${JSON.stringify(imp.path)};`);
   }
 
-  lines.push(`import type { BetterPortalRegistry } from "@betterportal/framework";`);
+  lines.push(`import type { BetterPortalRegistry, SseRendererFor, StreamRendererSetFor, ViewRendererFor } from "@betterportal/framework";`);
   lines.push("");
-  lines.push("export const registry: BetterPortalRegistry = {");
+  lines.push("export const registry = {");
   if (Object.keys(scanResult.dependencyAliases).length > 0) {
     lines.push(`  dependencies: ${JSON.stringify(scanResult.dependencyAliases)},`);
   }
@@ -522,8 +531,8 @@ export function emitRegistry(scanResult: ScanResult): string {
     }
     lines.push(`      title: ${hasTitle ? `${alias}.title` : JSON.stringify(fallbackTitle)},`);
     lines.push(`      description: ${hasDescription ? `${alias}.description` : `""`},`);
-    const statusBlock = emitStatusRenderers(byRenderer);
-    lines.push(`      renderers: ${emitRenderers(byRenderer)}${(statusBlock || route.hasSseHandler) ? "," : ""}`);
+    const statusBlock = emitStatusRenderers(route, byRenderer);
+    lines.push(`      renderers: ${emitRenderers(route, byRenderer)}${(statusBlock || route.hasSseHandler) ? "," : ""}`);
     if (statusBlock) {
       lines.push(`      statusRenderers: ${statusBlock}${route.hasSseHandler ? "," : ""}`);
     }
@@ -549,7 +558,7 @@ export function emitRegistry(scanResult: ScanResult): string {
     lines.push("    },");
   }
   lines.push("  ]");
-  lines.push("};");
+  lines.push("} satisfies BetterPortalRegistry;");
   lines.push("");
 
   return lines.join("\n");

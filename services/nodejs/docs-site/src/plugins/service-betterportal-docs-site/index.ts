@@ -10,7 +10,6 @@ import { dirname, resolve } from "node:path";
 import * as av from "anyvali";
 import { BetterPortalConfigSchema, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
 import type { BetterPortalRegistry } from "@betterportal/framework";
-import { registry } from "./.bp-generated/registry.js";
 
 const AssetRoot = resolve(dirname(fileURLToPath(import.meta.url)), "assets");
 const AllowedAssets = new Set(["portal-map.svg", "doc-wave.svg"]);
@@ -56,8 +55,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         title: "BetterPortal Docs",
         description: "Dogfooded BetterPortal documentation site backed by repository Markdown files.",
         configSchemas: []
-      },
-      registry
+      }
     };
   }
 

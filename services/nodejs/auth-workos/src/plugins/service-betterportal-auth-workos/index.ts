@@ -36,7 +36,6 @@ import {
 } from "@betterportal/framework";
 import { dirname, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
-import { registry } from "./.bp-generated/registry.js";
 
 const SERVICE_ID = "org.betterportal.auth.workos";
 
@@ -275,8 +274,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           "auth.roles.authority.betterportal"
         ],
         configSchemas: WorkOSConfigSchemas
-      },
-      registry
+      }
     };
   }
 

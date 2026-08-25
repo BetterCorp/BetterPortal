@@ -159,6 +159,18 @@ function schemaType(document: unknown): string {
   return nodeType((value.root ?? value) as unknown, definitions);
 }
 
+function hasSchema(document: unknown): boolean {
+  return !!document && typeof document === "object" && Object.keys(document as object).length > 0;
+}
+
+function schemaInputRequired(document: unknown): boolean {
+  if (!hasSchema(document)) return false;
+  const value = document as Record<string, unknown>;
+  const root = (value.root ?? value) as Record<string, unknown>;
+  if (root.kind === "optional" || "default" in root) return false;
+  return root.kind !== "object" || (Array.isArray(root.required) && root.required.length > 0);
+}
+
 function nodeType(
   input: unknown,
   definitions: Record<string, unknown>,
@@ -181,6 +193,9 @@ function nodeType(
     case "uint64":
     case "number": return "number";
     case "bool": return "boolean";
+    case "never": return "never";
+    case "any":
+    case "unknown": return "unknown";
     case "null": return "null";
     case "literal": return JSON.stringify(node.value);
     case "enum": return Array.isArray(node.values) ? node.values.map((value) => JSON.stringify(value)).join(" | ") || "never" : "unknown";
@@ -236,9 +251,11 @@ export function emitTypeScriptClient(_alias: string, contract: BpSchemaOutput): 
     "  fetch?: typeof globalThis.fetch;",
     "}",
     "",
-    "async function bpRequest<T>(runtime: BPClientRuntime, method: string, route: string, input: { params?: Record<string, unknown>; query?: Record<string, unknown>; headers?: Record<string, string>; body?: unknown } = {}): Promise<T> {",
+    "interface BPRequestInput { params?: object; query?: object; headers?: object; body?: unknown }",
+    "",
+    "async function bpRequest<T>(runtime: BPClientRuntime, method: string, route: string, input: BPRequestInput = {}): Promise<T> {",
     "  let pathname = route.replace(/:([A-Za-z][A-Za-z0-9]*)/g, (_match, name: string) => {",
-    "    const value = input.params?.[name];",
+    "    const value = input.params ? Reflect.get(input.params, name) : undefined;",
     "    if (value === undefined || value === null) throw new Error(`Missing route parameter: ${name}`);",
     "    return encodeURIComponent(String(value));",
     "  });",
@@ -260,17 +277,38 @@ export function emitTypeScriptClient(_alias: string, contract: BpSchemaOutput): 
     ""
   ];
   for (const view of contract.manifest.views) {
+    const route = contract.routes.find((candidate) => candidate.viewId === view.viewId);
     for (const operation of view.operations) {
       const name = safeName(operation.operationId);
-      lines.push(`export interface ${name}Input {`);
-      lines.push(`  params?: ${schemaType(view.paramsSchema)};`);
-      lines.push(`  query?: ${schemaType(operation.querySchema)};`);
-      lines.push(`  headers?: ${schemaType(operation.headersSchema)};`);
-      lines.push(`  body?: ${schemaType(operation.bodySchema)};`);
-      lines.push("}");
+      const paramNames = route?.paramNames ?? [];
+      const inputs = [
+        {
+          key: "params",
+          type: hasSchema(view.paramsSchema)
+            ? schemaType(view.paramsSchema)
+            : `{ ${paramNames.map((param) => `${JSON.stringify(param)}: string`).join("; ")} }`,
+          present: paramNames.length > 0 || hasSchema(view.paramsSchema),
+          required: paramNames.length > 0 || schemaInputRequired(view.paramsSchema)
+        },
+        { key: "query", type: schemaType(operation.querySchema), present: hasSchema(operation.querySchema), required: schemaInputRequired(operation.querySchema) },
+        { key: "headers", type: schemaType(operation.headersSchema), present: hasSchema(operation.headersSchema), required: schemaInputRequired(operation.headersSchema) },
+        { key: "body", type: schemaType(operation.bodySchema), present: hasSchema(operation.bodySchema), required: schemaInputRequired(operation.bodySchema) }
+      ].filter((input) => input.present);
+      if (inputs.length === 0) {
+        lines.push(`export type ${name}Input = never;`);
+      } else {
+        lines.push(`export interface ${name}Input {`);
+        for (const input of inputs) {
+          lines.push(`  ${input.key}${input.required ? "" : "?"}: ${input.type};`);
+        }
+        lines.push("}");
+      }
       lines.push(`export type ${name}Response = ${schemaType(operation.jsonResponseSchema)};`);
-      lines.push(`export const ${name[0].toLowerCase() + name.slice(1)} = (runtime: BPClientRuntime, input: ${name}Input = {}) =>`);
-      lines.push(`  bpRequest<${name}Response>(runtime, ${JSON.stringify(operation.method)}, ${JSON.stringify(view.path)}, input as Parameters<typeof bpRequest>[3]);`);
+      const optionalInput = inputs.every((input) => !input.required);
+      const inputParameter = inputs.length === 0 ? "" : `, input: ${name}Input${optionalInput ? " = {}" : ""}`;
+      const inputArgument = inputs.length === 0 ? "" : ", input";
+      lines.push(`export const ${name[0].toLowerCase() + name.slice(1)} = (runtime: BPClientRuntime${inputParameter}) =>`);
+      lines.push(`  bpRequest<${name}Response>(runtime, ${JSON.stringify(operation.method)}, ${JSON.stringify(view.path)}${inputArgument});`);
       lines.push("");
     }
   }

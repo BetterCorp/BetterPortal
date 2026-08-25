@@ -6,7 +6,6 @@ import {
 import * as av from "anyvali";
 import { BetterPortalConfigSchema, BPService, type BPServiceDefinition } from "@betterportal/plugin-bsb";
 import type { ConfigSchemaDescriptor } from "@betterportal/framework";
-import { registry } from "./.bp-generated/registry.js";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -72,8 +71,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
             ]
           }
         ] satisfies ConfigSchemaDescriptor[]
-      },
-      registry
+      }
     };
   }
 }

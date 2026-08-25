@@ -396,7 +396,6 @@ bp-routes/example/
     GET.tsx
     POST.tsx
     POST.422.tsx
-    422.tsx
     _nav.profile.GET.tsx
     card.GET.tsx
 ```
@@ -406,7 +405,6 @@ Rules:
 - `GET.tsx` renders successful GET HTML.
 - `POST.tsx` renders successful POST HTML.
 - `POST.422.tsx` renders a POST-specific 422 response.
-- `422.tsx` renders a generic 422 response for any method.
 - If no matching renderer exists, BP returns JSON/API output.
 - Shared UI is explicit: import or re-export a helper from both renderers.
 - `index.tsx` and `index.GET.tsx` are not valid page renderer names. Use `GET.tsx`, `POST.tsx`, or `METHOD.STATUS.tsx`.
@@ -421,7 +419,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
 }
 ```
 
-Renderer `data` must be typed from the route response. Codegen warns on missing, `any`, or `unknown` render parameters.
+Renderer `data` must be typed from the matching method response. Codegen rejects missing, `any`, or `unknown` render parameters, and the generated registry type-checks page, component, fragment, SSE tick, and streaming renderers against their handlers. Status renderers are method-specific (`POST.422.tsx`), so their response type is unambiguous.
 
 Do not create `route.impl.ts`. Each HTTP method file owns its operation id, schemas, auth, permissions, dependencies, metadata, and handler boundary. Shared business logic belongs in an intentionally named domain module outside the route directory, not in a route god-module.
 

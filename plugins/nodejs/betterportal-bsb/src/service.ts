@@ -17,6 +17,7 @@ import {
   buildOriginPolicy,
   buildManifestFromRegistry,
   buildBpSchema,
+  assertManifestOnlyDefinition,
   authorizeServiceToken,
   isServiceToken,
   createJwksVerifier,
@@ -26,6 +27,7 @@ import {
   registerBpWellKnownRoutes,
   registerServiceConfigRoutes,
   loadOrGenerateKeyPair,
+  loadGeneratedRegistry,
   signServiceToken,
   resolveEmbeddedSourceHeader,
   resolveEmbeddedRequestContext,
@@ -177,7 +179,6 @@ export type AuthoritativeServiceMutation<T extends AuthoritativeServiceType> =
 
 export interface BPServiceDefinition {
   manifest: ManifestBaseFields;
-  registry: BetterPortalRegistry;
 }
 
 export interface BPServiceClientRuntime {
@@ -196,7 +197,9 @@ export abstract class BPService<
 
   /** Build-time metadata extraction without constructing or starting the service. */
   static getBPDefinition(this: { prototype: { definition(): BPServiceDefinition } }): BPServiceDefinition {
-    return this.prototype.definition.call(Object.create(this.prototype));
+    const definition = this.prototype.definition.call(Object.create(this.prototype));
+    assertManifestOnlyDefinition(definition);
+    return definition;
   }
 
   private readonly bpPluginVersion: string;
@@ -814,7 +817,9 @@ export abstract class BPService<
 
   async init(obs: Observable): Promise<void> {
     const def = this.definition();
-    this.registeredRoutes = def.registry.routes;
+    assertManifestOnlyDefinition(def);
+    const registry = await loadGeneratedRegistry(this.pluginCwd);
+    this.registeredRoutes = registry.routes;
     const span = createBsbObservability(obs).startSpan("bp.plugin.init", {
       "bp.plugin.id": def.manifest.pluginId,
       "bp.plugin.category": "service"
@@ -858,7 +863,7 @@ export abstract class BPService<
       this.configProvider = new FileBackedBetterPortalConfigProvider(this.bp.bpConfigPath);
     }
 
-    this.manifest = buildManifestFromRegistry(def.registry, { version: this.bpPluginVersion }, def.manifest);
+    this.manifest = buildManifestFromRegistry(registry, { version: this.bpPluginVersion }, def.manifest);
 
     if (this.manifest.configSchemas.length > 0 && this.runtimeConfigEncryptionKey) {
       this.configStore = new FileBackedServiceConfigStore({
@@ -878,18 +883,18 @@ export abstract class BPService<
     this.registerInstallEndpoint(obs);
     this.registerHostnameChangeEndpoint(obs);
 
-    createH3Router(def.registry, this.app, {
+    createH3Router(registry, this.app, {
       serviceId: def.manifest.pluginId,
       resolveAuth: (event, route) => this.resolveAuthForRequest(event, route),
       validateTenantApp: (tenantId, appId) => this.validateTenantApp(tenantId, appId),
       resolveContext: (event, route) => this.resolveHandlerContext(event, route)
     });
 
-    const bpSchema = buildBpSchema(def.registry, this.manifest);
+    const bpSchema = buildBpSchema(registry, this.manifest);
     registerBpWellKnownRoutes(this.app, this.manifest, bpSchema, {
       health: () => this.renderHealth()
     });
-    this.registerShellFragmentRoutes(def.registry);
+    this.registerShellFragmentRoutes(registry);
     this.registerSeoRoutes();
 
     if (this.onRegistered) {
@@ -897,7 +902,7 @@ export abstract class BPService<
         "bp.plugin.id": def.manifest.pluginId
       });
       try {
-        await this.onRegistered(def.registry, obs);
+        await this.onRegistered(registry, obs);
         registeredSpan.end();
       } catch (error) {
         const normalizedError = error instanceof Error ? error : new Error(String(error));

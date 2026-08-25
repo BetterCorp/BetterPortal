@@ -39,7 +39,6 @@ import {
 } from "@betterportal/plugin-bsb";
 import { loadEmbeddedAsset } from "./assets.js";
 import { EmbeddedDeveloperResources } from "./resources.js";
-import { registry } from "./.bp-generated/registry.js";
 import { renderEmbeddedHostPage, type EmbeddedRouteLink } from "./shell/index.js";
 
 const PluginConfigSchema = av.object({
@@ -178,8 +177,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         capabilities: ["theme"],
         shell: { service: "embedded", renderer: "embedded", fragments: [] },
         developerResources: EmbeddedDeveloperResources
-      },
-      registry
+      }
     };
   }
 

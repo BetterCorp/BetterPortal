@@ -47,7 +47,6 @@ import { isUserFacingRoute, renderBootstrap1HostPage, renderNavItems, shellStyle
 import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap1Asset } from "./assets.js";
 import { Bootstrap1DeveloperResources } from "./resources.js";
-import { registry } from "./.bp-generated/registry.js";
 
 // Parse-only base for relative request URLs. Never emit this origin.
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
@@ -220,8 +219,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         shell: { service: "bootstrap1", renderer: "bootstrap5", fragments: [] },
         developerResources: Bootstrap1DeveloperResources,
         configSchemas: THEME_CONFIG_SCHEMAS as any
-      },
-      registry
+      }
     };
   }
 

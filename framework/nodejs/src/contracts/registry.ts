@@ -123,6 +123,35 @@ export interface RegisteredViewRenderer {
   readonly sseRender?: (data: any) => HtmlRenderable;
 }
 
+type StreamResponse<TItem, TSummary> = [TSummary] extends [void]
+  ? { items: TItem[] }
+  : { items: TItem[]; summary?: Exclude<TSummary, void> };
+
+/** Compile-time renderer contract generated against its method handler. */
+export type ViewRendererFor<THandler> = (
+  data: THandler extends BpStreamHandler<infer TItem, infer TSummary, infer _TParams, infer _TQuery, infer _THeaders>
+    ? StreamResponse<TItem, TSummary>
+    : THandler extends (...args: never[]) => infer TResult
+      ? Awaited<TResult>
+      : never,
+  context: ViewRenderContext
+) => HtmlRenderable;
+
+/** Compile-time SSE fragment contract generated against its SSE handler. */
+export type SseRendererFor<THandler> = (
+  data: THandler extends (...args: never[]) => AsyncIterable<infer TItem> ? TItem : never
+) => HtmlRenderable;
+
+/** Compile-time streaming renderer contract generated against its stream handler. */
+export type StreamRendererSetFor<THandler> = THandler extends BpStreamHandler<infer TItem, infer TSummary, infer _TParams, infer _TQuery, infer _THeaders>
+  ? {
+      readonly renderShell: StreamRendererSet["renderShell"];
+      readonly renderItem: (item: TItem) => HtmlRenderable;
+      readonly renderSummary?: (summary: Exclude<TSummary, void>) => HtmlRenderable;
+      readonly renderError?: StreamRendererSet["renderError"];
+    }
+  : never;
+
 /** All renderers for a single theme within a route. */
 export interface ViewRendererSet {
   readonly pages: ReadonlyArray<RegisteredViewRenderer>;

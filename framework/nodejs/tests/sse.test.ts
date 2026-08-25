@@ -55,7 +55,10 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
   assert.equal(route.sseMethod, "GET");
   assert.match(route.sseRelativePath ?? "", /\/sse\.ts$/);
   assert.match(fragment.sseRendererPath ?? "", /_body\.live\.sse\.tsx$/);
-  assert.match(emitRegistry(scan), /sseRender: .*\.renderTick/);
+  const generated = emitRegistry(scan);
+  assert.match(generated, /sseRender: .*\.renderTick satisfies SseRendererFor/);
+  assert.match(generated, /render: .*\.render satisfies ViewRendererFor/);
+  assert.match(generated, /satisfies BetterPortalRegistry/);
   assert.equal(validateScanResult(scan).some((issue) => issue.severity === "error"), false);
 
   write(join(routeDir, "GET.sse.ts"), "export async function* handleSSE() {}\n");

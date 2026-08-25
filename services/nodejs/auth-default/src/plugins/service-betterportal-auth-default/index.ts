@@ -21,7 +21,6 @@ import {
   type TenantAppValidation
 } from "@betterportal/framework";
 import { UserStore } from "../../userStore.js";
-import { registry } from "./.bp-generated/registry.js";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -81,8 +80,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         title: "BetterPortal Default Auth",
         description: "JWT-issuing auth service (RS256 + JWKS + bcrypt user store).",
         capabilities: ["auth"]
-      },
-      registry
+      }
     };
   }
 

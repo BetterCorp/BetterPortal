@@ -119,7 +119,11 @@ test("generated clients keep GET and POST contracts separate for one view", () =
   const output = emitTypeScriptClient("config", value);
   assert.match(output, /export const configRead/);
   assert.match(output, /export const configCreate/);
-  assert.match(output, /body\?: \{ "name": string \}/);
+  assert.match(output, /export type ConfigReadInput = never/);
+  assert.match(output, /configRead = \(runtime: BPClientRuntime\) =>/);
+  assert.match(output, /body: \{ "name": string \}/);
+  assert.match(output, /configCreate = \(runtime: BPClientRuntime, input: ConfigCreateInput\) =>/);
+  assert.doesNotMatch(output, /input as Parameters/);
   assert.match(output, /export type ConfigCreateResponse/);
 });
 
@@ -145,4 +149,15 @@ test("generated clients preserve recursive JSON value contracts", () => {
   const output = emitTypeScriptClient("config", value);
   assert.match(output, /export type JsonValue = string \| number/);
   assert.match(output, /export type ConfigReadResponse = Record<string, JsonValue>/);
+});
+
+test("generated clients require inferred path parameters", () => {
+  const value = contract();
+  value.manifest.views[0].path = "/config/:configId";
+  value.routes[0].path = "/config/:configId";
+  value.routes[0].paramNames = ["configId"];
+
+  const output = emitTypeScriptClient("config", value);
+  assert.match(output, /params: \{ "configId": string \}/);
+  assert.match(output, /configRead = \(runtime: BPClientRuntime, input: ConfigReadInput\) =>/);
 });

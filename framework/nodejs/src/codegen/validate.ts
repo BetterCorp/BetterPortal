@@ -224,10 +224,10 @@ function checkSchemaPolicy(route: ScannedRoute, errors: ValidationError[]): void
 function checkRenderersMatchMethods(route: ScannedRoute, errors: ValidationError[]): void {
   const methods = new Set(route.methods);
   for (const renderer of route.renderers) {
-    if (!renderer.method && renderer.statusCode === undefined) {
+    if (!renderer.method) {
       errors.push({
         file: renderer.relativePath,
-        message: `Generic UI renderer for route "${route.viewId}" is no longer supported. Use method-specific files such as GET.tsx or POST.tsx.`,
+        message: `Generic UI renderer for route "${route.viewId}" is not type-safe. Use method-specific files such as GET.tsx or POST.400.tsx.`,
         severity: "error",
       });
       continue;
@@ -243,7 +243,7 @@ function checkRenderersMatchMethods(route: ScannedRoute, errors: ValidationError
       errors.push({
         file: renderer.relativePath,
         message: `Renderer for route "${route.viewId}" has ${renderer.renderParamWarning === "missing" ? "an untyped or missing" : `a ${renderer.renderParamWarning}`} render data parameter. Type it from the route response data.`,
-        severity: "warning",
+        severity: "error",
       });
     }
   }
