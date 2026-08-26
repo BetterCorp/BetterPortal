@@ -36,12 +36,15 @@ These examples are service-renderer fragments, never full documents.
 ## Mutation and passive reload
 
 ```tsx
-<form hx-post={ctx.url.route("incidents.resolve")} hx-target="this" hx-swap="outerHTML">
+<section data-bp-mutation-scope>
+<form hx-post={ctx.url.route("incidents.index", { component: "active" })} hx-target="#incident-active" hx-swap="outerHTML">
   <button class="btn btn-sm btn-success" type="submit">Resolve</button>
 </form>
+<div class="alert alert-danger mt-2" data-bp-mutation-error role="alert" aria-live="polite" hidden></div>
+</section>
 ```
 
-Return `HX-Trigger: incidents:changed` and subscribe with `hx-trigger="load, incidents:changed from:body"`.
+Return the updated `active` component. Send `HX-Trigger: incidents:changed` only when a passive queue/count must reload, and subscribe that region with `hx-trigger="load, incidents:changed from:body"`.
 
 ## Task sidebar
 

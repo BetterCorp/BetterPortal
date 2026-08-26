@@ -917,6 +917,15 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 }
 
+export type PluginFeature = Pick<Plugin,
+  | "authenticateWithCode"
+  | "getAuthorizationUrl"
+  | "getWorkOSSessionState"
+  | "issueTokenPair"
+  | "refreshWorkOSToken"
+  | "verifyRefreshToken"
+>;
+
 export { Config, EventSchemas };
 
 export function workOSAccessTokenDetails(token: string, roleClaimPath = "roles"): { roles: string[]; sessionId: string; organizationId?: string } | null {

@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
-import type { RegisteredViewRenderer } from "@betterportal/framework";
+import type { RegisteredViewRenderer, ViewRenderContext } from "@betterportal/framework";
 
-export const render: RegisteredViewRenderer["render"] = (data, ctx) => (
+export const render: RegisteredViewRenderer["render"] = (data, ctx: ViewRenderContext) => (
   <section class="container-fluid px-0">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div>

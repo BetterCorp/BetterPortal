@@ -1,14 +1,13 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
-  createHandler,
   resolveAppAuthRedirect,
   type ApiAuthRequirement,
   type CacheHints,
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
 import type { JwtClaims } from "@betterportal/framework";
-import type { Plugin } from "./index.js";
+import { createHandler } from "./.bp-generated/route-runtime.js";
 import { resolveAuthressAppConfig, resolveAuthressBrowserConfig } from "./index.js";
 
 export const QuerySchema = av.object({
@@ -77,12 +76,6 @@ function splitScopes(value?: string): string[] {
     .split(/\s+/)
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
-}
-
-function pluginFrom(ctx: { plugin?: unknown }): Plugin {
-  const plugin = ctx.plugin as Plugin | undefined;
-  if (!plugin) throw new Error("Authress plugin not available on handler context");
-  return plugin;
 }
 
 function profileValue(value: unknown): string | undefined {
@@ -158,7 +151,7 @@ export const handlePost = createHandler(
       return { status: "error" as const, message: "Authress config is missing authressApiUrl or applicationId.", loginUI, scopes: [], nextUrl };
     }
 
-    const plugin = pluginFrom(ctx);
+    const plugin = ctx.plugin;
     let user: JwtClaims;
     try {
       user = await plugin.verifyAuthressToken(request.accessToken, config, { tenantId: ctx.tenant.id, appId: ctx.app.id });

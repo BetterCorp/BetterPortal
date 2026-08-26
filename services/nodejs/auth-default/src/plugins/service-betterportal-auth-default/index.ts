@@ -143,4 +143,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 }
 
+export type PluginFeature = Pick<Plugin, "runtime">;
+
 export { Config, EventSchemas };

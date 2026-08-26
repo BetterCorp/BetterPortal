@@ -337,6 +337,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 }
 
+export type PluginFeature = Pick<Plugin,
+  "issueTokenPair" | "resolveAuthressRoles" | "verifyAuthressToken" | "verifyRefreshToken"
+>;
+
 export { Config, EventSchemas };
 
 type AuthressGroupCollection = {

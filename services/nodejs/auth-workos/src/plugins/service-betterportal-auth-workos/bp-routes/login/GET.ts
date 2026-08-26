@@ -2,13 +2,12 @@ export const operationId = "auth.login";
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
-  createHandler,
   resolveAppAuthRedirect,
   type ApiAuthRequirement,
   type BetterPortalRouteChrome,
   type CacheHints
 } from "@betterportal/framework";
-import type { Plugin } from "../../index.js";
+import { createHandler } from "../../.bp-generated/route-runtime.js";
 import {
   resolveWorkOSAppConfig,
   workOSAccessTokenDetails
@@ -55,12 +54,6 @@ export const chrome: BetterPortalRouteChrome = { fullScreen: true };
 export const auth: ApiAuthRequirement = { required: false, permissions: [] };
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: [] };
 
-function pluginFrom(ctx: { plugin?: unknown }): Plugin {
-  const plugin = ctx.plugin as Plugin | undefined;
-  if (!plugin) throw new Error("WorkOS plugin not available on handler context");
-  return plugin;
-}
-
 function firstString(...values: Array<string | null | undefined>): string | undefined {
   return values.find((value): value is string => typeof value === "string" && value.trim().length > 0)?.trim();
 }
@@ -100,14 +93,14 @@ export default createHandler(
 
     if (query.code) {
       try {
-        const auth = await pluginFrom(ctx).authenticateWithCode(config, query.code);
+        const auth = await ctx.plugin.authenticateWithCode(config, query.code);
         const details = workOSAccessTokenDetails(auth.accessToken, config.roleClaimPath ?? "roles");
         if (!details) throw new Error("WorkOS access token is missing its session id.");
         if (auth.organizationId && details.organizationId && auth.organizationId !== details.organizationId) {
           throw new Error("WorkOS organization does not match the access token.");
         }
         const organizationId = auth.organizationId ?? details.organizationId;
-        const issued = pluginFrom(ctx).issueTokenPair({
+        const issued = ctx.plugin.issueTokenPair({
           sub: auth.user.id,
           tenantId: ctx.tenant.id,
           appId: ctx.app.id,
@@ -184,7 +177,7 @@ export default createHandler(
       status: "ok" as const,
       message: "Continue to WorkOS.",
       loginUI: config.loginUI ?? "default",
-      authorizationUrl: pluginFrom(ctx).getAuthorizationUrl(config, { redirectUri, state: nextUrl }),
+      authorizationUrl: ctx.plugin.getAuthorizationUrl(config, { redirectUri, state: nextUrl }),
       nextUrl
     };
   }

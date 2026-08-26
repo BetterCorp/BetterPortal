@@ -151,8 +151,8 @@ Use stable lowercase dotted codes. Reasons and attributes are observability data
 
 Route handlers can import handler factories from two places:
 
-- `@betterportal/framework` keeps `ctx.plugin` as `unknown` and `ctx.config` as `Record<string, unknown>`.
-- `../.bp-generated/route-runtime.js` or the correct relative path to it types those fields for the current service plugin.
+- `@betterportal/framework` is runtime-neutral: `ctx.plugin` does not exist and `ctx.config` is `Record<string, unknown>`.
+- `../.bp-generated/route-runtime.js` or the correct relative path to it is BSB-bound: `ctx.plugin` is required and exposes only the service's exported `PluginFeature`; `ctx.config` uses `ServiceConfig`.
 
 Prefer the generated route runtime when a handler needs `ctx.plugin` or BP service config:
 
@@ -169,12 +169,14 @@ export default createHandler(
 );
 ```
 
-Codegen creates that runtime from exports on the plugin `index.ts`. Export `Plugin` for `ctx.plugin` and export `ServiceConfig` for `ctx.config`.
+Codegen creates that runtime from exports on the plugin `index.ts`. Export only the route-safe feature and service config types:
 
 ```ts
 export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventSchemas> {
-  // ...
+  public findIncident(id: string) { /* ... */ }
 }
+
+export type PluginFeature = Pick<Plugin, "findIncident">;
 
 export interface MyBpServiceConfig {
   enabled: boolean;
@@ -183,7 +185,7 @@ export interface MyBpServiceConfig {
 export type ServiceConfig = MyBpServiceConfig;
 ```
 
-`ctx.config` is the BetterPortal-managed service configuration resolved for the current tenant/app scope. It is not the BSB plugin startup config from `this.config`. Use `ctx.config` for customer/tenant/app runtime settings, and use `ctx.plugin` when a route needs methods or state on the running plugin instance.
+`PluginFeature` is optional. When omitted, generated BSB handlers still receive a required `ctx.plugin`, but its exposed feature type is empty. Normal handler context such as tenant, app, config, URLs, headers, and observability remains available. `ctx.config` is the BetterPortal-managed service configuration resolved for the current tenant/app scope. It is not the BSB plugin startup config from `this.config`. Use `ctx.config` for customer/tenant/app runtime settings, and use `ctx.plugin` when a route needs an explicitly published feature on the running plugin instance. Never export the full `Plugin` as the feature, recast `ctx`, or make `plugin` optional; generated BSB handlers guarantee it and intentionally hide BSB lifecycle/runtime internals.
 
 Export `viewId` for any view referenced by app configuration, permissions, or code. If omitted, codegen derives it from the file path, which changes when files move. Build validation fails on duplicate view ids and duplicate operation ids.
 
@@ -450,9 +452,19 @@ SSE and streamed HTML use `<path>/__sse` but do not define a second operation. T
 
 In a service or theme repository, BetterPortal framework/runtime packages, Config Manager, generated registries/clients/contracts, and `node_modules` are immutable. Do not patch them, hardcode runtime UUIDs or hostnames, bypass auth/allowlists, or hide contract failures behind casts. Stop, inspect this documentation and the generated contract, and re-plan with supported APIs. If support is missing, propose a separate upstream BetterPortal change rather than adding consumer-side duct tape.
 
-`ViewRenderContext` is server-resolved presentation context and is never serialized automatically. Its limited `tenant` projection contains `id`, `slug`, `title`, and `branding`. Its limited `app` projection contains `id`, `tenantId`, `slug`, `title`, `defaultRoute`, resolved `shell`, and navigation-only auth references (`serviceId`, `loginViewId`, and `logoutViewId`). It intentionally excludes services, routes, hostnames, origin policy, theme configuration, auth verification metadata, roles, permissions, keys, and M2M configuration. Authorization and business logic remain in the route handler.
+`ViewRenderContext` is the renderer's server-populated second argument and is never serialized automatically. Type it directly so an added `ctx` cannot silently become `any`; codegen rejects untyped, `any`, and `unknown` context parameters.
 
-Renderer URL helpers are `ctx.url.route()` and `ctx.url.uiRoute()`, corresponding to handler `ctx.routeUrl()` and `ctx.uiRouteUrl()`. Both accept a declared dependency alias as `serviceId` and resolve it from the server-only application route index; the raw index is not exposed to renderer code.
+```tsx
+import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
+
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  return <a href={ctx.url.uiRoute("incidents.index") ?? "#"}>{ctx.app.title}</a>;
+}
+```
+
+Its limited `tenant` projection contains `id`, `slug`, `title`, and `branding`. Its limited `app` projection contains `id`, `tenantId`, `slug`, `title`, `defaultRoute`, resolved `shell`, and navigation-only auth references (`serviceId`, `loginViewId`, and `logoutViewId`). It intentionally excludes services, routes, hostnames, origin policy, theme configuration, auth verification metadata, roles, permissions, keys, and M2M configuration. Authorization and business logic remain in the route handler.
+
+Renderer URL helpers are `ctx.url.route()` and `ctx.url.uiRoute()`, corresponding to handler `ctx.routeUrl()` and `ctx.uiRouteUrl()`. Both accept a declared dependency alias as `serviceId` and resolve it from the server-only application route index; the raw index is not exposed to renderer code. `ctx.url.route(viewId, { component: "detail" })` selects a named component on any resolved service route; `ctx.url.current({ component: "detail" })` is the current-route shorthand. Use `{ sse: true, fragment: "body.live" }` for the route's typed `/__sse` fragment URL.
 
 Auth references are stable view IDs, never URL paths. Resolve browser navigation through the app mount:
 
@@ -582,7 +594,43 @@ bp-routes/hello/
     _nav.clock.sse.tsx
 ```
 
-`sse.ts` exports `handleSSE` and optional `tickSchema`. A fragment tick renderer uses `_<location>.<id>.sse.tsx` and exports `renderTick`; its GET method is inferred. The explicit `GET.sse.ts` and `_<location>.<id>.GET.sse.tsx` forms remain supported, but do not keep both aliases for the same handler or renderer.
+An event-driven SSE route has three conventional exports: `InputSchema`, `EventSchema`, and a default `createSse(...)` contract. `InputSchema` validates what service code emits. The contract maps that input to `EventSchema`, which validates and types what the connected view receives.
+
+```ts
+import * as av from "anyvali";
+import { createSse } from "../../.bp-generated/route-runtime.js";
+
+export const InputSchema = av.object({
+  id: av.string().minLength(1)
+});
+
+export const EventSchema = av.object({
+  id: av.string(),
+  title: av.string(),
+  status: av.string()
+});
+
+export default createSse(
+  { input: InputSchema, event: EventSchema },
+  async (input, ctx) => ctx.plugin.findIncident(input.id)
+);
+```
+
+Codegen maps the route's stable `viewId` to `InputSchema`, so service/plugin code emits without importing the route module:
+
+```ts
+this.betterPortal.sse.emit(
+  "incidents.index",
+  { tenantId, appId },
+  { id: incident.id }
+);
+```
+
+The view id and input are compile-time checked; BetterPortal validates again at runtime and isolates subscribers by tenant/app. Browser-to-service events are not part of SSE; use normal validated POST/PUT/PATCH operations.
+
+A fragment tick renderer uses `_<location>.<id>.sse.tsx` and exports `renderTick`; its GET method is inferred. Load the durable/current snapshot through normal GET, then emit individual row/component deltas. Use stable DOM ids with HTMX out-of-band upserts, coalesce bursts by record id before emitting, and refresh GET after reconnect instead of replacing the complete queue on every event.
+
+The explicit generator `handleSSE` plus `tickSchema` form remains available for connection-owned timer/source generators. It does not accept `this.betterPortal.sse.emit`. `GET.sse.ts` and `_<location>.<id>.GET.sse.tsx` are legacy aliases; do not keep both aliases for the same handler or renderer.
 
 Only actual renderer files should live inside `_renderer.<renderer>/`. Shared helpers should live elsewhere, because codegen treats `.tsx` files in renderer directories as renderers.
 

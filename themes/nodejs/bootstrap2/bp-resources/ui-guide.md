@@ -8,15 +8,17 @@ Bootstrap2 uses Bootstrap 5 classes and server-rendered JSX/HTMX. Services own p
 - Bootstrap2 supplies a forced 1rem inset around `#bp-main`, including below the critical-alert outlet. Start pages with `.container-fluid px-0`; do not duplicate the shell padding.
 - Start with one `<h1>` for the page title. Bootstrap2 moves the first `<h1>` or legacy `<h2>` into the top bar and hides the original; use `data-bp-page-title` to select a different title element explicitly.
 - Use 4px/8px spacing, compact controls, borders, and Bootstrap semantic colors. Avoid gradients, glass, large shadows, oversized headings, floating cards, and icon-only status.
-- Use `.bp-split-pane`, `.bp-split-pane__content`, and `.bp-split-pane__detail` for queue/detail workflows. `data-bp-detail-toggle` and `data-bp-detail-close` use the shared runtime.
+- Use `.bp-split-pane`, `.bp-split-pane__content`, and `.bp-split-pane__detail` for queue/detail workflows. Give the pane `data-bp-split-pane-key`, rows `data-bp-row-key`, and focusable controls `data-bp-focus-key`. `data-bp-detail-toggle` and `data-bp-detail-close` use the shared runtime. Component swaps preserve queue scroll, the selected row, detail-open state, and focus by those stable keys.
 - Use responsive table wrappers; do not shrink record text to fit.
 
 ## HTMX and routes
 
 - Plain internal `<a href="/route">` links and GET/POST forms are automatically upgraded to HTMX and routed through the owning service. A bare `<form>` posts to the current service view. Use `bp-no-override` or `data-bp-no-override` on an element or ancestor only when native browser behavior is intentional.
-- `ctx.url.route(viewId)` is for service requests: `hx-get`, `hx-post`, forms, downloads and SSE.
+- Renderer functions receive `ViewRenderContext` as their second argument. Type it directly; the framework populates it server-side, so presentation URLs and app/tenant labels do not belong in response schemas.
+- `ctx.url.route(viewId, { component: "active" })` is for service requests: named components, `hx-get`, `hx-post`, forms, and downloads. Use `{ sse: true, fragment: "body.live" }` for SSE. `ctx.url.current({ component: "active" })` selects a component on the current route.
 - `ctx.url.uiRoute(viewId)` is only for mounted GET browser navigation.
-- Mutations return a useful fragment and emit `HX-Trigger` for passive regions that must refresh.
+- Mutations return the updated active component directly. Use `HX-Trigger` only for passive regions such as totals or a queue the user is not actively editing.
+- Wrap mutation UI in `data-bp-mutation-scope` and include one `[data-bp-mutation-error]` outlet. Non-success HTML is rendered there and focused; it never replaces the active component or opens a global overlay.
 - A fragment may target only itself or descendants inside its `data-bp-fragment` container.
 - Use `BPElement` for declared cross-service dependencies. Never hardcode service UUIDs, titles, hostnames, or internal paths.
 
@@ -44,6 +46,10 @@ Alert content should use `.alert`, include readable severity text, and avoid for
 ## Required states
 
 Every data view covers loading, empty, forbidden, validation, service-unavailable and mutation-failure states. Disable only the control issuing a request. Keep errors visible and dismissible.
+
+## Live queue updates
+
+Load the initial queue through the normal GET operation, then use SSE only for deltas. Upsert one stable row/component at a time with HTMX out-of-band markup; never resend the whole queue. Coalesce bursts by record id in the producer so only the newest pending state is emitted. SSE is not durable: after reconnect, refresh the normal GET snapshot before applying new deltas.
 
 ## Accessibility
 

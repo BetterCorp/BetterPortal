@@ -12,6 +12,7 @@ import type {
   RawResponseBody,
   RouteHandler,
   RouteHandlerContext,
+  SSEHandlerContext,
   ServiceTokenVerifier,
   UploadedFile,
   ValidatedServiceClaims,
@@ -59,6 +60,9 @@ class MultipartTooLargeError extends Error {
   }
 }
 
+type RuntimeRouteHandlerContext = RouteHandlerContext<any, any, any, any> & { readonly plugin?: unknown };
+type RuntimeSseHandlerContext = SSEHandlerContext & { readonly plugin?: unknown };
+
 export interface H3RouterObservabilityOptions {
   createRequestObservability?: (
     name: string,
@@ -75,12 +79,12 @@ export interface H3RouterObservabilityOptions {
    */
   validateTenantApp?: (tenantId: string, appId: string) => Promise<import("../contracts/auth.js").TenantAppValidation> | import("../contracts/auth.js").TenantAppValidation;
   /** Extra per-request context supplied by the host service/plugin. */
-  resolveContext?: (event: BetterPortalEvent, route: RegisteredRoute) => Promise<Partial<RouteHandlerContext>> | Partial<RouteHandlerContext>;
+  resolveContext?: (event: BetterPortalEvent, route: RegisteredRoute) => Promise<Partial<RuntimeRouteHandlerContext>> | Partial<RuntimeRouteHandlerContext>;
 }
 
 type RequiredHandlerContext =
-  Omit<Partial<RouteHandlerContext>, "response" | "file">
-  & Pick<RouteHandlerContext, "tenant" | "app">;
+  Omit<Partial<RuntimeRouteHandlerContext>, "response" | "file">
+  & Pick<RuntimeRouteHandlerContext, "tenant" | "app">;
 type RouteUrlOptions = NonNullable<RouteHandlerContext["routeUrl"]> extends (viewId: string, options?: infer T) => unknown ? T : never;
 type ViewRenderContextSource = Pick<RouteHandlerContext, "tenant" | "app" | "method" | "path" | "params" | "query" | "routeUrl" | "uiRouteUrl">;
 
@@ -332,7 +336,7 @@ async function prepareSseContext(
   event: BetterPortalEvent,
   obs: BetterPortalObservability | undefined,
   routerOptions: H3RouterObservabilityOptions
-): Promise<RouteHandlerContext | Response> {
+): Promise<RuntimeRouteHandlerContext | Response> {
   const operation = route.methodRoutes?.GET;
   if (!operation) {
     return coreJsonResponse({ error: "SSE GET operation metadata is missing" }, 500, "route.operation_missing", "SSE GET operation metadata is missing");
@@ -445,8 +449,8 @@ export function createH3Router(
     }
 
     if (route.sse) {
-      const sseHandler = route.sse.handler;
-      const tickSchema = route.sse.tickSchema;
+      const sseHandler = route.sse.handler as (ctx: RuntimeSseHandlerContext) => BodyInit | Promise<BodyInit> | AsyncIterable<unknown>;
+      const eventSchema = "eventSchema" in route.sse ? route.sse.eventSchema : route.sse.tickSchema;
       app.get(`${route.path}/__sse`, async (event) => {
         return withRequestObservability(event, route, "GET", options, async (obs) => {
         const context = await prepareSseContext(
@@ -459,6 +463,7 @@ export function createH3Router(
         );
         if (context instanceof Response) return context;
 
+        const abort = new AbortController();
         const result = sseHandler({
           event,
           params: context.params as Record<string, string>,
@@ -471,6 +476,9 @@ export function createH3Router(
           serviceId: context.serviceId,
           routeUrl: context.routeUrl,
           uiRouteUrl: context.uiRouteUrl,
+          config: context.config,
+          ...(context.plugin ? { plugin: context.plugin } : {}),
+          signal: abort.signal,
           ...(obs ? { obs } : {})
         });
 
@@ -501,12 +509,13 @@ export function createH3Router(
           }
 
           const stream = createEventStream(event);
+          stream.onClosed(() => abort.abort());
           const iterable = result as AsyncIterable<unknown>;
 
           (async () => {
             try {
               for await (const raw of iterable) {
-                const data = tickSchema ? tickSchema.parse(raw) : raw;
+                const data = eventSchema ? eventSchema.parse(raw) : raw;
                 const payload = sseRender
                   ? String(sseRender(data))
                   : typeof data === "string" ? data : JSON.stringify(data);
@@ -739,11 +748,12 @@ function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absolut
   return absoluteOrigin ? url.toString() : `${url.pathname}${url.search}`;
 }
 
-function renderUrl(path: string, options: RouteUrlOptions & { component?: string; fragment?: string } = {}): string {
+function renderUrl(path: string, options: RouteUrlOptions = {}): string {
   const query = { ...(options.query ?? {}) };
   if (options.component) query._c = options.component;
   if (options.fragment) query._f = options.fragment;
-  return appendQuery(path, query, options.absolute ? options.origin : undefined);
+  const resolvedPath = options.sse ? `${path.replace(/\/+$/, "")}/__sse` : path;
+  return appendQuery(resolvedPath, query, options.absolute ? options.origin : undefined);
 }
 
 function createRouteUiAttributes(url: string, options: RouteUiOptions = {}, form = false): RouteUiAttributes {
@@ -812,7 +822,7 @@ function createViewRenderContext(
   key: string | undefined,
   status: number
 ): ViewRenderContext {
-  const current = (options: RouteUrlOptions & { component?: string; fragment?: string } = {}) => renderUrl(ctx.path, options);
+  const current = (options: RouteUrlOptions = {}) => renderUrl(ctx.path, options);
   const path = (value: string, options: RouteUrlOptions = {}) => renderUrl(value, options);
   const routeUrl = (viewId: string, options?: RouteUrlOptions) => ctx.routeUrl?.(viewId, options) ?? null;
   const uiRoute = (viewId: string, options?: RouteUrlOptions) => ctx.uiRouteUrl?.(viewId, options) ?? null;
@@ -892,7 +902,7 @@ function createServiceRouteUrlBuilder(
       const origin = options.absolute ? serviceOrigin(extraContext, targetServiceId, options.origin) : undefined;
       if (options.absolute && !origin) return null;
       const path = fillAppPath(route.path, options.params);
-      return path ? appendQuery(path, options.query, origin ?? undefined) : null;
+      return path ? renderUrl(path, { ...options, origin: origin ?? undefined }) : null;
     }
 
     const mounts = appRouteIndex(extraContext.app).filter((candidate) =>
@@ -908,7 +918,7 @@ function createServiceRouteUrlBuilder(
     const origin = options.absolute ? serviceOrigin(extraContext, mount.serviceId, options.origin) : undefined;
     if (options.absolute && !origin) return null;
     const path = fillAppPath(servicePath, { ...mount.fixedParams, ...(options.params ?? {}) });
-    return path ? appendQuery(path, options.query, origin ?? undefined) : null;
+    return path ? renderUrl(path, { ...options, origin: origin ?? undefined }) : null;
   };
 }
 

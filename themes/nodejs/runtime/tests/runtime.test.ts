@@ -88,6 +88,16 @@ test("request error overlays inherit the initiating service context", () => {
   assert.match(source, /showRequestError\(status,content,\{serviceId\}\)/);
 });
 
+test("component mutations keep split-pane state and use local error outlets", () => {
+  const source = betterPortalShellRuntimeSource();
+  assert.match(source, /data-bp-split-pane-key/);
+  assert.match(source, /target\.closest\("\.bp-split-pane"\)/);
+  assert.match(source, /captureSplitPaneState/);
+  assert.match(source, /restoreSplitPaneState/);
+  assert.match(source, /data-bp-mutation-error/);
+  assert.match(source, /localError\.focus/);
+});
+
 test("chrome attributes are normalized for initial shell rendering", () => {
   assert.deepEqual(betterPortalChromeAttributes({
     fullScreen: true,

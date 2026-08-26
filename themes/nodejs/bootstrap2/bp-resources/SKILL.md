@@ -13,6 +13,8 @@ description: Build dense Bootstrap 5 service UI for the active Bootstrap2 shell.
 6. Prefer Bootstrap 5 and native HTML. Use the documented split-pane classes for queue/detail workflows.
 7. Include loading, empty, validation, forbidden, unavailable and offline-safe failure states.
 8. Keep status labels textual, controls keyboard-operable, headings ordered, and tables responsive.
+9. For queue/detail pages, use named components, stable split-pane/row/focus keys, and a local `data-bp-mutation-error` outlet. Return the active component from mutations; reserve `HX-Trigger` for passive regions.
+10. Load a normal GET snapshot before SSE. Emit validated row/component deltas and coalesce by record id; never replace the complete queue for one changed record.
 
 For the global alert bar, publish a service fragment such as `critical-alerts.active` and assign it to the shell's `critical-alerts` block. The fragment may return an empty `<div>` and populate itself through SSE. Emit `HX-Trigger: bp:fragment:critical-alerts.active` when a normal reload is sufficient.
 

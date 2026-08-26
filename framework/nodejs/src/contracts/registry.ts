@@ -6,6 +6,14 @@ import type { BetterPortalApp, BetterPortalRouteChrome, BetterPortalTenant } fro
 import type { ApiContractDescriptor } from "./m2m.js";
 import type { BpStreamHandler, StreamRendererSet } from "./streaming.js";
 import type { HtmlRenderable } from "../runtime/view.js";
+import type { SseRoute } from "../runtime/sse.js";
+
+type AnyRouteHandler =
+  | RouteHandler<any, any, any, any, any, any, any>
+  | RouteHandler<any, any, any, any, any, never, any>;
+type AnyRawRouteHandler =
+  | RawRouteHandler<any, any, any, any, any, any>
+  | RawRouteHandler<any, any, any, any, never, any>;
 
 export interface RouteUiOptions extends RouteUrlOptions {
   method?: HttpMethod;
@@ -82,7 +90,7 @@ export interface ViewRenderContext {
     readonly status: number;
   };
   readonly url: {
-    current(options?: RouteUrlOptions & { component?: string; fragment?: string }): string;
+    current(options?: RouteUrlOptions): string;
     path(path: string, options?: RouteUrlOptions): string;
     route(viewId: string, options?: RouteUrlOptions): string | null;
     uiRoute(viewId: string, options?: RouteUrlOptions): string | null;
@@ -139,7 +147,9 @@ export type ViewRendererFor<THandler> = (
 
 /** Compile-time SSE fragment contract generated against its SSE handler. */
 export type SseRendererFor<THandler> = (
-  data: THandler extends (...args: never[]) => AsyncIterable<infer TItem> ? TItem : never
+  data: THandler extends SseRoute<BaseSchema<unknown, unknown>, infer TSchema, any, any>
+    ? import("anyvali").Infer<TSchema>
+    : THandler extends (...args: never[]) => AsyncIterable<infer TItem> ? TItem : never
 ) => HtmlRenderable;
 
 /** Compile-time streaming renderer contract generated against its stream handler. */
@@ -199,7 +209,7 @@ export interface RegisteredMethodRoute {
   readonly description: string;
   readonly schemas: RouteSchemas;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly handler: RouteHandler<any, any, any, any, any, any, any> | RawRouteHandler<any, any, any, any, any, any> | BpStreamHandler<any, any, any, any, any>;
+  readonly handler: AnyRouteHandler | AnyRawRouteHandler | BpStreamHandler<any, any, any, any, any>;
   readonly raw?: boolean;
   readonly auth: ApiAuthRequirement;
   readonly sitemap?: import("./seo.js").RouteSitemapDeclaration;
@@ -227,7 +237,7 @@ export interface RegisteredRoute {
   readonly methodRoutes?: Readonly<Partial<Record<HttpMethod, RegisteredMethodRoute>>>;
   /** Handler functions keyed by HTTP method. Streaming routes register a branded BpStreamHandler object instead of a function. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly handlers: Readonly<Partial<Record<HttpMethod, RouteHandler<any, any, any, any, any, any, any> | RawRouteHandler<any, any, any, any, any, any> | BpStreamHandler<any, any, any, any, any>>>>;
+  readonly handlers: Readonly<Partial<Record<HttpMethod, AnyRouteHandler | AnyRawRouteHandler | BpStreamHandler<any, any, any, any, any>>>>;
   readonly raw?: boolean;
   readonly title: string;
   readonly description: string;
@@ -239,9 +249,9 @@ export interface RegisteredRoute {
   /** HTML renderers keyed by compatibility key. */
   readonly renderers: Readonly<Record<string, ViewRendererSet>>;
   /** SSE handler, registered at `{path}/__sse`. */
-  readonly sse?: {
+  readonly sse?: SseRoute<BaseSchema<unknown, unknown>, BaseSchema<unknown, unknown>, any, any> | {
     readonly handler: SSEHandler;
-    /** Optional schema validating each tick yielded by the generator handler. */
+    /** Legacy connection-owned source schema. Event-driven routes use createSse. */
     readonly tickSchema?: BaseSchema<unknown, unknown>;
   };
 }

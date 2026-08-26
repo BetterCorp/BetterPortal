@@ -6,7 +6,6 @@ import {
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
 import { createHandler } from "./.bp-generated/route-runtime.js";
-import type { Plugin } from "./index.js";
 
 export const QuerySchema = av.object({
   next: av.optional(av.string()).describe("The view path to pass through to login after first-admin registration.")
@@ -56,16 +55,10 @@ export const cacheHints: CacheHints = {
   varyBy: []
 };
 
-function runtimeFrom(ctx: { plugin?: Pick<Plugin, "runtime"> }): Plugin["runtime"] {
-  const runtime = ctx.plugin?.runtime;
-  if (!runtime) throw new Error("Auth runtime not available on handler context");
-  return runtime;
-}
-
 export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema },
   (ctx) => {
-    const runtime = runtimeFrom(ctx);
+    const runtime = ctx.plugin.runtime;
     const next = (ctx.query as { next?: string }).next;
     const query = next ? { next } : undefined;
     return {
@@ -81,7 +74,7 @@ export const handleGet = createHandler(
 export const handlePost = createHandler(
   { response: ResponseSchema, request: RequestSchema, query: QuerySchema },
   async (ctx) => {
-    const runtime = runtimeFrom(ctx);
+    const runtime = ctx.plugin.runtime;
     const tenantId = ctx.tenant.id;
     const appId = ctx.app.id;
 

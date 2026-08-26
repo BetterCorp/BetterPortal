@@ -134,6 +134,58 @@ export function betterPortalShellRuntimeSource(): string {
       const topbarProgress = () => document.querySelector("#bp-topbar-progress");
       const errorNode = () => document.querySelector("#bp-content-error");
 
+      type SplitPaneState = {
+        key: string;
+        open: string | null;
+        scrollTop: number;
+        selected?: string;
+        focus?: string;
+      };
+
+      const splitPanesIn = (target: Element) => Array.from(new Set([
+        target.closest(".bp-split-pane"),
+        ...Array.from(target.querySelectorAll(".bp-split-pane"))
+      ].filter((pane): pane is HTMLElement => pane instanceof HTMLElement)));
+
+      const captureSplitPaneState = (target: Element): SplitPaneState[] => splitPanesIn(target).map((pane, index) => {
+        const selected = pane.querySelector('[data-bp-row-key][aria-selected="true"], [data-bp-row-key][data-bp-selected="true"]');
+        const active = pane.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
+        return {
+          key: pane.getAttribute("data-bp-split-pane-key") || String(index),
+          open: pane.getAttribute("data-bp-detail-open"),
+          scrollTop: pane.querySelector<HTMLElement>(".bp-split-pane__content")?.scrollTop ?? 0,
+          ...(selected?.getAttribute("data-bp-row-key") ? { selected: selected.getAttribute("data-bp-row-key")! } : {}),
+          ...(active ? { focus: active.getAttribute("data-bp-focus-key") || active.id || active.getAttribute("name") || undefined } : {})
+        };
+      });
+
+      const restoreSplitPaneState = (target: Element, states?: SplitPaneState[]) => {
+        if (!states?.length) return;
+        for (const [index, pane] of splitPanesIn(target).entries()) {
+          const state = states.find((candidate) => candidate.key === (pane.getAttribute("data-bp-split-pane-key") || String(index)));
+          if (!state) continue;
+          if (state.open !== null) pane.setAttribute("data-bp-detail-open", state.open);
+          const content = pane.querySelector<HTMLElement>(".bp-split-pane__content");
+          if (content) content.scrollTop = state.scrollTop;
+          if (state.selected) {
+            const row = Array.from(pane.querySelectorAll<HTMLElement>("[data-bp-row-key]")).find((candidate) => candidate.getAttribute("data-bp-row-key") === state.selected);
+            row?.setAttribute("aria-selected", "true");
+            row?.setAttribute("data-bp-selected", "true");
+          }
+          if (state.focus) {
+            const focus = Array.from(pane.querySelectorAll<HTMLElement>("[data-bp-focus-key], [id], [name]")).find((candidate) =>
+              candidate.getAttribute("data-bp-focus-key") === state.focus || candidate.id === state.focus || candidate.getAttribute("name") === state.focus
+            );
+            focus?.focus({ preventScroll: true });
+          }
+        }
+      };
+
+      const mutationErrorOutlet = (source: Element | null) => {
+        const scope = source?.closest?.("[data-bp-mutation-scope]") ?? source?.closest?.("form");
+        return scope?.querySelector<HTMLElement>("[data-bp-mutation-error]") ?? null;
+      };
+
       const syncPageTitle = () => {
         const root = shellRoot();
         if (!root?.hasAttribute("data-bp-promote-page-title")) return;
@@ -150,6 +202,8 @@ export function betterPortalShellRuntimeSource(): string {
         if (!heading || !title) return;
         const currentTitle = titleNode();
         if (currentTitle) currentTitle.textContent = title;
+        const configuredTitle = root.getAttribute("data-bp-document-title")?.trim();
+        if (configuredTitle) document.title = title === configuredTitle ? configuredTitle : `${title} · ${configuredTitle}`;
         heading.setAttribute("data-bp-promoted-page-title", "");
         heading.hidden = true;
       };
@@ -1920,7 +1974,7 @@ export function betterPortalShellRuntimeSource(): string {
 
       document.body.addEventListener("click", (event) => {
         const el = event.target as Element;
-        const toggleBtn = el?.closest?.("[data-bp-toggle-detail]");
+        const toggleBtn = el?.closest?.("[data-bp-detail-toggle]");
         if (toggleBtn) {
           const pane = toggleBtn.closest(".bp-split-pane");
           if (pane) {
@@ -1929,7 +1983,7 @@ export function betterPortalShellRuntimeSource(): string {
           }
           return;
         }
-        const closeBtn = el?.closest?.("[data-bp-close-detail]");
+        const closeBtn = el?.closest?.("[data-bp-detail-close]");
         if (closeBtn) {
           const pane = closeBtn.closest(".bp-split-pane");
           if (pane) pane.setAttribute("data-bp-detail-open", "false");
@@ -2090,6 +2144,26 @@ export function betterPortalShellRuntimeSource(): string {
             }
           }
           applyChromeFromResponse(detail);
+
+          const localError = source instanceof Element ? mutationErrorOutlet(source) : null;
+          if (status && status >= 400 && localError && !isMainTarget(target)) {
+            const contentType = ctx?.response?.headers?.get?.("content-type") || "";
+            if (contentType.includes("text/html") && ctx?.text) localError.innerHTML = ctx.text;
+            else localError.textContent = errorMessage(status);
+            localError.hidden = false;
+            localError.setAttribute("tabindex", "-1");
+            htmx.process(localError);
+            localError.focus({ preventScroll: true });
+            if (target instanceof Element) target.classList.remove("bp-fragment-loading");
+            return false;
+          }
+          if (localError && (!status || status < 400)) {
+            localError.replaceChildren();
+            localError.hidden = true;
+          }
+          if (target instanceof Element && !isMainTarget(target) && (!status || status < 400)) {
+            ctx.__bpSplitPaneState = captureSplitPaneState(target);
+          }
 
           const bpElement = requestBpElement(source);
           if (bpElement && !isMainTarget(target) && !bpElementStateSwaps.has(bpElement)) {
@@ -2260,6 +2334,7 @@ export function betterPortalShellRuntimeSource(): string {
             scheduleBootstrapOverlaySync();
           } else if (target instanceof Element) {
             target.classList.remove("bp-fragment-loading");
+            restoreSplitPaneState(target, detail.ctx?.__bpSplitPaneState);
           }
 
           if (target instanceof Element && (target.id === "bp-nav-mobile" || target.id === "bp-nav-desktop")) {

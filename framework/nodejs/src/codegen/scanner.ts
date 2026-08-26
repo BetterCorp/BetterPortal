@@ -20,6 +20,7 @@ export interface ScannedViewRenderer {
   /** Conflicting SSE renderer aliases for the same fragment. */
   sseRendererConflicts?: string[];
   renderParamWarning?: "missing" | "any" | "unknown";
+  renderContextWarning?: "untyped" | "any" | "unknown";
 }
 
 /** Streaming frame renderers for one compatibility key. */
@@ -59,8 +60,15 @@ export interface ScannedRoute {
   sseRelativePaths?: string[];
   sseMethod?: string;
   hasSseHandler: boolean;
-  /** Whether sse.ts exports a `tickSchema` for SSE message validation. */
+  /** Whether a legacy SSE source exports a `tickSchema`. */
   sseHasTickSchema?: boolean;
+  /** Whether sse.ts exports InputSchema, EventSchema, and a default SSE contract. */
+  sseHasContract?: boolean;
+  /** Named exports discovered in sse.ts. */
+  sseExports?: string[];
+  sseLooseSchemas?: string[];
+  sseAllowUnknownKeysSchemas?: string[];
+  sseRedundantStripSchemas?: string[];
   /** Whether index.ts exports an `ItemSchema` (streaming view, see spec/streaming.md). */
   hasItemSchema: boolean;
   /** Whether index.ts exports a `SummarySchema`. */
@@ -156,6 +164,8 @@ const WELL_KNOWN_EXPORTS = [
   "demoScenarios",
   "handleSSE",
   "tickSchema",
+  "InputSchema",
+  "EventSchema",
   // stream renderer exports (index.stream.tsx)
   "renderShell",
   "renderItem",
@@ -340,6 +350,8 @@ const ROUTE_SCHEMA_EXPORTS = new Set([
   "MultipartSchema",
   "ItemSchema",
   "SummarySchema",
+  "InputSchema",
+  "EventSchema",
 ]);
 
 function detectSchemaPolicy(filePath: string): {
@@ -403,6 +415,41 @@ function detectRenderParamWarning(filePath: string): ScannedViewRenderer["render
 
   function visit(node: ts.Node): void {
     if (ts.isFunctionDeclaration(node)) checkFunction(node);
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return warning;
+}
+
+function detectRenderContextWarning(filePath: string): ScannedViewRenderer["renderContextWarning"] {
+  const source = fs.readFileSync(filePath, "utf-8");
+  const sourceFile = ts.createSourceFile(path.basename(filePath), source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
+  let warning: ScannedViewRenderer["renderContextWarning"];
+
+  function check(parameters: ts.NodeArray<ts.ParameterDeclaration>): void {
+    const param = parameters[1];
+    if (!param) return;
+    if (!param.type) warning = "untyped";
+    else if (param.type.kind === ts.SyntaxKind.AnyKeyword) warning = "any";
+    else if (param.type.kind === ts.SyntaxKind.UnknownKeyword) warning = "unknown";
+  }
+
+  function visit(node: ts.Node): void {
+    if (warning) return;
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "render" && hasExportModifier(node)) {
+      check(node.parameters);
+      return;
+    }
+    if (ts.isVariableStatement(node) && hasExportModifier(node)) {
+      for (const declaration of node.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || declaration.name.text !== "render" || declaration.type || !declaration.initializer) continue;
+        let initializer = declaration.initializer;
+        while (ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
+        if (ts.isSatisfiesExpression(initializer)) continue;
+        if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) check(initializer.parameters);
+      }
+    }
     ts.forEachChild(node, visit);
   }
 
@@ -714,6 +761,7 @@ function scanRendererDirectory(
         ? sseRendererMatches
         : undefined,
       renderParamWarning: detectRenderParamWarning(filePath),
+      renderContextWarning: detectRenderContextWarning(filePath),
     });
   }
 
@@ -778,11 +826,16 @@ function scanDirectory(
       relativeFromGenerated(generatedDir, path.join(currentDir, entry.name))
     );
     const sseExports = ssePath ? detectExports(ssePath) : [];
-    const hasSseHandler = Boolean(ssePath) && sseExports.includes("handleSSE");
+    if (ssePath && detectDefaultExport(ssePath)) sseExports.push("default");
+    const sseHasContract = ["InputSchema", "EventSchema", "default"].every((name) => sseExports.includes(name));
+    const hasSseHandler = Boolean(ssePath) && (sseHasContract || sseExports.includes("handleSSE"));
     const sseRelativePath = hasSseHandler && ssePath
       ? relativeFromGenerated(generatedDir, ssePath)
       : undefined;
     const sseHasTickSchema = hasSseHandler && sseExports.includes("tickSchema");
+    const sseSchemaPolicy = ssePath
+      ? detectSchemaPolicy(ssePath)
+      : { looseSchemas: [], allowUnknownKeysSchemas: [], redundantStripSchemas: [] };
 
     // Scan UI renderers
     const renderers: ScannedViewRenderer[] = [];
@@ -813,6 +866,7 @@ function scanDirectory(
             type: "page",
             relativePath: relativeFromGenerated(generatedDir, filePath),
             renderParamWarning: detectRenderParamWarning(filePath),
+            renderContextWarning: detectRenderContextWarning(filePath),
           });
         }
       }
@@ -835,6 +889,11 @@ function scanDirectory(
         sseMethod,
         hasSseHandler,
         sseHasTickSchema,
+        sseHasContract,
+        sseExports,
+        sseLooseSchemas: sseSchemaPolicy.looseSchemas,
+        sseAllowUnknownKeysSchemas: sseSchemaPolicy.allowUnknownKeysSchemas,
+        sseRedundantStripSchemas: sseSchemaPolicy.redundantStripSchemas,
         hasItemSchema: handlerExports.includes("ItemSchema"),
         hasSummarySchema: handlerExports.includes("SummarySchema"),
         isRaw: methodModules.some((module) => module.isRaw),
@@ -869,7 +928,7 @@ export function scanRoutes(baseDir: string, dependencyAliases: Record<string, st
   const generatedDir = path.resolve(baseDir, ".bp-generated");
   const pluginIndexPath = path.resolve(baseDir, "index.ts");
   const pluginImportPath = toJsImport(relativeFromGenerated(generatedDir, pluginIndexPath));
-  const pluginExports = detectNamedExports(pluginIndexPath, ["Plugin", "ServiceConfig"]);
+  const pluginExports = detectNamedExports(pluginIndexPath, ["PluginFeature", "ServiceConfig"]);
   const pluginLifecycleOverrides = scanPluginLifecycleOverrides(pluginIndexPath);
   const shellDir = path.resolve(baseDir, "shell");
   const shellFragments: ScannedShellFragment[] = fs.existsSync(shellDir)

@@ -49,5 +49,14 @@ export const Bootstrap2DeveloperResources: DeveloperResource[] = [
     mediaType: "text/plain; charset=utf-8",
     language: "typescript",
     content: read("critical-alert-fragment.tsx")
+  },
+  {
+    id: "bootstrap2.queue-detail-example",
+    kind: "example",
+    title: "Bootstrap2 queue/detail workflow",
+    description: "Complete named-component, local mutation-error, split-pane, and SSE upsert pattern.",
+    mediaType: "text/markdown; charset=utf-8",
+    language: "typescript",
+    content: read("queue-detail-example.md")
   }
 ];

@@ -2175,6 +2175,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
       data-bp-dev-reload="auto"
       data-bp-login-url={context.loginUrl}
       data-bp-logout-url={context.logoutUrl}
+      data-bp-document-title={context.title}
       data-bp-promote-page-title=""
       {...betterPortalChromeAttributes(context.chrome)}
     >

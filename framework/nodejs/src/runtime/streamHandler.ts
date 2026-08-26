@@ -66,7 +66,7 @@ export function createStreamHandler<
   TQuery extends BaseSchema<unknown, unknown> | undefined = undefined,
   THeaders extends BaseSchema<unknown, unknown> | undefined = undefined,
   TParams = Record<string, string>,
-  TPlugin = unknown,
+  TPlugin = never,
   TServiceConfig = Record<string, unknown>,
   TParamsSchema extends BaseSchema<unknown, unknown> | undefined = undefined
 >(
@@ -111,7 +111,7 @@ export function createStreamHandler<
 }
 
 export namespace createStreamHandler {
-  export function forContext<TPlugin = unknown, TServiceConfig = Record<string, unknown>>() {
+  export function forContext<TPlugin = never, TServiceConfig = Record<string, unknown>>() {
     return createStreamHandler as <
       TItem extends BaseSchema<unknown, unknown>,
       TSummary extends BaseSchema<unknown, unknown> | undefined = undefined,

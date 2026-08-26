@@ -2,11 +2,10 @@ export const operationId = "auth.refresh";
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
-  createHandler,
   type ApiAuthRequirement,
   type CacheHints
 } from "@betterportal/framework";
-import type { Plugin } from "../../index.js";
+import { createHandler } from "../../.bp-generated/route-runtime.js";
 import { resolveAuthressAppConfig } from "../../index.js";
 
 export const RequestSchema = av.object({
@@ -31,12 +30,6 @@ export const role = "auth.refresh";
 export const auth: ApiAuthRequirement = { required: false, permissions: [] };
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: [] };
 
-function pluginFrom(ctx: { plugin?: unknown }): Plugin {
-  const plugin = ctx.plugin as Plugin | undefined;
-  if (!plugin) throw new Error("Authress plugin not available on handler context");
-  return plugin;
-}
-
 export default createHandler(
   { response: ResponseSchema, request: RequestSchema, headers: HeadersSchema },
   async (ctx) => {
@@ -55,7 +48,7 @@ export default createHandler(
       ctx.bpHeaders?.remove("X-BP-Refresh");
       return { status: "error" as const, message: "Refresh token is required." };
     }
-    const plugin = pluginFrom(ctx);
+    const plugin = ctx.plugin;
     let refreshClaims;
     try {
       refreshClaims = await plugin.verifyRefreshToken({ refreshToken, tenantId: ctx.tenant.id, appId: ctx.app.id });

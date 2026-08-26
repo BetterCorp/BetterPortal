@@ -34,6 +34,7 @@ export * from "./runtime/view.js";
 export * from "./runtime/element.js";
 export * from "./runtime/handler.js";
 export * from "./runtime/streamHandler.js";
+export * from "./runtime/sse.js";
 export * from "./runtime/configStore.js";
 export * from "./runtime/configTicket.js";
 export * from "./runtime/auth/envelope.js";

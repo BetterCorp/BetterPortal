@@ -148,6 +148,12 @@ export interface RouteUrlOptions {
   absolute?: boolean;
   /** Overrides the resolved origin when absolute is true. */
   origin?: string;
+  /** Request a named component renderer (`?_c=`) from the resolved service route. */
+  component?: string;
+  /** Request a named fragment renderer (`?_f=`) from the resolved service route. */
+  fragment?: string;
+  /** Resolve the route's SSE endpoint (`/__sse`). */
+  sse?: boolean;
 }
 
 export interface WebhookEmitOptions {
@@ -159,12 +165,11 @@ export interface WebhookEmitOptions {
  * Context provided to a route handler.
  * TParams is auto-generated from [param] directory names - never hand-written.
  */
-export interface RouteHandlerContext<
+export interface RouteHandlerContextBase<
   TParams = Record<string, string>,
   TQuery = Record<string, unknown>,
   THeaders = Record<string, string>,
   TRequest = Record<string, unknown>,
-  TPlugin = unknown,
   TServiceConfig = Record<string, unknown>
 > {
   readonly params: TParams;
@@ -188,8 +193,6 @@ export interface RouteHandlerContext<
   readonly app: BetterPortalResolvedApp;
   /** Effective service config for this tenant/app: tenant defaults overridden by app config. */
   readonly config?: TServiceConfig;
-  /** Direct plugin/service instance that owns this route. */
-  readonly plugin?: TPlugin;
   /** Optional response model injected by services before generated view handlers run. */
   readonly responseModel?: unknown;
   /** BP-managed response header API. Always present when adapter wires it. */
@@ -219,6 +222,23 @@ export interface RouteHandlerContext<
   readonly file: (body: RawResponseBody, options?: FileResponseOptions) => Response;
 }
 
+type PluginHandlerContext<TPlugin> = [TPlugin] extends [never]
+  ? {}
+  : {
+      /** Public feature explicitly exported by the BSB plugin that owns this route. */
+      readonly plugin: TPlugin;
+    };
+
+export type RouteHandlerContext<
+  TParams = Record<string, string>,
+  TQuery = Record<string, unknown>,
+  THeaders = Record<string, string>,
+  TRequest = Record<string, unknown>,
+  TPlugin = never,
+  TServiceConfig = Record<string, unknown>
+> = RouteHandlerContextBase<TParams, TQuery, THeaders, TRequest, TServiceConfig>
+  & PluginHandlerContext<TPlugin>;
+
 /**
  * A route handler function. Return type is the response data.
  */
@@ -228,7 +248,7 @@ export type RouteHandler<
   THeaders = Record<string, string>,
   TRequest = Record<string, unknown>,
   TResponse = unknown,
-  TPlugin = unknown,
+  TPlugin = never,
   TServiceConfig = Record<string, unknown>
 > = (ctx: RouteHandlerContext<TParams, TQuery, THeaders, TRequest, TPlugin, TServiceConfig>) => TResponse | Promise<TResponse>;
 
@@ -237,7 +257,7 @@ export type RawRouteHandler<
   TQuery = Record<string, unknown>,
   THeaders = Record<string, string>,
   TRequest = Record<string, unknown>,
-  TPlugin = unknown,
+  TPlugin = never,
   TServiceConfig = Record<string, unknown>
 > = ((ctx: RouteHandlerContext<TParams, TQuery, THeaders, TRequest, TPlugin, TServiceConfig>) => Response | Promise<Response>) & {
   readonly __bpRawHandler: true;
@@ -286,7 +306,10 @@ export type DemoScenarioInferred = Infer<typeof DemoScenarioSchema>;
 
 // -- SSE handler ------------------------------------------------------
 
-export interface SSEHandlerContext {
+export type SSEHandlerContext<
+  TPlugin = never,
+  TServiceConfig = Record<string, unknown>
+> = {
   readonly event: unknown;
   readonly params: Record<string, string>;
   readonly query: Record<string, unknown>;
@@ -299,7 +322,10 @@ export interface SSEHandlerContext {
   readonly routeUrl?: RouteHandlerContext["routeUrl"];
   readonly uiRouteUrl?: RouteHandlerContext["uiRouteUrl"];
   readonly obs?: BetterPortalObservability;
-}
+  readonly config?: TServiceConfig;
+  /** Aborted when the browser closes the SSE connection. */
+  readonly signal?: AbortSignal;
+} & PluginHandlerContext<TPlugin>;
 
 /**
  * Two supported handler shapes:
@@ -310,6 +336,6 @@ export interface SSEHandlerContext {
  *               applies renderer-specific `renderTick` when `?_f=loc.frag` is
  *               present on the request.
  */
-export type SSEHandler =
-  | ((ctx: SSEHandlerContext) => Promise<BodyInit> | BodyInit)
-  | ((ctx: SSEHandlerContext) => AsyncIterable<unknown>);
+export type SSEHandler<TItem = unknown, TPlugin = never, TServiceConfig = Record<string, unknown>> =
+  | ((ctx: SSEHandlerContext<TPlugin, TServiceConfig>) => Promise<BodyInit> | BodyInit)
+  | ((ctx: SSEHandlerContext<TPlugin, TServiceConfig>) => AsyncIterable<TItem>);

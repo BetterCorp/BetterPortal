@@ -7,7 +7,6 @@ import {
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
 import { createHandler } from "./.bp-generated/route-runtime.js";
-import type { Plugin } from "./index.js";
 
 export const QuerySchema = av.object({
   action: av.optional(av.string()).describe("Optional login route action, currently supports logout."),
@@ -73,16 +72,10 @@ export const cacheHints: CacheHints = {
   varyBy: []
 };
 
-function runtimeFrom(ctx: { plugin?: Pick<Plugin, "runtime"> }): Plugin["runtime"] {
-  const runtime = ctx.plugin?.runtime;
-  if (!runtime) throw new Error("Auth runtime not available on handler context");
-  return runtime;
-}
-
 export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema },
   (ctx) => {
-    const runtime = runtimeFrom(ctx);
+    const runtime = ctx.plugin.runtime;
     const requiresFirstAdmin = runtime.userStore.hasNoUsers();
     if ((ctx.query as Infer<typeof QuerySchema>).action === "logout") {
       const nextUrl = resolveAppAuthRedirect(ctx, "afterLogout");
@@ -136,7 +129,7 @@ export const handleGet = createHandler(
 export const handlePost = createHandler(
   { response: ResponseSchema, request: RequestSchema, query: QuerySchema },
   async (ctx) => {
-    const runtime = runtimeFrom(ctx);
+    const runtime = ctx.plugin.runtime;
     const tenantId = ctx.tenant.id;
     const appId = ctx.app.id;
 

@@ -70,7 +70,7 @@ test("typed route factories expose plugin and BP service config context", async 
   const handle = createHandler.forContext<TestPlugin, TestServiceConfig>()(
     { response: ResponseSchema },
     (ctx) => ({
-      label: ctx.plugin?.label() ?? "missing",
+      label: ctx.plugin.label(),
       enabled: ctx.config?.enabled ?? false
     })
   );
@@ -467,9 +467,11 @@ test("builds service and app route URLs for the current plugin service", async (
         "self.index",
         (ctx) => ({
           serviceUrl: ctx.routeUrl?.("reports.detail.index", { absolute: true, params: { reportId: "r1" }, query: { token: "t1" } }) ?? null,
+          componentUrl: ctx.routeUrl?.("reports.detail.index", { params: { reportId: "r1" }, component: "active" }) ?? null,
+          sseUrl: ctx.routeUrl?.("reports.detail.index", { params: { reportId: "r1" }, sse: true, fragment: "body.live" }) ?? null,
           uiUrl: ctx.uiRouteUrl?.("reports.detail.index", { absolute: true, params: { reportId: "r1" }, query: { token: "t1" } }) ?? null
         }),
-        av.object({ serviceUrl: av.string(), uiUrl: av.string() })
+        av.object({ serviceUrl: av.string(), componentUrl: av.string(), sseUrl: av.string(), uiUrl: av.string() })
       )
     ]
   }, async (baseUrl) => {
@@ -477,6 +479,8 @@ test("builds service and app route URLs for the current plugin service", async (
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       serviceUrl: "http://service.local/reports/r1?token=t1",
+      componentUrl: "/reports/r1?_c=active",
+      sseUrl: "/reports/r1/__sse?_f=body.live",
       uiUrl: "https://app.local/reports/r1?token=t1"
     });
   }, { tenant: scopedTenant, serviceId: pluginId });

@@ -226,6 +226,8 @@ export {
   BPService,
   BetterPortalConfigSchema,
   type BetterPortalConfig,
+  type BetterPortalRuntime,
+  type BetterPortalSseEmitScope,
   type BPServiceConfig,
   type BPServiceDefinition
 } from "./service.js";

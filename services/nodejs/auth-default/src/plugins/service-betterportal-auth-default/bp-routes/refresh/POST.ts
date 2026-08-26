@@ -6,7 +6,6 @@ import {
   type CacheHints
 } from "@betterportal/framework";
 import { createHandler } from "../../.bp-generated/route-runtime.js";
-import type { Plugin } from "../../index.js";
 
 export const QuerySchema = av.object({});
 export const HeadersSchema = av.object({
@@ -39,16 +38,10 @@ export const cacheHints: CacheHints = {
   varyBy: []
 };
 
-function runtimeFrom(ctx: { plugin?: Pick<Plugin, "runtime"> }): Plugin["runtime"] {
-  const runtime = ctx.plugin?.runtime;
-  if (!runtime) throw new Error("Auth runtime not available on handler context");
-  return runtime;
-}
-
 export default createHandler(
   { response: ResponseSchema, request: RequestSchema, headers: HeadersSchema },
   async (ctx) => {
-    const runtime = runtimeFrom(ctx);
+    const runtime = ctx.plugin.runtime;
     const tenantId = ctx.tenant.id;
     const appId = ctx.app.id;
 

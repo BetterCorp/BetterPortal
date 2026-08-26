@@ -33,7 +33,7 @@ type SchemaOutput<
 type TypedHandlerContext<
   TSchemas extends HandlerSchemas<BaseSchema<unknown, unknown>, any, any, any, any>,
   TParams = Record<string, string>,
-  TPlugin = unknown,
+  TPlugin = never,
   TServiceConfig = Record<string, unknown>
 > = RouteHandlerContext<
   SchemaOutput<TSchemas["params"], TParams>,
@@ -71,7 +71,7 @@ export function createHandler<
   THeaders extends BaseSchema<unknown, unknown> | undefined = undefined,
   TRequest extends BaseSchema<unknown, unknown> | undefined = undefined,
   TParams = Record<string, string>,
-  TPlugin = unknown,
+  TPlugin = never,
   TServiceConfig = Record<string, unknown>,
   TParamsSchema extends BaseSchema<unknown, unknown> | undefined = undefined
 >(
@@ -98,7 +98,7 @@ export function createHandler<
 }
 
 export namespace createHandler {
-  export function forContext<TPlugin = unknown, TServiceConfig = Record<string, unknown>>() {
+  export function forContext<TPlugin = never, TServiceConfig = Record<string, unknown>>() {
     return createHandler as <
       TResponse extends BaseSchema<unknown, unknown>,
       TQuery extends BaseSchema<unknown, unknown> | undefined = undefined,
@@ -143,7 +143,7 @@ export function createRawHandler<
   TRequest extends BaseSchema<unknown, unknown> | undefined = undefined,
   TMultipart extends BaseSchema<unknown, unknown> | undefined = undefined,
   TParams = Record<string, string>,
-  TPlugin = unknown,
+  TPlugin = never,
   TServiceConfig = Record<string, unknown>,
   TParamsSchema extends BaseSchema<unknown, unknown> | undefined = undefined
 >(
@@ -185,8 +185,8 @@ export function createRawHandler<
 }
 
 export namespace createRawHandler {
-  export function forContext<TPlugin = unknown, TServiceConfig = Record<string, unknown>>() {
-    return createRawHandler as <
+  export function forContext<TPlugin = never, TServiceConfig = Record<string, unknown>>() {
+    return createRawHandler as unknown as <
       TQuery extends BaseSchema<unknown, unknown> | undefined = undefined,
       THeaders extends BaseSchema<unknown, unknown> | undefined = undefined,
       TRequest extends BaseSchema<unknown, unknown> | undefined = undefined,

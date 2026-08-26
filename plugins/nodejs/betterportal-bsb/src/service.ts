@@ -56,6 +56,7 @@ import {
   type ServiceTokenVerifier,
   type ScopedTenant,
   type BetterPortalRouteChrome,
+  type BetterPortalSseContracts,
   type BetterPortalConfig as PlatformConfig,
   type ServiceConfigAction,
   type ServiceConfigStore,
@@ -186,6 +187,21 @@ export interface BPServiceClientRuntime {
   readonly headers: Record<string, string> | (() => Record<string, string>);
   readonly token: () => string;
   readonly fetch: typeof globalThis.fetch;
+}
+
+export interface BetterPortalSseEmitScope {
+  readonly tenantId: string;
+  readonly appId: string;
+}
+
+export interface BetterPortalRuntime {
+  readonly sse: {
+    emit<TViewId extends Extract<keyof BetterPortalSseContracts, string>>(
+      viewId: TViewId,
+      scope: BetterPortalSseEmitScope,
+      input: BetterPortalSseContracts[TViewId]
+    ): void;
+  };
 }
 
 // Base class
@@ -441,6 +457,12 @@ export abstract class BPService<
       return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
     });
   }
+
+  protected readonly betterPortal: BetterPortalRuntime = {
+    sse: {
+      emit: (viewId, scope, input) => this.emitSse(viewId, scope, input)
+    }
+  };
 
   protected controlPlaneCredentials(): { url: string; apiKey: string } | null {
     if (!this.resolvedCpUrl || !this.resolvedApiKey) return null;
@@ -1669,7 +1691,7 @@ export abstract class BPService<
     bpContext.__bpAppAuth = context.app.auth;
   }
 
-  protected resolveHandlerContext(event: BetterPortalEvent, route?: RegisteredRoute): Partial<RouteHandlerContext> {
+  protected resolveHandlerContext(event: BetterPortalEvent, route?: RegisteredRoute): Partial<RouteHandlerContext<any, any, any, any, unknown>> {
     if (route && isBpManagementAuthRoute(route)) {
       const management = this.managementRequestContext();
       if (management) this.applyRequestContext(event, management);
@@ -1964,6 +1986,20 @@ export abstract class BPService<
           code: "discovery.health_unready",
           reason: "BetterPortal tenant/app config has not synced yet"
         });
+  }
+
+  private emitSse(viewId: string, scope: BetterPortalSseEmitScope, input: unknown): void {
+    if (!scope.tenantId || !scope.appId) {
+      throw new Error("BetterPortal SSE emission requires tenantId and appId");
+    }
+    const route = this.registeredRoutes.find((candidate) => candidate.viewId === viewId);
+    if (!route?.sse || !("inputSchema" in route.sse)) {
+      throw new Error(`BetterPortal SSE route "${viewId}" does not accept emitted input`);
+    }
+    route.sse.publish({
+      tenant: { id: scope.tenantId },
+      app: { id: scope.appId }
+    }, input);
   }
 
   private localServiceInstanceIds(context: BetterPortalResolvedRequestContext): Set<string> {

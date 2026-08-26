@@ -219,6 +219,27 @@ function checkSchemaPolicy(route: ScannedRoute, errors: ValidationError[]): void
       });
     }
   }
+  for (const schemaName of route.sseLooseSchemas ?? []) {
+    errors.push({
+      file: route.sseRelativePath ?? `${route.relativePath}/sse.ts`,
+      message: `SSE route "${route.viewId}" exports ${schemaName} containing av.any() or av.unknown(). SSE schemas must be concrete.`,
+      severity: "error"
+    });
+  }
+  for (const schemaName of route.sseAllowUnknownKeysSchemas ?? []) {
+    errors.push({
+      file: route.sseRelativePath ?? `${route.relativePath}/sse.ts`,
+      message: `SSE route "${route.viewId}" exports ${schemaName} with unknownKeys: "allow". Validate extension keys with a concrete av.record(...) schema.`,
+      severity: "error"
+    });
+  }
+  for (const schemaName of route.sseRedundantStripSchemas ?? []) {
+    errors.push({
+      file: route.sseRelativePath ?? `${route.relativePath}/sse.ts`,
+      message: `SSE route "${route.viewId}" exports ${schemaName} with unknownKeys: "strip". Stripping is the default; remove the redundant option.`,
+      severity: "warning"
+    });
+  }
 }
 
 function checkRenderersMatchMethods(route: ScannedRoute, errors: ValidationError[]): void {
@@ -246,6 +267,13 @@ function checkRenderersMatchMethods(route: ScannedRoute, errors: ValidationError
         severity: "error",
       });
     }
+    if (renderer.renderContextWarning) {
+      errors.push({
+        file: renderer.relativePath,
+        message: `Renderer for route "${route.viewId}" has a ${renderer.renderContextWarning} render context parameter. Type it as ViewRenderContext; the framework supplies it without adding presentation data to the API schema.`,
+        severity: "error",
+      });
+    }
   }
 }
 
@@ -257,6 +285,17 @@ function checkSseMethod(route: ScannedRoute, errors: ValidationError[]): void {
       message: `SSE route "${route.viewId}" has multiple handlers. Use either sse.ts or GET.sse.ts, not both.`,
       severity: "error",
     });
+  }
+  const contractExports = ["InputSchema", "EventSchema", "default"];
+  const hasPartialContract = contractExports.some((name) => route.sseExports?.includes(name));
+  if (handlerPaths.length > 0 && !route.sseHasContract && (!route.hasSseHandler || hasPartialContract)) {
+    const missing = contractExports.filter((name) => !route.sseExports?.includes(name));
+    errors.push({
+      file: route.sseRelativePath ?? handlerPaths[0],
+      message: `SSE route "${route.viewId}" must export InputSchema, EventSchema, and a default createSse(...) contract${missing.length ? `; missing ${missing.join(", ")}` : ""}.`,
+      severity: "error",
+    });
+    return;
   }
   if (!route.hasSseHandler) return;
   if (route.sseMethod !== "GET") {
