@@ -1,7 +1,7 @@
 import type { BaseSchema } from "anyvali";
 import type { HttpMethod, RenderMode } from "./common.js";
 import type { CacheHints, OperationDependency } from "./view.js";
-import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteUrlOptions, SSEHandler } from "./route.js";
+import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteUrlOptions } from "./route.js";
 import type { BetterPortalApp, BetterPortalRouteChrome, BetterPortalTenant } from "./platformConfig.js";
 import type { ApiContractDescriptor } from "./m2m.js";
 import type { BpStreamHandler, StreamRendererSet } from "./streaming.js";
@@ -122,11 +122,7 @@ export interface RegisteredViewRenderer {
   /** The render function exported by the theme file. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly render: (data: any, context: ViewRenderContext) => HtmlRenderable;
-  /**
-   * SSE tick renderer - fragments only.
-   * Sourced from `_<location>.<fragmentId>.sse.tsx`'s `renderTick` export.
-   * Called once per SSE data item yielded by the route's `handleSSE` generator.
-   */
+  /** SSE event renderer sourced from `_<location>.<fragmentId>.sse.tsx`. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly sseRender?: (data: any) => HtmlRenderable;
 }
@@ -146,10 +142,10 @@ export type ViewRendererFor<THandler> = (
 ) => HtmlRenderable;
 
 /** Compile-time SSE fragment contract generated against its SSE handler. */
-export type SseRendererFor<THandler> = (
-  data: THandler extends SseRoute<BaseSchema<unknown, unknown>, infer TSchema, any, any>
+export type SseRendererFor<TContract> = (
+  data: TContract extends SseRoute<BaseSchema<unknown, unknown>, infer TSchema, any, any>
     ? import("anyvali").Infer<TSchema>
-    : THandler extends (...args: never[]) => AsyncIterable<infer TItem> ? TItem : never
+    : never
 ) => HtmlRenderable;
 
 /** Compile-time streaming renderer contract generated against its stream handler. */
@@ -249,11 +245,7 @@ export interface RegisteredRoute {
   /** HTML renderers keyed by compatibility key. */
   readonly renderers: Readonly<Record<string, ViewRendererSet>>;
   /** SSE handler, registered at `{path}/__sse`. */
-  readonly sse?: SseRoute<BaseSchema<unknown, unknown>, BaseSchema<unknown, unknown>, any, any> | {
-    readonly handler: SSEHandler;
-    /** Legacy connection-owned source schema. Event-driven routes use createSse. */
-    readonly tickSchema?: BaseSchema<unknown, unknown>;
-  };
+  readonly sse?: SseRoute<BaseSchema<unknown, unknown>, BaseSchema<unknown, unknown>, any, any>;
 }
 
 export interface ShellFragmentRenderContext {

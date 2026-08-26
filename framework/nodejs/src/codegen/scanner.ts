@@ -17,8 +17,6 @@ export interface ScannedViewRenderer {
   relativePath: string;
   /** Path to `_<location>.<id>.sse.tsx` (sibling SSE renderer for this fragment). */
   sseRendererPath?: string;
-  /** Conflicting SSE renderer aliases for the same fragment. */
-  sseRendererConflicts?: string[];
   renderParamWarning?: "missing" | "any" | "unknown";
   renderContextWarning?: "untyped" | "any" | "unknown";
 }
@@ -56,12 +54,11 @@ export interface ScannedRoute {
   /** Per-theme streaming renderers (streaming views only). */
   streamRenderers: ScannedStreamRenderer[];
   sseRelativePath?: string;
-  /** All detected SSE handler paths; more than one is ambiguous. */
-  sseRelativePaths?: string[];
-  sseMethod?: string;
+  /** Unsupported method-qualified SSE handler paths. */
+  invalidSseRelativePaths?: string[];
+  /** Unsupported method-qualified SSE renderer paths. */
+  invalidSseRendererPaths?: string[];
   hasSseHandler: boolean;
-  /** Whether a legacy SSE source exports a `tickSchema`. */
-  sseHasTickSchema?: boolean;
   /** Whether sse.ts exports InputSchema, EventSchema, and a default SSE contract. */
   sseHasContract?: boolean;
   /** Named exports discovered in sse.ts. */
@@ -162,8 +159,6 @@ const WELL_KNOWN_EXPORTS = [
   "apiContracts",
   "cacheHints",
   "demoScenarios",
-  "handleSSE",
-  "tickSchema",
   "InputSchema",
   "EventSchema",
   // stream renderer exports (index.stream.tsx)
@@ -191,13 +186,6 @@ function handlerToMethods(handlerName: string): string[] {
 
 function methodFromFileName(fileName: string): string | undefined {
   const match = fileName.match(/^([A-Z]+)\.ts$/);
-  if (!match) return undefined;
-  return HTTP_METHODS.has(match[1]) ? match[1] : undefined;
-}
-
-function sseMethodFromFileName(fileName: string): string | undefined {
-  if (fileName === "sse.ts") return "GET";
-  const match = fileName.match(/^([A-Z]+)\.sse\.ts$/);
   if (!match) return undefined;
   return HTTP_METHODS.has(match[1]) ? match[1] : undefined;
 }
@@ -692,6 +680,7 @@ function scanRendererDirectory(
   rendererKey: string,
   generatedDir: string,
   streamRenderers?: ScannedStreamRenderer[],
+  invalidSseRendererPaths?: string[],
 ): ScannedViewRenderer[] {
   const renderers: ScannedViewRenderer[] = [];
 
@@ -724,13 +713,14 @@ function scanRendererDirectory(
     const base = entry.name.slice(0, -".sse.tsx".length);
     if (!base.startsWith("_") || base.startsWith("_theme")) continue;
     const parts = base.slice(1).split(".");
-    if (parts.length < 2 || parts.length > 3) continue;
-    const method = parts.length === 3 && HTTP_METHODS.has(parts[2]) ? parts[2] : undefined;
-    if (parts.length === 3 && !method) continue;
+    if (parts.length !== 2) {
+      invalidSseRendererPaths?.push(relativeFromGenerated(generatedDir, path.join(rendererDirPath, entry.name)));
+      continue;
+    }
     const [location, id] = parts;
     if (!location || !id) continue;
     const filePath = path.join(rendererDirPath, entry.name);
-    const key = `${location}.${id}:${method ?? "GET"}`;
+    const key = `${location}.${id}:GET`;
     const paths = sseRendererPaths.get(key) ?? [];
     paths.push(relativeFromGenerated(generatedDir, filePath));
     sseRendererPaths.set(key, paths);
@@ -757,9 +747,6 @@ function scanRendererDirectory(
       fragmentId: parsed.fragmentId,
       relativePath: relativeFromGenerated(generatedDir, filePath),
       sseRendererPath: sseRendererMatches?.[0],
-      sseRendererConflicts: sseRendererMatches && sseRendererMatches.length > 1
-        ? sseRendererMatches
-        : undefined,
       renderParamWarning: detectRenderParamWarning(filePath),
       renderContextWarning: detectRenderContextWarning(filePath),
     });
@@ -817,22 +804,21 @@ function scanDirectory(
     const methods = methodModules.map((module) => module.method);
     const handlerExports = [...new Set([...legacyHandlerExports, ...methodModules.flatMap((module) => module.exports)])];
 
-    // Detect SSE handler (`sse.ts` infers GET; `GET.sse.ts` remains supported).
-    const sseEntries = entries.filter((e) => e.isFile() && sseMethodFromFileName(e.name));
-    const sseEntry = sseEntries.find((e) => e.name === "sse.ts") ?? sseEntries[0];
-    const sseMethod = sseEntry ? sseMethodFromFileName(sseEntry.name) : undefined;
+    // SSE is GET-only and has one canonical source filename.
+    const sseEntry = entries.find((entry) => entry.isFile() && entry.name === "sse.ts");
     const ssePath = sseEntry ? path.join(currentDir, sseEntry.name) : undefined;
-    const sseRelativePaths = sseEntries.map((entry) =>
+    const invalidSseRelativePaths = entries
+      .filter((entry) => entry.isFile() && /^[A-Z]+\.sse\.ts$/.test(entry.name))
+      .map((entry) =>
       relativeFromGenerated(generatedDir, path.join(currentDir, entry.name))
     );
     const sseExports = ssePath ? detectExports(ssePath) : [];
     if (ssePath && detectDefaultExport(ssePath)) sseExports.push("default");
     const sseHasContract = ["InputSchema", "EventSchema", "default"].every((name) => sseExports.includes(name));
-    const hasSseHandler = Boolean(ssePath) && (sseHasContract || sseExports.includes("handleSSE"));
-    const sseRelativePath = hasSseHandler && ssePath
+    const hasSseHandler = Boolean(ssePath) && sseHasContract;
+    const sseRelativePath = ssePath
       ? relativeFromGenerated(generatedDir, ssePath)
       : undefined;
-    const sseHasTickSchema = hasSseHandler && sseExports.includes("tickSchema");
     const sseSchemaPolicy = ssePath
       ? detectSchemaPolicy(ssePath)
       : { looseSchemas: [], allowUnknownKeysSchemas: [], redundantStripSchemas: [] };
@@ -840,6 +826,7 @@ function scanDirectory(
     // Scan UI renderers
     const renderers: ScannedViewRenderer[] = [];
     const streamRenderers: ScannedStreamRenderer[] = [];
+    const invalidSseRendererPaths: string[] = [];
 
     for (const entry of entries) {
       // Renderer directory: _renderer.{rendererKey}/
@@ -849,7 +836,7 @@ function scanDirectory(
           const rendererKey = rendererMatch[1];
           const rendererDirPath = path.join(currentDir, entry.name);
           renderers.push(
-            ...scanRendererDirectory(rendererDirPath, rendererKey, generatedDir, streamRenderers),
+            ...scanRendererDirectory(rendererDirPath, rendererKey, generatedDir, streamRenderers, invalidSseRendererPaths),
           );
         }
       }
@@ -885,10 +872,9 @@ function scanDirectory(
         renderers,
         streamRenderers,
         sseRelativePath,
-        sseRelativePaths,
-        sseMethod,
+        invalidSseRelativePaths,
+        invalidSseRendererPaths,
         hasSseHandler,
-        sseHasTickSchema,
         sseHasContract,
         sseExports,
         sseLooseSchemas: sseSchemaPolicy.looseSchemas,

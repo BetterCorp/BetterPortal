@@ -304,9 +304,9 @@ export const DemoScenarioSchema = av.object({
 });
 export type DemoScenarioInferred = Infer<typeof DemoScenarioSchema>;
 
-// -- SSE handler ------------------------------------------------------
+// -- SSE contract context --------------------------------------------
 
-export type SSEHandlerContext<
+export type SseMapperContext<
   TPlugin = never,
   TServiceConfig = Record<string, unknown>
 > = {
@@ -326,16 +326,3 @@ export type SSEHandlerContext<
   /** Aborted when the browser closes the SSE connection. */
   readonly signal?: AbortSignal;
 } & PluginHandlerContext<TPlugin>;
-
-/**
- * Two supported handler shapes:
- *  - Legacy: returns BodyInit (e.g., from `createEventStream(event).send()`).
- *            Handler manages stream lifecycle directly. Cannot be themed.
- *  - Generator: returns AsyncIterable of data items. Framework drives the
- *               stream, validates each item (if `tickSchema` exported), and
- *               applies renderer-specific `renderTick` when `?_f=loc.frag` is
- *               present on the request.
- */
-export type SSEHandler<TItem = unknown, TPlugin = never, TServiceConfig = Record<string, unknown>> =
-  | ((ctx: SSEHandlerContext<TPlugin, TServiceConfig>) => Promise<BodyInit> | BodyInit)
-  | ((ctx: SSEHandlerContext<TPlugin, TServiceConfig>) => AsyncIterable<TItem>);

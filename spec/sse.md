@@ -37,10 +37,10 @@ Standard SSE per WHATWG (`event:`, `data:`, `id:`, `retry:`, blank-line separato
 Example stream:
 
 ```
-event: tick
+event: status
 data: 12:34:56
 
-event: tick
+event: status
 data: 12:34:57
 
 event: error
@@ -50,24 +50,31 @@ data: A plain text message
 
 ```
 
-### 1.3 Themed rendering
+### 1.3 Validation and themed rendering
 
-A view MAY associate each tick's data with a renderer-specific HTML fragment. Clients select the fragment id by passing `?_f=<location>.<fragmentId>` on the SSE connect URL; the renderer compatibility key still comes exclusively from the resolved app shell:
+A view MAY associate each event with a renderer-specific HTML fragment. Clients select the fragment id by passing `?_f=<location>.<fragmentId>` on the SSE connect URL; the renderer compatibility key still comes exclusively from the resolved app shell:
 
 ```
 GET /hello/__sse?_f=nav.clock
 ```
 
+For an event-driven route created with `createSse(...)`:
+
+- `InputSchema` validates the value passed by service code to `this.betterPortal.sse.emit(...)`.
+- The route mapper resolves that input into an event, and `EventSchema` validates the mapper result before delivery.
+- Tenant and app scope isolate each publication from other subscribers.
+
 When `_f` is present:
 
-- The service validates the data per its `tickSchema` (if declared in the manifest under the SSE entry).
-- The service applies the matching theme's `sseRender(data)` and emits the rendered HTML as the SSE `data:` field.
+- The service applies the matching fragment's `renderTick(event)` and emits the rendered HTML as the SSE `data:` field.
 
 When `_f` is absent:
 
-- The service emits raw JSON (per `tickSchema`) as the `data:` field, one tick per JSON object.
+- The service emits the `EventSchema`-validated value as the `data:` field, encoded as JSON unless it is already a string.
 
 This dual mode lets the same stream feed both HTML-rendering browsers and JSON-consuming non-browser clients.
+
+Manual generators are unsupported. Every per-view SSE route uses `InputSchema`, `EventSchema`, and `createSse(...)`; codegen rejects `handleSSE`/`tickSchema` modules.
 
 ### 1.4 HTMX consumption
 
@@ -91,11 +98,11 @@ The `hx-sse:close="<eventname>"` attribute closes the connection on that event.
 
 ### 1.6 Errors
 
-If a tick render fails:
+If an event render fails:
 
 - The connection SHOULD stay open.
 - The server SHOULD emit a `event: error` message with a JSON `data:` payload describing the failure.
-- The server MUST NOT crash the stream because of a single bad tick.
+- The server MUST NOT crash the stream because of a single bad event.
 
 If the generator itself errors (a fatal condition):
 
@@ -103,26 +110,43 @@ If the generator itself errors (a fatal condition):
 - The stream closes.
 - The client reconnects.
 
-### 1.7 Manifest declaration
+### 1.7 Route contract
 
-A view declares SSE support in its manifest entry:
+A service-authored event-driven SSE module exports `InputSchema`, `EventSchema`, and a default `createSse(...)` contract:
 
-```jsonc
-{
-  "viewId": "hello.index",
-  "path": "/hello",
-  ...,
-  "sse": {
-    "path": "/hello/__sse",
-    "tickSchema": { ... },               // optional anyvali-style descriptor
-    "themedRenderers": {
-      "bootstrap1": ["nav.clock"]        // fragments that have sseRender support
-    }
-  }
-}
+```ts
+import * as av from "anyvali";
+import { createSse } from "../../.bp-generated/route-runtime.js";
+
+export const InputSchema = av.object({
+  id: av.string().minLength(1)
+});
+
+export const EventSchema = av.object({
+  id: av.string(),
+  title: av.string(),
+  status: av.string()
+});
+
+export default createSse(
+  { input: InputSchema, event: EventSchema },
+  async (input, ctx) => ctx.plugin.findIncident(input.id)
+);
 ```
 
-`renderers` lists `<location>.<fragmentId>` keys that have a renderer-specific `renderTick` function defined.
+Codegen registers the input/event schemas and any `_<location>.<fragmentId>.sse.tsx` renderer exporting `renderTick`. Developers do not hand-edit the generated route registry or manifest.
+
+Service/plugin code emits by stable view id without importing the route module:
+
+```ts
+this.betterPortal.sse.emit(
+  "incidents.index",
+  { tenantId, appId },
+  { id: incident.id }
+);
+```
+
+Codegen makes the view id and input compile-time safe. BetterPortal validates the input and mapped event again at runtime. Browser-to-service messages use normal validated POST/PUT/PATCH operations; SSE remains server-to-browser only.
 
 ### 1.8 CORS
 
@@ -226,6 +250,8 @@ A control plane emitting the stream:
 See `conformance.md` for the test matrix. Key tests:
 
 - A per-view SSE endpoint responds with `Content-Type: text/event-stream` and emits the first message within 1 second.
-- `?_f=loc.id` returns themed HTML; absence returns raw JSON.
+- `?_f=loc.id` returns themed HTML; absence returns `EventSchema`-validated JSON.
+- Invalid emitted input or mapped event data is rejected by its declared schema.
+- Publications are isolated by tenant and app.
 - A render error emits `event: error` and keeps the stream open.
 - Control-plane sync emits a snapshot on connect.

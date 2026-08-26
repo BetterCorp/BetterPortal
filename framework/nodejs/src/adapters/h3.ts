@@ -12,7 +12,7 @@ import type {
   RawResponseBody,
   RouteHandler,
   RouteHandlerContext,
-  SSEHandlerContext,
+  SseMapperContext,
   ServiceTokenVerifier,
   UploadedFile,
   ValidatedServiceClaims,
@@ -61,7 +61,7 @@ class MultipartTooLargeError extends Error {
 }
 
 type RuntimeRouteHandlerContext = RouteHandlerContext<any, any, any, any> & { readonly plugin?: unknown };
-type RuntimeSseHandlerContext = SSEHandlerContext & { readonly plugin?: unknown };
+type RuntimeSseMapperContext = SseMapperContext & { readonly plugin?: unknown };
 
 export interface H3RouterObservabilityOptions {
   createRequestObservability?: (
@@ -449,8 +449,8 @@ export function createH3Router(
     }
 
     if (route.sse) {
-      const sseHandler = route.sse.handler as (ctx: RuntimeSseHandlerContext) => BodyInit | Promise<BodyInit> | AsyncIterable<unknown>;
-      const eventSchema = "eventSchema" in route.sse ? route.sse.eventSchema : route.sse.tickSchema;
+      const sseHandler = route.sse.handler as (ctx: RuntimeSseMapperContext) => AsyncIterable<unknown>;
+      const eventSchema = route.sse.eventSchema;
       app.get(`${route.path}/__sse`, async (event) => {
         return withRequestObservability(event, route, "GET", options, async (obs) => {
         const context = await prepareSseContext(
@@ -482,56 +482,39 @@ export function createH3Router(
           ...(obs ? { obs } : {})
         });
 
-        // Legacy path: handler manages its own stream -> returns Promise<BodyInit> | BodyInit
-        if (
-          typeof result === "string"
-          || result instanceof ReadableStream
-          || result instanceof ArrayBuffer
-          || (typeof result === "object" && result !== null && typeof (result as Promise<unknown>).then === "function")
-        ) {
-          return result as Promise<BodyInit> | BodyInit;
-        }
+        // Renderer identity comes only from the server-resolved app shell.
+        const fragmentKey = queryFromUrl(getRequestURL(event))._f as string | undefined;
+        let sseRender: ((data: unknown) => unknown) | undefined;
+        if (fragmentKey) {
+          const renderer = rendererFromEvent(event);
 
-        // Generator path: framework drives the stream.
-        if (typeof result === "object" && result !== null && Symbol.asyncIterator in (result as object)) {
-          // Renderer identity comes only from the server-resolved app shell.
-          const fragmentKey = queryFromUrl(getRequestURL(event))._f as string | undefined;
-          let sseRender: ((data: unknown) => unknown) | undefined;
-          if (fragmentKey) {
-            const renderer = rendererFromEvent(event);
-
-            if (renderer) {
-              const resolved = resolveRenderer(route, renderer, "fragment", "GET", undefined, fragmentKey);
-              if (resolved?.renderer.sseRender) {
-                sseRender = resolved.renderer.sseRender as (data: unknown) => unknown;
-              }
+          if (renderer) {
+            const resolved = resolveRenderer(route, renderer, "fragment", "GET", undefined, fragmentKey);
+            if (resolved?.renderer.sseRender) {
+              sseRender = resolved.renderer.sseRender as (data: unknown) => unknown;
             }
           }
-
-          const stream = createEventStream(event);
-          stream.onClosed(() => abort.abort());
-          const iterable = result as AsyncIterable<unknown>;
-
-          (async () => {
-            try {
-              for await (const raw of iterable) {
-                const data = eventSchema ? eventSchema.parse(raw) : raw;
-                const payload = sseRender
-                  ? String(sseRender(data))
-                  : typeof data === "string" ? data : JSON.stringify(data);
-                await stream.push({ data: payload });
-              }
-            } catch {
-              // generator errored - close stream
-            }
-            await stream.close().catch(() => {});
-          })();
-
-          return stream.send();
         }
 
-        // Unknown result shape - treat as legacy
-        return result as BodyInit;
+        const stream = createEventStream(event);
+        stream.onClosed(() => abort.abort());
+
+        (async () => {
+          try {
+            for await (const raw of result) {
+              const data = eventSchema.parse(raw);
+              const payload = sseRender
+                ? String(sseRender(data))
+                : typeof data === "string" ? data : JSON.stringify(data);
+              await stream.push({ data: payload });
+            }
+          } catch {
+            // Contract or renderer failed; close so the client reconnects.
+          }
+          await stream.close().catch(() => {});
+        })();
+
+        return stream.send();
         }, { "bp.route.sse": true });
       });
     }

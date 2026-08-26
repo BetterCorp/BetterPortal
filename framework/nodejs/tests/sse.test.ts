@@ -13,13 +13,13 @@ import { validateScanResult } from "../src/codegen/validate.js";
 import type { BetterPortalRegistry, RegisteredRoute } from "../src/contracts/registry.js";
 import { createBetterPortalApp, createBetterPortalNodeHandler } from "../src/runtime/h3.js";
 import { createSse } from "../src/runtime/sse.js";
-import type { SSEHandlerContext } from "../src/contracts/route.js";
+import type { SseMapperContext } from "../src/contracts/route.js";
 
 function write(path: string, content: string): void {
   writeFileSync(path, content, "utf8");
 }
 
-test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
+test("SSE contracts require canonical files and schema-owned handlers", (t) => {
   const baseDir = mkdtempSync(join(dirname(fileURLToPath(import.meta.url)), "bp-sse-codegen-"));
   t.after(() => rmSync(baseDir, { recursive: true, force: true }));
   const routeDir = join(baseDir, "bp-routes", "live");
@@ -61,7 +61,6 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
   const scan = scanRoutes(baseDir);
   const route = scan.routes[0];
   const fragment = route.renderers[0];
-  assert.equal(route.sseMethod, "GET");
   assert.match(route.sseRelativePath ?? "", /\/sse\.ts$/);
   assert.match(fragment.sseRendererPath ?? "", /_body\.live\.sse\.tsx$/);
   const generated = emitRegistry(scan);
@@ -111,6 +110,12 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
   assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes("missing EventSchema, default")), true);
 
   write(join(routeDir, "sse.ts"), `
+    export const tickSchema = {};
+    export async function* handleSSE() {}
+  `);
+  assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes("must export InputSchema, EventSchema, and a default createSse")), true);
+
+  write(join(routeDir, "sse.ts"), `
     import * as av from "anyvali";
     export const InputSchema = av.any();
     export const EventSchema = av.object({ value: av.string() });
@@ -125,9 +130,9 @@ test("SSE shorthand infers GET and rejects duplicate aliases", (t) => {
   assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes("ViewRenderContext")), true);
 
   write(join(routeDir, "GET.sse.ts"), "export async function* handleSSE() {}\n");
-  write(join(rendererDir, "_body.live.GET.sse.tsx"), "export function renderTick() { return 'legacy'; }\n");
-  const duplicateIssues = validateScanResult(scanRoutes(baseDir));
-  assert.equal(duplicateIssues.filter((issue) => issue.message.includes("multiple")).length, 2);
+  write(join(rendererDir, "_body.live.GET.sse.tsx"), "export function renderTick() { return 'unsupported'; }\n");
+  const aliasIssues = validateScanResult(scanRoutes(baseDir));
+  assert.equal(aliasIssues.filter((issue) => issue.message.includes("method-qualified SSE")).length, 2);
 });
 
 test("schema-owned SSE contracts validate and isolate tenant/app input", async () => {
@@ -141,7 +146,7 @@ test("schema-owned SSE contracts validate and isolate tenant/app input", async (
   const context = {
     tenant: { id: "tenant-a" },
     app: { id: "app-a" }
-  } as SSEHandlerContext;
+  } as SseMapperContext;
   const iterator = sse.handler(context)[Symbol.asyncIterator]();
   const next = iterator.next();
 

@@ -583,7 +583,7 @@ Streaming HTML renderers live in `_renderer.<renderer>/index.stream.tsx` exporti
 
 ## SSE files
 
-SSE is always HTTP GET, so the preferred handler name is `sse.ts`. The explicit legacy name `GET.sse.ts` remains supported.
+SSE is always HTTP GET, so the handler name is `sse.ts`. Method-qualified names such as `GET.sse.ts` fail codegen.
 
 ```text
 bp-routes/hello/
@@ -630,7 +630,7 @@ The view id and input are compile-time checked; BetterPortal validates again at 
 
 A fragment tick renderer uses `_<location>.<id>.sse.tsx` and exports `renderTick`; its GET method is inferred. Load the durable/current snapshot through normal GET, then emit individual row/component deltas. Use stable DOM ids with HTMX out-of-band upserts, coalesce bursts by record id before emitting, and refresh GET after reconnect instead of replacing the complete queue on every event.
 
-The explicit generator `handleSSE` plus `tickSchema` form remains available for connection-owned timer/source generators. It does not accept `this.betterPortal.sse.emit`. `GET.sse.ts` and `_<location>.<id>.GET.sse.tsx` are legacy aliases; do not keep both aliases for the same handler or renderer.
+Codegen rejects manual `handleSSE`/`tickSchema` generators and method-qualified SSE handler or renderer filenames. All SSE routes use the schema-owned `createSse(...)` contract and receive publications through `this.betterPortal.sse.emit(...)`.
 
 Only actual renderer files should live inside `_renderer.<renderer>/`. Shared helpers should live elsewhere, because codegen treats `.tsx` files in renderer directories as renderers.
 

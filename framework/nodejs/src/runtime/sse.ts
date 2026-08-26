@@ -1,6 +1,6 @@
 import type { BaseSchema, Infer } from "anyvali";
 import type { BetterPortalResolvedApp, BetterPortalTenant } from "../contracts/platformConfig.js";
-import type { SSEHandlerContext } from "../contracts/route.js";
+import type { SseMapperContext } from "../contracts/route.js";
 
 export interface BetterPortalSseContracts {}
 
@@ -17,7 +17,7 @@ export interface SseRoute<
 > {
   readonly inputSchema: TInputSchema;
   readonly eventSchema: TEventSchema;
-  readonly handler: (ctx: SSEHandlerContext<TPlugin, TServiceConfig>) => AsyncIterable<Infer<TEventSchema>>;
+  readonly handler: (ctx: SseMapperContext<TPlugin, TServiceConfig>) => AsyncIterable<Infer<TEventSchema>>;
   /** @internal BetterPortal runtime entrypoint. Services emit through `this.betterPortal.sse`. */
   publish(scope: SseScope, input: unknown): Infer<TInputSchema>;
 }
@@ -32,7 +32,7 @@ export function createSse<
   schemas: { readonly input: TInputSchema; readonly event: TEventSchema },
   map: (
     input: Infer<TInputSchema>,
-    ctx: SSEHandlerContext<TPlugin, TServiceConfig>
+    ctx: SseMapperContext<TPlugin, TServiceConfig>
   ) => Infer<TEventSchema> | Promise<Infer<TEventSchema>>
 ): SseRoute<TInputSchema, TEventSchema, TPlugin, TServiceConfig> {
   type Input = Infer<TInputSchema>;
@@ -90,7 +90,7 @@ export namespace createSse {
       schemas: { readonly input: TInputSchema; readonly event: TEventSchema },
       map: (
         input: Infer<TInputSchema>,
-        ctx: SSEHandlerContext<TPlugin, TServiceConfig>
+        ctx: SseMapperContext<TPlugin, TServiceConfig>
       ) => Infer<TEventSchema> | Promise<Infer<TEventSchema>>
     ) => SseRoute<TInputSchema, TEventSchema, TPlugin, TServiceConfig>;
   }

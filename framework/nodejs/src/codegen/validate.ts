@@ -278,33 +278,24 @@ function checkRenderersMatchMethods(route: ScannedRoute, errors: ValidationError
 }
 
 function checkSseMethod(route: ScannedRoute, errors: ValidationError[]): void {
-  const handlerPaths = route.sseRelativePaths ?? [];
-  if (handlerPaths.length > 1) {
+  if (route.invalidSseRelativePaths?.length) {
     errors.push({
-      file: handlerPaths.join(", "),
-      message: `SSE route "${route.viewId}" has multiple handlers. Use either sse.ts or GET.sse.ts, not both.`,
+      file: route.invalidSseRelativePaths.join(", "),
+      message: `SSE route "${route.viewId}" must use sse.ts; method-qualified SSE handler names are unsupported.`,
       severity: "error",
     });
   }
   const contractExports = ["InputSchema", "EventSchema", "default"];
-  const hasPartialContract = contractExports.some((name) => route.sseExports?.includes(name));
-  if (handlerPaths.length > 0 && !route.sseHasContract && (!route.hasSseHandler || hasPartialContract)) {
+  if (route.sseRelativePath && !route.sseHasContract) {
     const missing = contractExports.filter((name) => !route.sseExports?.includes(name));
     errors.push({
-      file: route.sseRelativePath ?? handlerPaths[0],
+      file: route.sseRelativePath,
       message: `SSE route "${route.viewId}" must export InputSchema, EventSchema, and a default createSse(...) contract${missing.length ? `; missing ${missing.join(", ")}` : ""}.`,
       severity: "error",
     });
     return;
   }
   if (!route.hasSseHandler) return;
-  if (route.sseMethod !== "GET") {
-    errors.push({
-      file: route.sseRelativePath ?? `${route.relativePath}/sse.ts`,
-      message: `SSE route "${route.viewId}" must use sse.ts or GET.sse.ts.`,
-      severity: "error",
-    });
-  }
   if (!route.methods.includes("GET")) {
     errors.push({
       file: route.sseRelativePath ?? `${route.relativePath}/sse.ts`,
@@ -315,14 +306,14 @@ function checkSseMethod(route: ScannedRoute, errors: ValidationError[]): void {
 }
 
 function checkSseFragmentRenderers(route: ScannedRoute, errors: ValidationError[]): void {
+  for (const file of route.invalidSseRendererPaths ?? []) {
+    errors.push({
+      file,
+      message: `SSE fragment renderer for route "${route.viewId}" must use _<location>.<id>.sse.tsx; method-qualified SSE renderer names are unsupported.`,
+      severity: "error",
+    });
+  }
   for (const renderer of route.renderers) {
-    if (renderer.sseRendererConflicts) {
-      errors.push({
-        file: renderer.sseRendererConflicts.join(", "),
-        message: `SSE fragment "${renderer.rendererId}" has multiple renderers. Use either .sse.tsx or .GET.sse.tsx, not both.`,
-        severity: "error",
-      });
-    }
     if (renderer.sseRendererPath && renderer.method !== "GET") {
       errors.push({
         file: renderer.sseRendererPath,

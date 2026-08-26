@@ -86,9 +86,11 @@ Add these tests if the service declares an SSE endpoint:
 |---|---|
 | `GET <route.path>/__sse` | 200, `Content-Type: text/event-stream`, first event within 1s. |
 | Stream format | Valid SSE per WHATWG (LF or CRLF, blank-line separators). |
-| `GET <route.path>/__sse?_f=loc.id` for a fragment with sseRender | `data:` payload is HTML matching the fragment renderer. |
-| `GET <route.path>/__sse` (no `_f`) | `data:` payload is JSON matching `tickSchema`. |
-| Tick renderer throws | Stream stays open; `event: error` emitted. |
+| `GET <route.path>/__sse?_f=loc.id` for a fragment with `renderTick` | `data:` payload is HTML matching the fragment renderer. |
+| `GET <route.path>/__sse` (no `_f`) | `data:` payload matches `EventSchema`. |
+| Event renderer throws | Stream stays open; `event: error` emitted. |
+| Event-driven publish validation | Invalid `InputSchema` data and invalid mapped `EventSchema` data are rejected. |
+| Event-driven scope isolation | A tenant/app publication reaches only matching subscribers. |
 | Client disconnects | Server releases resources (verify with metrics). |
 
 ## 4a. Streaming views

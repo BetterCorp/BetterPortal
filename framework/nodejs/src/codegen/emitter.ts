@@ -344,9 +344,7 @@ function emitRendererArray(
     props.push(`render: (${item.importName}.render satisfies ViewRendererFor<typeof ${handler}>)`);
 
     if (item.sseImportName) {
-      const sseContract = route.sseHasContract
-        ? `${viewIdToCamel(route.viewId)}Sse.default`
-        : `${viewIdToCamel(route.viewId)}Sse.handleSSE`;
+      const sseContract = `${viewIdToCamel(route.viewId)}Sse.default`;
       props.push(`sseRender: (${item.sseImportName}.renderTick satisfies SseRendererFor<typeof ${sseContract}>)`);
     }
 
@@ -540,13 +538,7 @@ export function emitRegistry(scanResult: ScanResult): string {
     }
     if (route.hasSseHandler) {
       const sseAlias = `${viewIdToCamel(route.viewId)}Sse`;
-      if (route.sseHasContract) {
-        lines.push(`      sse: ${sseAlias}.default`);
-      } else {
-        const props = [`handler: ${sseAlias}.handleSSE`];
-        if (route.sseHasTickSchema) props.push(`tickSchema: ${sseAlias}.tickSchema`);
-        lines.push(`      sse: { ${props.join(", ")} }`);
-      }
+      lines.push(`      sse: ${sseAlias}.default`);
     }
     lines.push(`    }${routeComma}`);
   }
