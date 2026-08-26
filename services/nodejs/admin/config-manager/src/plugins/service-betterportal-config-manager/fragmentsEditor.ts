@@ -98,15 +98,13 @@ function decodeItem(value: string): Item | null {
   return null;
 }
 
-function availableItems(config: any, app: any, definitions: ShellFragmentDescriptor[]): Array<{ item: Item; label: string }> {
-  const builtIns = definitions
-    .filter((definition) => definition.kind === "fragment")
-    .map((definition) => ({ item: { source: "shell", fragmentId: definition.id } as Item, label: `Shell · ${definition.title}` }));
+function availableItems(config: any, app: any, definition: ShellFragmentDescriptor): Array<{ item: Item; label: string }> {
   const services = servicesFor(config, app);
-  const serviceItems = services.flatMap((service: any) => {
+  return services.flatMap((service: any) => {
     const manifest = getCachedManifestForService(config, service.id);
     return Object.values(manifest?.viewIndex ?? {}).flatMap((view: any) => view.fragments
-      .filter((fragment: any) => app.routes.some((route: any) => route.enabled !== false
+      .filter((fragment: any) => fragment.fragmentId.startsWith(`${definition.id}.`)
+        && app.routes.some((route: any) => route.enabled !== false
         && route.serviceId === service.id
         && route.operations?.includes(fragment.operationId)
         && (route.resolvedServicePath ?? route.targetPath) === fragment.targetPath))
@@ -115,7 +113,6 @@ function availableItems(config: any, app: any, definitions: ShellFragmentDescrip
         label: `${serviceLabel(config, app, service.id)} · ${fragment.fragmentId} (${fragment.targetPath})`
       })));
   });
-  return [...builtIns, ...serviceItems];
 }
 
 function hidden(appId: string, shellServiceId: string, fragmentId: string): string {
@@ -136,11 +133,12 @@ function sourceSelect(items: Array<{ item: Item; label: string }>): string {
   return `<select name="source" class="form-select form-select-sm" required><option value="">Select fragment...</option>${items.map(({ item, label }) => `<option value="${escapeHtml(encodeItem(item))}">${escapeHtml(label)}</option>`).join("")}</select>`;
 }
 
-function renderDefinition(config: any, app: any, shellServiceId: string, definition: ShellFragmentDescriptor, definitions: ShellFragmentDescriptor[], choices: Array<{ item: Item; label: string }>): string {
+function renderDefinition(config: any, app: any, shellServiceId: string, definition: ShellFragmentDescriptor, definitions: ShellFragmentDescriptor[]): string {
   const setting = app.shellFragments?.[shellServiceId]?.[definition.id];
   const status = setting?.mode ?? (app.fragments?.[definition.id]?.length ? "legacy default" : "shell default");
+  const choices = availableItems(config, app, definition);
   if (definition.kind === "fragment") {
-    return `<section class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><div><strong>${escapeHtml(definition.title)}</strong><div class="small text-secondary font-monospace">_${escapeHtml(definition.id)}.tsx · ${escapeHtml(status)}</div></div>${modeButtons(app.id, shellServiceId, definition)}</div><div class="card-body"><p class="small text-secondary">${escapeHtml(definition.description)}</p><form class="row g-2" hx-post="${API_BASE}/set-override" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(app.id, shellServiceId, definition.id)}<div class="col">${sourceSelect(choices.filter(({ item }) => item.source === "service"))}</div><div class="col-auto"><button class="btn btn-sm btn-primary" type="submit">Override</button></div></form></div></section>`;
+    return `<section class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><div><strong>${escapeHtml(definition.title)}</strong><div class="small text-secondary font-monospace">_${escapeHtml(definition.id)}.tsx · ${escapeHtml(status)}</div></div>${modeButtons(app.id, shellServiceId, definition)}</div><div class="card-body"><p class="small text-secondary">${escapeHtml(definition.description)}</p><form class="row g-2" hx-post="${API_BASE}/set-override" hx-target="#bp-fragments-editor" hx-swap="outerHTML">${hidden(app.id, shellServiceId, definition.id)}<div class="col">${sourceSelect(choices)}</div><div class="col-auto"><button class="btn btn-sm btn-primary" type="submit">Override</button></div></form></div></section>`;
   }
 
   const items = effectiveBlockItems(app, shellServiceId, definition);
@@ -154,8 +152,7 @@ function renderEditor(config: any, app: any): string {
   const manifest = getCachedManifestForService(config, shellServiceId);
   const definitions = manifest?.shell?.fragments ?? [];
   if (!definitions.length) return `<div id="bp-fragments-editor" class="alert alert-secondary">The active shell exposes no fragments or has not synced its manifest yet.</div>`;
-  const choices = availableItems(config, app, definitions);
-  return `<div id="bp-fragments-editor"><div class="mb-3"><strong>${escapeHtml(serviceLabel(config, app, shellServiceId))}</strong><div class="small text-secondary">Shell defaults are used until an explicit override, list, or empty value is saved.</div></div>${definitions.map((definition) => renderDefinition(config, app, shellServiceId, definition, definitions, choices)).join("")}</div>`;
+  return `<div id="bp-fragments-editor"><div class="mb-3"><strong>${escapeHtml(serviceLabel(config, app, shellServiceId))}</strong><div class="small text-secondary">Shell defaults are used until an explicit override, list, or empty value is saved.</div></div>${definitions.map((definition) => renderDefinition(config, app, shellServiceId, definition, definitions)).join("")}</div>`;
 }
 
 export function registerFragmentsEditorRoutes(router: BetterPortalH3App, store: PlatformConfigStore): void {
@@ -180,7 +177,7 @@ export function registerFragmentsEditorRoutes(router: BetterPortalH3App, store: 
     const definitions = getCachedManifestForService(config, form.shellServiceId)?.shell?.fragments ?? [];
     const definition = definitions.find((candidate) => candidate.id === form.fragmentId);
     if (!definition) return jsonResponse({ error: "Shell fragment is unavailable; reload the editor" }, 409);
-    const choices = availableItems(config, app, definitions);
+    const choices = availableItems(config, app, definition);
     if (!handler(form, app, settingsFor(app, form.shellServiceId), definition, choices)) return jsonResponse({ error: "Invalid fragment editor operation" }, 400);
     await store.saveConfig(config);
     return respond(form.appId);

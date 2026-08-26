@@ -86,6 +86,7 @@ export const TenantServiceRegistrationSchema = av.object({
   deploymentMode: DeploymentModeSchema.default("self-hosted"),
   createdAt: av.string().format("date-time"),
   lastSeenAt: av.optional(av.string().format("date-time")),
+  lastSyncAt: av.optional(av.string().format("date-time")),
   enabled: av.bool().default(true)
 });
 export type TenantServiceRegistration = Infer<typeof TenantServiceRegistrationSchema>;

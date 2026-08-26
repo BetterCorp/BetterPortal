@@ -29,6 +29,24 @@ import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { getAvailableServiceInstanceIdsForApp, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
+const SERVICE_ACTIVITY_INTERVAL_MS = 60_000;
+
+async function touchServiceActivity(
+  store: PlatformConfigStore,
+  serviceId: string,
+  scope: "tenant" | "platform",
+  tenantId: string | undefined,
+  field: "lastSeenAt" | "lastSyncAt"
+): Promise<void> {
+  if (scope !== "tenant" || !tenantId) return;
+  const config = await store.loadConfig();
+  const service = config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId);
+  if (!service) return;
+  const now = Date.now();
+  if (service[field] && now - Date.parse(service[field]) < SERVICE_ACTIVITY_INTERVAL_MS) return;
+  service[field] = new Date(now).toISOString();
+  await store.saveConfig(config, { notify: false });
+}
 
 function validateServicePublicKey(publicKeyPem: string, keyId: string): { publicKeyPem: string; keyId: string } {
   const key = createPublicKey(publicKeyPem);
@@ -269,6 +287,7 @@ function normalizeAuthProviderMetadata(value: unknown): AuthProviderRuntimeMetad
 function normalizeManifest(input: {
   serviceId: string;
   manifestVersion?: string;
+  fetchedAt?: number | string;
   title?: string;
   authProvider?: AuthProviderRuntimeMetadata;
   capabilities?: string[];
@@ -341,7 +360,11 @@ function normalizeManifest(input: {
     viewIndex: normalizedViews,
     configSchemas: Array.isArray(input.configSchemas) ? input.configSchemas : [],
     webhooks: Array.isArray(input.webhooks) ? input.webhooks : [],
-    fetchedAt: Date.now()
+    fetchedAt: typeof input.fetchedAt === "number"
+      ? input.fetchedAt
+      : typeof input.fetchedAt === "string" && Number.isFinite(Date.parse(input.fetchedAt))
+        ? Date.parse(input.fetchedAt)
+        : Date.now()
   };
 }
 
@@ -549,6 +572,12 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
     }
 
     const serviceId = validated.serviceId;
+    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSeenAt").catch((error) => {
+      obs?.logger.warn("BP SYNC: failed updating last seen service={serviceId}: {msg}", {
+        serviceId,
+        msg: error instanceof Error ? error.message : String(error)
+      });
+    });
     obs?.logger.info("BP SYNC: accepted service={serviceId} scope={scope} tenant={tenantId}", {
       serviceId,
       scope: validated.scope,
@@ -569,6 +598,12 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
         event: "config",
         data: JSON.stringify(resolved)
       });
+      await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt").catch((error) => {
+        obs?.logger.warn("BP SYNC: failed updating last sync service={serviceId}: {msg}", {
+          serviceId,
+          msg: error instanceof Error ? error.message : String(error)
+        });
+      });
     };
 
     const unsubscribe = store.onChange(() => {
@@ -580,7 +615,17 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
       });
     });
 
+    const lastSeenTimer = setInterval(() => {
+      touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSeenAt").catch((error) => {
+        obs?.logger.warn("BP SYNC: failed updating last seen service={serviceId}: {msg}", {
+          serviceId,
+          msg: error instanceof Error ? error.message : String(error)
+        });
+      });
+    }, SERVICE_ACTIVITY_INTERVAL_MS);
+
     stream.onClosed(() => {
+      clearInterval(lastSeenTimer);
       obs?.logger.info("BP SYNC: stream closed service={serviceId}", {
         serviceId
       });
@@ -623,6 +668,12 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
     }
 
     const serviceId = validated.serviceId;
+    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSeenAt").catch((error) => {
+      obs?.logger.warn("BP SYNC POLL: failed updating last seen service={serviceId}: {msg}", {
+        serviceId,
+        msg: error instanceof Error ? error.message : String(error)
+      });
+    });
 
     // POST: extract manifest push if present and cache.
     if (event.req.method === "POST") {
@@ -693,6 +744,12 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
 
     const scoped = await store.getScopedConfig(serviceId, validated.scope, validated.tenantId);
     const resolved = injectResolvedServicePaths(scoped);
+    await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt").catch((error) => {
+      obs?.logger.warn("BP SYNC POLL: failed updating last sync service={serviceId}: {msg}", {
+        serviceId,
+        msg: error instanceof Error ? error.message : String(error)
+      });
+    });
     obs?.logger.info("BP SYNC POLL: sending config service={serviceId} scope={scope} tenant={tenantId} tenants={tenants} apps={apps}", {
       serviceId,
       scope: validated.scope,

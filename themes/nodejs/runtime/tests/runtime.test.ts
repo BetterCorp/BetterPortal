@@ -46,6 +46,13 @@ test("shared HTMX requests declare page or partial response mode", () => {
   assert.match(source, /isSseConnect\)ctx\.request\.headers\[\"HX-Request-Type\"\]=\"partial\"/);
 });
 
+test("service fragment SSE URLs are rewritten before bp-element injection", () => {
+  const source = betterPortalShellRuntimeSource();
+  assert.ok(source.indexOf("ctx.text=text.replace") < source.indexOf("renderBpElementState(bpElement,detail.ctx.response.status"));
+  assert.match(source, /hx-sse:connect\|sse-connect/);
+  assert.match(source, /\(\?!\\\/\)/);
+});
+
 test("shared shell upgrades native internal navigation with an inherited opt-out", () => {
   const source = betterPortalShellRuntimeSource();
 

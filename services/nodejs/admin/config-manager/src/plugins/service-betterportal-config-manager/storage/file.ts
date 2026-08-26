@@ -23,12 +23,12 @@ export class FileStorage extends BaseStorage {
     ));
   }
 
-  async saveConfig(config: BetterPortalConfig): Promise<void> {
+  async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void> {
     const validated = this.canonicalizeConfig(BetterPortalConfigSchema.parse(migrateOfficialPluginIds(config)));
     this.validateConfigReferences(validated);
     const yamlStr = yaml.stringify(validated, { indent: 2, lineWidth: 120 });
     writeFileSync(this.configPath, yamlStr, "utf8");
-    this.notifyListeners();
+    if (options?.notify !== false) this.notifyListeners();
   }
 
   dispose(): void {

@@ -380,12 +380,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   ): PlatformConfigStore {
     return {
       loadConfig: () => store.loadConfig(),
-      saveConfig: async (config) => {
-        await store.saveConfig(config);
-        await this.events.emitBroadcast("platform-config.changed", obs, {
-          sourceId: this.changeSourceId,
-          backend: metadata.backend
-        });
+      saveConfig: async (config, options) => {
+        await store.saveConfig(config, options);
+        if (options?.notify !== false) {
+          await this.events.emitBroadcast("platform-config.changed", obs, {
+            sourceId: this.changeSourceId,
+            backend: metadata.backend
+          });
+        }
       },
       validateApiKey: (apiKey) => store.validateApiKey(apiKey),
       getScopedConfig: (serviceId, scope, tenantId) => store.getScopedConfig(serviceId, scope, tenantId),
@@ -497,7 +499,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         return {
           id: s.id, hostname: s.hostname, serviceId: s.serviceId, capabilities,
           title: cached?.title ?? s.title, description: s.description,
-          createdAt: s.createdAt, lastSeenAt: s.lastSeenAt,
+          createdAt: s.createdAt, lastSeenAt: s.lastSeenAt, lastSyncAt: s.lastSyncAt,
+          syncedVersion: cached?.manifestVersion,
           enabled: s.enabled,
           scope: isShell ? "shell" as const : "tenant" as const,
           tenantId: t.id as string | undefined,

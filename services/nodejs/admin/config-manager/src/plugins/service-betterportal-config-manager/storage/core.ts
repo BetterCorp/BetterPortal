@@ -306,7 +306,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
   protected listeners: Set<() => void> = new Set();
 
   abstract loadConfig(): Promise<BetterPortalConfig>;
-  abstract saveConfig(config: BetterPortalConfig): Promise<void>;
+  abstract saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void>;
 
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
     config = migrateOfficialPluginIds(config);

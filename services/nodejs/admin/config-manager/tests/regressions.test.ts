@@ -5,7 +5,7 @@ import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
-import { deriveRolePermissions, getCachedManifestForService, reconcileServiceRegistry, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { deriveRolePermissions, getCachedManifestForService, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
@@ -13,6 +13,7 @@ import { render as renderServices } from "../src/plugins/service-betterportal-co
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
 import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
+import { registerFragmentsEditorRoutes } from "../src/plugins/service-betterportal-config-manager/fragmentsEditor.js";
 import { registerMenuEditorRoutes } from "../src/plugins/service-betterportal-config-manager/menuEditor.js";
 import * as adminAuthView from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/GET.js";
 import * as adminConfigView from "../src/plugins/service-betterportal-config-manager/bp-routes/config/GET.js";
@@ -589,6 +590,159 @@ test("menu editing disables drag and optionally follows an assigned view route",
   const manual = await invoke("/.well-known/bp/admin/menu-editor/default-target", "appId=app-a&itemId=item-a&serviceId=service-a&viewId=new.index&path=%2Fcustom&targetPath=%2Fcustom-target");
   assert.match(manual, /name="path"[^>]*value="\/custom"/);
   assert.match(manual, /name="targetPath"[^>]*value="\/custom-target"/);
+});
+
+test("fragment editor only offers fragments for the selected shell location", async () => {
+  const handlers = new Map<string, (event: unknown) => Response | Promise<Response>>();
+  const shellServiceId = "shell-service";
+  const contentServiceId = "content-service";
+  const fragments = ["critical-alerts.banner", "nav.profile", "alerts.active", "body.live"]
+    .map((fragmentId) => ({ fragmentId, targetPath: "/fragments", operationId: "fragments.read", method: "GET" }));
+  const config = {
+    tenants: [{
+      id: "tenant-a",
+      services: [
+        { id: shellServiceId, serviceId: "org.example.shell", title: "Shell", hostname: "https://shell.example", enabled: true },
+        { id: contentServiceId, serviceId: "org.example.content", title: "Content", hostname: "https://content.example", enabled: true }
+      ],
+      activatedPlatformServices: []
+    }],
+    platformServices: [],
+    sharedServiceActivations: [],
+    sharedServiceCatalog: [],
+    apps: [{
+      id: "app-a",
+      tenantId: "tenant-a",
+      shell: { serviceId: shellServiceId },
+      routes: [{ serviceId: contentServiceId, operations: ["fragments.read"], targetPath: "/fragments", enabled: true }],
+      fragments: {},
+      slots: [],
+      shellFragments: {}
+    }],
+    manifestCache: [
+      {
+        serviceId: shellServiceId,
+        shell: {
+          service: "org.example.shell",
+          renderer: "bootstrap5",
+          fragments: [
+            { id: "theme-selector", kind: "fragment", title: "Theme selector", description: "Theme selector", defaultItems: [] },
+            { id: "critical-alerts", kind: "block", title: "Critical alerts", description: "Critical alerts", defaultItems: [] }
+          ]
+        },
+        viewIndex: {}
+      },
+      {
+        serviceId: contentServiceId,
+        viewIndex: {
+          fragments: {
+            viewId: "fragments",
+            title: "Fragments",
+            description: "Fragments",
+            path: "/fragments",
+            operations: [],
+            fragments
+          }
+        }
+      }
+    ]
+  };
+  registerFragmentsEditorRoutes({
+    get: (path: string, handler: (event: unknown) => Response | Promise<Response>) => { handlers.set(`GET ${path}`, handler); },
+    post: (path: string, handler: (event: unknown) => Response | Promise<Response>) => { handlers.set(`POST ${path}`, handler); }
+  } as never, {
+    loadConfig: async () => config,
+    saveConfig: async () => undefined
+  } as never);
+
+  const get = handlers.get("GET /.well-known/bp/admin/fragments-editor");
+  assert.ok(get);
+  const html = await (await get({ req: new Request("https://admin.example/.well-known/bp/admin/fragments-editor?appId=app-a") })).text();
+  assert.match(html, /<option[^>]*>[^<]*critical-alerts\.banner/);
+  assert.doesNotMatch(html, /<option[^>]*>[^<]*(?:Theme selector|nav\.profile|alerts\.active|body\.live)/);
+
+  const add = handlers.get("POST /.well-known/bp/admin/fragments-editor/add");
+  assert.ok(add);
+  const response = await add({
+    req: new Request("https://admin.example/.well-known/bp/admin/fragments-editor/add", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        appId: "app-a",
+        shellServiceId,
+        fragmentId: "critical-alerts",
+        source: `s:${contentServiceId}:nav.profile:%2Ffragments`
+      })
+    })
+  });
+  assert.equal(response.status, 400);
+});
+
+test("poll sync records service presence and config delivery", async () => {
+  const handlers = new Map<string, (event: unknown) => Response | Promise<Response>>();
+  const oldTimestamp = "2026-08-24T15:31:10.884Z";
+  const service = {
+    id: "service-a",
+    hostname: "https://service.example",
+    apiKeyHash: "hash",
+    capabilities: [],
+    createdAt: oldTimestamp,
+    lastSeenAt: oldTimestamp,
+    enabled: true
+  };
+  const config = {
+    tenants: [{ id: "tenant-a", services: [service] }],
+    platformServices: [],
+    sharedServiceActivations: [],
+    sharedServiceCatalog: []
+  };
+  let saves = 0;
+  registerSyncEndpoint({
+    get: (path: string, handler: (event: unknown) => Response | Promise<Response>) => { handlers.set(`GET ${path}`, handler); },
+    post: (path: string, handler: (event: unknown) => Response | Promise<Response>) => { handlers.set(`POST ${path}`, handler); }
+  } as never, {
+    loadConfig: async () => config,
+    saveConfig: async (_config: unknown, options?: { notify?: boolean }) => {
+      assert.equal(options?.notify, false);
+      saves += 1;
+    },
+    validateApiKey: async () => ({ scope: "tenant", serviceId: service.id, tenantId: "tenant-a", service }),
+    getScopedConfig: async () => ({ managementOrigins: [], tenants: [], apps: [] })
+  } as never);
+
+  const poll = handlers.get("GET /.well-known/bp/sync/poll");
+  assert.ok(poll);
+  const response = await poll({ req: new Request("https://admin.example/.well-known/bp/sync/poll", { headers: { authorization: "Bearer key" } }) });
+  assert.equal(response.status, 200);
+  assert.ok(Date.parse(service.lastSeenAt) > Date.parse(oldTimestamp));
+  assert.ok(Date.parse(service.lastSyncAt!) > Date.parse(oldTimestamp));
+  assert.equal(saves, 2);
+
+  const html = String(renderServices({
+    title: "Services",
+    services: [{
+      ...service,
+      capabilities: [],
+      lastSyncAt: service.lastSyncAt,
+      syncedVersion: "10.4.0",
+      scope: "tenant",
+      tenantId: "tenant-a",
+      pushBase: "/settings/service/service-a",
+      supportsCustomUi: false,
+      configManifestKnown: true,
+      hasConfigurableOptions: false
+    }],
+    tenants: [{ id: "tenant-a", title: "Tenant A" }],
+    m2mConnections: [],
+    sharedServiceCatalog: [],
+    sharedServiceActivations: [],
+    apps: [],
+    tenantApps: {},
+    adminApiBase: "/.well-known/bp/admin"
+  }));
+  assert.match(html, /Last seen:/);
+  assert.match(html, /Last sync:/);
+  assert.match(html, /Synced version: 10\.4\.0/);
 });
 
 test("manifest sync preserves stale app auth redirects for repair", async () => {

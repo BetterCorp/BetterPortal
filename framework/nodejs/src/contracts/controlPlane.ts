@@ -110,7 +110,7 @@ export interface ScopedConfigApp {
 
 export interface PlatformConfigStore {
   loadConfig(): Promise<BetterPortalConfig>;
-  saveConfig(config: BetterPortalConfig): Promise<void>;
+  saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void>;
 
   validateApiKey(apiKey: string): Promise<{
     scope: "tenant" | "platform";

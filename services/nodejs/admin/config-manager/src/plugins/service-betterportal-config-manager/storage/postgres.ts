@@ -48,7 +48,7 @@ export class PostgresStorage extends BaseStorage {
     ));
   }
 
-  async saveConfig(config: BetterPortalConfig): Promise<void> {
+  async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void> {
     await this.ensureSchema();
     const validated = this.canonicalizeConfig(BetterPortalConfigSchema.parse(migrateOfficialPluginIds(config)));
     this.validateConfigReferences(validated);
@@ -59,7 +59,7 @@ export class PostgresStorage extends BaseStorage {
        on conflict (id) do update set config = excluded.config, updated_at = now()`,
       [this.rowId, JSON.stringify(validated)]
     );
-    this.notifyListeners();
+    if (options?.notify !== false) this.notifyListeners();
   }
 
   async dispose(): Promise<void> {

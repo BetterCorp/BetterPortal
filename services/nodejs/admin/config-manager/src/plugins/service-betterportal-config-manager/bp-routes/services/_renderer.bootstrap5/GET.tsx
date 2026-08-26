@@ -104,7 +104,7 @@ function renderServiceCard(
             </div>
           ) : ""}
           <div class="small mb-1"><strong>Status:</strong> <span class={`badge ${service.enabled ? "text-bg-success" : "text-bg-secondary"}`}>{service.enabled ? "active" : "disabled"}</span></div>
-          <div class="small mb-2"><strong>Created:</strong> {service.createdAt}{service.lastSeenAt ? ` - Last seen: ${service.lastSeenAt}` : ""}</div>
+          <div class="small mb-2"><strong>Created:</strong> {service.createdAt}{service.lastSeenAt ? ` - Last seen: ${service.lastSeenAt}` : ""}{service.lastSyncAt ? ` - Last sync: ${service.lastSyncAt}` : ""}{service.syncedVersion ? ` - Synced version: ${service.syncedVersion}` : ""}</div>
           <div class="d-flex gap-2 flex-wrap align-items-center">
             {service.scope !== "shared" ? (
               <>

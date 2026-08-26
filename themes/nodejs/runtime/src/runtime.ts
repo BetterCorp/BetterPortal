@@ -2260,6 +2260,16 @@ export function betterPortalShellRuntimeSource(): string {
         // pipeline builds task fragments, so hx-sse ext reads the absolute
         // service-origin URL once the new content is processed.
         htmx_after_request(_elt: any, detail: any) {
+          try {
+            const ctx = detail.ctx;
+            const text: string | undefined = ctx?.text;
+            const requestUrl: string | undefined = ctx?.request?.action;
+            if (text && requestUrl && /(?:hx-sse:connect|sse-connect)\s*=\s*["']\/(?!\/)/.test(text)) {
+              const origin = new URL(requestUrl, window.location.origin).origin;
+              ctx.text = text.replace(/((?:hx-sse:connect|sse-connect)\s*=\s*["'])\/(?!\/)/g, "$1" + origin + "/");
+            }
+          } catch { /* non-fatal */ }
+
           scheduleBootstrapOverlaySync();
           applyChromeFromResponse(detail);
           const bpElement = requestBpElement(detail.ctx?.sourceElement);
@@ -2303,17 +2313,6 @@ export function betterPortalShellRuntimeSource(): string {
             }
           } catch { /* non-fatal */ }
 
-          try {
-            const ctx = detail.ctx;
-            const text: string | undefined = ctx?.text;
-            const requestUrl: string | undefined = ctx?.request?.action;
-            if (!text || !requestUrl) return;
-            if (!/hx-sse:connect="\/|sse-connect="\//.test(text)) return;
-            const origin = new URL(requestUrl, window.location.origin).origin;
-            ctx.text = text
-              .replace(/(hx-sse:connect=")\//g, "$1" + origin + "/")
-              .replace(/(sse-connect=")\//g, "$1" + origin + "/");
-          } catch { /* non-fatal */ }
         },
 
         // After successful swap: clear loading, resolve service links, reload Bootstrap
