@@ -124,7 +124,7 @@ export interface RegisteredViewRenderer {
   readonly render: (data: any, context: ViewRenderContext) => HtmlRenderable;
   /** SSE event renderer sourced from `_<location>.<fragmentId>.sse.tsx`. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly sseRender?: (data: any) => HtmlRenderable;
+  readonly sseRender?: (data: any, context: ViewRenderContext) => HtmlRenderable;
 }
 
 type StreamResponse<TItem, TSummary> = [TSummary] extends [void]
@@ -145,7 +145,8 @@ export type ViewRendererFor<THandler> = (
 export type SseRendererFor<TContract> = (
   data: TContract extends SseRoute<BaseSchema<unknown, unknown>, infer TSchema, any, any>
     ? import("anyvali").Infer<TSchema>
-    : never
+    : never,
+  context: ViewRenderContext
 ) => HtmlRenderable;
 
 /** Compile-time streaming renderer contract generated against its stream handler. */

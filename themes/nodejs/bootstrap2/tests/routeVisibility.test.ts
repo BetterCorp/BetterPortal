@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { loadBootstrap2Asset } from "../src/plugins/service-betterportal-theme-bootstrap2/assets.js";
-import { isUserFacingRoute, renderBootstrap2HostPage, renderBootstrap2Shell } from "../src/plugins/service-betterportal-theme-bootstrap2/shell/index.js";
+import { isUserFacingRoute, renderBootstrap2HostPage, renderBootstrap2Shell, shellStyles } from "../src/plugins/service-betterportal-theme-bootstrap2/shell/index.js";
 import { BOOTSTRAP2_VERSION, bootstrap2AssetUrl, bootstrap2ServiceWorkerSource } from "../src/plugins/service-betterportal-theme-bootstrap2/cache.js";
 import { defaultItems as criticalAlertDefaults, render as renderCriticalAlerts } from "../src/plugins/service-betterportal-theme-bootstrap2/shell/_critical-alerts/index.js";
 
@@ -41,6 +41,20 @@ test("Bootstrap initializes before shell overlay cleanup", () => {
     bodyHtml: ""
   });
   assert.ok(html.indexOf("bootstrap.bundle.min.js") < html.indexOf("bootstrap2-core.js"));
+});
+
+test("configured primary and secondary colors reach visible theme styles", () => {
+  const styles = String(shellStyles("dark", {
+    mode: "dark",
+    bootstrap: { primary: "#123456", secondary: "#abcdef" },
+    light: {},
+    dark: {}
+  }));
+  assert.match(styles, /--bp-accent:\s*#123456/);
+  assert.match(styles, /--bp-accent-secondary:\s*#abcdef/);
+  assert.match(styles, /\.bp-admin__brand-name[^}]*color:\s*var\(--bp-accent-secondary\)/);
+  assert.match(styles, /\.bp-admin__route\.active[^}]*inset 3px 0 0 var\(--bp-accent-secondary\)/);
+  assert.match(styles, /\.bp-shell__main \.btn-secondary[^}]*background:\s*var\(--bp-accent-secondary\)/);
 });
 
 test("versioned theme assets and the offline worker stay self-contained", async () => {
@@ -105,26 +119,33 @@ test("open card dropdowns rise above later cards", () => {
   assert.match(html, /\.bp-shell__main \.card:has\(\.dropdown-menu\.show\)/);
 });
 
-test("page titles move to the padded shell header", async () => {
+test("configured route titles own the shell header and browser title", async () => {
   const html = renderBootstrap2HostPage({
-    title: "Route title",
+    title: "Control Room",
     brandName: "Test",
     themeMode: "dark",
     themeConfig: { mode: "dark", bootstrap: {}, light: {}, dark: {} },
     assetBaseUrl: "/assets",
-    currentPath: "/",
-    routeLinks: []
+    currentPath: "/operations",
+    routeLinks: [{
+      id: "operations",
+      title: "Operations",
+      href: "/operations",
+      serviceId: "operations-service",
+      active: true
+    }]
   });
-  assert.match(html, /data-bp-promote-page-title=""/);
-  assert.match(html, /<h1 class="bp-admin__topbar-title" data-bp-current-title="">/);
+  assert.match(html, /<title>Operations · Control Room<\/title>/);
+  assert.match(html, /<h1 class="bp-admin__topbar-title" data-bp-current-title="">Operations<\/h1>/);
+  assert.match(html, /data-bp-document-title="Control Room"/);
+  assert.doesNotMatch(html, /data-bp-promote-page-title/);
   assert.match(html, /#bp-main\s*\{[^}]*padding:\s*1rem/);
   assert.match(html, /\.bp-admin__topbar\s*\{[^}]*min-height:\s*48px/);
 
   const asset = await loadBootstrap2Asset("bootstrap2-shell.js");
   const source = String(asset?.body);
-  assert.match(source, /querySelector\("\[data-bp-page-title\]"\)/);
-  assert.match(source, /querySelector\("h1,h2"\)/);
-  assert.match(source, /data-bp-chrome-full-screen/);
-  assert.match(source, /promotedHeading\.hidden\s*=\s*false/);
-  assert.match(source, /heading\.hidden\s*=\s*true/);
+  assert.match(source, /configuredRouteFor/);
+  assert.match(source, /configuredRoute\?\.title/);
+  assert.match(source, /document\.title\s*=\s*title\s*&&\s*title\s*!==\s*configuredTitle/);
+  assert.doesNotMatch(source, /data-bp-page-title|data-bp-promoted-page-title/);
 });

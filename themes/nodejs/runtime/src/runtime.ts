@@ -186,28 +186,6 @@ export function betterPortalShellRuntimeSource(): string {
         return scope?.querySelector<HTMLElement>("[data-bp-mutation-error]") ?? null;
       };
 
-      const syncPageTitle = () => {
-        const root = shellRoot();
-        if (!root?.hasAttribute("data-bp-promote-page-title")) return;
-        const outlet = mainOutlet();
-        const promotedHeading = outlet?.querySelector<HTMLElement>("[data-bp-promoted-page-title]");
-        if (root.getAttribute("data-bp-chrome-full-screen") === "true"
-          || root.getAttribute("data-bp-chrome-hide-header") === "true") {
-          if (promotedHeading) promotedHeading.hidden = false;
-          return;
-        }
-        const heading = outlet?.querySelector<HTMLElement>("[data-bp-page-title]")
-          ?? outlet?.querySelector<HTMLElement>("h1,h2");
-        const title = heading?.textContent?.trim();
-        if (!heading || !title) return;
-        const currentTitle = titleNode();
-        if (currentTitle) currentTitle.textContent = title;
-        const configuredTitle = root.getAttribute("data-bp-document-title")?.trim();
-        if (configuredTitle) document.title = title === configuredTitle ? configuredTitle : `${title} · ${configuredTitle}`;
-        heading.setAttribute("data-bp-promoted-page-title", "");
-        heading.hidden = true;
-      };
-
       const profileSlot = () => document.querySelector("[data-bp-slot='nav-profile']");
       const profileMirror = () => document.querySelector("[data-bp-profile-mirror]");
 
@@ -233,6 +211,35 @@ export function betterPortalShellRuntimeSource(): string {
       const normalizePath = (path: string) => {
         const normalized = (path || "/").replace(/\/+$/, "");
         return normalized === "" ? "/" : normalized;
+      };
+
+      type ConfiguredRoute = {
+        href?: string;
+        requestUrl?: string;
+        serviceId?: string;
+        title?: string;
+        kind?: "page" | "api";
+      };
+
+      const configuredRoutes = (): ConfiguredRoute[] => {
+        try {
+          const routes = JSON.parse(shellRoot()?.getAttribute("data-bp-routes") || "[]");
+          return Array.isArray(routes) ? routes : [];
+        } catch {
+          return [];
+        }
+      };
+
+      const configuredRouteFor = (path: string) => {
+        const normalized = normalizePath(path);
+        return configuredRoutes().find((route) => normalizePath(route.href || "/") === normalized) ?? null;
+      };
+
+      const syncDocumentTitle = (pageTitle?: string) => {
+        const configuredTitle = shellRoot()?.getAttribute("data-bp-document-title")?.trim();
+        if (!configuredTitle) return;
+        const title = pageTitle?.trim();
+        document.title = title && title !== configuredTitle ? `${title} · ${configuredTitle}` : configuredTitle;
       };
 
       const requestTargetsMain = (detail: any) => {
@@ -301,7 +308,6 @@ export function betterPortalShellRuntimeSource(): string {
         const previousChrome = activeChrome;
         activeChrome = { ...nextChrome };
         shellAdapter.applyChrome?.(activeChrome, previousChrome, root);
-        syncPageTitle();
       };
 
       const applyChromeFromResponse = (detail: any) => {
@@ -1063,15 +1069,7 @@ export function betterPortalShellRuntimeSource(): string {
             routes.push({ tenantPath, servicePath, serviceOrigin: origin, serviceId, kind });
           } catch { /* skip invalid */ }
         };
-        try {
-          const allRoutes = JSON.parse(shellRoot()?.getAttribute("data-bp-routes") || "[]") as Array<{
-            href?: string;
-            requestUrl?: string;
-            serviceId?: string;
-            kind?: "page" | "api";
-          }>;
-          allRoutes.forEach((route) => addRoute(route.href || "/", route.requestUrl || "", route.serviceId || "", route.kind));
-        } catch { /* fallback to DOM links */ }
+        configuredRoutes().forEach((route) => addRoute(route.href || "/", route.requestUrl || "", route.serviceId || "", route.kind));
         routeLinks().forEach((link) => {
           addRoute(
             link.getAttribute("href") || "/",
@@ -1752,20 +1750,26 @@ export function betterPortalShellRuntimeSource(): string {
 
       const setActiveRoute = (path: string) => {
         let activeLink: Element | null = null;
+        const normalizedPath = normalizePath(path);
 
         routeLinks().forEach((link) => {
-          const isActive = link.getAttribute("href") === path;
+          const isActive = normalizePath(link.getAttribute("href") || "/") === normalizedPath;
           link.classList.toggle("active", isActive);
           link.setAttribute("aria-current", isActive ? "page" : "false");
-          if (isActive) {
-            activeLink = link;
-            const title = link.getAttribute("data-bp-route-title") || link.textContent || path;
-            const tn = titleNode();
-            if (tn) tn.textContent = title;
-            const svcId = link.getAttribute("data-bp-service");
-            if (svcId) mainOutlet()?.setAttribute("data-bp-service", svcId);
-          }
+          if (isActive) activeLink = link;
         });
+
+        const routeLink = activeLink as Element | null;
+        const configuredRoute = configuredRouteFor(path);
+        const title = configuredRoute?.title
+          || routeLink?.getAttribute("data-bp-route-title")
+          || routeLink?.textContent?.trim()
+          || path;
+        const tn = titleNode();
+        if (tn) tn.textContent = title;
+        syncDocumentTitle(title);
+        const serviceId = configuredRoute?.serviceId || routeLink?.getAttribute("data-bp-service");
+        if (serviceId) mainOutlet()?.setAttribute("data-bp-service", serviceId);
 
         navGroups().forEach((group) => {
           if (group.querySelector("[data-bp-route-link].active")) group.open = true;
@@ -2329,7 +2333,6 @@ export function betterPortalShellRuntimeSource(): string {
             cleanupTeleportedOffcanvas();
             teleportModals(target);
             teleportOffcanvas(target);
-            syncPageTitle();
             if (shouldScrollMainSwap(detail)) scrollPageToTop();
             scheduleBootstrapOverlaySync();
           } else if (target instanceof Element) {
@@ -2359,8 +2362,8 @@ export function betterPortalShellRuntimeSource(): string {
         },
 
         // Update sidebar active state on history navigation
-        htmx_after_history_push() { setActiveRoute(window.location.pathname); syncPageTitle(); },
-        htmx_after_history_replace() { setActiveRoute(window.location.pathname); syncPageTitle(); },
+        htmx_after_history_push() { setActiveRoute(window.location.pathname); },
+        htmx_after_history_replace() { setActiveRoute(window.location.pathname); },
 
         htmx_response_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;

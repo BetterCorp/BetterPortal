@@ -274,7 +274,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private readStoredThemeValues(tenantId: string, appId: string): Record<string, unknown> {
-    return this.configStore.read(this.internalConfigTicket(tenantId)).app[appId] ?? {};
+    const state = this.configStore.read(this.internalConfigTicket(tenantId));
+    return { ...state.tenant, ...(state.app[appId] ?? {}) };
   }
 
   private applyThemeServiceConfig(base: any, values: Record<string, unknown>): any {

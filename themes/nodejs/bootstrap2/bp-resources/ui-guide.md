@@ -6,7 +6,7 @@ Bootstrap2 uses Bootstrap 5 classes and server-rendered JSX/HTMX. Services own p
 
 - Return a fragment for `#bp-main`; never emit `<html>`, `<head>`, persistent navigation, global scripts, or another shell.
 - Bootstrap2 supplies a forced 1rem inset around `#bp-main`, including below the critical-alert outlet. Start pages with `.container-fluid px-0`; do not duplicate the shell padding.
-- Start with one `<h1>` for the page title. Bootstrap2 moves the first `<h1>` or legacy `<h2>` into the top bar and hides the original; use `data-bp-page-title` to select a different title element explicitly.
+- The configured app route title owns the shell top bar and browser-title prefix. Use normal heading order inside service content; the theme does not scrape or hide service headings.
 - Use 4px/8px spacing, compact controls, borders, and Bootstrap semantic colors. Avoid gradients, glass, large shadows, oversized headings, floating cards, and icon-only status.
 - Use `.bp-split-pane`, `.bp-split-pane__content`, and `.bp-split-pane__detail` for queue/detail workflows. Give the pane `data-bp-split-pane-key`, rows `data-bp-row-key`, and focusable controls `data-bp-focus-key`. `data-bp-detail-toggle` and `data-bp-detail-close` use the shared runtime. Component swaps preserve queue scroll, the selected row, detail-open state, and focus by those stable keys.
 - Use responsive table wrappers; do not shrink record text to fit.

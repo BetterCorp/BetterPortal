@@ -321,6 +321,13 @@ function checkSseFragmentRenderers(route: ScannedRoute, errors: ValidationError[
         severity: "error",
       });
     }
+    if (renderer.sseRendererPath && renderer.sseRenderContextWarning) {
+      errors.push({
+        file: renderer.sseRendererPath,
+        message: `SSE renderer for route "${route.viewId}" has a ${renderer.sseRenderContextWarning} render context parameter. Type it as ViewRenderContext; the framework supplies it server-side.`,
+        severity: "error",
+      });
+    }
   }
 }
 

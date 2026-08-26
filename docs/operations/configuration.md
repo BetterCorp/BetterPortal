@@ -15,6 +15,8 @@ The config manager provides a UI for editing tenants, apps, services, routes, me
 | `tenants` | Tenant records, branding, and registered services. |
 | `apps` | User-facing apps with hostnames, routes, menu, fragments, and theme config. |
 
+Theme configuration uses BP-managed tenant defaults with optional app overrides: app, then tenant, then theme default. Do not put app visual settings in a theme service's `sec-config.yaml`.
+
 ## Config management metadata
 
 The root `configManagement` section is optional metadata for the admin surface:

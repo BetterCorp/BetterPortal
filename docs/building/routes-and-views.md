@@ -630,6 +630,20 @@ The view id and input are compile-time checked; BetterPortal validates again at 
 
 A fragment tick renderer uses `_<location>.<id>.sse.tsx` and exports `renderTick`; its GET method is inferred. Load the durable/current snapshot through normal GET, then emit individual row/component deltas. Use stable DOM ids with HTMX out-of-band upserts, coalesce bursts by record id before emitting, and refresh GET after reconnect instead of replacing the complete queue on every event.
 
+```tsx
+import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
+
+export function renderTick(data: IncidentEvent, ctx: ViewRenderContext): HtmlRenderable {
+  const detailUrl = ctx.url.route("incidents.index", {
+    component: "incident-detail",
+    query: { incidentId: data.incidentId }
+  });
+  return <tr id={`incident-${data.incidentId}`} data-detail-url={detailUrl ?? ""}></tr>;
+}
+```
+
+SSE tick renderers receive the same server-populated `ViewRenderContext` as normal renderers. The context represents the underlying view route, not its `/__sse` transport endpoint.
+
 Codegen rejects manual `handleSSE`/`tickSchema` generators and method-qualified SSE handler or renderer filenames. All SSE routes use the schema-owned `createSse(...)` contract and receive publications through `this.betterPortal.sse.emit(...)`.
 
 Only actual renderer files should live inside `_renderer.<renderer>/`. Shared helpers should live elsewhere, because codegen treats `.tsx` files in renderer directories as renderers.

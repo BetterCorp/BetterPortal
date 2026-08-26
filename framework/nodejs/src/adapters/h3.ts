@@ -484,14 +484,25 @@ export function createH3Router(
 
         // Renderer identity comes only from the server-resolved app shell.
         const fragmentKey = queryFromUrl(getRequestURL(event))._f as string | undefined;
-        let sseRender: ((data: unknown) => unknown) | undefined;
+        let sseRender: ((data: unknown, context: ViewRenderContext) => unknown) | undefined;
+        let sseRenderContext: ViewRenderContext | undefined;
         if (fragmentKey) {
           const renderer = rendererFromEvent(event);
 
           if (renderer) {
             const resolved = resolveRenderer(route, renderer, "fragment", "GET", undefined, fragmentKey);
             if (resolved?.renderer.sseRender) {
-              sseRender = resolved.renderer.sseRender as (data: unknown) => unknown;
+              sseRender = resolved.renderer.sseRender as (data: unknown, context: ViewRenderContext) => unknown;
+              sseRenderContext = createViewRenderContext(
+                route,
+                { ...context, path: context.path.replace(/\/__sse\/?$/, "") },
+                registry.dependencies ?? {},
+                renderer,
+                "fragment",
+                "fragment",
+                fragmentKey,
+                200
+              );
             }
           }
         }
@@ -503,8 +514,8 @@ export function createH3Router(
           try {
             for await (const raw of result) {
               const data = eventSchema.parse(raw);
-              const payload = sseRender
-                ? String(sseRender(data))
+              const payload = sseRender && sseRenderContext
+                ? String(sseRender(data, sseRenderContext))
                 : typeof data === "string" ? data : JSON.stringify(data);
               await stream.push({ data: payload });
             }

@@ -353,7 +353,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       "--bp-accent-info": themeConfig.bootstrap.info ?? "#64d2ff",
       "--bp-accent-warning": themeConfig.bootstrap.warning ?? "#ffd60a",
       "--bp-accent-danger": themeConfig.bootstrap.danger ?? "#ff453a",
-      "--bp-accent-soft": surfaceConfig.accentSoft ?? (mode === "dark" ? "rgba(15,159,168,0.18)" : "rgba(15,159,168,0.10)"),
+      "--bp-accent-soft": surfaceConfig.accentSoft ?? `color-mix(in srgb, var(--bp-accent) ${mode === "dark" ? "18%" : "10%"}, transparent)`,
       "--bp-shadow": neu.raised,
       "--bp-shadow-soft": neu.raisedSoft,
       "--bp-shadow-inset": neu.inset,
@@ -469,7 +469,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       fontSize: "0.95rem",
       fontWeight: 700,
       letterSpacing: "-0.03em",
-      color: "var(--bp-text)"
+      color: "var(--bp-accent-secondary)"
     },
     ".bp-admin__brand-logo": {
       width: 28,
@@ -557,7 +557,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
     ".bp-admin__route.active": {
       color: "var(--bp-accent)",
       background: "var(--bp-accent-soft)",
-      boxShadow: "none",
+      boxShadow: "inset 3px 0 0 var(--bp-accent-secondary)",
       fontWeight: 600,
       opacity: 1
     },
@@ -635,7 +635,8 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       fontSize: "1rem",
       fontWeight: 600,
       letterSpacing: 0,
-      lineHeight: 1.1
+      lineHeight: 1.1,
+      color: "var(--bp-accent)"
     },
     ".bp-admin__profile-shell": {
       display: "flex",
@@ -889,24 +890,39 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
 
-    /* -- Secondary: soft neutral surface -- */
+    /* -- Secondary: configured Bootstrap secondary color -- */
     ".bp-shell__main .btn-secondary": {
-      background: mode === "dark"
-        ? "rgba(255,255,255,0.10)"
-        : "rgba(0,0,0,0.06)",
-      color: "var(--bp-text)",
+      background: "var(--bp-accent-secondary)",
+      color: "#ffffff",
       boxShadow: mode === "dark"
         ? "0 1px 6px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.06)"
         : "0 1px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.5)"
     },
     ".bp-shell__main .btn-secondary:hover": {
-      background: mode === "dark"
-        ? "rgba(255,255,255,0.15)"
-        : "rgba(0,0,0,0.09)",
+      background: "color-mix(in srgb, var(--bp-accent-secondary) 88%, var(--bp-text))",
       boxShadow: mode === "dark"
         ? "0 3px 12px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.08)"
         : "0 3px 12px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.6)",
       transform: "translateY(-1px)"
+    },
+
+    ".bp-shell__main .text-primary, .bp-shell__main .link-primary": {
+      color: "var(--bp-accent) !important"
+    },
+    ".bp-shell__main .text-secondary, .bp-shell__main .link-secondary": {
+      color: "var(--bp-accent-secondary) !important"
+    },
+    ".bp-shell__main .bg-primary": {
+      backgroundColor: "var(--bp-accent) !important"
+    },
+    ".bp-shell__main .bg-secondary": {
+      backgroundColor: "var(--bp-accent-secondary) !important"
+    },
+    ".bp-shell__main .border-primary": {
+      borderColor: "var(--bp-accent) !important"
+    },
+    ".bp-shell__main .border-secondary": {
+      borderColor: "var(--bp-accent-secondary) !important"
     },
 
     /* -- Success -- */
@@ -1034,25 +1050,19 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       transform: "translateY(-1px)"
     },
     ".bp-shell__main .btn-outline-secondary": {
-      color: "var(--bp-text-soft)",
+      color: "var(--bp-accent-secondary)",
       background: mode === "dark"
         ? "rgba(255,255,255,0.03)"
         : "rgba(255,255,255,0.45)",
-      border: mode === "dark"
-        ? "1px solid rgba(255,255,255,0.08)"
-        : "1px solid rgba(0,0,0,0.06)",
+      border: "1px solid color-mix(in srgb, var(--bp-accent-secondary) 50%, transparent)",
       boxShadow: mode === "dark"
         ? "0 1px 4px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"
         : "0 1px 4px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255,255,255,0.5)"
     },
     ".bp-shell__main .btn-outline-secondary:hover": {
-      background: mode === "dark"
-        ? "rgba(255,255,255,0.08)"
-        : "rgba(0,0,0,0.04)",
-      borderColor: mode === "dark"
-        ? "rgba(255,255,255,0.12)"
-        : "rgba(0,0,0,0.08)",
-      color: "var(--bp-text)",
+      background: "color-mix(in srgb, var(--bp-accent-secondary) 16%, transparent)",
+      borderColor: "var(--bp-accent-secondary)",
+      color: "var(--bp-accent-secondary)",
       boxShadow: mode === "dark"
         ? "0 3px 12px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.06)"
         : "0 3px 12px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.55)",
@@ -1250,10 +1260,8 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       color: "#ffffff !important"
     },
     ".bp-shell__main .badge.text-bg-secondary": {
-      background: mode === "dark"
-        ? "rgba(255,255,255,0.10) !important"
-        : "rgba(0,0,0,0.06) !important",
-      color: "var(--bp-text) !important"
+      background: "var(--bp-accent-secondary) !important",
+      color: "#ffffff !important"
     },
     ".bp-shell__main .badge.text-bg-success": {
       background: mode === "dark"
@@ -2176,7 +2184,6 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
       data-bp-login-url={context.loginUrl}
       data-bp-logout-url={context.logoutUrl}
       data-bp-document-title={context.title}
-      data-bp-promote-page-title=""
       {...betterPortalChromeAttributes(context.chrome)}
     >
       <div class="offcanvas offcanvas-start bp-admin__mobile-menu" tabindex={-1} id="bp-mobile-menu" aria-labelledby="bp-mobile-menu-title">
@@ -2321,8 +2328,9 @@ export function renderBootstrap2Shell(context: Bootstrap2ShellContext): string {
 }
 
 export function renderBootstrap2HostPage(context: Bootstrap2HostPageContext): string {
+  const pageTitle = context.routeLinks.find((route) => route.active)?.title;
   return renderBootstrap2Shell({
-    title: context.title,
+    title: pageTitle && pageTitle !== context.title ? `${pageTitle} · ${context.title}` : context.title,
     brandName: context.brandName,
     logoUrl: context.logoUrl,
     faviconUrl: context.faviconUrl,

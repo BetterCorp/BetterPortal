@@ -14,7 +14,7 @@ The shell identity is `bootstrap2`; the renderer compatibility key remains `boot
 
 ## App theme configuration
 
-Bootstrap2 reads its app-scoped service configuration for `brandName`, `documentTitle`, light/dark logo URLs, favicon URL, default mode, and semantic palette colors. Empty browser title falls back to the app title; empty brand falls back through tenant branding to the service default. The configured browser title is the stable suffix, while the promoted service page heading becomes the active tab prefix after HTMX navigation.
+Bootstrap2 reads BP-managed theme configuration for `brandName`, `documentTitle`, light/dark logo URLs, favicon URL, default mode, and the shared Bootstrap palette. `primary` and `secondary` apply in both light and dark modes; mode-specific surfaces and text use theme defaults rather than separate BP color settings. Resolution is app override, then tenant default, then the theme default; these values do not come from `sec-config.yaml`. Empty browser title falls back to the app title. The configured browser title is the stable suffix, while the configured app route title becomes the shell header and active tab prefix.
 
 Configure these through the theme settings view instead of embedding product names, logos, favicon links, colors, or `<title>` elements in service renderers. Service renderers receive `ctx.app.title` and `ctx.tenant.branding` for presentation text that belongs inside page content.
 

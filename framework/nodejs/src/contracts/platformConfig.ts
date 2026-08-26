@@ -54,6 +54,10 @@ export type BetterPortalThemeSurface = Infer<typeof BetterPortalThemeSurfaceSche
 
 export const BetterPortalThemeConfigSchema = av.object({
   brandName: av.optional(NonEmptyStringSchema),
+  documentTitle: av.optional(NonEmptyStringSchema),
+  lightLogoUrl: av.optional(av.string().format("url")),
+  darkLogoUrl: av.optional(av.string().format("url")),
+  faviconUrl: av.optional(av.string().format("url")),
   mode: av.enum_(["light", "dark", "system"] as const).default("light"),
   bootstrap: BetterPortalThemeBootstrapPaletteSchema,
   light: BetterPortalThemeSurfaceSchema,

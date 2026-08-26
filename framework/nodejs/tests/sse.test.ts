@@ -55,7 +55,7 @@ test("SSE contracts require canonical files and schema-owned handlers", (t) => {
     export function render(data: { value: string }) { return data.value; }
   `);
   write(join(rendererDir, "_body.live.sse.tsx"), `
-    export function renderTick(data: { value: string }) { return data.value; }
+    export function renderTick(data: { value: string }, ctx: import("@betterportal/framework").ViewRenderContext) { return ctx.url.current() + data.value; }
   `);
 
   const scan = scanRoutes(baseDir);
@@ -128,6 +128,11 @@ test("SSE contracts require canonical files and schema-owned handlers", (t) => {
     export const render = (data: { value: string }, ctx) => ctx.url.current() + data.value;
   `);
   assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes("ViewRenderContext")), true);
+
+  write(join(rendererDir, "_body.live.sse.tsx"), `
+    export const renderTick = (data: { value: string }, ctx) => ctx.url.current() + data.value;
+  `);
+  assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes("SSE renderer") && issue.message.includes("ViewRenderContext")), true);
 
   write(join(routeDir, "GET.sse.ts"), "export async function* handleSSE() {}\n");
   write(join(rendererDir, "_body.live.GET.sse.tsx"), "export function renderTick() { return 'unsupported'; }\n");
@@ -215,7 +220,7 @@ test("SSE fragments use the resolved app shell renderer and ignore client overri
           fragmentLocation: "body",
           fragmentId: "live",
           render: () => "ready",
-          sseRender: (data: { value: string }) => `<strong>${data.value}</strong>`
+          sseRender: (data: { value: string }, ctx) => `<strong>${ctx.route.viewId}:${ctx.url.current()}:${data.value}</strong>`
         }]
       }
     },
@@ -273,7 +278,7 @@ test("SSE fragments use the resolved app shell renderer and ignore client overri
       });
       assert.equal(response.headers.get("content-type"), "text/event-stream");
       const chunk = await response.body!.getReader().read();
-      assert.match(new TextDecoder().decode(chunk.value), /data: <strong>tick<\/strong>/);
+      assert.match(new TextDecoder().decode(chunk.value), /data: <strong>live\.index:\/live:tick<\/strong>/);
     } finally {
       clearInterval(publisher);
       abort.abort();

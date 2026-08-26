@@ -20,9 +20,9 @@ It does not own service page content.
 
 ## Theme configuration ownership
 
-Each theme owns its configuration schema and defaults. `apps[].themeConfig.bootstrap` is a Bootstrap1 compatibility palette whose meanings and fallback values are hardcoded by Bootstrap1; it is not a portable theme contract. A new theme must not copy those values as its defaults or require that palette. Define theme-specific fields and defaults in the new theme's service configuration schema, and map Bootstrap palette values only when deliberate compatibility is desired.
+The theme declares its BP configuration schema and defaults. Config Manager stores tenant defaults and optional app overrides through the service configuration API. Resolution is app override, then tenant default, then the theme's declared default. `sec-config.yaml` is process configuration and is not an app branding or palette source.
 
-Bootstrap2 exposes app-scoped brand name, browser title, light/dark logos, favicon, mode, and semantic palette fields through its service configuration. Its shell resolves those values server-side. Service pages must not emit document titles, favicons, global logos, theme-mode scripts, or palette overrides; use `ViewRenderContext` only for page-local presentation.
+Bootstrap1 and Bootstrap2 map the effective BP values into Bootstrap semantic colors, brand name, browser title, logos, favicon, and mode. Service pages must not emit document titles, favicons, global logos, theme-mode scripts, or palette overrides; use `ViewRenderContext` only for page-local presentation.
 
 ## Shared Node shell runtime
 

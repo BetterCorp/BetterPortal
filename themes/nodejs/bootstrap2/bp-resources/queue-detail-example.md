@@ -9,7 +9,7 @@ import type { ResponseData } from "../GET.js";
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   return <section class="container-fluid px-0">
-    <h1 class="h5" data-bp-page-title>Incident queue</h1>
+    <h1 class="h5">Incident queue</h1>
     <div class="bp-split-pane" data-bp-split-pane-key="incidents" data-bp-detail-open={data.active ? "true" : "false"}>
       <div id="incident-queue" class="bp-split-pane__content" hx-get={ctx.url.route("incidents.index", { component: "queue" })} hx-trigger="incidents:changed from:body">
         {renderQueue(data, ctx)}
@@ -98,6 +98,21 @@ export default createSse(
   { input: InputSchema, event: EventSchema },
   async (input, ctx) => ctx.plugin.findIncident(input.id)
 );
+```
+
+The paired SSE renderer receives the normal server-populated view context:
+
+```tsx
+/** _body.live.sse.tsx */
+import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
+
+export function renderTick(data: IncidentEvent, ctx: ViewRenderContext): HtmlRenderable {
+  const detailUrl = ctx.url.route("incidents.index", {
+    component: "incident-detail",
+    query: { incidentId: data.id }
+  });
+  return <tr id={`incident-row-${data.id}`} data-detail-url={detailUrl ?? ""} hx-swap-oob="outerHTML"></tr>;
+}
 ```
 
 When the service observes a domain change, it calls `this.betterPortal.sse.emit("incidents.index", { tenantId, appId }, { id })`. Codegen makes the view id and input type-safe; BetterPortal validates and scopes the event. `_body.live.sse.tsx` returns one stable OOB row/component, for example `<tr id="incident-row-123" hx-swap-oob="outerHTML">...</tr>`. Coalesce rapid changes by incident id before emitting; the newest state wins. Never emit the complete queue. On reconnect, reload the GET snapshot because SSE is intentionally not a durable event log.

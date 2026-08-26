@@ -19,6 +19,7 @@ export interface ScannedViewRenderer {
   sseRendererPath?: string;
   renderParamWarning?: "missing" | "any" | "unknown";
   renderContextWarning?: "untyped" | "any" | "unknown";
+  sseRenderContextWarning?: "untyped" | "any" | "unknown";
 }
 
 /** Streaming frame renderers for one compatibility key. */
@@ -410,7 +411,7 @@ function detectRenderParamWarning(filePath: string): ScannedViewRenderer["render
   return warning;
 }
 
-function detectRenderContextWarning(filePath: string): ScannedViewRenderer["renderContextWarning"] {
+function detectRenderContextWarning(filePath: string, exportName = "render"): ScannedViewRenderer["renderContextWarning"] {
   const source = fs.readFileSync(filePath, "utf-8");
   const sourceFile = ts.createSourceFile(path.basename(filePath), source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   let warning: ScannedViewRenderer["renderContextWarning"];
@@ -425,13 +426,13 @@ function detectRenderContextWarning(filePath: string): ScannedViewRenderer["rend
 
   function visit(node: ts.Node): void {
     if (warning) return;
-    if (ts.isFunctionDeclaration(node) && node.name?.text === "render" && hasExportModifier(node)) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === exportName && hasExportModifier(node)) {
       check(node.parameters);
       return;
     }
     if (ts.isVariableStatement(node) && hasExportModifier(node)) {
       for (const declaration of node.declarationList.declarations) {
-        if (!ts.isIdentifier(declaration.name) || declaration.name.text !== "render" || declaration.type || !declaration.initializer) continue;
+        if (!ts.isIdentifier(declaration.name) || declaration.name.text !== exportName || declaration.type || !declaration.initializer) continue;
         let initializer = declaration.initializer;
         while (ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
         if (ts.isSatisfiesExpression(initializer)) continue;
@@ -747,6 +748,9 @@ function scanRendererDirectory(
       fragmentId: parsed.fragmentId,
       relativePath: relativeFromGenerated(generatedDir, filePath),
       sseRendererPath: sseRendererMatches?.[0],
+      sseRenderContextWarning: sseRendererMatches?.[0]
+        ? detectRenderContextWarning(path.resolve(generatedDir, sseRendererMatches[0]), "renderTick")
+        : undefined,
       renderParamWarning: detectRenderParamWarning(filePath),
       renderContextWarning: detectRenderContextWarning(filePath),
     });
