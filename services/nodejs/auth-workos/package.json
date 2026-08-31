@@ -36,7 +36,7 @@
     "@betterportal/framework": "10.6.1",
     "@betterportal/plugin-bsb": "10.6.1",
     "@bsb/base": "^9.6.77",
-    "@workos-inc/node": "^10.7.0",
+    "@workos-inc/node": "^10.12.0",
     "anyvali": "^1.1.0",
     "jsonwebtoken": "^9.0.2",
     "jsx-htmx": "4.0.0-beta6"
