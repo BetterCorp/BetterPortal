@@ -201,6 +201,8 @@ export function renderThemeLlmsDev(context: ThemeLlmsContext): string {
     `- [Current app API guide](${absolute(context.app.url, "/llms-api.txt")}): Installed services and live schemas.`,
     "",
     "For TypeScript, use `bp client install <registry-ref-or-plugin-id>` and `bp client sync`. For another language, consume `/.well-known/bp/schema.json` or a registry schema directly.",
+    "A Node service's `BPServiceDefinition` is `{ manifest }`. Do not import or return `.bp-generated/registry`; codegen creates it and BetterPortal loads it automatically.",
+    "Export `PluginFeature` from the service plugin index, usually as `Pick<Plugin, ...>`, to expose only the plugin methods route handlers need. If omitted, generated handlers intentionally receive `Record<never, never>`.",
     "Service requests use `routeUrl`, not `uiRouteUrl`; `uiRouteUrl` is only for GET navigation through a mounted page route. For another service, pass its declared dependency alias as `serviceId`; both helpers resolve it through the synced application route index.",
     "HTML renderers receive `ViewRenderContext` as their second argument. Its limited `tenant` and `app` projections are presentation-only; authorization and business data remain in the route handler.",
     "App auth login/logout references are view IDs, not paths. Resolve them with `ctx.url.uiRoute(viewId, { serviceId })`; do not add renderer-only navigation to the JSON response schema.",

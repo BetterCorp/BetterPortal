@@ -35,6 +35,7 @@ export interface ScannedMethodModule {
   operationId?: string;
   relativePath: string;
   exports: string[];
+  hasLegacyStringDependencies?: boolean;
   isRaw: boolean;
   looseSchemas: string[];
   allowUnknownKeysSchemas?: string[];
@@ -522,6 +523,40 @@ function detectLiteralExport(filePath: string, exportName: string): string | und
   return value;
 }
 
+function detectLegacyStringDependencies(filePath: string): boolean {
+  const sourceFile = ts.createSourceFile(
+    path.basename(filePath),
+    fs.readFileSync(filePath, "utf-8"),
+    ts.ScriptTarget.ES2022,
+    true,
+    ts.ScriptKind.TS,
+  );
+
+  const unwrap = (expression: ts.Expression): ts.Expression => {
+    while (
+      ts.isAsExpression(expression)
+      || ts.isSatisfiesExpression(expression)
+      || ts.isParenthesizedExpression(expression)
+      || ts.isTypeAssertionExpression(expression)
+    ) {
+      expression = expression.expression;
+    }
+    return expression;
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement) || !hasExportModifier(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== "dependencies" || !declaration.initializer) continue;
+      const initializer = unwrap(declaration.initializer);
+      if (ts.isArrayLiteralExpression(initializer)) {
+        return initializer.elements.some((element) => ts.isStringLiteralLike(unwrap(element)));
+      }
+    }
+  }
+  return false;
+}
+
 function hasExportModifier(node: ts.Node): boolean {
   const mods = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
   return mods?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
@@ -801,6 +836,7 @@ function scanDirectory(
         operationId: detectLiteralExport(filePath, "operationId"),
         relativePath: relativeFromGenerated(generatedDir, filePath),
         exports: [...new Set(exports)],
+        hasLegacyStringDependencies: detectLegacyStringDependencies(filePath),
         isRaw: detectRawHandler(filePath),
         ...detectSchemaPolicy(filePath),
       });

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import ts from "typescript";
+import { emitRegistry } from "../src/codegen/emitter.js";
 import { scanRoutes } from "../src/codegen/scanner.js";
 import { validateScanResult } from "../src/codegen/validate.js";
 import type { ScanResult, ScannedRoute } from "../src/codegen/scanner.js";
@@ -81,6 +83,65 @@ test("operation ids are unique across a service", () => {
   assert.equal(issues.some((issue) =>
     issue.severity === "error" && issue.message.includes('Duplicate operationId "download.read"')
   ), true);
+});
+
+test("legacy string dependencies fail with the object migration", () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-legacy-dependencies-"));
+  try {
+    const routeDir = join(baseDir, "bp-routes", "home");
+    mkdirSync(routeDir, { recursive: true });
+    writeFileSync(join(baseDir, "index.ts"), "export class Plugin {}\n");
+    writeFileSync(join(routeDir, "index.ts"), 'export const viewId = "home.index";\n');
+    writeFileSync(join(routeDir, "GET.ts"), `
+      export const operationId = "home.read";
+      export const title = "Home";
+      export const description = "Home";
+      export const auth = { required: false, permissions: [] };
+      export const ResponseSchema = {};
+      export const dependencies = ["auth.login"] as const;
+      export default () => ({});
+    `);
+
+    const issues = validateScanResult(scanRoutes(baseDir));
+    assert.equal(issues.some((issue) =>
+      issue.severity === "error"
+      && issue.message.includes("Use { operationId, method, serviceId? }")
+    ), true);
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("generated registries compile with noUnusedLocals when no renderers are used", () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "bp-codegen-unused-imports-"));
+  try {
+    const generatedPath = join(baseDir, "registry.ts");
+    const frameworkTypesPath = join(baseDir, "framework.d.ts");
+    writeFileSync(generatedPath, emitRegistry(scanResult([])));
+    writeFileSync(frameworkTypesPath, `
+      declare module "@betterportal/framework" {
+        export interface BetterPortalRegistry { routes: unknown[]; shellFragments: unknown[]; }
+      }
+    `);
+
+    const program = ts.createProgram([generatedPath, frameworkTypesPath], {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.NodeNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeNext,
+      noEmit: true,
+      noUnusedLocals: true,
+      strict: true,
+      skipLibCheck: true
+    });
+    const diagnostics = ts.getPreEmitDiagnostics(program);
+    assert.equal(ts.formatDiagnostics(diagnostics, {
+      getCanonicalFileName: (file) => file,
+      getCurrentDirectory: () => baseDir,
+      getNewLine: () => "\n"
+    }), "");
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
 });
 
 test("shell fragment folders distinguish singular fragments from blocks", () => {

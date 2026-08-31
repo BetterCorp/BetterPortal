@@ -38,7 +38,16 @@ npm run bp-codegen
 
 ## Release publishing
 
-Tag releases publish npm packages, BSB registry schemas, and BetterPortal contracts. The tag is the release version: pushing `v10.0.2` makes CI set every workspace package to `10.0.2` before build/publish. Master builds and tests only; it does not publish.
+Tag releases publish npm packages, BSB registry schemas, and BetterPortal contracts. Set and commit the workspace version before tagging:
+
+```bash
+node scripts/release/set-workspace-version.mjs 10.0.2
+npm install --package-lock-only
+git commit -am "chore(release): prepare v10.0.2"
+git tag v10.0.2
+```
+
+The tag and committed workspace versions must match; release CI checks this before build/publish. Master builds and tests only, and pushing a commit without the tag does not publish.
 
 Workspaces marked `"private": true` are built and remain eligible for BSB schema and BetterPortal contract publication, but are excluded from the npm publish matrix. Bootstrap2 is intentionally private and is not published to npm.
 

@@ -117,6 +117,13 @@ function checkOperationMetadata(route: ScannedRoute, errors: ValidationError[]):
   }
 
   for (const methodRoute of route.methodModules) {
+    if (methodRoute.hasLegacyStringDependencies) {
+      errors.push({
+        file: methodRoute.relativePath,
+        message: "Legacy string dependencies are not supported. Use { operationId, method, serviceId? }.",
+        severity: "error"
+      });
+    }
     for (const required of ["operationId", "title", "description", "auth"]) {
       if (!methodRoute.exports.includes(required)) {
         errors.push({

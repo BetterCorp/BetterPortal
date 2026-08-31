@@ -492,7 +492,17 @@ export function emitRegistry(scanResult: ScanResult): string {
     lines.push(`import * as ${imp.alias} from ${JSON.stringify(imp.path)};`);
   }
 
-  lines.push(`import type { BetterPortalRegistry, SseRendererFor, StreamRendererSetFor, ViewRendererFor } from "@betterportal/framework";`);
+  const frameworkTypes = ["BetterPortalRegistry"];
+  if (scanResult.routes.some((route) => route.renderers.some((renderer) => renderer.sseRendererPath))) {
+    frameworkTypes.push("SseRendererFor");
+  }
+  if (scanResult.routes.some((route) => route.streamRenderers.length > 0)) {
+    frameworkTypes.push("StreamRendererSetFor");
+  }
+  if (scanResult.routes.some((route) => route.renderers.length > 0)) {
+    frameworkTypes.push("ViewRendererFor");
+  }
+  lines.push(`import type { ${frameworkTypes.join(", ")} } from "@betterportal/framework";`);
   lines.push("");
   lines.push("export const registry = {");
   if (Object.keys(scanResult.dependencyAliases).length > 0) {
@@ -583,6 +593,7 @@ export function emitRouteRuntime(scanResult: ScanResult): string {
     lines.push(`import type { ${importedTypes.join(", ")} } from ${JSON.stringify(scanResult.pluginImportPath)};`);
   }
   if (!hasPluginFeature) {
+    lines.push("// Export PluginFeature from the service plugin index to expose an explicit handler context surface.");
     lines.push("type PluginFeature = Record<never, never>;");
   }
   if (!hasServiceConfig) {

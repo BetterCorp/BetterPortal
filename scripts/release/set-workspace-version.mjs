@@ -1,9 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 const version = process.argv[2];
+const checkOnly = process.argv.includes("--check");
 
 if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
-  console.error("Usage: node scripts/release/set-workspace-version.mjs <semver>");
+  console.error("Usage: node scripts/release/set-workspace-version.mjs <semver> [--check]");
   process.exit(1);
 }
 
@@ -20,6 +21,24 @@ const workspacePackages = workspacePaths.map((workspacePath) => ({
   pkg: readJson(`${workspacePath}/package.json`)
 }));
 const workspaceNames = new Set(workspacePackages.map((entry) => entry.pkg.name));
+
+if (checkOnly) {
+  const mismatches = [];
+  for (const { file, pkg } of [{ file: "package.json", pkg: root }, ...workspacePackages]) {
+    if (pkg.version !== version) mismatches.push(`${file}: version is ${pkg.version ?? "missing"}`);
+    for (const field of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+      for (const [name, value] of Object.entries(pkg[field] ?? {})) {
+        if (workspaceNames.has(name) && value !== version) mismatches.push(`${file}: ${field}.${name} is ${value}`);
+      }
+    }
+  }
+  if (mismatches.length > 0) {
+    console.error(`Workspace packages must match release ${version}:\n${mismatches.join("\n")}`);
+    process.exit(1);
+  }
+  console.log(`BetterPortal workspace matches release ${version}`);
+  process.exit(0);
+}
 
 const updateDeps = (deps) => {
   if (!deps) return;

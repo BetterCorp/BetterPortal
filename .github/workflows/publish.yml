@@ -45,10 +45,10 @@ jobs:
       - name: Install
         run: npm ci --workspaces --include-workspace-root
 
-      - name: Version workspace from tag
+      - name: Verify workspace version matches tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          node scripts/release/set-workspace-version.mjs "$TAG"
+          node scripts/release/set-workspace-version.mjs "$TAG" --check
 
       - name: Build core packages
         run: |
@@ -81,10 +81,10 @@ jobs:
       - name: Install
         run: npm ci --workspaces --include-workspace-root
 
-      - name: Version workspace from tag
+      - name: Verify workspace version matches tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          node scripts/release/set-workspace-version.mjs "$TAG"
+          node scripts/release/set-workspace-version.mjs "$TAG" --check
 
       - name: Build local core dependencies
         run: |
@@ -114,10 +114,10 @@ jobs:
       - name: Install
         run: npm ci --workspaces --include-workspace-root
 
-      - name: Version workspace from tag
+      - name: Verify workspace version matches tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          node scripts/release/set-workspace-version.mjs "$TAG"
+          node scripts/release/set-workspace-version.mjs "$TAG" --check
 
       - name: Build core packages
         run: |
@@ -155,10 +155,10 @@ jobs:
       - name: Install
         run: npm ci --workspaces --include-workspace-root
 
-      - name: Version workspace from tag
+      - name: Verify workspace version matches tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          node scripts/release/set-workspace-version.mjs "$TAG"
+          node scripts/release/set-workspace-version.mjs "$TAG" --check
 
       - name: Build local core dependencies
         run: |
@@ -197,10 +197,10 @@ jobs:
       - name: Install
         run: npm ci --workspaces --include-workspace-root
 
-      - name: Version workspace from tag
+      - name: Verify workspace version matches tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          node scripts/release/set-workspace-version.mjs "$TAG"
+          node scripts/release/set-workspace-version.mjs "$TAG" --check
 
       - name: Build local core dependencies
         run: |
@@ -264,10 +264,10 @@ jobs:
       - name: Install
         run: npm ci --workspaces --include-workspace-root
 
-      - name: Version workspace from tag
+      - name: Verify workspace version matches tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          node scripts/release/set-workspace-version.mjs "$TAG"
+          node scripts/release/set-workspace-version.mjs "$TAG" --check
 
       - name: Build local dependencies and package
         run: |
