@@ -36,7 +36,7 @@
   ],
   "dependencies": {
     "anyvali": "^1.1.0",
-    "h3": "^2.0.1-rc.20",
+    "h3": "^2.0.1-rc.29",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^4.1.0",
     "typescript": "^6.0.3",
