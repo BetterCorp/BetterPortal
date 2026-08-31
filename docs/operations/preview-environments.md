@@ -33,15 +33,11 @@ BetterPortal includes a reusable JavaScript action at `.github/actions/preview-e
 
 No self-hosted runner is required unless the caller's deployment target is reachable only from a private network. The action runs on GitHub-hosted runners and uses GitHub OIDC, so a BetterPortal group API key does not need to be stored in GitHub.
 
-### Make the private action available
+### Allow the action in private service repositories
 
-For private repositories in the BetterCorp organization:
+The BetterPortal repository is public, so a private service repository can use the action without granting BetterPortal access to its source. If the service repository or organization restricts allowed actions, permit `BetterCorp/BetterPortal` under **Settings > Actions > General**. See GitHub's [allowed-actions settings](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository).
 
-1. Open the BetterPortal repository's **Settings > Actions > General** page.
-2. Under **Access**, select **Accessible from repositories in the BetterCorp organization**.
-3. In each service repository, allow actions and reusable workflows from the BetterCorp organization.
-
-GitHub gives the runner a short-lived, read-only installation token to download the private action. Repository collaborators do not gain direct access to the BetterPortal repository. Review GitHub's [private action sharing guidance](https://docs.github.com/en/actions/how-tos/reuse-automations/share-with-your-organization), especially its warning about what outside collaborators can see in workflow logs.
+If BetterPortal is made private later, its **Settings > Actions > General > Access** policy must also allow callers in the BetterCorp organization. Review GitHub's [private action sharing guidance](https://docs.github.com/en/actions/how-tos/reuse-automations/share-with-your-organization) before changing visibility.
 
 ### Configure the preview group's GitHub OIDC trust
 
