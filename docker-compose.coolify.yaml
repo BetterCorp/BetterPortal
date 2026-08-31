@@ -38,6 +38,25 @@ services:
       timeout: 5s
       retries: 10
 
+  registry:
+    build:
+      context: .
+      dockerfile: services/nodejs/registry/Dockerfile
+    restart: unless-stopped
+    environment:
+      BP_REGISTRY_TOKEN: ${BP_REGISTRY_TOKEN:?Set BP_REGISTRY_TOKEN for BetterPortal contract publishing}
+      BP_COMMUNITY_REGISTRY_TOKEN: ${BP_COMMUNITY_REGISTRY_TOKEN:?Set BP_COMMUNITY_REGISTRY_TOKEN for community contract publishing}
+    volumes:
+      - bp-registry:/mnt/temp
+    expose:
+      - "3210"
+      - "3211"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3211/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
   config-manager:
     <<: *bp-common
     environment:
@@ -155,6 +174,7 @@ services:
 
 volumes:
   bp-postgres:
+  bp-registry:
   bp-plugins:
   bp-config-manager:
   bp-bootstrap1-data:

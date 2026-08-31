@@ -70,6 +70,8 @@ Use `docker-compose.coolify.yaml` for repo-sync deployments. It runs the BSB run
 
 The compose includes PostgreSQL 18 for config-manager production storage. Set `BP_POSTGRES_PASSWORD`; optional `BP_POSTGRES_DB` and `BP_POSTGRES_USER` default to `betterportal`.
 
+It also builds the combined registry service from `services/nodejs/registry/Dockerfile`. In Coolify, route the BSB registry UI hostname to container port `3210` and `io.betterportal.org` to container port `3211`. Set `BP_REGISTRY_TOKEN` and `BP_COMMUNITY_REGISTRY_TOKEN` to separate random values of at least 16 characters. Keep the `BP_REGISTRY_TOKEN` value identical to the GitHub Actions repository secret used by the release workflow. Registry packages and contracts persist in the `bp-registry` volume mounted at `/mnt/temp`.
+
 Coolify services use the BSB runtime-provided vault config plugin instead of writing `sec-config.yaml` or injecting full config JSON into the container. The compose file selects that plugin for each BP service and sets:
 
 ```text
@@ -114,6 +116,8 @@ BP_WORKOS_VAULT_API_KEY_ID
 BP_WORKOS_VAULT_API_SECRET
 BP_HELLO_VIEW_VAULT_API_KEY_ID
 BP_HELLO_VIEW_VAULT_API_SECRET
+BP_REGISTRY_TOKEN
+BP_COMMUNITY_REGISTRY_TOKEN
 ```
 
 The compose file maps those envs into the names expected by the BSB vault config plugin: `apiKeyId` and `apiSecret`. The Coolify image exposes container port `80` and the compose file does not declare host port mappings; set each bundled service profile's plugin `config.port` to `80` for Coolify deployments.
@@ -138,6 +142,7 @@ For the bundled database, config-manager storage should use the `postgres` compo
 Persistent data lives in named volumes:
 
 - `bp-postgres`: PostgreSQL data.
+- `bp-registry`: BSB registry packages and immutable BetterPortal contracts.
 - `bp-plugins`: shared BSB plugin package cache.
 - `bp-config-manager`: platform config, CP signing keys, webhook delivery state.
 - service data volumes: bootstrap/install state, last scoped config snapshot, and service-specific stores such as auth signing keys/users. Point BP state and service-specific stores at `/data/...` in the relevant service JSON.
