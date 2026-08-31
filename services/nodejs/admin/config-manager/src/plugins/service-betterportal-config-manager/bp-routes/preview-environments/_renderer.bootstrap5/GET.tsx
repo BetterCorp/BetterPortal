@@ -7,7 +7,6 @@ function pageScript(): HtmlRenderable {
   return js(`(() => {
     const tenant = document.getElementById("bp-preview-source-tenant");
     const app = document.getElementById("bp-preview-source-app");
-    const services = document.getElementById("bp-preview-service-ids");
     const syncApps = () => {
       if (!tenant || !app) return;
       [...app.options].forEach((option) => {
@@ -15,13 +14,7 @@ function pageScript(): HtmlRenderable {
       });
       if (app.selectedOptions[0]?.hidden) app.value = "";
     };
-    const syncServices = () => {
-      const option = app?.selectedOptions[0];
-      if (!services || !option?.value) return;
-      services.value = option.dataset.requiredServices || option.dataset.services || "";
-    };
     tenant?.addEventListener("change", syncApps);
-    app?.addEventListener("change", syncServices);
     syncApps();
 
     document.querySelectorAll("[data-bp-copy-target]").forEach((button) => {
@@ -291,8 +284,8 @@ export function render(data: ResponseData): HtmlRenderable {
                 <code class="d-block text-break">POST {data.deploymentApiBase}/{group.id}/deployments/&lt;key&gt;</code>
               </div>
               <div class="col-12 col-xl-5">
-                <div class="small text-secondary mb-1">Managed services</div>
-                <div class="d-flex flex-wrap gap-1">{group.services.map((service) => <span class="badge text-bg-secondary">{service.serviceId}</span>)}</div>
+                <div class="small text-secondary mb-1">Discovered services</div>
+                <div class="d-flex flex-wrap gap-1">{group.services.length ? group.services.map((service) => <span class="badge text-bg-secondary">{service.serviceId}</span>) : <span class="small text-secondary">Added by the first preview create request.</span>}</div>
               </div>
             </div>
 
@@ -307,13 +300,11 @@ export function render(data: ResponseData): HtmlRenderable {
                     <div class="col-12 col-md-4"><label class="form-label">Name</label><input class="form-control" name="name" /></div>
                     <div class="col-12 col-md-4"><label class="form-label">Expiry</label>{expiryInput(undefined, true)}</div>
                     <div class="col-12"><label class="form-label">App hostname or origin</label><input class="form-control font-monospace" name="hostname" placeholder="pr-123.preview.example.com" required /></div>
-                    {group.services.map((service) => (
-                      <div class="col-12 col-lg-6">
-                        <label class="form-label">{service.title} URL</label>
-                        <input class="form-control font-monospace" type="url" name={`service.${service.serviceId}`} placeholder="https://service-pr-123.example.com" required />
-                        <div class="form-text font-monospace">{service.serviceId}</div>
-                      </div>
-                    ))}
+                    <div class="col-12">
+                      <label class="form-label" for={`bp-preview-services-${group.id}`}>Services</label>
+                      <textarea id={`bp-preview-services-${group.id}`} class="form-control font-monospace" name="services" rows={Math.max(4, group.services.length + 2)} required>{JSON.stringify(Object.fromEntries(group.services.map((service) => [service.serviceId, ""])), null, 2)}</textarea>
+                      <div class="form-text">JSON object mapping service IDs to public HTTPS URLs.</div>
+                    </div>
                   </div>
                   <button class="btn btn-primary mt-3" type="submit">Create preview</button>
                 </form>
@@ -385,12 +376,7 @@ export function render(data: ResponseData): HtmlRenderable {
             </div>
             <div class="mb-3">
               <label class="form-label" for="bp-preview-source-app">Source app</label>
-              <select id="bp-preview-source-app" class="form-select" name="sourceAppId" required><option value="">Select app</option>{data.sourceApps.map((app) => <option value={app.id} data-tenant-id={app.tenantId} data-services={app.serviceIds.join(",")} data-required-services={app.requiredServiceIds.join(",")}>{app.title}</option>)}</select>
-            </div>
-            <div class="mb-3">
-              <label class="form-label" for="bp-preview-service-ids">Service plugin IDs</label>
-              <textarea id="bp-preview-service-ids" class="form-control font-monospace" name="serviceIds" rows={4} required></textarea>
-              <div class="form-text">Required source services are filled automatically. Add more tenant services if CI will deploy them.</div>
+              <select id="bp-preview-source-app" class="form-select" name="sourceAppId" required><option value="">Select app</option>{data.sourceApps.map((app) => <option value={app.id} data-tenant-id={app.tenantId}>{app.title}</option>)}</select>
             </div>
             <div class="mb-3"><label class="form-label">Maximum/default expiry</label>{expiryInput(30)}</div>
             {oidcFields("bp-new-group")}

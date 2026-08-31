@@ -19,7 +19,6 @@ import {
   deletePreviewDeployment,
   deletePreviewGroup,
   provisionPreviewDeployment,
-  managedServiceIdsForPreviewApp,
   rotatePreviewGroupApiKey,
   updatePreviewDeploymentExpiry,
   updatePreviewGroup,
@@ -30,10 +29,7 @@ import {
 const SourceAppSchema = av.object({
   id: av.string().minLength(1),
   tenantId: av.string().minLength(1),
-  tenantTitle: av.string().minLength(1),
-  title: av.string().minLength(1),
-  serviceIds: av.array(av.string()).default([]),
-  requiredServiceIds: av.array(av.string()).default([])
+  title: av.string().minLength(1)
 });
 
 const PreviewConfigFieldSchema = av.object({
@@ -156,7 +152,6 @@ export const handlePost = createHandler(
         name: stringValue(ctx.request.name),
         sourceTenantId,
         sourceAppId,
-        serviceIds: splitList(ctx.request.serviceIds),
         expiresInDays: expiryValue(ctx.request.expiresInDays),
         oidc: oidcValue(ctx.request)
       });
@@ -182,10 +177,7 @@ export const handlePost = createHandler(
         name: stringValue(ctx.request.name) || undefined,
         hostname: stringValue(ctx.request.hostname),
         expiresInDays: optionalExpiryValue(ctx.request.expiresInDays),
-        services: group.services.map((service) => ({
-          serviceId: service.serviceId,
-          url: stringValue(ctx.request[`service.${service.serviceId}`])
-        }))
+        services: serviceUrls(ctx.request.services)
       }, routeContext.serviceBaseUrl);
       await routeContext.storage.saveConfig(config);
       return {
@@ -262,14 +254,10 @@ async function buildResponse(path: string, transient: Partial<ResponseData> = {}
   const config = visibleAdminConfig(fullConfig);
   const sourceApps = config.apps.map((app) => {
     const tenant = config.tenants.find((candidate) => candidate.id === app.tenantId)!;
-    const services = tenant.services.filter((service) => service.serviceId);
     return {
       id: app.id,
       tenantId: tenant.id,
-      tenantTitle: tenant.title,
-      title: app.title,
-      serviceIds: [...new Set(services.map((service) => service.serviceId!))],
-      requiredServiceIds: managedServiceIdsForPreviewApp(config, app)
+      title: app.title
     };
   });
   const groups = fullConfig.previewEnvironmentGroups.map((group) => groupModel(fullConfig, group));
@@ -303,8 +291,7 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup) 
       requiredClaimsJson: JSON.stringify(group.oidc.requiredClaims, null, 2)
     } : undefined,
     services: group.services.map((service) => {
-      const sourceService = sourceTenant?.services.find((candidate) => candidate.serviceId === service.serviceId);
-      const descriptors = sourceService ? getCachedManifestForService(config, sourceService.id)?.configSchemas ?? [] : [];
+      const descriptors = previewConfigSchemas(config, group, service.serviceId) ?? [];
       const fields = [...new Map(descriptors.flatMap((descriptor) => descriptor.fields).map((field) => [
         `${field.scope}:${field.key}`,
         {
@@ -359,8 +346,7 @@ function saveGroupConfig(config: BetterPortalConfig, groupId: string, raw: strin
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new PreviewEnvironmentError("Encrypted preview config must be an object");
 
   for (const service of group.services) {
-    const sourceService = sourceTenant.services.find((candidate) => candidate.serviceId === service.serviceId);
-    const descriptors = sourceService ? getCachedManifestForService(config, sourceService.id)?.configSchemas : undefined;
+    const descriptors = previewConfigSchemas(config, group, service.serviceId);
     if (!descriptors) throw new PreviewEnvironmentError(`Config schema is not synced for ${service.serviceId}`, 409);
     const value = (input as Record<string, unknown>)[service.serviceId];
     const scopes = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -429,8 +415,26 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function splitList(value: unknown): string[] {
-  return stringValue(value).split(/[\s,]+/).map((part) => part.trim()).filter(Boolean);
+function serviceUrls(value: unknown): Array<{ serviceId: string; url: string }> {
+  let parsed: unknown;
+  try { parsed = JSON.parse(stringValue(value)); } catch { throw new PreviewEnvironmentError("Services must be a valid JSON object"); }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new PreviewEnvironmentError("Services must be a JSON object keyed by service ID");
+  return Object.entries(parsed as Record<string, unknown>).map(([serviceId, url]) => {
+    if (typeof url !== "string") throw new PreviewEnvironmentError(`Service URL for ${serviceId} must be a string`);
+    return { serviceId, url };
+  });
+}
+
+function previewConfigSchemas(config: BetterPortalConfig, group: PreviewEnvironmentGroup, serviceId: string) {
+  for (const service of config.previewEnvironmentDeployments
+    .filter((deployment) => deployment.groupId === group.id)
+    .flatMap((deployment) => deployment.services)
+    .filter((service) => service.serviceId === serviceId)) {
+    const schemas = getCachedManifestForService(config, service.instanceId)?.configSchemas;
+    if (schemas) return schemas;
+  }
+  const sourceService = config.tenants.find((tenant) => tenant.id === group.sourceTenantId)?.services.find((service) => service.serviceId === serviceId);
+  return sourceService ? getCachedManifestForService(config, sourceService.id)?.configSchemas : undefined;
 }
 
 function optionalExpiryValue(value: unknown): number | null | undefined {

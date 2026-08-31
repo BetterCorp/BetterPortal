@@ -516,7 +516,7 @@ export const PreviewEnvironmentGroupSchema = av.object({
   expiresInDays: av.nullable(av.int().min(1).max(3650)).default(30),
   apiKeyHash: NonEmptyStringSchema,
   oidc: av.optional(PreviewEnvironmentOidcSchema),
-  services: av.array(PreviewEnvironmentGroupServiceSchema).minItems(1),
+  services: av.array(PreviewEnvironmentGroupServiceSchema).default([]),
   createdAt: av.string().format("date-time"),
   updatedAt: av.string().format("date-time")
 });

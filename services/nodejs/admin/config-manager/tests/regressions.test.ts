@@ -1486,22 +1486,26 @@ test("preview groups clone, reconcile, refresh and expire in isolation", () => {
     path: "/second",
     serviceId: secondInstanceId
   });
-  assert.throws(() => createPreviewGroup(ambiguous, {
+  const ambiguousGroup = createPreviewGroup(ambiguous, {
     name: "Ambiguous",
     sourceTenantId: tenantId,
     sourceAppId: appId,
-    serviceIds: ["org.example.service"],
     expiresInDays: 30
-  }), /multiple instances/);
+  }).group;
+  assert.throws(() => provisionPreviewDeployment(ambiguous, ambiguousGroup.id, {
+    key: "ambiguous",
+    hostname: "ambiguous.example",
+    services: [{ serviceId: "org.example.service", url: "https://service-ambiguous.example" }]
+  }, "https://config.example", now), /multiple instances/);
 
   const { group, apiKey } = createPreviewGroup(config, {
     name: "Pull requests",
     sourceTenantId: tenantId,
     sourceAppId: appId,
-    serviceIds: ["org.example.service"],
     expiresInDays: 30
   }, now);
   assert.match(apiKey, /^bp_pg_/);
+  assert.deepEqual(group.services, []);
 
   const created = provisionPreviewDeployment(config, group.id, {
     key: "123",
@@ -1512,6 +1516,7 @@ test("preview groups clone, reconcile, refresh and expire in isolation", () => {
   }, "https://config.example", now);
   assert.equal(created.created, true);
   assert.equal(created.credentials.length, 1);
+  assert.deepEqual(group.services.map((service) => service.serviceId), ["org.example.service"]);
   assert.equal(created.deployment.expiresAt, "2026-01-08T00:00:00.000Z");
   assert.equal(visibleAdminConfig(config).tenants.length, 1);
   assert.equal(visibleAdminConfig(config).apps.length, 1);
@@ -1570,7 +1575,21 @@ test("preview groups clone, reconcile, refresh and expire in isolation", () => {
   assert.equal(refreshed.deployment.hostname, "pr-123.example");
   assert.equal(refreshed.deployment.expiresAt, "2026-01-09T00:00:00.000Z");
 
-  assert.deepEqual(deleteExpiredPreviewDeployments(config, new Date("2026-01-10T00:00:00.000Z")), [created.deployment.id]);
+  assert.throws(() => provisionPreviewDeployment(config, group.id, {
+    key: "123",
+    hostname: "ignored.example",
+    services: [{ serviceId: "org.example.other", url: "https://other-pr-123.example" }]
+  }, "https://config.example", now), /exactly match the existing preview/);
+
+  const other = provisionPreviewDeployment(config, group.id, {
+    key: "456",
+    hostname: "pr-456.example",
+    expiresInDays: 7,
+    services: [{ serviceId: "org.example.other", url: "https://other-pr-456.example" }]
+  }, "https://config.example", new Date("2026-01-02T00:00:00.000Z"));
+  assert.deepEqual(group.services.map((service) => service.serviceId), ["org.example.service", "org.example.other"]);
+
+  assert.deepEqual(deleteExpiredPreviewDeployments(config, new Date("2026-01-10T00:00:00.000Z")), [created.deployment.id, other.deployment.id]);
   assert.equal(config.previewEnvironmentDeployments.length, 0);
   assert.equal(config.tenants.length, 1);
   assert.equal(config.apps.length, 1);
@@ -1609,7 +1628,6 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
     name: "Pull requests",
     sourceTenantId: tenantId,
     sourceAppId: appId,
-    serviceIds: ["org.example.service"],
     expiresInDays: 30
   });
   const handlers = new Map<string, (event: never) => Promise<Response>>();
@@ -1687,6 +1705,7 @@ test("preview environment editor keeps config crypto in the browser", () => {
     issuedCredentials: []
   }));
   assert.match(html, /BP_PREVIEW_CONFIG_KEY/);
+  assert.doesNotMatch(html, /Service plugin IDs/);
   assert.match(html, /crypto\.subtle\.encrypt/);
   const keyInput = /<input[^>]*data-bp-preview-key=""[^>]*>/.exec(html)?.[0];
   assert.ok(keyInput);

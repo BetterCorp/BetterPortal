@@ -2,6 +2,8 @@
 
 Preview groups clone one source tenant/app into isolated, non-editable preview resources. CI continues to own service builds, deployment, DNS, and TLS; BetterPortal owns the cloned application configuration and lifecycle.
 
+Creating a group does not require a service list. Each new preview records the service IDs and URLs supplied by its create request, allowing different deployment keys in the same group to contain different services. Service-specific preview configuration becomes available after those services are discovered and sync their manifests.
+
 ## CI API
 
 The deployment API is intentionally outside BetterPortal route negotiation:
@@ -23,7 +25,7 @@ Content-Type: application/json
 }
 ```
 
-The service set must exactly match the group. Repeating the request refreshes the stored lifetime; changed service URLs rotate only those service credentials. `setupMode` may be omitted and defaults to `pull`; other modes are rejected.
+Repeating a request for the same deployment key must use that preview's original service set. It refreshes the stored lifetime; changed service URLs rotate only those service credentials. `setupMode` may be omitted and defaults to `pull`; other modes are rejected.
 
 On first creation, copy each returned `BP_CONTROL_PLANE_URL` and `BP_SERVICE_API_KEY` into the matching service deployment. `DELETE` on the same URL removes the preview immediately and is safe to repeat. Expired previews are deleted automatically.
 
