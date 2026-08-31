@@ -29,6 +29,7 @@ import {
   revokeM2MConnection,
   type M2MConnectionSelection
 } from "./m2mConnections.js";
+import { isPreviewApp, isPreviewTenant } from "./previewEnvironments.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
@@ -254,9 +255,10 @@ function appPublicUrl(app: BetterPortalApp | undefined): string | undefined {
 function currentAppFromRequest(config: BetterPortalConfig, event: BetterPortalEvent): BetterPortalApp | undefined {
   const url = new URL(event.req.url, RELATIVE_URL_PARSE_BASE);
   const appId = url.searchParams.get("appId") ?? event.req.headers.get("x-bp-app-id") ?? "";
-  return appId
+  const resolved = appId
     ? config.apps.find((entry) => entry.id === appId)
     : resolveEmbeddedRequestContext(config, eventHeaders(event))?.app;
+  return resolved && !isPreviewApp(config, resolved.id) ? resolved : undefined;
 }
 
 function managementDiscovery(config: BetterPortalConfig, cpState: CpBootstrapState): JsonValue {
@@ -611,6 +613,7 @@ function signConfigTicket(cpState: CpBootstrapState, input: {
 }
 
 function findRegisteredService(config: any, tenantId: string, hostname: string, serviceInstanceId?: string): { id?: string; serviceId?: string; hostname?: string; title?: string; capabilities?: string[] } | null {
+  if ((config.previewEnvironmentDeployments ?? []).some((deployment: { tenantId: string }) => deployment.tenantId === tenantId)) return null;
   if (serviceInstanceId) {
     const tenant = (config.tenants ?? []).find((t: any) => t.id === tenantId);
     const tenantService = (tenant?.services ?? []).find((svc: any) => svc.id === serviceInstanceId);
@@ -1066,9 +1069,10 @@ function automationAppFromRequest(config: BetterPortalConfig, event: BetterPorta
   const url = new URL(event.req.url, RELATIVE_URL_PARSE_BASE);
   const tenantUrl = url.searchParams.get("tenantUrl") ?? "";
   const appId = url.searchParams.get("appId") ?? "";
-  return appId
+  const resolved = appId
     ? config.apps.find((entry) => entry.id === appId)
     : config.apps.find((entry) => tenantUrl && appMatchesTenantUrl(entry, tenantUrl));
+  return resolved && !isPreviewApp(config, resolved.id) ? resolved : undefined;
 }
 
 export function registerAdminApiRoutes(
@@ -1076,6 +1080,16 @@ export function registerAdminApiRoutes(
   store: PlatformConfigStore,
   cpState: CpBootstrapState
 ): void {
+  app.use(`${API_BASE}/**`, async (event) => {
+    const config = await store.loadConfig();
+    const url = new URL(event.req.url, RELATIVE_URL_PARSE_BASE);
+    const requestIds = `${url.pathname}\n${url.search}\n${event.req.headers.get("x-bp-tenant-id") ?? ""}\n${event.req.headers.get("x-bp-app-id") ?? ""}`;
+    const targetsPreview = config.previewEnvironmentDeployments.some((deployment) =>
+      requestIds.includes(deployment.tenantId) || requestIds.includes(deployment.appId)
+    );
+    if (targetsPreview) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
+  });
+
   app.get("/.well-known/bp/management", async (event) => {
     const config = await store.loadConfig();
     return jsonResponse(managementDiscovery(config, cpState));

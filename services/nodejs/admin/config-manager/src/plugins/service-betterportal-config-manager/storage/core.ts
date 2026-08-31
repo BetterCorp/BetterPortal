@@ -618,7 +618,8 @@ export abstract class BaseStorage implements PlatformConfigStore {
     scope: "tenant" | "platform",
     tenantId: string | undefined,
     publicKeyPem: string,
-    keyId: string
+    keyId: string,
+    options?: { replace?: boolean }
   ): Promise<"registered" | "matched" | "mismatch" | "not-found"> {
     const config = await this.loadConfig();
     const service = scope === "tenant"
@@ -626,7 +627,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
       : config.platformServices.find((candidate) => candidate.id === serviceId)
         ?? config.sharedServiceCatalog.find((candidate) => candidate.id === serviceId);
     if (!service) return "not-found";
-    if (service.publicKeyPem || service.keyId) {
+    if ((service.publicKeyPem || service.keyId) && !options?.replace) {
       return service.publicKeyPem === publicKeyPem && service.keyId === keyId ? "matched" : "mismatch";
     }
     service.publicKeyPem = publicKeyPem;
@@ -722,9 +723,22 @@ export abstract class BaseStorage implements PlatformConfigStore {
       .map((a) => this.scopeApp(config, a, serviceKeys, isShellCaller, isAuthCaller))
       .filter((a) => isShellCaller || a.routes.length > 0 || Object.keys(a.fragments).length > 0);
 
+    const previewDeployment = (config.previewEnvironmentDeployments ?? []).find((deployment) =>
+      deployment.services.some((binding) => binding.instanceId === service?.id)
+    );
+    const previewGroup = previewDeployment
+      ? (config.previewEnvironmentGroups ?? []).find((group) => group.id === previewDeployment.groupId)
+      : undefined;
+    const previewService = previewGroup?.services.find((candidate) => candidate.serviceId === service?.serviceId);
+    const previewConfig = previewGroup && previewService
+      && (Object.keys(previewService.config.tenant).length > 0 || Object.keys(previewService.config.app).length > 0)
+      ? { revision: previewGroup.updatedAt, ...previewService.config }
+      : undefined;
+
     return {
       configManagement: this.scopedConfigManagement(config),
       managementOrigins,
+      ...(previewConfig ? { previewConfig } : {}),
       tenants: [scopedTenant],
       configApps: this.configAppsForTenant(config, tenantId),
       apps

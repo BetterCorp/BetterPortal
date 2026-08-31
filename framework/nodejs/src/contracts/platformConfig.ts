@@ -484,6 +484,67 @@ export const WebhookTargetSchema = av.object({
 });
 export type WebhookTarget = Infer<typeof WebhookTargetSchema>;
 
+// -- Preview environments -------------------------------------------
+
+export const PreviewEnvironmentOidcSchema = av.object({
+  issuer: NonEmptyStringSchema,
+  audience: NonEmptyStringSchema,
+  jwksUri: av.string().format("url"),
+  subjectPrefix: av.optional(NonEmptyStringSchema),
+  requiredClaims: av.record(NonEmptyStringSchema).default({})
+});
+export type PreviewEnvironmentOidc = Infer<typeof PreviewEnvironmentOidcSchema>;
+
+export const PreviewEnvironmentServiceConfigSchema = av.object({
+  tenant: JsonObjectSchema.default({}),
+  app: JsonObjectSchema.default({})
+}).default({ tenant: {}, app: {} });
+export type PreviewEnvironmentServiceConfig = Infer<typeof PreviewEnvironmentServiceConfigSchema>;
+
+export const PreviewEnvironmentGroupServiceSchema = av.object({
+  serviceId: PluginIdSchema,
+  title: av.optional(NonEmptyStringSchema),
+  config: PreviewEnvironmentServiceConfigSchema
+});
+export type PreviewEnvironmentGroupService = Infer<typeof PreviewEnvironmentGroupServiceSchema>;
+
+export const PreviewEnvironmentGroupSchema = av.object({
+  id: UuidV7Schema,
+  name: NonEmptyStringSchema,
+  sourceTenantId: UuidV7Schema,
+  sourceAppId: UuidV7Schema,
+  expiresInDays: av.nullable(av.int().min(1).max(3650)).default(30),
+  apiKeyHash: NonEmptyStringSchema,
+  oidc: av.optional(PreviewEnvironmentOidcSchema),
+  services: av.array(PreviewEnvironmentGroupServiceSchema).minItems(1),
+  createdAt: av.string().format("date-time"),
+  updatedAt: av.string().format("date-time")
+});
+export type PreviewEnvironmentGroup = Infer<typeof PreviewEnvironmentGroupSchema>;
+
+export const PreviewEnvironmentDeploymentServiceSchema = av.object({
+  serviceId: PluginIdSchema,
+  instanceId: UuidV7Schema,
+  url: av.string().format("url")
+});
+export type PreviewEnvironmentDeploymentService = Infer<typeof PreviewEnvironmentDeploymentServiceSchema>;
+
+export const PreviewEnvironmentDeploymentSchema = av.object({
+  id: UuidV7Schema,
+  groupId: UuidV7Schema,
+  key: av.string().minLength(1).maxLength(255),
+  name: NonEmptyStringSchema,
+  hostname: NonEmptyStringSchema,
+  tenantId: UuidV7Schema,
+  appId: UuidV7Schema,
+  expiresInDays: av.nullable(av.int().min(1).max(3650)),
+  expiresAt: av.optional(av.string().format("date-time")),
+  services: av.array(PreviewEnvironmentDeploymentServiceSchema).minItems(1),
+  createdAt: av.string().format("date-time"),
+  updatedAt: av.string().format("date-time")
+});
+export type PreviewEnvironmentDeployment = Infer<typeof PreviewEnvironmentDeploymentSchema>;
+
 export const BetterPortalConfigSchema = av.object({
   configManagement: BetterPortalConfigManagementSchema,
   platformServices: av.array(PlatformServiceSchema).default([]),
@@ -493,6 +554,8 @@ export const BetterPortalConfigSchema = av.object({
   sharedServiceActivations: av.array(TenantSharedServiceActivationSchema).default([]),
   manifestCache: av.array(ServiceManifestCacheEntrySchema).default([]),
   m2m: M2MConfigSchema,
+  previewEnvironmentGroups: av.array(PreviewEnvironmentGroupSchema).default([]),
+  previewEnvironmentDeployments: av.array(PreviewEnvironmentDeploymentSchema).default([]),
   webhooks: av.object({
     targets: av.array(WebhookTargetSchema).default([])
   }).default({ targets: [] })

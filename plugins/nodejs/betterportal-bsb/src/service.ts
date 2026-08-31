@@ -17,6 +17,8 @@ import {
   buildOriginPolicy,
   buildManifestFromRegistry,
   buildBpSchema,
+  buildPreviewConfigSchema,
+  decryptPreviewConfigValue,
   assertManifestOnlyDefinition,
   authorizeServiceToken,
   isServiceToken,
@@ -271,6 +273,7 @@ export abstract class BPService<
   protected manifest!: PluginManifest;
   protected configStore: ServiceConfigStore = new InMemoryServiceConfigStore();
   private runtimeConfigEncryptionKey: string | undefined;
+  private previewConfigRevision: string | undefined;
   private configProvider: FileBackedBetterPortalConfigProvider | null = null;
   private scopedConfig: ScopedServiceConfig | null = null;
   private registeredRoutes: ReadonlyArray<RegisteredRoute> = [];
@@ -1060,7 +1063,9 @@ export abstract class BPService<
     };
 
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
-      this.scopedConfig = rawConfig as ScopedServiceConfig;
+      const nextConfig = rawConfig as ScopedServiceConfig;
+      this.applyPreviewConfig(nextConfig);
+      this.scopedConfig = nextConfig;
       this.seoProbeCache.clear();
       this.updateS2SIdentityState(obs);
       // Persist for restart resilience - the service owns its cache; CM's
@@ -1758,6 +1763,30 @@ export abstract class BPService<
       ...state.tenant,
       ...(appId ? state.app[appId] ?? {} : {})
     };
+  }
+
+  private applyPreviewConfig(scoped: ScopedServiceConfig): void {
+    const preview = scoped.previewConfig;
+    if (!preview || preview.revision === this.previewConfigRevision) return;
+    const key = process.env.BP_PREVIEW_CONFIG_KEY;
+    if (!key) throw new Error("BP_PREVIEW_CONFIG_KEY is required for encrypted preview config");
+    const tenant = scoped.tenants[0];
+    const app = tenant ? scoped.apps.find((candidate) => candidate.tenantId === tenant.id) : undefined;
+    if (!tenant || !app) throw new Error("Encrypted preview config is missing its tenant/app scope");
+
+    const decryptScope = (scope: "tenant" | "app", values: unknown): Record<string, unknown> =>
+      av.decrypt(buildPreviewConfigSchema(this.manifest.configSchemas, scope), values, (path, value) =>
+        decryptPreviewConfigValue(key, scope, path, value)
+      );
+    const tenantValues = decryptScope("tenant", preview.tenant);
+    const appValues = decryptScope("app", preview.app);
+    const ticket = this.internalConfigReadTicket(tenant.id);
+    const current = this.configStore.read(ticket);
+    for (const configKey of Object.keys(current.tenant)) this.configStore.clearKey?.(tenant.id, undefined, configKey, ticket);
+    for (const configKey of Object.keys(current.app[app.id] ?? {})) this.configStore.clearKey?.(tenant.id, app.id, configKey, ticket);
+    this.configStore.write(tenant.id, undefined, tenantValues, ticket);
+    this.configStore.write(tenant.id, app.id, appValues, ticket);
+    this.previewConfigRevision = preview.revision;
   }
 
   private internalConfigReadTicket(tenantId: string): ServiceConfigTicketClaims {

@@ -84,13 +84,13 @@ BSB_SHOW_PACKAGES=${BSB_SHOW_PACKAGES:-false}
 The `bsb-plugin-watcher` service is the only container that sets `BSB_PLUGINS` and `BSB_PLUGIN_UPDATE`. It mounts `bp-plugins` read/write, runs with `BSB_PLUGIN_WATCHER=true`, and syncs these packages into `/mnt/plugins`:
 
 ```text
-@betterportal/config-manager@10.1
-@betterportal/theme-bootstrap1@10.1
-@betterportal/theme-embedded@10.1
-@betterportal/auth-default@10.1
-@betterportal/auth-authress-io@10.1
-@betterportal/auth-workos@10.1
-@betterportal/hello-view@10.1
+@betterportal/config-manager@10.6
+@betterportal/theme-bootstrap1@10.6
+@betterportal/theme-embedded@10.6
+@betterportal/auth-default@10.6
+@betterportal/auth-authress-io@10.6
+@betterportal/auth-workos@10.6
+@betterportal/hello-view@10.6
 @bsb/observable-opentelemetry@9.6
 @bsb/observable-axiom@9.6
 ```

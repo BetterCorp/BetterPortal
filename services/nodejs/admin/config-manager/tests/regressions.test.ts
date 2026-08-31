@@ -11,10 +11,19 @@ import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, 
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
+import { render as renderPreviewEnvironments } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/GET.js";
 import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
 import { registerFragmentsEditorRoutes } from "../src/plugins/service-betterportal-config-manager/fragmentsEditor.js";
 import { registerMenuEditorRoutes } from "../src/plugins/service-betterportal-config-manager/menuEditor.js";
+import { registerPreviewDeploymentApi } from "../src/plugins/service-betterportal-config-manager/previewApi.js";
+import {
+  createPreviewGroup,
+  deleteExpiredPreviewDeployments,
+  provisionPreviewDeployment,
+  reconcilePreviewService,
+  visibleAdminConfig
+} from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import * as adminAuthView from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/GET.js";
 import * as adminConfigView from "../src/plugins/service-betterportal-config-manager/bp-routes/config/GET.js";
 import * as adminFragmentsView from "../src/plugins/service-betterportal-config-manager/bp-routes/fragments/GET.js";
@@ -1422,4 +1431,267 @@ test("role sync controls require a discovered endpoint", () => {
     { path: "/custom/roles-b", role: "auth.roles.sync", method: "POST" }
   ]);
   assert.equal(resolveRoleSyncUrl("https://auth.example", ambiguousAuth, "betterportal", "tenant", "app"), undefined);
+});
+
+test("preview groups clone, reconcile, refresh and expire in isolation", () => {
+  const tenantId = uuidv7();
+  const appId = uuidv7();
+  const serviceInstanceId = uuidv7();
+  const routeId = uuidv7();
+  const now = new Date("2026-01-01T00:00:00.000Z");
+  const config = BetterPortalConfigSchema.parse({
+    tenants: [{
+      id: tenantId,
+      slug: "source",
+      title: "Source",
+      branding: {},
+      services: [{
+        id: serviceInstanceId,
+        hostname: "https://source-service.example",
+        apiKeyHash: "source-hash",
+        serviceId: "org.example.service",
+        title: "Example service",
+        createdAt: now.toISOString()
+      }]
+    }],
+    apps: [{
+      id: appId,
+      tenantId,
+      slug: "source-app",
+      title: "Source app",
+      hostnames: ["source.example"],
+      themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+      routes: [{
+        id: routeId,
+        kind: "page",
+        path: "/existing",
+        serviceId: serviceInstanceId,
+        viewId: "home",
+        enabled: true,
+        operations: ["home.view"]
+      }]
+    }]
+  });
+
+  const ambiguous = structuredClone(config);
+  const secondInstanceId = uuidv7();
+  ambiguous.tenants[0].services.push({
+    ...ambiguous.tenants[0].services[0],
+    id: secondInstanceId,
+    hostname: "https://second-source-service.example"
+  });
+  ambiguous.apps[0].routes.push({
+    ...ambiguous.apps[0].routes[0],
+    id: uuidv7(),
+    path: "/second",
+    serviceId: secondInstanceId
+  });
+  assert.throws(() => createPreviewGroup(ambiguous, {
+    name: "Ambiguous",
+    sourceTenantId: tenantId,
+    sourceAppId: appId,
+    serviceIds: ["org.example.service"],
+    expiresInDays: 30
+  }), /multiple instances/);
+
+  const { group, apiKey } = createPreviewGroup(config, {
+    name: "Pull requests",
+    sourceTenantId: tenantId,
+    sourceAppId: appId,
+    serviceIds: ["org.example.service"],
+    expiresInDays: 30
+  }, now);
+  assert.match(apiKey, /^bp_pg_/);
+
+  const created = provisionPreviewDeployment(config, group.id, {
+    key: "123",
+    name: "PR 123",
+    hostname: "pr-123.example",
+    expiresInDays: 7,
+    services: [{ serviceId: "org.example.service", url: "https://service-pr-123.example" }]
+  }, "https://config.example", now);
+  assert.equal(created.created, true);
+  assert.equal(created.credentials.length, 1);
+  assert.equal(created.deployment.expiresAt, "2026-01-08T00:00:00.000Z");
+  assert.equal(visibleAdminConfig(config).tenants.length, 1);
+  assert.equal(visibleAdminConfig(config).apps.length, 1);
+
+  const previewApp = config.apps.find((app) => app.id === created.deployment.appId)!;
+  const previewServiceId = created.deployment.services[0].instanceId;
+  assert.equal(previewApp.routes[0].enabled, false);
+  assert.equal(reconcilePreviewService(config, previewServiceId, {
+    serviceId: "org.example.service",
+    manifestVersion: "1",
+    capabilities: [],
+    apiContracts: [],
+    m2mRequests: [],
+    developerResources: [],
+    configSchemas: [],
+    webhooks: [],
+    fetchedAt: now.getTime(),
+    viewIndex: {
+      home: {
+        viewId: "home",
+        title: "Home",
+        description: "Home",
+        path: "/home",
+        pathVariants: [],
+        operations: [{
+          operationId: "home.view",
+          method: "GET",
+          title: "Home",
+          description: "Home",
+          renderers: ["bootstrap5"],
+          renderModes: ["page"],
+          authRequired: false,
+          robots: [],
+          dependencies: [],
+          permissions: [],
+          renderable: true,
+          apiContracts: [],
+          demoScenarios: []
+        }],
+        fragments: []
+      }
+    }
+  }), true);
+  assert.equal(previewApp.routes[0].path, "/existing");
+  assert.equal(previewApp.routes[0].enabled, true);
+  assert.equal(previewApp.menu.length, 1);
+
+  const refreshed = provisionPreviewDeployment(config, group.id, {
+    key: "123",
+    hostname: "ignored.example",
+    expiresInDays: null,
+    services: [{ serviceId: "org.example.service", url: "https://service-pr-123.example" }]
+  }, "https://config.example", new Date("2026-01-02T00:00:00.000Z"));
+  assert.equal(refreshed.created, false);
+  assert.equal(refreshed.credentials.length, 0);
+  assert.equal(refreshed.deployment.hostname, "pr-123.example");
+  assert.equal(refreshed.deployment.expiresAt, "2026-01-09T00:00:00.000Z");
+
+  assert.deepEqual(deleteExpiredPreviewDeployments(config, new Date("2026-01-10T00:00:00.000Z")), [created.deployment.id]);
+  assert.equal(config.previewEnvironmentDeployments.length, 0);
+  assert.equal(config.tenants.length, 1);
+  assert.equal(config.apps.length, 1);
+});
+
+test("standalone preview API authenticates and upserts deployments by POST", async () => {
+  const tenantId = uuidv7();
+  const appId = uuidv7();
+  const instanceId = uuidv7();
+  const config = BetterPortalConfigSchema.parse({
+    tenants: [{
+      id: tenantId,
+      slug: "source",
+      title: "Source",
+      branding: {},
+      services: [{
+        id: instanceId,
+        hostname: "https://source-service.example",
+        apiKeyHash: "source-hash",
+        serviceId: "org.example.service",
+        title: "Example service",
+        createdAt: new Date().toISOString()
+      }]
+    }],
+    apps: [{
+      id: appId,
+      tenantId,
+      slug: "source-app",
+      title: "Source app",
+      hostnames: ["source.example"],
+      themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+      routes: [{ id: uuidv7(), kind: "page", path: "/", serviceId: instanceId, viewId: "home", enabled: true, operations: ["home.view"] }]
+    }]
+  });
+  const { group, apiKey } = createPreviewGroup(config, {
+    name: "Pull requests",
+    sourceTenantId: tenantId,
+    sourceAppId: appId,
+    serviceIds: ["org.example.service"],
+    expiresInDays: 30
+  });
+  const handlers = new Map<string, (event: never) => Promise<Response>>();
+  registerPreviewDeploymentApi({
+    app: {
+      get: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`GET ${path}`, handler),
+      post: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`POST ${path}`, handler),
+      delete: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`DELETE ${path}`, handler)
+    } as never,
+    storage: new MemoryStorage(config),
+    controlPlaneUrl: "https://config.example"
+  });
+  const path = "/api/preview-groups/:groupId/deployments/:key";
+  const call = (method: "GET" | "POST" | "DELETE", authorization?: string) => handlers.get(`${method} ${path}`)!({
+    req: new Request("https://config.example/api/preview-groups/group/deployments/123", {
+      method,
+      headers: { ...(authorization ? { authorization } : {}), ...(method === "POST" ? { "content-type": "application/json" } : {}) },
+      ...(method === "POST" ? { body: JSON.stringify({
+        name: "PR 123",
+        hostname: "pr-123.example",
+        expiresInDays: 7,
+        services: { "org.example.service": "https://service-pr-123.example" }
+      }) } : {})
+    }),
+    context: { params: { groupId: group.id, key: "123" } }
+  } as never);
+
+  assert.equal((await call("POST")).status, 401);
+  const created = await call("POST", `Bearer ${apiKey}`);
+  assert.equal(created.status, 201);
+  assert.equal(created.headers.get("cache-control"), "no-store");
+  assert.equal((await created.json() as { credentials: unknown[] }).credentials.length, 1);
+  const refreshed = await call("POST", `Bearer ${apiKey}`);
+  assert.equal(refreshed.status, 200);
+  assert.equal((await refreshed.json() as { credentials: unknown[] }).credentials.length, 0);
+  assert.equal((await call("GET", `Bearer ${apiKey}`)).status, 200);
+  assert.equal((await call("DELETE", `Bearer ${apiKey}`)).status, 204);
+  assert.equal((await call("DELETE", `Bearer ${apiKey}`)).status, 204);
+  assert.equal((await call("GET", `Bearer ${apiKey}`)).status, 404);
+});
+
+test("preview environment editor keeps config crypto in the browser", () => {
+  const html = String(renderPreviewEnvironments({
+    title: "Preview Environments",
+    previewPath: "/preview-environments",
+    deploymentApiBase: "/api/preview-groups",
+    sourceTenants: [],
+    sourceApps: [],
+    groups: [{
+      id: uuidv7(),
+      name: "Pull requests",
+      sourceTenantId: uuidv7(),
+      sourceAppId: uuidv7(),
+      sourceLabel: "Source / App",
+      expiresInDays: 30,
+      services: [{
+        serviceId: "org.example.service",
+        title: "Example",
+        fields: [{
+          key: "token",
+          title: "Token",
+          description: "Preview-only token",
+          scope: "tenant",
+          secret: true,
+          required: true,
+          options: []
+        }],
+        encryptedTenantConfig: "{}",
+        encryptedAppConfig: "{}"
+      }],
+      deployments: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    issuedCredentials: []
+  }));
+  assert.match(html, /BP_PREVIEW_CONFIG_KEY/);
+  assert.match(html, /crypto\.subtle\.encrypt/);
+  const keyInput = /<input[^>]*data-bp-preview-key=""[^>]*>/.exec(html)?.[0];
+  assert.ok(keyInput);
+  assert.doesNotMatch(keyInput, /\sname=/i);
+  const script = /<script>([\s\S]*)<\/script>/.exec(html)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
 });

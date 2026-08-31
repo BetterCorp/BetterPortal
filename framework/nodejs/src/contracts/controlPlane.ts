@@ -9,6 +9,7 @@ import type {
   PlatformService,
   SharedServiceDefinition
 } from "./platformConfig.js";
+import type { JsonObject } from "./json.js";
 
 // -- Scoped config (what a service receives via sync) -----------------
 
@@ -17,6 +18,12 @@ export interface ScopedServiceConfig {
   readonly serviceIdentity?: ScopedServiceIdentity;
   /** Last-known-good S2S policy relevant to this service, filtered by the control plane. */
   readonly m2m?: ScopedM2MConfig;
+  /** Opaque preview-only service config. Sensitive values remain AnyVali-encrypted in transit. */
+  readonly previewConfig?: {
+    readonly revision: string;
+    readonly tenant: JsonObject;
+    readonly app: JsonObject;
+  };
   readonly configManagement?: {
     readonly adminTenantId?: string;
     readonly managementAppId?: string;
@@ -126,7 +133,8 @@ export interface PlatformConfigStore {
     scope: "tenant" | "platform",
     tenantId: string | undefined,
     publicKeyPem: string,
-    keyId: string
+    keyId: string,
+    options?: { replace?: boolean }
   ): Promise<"registered" | "matched" | "mismatch" | "not-found">;
 
   invalidate(): void;

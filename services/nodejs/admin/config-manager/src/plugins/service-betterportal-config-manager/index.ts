@@ -21,7 +21,13 @@ import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
 import { deriveRolePermissions, getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
-import { buildM2MConnectionModel } from "./m2mConnections.js";
+import { approveM2MConnections, buildM2MConnectionModel } from "./m2mConnections.js";
+import { registerPreviewDeploymentApi } from "./previewApi.js";
+import {
+  deleteExpiredPreviewDeployments,
+  reconcilePreviewService,
+  visibleAdminConfig
+} from "./previewEnvironments.js";
 import { setConfigManagerRouteContext } from "./routeContext.js";
 import { isApiRoute } from "./routeMounts.js";
 import { resolveRoleAuthority, resolveRoleSyncUrl } from "./roleAuthority.js";
@@ -136,6 +142,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected readonly requireBetterPortalConfigSource = false;
   private storage!: PlatformConfigStore;
   private webhookRuntime?: { start(): void; stop(): void };
+  private previewExpiryTimer?: NodeJS.Timeout;
   private readonly changeSourceId = uuidv7();
   private readonly selfClient: BetterportalConfigManagerClient;
   /** CP-side signing keypair + issuer/audience info. Built on first init. */
@@ -354,7 +361,31 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     registerMenuEditorRoutes(this.app, this.storage);
     registerFragmentsEditorRoutes(this.app, this.storage);
     this.webhookRuntime = registerWebhookRoutes(this.app, this.storage);
-    registerSyncEndpoint(this.app, this.storage);
+    registerPreviewDeploymentApi({
+      app: this.app,
+      storage: this.storage,
+      controlPlaneUrl: this.cpState.issuer
+    });
+    registerSyncEndpoint(this.app, this.storage, {
+      onManifestUpdated: async (serviceIds, manifest) => {
+        const config = await this.storage.loadConfig();
+        let changed = serviceIds.some((serviceId) => reconcilePreviewService(config, serviceId, manifest));
+        for (const deployment of config.previewEnvironmentDeployments) {
+          const selections = buildM2MConnectionModel(config, deployment.appId)
+            .filter((row) => row.status === "pending" && row.candidates.length === 1)
+            .map((row) => ({
+              sourceServiceId: row.sourceServiceId,
+              requestId: row.requestId,
+              targetServiceId: row.candidates[0].targetServiceId,
+              targetViewId: row.candidates[0].targetViewId
+            }));
+          if (selections.length > 0) {
+            changed = approveM2MConnections(config, deployment.appId, selections).created.length > 0 || changed;
+          }
+        }
+        if (changed) await this.storage.saveConfig(config);
+      }
+    });
 
     // Setup token mint + redeem endpoints (P4)
     registerSetupEndpoints({ app: this.app, storage: this.storage, cpState: this.cpState });
@@ -371,6 +402,24 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     // after a restart never races an empty cache (#6).
     await this.warmAuthCache(_obs);
     this.webhookRuntime.start();
+    await this.removeExpiredPreviews();
+    this.previewExpiryTimer = setInterval(() => {
+      void this.removeExpiredPreviews().catch((error) => _obs.log.warn("Preview expiry cleanup failed: {msg}", {
+        msg: error instanceof Error ? error.message : String(error)
+      }));
+    }, 5 * 60_000);
+    this.previewExpiryTimer.unref();
+  }
+
+  private async removeExpiredPreviews(): Promise<void> {
+    const config = await this.storage.loadConfig();
+    if (deleteExpiredPreviewDeployments(config).length > 0) await this.storage.saveConfig(config);
+  }
+
+  override async dispose(): Promise<void> {
+    if (this.previewExpiryTimer) clearInterval(this.previewExpiryTimer);
+    this.webhookRuntime?.stop();
+    await super.dispose();
   }
 
   private withChangeBroadcasts(
@@ -391,15 +440,15 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       },
       validateApiKey: (apiKey) => store.validateApiKey(apiKey),
       getScopedConfig: (serviceId, scope, tenantId) => store.getScopedConfig(serviceId, scope, tenantId),
-      registerServicePublicKey: (serviceId, scope, tenantId, publicKeyPem, keyId) =>
-        store.registerServicePublicKey(serviceId, scope, tenantId, publicKeyPem, keyId),
+      registerServicePublicKey: (serviceId, scope, tenantId, publicKeyPem, keyId, options) =>
+        store.registerServicePublicKey(serviceId, scope, tenantId, publicKeyPem, keyId, options),
       invalidate: () => store.invalidate(),
       onChange: (listener) => store.onChange(listener)
     };
   }
 
   private async populateConfigAdminContext(event: BetterPortalEvent): Promise<void> {
-    const portalConfig = await this.storage.loadConfig();
+    const portalConfig = visibleAdminConfig(await this.storage.loadConfig());
     const requestContext = resolveEmbeddedRequestContext(portalConfig, eventHeaders(event));
 
     if (requestContext) {
@@ -459,7 +508,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateServicesContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.storage.loadConfig();
+    const config = visibleAdminConfig(await this.storage.loadConfig());
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const requestedTenantId = url.searchParams.get("tenantId") ?? undefined;
     const selectedTenantId = config.tenants.some((tenant) => tenant.id === requestedTenantId)
@@ -564,7 +613,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateRoutesContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.storage.loadConfig();
+    const config = visibleAdminConfig(await this.storage.loadConfig());
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const openApiServiceId = url.searchParams.get("apiServiceId") ?? undefined;
@@ -685,7 +734,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateMenuContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.storage.loadConfig();
+    const config = visibleAdminConfig(await this.storage.loadConfig());
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId ? config.apps.find((a) => a.id === selectedAppId) : undefined;
@@ -715,7 +764,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateFragmentsContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.storage.loadConfig();
+    const config = visibleAdminConfig(await this.storage.loadConfig());
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
 
@@ -729,7 +778,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populatePreviewContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.storage.loadConfig();
+    const config = visibleAdminConfig(await this.storage.loadConfig());
     const services: Array<{
       serviceId: string;
       endpointBaseUrl: string;
@@ -768,7 +817,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateAdminAuthContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.storage.loadConfig();
+    const config = visibleAdminConfig(await this.storage.loadConfig());
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId
@@ -900,7 +949,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateSettingsContext(event: BetterPortalEvent): Promise<void> {
-    const config = await this.storage.loadConfig();
+    const config = visibleAdminConfig(await this.storage.loadConfig());
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const requestContext = resolveEmbeddedRequestContext(config, eventHeaders(event));
     const requestedAppId = url.searchParams.get("appId") ?? undefined;

@@ -27,6 +27,7 @@ import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { getAvailableServiceInstanceIdsForApp, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
+import { isPreviewService } from "./previewEnvironments.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
 const SERVICE_ACTIVITY_INTERVAL_MS = 60_000;
@@ -546,7 +547,15 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
   return { ...scoped, apps };
 }
 
-export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConfigStore): void {
+export interface SyncEndpointOptions {
+  onManifestUpdated?: (serviceIds: string[], manifest: CachedManifest) => Promise<void>;
+}
+
+export function registerSyncEndpoint(
+  app: BetterPortalH3App,
+  store: PlatformConfigStore,
+  options: SyncEndpointOptions = {}
+): void {
   app.get(SYNC_PATH, async (event: BetterPortalEvent) => {
     const obs = eventObservability(event);
     const authHeader = event.req.headers.get("authorization");
@@ -707,7 +716,8 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           validated.scope,
           validated.tenantId,
           identity.publicKeyPem,
-          identity.keyId
+          identity.keyId,
+          { replace: isPreviewService(await store.loadConfig(), serviceId) }
         );
         if (registration === "mismatch") {
           return jsonResponse({
@@ -732,7 +742,8 @@ export function registerSyncEndpoint(app: BetterPortalH3App, store: PlatformConf
           webhooks: body.webhooks
         });
         cacheManifest(serviceId, cachedManifest);
-        await updateServiceMetadata(store, serviceId, cachedManifest);
+        const serviceIds = await updateServiceMetadata(store, serviceId, cachedManifest);
+        await options.onManifestUpdated?.(serviceIds, cachedManifest);
         obs?.logger.info("BP SYNC POLL: cached manifest service={serviceId} version={version} views={count} configSchemas={configSchemas}", {
           serviceId,
           version: body.manifestVersion ?? "unknown",
@@ -851,7 +862,7 @@ async function updateServiceMetadata(
   store: PlatformConfigStore,
   serviceInstanceId: string,
   manifest: CachedManifest
-): Promise<void> {
+): Promise<string[]> {
   const config = await store.loadConfig();
   const persistedManifest = {
     ...manifest,
@@ -1031,6 +1042,7 @@ async function updateServiceMetadata(
     if (reconcileDependencyRoutes(config, app)) changed = true;
   }
   if (changed) await store.saveConfig(config);
+  return [...routeServiceIds];
 }
 
 function applyAuthProviderMetadata(

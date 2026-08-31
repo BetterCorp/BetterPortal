@@ -13,6 +13,7 @@ import { getConfigManagerRouteContext } from "./routeContext.js";
 import { getCachedManifestForService } from "./syncApi.js";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { resolveRoleAuthority, supportedRoleAuthorities } from "./roleAuthority.js";
+import { isPreviewApp, isPreviewTenant, visibleAdminConfig } from "./previewEnvironments.js";
 
 const RoleAuthoritySchema = av.enum_(["provider", "betterportal"] as const);
 
@@ -152,7 +153,7 @@ function tenantsPathFromContext(ctx: Pick<RouteHandlerContext, "routeUrl">): str
 
 async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseData> {
   const routeContext = getConfigManagerRouteContext();
-  const config = await routeContext.storage.loadConfig();
+  const config = visibleAdminConfig(await routeContext.storage.loadConfig());
   const authServices = config.tenants.flatMap((tenant) => authServicesForTenant(config, tenant.id));
   return {
     title: "Tenants & Apps",
@@ -225,6 +226,7 @@ async function updateTenant(body: Record<string, unknown>): Promise<void> {
 
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
+  if (isPreviewTenant(config, id)) return;
   const tenant = config.tenants.find((t) => t.id === id);
   if (!tenant) return;
 
@@ -241,6 +243,7 @@ async function deleteTenant(id: string): Promise<void> {
   if (!id) return;
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
+  if (isPreviewTenant(config, id)) return;
   config.tenants = config.tenants.filter((tenant) => tenant.id !== id);
   config.apps = config.apps.filter((app) => app.tenantId !== id);
   await routeContext.storage.saveConfig(config);
@@ -253,6 +256,7 @@ async function createApp(body: Record<string, unknown>): Promise<void> {
 
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
+  if (isPreviewTenant(config, tenantId)) return;
   const tenant = config.tenants.find((candidate) => candidate.id === tenantId);
   if (!tenant) return;
 
@@ -294,6 +298,7 @@ async function updateApp(body: Record<string, unknown>): Promise<void> {
 
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
+  if (isPreviewApp(config, id)) return;
   const appDef = config.apps.find((app) => app.id === id);
   if (!appDef) return;
 
@@ -340,6 +345,7 @@ async function deleteApp(id: string): Promise<void> {
   if (!id) return;
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
+  if (isPreviewApp(config, id)) return;
   config.apps = config.apps.filter((app) => app.id !== id);
   await routeContext.storage.saveConfig(config);
 }

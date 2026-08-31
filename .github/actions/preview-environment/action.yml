@@ -1,0 +1,50 @@
+name: BetterPortal preview environment
+description: Create, refresh, or delete a BetterPortal preview deployment using GitHub OIDC.
+author: BetterCorp
+
+inputs:
+  operation:
+    description: Use upsert to create or refresh a preview, or delete to remove it.
+    required: false
+    default: upsert
+  control-plane-url:
+    description: Public base URL of the BetterPortal config manager.
+    required: true
+  group-id:
+    description: BetterPortal preview environment group ID.
+    required: true
+  key:
+    description: Stable preview key, normally the pull request number.
+    required: true
+  audience:
+    description: OIDC audience configured on the BetterPortal preview group.
+    required: true
+  name:
+    description: Human-readable preview name. Used only for upsert.
+    required: false
+  hostname:
+    description: Public application hostname. Required for the first upsert.
+    required: false
+  expires-in-days:
+    description: Requested lifetime in whole days, or never. The group maximum still applies.
+    required: false
+    default: "7"
+  services-json:
+    description: JSON object mapping BetterPortal service plugin IDs to their public URLs. Required for upsert.
+    required: false
+
+outputs:
+  created:
+    description: true when BetterPortal created a new preview deployment.
+  preview-json:
+    description: BetterPortal preview metadata as compact JSON.
+  credentials-json:
+    description: Newly issued or rotated service credentials as compact JSON. API keys are masked in runner logs.
+
+runs:
+  using: node24
+  main: index.mjs
+
+branding:
+  icon: external-link
+  color: blue
