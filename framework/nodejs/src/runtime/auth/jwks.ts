@@ -5,26 +5,28 @@ const KID_PATTERN = /^[A-Za-z0-9_-]+$/;
 interface CachedClient {
   keys: Map<string, string>;
   jwksUri: string;
-  lastUsed: number;
+  fetchedAt: number;
 }
 
 const clientCache = new Map<string, CachedClient>();
+const refreshes = new Map<string, Promise<CachedClient>>();
+const nextMissRefreshAt = new Map<string, number>();
 const CACHE_TTL_MS = 30 * 60 * 1000;
+const MISS_REFRESH_INTERVAL_MS = 2_000;
+let cacheGeneration = 0;
 
 export interface JwksLookupOptions {
   jwksUri: string;
   issuer: string;
 }
 
-async function getJwksKeys(options: JwksLookupOptions): Promise<Map<string, string>> {
-  const cacheKey = `${options.issuer}|${options.jwksUri}`;
-  const now = Date.now();
+function getCacheKey(options: JwksLookupOptions): string {
+  return `${options.issuer}|${options.jwksUri}`;
+}
 
-  const existing = clientCache.get(cacheKey);
-  if (existing && now - existing.lastUsed < CACHE_TTL_MS) {
-    existing.lastUsed = now;
-    return existing.keys;
-  }
+async function loadJwksKeys(options: JwksLookupOptions, generation: number): Promise<CachedClient> {
+  const cacheKey = getCacheKey(options);
+  const now = Date.now();
 
   let response: Response;
   try {
@@ -68,8 +70,32 @@ async function getJwksKeys(options: JwksLookupOptions): Promise<Map<string, stri
     }
   }
 
-  clientCache.set(cacheKey, { keys, jwksUri: options.jwksUri, lastUsed: now });
-  return keys;
+  const client = { keys, jwksUri: options.jwksUri, fetchedAt: now };
+  if (generation === cacheGeneration) {
+    clientCache.set(cacheKey, client);
+    nextMissRefreshAt.set(cacheKey, now + MISS_REFRESH_INTERVAL_MS);
+  }
+  return client;
+}
+
+function refreshJwksKeys(options: JwksLookupOptions): Promise<CachedClient> {
+  const cacheKey = getCacheKey(options);
+  const existing = refreshes.get(cacheKey);
+  if (existing) return existing;
+
+  const refresh = loadJwksKeys(options, cacheGeneration);
+  refreshes.set(cacheKey, refresh);
+  const clearRefresh = (): void => {
+    if (refreshes.get(cacheKey) === refresh) refreshes.delete(cacheKey);
+  };
+  void refresh.then(clearRefresh, clearRefresh);
+  return refresh;
+}
+
+async function getJwksKeys(options: JwksLookupOptions): Promise<CachedClient> {
+  const existing = clientCache.get(getCacheKey(options));
+  if (existing && Date.now() - existing.fetchedAt < CACHE_TTL_MS) return existing;
+  return refreshJwksKeys(options);
 }
 
 function networkErrorDetails(error: unknown): string {
@@ -100,8 +126,18 @@ export async function getSigningKeyForKid(
     throw new Error(`Invalid kid: must match ${KID_PATTERN.source}`);
   }
 
-  const keys = await getJwksKeys(options);
-  const key = keys.get(kid);
+  const cacheKey = getCacheKey(options);
+  let client = await getJwksKeys(options);
+  let key = client.keys.get(kid);
+  const pendingRefresh = refreshes.get(cacheKey);
+  if (!key && pendingRefresh) {
+    client = await pendingRefresh;
+    key = client.keys.get(kid);
+  } else if (!key && Date.now() >= (nextMissRefreshAt.get(cacheKey) ?? 0)) {
+    nextMissRefreshAt.set(cacheKey, Date.now() + MISS_REFRESH_INTERVAL_MS);
+    client = await refreshJwksKeys(options);
+    key = client.keys.get(kid);
+  }
   if (!key) {
     throw new Error(`JWKS key not found for kid ${kid}: ${options.jwksUri}`);
   }
@@ -109,5 +145,8 @@ export async function getSigningKeyForKid(
 }
 
 export function clearJwksCache(): void {
+  cacheGeneration += 1;
   clientCache.clear();
+  refreshes.clear();
+  nextMissRefreshAt.clear();
 }

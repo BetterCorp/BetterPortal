@@ -87,6 +87,30 @@ test("rejects a ticket signed by an untrusted key", async () => {
   );
 });
 
+test("rejects non-RSA and undersized signing keys", () => {
+  const ec = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" }
+  });
+  const weakRsa = generateKeyPairSync("rsa", {
+    modulusLength: 1024,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" }
+  });
+  for (const privateKeyPem of [ec.privateKey, weakRsa.privateKey]) {
+    assert.throws(() => signServiceConfigTicket({
+      privateKeyPem,
+      kid: KID,
+      issuer: ISSUER,
+      tenantId: "tenant-a",
+      serviceId: SERVICE_ID,
+      actions: ["config.write"],
+      expiresInSeconds: 300
+    }), /RSA private key with a modulus of at least 2048 bits/);
+  }
+});
+
 test("rejects an HS256 token even with a matching secret-as-key (alg confusion)", async () => {
   // Attacker tries to pass an HMAC token; verifier must pin RS256.
   const encodedHeader = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT", kid: KID })).toString("base64url");
