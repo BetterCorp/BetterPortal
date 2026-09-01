@@ -29,7 +29,7 @@
   "type": "module",
   "devDependencies": {
     "@bsb/tests": "^9.6.77",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.4.0",
     "@types/pg": "^8.23.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
