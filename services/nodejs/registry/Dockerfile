@@ -6,7 +6,7 @@ ENV PATH="/home/bsb/lib/scripts:${PATH}"
 COPY framework/nodejs ./framework/nodejs
 COPY services/nodejs/registry ./services/nodejs/registry
 RUN mkdir -p /workspace/packages && cd framework/nodejs && npm install --include=dev && npm run build && npm pack --pack-destination /workspace/packages
-RUN cd services/nodejs/registry && npm install --include=dev && npm install --no-save /workspace/packages/*.tgz && npm run build && npm prune --omit=dev
+RUN cd services/nodejs/registry && npm install --include=dev --no-save /workspace/packages/*.tgz && npm run build && npm prune --omit=dev
 RUN set -eux; \
   cd services/nodejs/registry; \
   VERSION="$(node -p "require('./package.json').version")"; \
