@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
-import jwt from "jsonwebtoken";
+import { createHmac, generateKeyPairSync } from "node:crypto";
 import {
   CONFIG_TICKET_AUDIENCE,
   signServiceConfigTicket,
@@ -88,21 +87,45 @@ test("rejects a ticket signed by an untrusted key", async () => {
   );
 });
 
-test("rejects an HS256 token even with a matching secret-as-key (alg confusion)", async () => {
-  // Attacker tries to pass an HMAC token; verifier must pin RS256.
-  const hs = jwt.sign(
-    {
-      iss: ISSUER,
-      aud: [CONFIG_TICKET_AUDIENCE],
-      sub: "admin",
-      realm: "control-plane",
+test("rejects non-RSA and undersized signing keys", () => {
+  const ec = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" }
+  });
+  const weakRsa = generateKeyPairSync("rsa", {
+    modulusLength: 1024,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" }
+  });
+  for (const privateKeyPem of [ec.privateKey, weakRsa.privateKey]) {
+    assert.throws(() => signServiceConfigTicket({
+      privateKeyPem,
+      kid: KID,
+      issuer: ISSUER,
       tenantId: "tenant-a",
       serviceId: SERVICE_ID,
-      actions: ["config.write"]
-    },
-    "some-shared-secret",
-    { algorithm: "HS256", keyid: KID, expiresIn: 300 }
-  );
+      actions: ["config.write"],
+      expiresInSeconds: 300
+    }), /RSA private key with a modulus of at least 2048 bits/);
+  }
+});
+
+test("rejects an HS256 token even with a matching secret-as-key (alg confusion)", async () => {
+  // Attacker tries to pass an HMAC token; verifier must pin RS256.
+  const encodedHeader = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT", kid: KID })).toString("base64url");
+  const encodedPayload = Buffer.from(JSON.stringify({
+    iss: ISSUER,
+    aud: [CONFIG_TICKET_AUDIENCE],
+    sub: "admin",
+    realm: "control-plane",
+    tenantId: "tenant-a",
+    serviceId: SERVICE_ID,
+    actions: ["config.write"]
+  })).toString("base64url");
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const signature = createHmac("sha256", "some-shared-secret").update(signingInput).digest("base64url");
+  const hs = `${signingInput}.${signature}`;
   await assert.rejects(
     verifyServiceConfigTicket(hs, { keyResolver, issuer: ISSUER, serviceId: SERVICE_ID }),
     /Algorithm not allowed|verification failed/i

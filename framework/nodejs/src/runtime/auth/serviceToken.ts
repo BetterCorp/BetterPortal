@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import type { HttpMethod } from "../../contracts/common.js";
 import {
   type M2MCallerMode,
@@ -7,6 +6,7 @@ import {
 } from "../../contracts/m2m.js";
 import type { ScopedM2MConfig } from "../../contracts/controlPlane.js";
 import type { RsaKeyPair } from "./keypair.js";
+import { signRs256Jwt, verifyRs256Jwt } from "./jwtCrypto.js";
 import { uuidv7 } from "../uuid.js";
 
 const ALGORITHM = "RS256" as const;
@@ -67,10 +67,10 @@ export function signServiceToken(options: SignServiceTokenOptions): string {
     jti: uuidv7(),
     tokenType: "service"
   });
-  return jwt.sign(claims as object, options.keyPair.privateKeyPem, {
-    algorithm: ALGORITHM,
-    keyid: options.keyPair.kid,
-    header: { alg: ALGORITHM, typ: TOKEN_TYP, kid: options.keyPair.kid }
+  return signRs256Jwt(claims, options.keyPair.privateKeyPem, {
+    alg: ALGORITHM,
+    typ: TOKEN_TYP,
+    kid: options.keyPair.kid
   });
 }
 
@@ -101,9 +101,8 @@ export async function authorizeServiceToken(
 
   let verified: unknown;
   try {
-    verified = jwt.verify(token, source.publicKeyPem, {
-      algorithms: [ALGORITHM],
-      clockTolerance: options.clockToleranceSeconds ?? 5
+    verified = await verifyRs256Jwt(token, source.publicKeyPem, {
+      clockToleranceSeconds: options.clockToleranceSeconds ?? 5
     });
   } catch (error) {
     throw new ServiceTokenAuthorizationError("Service token verification failed: " + (error as Error).message, 401);
