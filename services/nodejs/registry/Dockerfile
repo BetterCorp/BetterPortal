@@ -1,4 +1,3 @@
-ARG BSB_REGISTRY_IMAGE=betterweb/bsb-registry-plugin:latest
 ARG BSB_IMAGE_TAG=node-latest
 
 FROM betterweb/service-base:${BSB_IMAGE_TAG} AS builder
@@ -18,8 +17,9 @@ RUN set -eux; \
   mkdir -p "${TARGET}"; \
   cp -a package.json bsb-plugin.json lib node_modules README.md "${TARGET}/"
 
-FROM ${BSB_REGISTRY_IMAGE}
+FROM betterweb/service-base:${BSB_IMAGE_TAG}
 COPY --chown=node:node --from=builder /out/ /mnt/plugins/
 COPY --chown=node:node services/nodejs/registry/sec-config.yaml /home/bsb/sec-config.yaml
 ENV BSB_PLUGIN_DIRS=/mnt/plugins
+ENV BSB_PLUGINS=@bsb/registry@9.6
 EXPOSE 3210 3211
