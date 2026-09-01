@@ -607,7 +607,7 @@ function rebuildPreviewMenu(config: BetterPortalConfig, app: BetterPortalApp): v
     }));
 }
 
-function collectAppServiceReferences(app: BetterPortalApp): Set<string> {
+export function collectAppServiceReferences(app: BetterPortalApp): Set<string> {
   const ids = new Set<string>();
   if (app.shell) ids.add(app.shell.serviceId);
   for (const route of app.routes) ids.add(route.serviceId);

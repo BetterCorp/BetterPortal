@@ -53,10 +53,62 @@ function pageScript(): HtmlRenderable {
       const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv: decode64(iv), additionalData: aad(scope, path), tagLength: 128 }, cryptoKey, decode64(encrypted));
       return new TextDecoder().decode(clear);
     };
+    const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
+    const readJson = async (response, label) => {
+      const type = response.headers.get("content-type") || "";
+      if (type.includes("application/json")) return response.json();
+      throw new Error(label + " returned HTTP " + response.status);
+    };
+    const bpHeaders = () => {
+      try {
+        const auth = JSON.parse(localStorage.getItem("bp.headers") || "{}").Authorization;
+        return auth && typeof auth.value === "string" ? { Authorization: auth.value } : {};
+      } catch { return {}; }
+    };
+    const requestTicket = async (form, source) => {
+      const response = await fetch(form.dataset.ticketUrl, {
+        method: "POST",
+        headers: { ...bpHeaders(), "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          tenantId: form.dataset.sourceTenantId,
+          serviceInstanceId: source.instanceId,
+          hostname: source.hostname,
+          serviceId: source.serviceId,
+          actions: ["config.read"]
+        })
+      });
+      const data = await readJson(response, "Config ticket");
+      if (!response.ok || !data.token) throw new Error(data.error || data.message || "Config ticket was rejected");
+      return data.token;
+    };
+    const loadValues = async (form, source, token, appId) => {
+      const headers = {
+        Accept: "application/json",
+        Authorization: "Bearer " + token,
+        "x-bp-tenant-id": form.dataset.sourceTenantId
+      };
+      if (appId) headers["x-bp-app-id"] = appId;
+      const response = await fetch(source.hostname.replace(/\\/+$/, "") + "/.well-known/bp/config", {
+        headers,
+        cache: "no-store"
+      });
+      const data = await readJson(response, source.serviceId + " config");
+      if (!response.ok) throw new Error(data.error || data.message || "Config read failed");
+      return data.values || {};
+    };
+    const inputValue = (input) => input.type === "checkbox" ? String(input.checked) : input.value.trim();
+    const setInputValue = (input, value) => {
+      if (input.type === "checkbox") input.checked = value === "true";
+      else input.value = value;
+    };
+    const displayValue = (value) => typeof value === "string" ? value : JSON.stringify(value);
 
     document.querySelectorAll("[data-bp-preview-config-form]").forEach((form) => {
       const keyInput = form.querySelector("[data-bp-preview-key]");
       const status = form.querySelector("[data-bp-preview-config-status]");
+      const dialog = form.querySelector("[data-bp-sync-dialog]");
+      const dialogBody = form.querySelector("[data-bp-sync-body]");
+      let pendingDiff = [];
       const existing = {};
       form.querySelectorAll("[data-bp-existing-config]").forEach((node) => {
         existing[node.dataset.serviceId] = {
@@ -64,9 +116,17 @@ function pageScript(): HtmlRenderable {
           app: JSON.parse(node.dataset.app || "{}")
         };
       });
+      const setSecretsEnabled = (enabled) => {
+        form.querySelectorAll("[data-bp-config-field][data-secret=true], [data-bp-clear-secret]").forEach((input) => {
+          input.disabled = !enabled;
+        });
+      };
+      setSecretsEnabled(false);
       form.querySelector("[data-bp-generate-key]")?.addEventListener("click", () => {
         keyInput.value = "bp_pck_" + encode64(crypto.getRandomValues(new Uint8Array(32)));
-        keyInput.dispatchEvent(new Event("input"));
+        setSecretsEnabled(true);
+        status.textContent = "New key generated. Encrypted fields are unlocked.";
+        status.className = "alert alert-warning py-2";
       });
       form.querySelector("[data-bp-decrypt-config]")?.addEventListener("click", async () => {
         try {
@@ -75,6 +135,7 @@ function pageScript(): HtmlRenderable {
             const encrypted = existing[input.dataset.serviceId]?.[input.dataset.scope]?.[input.dataset.key];
             if (encrypted) input.value = await decryptValue(cryptoKey, input.dataset.scope, input.dataset.key, encrypted);
           }
+          setSecretsEnabled(true);
           status.textContent = "Secrets decrypted in this browser only.";
           status.className = "alert alert-success py-2";
         } catch (error) {
@@ -82,6 +143,96 @@ function pageScript(): HtmlRenderable {
           status.className = "alert alert-danger py-2";
         }
       });
+      form.querySelector("[data-bp-sync-prod]")?.addEventListener("click", async () => {
+        pendingDiff = [];
+        dialogBody.replaceChildren();
+        const loading = document.createElement("div");
+        loading.className = "alert alert-secondary";
+        loading.textContent = "Reading production configuration...";
+        dialogBody.append(loading);
+        dialog.showModal();
+        const sources = [...form.querySelectorAll("[data-bp-existing-config]")];
+        for (const node of sources) {
+          const section = document.createElement("section");
+          section.className = "mb-4";
+          const heading = document.createElement("h4");
+          heading.className = "h6 font-monospace";
+          heading.textContent = node.dataset.serviceId;
+          section.append(heading);
+          dialogBody.append(section);
+          const source = {
+            serviceId: node.dataset.serviceId,
+            instanceId: node.dataset.sourceInstanceId,
+            hostname: node.dataset.sourceHostname
+          };
+          if (!source.instanceId || !source.hostname) {
+            const note = document.createElement("div");
+            note.className = "alert alert-warning py-2";
+            note.textContent = "Production service registration is unavailable.";
+            section.append(note);
+            continue;
+          }
+          try {
+            const token = await requestTicket(form, source);
+            const serviceInputs = [...form.querySelectorAll("[data-bp-config-field]")].filter((input) => input.dataset.serviceId === source.serviceId);
+            const [tenantValues, appValues] = await Promise.all([
+              serviceInputs.some((input) => input.dataset.scope === "tenant") ? loadValues(form, source, token, "") : {},
+              serviceInputs.some((input) => input.dataset.scope === "app") ? loadValues(form, source, token, form.dataset.sourceAppId) : {}
+            ]);
+            let changes = 0;
+            for (const input of serviceInputs) {
+              const production = input.dataset.scope === "app" ? appValues : tenantValues;
+              const hasProductionValue = hasOwn(production, input.dataset.key);
+              const fallback = input.dataset.defaultValue === undefined ? "" : JSON.parse(input.dataset.defaultValue);
+              const target = displayValue(hasProductionValue ? production[input.dataset.key] : fallback);
+              if (input.dataset.secret === "true") {
+                const line = document.createElement("div");
+                line.className = "font-monospace small bg-body-tertiary px-2 py-1";
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.disabled = true;
+                checkbox.className = "form-check-input me-2";
+                line.append(checkbox, document.createTextNode("+ " + input.dataset.scope + "." + input.dataset.key + " = [secret is not exported by the service]"));
+                section.append(line);
+                continue;
+              }
+              if (inputValue(input) === target) continue;
+              changes++;
+              const oldLine = document.createElement("div");
+              oldLine.className = "font-monospace small bg-danger-subtle text-danger-emphasis px-2 py-1";
+              oldLine.textContent = "- " + input.dataset.scope + "." + input.dataset.key + " = " + inputValue(input);
+              const newLine = document.createElement("div");
+              newLine.className = "font-monospace small bg-success-subtle text-success-emphasis px-2 py-1";
+              const checkbox = document.createElement("input");
+              checkbox.type = "checkbox";
+              checkbox.checked = true;
+              checkbox.className = "form-check-input me-2";
+              newLine.append(checkbox, document.createTextNode("+ " + input.dataset.scope + "." + input.dataset.key + " = " + target + (hasProductionValue ? "" : " (schema default)")));
+              section.append(oldLine, newLine);
+              pendingDiff.push({ checkbox, input, value: target });
+            }
+            if (changes === 0) {
+              const note = document.createElement("div");
+              note.className = "text-secondary small";
+              note.textContent = "No transferable changes.";
+              section.append(note);
+            }
+          } catch (error) {
+            const note = document.createElement("div");
+            note.className = "alert alert-warning py-2";
+            note.textContent = "Could not reach this service: " + (error.message || String(error));
+            section.append(note);
+          }
+        }
+        loading.remove();
+      });
+      form.querySelector("[data-bp-sync-apply]")?.addEventListener("click", () => {
+        const selected = pendingDiff.filter((change) => change.checkbox.checked);
+        for (const change of selected) setInputValue(change.input, change.value);
+        dialog.close();
+        if (selected.length > 0) form.requestSubmit();
+      });
+      form.querySelectorAll("[data-bp-sync-close]").forEach((button) => button.addEventListener("click", () => dialog.close()));
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -94,7 +245,7 @@ function pageScript(): HtmlRenderable {
           for (const input of form.querySelectorAll("[data-bp-config-field]")) {
             const service = values[input.dataset.serviceId] ||= { tenant: {}, app: {} };
             const scope = service[input.dataset.scope] ||= {};
-            const value = input.value.trim();
+            const value = inputValue(input);
             if (!value) {
               const secretKey = input.dataset.serviceId + "\\n" + input.dataset.scope + "\\n" + input.dataset.key;
               if (input.dataset.secret === "true" && scope[input.dataset.key] && !clearedSecrets.has(secretKey)) continue;
@@ -189,24 +340,29 @@ function credentials(data: ResponseData): HtmlRenderable | null {
   );
 }
 
-function configEditor(group: ResponseData["groups"][number], path: string): HtmlRenderable {
+function configEditor(group: ResponseData["groups"][number], path: string, ticketUrl: string): HtmlRenderable {
   const hasFields = group.services.some((service) => service.fields.length > 0);
   const existing = (service: ResponseData["groups"][number]["services"][number], scope: "tenant" | "app") => {
-    try { return JSON.parse(scope === "tenant" ? service.encryptedTenantConfig : service.encryptedAppConfig) as Record<string, string>; }
+    try { return JSON.parse(scope === "tenant" ? service.encryptedTenantConfig : service.encryptedAppConfig) as Record<string, unknown>; }
     catch { return {}; }
   };
   const fieldControl = (service: ResponseData["groups"][number]["services"][number], field: ResponseData["groups"][number]["services"][number]["fields"][number]) => {
-    const current = existing(service, field.scope)[field.key];
+    const stored = existing(service, field.scope);
+    const current = Object.prototype.hasOwnProperty.call(stored, field.key) ? stored[field.key] : field.defaultValue;
+    const value = current == null ? "" : typeof current === "string" ? current : JSON.stringify(current);
     if (!field.secret && field.control === "select" && field.options.length > 0) {
-      return <select class="form-select" data-bp-config-field="" data-service-id={service.serviceId} data-scope={field.scope} data-key={field.key} data-title={field.title} data-secret="false" required={field.required}>{!field.required ? <option value="">Not set</option> : null}{field.options.map((option) => <option value={option.value} selected={current === option.value}>{option.label}</option>)}</select>;
+      return <select class="form-select" data-bp-config-field="" data-service-id={service.serviceId} data-scope={field.scope} data-key={field.key} data-title={field.title} data-secret="false" data-default-value={field.defaultValue === undefined ? undefined : JSON.stringify(field.defaultValue)} required={field.required}>{!field.required ? <option value="">Not set</option> : null}{field.options.map((option) => <option value={option.value} selected={value === option.value}>{option.label}</option>)}</select>;
     }
-    return <input class="form-control" type={field.secret ? "password" : field.control === "email" || field.control === "url" ? field.control : "text"} maxlength="255" value={field.secret ? "" : current ?? ""} autocomplete={field.secret ? "new-password" : "off"} data-bp-config-field="" data-service-id={service.serviceId} data-scope={field.scope} data-key={field.key} data-title={field.title} data-secret={field.secret ? "true" : "false"} required={field.required && !field.secret} />;
+    if (!field.secret && field.control === "checkbox") {
+      return <input class="form-check-input" type="checkbox" checked={value === "true" || value === "1" || value === "on"} data-bp-config-field="" data-service-id={service.serviceId} data-scope={field.scope} data-key={field.key} data-title={field.title} data-secret="false" data-default-value={field.defaultValue === undefined ? undefined : JSON.stringify(field.defaultValue)} />;
+    }
+    return <input class="form-control" type={field.secret ? "password" : field.control === "email" || field.control === "url" || field.control === "number" ? field.control : "text"} maxlength="255" value={field.secret ? "" : value} autocomplete={field.secret ? "new-password" : "off"} data-bp-config-field="" data-service-id={service.serviceId} data-scope={field.scope} data-key={field.key} data-title={field.title} data-secret={field.secret ? "true" : "false"} data-default-value={field.defaultValue === undefined ? undefined : JSON.stringify(field.defaultValue)} disabled={field.secret} required={field.required && !field.secret} />;
   };
   return (
     <details class="border rounded p-3 mt-3">
       <summary class="fw-semibold">Encrypted service configuration</summary>
       {!hasFields ? <div class="alert alert-secondary mt-3 mb-0">No synced service config schemas are available for this group.</div> : (
-        <form class="mt-3" data-bp-preview-config-form="" data-group-id={group.id} data-path={path}>
+        <form class="mt-3" data-bp-preview-config-form="" data-group-id={group.id} data-path={path} data-ticket-url={ticketUrl} data-source-tenant-id={group.sourceTenantId} data-source-app-id={group.sourceAppId}>
           <div class="alert alert-warning small">Use preview-only values. The key and decrypted secrets stay in this browser; BetterPortal stores only <code>encrypted:</code> envelopes.</div>
           <label class="form-label" for={`bp-preview-key-${group.id}`}>Preview config key</label>
           <div class="input-group mb-2">
@@ -219,15 +375,24 @@ function configEditor(group: ResponseData["groups"][number], path: string): Html
           {group.services.map((service) => (
             <fieldset class="border rounded p-3 mb-3">
               <legend class="float-none w-auto px-2 fs-6">{service.title}</legend>
-              <span hidden data-bp-existing-config="" data-service-id={service.serviceId} data-tenant={service.encryptedTenantConfig} data-app={service.encryptedAppConfig}></span>
+              <span hidden data-bp-existing-config="" data-service-id={service.serviceId} data-tenant={service.encryptedTenantConfig} data-app={service.encryptedAppConfig} data-source-instance-id={service.source?.instanceId} data-source-hostname={service.source?.hostname}></span>
+              {service.fields.length === 0 ? <div class="alert alert-warning mb-0">This service has not synced a config schema yet. Its existing preview config will be preserved.</div> : null}
               {(["tenant", "app"] as const).map((scope) => {
                 const fields = service.fields.filter((field) => field.scope === scope);
-                return fields.length === 0 ? null : <div class="mb-3"><div class="text-uppercase text-secondary small fw-semibold mb-2">{scope} config</div><div class="row g-3">{fields.map((field) => <div class="col-12 col-lg-6"><label class="form-label">{field.title}{field.required ? " *" : ""}</label>{fieldControl(service, field)}<div class="form-text">{field.description}{field.secret ? " Blank keeps the stored value." : ""}</div>{field.secret && !field.required ? <div class="form-check mt-1"><input class="form-check-input" type="checkbox" data-bp-clear-secret="" data-service-id={service.serviceId} data-scope={field.scope} data-key={field.key} id={`bp-clear-${group.id}-${service.serviceId}-${field.scope}-${field.key}`} /><label class="form-check-label small" for={`bp-clear-${group.id}-${service.serviceId}-${field.scope}-${field.key}`}>Clear stored value</label></div> : null}</div>)}</div></div>;
+                return fields.length === 0 ? null : <div class="mb-3"><div class="text-uppercase text-secondary small fw-semibold mb-2">{scope} config</div><div class="row g-3">{fields.map((field) => <div class="col-12 col-lg-6"><label class="form-label">{field.title}{field.required ? " *" : ""}</label>{fieldControl(service, field)}<div class="form-text">{field.description}{field.secret ? " Unlock with a generated key or decrypt the stored values first." : ""}</div>{field.secret && !field.required ? <div class="form-check mt-1"><input class="form-check-input" type="checkbox" disabled data-bp-clear-secret="" data-service-id={service.serviceId} data-scope={field.scope} data-key={field.key} id={`bp-clear-${group.id}-${service.serviceId}-${field.scope}-${field.key}`} /><label class="form-check-label small" for={`bp-clear-${group.id}-${service.serviceId}-${field.scope}-${field.key}`}>Clear stored value</label></div> : null}</div>)}</div></div>;
               })}
             </fieldset>
           ))}
           <div class="alert alert-secondary py-2" data-bp-preview-config-status="" role="status">Key is never submitted.</div>
-          <button class="btn btn-primary" type="submit">Encrypt and save config</button>
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-primary" type="submit">Encrypt and save config</button>
+            <button class="btn btn-outline-secondary" type="button" data-bp-sync-prod="">Sync from prod</button>
+          </div>
+          <dialog class="border-0 rounded shadow p-0" style="width:min(92vw,72rem);max-height:90vh" data-bp-sync-dialog="">
+            <div class="p-3 border-bottom d-flex justify-content-between align-items-center"><h3 class="h5 mb-0">Production config diff</h3><button class="btn-close" type="button" aria-label="Close" data-bp-sync-close=""></button></div>
+            <div class="p-3 overflow-auto" style="max-height:70vh" data-bp-sync-body=""></div>
+            <div class="p-3 border-top d-flex justify-content-end gap-2"><button class="btn btn-outline-secondary" type="button" data-bp-sync-close="">Cancel</button><button class="btn btn-primary" type="button" data-bp-sync-apply="">Apply selected and save</button></div>
+          </dialog>
         </form>
       )}
     </details>
@@ -329,7 +494,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   <input type="hidden" name="groupId" value={group.id} />
                   <button class="btn btn-outline-warning" type="submit" hx-confirm="Rotate this group API key? Existing CI credentials will stop working.">Rotate API key</button>
                 </form>
-                {configEditor(group, data.previewPath)}
+                {configEditor(group, data.previewPath, data.configTicketUrl)}
               </div>
             </div>
 

@@ -3,6 +3,7 @@ import type { Infer } from "anyvali";
 import {
   createHandler,
   buildPreviewConfigSchema,
+  JsonValueSchema,
   type CacheHints,
   type BetterPortalConfig,
   type JsonObject,
@@ -23,6 +24,7 @@ import {
   updatePreviewDeploymentExpiry,
   updatePreviewGroup,
   visibleAdminConfig,
+  collectAppServiceReferences,
   type IssuedPreviewCredential
 } from "./previewEnvironments.js";
 
@@ -39,14 +41,21 @@ const PreviewConfigFieldSchema = av.object({
   scope: av.enum_(["tenant", "app"] as const),
   secret: av.bool(),
   required: av.bool(),
+  defaultValue: av.optional(JsonValueSchema),
   control: av.optional(av.string()),
   options: av.array(av.object({ value: av.string(), label: av.string() })).default([])
+});
+
+const SourceServiceSchema = av.object({
+  instanceId: av.string().minLength(1),
+  hostname: av.string().minLength(1)
 });
 
 const GroupServiceSchema = av.object({
   serviceId: av.string().minLength(1),
   title: av.string().minLength(1),
   fields: av.array(PreviewConfigFieldSchema).default([]),
+  source: av.optional(SourceServiceSchema),
   encryptedTenantConfig: av.string(),
   encryptedAppConfig: av.string()
 });
@@ -107,6 +116,7 @@ export const ResponseSchema = av.object({
   title: av.string().minLength(1),
   previewPath: av.string().minLength(1),
   deploymentApiBase: av.string().minLength(1),
+  configTicketUrl: av.string().minLength(1),
   sourceTenants: av.array(av.object({ id: av.string().minLength(1), title: av.string().minLength(1) })),
   sourceApps: av.array(SourceAppSchema),
   groups: av.array(GroupSchema),
@@ -127,6 +137,7 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [{
     title,
     previewPath: "/preview-environments",
     deploymentApiBase: PREVIEW_DEPLOYMENT_API_BASE,
+    configTicketUrl: "/.well-known/bp/admin/config-ticket",
     sourceTenants: [],
     sourceApps: [],
     groups: [],
@@ -265,6 +276,7 @@ async function buildResponse(path: string, transient: Partial<ResponseData> = {}
     title,
     previewPath: path,
     deploymentApiBase: PREVIEW_DEPLOYMENT_API_BASE,
+    configTicketUrl: `${routeContext.serviceBaseUrl.replace(/\/+$/, "")}/.well-known/bp/admin/config-ticket`,
     sourceTenants: config.tenants.map((tenant) => ({ id: tenant.id, title: tenant.title })),
     sourceApps,
     groups,
@@ -291,7 +303,8 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup) 
       requiredClaimsJson: JSON.stringify(group.oidc.requiredClaims, null, 2)
     } : undefined,
     services: group.services.map((service) => {
-      const descriptors = previewConfigSchemas(config, group, service.serviceId) ?? [];
+      const descriptors = resolvePreviewConfigSchemas(config, group, service.serviceId) ?? [];
+      const source = sourceConfigService(config, group, service.serviceId);
       const fields = [...new Map(descriptors.flatMap((descriptor) => descriptor.fields).map((field) => [
         `${field.scope}:${field.key}`,
         {
@@ -301,6 +314,7 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup) 
           scope: field.scope,
           secret: field.visibility === "secret",
           required: field.required,
+          ...(field.defaultValue !== undefined ? { defaultValue: field.defaultValue } : {}),
           control: field.ui?.control,
           options: field.ui?.options ?? []
         }
@@ -309,6 +323,7 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup) 
         serviceId: service.serviceId,
         title: service.title ?? service.serviceId,
         fields,
+        ...(source ? { source: { instanceId: source.instanceId, hostname: source.hostname } } : {}),
         encryptedTenantConfig: JSON.stringify(service.config.tenant),
         encryptedAppConfig: JSON.stringify(service.config.app)
       };
@@ -346,8 +361,8 @@ function saveGroupConfig(config: BetterPortalConfig, groupId: string, raw: strin
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new PreviewEnvironmentError("Encrypted preview config must be an object");
 
   for (const service of group.services) {
-    const descriptors = previewConfigSchemas(config, group, service.serviceId);
-    if (!descriptors) throw new PreviewEnvironmentError(`Config schema is not synced for ${service.serviceId}`, 409);
+    const descriptors = resolvePreviewConfigSchemas(config, group, service.serviceId);
+    if (!descriptors?.length) continue;
     const value = (input as Record<string, unknown>)[service.serviceId];
     const scopes = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
     service.config = {
@@ -425,16 +440,52 @@ function serviceUrls(value: unknown): Array<{ serviceId: string; url: string }> 
   });
 }
 
-function previewConfigSchemas(config: BetterPortalConfig, group: PreviewEnvironmentGroup, serviceId: string) {
+export function resolvePreviewConfigSchemas(config: BetterPortalConfig, group: PreviewEnvironmentGroup, serviceId: string) {
   for (const service of config.previewEnvironmentDeployments
     .filter((deployment) => deployment.groupId === group.id)
     .flatMap((deployment) => deployment.services)
     .filter((service) => service.serviceId === serviceId)) {
     const schemas = getCachedManifestForService(config, service.instanceId)?.configSchemas;
-    if (schemas) return schemas;
+    if (schemas?.length) return schemas;
   }
-  const sourceService = config.tenants.find((tenant) => tenant.id === group.sourceTenantId)?.services.find((service) => service.serviceId === serviceId);
-  return sourceService ? getCachedManifestForService(config, sourceService.id)?.configSchemas : undefined;
+  const source = sourceConfigService(config, group, serviceId);
+  const schemas = source ? getCachedManifestForService(config, source.instanceId)?.configSchemas : undefined;
+  if (schemas?.length) return schemas;
+  const pluginSchemas = getCachedManifestForService(config, serviceId)?.configSchemas;
+  return pluginSchemas?.length ? pluginSchemas : undefined;
+}
+
+function sourceConfigService(config: BetterPortalConfig, group: PreviewEnvironmentGroup, serviceId: string) {
+  const tenant = config.tenants.find((candidate) => candidate.id === group.sourceTenantId);
+  const app = config.apps.find((candidate) => candidate.id === group.sourceAppId);
+  if (!tenant || !app) return undefined;
+  const referenced = collectAppServiceReferences(app);
+  const candidates: Array<{ instanceId: string; hostname: string; referenced: boolean }> = [];
+
+  for (const service of tenant.services) {
+    if (service.enabled && service.serviceId === serviceId) candidates.push({
+      instanceId: service.id,
+      hostname: service.hostname,
+      referenced: referenced.has(service.id)
+    });
+  }
+  for (const service of config.platformServices) {
+    if (service.enabled && service.serviceId === serviceId && tenant.activatedPlatformServices.includes(service.id)) candidates.push({
+      instanceId: service.id,
+      hostname: service.hostname,
+      referenced: referenced.has(service.id)
+    });
+  }
+  for (const activation of config.sharedServiceActivations) {
+    if (!activation.enabled || activation.tenantId !== tenant.id || (activation.appId && activation.appId !== app.id)) continue;
+    const service = config.sharedServiceCatalog.find((candidate) => candidate.enabled && candidate.id === activation.sharedServiceId && candidate.serviceId === serviceId);
+    if (service) candidates.push({
+      instanceId: activation.id,
+      hostname: service.baseUrl,
+      referenced: referenced.has(activation.id)
+    });
+  }
+  return candidates.find((candidate) => candidate.referenced) ?? candidates[0];
 }
 
 function optionalExpiryValue(value: unknown): number | null | undefined {

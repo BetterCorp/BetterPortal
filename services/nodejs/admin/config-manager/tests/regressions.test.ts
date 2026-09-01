@@ -12,6 +12,7 @@ import { render as renderTenants } from "../src/plugins/service-betterportal-con
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
 import { render as renderPreviewEnvironments } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/GET.js";
+import { resolvePreviewConfigSchemas } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
 import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
 import { registerFragmentsEditorRoutes } from "../src/plugins/service-betterportal-config-manager/fragmentsEditor.js";
@@ -542,6 +543,28 @@ test("shared activation manifest lookup falls back to its shared service", () =>
     platformServices: []
   } as never;
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
+});
+
+test("preview config schema falls back from an unsynced preview to its shared production service", () => {
+  const activationId = uuidv7();
+  const appId = uuidv7();
+  const tenantId = uuidv7();
+  const groupId = uuidv7();
+  const previewInstanceId = uuidv7();
+  const config = {
+    tenants: [{ id: tenantId, services: [], activatedPlatformServices: [] }],
+    apps: [{ id: appId, tenantId, routes: [{ serviceId: activationId }], fragments: {}, slots: [], shellFragments: {} }],
+    platformServices: [],
+    sharedServiceActivations: [{ id: activationId, tenantId, appId, sharedServiceId: "shared-crm", enabled: true }],
+    sharedServiceCatalog: [{ id: "shared-crm", serviceId: "za.co.robertgroup.one.crm", baseUrl: "https://crm.example", enabled: true }],
+    previewEnvironmentDeployments: [{ groupId, services: [{ serviceId: "za.co.robertgroup.one.crm", instanceId: previewInstanceId }] }],
+    manifestCache: [
+      { serviceId: previewInstanceId, configSchemas: [] },
+      { serviceId: "shared-crm", configSchemas: [{ id: "crm", title: "CRM", description: "CRM", scope: "tenant", jsonSchema: {}, fields: [{ key: "region", title: "Region", description: "Region", scope: "tenant", visibility: "public", ownership: "bp", sourceOfTruth: "bp", defaultValue: "za", required: false }] }] }
+    ]
+  };
+  const group = { id: groupId, sourceTenantId: tenantId, sourceAppId: appId };
+  assert.equal(resolvePreviewConfigSchemas(config as never, group as never, "za.co.robertgroup.one.crm")?.[0]?.fields[0]?.key, "region");
 });
 
 test("service replacement requires the same external plugin id", () => {
@@ -1674,6 +1697,7 @@ test("preview environment editor keeps config crypto in the browser", () => {
     title: "Preview Environments",
     previewPath: "/preview-environments",
     deploymentApiBase: "/api/preview-groups",
+    configTicketUrl: "https://config.example/.well-known/bp/admin/config-ticket",
     sourceTenants: [],
     sourceApps: [],
     groups: [{
@@ -1686,6 +1710,7 @@ test("preview environment editor keeps config crypto in the browser", () => {
       services: [{
         serviceId: "org.example.service",
         title: "Example",
+        source: { instanceId: uuidv7(), hostname: "https://service.example" },
         fields: [{
           key: "token",
           title: "Token",
@@ -1693,6 +1718,15 @@ test("preview environment editor keeps config crypto in the browser", () => {
           scope: "tenant",
           secret: true,
           required: true,
+          options: []
+        }, {
+          key: "region",
+          title: "Region",
+          description: "Deployment region",
+          scope: "tenant",
+          secret: false,
+          required: false,
+          defaultValue: "za",
           options: []
         }],
         encryptedTenantConfig: "{}",
@@ -1707,6 +1741,9 @@ test("preview environment editor keeps config crypto in the browser", () => {
   assert.match(html, /BP_PREVIEW_CONFIG_KEY/);
   assert.doesNotMatch(html, /Service plugin IDs/);
   assert.match(html, /crypto\.subtle\.encrypt/);
+  assert.match(html, /Sync from prod/);
+  assert.match(html, /value="za"/);
+  assert.match(html, /data-secret="true"[^>]*disabled/);
   const keyInput = /<input[^>]*data-bp-preview-key=""[^>]*>/.exec(html)?.[0];
   assert.ok(keyInput);
   assert.doesNotMatch(keyInput, /\sname=/i);
