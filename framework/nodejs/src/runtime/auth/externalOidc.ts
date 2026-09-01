@@ -1,5 +1,5 @@
-import jwt, { type JwtHeader } from "jsonwebtoken";
 import { getSigningKeyForKid } from "./jwks.js";
+import { verifyRs256Jwt } from "./jwtCrypto.js";
 
 const KID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
@@ -28,11 +28,10 @@ export async function verifyExternalOidcToken(
   if ("jku" in header || "x5u" in header) throw new Error("OIDC token contains an untrusted key reference");
 
   const publicKey = await getSigningKeyForKid({ issuer: options.issuer, jwksUri: options.jwksUri }, header.kid);
-  const verified = jwt.verify(token, publicKey, {
-    algorithms: ["RS256"],
+  const verified = await verifyRs256Jwt(token, publicKey, {
     issuer: options.issuer,
     audience: options.audience,
-    clockTolerance: options.clockToleranceSeconds ?? 30
+    clockToleranceSeconds: options.clockToleranceSeconds ?? 30
   });
   if (!verified || typeof verified !== "object" || Array.isArray(verified)) {
     throw new Error("OIDC token claims are invalid");
@@ -43,7 +42,7 @@ export async function verifyExternalOidcToken(
   return verified as Record<string, unknown>;
 }
 
-function parseHeader(encoded: string): JwtHeader & { jku?: unknown; x5u?: unknown } {
+function parseHeader(encoded: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();

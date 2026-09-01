@@ -1,11 +1,11 @@
-import jwt from "jsonwebtoken";
-import jwksClient, { type JwksClient } from "jwks-rsa";
 import {
   ServiceConfigTicketClaimsSchema,
   type ServiceConfigAction,
   type ServiceConfigTicketClaims
 } from "../contracts/serviceConfig.js";
 import { uuidv7 } from "./uuid.js";
+import { clearJwksCache, getSigningKeyForKid } from "./auth/jwks.js";
+import { signRs256Jwt, verifyRs256Jwt } from "./auth/jwtCrypto.js";
 
 const ALLOWED_ALGORITHM = "RS256" as const;
 const ALLOWED_TYP = "JWT" as const;
@@ -53,42 +53,14 @@ export function signServiceConfigTicket(options: SignServiceConfigTicketOptions)
     actions: options.actions
   });
 
-  return jwt.sign(claims as object, options.privateKeyPem, {
-    algorithm: ALLOWED_ALGORITHM,
-    keyid: options.kid,
-    header: { alg: ALLOWED_ALGORITHM, typ: ALLOWED_TYP, kid: options.kid }
+  return signRs256Jwt(claims, options.privateKeyPem, {
+    alg: ALLOWED_ALGORITHM,
+    typ: ALLOWED_TYP,
+    kid: options.kid
   });
 }
 
 // -- Verification (service) -------------------------------------------
-
-interface CachedClient {
-  client: JwksClient;
-  lastUsed: number;
-}
-
-const clientCache = new Map<string, CachedClient>();
-const CLIENT_CACHE_TTL_MS = 30 * 60 * 1000;
-
-function getJwksClient(jwksUri: string, issuer: string): JwksClient {
-  const cacheKey = `${issuer}|${jwksUri}`;
-  const now = Date.now();
-  const existing = clientCache.get(cacheKey);
-  if (existing && now - existing.lastUsed < CLIENT_CACHE_TTL_MS) {
-    existing.lastUsed = now;
-    return existing.client;
-  }
-  const client = jwksClient({
-    jwksUri,
-    cache: true,
-    cacheMaxAge: 10 * 60 * 1000,
-    rateLimit: true,
-    jwksRequestsPerMinute: 30,
-    timeout: 5000
-  });
-  clientCache.set(cacheKey, { client, lastUsed: now });
-  return client;
-}
 
 export interface VerifyServiceConfigTicketOptions {
   /** JWKS endpoint of the issuing control plane (delivered to the service at redeem). */
@@ -138,19 +110,17 @@ export async function verifyServiceConfigTicket(
   if (options.keyResolver) {
     publicKeyPem = await options.keyResolver(kid);
   } else if (options.jwksUri) {
-    publicKeyPem = (await getJwksClient(options.jwksUri, options.issuer).getSigningKey(kid)).getPublicKey();
+    publicKeyPem = await getSigningKeyForKid({ issuer: options.issuer, jwksUri: options.jwksUri }, kid);
   } else {
     throw new Error("verifyServiceConfigTicket requires either jwksUri or keyResolver");
   }
 
   let verified: unknown;
   try {
-    verified = jwt.verify(token, publicKeyPem, {
-      algorithms: [ALLOWED_ALGORITHM],
+    verified = await verifyRs256Jwt(token, publicKeyPem, {
       issuer: options.issuer,
       audience: CONFIG_TICKET_AUDIENCE,
-      clockTolerance: options.clockToleranceSeconds ?? 0,
-      complete: false
+      clockToleranceSeconds: options.clockToleranceSeconds ?? 0
     });
   } catch (error) {
     throw new Error(`Config ticket verification failed: ${(error as Error).message}`);
@@ -199,7 +169,7 @@ export function createCpConfigTicketValidator(
 }
 
 export function clearConfigTicketJwksCache(): void {
-  clientCache.clear();
+  clearJwksCache();
 }
 
 function parseHeader(encodedHeader: string): Record<string, unknown> {

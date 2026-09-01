@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import {
   CpEnvelopeClaimsSchema,
   SetupTokenClaimsSchema,
@@ -7,6 +6,7 @@ import {
 } from "../../contracts/auth.js";
 import { uuidv7 } from "../uuid.js";
 import { getSigningKeyForKid, type JwksLookupOptions } from "./jwks.js";
+import { signRs256Jwt, verifyRs256Jwt } from "./jwtCrypto.js";
 
 const ALLOWED_ALGORITHM = "RS256" as const;
 const ALLOWED_TYP = "JWT" as const;
@@ -51,10 +51,10 @@ export function signCpEnvelope(options: SignCpEnvelopeOptions): string {
   };
 
   const validated = CpEnvelopeClaimsSchema.parse(fullClaims);
-  return jwt.sign(validated as object, options.privateKeyPem, {
-    algorithm: ALLOWED_ALGORITHM,
-    keyid: options.kid,
-    header: { alg: ALLOWED_ALGORITHM, typ: ALLOWED_TYP, kid: options.kid }
+  return signRs256Jwt(validated, options.privateKeyPem, {
+    alg: ALLOWED_ALGORITHM,
+    typ: ALLOWED_TYP,
+    kid: options.kid
   });
 }
 
@@ -69,10 +69,10 @@ export function signSetupToken(options: SignSetupTokenOptions): string {
   };
 
   const validated = SetupTokenClaimsSchema.parse(fullClaims);
-  return jwt.sign(validated as object, options.privateKeyPem, {
-    algorithm: ALLOWED_ALGORITHM,
-    keyid: options.kid,
-    header: { alg: ALLOWED_ALGORITHM, typ: ALLOWED_TYP, kid: options.kid }
+  return signRs256Jwt(validated, options.privateKeyPem, {
+    alg: ALLOWED_ALGORITHM,
+    typ: ALLOWED_TYP,
+    kid: options.kid
   });
 }
 
@@ -123,12 +123,10 @@ async function verifyTypedToken(token: string, options: VerifyEnvelopeOptions): 
 
   let verified: unknown;
   try {
-    verified = jwt.verify(token, publicKeyPem, {
-      algorithms: [ALLOWED_ALGORITHM],
+    verified = await verifyRs256Jwt(token, publicKeyPem, {
       issuer: options.expectedIssuer,
       audience: options.expectedAudience,
-      clockTolerance: options.clockToleranceSeconds ?? 0,
-      complete: false
+      clockToleranceSeconds: options.clockToleranceSeconds ?? 0
     });
   } catch (error) {
     throw new Error(`Envelope verification failed: ${(error as Error).message}`);

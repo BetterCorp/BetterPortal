@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import jwt from "jsonwebtoken";
 import { generateKeyPair, publicKeyToJwk } from "../src/runtime/auth/keypair.js";
 import { clearJwksCache } from "../src/runtime/auth/jwks.js";
+import { signRs256Jwt } from "../src/runtime/auth/jwtCrypto.js";
 import { verifyExternalOidcToken } from "../src/runtime/auth/externalOidc.js";
 
 test("external OIDC verification enforces signature, issuer and audience without BP claims", async (t) => {
@@ -21,15 +21,21 @@ test("external OIDC verification enforces signature, issuer and audience without
     audience: "preview-api",
     jwksUri: "https://issuer.example/.well-known/jwks.json"
   };
-  const token = jwt.sign({ sub: "repo:example/private:pull_request", repository: "example/private" }, pair.privateKeyPem, {
-    algorithm: "RS256",
-    keyid: pair.kid,
-    issuer: options.issuer,
-    audience: options.audience,
-    expiresIn: 60
+  const now = Math.floor(Date.now() / 1000);
+  const token = signRs256Jwt({
+    sub: "repo:example/private:pull_request",
+    repository: "example/private",
+    iss: options.issuer,
+    aud: options.audience,
+    iat: now,
+    exp: now + 60
+  }, pair.privateKeyPem, {
+    alg: "RS256",
+    typ: "JWT",
+    kid: pair.kid
   });
   const claims = await verifyExternalOidcToken(token, options);
   assert.equal(claims.sub, "repo:example/private:pull_request");
   assert.equal(claims.repository, "example/private");
-  await assert.rejects(verifyExternalOidcToken(token, { ...options, audience: "other" }), /audience/i);
+  await assert.rejects(verifyExternalOidcToken(token, { ...options, audience: "other" }), /aud/i);
 });

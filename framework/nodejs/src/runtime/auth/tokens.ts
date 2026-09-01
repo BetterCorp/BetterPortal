@@ -1,7 +1,7 @@
-import jwt, { type JwtHeader, type SignOptions } from "jsonwebtoken";
 import { JwtClaimsSchema, type JwtClaims, type TokenType } from "../../contracts/auth.js";
 import { uuidv7 } from "../uuid.js";
 import { getSigningKeyForKid, type JwksLookupOptions } from "./jwks.js";
+import { signRs256Jwt, verifyRs256Jwt } from "./jwtCrypto.js";
 
 const ALLOWED_ALGORITHM = "RS256" as const;
 const ALLOWED_TYP = "JWT" as const;
@@ -41,13 +41,11 @@ export function signJwt(options: SignJwtOptions): string {
 
   const validated = JwtClaimsSchema.parse(fullClaims);
 
-  const signOptions: SignOptions = {
-    algorithm: ALLOWED_ALGORITHM,
-    keyid: options.kid,
-    header: { alg: ALLOWED_ALGORITHM, typ: ALLOWED_TYP, kid: options.kid }
-  };
-
-  return jwt.sign(validated as object, options.privateKeyPem, signOptions);
+  return signRs256Jwt(validated, options.privateKeyPem, {
+    alg: ALLOWED_ALGORITHM,
+    typ: ALLOWED_TYP,
+    kid: options.kid
+  });
 }
 
 export async function verifyJwt(token: string, options: VerifyJwtOptions): Promise<JwtClaims> {
@@ -84,12 +82,10 @@ export async function verifyJwt(token: string, options: VerifyJwtOptions): Promi
 
   let libVerified: unknown;
   try {
-    libVerified = jwt.verify(token, publicKeyPem, {
-      algorithms: [ALLOWED_ALGORITHM],
+    libVerified = await verifyRs256Jwt(token, publicKeyPem, {
       issuer: options.expectedIssuer,
       audience: options.expectedAudience,
-      clockTolerance: options.clockToleranceSeconds ?? 0,
-      complete: false
+      clockToleranceSeconds: options.clockToleranceSeconds ?? 0
     });
   } catch (error) {
     throw new Error(`Library verification failed: ${(error as Error).message}`);
@@ -135,7 +131,7 @@ export async function verifyJwt(token: string, options: VerifyJwtOptions): Promi
   return claims;
 }
 
-function parseHeader(encodedHeader: string): JwtHeader & { kid?: string; jku?: string; x5u?: string } {
+function parseHeader(encodedHeader: string): Record<string, unknown> {
   let json: string;
   try {
     json = Buffer.from(encodedHeader, "base64url").toString("utf8");
@@ -151,7 +147,7 @@ function parseHeader(encodedHeader: string): JwtHeader & { kid?: string; jku?: s
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Token header is not an object");
   }
-  return parsed as JwtHeader & { kid?: string; jku?: string; x5u?: string };
+  return parsed as Record<string, unknown>;
 }
 
 function generateJti(): string {
