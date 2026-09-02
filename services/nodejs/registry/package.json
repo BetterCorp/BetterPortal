@@ -1,6 +1,7 @@
 {
   "name": "@betterportal/registry",
   "version": "10.6.4",
+  "private": true,
   "description": "BetterPortal service-contract registry",
   "type": "module",
   "main": "lib/index.js",

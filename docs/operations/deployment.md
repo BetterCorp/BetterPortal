@@ -81,6 +81,8 @@ The compose includes PostgreSQL 18 for config-manager production storage. Set `B
 
 It also builds the combined registry service from `services/nodejs/registry/Dockerfile`. In Coolify, route the BSB registry UI hostname to container port `3210` and `io.betterportal.org` to container port `3211`. Set `BP_REGISTRY_TOKEN` and `BP_COMMUNITY_REGISTRY_TOKEN` to separate random values of at least 16 characters. Keep the `BP_REGISTRY_TOKEN` value identical to the GitHub Actions repository secret used by the release workflow. Registry packages and contracts persist in the `bp-registry` volume mounted at `/mnt/temp`.
 
+The combined `@betterportal/registry` workspace is deployed only as that container image. It is private and excluded from the npm publish matrix.
+
 Coolify services use the BSB runtime-provided vault config plugin instead of writing `sec-config.yaml` or injecting full config JSON into the container. The compose file selects that plugin for each BP service and sets:
 
 ```text
