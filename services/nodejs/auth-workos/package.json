@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/auth-workos",
-  "version": "10.6.3",
+  "version": "10.6.4",
   "description": "BetterPortal WorkOS auth service for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
@@ -33,8 +33,8 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@betterportal/framework": "10.6.3",
-    "@betterportal/plugin-bsb": "10.6.3",
+    "@betterportal/framework": "10.6.4",
+    "@betterportal/plugin-bsb": "10.6.4",
     "@bsb/base": "^9.6.86",
     "@workos-inc/node": "^10.12.0",
     "anyvali": "^1.1.0",
