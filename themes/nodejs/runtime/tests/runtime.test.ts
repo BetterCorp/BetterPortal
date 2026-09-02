@@ -80,6 +80,11 @@ test("history restoration uses the shell fragment route pipeline", () => {
   assert.match(source, /triggerShellLink\(detail\.path,serviceUrl,true\)/);
 });
 
+test("history keeps configured tenant routes before reverse-mapping service paths", () => {
+  const source = betterPortalShellRuntimeSource();
+  assert.match(source, /url\.origin===window\.location\.origin\?matchTenantRoute\(url\.pathname\):null/);
+});
+
 test("main outlet HTTP errors only swap explicit themed status views", () => {
   const source = betterPortalShellRuntimeSource();
   assert.match(source, /mode=status/);

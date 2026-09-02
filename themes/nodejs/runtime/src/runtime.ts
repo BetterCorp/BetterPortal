@@ -1124,6 +1124,10 @@ export function betterPortalShellRuntimeSource(): string {
       const tenantUrlForServiceUrl = (value: string): string => {
         try {
           const url = new URL(value, window.location.origin);
+          const tenantMatch = url.origin === window.location.origin ? matchTenantRoute(url.pathname) : null;
+          if (tenantMatch) {
+            return normalizePath(tenantMatch.route.tenantPath + tenantMatch.suffix) + url.search + url.hash;
+          }
           const serviceId = serviceIdByOrigin[url.origin] || "";
           const match = matchServiceRoute(serviceId, url.pathname) || matchServiceRoute(serviceId, url.pathname, "api");
           if (!match) return value;
