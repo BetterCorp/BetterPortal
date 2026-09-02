@@ -5,9 +5,9 @@ import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
-import { deriveRolePermissions, getCachedManifestForService, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
-import { BaseStorage, getAvailableServiceInstanceIdsForApp, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BaseStorage, getAvailableServiceInstanceIdsForApp, getServicePluginId, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
@@ -249,6 +249,80 @@ function s2sConfig(): {
   } as BetterPortalConfig;
   return { config, tenantId, appId, sourceId, targetId, bindingId };
 }
+
+test("dependency analysis finds disabled routes by plugin id", async () => {
+  const value = s2sConfig();
+  const app = value.config.apps[0]!;
+  const sourceOperationId = "webcalcs.quote.read";
+  const targetOperationId = "reports.view.read";
+  const registry = (
+    viewId: string,
+    operationId: string,
+    method: "GET" | "POST",
+    dependencies: Array<{ serviceId?: string; operationId: string; method: "GET" | "POST" }> = []
+  ) => ({
+    routes: [{
+      viewId,
+      path: `/${viewId}`,
+      paramNames: [],
+      methods: [method],
+      raw: true,
+      methodRoutes: {
+        [method]: {
+          method,
+          operationId,
+          title: operationId,
+          description: "",
+          schemas: {},
+          handler: () => ({}),
+          auth: { required: false, permissions: [] },
+          dependencies,
+          cacheHints: { ttlSeconds: 0, varyBy: [] },
+          demoScenarios: []
+        }
+      },
+      renderers: {},
+      schemas: {},
+      robots: [],
+      apiContracts: [],
+      demoScenarios: []
+    }]
+  });
+
+  app.routes.push({
+    id: uuidv7(),
+    kind: "api",
+    path: "/_bp/service/org.example.source/quote",
+    serviceId: value.sourceId,
+    viewId: "quote",
+    targetPath: "/quote",
+    enabled: true,
+    enablement: "enabled",
+    operations: [sourceOperationId]
+  });
+  const storage = new MemoryStorage(value.config);
+  await reconcileServiceRegistry(storage, value.targetId, registry("reports", targetOperationId, "GET") as never);
+  const targetRoute = app.routes.find((route) => route.operations.includes(targetOperationId))!;
+  targetRoute.enabled = false;
+  targetRoute.enablement = "disabled";
+  await reconcileServiceRegistry(storage, value.sourceId, registry("quote", sourceOperationId, "POST", [{
+    serviceId: "org.example.target",
+    operationId: targetOperationId,
+    method: "GET"
+  }]) as never);
+
+  assert.equal(getServicePluginId(value.config, value.targetId), "org.example.target");
+  assert.deepEqual(analyzeOperationDependencies(value.config, app), [{
+    sourceRouteId: app.routes.find((route) => route.operations.includes(sourceOperationId))!.id,
+    sourceOperationId,
+    sourceMethod: "POST",
+    targetServiceId: "org.example.target",
+    targetOperationId,
+    targetMethod: "GET",
+    enabledRouteIds: [],
+    disabledRouteIds: [targetRoute.id]
+  }]);
+});
 
 test("visual route groups preserve duplicate records", () => {
   const route = (id: string, path: string) => ({
@@ -1145,6 +1219,11 @@ test("route designer exposes conflicts, stale views, and service identity", () =
       },
       { id: "service-b", title: "TRG One Theme", hostname: "https://theme.example", serviceId: "service.trg-one.theme", manifestLoaded: true, views: [] }
     ],
+    dependencyIssues: [{
+      message: "POST webcalcs.quote.calculate requires exactly one GET service.trg-one.reports:reports.view.read; found 0, possible 1.",
+      found: 0,
+      possibleRoutes: [{ id: "stale", path: "/calculators/investment", serviceId: "service-a" }]
+    }],
     adminApiBase: "/.well-known/bp/admin",
     serviceBaseUrl: "https://config.example"
   }));
@@ -1164,6 +1243,9 @@ test("route designer exposes conflicts, stale views, and service identity", () =
   assert.match(html, /id="bp-api-routes-service-b" class="accordion-collapse collapse show"/);
   assert.match(html, /data-bs-target="#bp-api-routes-service-a" aria-expanded="false"/);
   assert.doesNotMatch(html, /Delete API route/);
+  assert.match(html, /found 0, possible 1/);
+  assert.match(html, /Quick fix/);
+  assert.match(html, /apps\/app-a\/routes\/stale/);
   assert.doesNotMatch(html, /└─/);
 });
 

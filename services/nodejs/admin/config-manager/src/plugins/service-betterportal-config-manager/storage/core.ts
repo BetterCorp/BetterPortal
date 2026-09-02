@@ -302,6 +302,21 @@ export function getAvailableServiceInstanceIdsForApp(
   ]);
 }
 
+export function getServicePluginId(config: BetterPortalConfig, serviceInstanceId: string): string | undefined {
+  const tenantService = config.tenants
+    .flatMap((tenant) => tenant.services)
+    .find((service) => service.id === serviceInstanceId);
+  if (tenantService) return tenantService.serviceId ?? tenantService.id;
+
+  const platformService = config.platformServices.find((service) => service.id === serviceInstanceId);
+  if (platformService) return platformService.serviceId ?? platformService.id;
+
+  const activation = config.sharedServiceActivations.find((candidate) => candidate.id === serviceInstanceId);
+  const sharedServiceId = activation?.sharedServiceId ?? serviceInstanceId;
+  const sharedService = config.sharedServiceCatalog.find((service) => service.id === sharedServiceId);
+  return sharedService?.serviceId ?? sharedService?.id;
+}
+
 export abstract class BaseStorage implements PlatformConfigStore {
   protected listeners: Set<() => void> = new Set();
 

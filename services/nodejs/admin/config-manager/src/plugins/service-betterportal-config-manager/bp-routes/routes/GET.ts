@@ -58,6 +58,16 @@ const AvailableServiceSchema = av.object({
   views: av.array(AvailableViewSchema).default([])
 });
 
+const DependencyIssueSchema = av.object({
+  message: av.string().minLength(1),
+  found: av.int().min(0),
+  possibleRoutes: av.array(av.object({
+    id: av.string().minLength(1),
+    path: av.string().minLength(1),
+    serviceId: av.string().minLength(1)
+  })).default([])
+});
+
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
   apps: av.array(AppSummarySchema),
@@ -65,7 +75,7 @@ export const ResponseSchema = av.object({
   openApiServiceId: av.optional(av.string()),
   routes: av.array(RouteItemSchema),
   availableServices: av.array(AvailableServiceSchema).default([]),
-  dependencyWarnings: av.array(av.string()).default([]),
+  dependencyIssues: av.array(DependencyIssueSchema).default([]),
   adminApiBase: av.string().minLength(1),
   serviceBaseUrl: av.string().minLength(1)
 });
@@ -84,13 +94,13 @@ export const auth: ApiAuthRequirement = {
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin"] };
 
 export const demoScenarios: DemoScenario<ResponseData>[] = [
-  { id: "default", title: "Default", response: { title: "Route Designer", apps: [], routes: [], availableServices: [], dependencyWarnings: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "" } }
+  { id: "default", title: "Default", response: { title: "Route Designer", apps: [], routes: [], availableServices: [], dependencyIssues: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "" } }
 ];
 
 export default createHandler(
   { response: ResponseSchema },
   (ctx) => {
     if (ctx.responseModel) return ctx.responseModel as ResponseData;
-    return { title: "Route Designer", apps: [], routes: [], availableServices: [], dependencyWarnings: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "" };
+    return { title: "Route Designer", apps: [], routes: [], availableServices: [], dependencyIssues: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "" };
   }
 );

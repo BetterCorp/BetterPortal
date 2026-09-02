@@ -723,10 +723,28 @@ export function render(data: ResponseData): HtmlRenderable {
 
   return (
     <div class="container-fluid px-0">
-      {(data.dependencyWarnings ?? []).length > 0 ? (
+      {(data.dependencyIssues ?? []).length > 0 ? (
         <div class="alert alert-warning" role="alert">
           <strong>Unresolved operation dependencies</strong>
-          <ul class="mb-0 mt-2">{(data.dependencyWarnings ?? []).map((warning) => <li>{warning}</li>)}</ul>
+          <ul class="mb-0 mt-2">{(data.dependencyIssues ?? []).map((issue) => (
+            <li class="mb-2">
+              <div>{issue.message}</div>
+              {issue.found === 0 && issue.possibleRoutes.length > 0 ? (
+                <div class="d-flex flex-wrap gap-2 mt-1">
+                  {issue.possibleRoutes.map((route) => (
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-warning"
+                      hx-put={`${apiBase}/apps/${data.selectedAppId}/routes/${route.id}`}
+                      hx-vals={JSON.stringify({ enabled: true })}
+                      hx-target="#bp-main"
+                      hx-swap="innerHTML"
+                    >{issue.possibleRoutes.length === 1 ? "Quick fix" : `Quick fix: ${serviceLabel(data.availableServices, route.serviceId)} ${route.path}`}</button>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          ))}</ul>
         </div>
       ) : null}
       <div class="d-flex justify-content-between align-items-center mb-4">

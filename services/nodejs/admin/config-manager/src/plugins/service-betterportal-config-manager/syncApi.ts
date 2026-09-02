@@ -15,6 +15,7 @@ import type {
   BetterPortalRouteChrome,
   BetterPortalRouteMount,
   BetterPortalConfig,
+  BetterPortalApp,
   DeveloperResource,
   ShellManifest,
   OperationDependency,
@@ -26,7 +27,7 @@ import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManife
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
-import { getAvailableServiceInstanceIdsForApp, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
+import { getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService } from "./previewEnvironments.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
@@ -785,6 +786,56 @@ function operationIndex(manifest: CachedManifest): Map<string, { view: CachedMan
   ));
 }
 
+export interface OperationDependencyIssue {
+  sourceRouteId: string;
+  sourceOperationId: string;
+  sourceMethod: CachedManifestOperation["method"];
+  targetServiceId?: string;
+  targetOperationId: string;
+  targetMethod: CachedManifestOperation["method"];
+  enabledRouteIds: string[];
+  disabledRouteIds: string[];
+}
+
+export function analyzeOperationDependencies(
+  config: BetterPortalConfig,
+  app: BetterPortalApp
+): OperationDependencyIssue[] {
+  const availableServiceIds = getAvailableServiceInstanceIdsForApp(config, app);
+  const issues: OperationDependencyIssue[] = [];
+
+  for (const sourceRoute of app.routes.filter((route) => route.enabled)) {
+    const sourceView = getCachedManifestForService(config, sourceRoute.serviceId)?.viewIndex[sourceRoute.viewId];
+    if (!sourceView) continue;
+    for (const sourceOperation of sourceView.operations.filter((operation) => sourceRoute.operations.includes(operation.operationId))) {
+      for (const requirement of sourceOperation.dependencies) {
+        const targetServiceIds = requirement.serviceId
+          ? new Set([...availableServiceIds].filter((serviceId) => getServicePluginId(config, serviceId) === requirement.serviceId))
+          : new Set([sourceRoute.serviceId]);
+        const candidates = app.routes.filter((route) => {
+          if (!targetServiceIds.has(route.serviceId) || !route.operations.includes(requirement.operationId)) return false;
+          const operation = getCachedManifestForService(config, route.serviceId)?.viewIndex[route.viewId]?.operations
+            .find((candidate) => candidate.operationId === requirement.operationId);
+          return operation?.method === requirement.method;
+        });
+        const enabledRouteIds = candidates.filter((route) => route.enabled).map((route) => route.id);
+        if (enabledRouteIds.length === 1) continue;
+        issues.push({
+          sourceRouteId: sourceRoute.id,
+          sourceOperationId: sourceOperation.operationId,
+          sourceMethod: sourceOperation.method,
+          ...(requirement.serviceId ? { targetServiceId: requirement.serviceId } : {}),
+          targetOperationId: requirement.operationId,
+          targetMethod: requirement.method,
+          enabledRouteIds,
+          disabledRouteIds: candidates.filter((route) => !route.enabled).map((route) => route.id)
+        });
+      }
+    }
+  }
+  return issues;
+}
+
 function addMissingDependencyRoutes(
   config: BetterPortalConfig,
   app: BetterPortalConfig["apps"][number],
@@ -803,7 +854,7 @@ function addMissingDependencyRoutes(
   for (const requirement of dependencies) {
     const targetServiceIds = requirement.serviceId
       ? [...availableServiceIds].filter((serviceId) =>
-          getCachedManifestForService(config, serviceId)?.serviceId === requirement.serviceId
+          getServicePluginId(config, serviceId) === requirement.serviceId
         )
       : [sourceRoute.serviceId];
     if (targetServiceIds.length !== 1) continue;

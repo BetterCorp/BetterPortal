@@ -1374,24 +1374,24 @@ export abstract class BPService<
 
   private resolveAuthForRequest(event: BetterPortalEvent, route: RegisteredRoute): H3AuthContext | undefined {
     const ctx = event as unknown as { __bpTenantId?: string; __bpAppId?: string };
-    if (isBpManagementAuthRoute(route)) {
-      const management = this.managementRequestContext();
-      if (management) this.applyRequestContext(event, management);
-    }
-    if (!ctx.__bpTenantId || !ctx.__bpAppId) return undefined;
-    const verifier = isBpManagementAuthRoute(route)
-      ? this.getConfiguredJwtVerifier(ctx.__bpTenantId, ctx.__bpAppId)
-      : this.getJwtVerifier(ctx.__bpTenantId, ctx.__bpAppId);
+    const managementRoute = isBpManagementAuthRoute(route);
+    const management = managementRoute ? this.managementRequestContext() : null;
+    const tenantId = management?.tenant.id ?? ctx.__bpTenantId;
+    const appId = management?.app.id ?? ctx.__bpAppId;
+    if (!tenantId || !appId) return undefined;
+    const verifier = managementRoute
+      ? this.getConfiguredJwtVerifier(tenantId, appId)
+      : this.getJwtVerifier(tenantId, appId);
     const serviceVerifier = this.getServiceTokenVerifier();
     if (!verifier && !serviceVerifier) return undefined;
     return {
       ...(verifier ? { verifier } : {}),
       ...(serviceVerifier ? { serviceVerifier } : {}),
-      tenantId: ctx.__bpTenantId,
-      appId: ctx.__bpAppId,
-      appAuthConfig: this.getAppAuthConfig(ctx.__bpTenantId, ctx.__bpAppId),
-      serviceIdAliases: this.getServiceIdAliases(ctx.__bpTenantId),
-      platformRoot: this.getPlatformRootAuthScope(ctx.__bpTenantId, ctx.__bpAppId)
+      tenantId,
+      appId,
+      appAuthConfig: this.getAppAuthConfig(tenantId, appId),
+      serviceIdAliases: this.getServiceIdAliases(tenantId),
+      platformRoot: this.getPlatformRootAuthScope(tenantId, appId)
     };
   }
 
@@ -1697,10 +1697,15 @@ export abstract class BPService<
   }
 
   protected resolveHandlerContext(event: BetterPortalEvent, route?: RegisteredRoute): Partial<RouteHandlerContext<any, any, any, any, unknown>> {
-    if (route && isBpManagementAuthRoute(route)) {
-      const management = this.managementRequestContext();
-      if (management) this.applyRequestContext(event, management);
-    }
+    const managementRoute = route && isBpManagementAuthRoute(route);
+    const targetTenantId = managementRoute ? event.url.searchParams.get("tenantId") : null;
+    const targetAppId = managementRoute ? event.url.searchParams.get("appId") : null;
+    const managementContext = managementRoute
+      ? targetTenantId && targetAppId
+        ? this.resolveScopedContextById(targetTenantId, targetAppId)
+        : this.managementRequestContext()
+      : null;
+    if (managementContext) this.applyRequestContext(event, managementContext);
     const bpContext = event as unknown as {
       __bpTenantId?: string;
       __bpAppId?: string;
@@ -1708,11 +1713,13 @@ export abstract class BPService<
       __bpApp?: BetterPortalResolvedRequestContext["app"];
       __bpResponseModel?: unknown;
     };
+    const tenant = managementRoute ? managementContext?.tenant : bpContext.__bpTenant;
+    const app = managementRoute ? managementContext?.app : bpContext.__bpApp;
     return {
       plugin: this,
-      ...(bpContext.__bpTenant ? { tenant: bpContext.__bpTenant } : {}),
-      ...(bpContext.__bpApp ? { app: bpContext.__bpApp } : {}),
-      config: this.effectiveServiceConfig(bpContext.__bpTenantId, bpContext.__bpAppId),
+      ...(tenant ? { tenant } : {}),
+      ...(app ? { app } : {}),
+      config: this.effectiveServiceConfig(tenant?.id, app?.id),
       ...(bpContext.__bpResponseModel ? { responseModel: bpContext.__bpResponseModel } : {}),
       webhook: (eventId, payload, options) => this.emitWebhook(event, eventId, payload, {
         tenantId: options?.tenantId ?? bpContext.__bpTenantId,

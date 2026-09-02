@@ -20,7 +20,7 @@ import { registerAdminApiRoutes } from "./adminApi.js";
 import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
-import { deriveRolePermissions, getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
+import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel } from "./m2mConnections.js";
 import { registerPreviewDeploymentApi } from "./previewApi.js";
 import {
@@ -44,6 +44,7 @@ import {
 import {
   createStorageFromConfig,
   getAvailableServiceInstanceIdsForApp,
+  getServicePluginId,
   PlatformConfigStorageSchema
 } from "./storage/index.js";
 import BetterportalConfigManagerClient from "../../.bsb/clients/service-betterportal-config-manager.js";
@@ -625,7 +626,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const manifest = getCachedManifestForService(config, serviceInstanceId, cache);
       return {
         title: manifest?.title ?? title,
-        serviceId: manifest?.serviceId ?? serviceId,
+        serviceId: getServicePluginId(config, serviceInstanceId) ?? serviceId,
         manifestLoaded: Boolean(manifest),
         views: manifest
           ? Object.values(manifest.viewIndex).flatMap((view) =>
@@ -702,23 +703,17 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       };
     });
 
-    const dependencyWarnings = [...new Set(routeModel.flatMap((route) => {
-      if (!route.enabled) return [];
-      const sourceService = availableServices.find((service) => service.id === route.serviceId);
-      return sourceService?.views
-        .filter((operation) => route.operations.includes(operation.operationId))
-        .flatMap((operation) => operation.dependencies.flatMap((dependency) => {
-          const targetServices = dependency.serviceId
-            ? availableServices.filter((service) => service.serviceId === dependency.serviceId)
-            : sourceService ? [sourceService] : [];
-          const matches = targetServices.flatMap((service) => service.views.filter((candidate) =>
-            candidate.operationId === dependency.operationId && candidate.method === dependency.method
-          ));
-          return matches.length === 1
-            ? []
-            : [`${operation.method} ${operation.operationId} requires exactly one ${dependency.method} ${dependency.serviceId ? `${dependency.serviceId}:` : ""}${dependency.operationId}; found ${matches.length}.`];
-        })) ?? [];
-    }))];
+    const dependencyIssues = (selectedApp ? analyzeOperationDependencies(config, selectedApp) : []).map((issue) => {
+      const possibleRoutes = issue.disabledRouteIds.flatMap((routeId) => {
+        const route = routeModel.find((candidate) => candidate.id === routeId);
+        return route ? [{ id: route.id, path: route.path, serviceId: route.serviceId }] : [];
+      });
+      return {
+        message: `${issue.sourceMethod} ${issue.sourceOperationId} requires exactly one ${issue.targetMethod} ${issue.targetServiceId ? `${issue.targetServiceId}:` : ""}${issue.targetOperationId}; found ${issue.enabledRouteIds.length}, possible ${possibleRoutes.length}.`,
+        found: issue.enabledRouteIds.length,
+        possibleRoutes
+      };
+    });
 
     (event as unknown as { __bpResponseModel: unknown }).__bpResponseModel = {
       title: "Route Designer",
@@ -727,7 +722,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       openApiServiceId,
       routes: routeModel,
       availableServices,
-      dependencyWarnings,
+      dependencyIssues,
       adminApiBase: "/.well-known/bp/admin",
       serviceBaseUrl: this.cpState.issuer
     };
