@@ -36,7 +36,7 @@ The runtime is assembled on the backend in deterministic order: HTMX core, the s
 
 Write adapters as TSX and use `jsx-htmx`'s typed `js()` helper:
 
-BetterPortal v10 currently uses the exact `jsx-htmx` version `4.0.0-beta6`. Pin that version rather than installing npm's `latest` v2 release until jsx-htmx v4 is promoted to its stable channel.
+BetterPortal v10 uses the exact stable `jsx-htmx` version `4.0.0`.
 
 ```tsx
 import { js } from "jsx-htmx";

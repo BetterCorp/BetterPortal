@@ -17,6 +17,7 @@ default:
   services:
     service-bsb-registry:
       plugin: service-bsb-registry
+      package: "@bsb/registry"
       enabled: true
       config:
         database:
@@ -26,12 +27,14 @@ default:
           requireAuth: true
     service-bsb-registry-ui:
       plugin: service-bsb-registry-ui
+      package: "@bsb/registry"
       enabled: true
       config:
         host: 0.0.0.0
         port: 3210
     service-betterportal-registry:
       plugin: service-betterportal-registry
+      package: "@betterportal/registry"
       enabled: true
       config:
         host: 0.0.0.0

@@ -35,11 +35,11 @@
   "dependencies": {
     "@betterportal/framework": "10.6.2",
     "@betterportal/plugin-bsb": "10.6.2",
-    "@bsb/base": "^9.6.77",
+    "@bsb/base": "^9.6.83",
     "@workos-inc/node": "^10.12.0",
     "anyvali": "^1.1.0",
     "jsonwebtoken": "^9.0.2",
-    "jsx-htmx": "4.0.0-beta6"
+    "jsx-htmx": "4.0.0"
   },
   "files": [
     "lib/**/*",
