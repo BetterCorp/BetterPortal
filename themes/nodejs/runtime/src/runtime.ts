@@ -1515,14 +1515,13 @@ export function betterPortalShellRuntimeSource(): string {
 
           if (applyPreloadConfig(el, bpCfg)) changed = true;
           if (sanitizeHtmxTarget(el)) changed = true;
+          bindBpPreload(el);
 
           // Skip already-processed or shell-owned route links after config/preload handling
           if (el.hasAttribute("data-bp-shell-route")) {
-            bindBpPreload(el);
             continue;
           }
           if (el.hasAttribute("data-bp-route-link")) {
-            bindBpPreload(el);
             continue;
           }
           if (bpCfg.rewrite === false) continue;
@@ -1737,7 +1736,6 @@ export function betterPortalShellRuntimeSource(): string {
           }
 
           changed = true;
-          bindBpPreload(el);
         }
 
         if (changed && reprocess && htmx && typeof htmx.process === "function") {
