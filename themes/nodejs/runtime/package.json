@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/theme-runtime",
-  "version": "10.6.5",
+  "version": "10.6.6",
   "description": "Backend-assembled BetterPortal browser runtime for theme packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

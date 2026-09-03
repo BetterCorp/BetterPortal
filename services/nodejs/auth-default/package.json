@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/auth-default",
-  "version": "10.6.5",
+  "version": "10.6.6",
   "description": "BetterPortal v10 default auth service for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
@@ -35,8 +35,8 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@betterportal/framework": "10.6.5",
-    "@betterportal/plugin-bsb": "10.6.5",
+    "@betterportal/framework": "10.6.6",
+    "@betterportal/plugin-bsb": "10.6.6",
     "@bsb/base": "^9.6.96",
     "anyvali": "^1.1.0",
     "bcrypt": "^6.0.0",
