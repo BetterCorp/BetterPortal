@@ -32,7 +32,7 @@
     "@playwright/test": "^1.62.1"
   },
   "dependencies": {
-    "@bsb/observable-axiom": "^9.6.86",
-    "@bsb/observable-opentelemetry": "^9.6.86"
+    "@bsb/observable-axiom": "^9.6.96",
+    "@bsb/observable-opentelemetry": "^9.6.96"
   }
 }
