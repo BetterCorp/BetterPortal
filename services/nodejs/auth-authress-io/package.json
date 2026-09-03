@@ -37,7 +37,7 @@
     "@authress/sdk": "^3.2.280",
     "@betterportal/framework": "10.6.6",
     "@betterportal/plugin-bsb": "10.6.6",
-    "@bsb/base": "^9.6.96",
+    "@bsb/base": "^9.6.97",
     "anyvali": "^1.1.0",
     "jsonwebtoken": "^9.0.2",
     "jsx-htmx": "4.0.0"
