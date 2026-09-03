@@ -81,7 +81,7 @@ async function callPreviewApi(fetchImpl, endpoint, method, token, body) {
       ...(body ? { "content-type": "application/json" } : {})
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(30_000)
+    signal: AbortSignal.timeout(120_000)
   });
   const text = await response.text();
   let payload;
