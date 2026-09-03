@@ -86,6 +86,15 @@ test("history keeps configured tenant routes before reverse-mapping service path
   assert.match(source, /url\.origin===window\.location\.origin\?matchTenantRoute\(url\.pathname\):null/);
 });
 
+test("missing root replaces history with the first menu or visual route", () => {
+  const source = betterPortalShellRuntimeSource();
+  const fallback = source.slice(source.indexOf("redirectMissingRoot"), source.indexOf("const applyConfigToken"));
+  assert.match(fallback, /normalizePath\(window\.location\.pathname\)!=="\/"\|\|configuredRouteFor\("\/"\)/);
+  assert.ok(fallback.indexOf("routeLinks().find") < fallback.indexOf("configuredRoutes().find"));
+  assert.match(fallback, /route\.kind==="page"&&route\.href&&route\.requestUrl/);
+  assert.match(fallback, /triggerShellLink\(fallback\.href,fallback\.requestUrl,true\)/);
+});
+
 test("main outlet HTTP errors only swap explicit themed status views", () => {
   const source = betterPortalShellRuntimeSource();
   assert.match(source, /mode=status/);

@@ -1166,6 +1166,17 @@ export function betterPortalShellRuntimeSource(): string {
         window.setTimeout(cleanup, 30000);
       };
 
+      const redirectMissingRoot = () => {
+        if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
+        const menuLink = routeLinks().find((link) =>
+          !link.closest("[hidden]") && link.hasAttribute("data-bp-route-request")
+        );
+        const fallback = menuLink
+          ? { href: menuLink.getAttribute("href"), requestUrl: menuLink.getAttribute("data-bp-route-request") }
+          : configuredRoutes().find((route) => route.kind === "page" && route.href && route.requestUrl);
+        if (fallback?.href && fallback.requestUrl) triggerShellLink(fallback.href, fallback.requestUrl, true);
+      };
+
       interface BpElementConfig {
         ignore?: boolean;
         preload?: boolean;
@@ -1891,6 +1902,7 @@ export function betterPortalShellRuntimeSource(): string {
           setInterval(runMenuHealthChecks, 60 * 60 * 1000);
           syncMenuVisibility();
         }
+        redirectMissingRoot();
       });
 
       document.addEventListener("click", (event) => {
