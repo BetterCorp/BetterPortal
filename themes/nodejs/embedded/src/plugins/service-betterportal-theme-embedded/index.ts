@@ -43,7 +43,7 @@ import { renderEmbeddedHostPage, type EmbeddedRouteLink } from "./shell/index.js
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
-  port: av.int().min(1).default(3110),
+  port: av.int().min(1).default(80),
   betterportal: BetterPortalConfigSchema
 });
 

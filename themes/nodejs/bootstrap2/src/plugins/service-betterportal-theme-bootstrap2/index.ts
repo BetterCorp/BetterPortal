@@ -58,7 +58,7 @@ const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
-  port: av.int().min(1).default(3126),
+  port: av.int().min(1).default(80),
   betterportal: BetterPortalConfigSchema,
   defaultMode: av.enum_(["light", "dark", "system"] as const).default("dark"),
   brandName: av.string().minLength(1).default("BetterPortal"),

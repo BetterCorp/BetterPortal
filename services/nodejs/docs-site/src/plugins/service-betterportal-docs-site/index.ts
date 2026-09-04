@@ -16,7 +16,7 @@ const AllowedAssets = new Set(["portal-map.svg", "doc-wave.svg"]);
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
-  port: av.int().min(1).default(3400),
+  port: av.int().min(1).default(80),
   betterportal: BetterPortalConfigSchema
 });
 

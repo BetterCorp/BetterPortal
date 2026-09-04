@@ -95,7 +95,7 @@ function buildServiceIdAliases(
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
-  port: av.int().min(1).default(3300),
+  port: av.int().min(1).default(80),
   betterportal: BetterPortalConfigSchema,
   storage: PlatformConfigStorageSchema,
   requestTimeoutMs: av.int().min(1).default(2000),
@@ -315,7 +315,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       issuer: this.config.cpIssuer,
       audience: this.config.cpAudience ?? "betterportal-control-plane",
       host: this.config.host ?? "0.0.0.0",
-      port: this.config.port ?? 3300
+      port: this.config.port ?? 80
     });
     this.registerAsAuthProvider({
       issuer: this.cpState.issuer,
