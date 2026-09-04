@@ -1,10 +1,11 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7, type BetterPortalRouteMount, type PlatformConfigStore } from "@betterportal/framework";
 import type { Observable } from "@bsb/base";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { renderBootstrapWizardHtml } from "./bootstrapWizardHtml.js";
 import { apiRoutePath } from "./routeMounts.js";
+import type { PostgresStorage } from "./storage/postgres.js";
 
 /**
  * Default admin app route mounts - points each menu entry at a config-manager view.
@@ -92,6 +93,8 @@ export async function registerBootstrapEndpoint(input: {
   storage: PlatformConfigStore;
   cpState: CpBootstrapState;
   logger: Observable;
+  postgres?: PostgresStorage;
+  owner?: string;
 }): Promise<void> {
   const config = await input.storage.loadConfig();
   const alreadyBootstrapped = config.tenants.length > 0;
@@ -100,13 +103,21 @@ export async function registerBootstrapEndpoint(input: {
   if (!alreadyBootstrapped) {
     const key = `bootstrap-${randomBytes(24).toString("base64url")}`;
     const issuedAt = Date.now();
-    state = { key, issuedAt, expiresAt: issuedAt + BOOTSTRAP_KEY_TTL_MS, consumed: false };
+    const candidate = { key, issuedAt, expiresAt: issuedAt + BOOTSTRAP_KEY_TTL_MS, consumed: false };
+    const created = input.postgres ? await input.postgres.createPendingAction({
+      kind: "bootstrap",
+      key: "bootstrap",
+      secretHash: hashBootstrapKey(key),
+      payload: {},
+      expiresAt: new Date(candidate.expiresAt).toISOString()
+    }) : true;
+    if (created) state = candidate;
     // Log via BSB logger (writes to stdout). Wrapped in markers so it's grep-friendly.
-    input.logger.log.warn(
+    if (created) input.logger.log.warn(
       "**** BETTERPORTAL BOOTSTRAP REQUIRED **** key={key} validUntil={validUntil} url={url}",
       {
         key,
-        validUntil: new Date(state.expiresAt).toISOString(),
+        validUntil: new Date(candidate.expiresAt).toISOString(),
         url: `${input.cpState.issuer}/.well-known/bp/bootstrap`
       }
     );
@@ -115,10 +126,13 @@ export async function registerBootstrapEndpoint(input: {
   // GET wizard - completely silent (404, no body) once bootstrapped or expired.
   input.app.get("/.well-known/bp/bootstrap", async () => {
     const freshConfig = await input.storage.loadConfig();
-    if (freshConfig.tenants.length > 0 || !state) {
+    if (freshConfig.tenants.length > 0 || (!input.postgres && !state)) {
       return new Response(null, { status: 404 });
     }
-    if (state.expiresAt < Date.now()) {
+    if (input.postgres && !await input.postgres.isPendingActionAvailable("bootstrap", "bootstrap")) {
+      return new Response(null, { status: 404 });
+    }
+    if (!input.postgres && state!.expiresAt < Date.now()) {
       return new Response(null, { status: 404 });
     }
     return new Response(renderBootstrapWizardHtml({ cpIssuer: input.cpState.issuer }), {
@@ -129,20 +143,6 @@ export async function registerBootstrapEndpoint(input: {
 
   // POST commit
   input.app.post("/.well-known/bp/bootstrap/commit", async (event) => {
-    const freshConfig = await input.storage.loadConfig();
-    if (freshConfig.tenants.length > 0) {
-      return new Response(null, { status: 404 });
-    }
-    if (!state) {
-      return new Response(null, { status: 404 });
-    }
-    if (state.consumed) {
-      return new Response(null, { status: 404 });
-    }
-    if (state.expiresAt < Date.now()) {
-      return new Response(null, { status: 404 });
-    }
-
     const body = await event.req.json().catch(() => null) as {
       bootstrapKey?: string;
       adminTenant?: { title: string };
@@ -152,12 +152,6 @@ export async function registerBootstrapEndpoint(input: {
     } | null;
     if (!body) return jsonResponse({ error: "Body must be JSON" }, 400);
     if (typeof body.bootstrapKey !== "string") return jsonResponse({ error: "Missing bootstrapKey" }, 400);
-
-    const provided = Buffer.from(body.bootstrapKey);
-    const expected = Buffer.from(state.key);
-    if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
-      return jsonResponse({ error: "Invalid bootstrap key" }, 401);
-    }
 
     if (!body.adminTenant?.title || !body.adminApp?.title || !body.adminApp?.hostname) {
       return jsonResponse({ error: "adminTenant.title + adminApp.title + adminApp.hostname required" }, 400);
@@ -169,6 +163,34 @@ export async function registerBootstrapEndpoint(input: {
     }
     if (!themeHostFromBody) {
       return jsonResponse({ error: "themeService.hostname is required" }, 400);
+    }
+
+    const freshConfig = await input.storage.loadConfig();
+    const owner = input.owner ?? "single";
+    if (input.postgres) {
+      const claim = await input.postgres.claimPendingAction({
+        kind: "bootstrap",
+        key: "bootstrap",
+        secretHash: hashBootstrapKey(body.bootstrapKey),
+        owner
+      });
+      if (claim.state === "completed") return jsonResponse((claim.action.result ?? { ok: true }) as unknown as never, 200);
+      if (claim.state === "busy") return jsonResponse({ error: "Bootstrap is already being committed" }, 409);
+      if (claim.state !== "claimed") return jsonResponse({ error: "Invalid or expired bootstrap key" }, 401);
+      if (freshConfig.tenants.length > 0) {
+        const result = existingBootstrapResult(freshConfig, input.cpState.issuer);
+        await input.postgres.completePendingAction({ kind: "bootstrap", key: "bootstrap", owner, result });
+        return jsonResponse(result as unknown as never, 200);
+      }
+    } else {
+      if (!state || state.consumed || state.expiresAt < Date.now() || freshConfig.tenants.length > 0) {
+        return new Response(null, { status: 404 });
+      }
+      const provided = Buffer.from(body.bootstrapKey);
+      const expected = Buffer.from(state.key);
+      if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+        return jsonResponse({ error: "Invalid bootstrap key" }, 401);
+      }
     }
 
     // Generate stable IDs (uuidv7 - time-sortable).
@@ -323,7 +345,7 @@ export async function registerBootstrapEndpoint(input: {
     };
 
     await input.storage.saveConfig(freshConfig);
-    state.consumed = true;
+    if (state) state.consumed = true;
 
     input.logger.log.info(
       "Bootstrap committed: tenant={tid} app={aid}; admin URL={adminUrl}",
@@ -334,7 +356,7 @@ export async function registerBootstrapEndpoint(input: {
       }
     );
 
-    return jsonResponse({
+    const result = {
       ok: true,
       adminTenantId,
       adminAppId,
@@ -346,7 +368,38 @@ export async function registerBootstrapEndpoint(input: {
       themeActivationId,
       authSharedServiceId,
       themeSharedServiceId
-    } as unknown as never, 200);
+    };
+    if (input.postgres) await input.postgres.completePendingAction({
+      kind: "bootstrap", key: "bootstrap", owner, result
+    });
+    return jsonResponse(result as unknown as never, 200);
   });
 
+}
+
+function hashBootstrapKey(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function existingBootstrapResult(config: Awaited<ReturnType<PlatformConfigStore["loadConfig"]>>, cpIssuer: string) {
+  const adminTenantId = config.configManagement?.adminTenantId ?? "";
+  const adminAppId = config.configManagement?.managementAppId ?? "";
+  const app = config.apps.find((candidate) => candidate.id === adminAppId);
+  const tenant = config.tenants.find((candidate) => candidate.id === adminTenantId);
+  const activation = (sharedServiceId: string) => config.sharedServiceActivations.find((candidate) =>
+    candidate.tenantId === adminTenantId && candidate.sharedServiceId === sharedServiceId
+  )?.id ?? "";
+  return {
+    ok: true,
+    adminTenantId,
+    adminAppId,
+    adminAppUrl: app?.hostnames[0] ?? "",
+    cpIssuer,
+    routesCreated: app?.routes.length ?? 0,
+    cmInstanceId: tenant?.services.find((service) => service.serviceId === "org.betterportal.config-manager")?.id ?? "",
+    authActivationId: activation("org.betterportal.auth.default"),
+    themeActivationId: activation("org.betterportal.theme.bootstrap1"),
+    authSharedServiceId: "org.betterportal.auth.default",
+    themeSharedServiceId: "org.betterportal.theme.bootstrap1"
+  };
 }

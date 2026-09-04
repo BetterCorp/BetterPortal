@@ -73,7 +73,7 @@ The text API guide and JSON catalog are two representations of the same app-scop
 
 Webhook events are declared by service developers in the service manifest. Users/admins cannot edit payload schemas; they only configure delivery targets for declared events.
 
-Config-manager receives service events at `POST /.well-known/bp/webhooks/events` using the service API key, queues matching targets, signs each POST, and retries failed delivery up to the target's `maxAttempts`. Disabled tenants are skipped.
+Config-manager receives service events at `POST /.well-known/bp/webhooks/events` using the service API key and an `Idempotency-Key` header (or `idempotencyKey` body field), queues matching targets, signs each POST, and retries failed delivery up to the target's `maxAttempts`. Reusing the key is safe after an uncertain response. Disabled tenants are skipped.
 
 The test endpoint sends a config-manager generated `{ "test": true }` payload directly to the target. It is useful for local callback URLs, but it does not ask the service to generate a real domain event.
 

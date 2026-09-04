@@ -1,12 +1,12 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, PublicJwks, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
 import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, signSetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
+import type { PostgresStorage } from "./storage/postgres.js";
 
 interface PendingSetup {
-  setupToken: string;
   serviceUrl: string;
   instanceId: string;
   sharedServiceId?: string;
@@ -37,9 +37,12 @@ export function registerSetupEndpoints(input: {
   app: BetterPortalH3App;
   storage: PlatformConfigStore;
   cpState: CpBootstrapState;
+  postgres?: PostgresStorage;
+  owner?: string;
 }): void {
   const pending = new Map<string, PendingSetup>();
   const pendingHostnameChanges = new Map<string, PendingHostnameChange>();
+  const owner = input.owner ?? "single";
 
   function sweep(): void {
     const now = Date.now();
@@ -64,11 +67,20 @@ export function registerSetupEndpoints(input: {
     if (!service.enabled || !service.apiKeyHash) return jsonResponse({ error: "Only an installed, enabled service can change URL" }, 409);
 
     const changeToken = `bp_hc_${randomBytes(32).toString("base64url")}`;
-    pendingHostnameChanges.set(changeToken, {
+    const pendingChange = {
       instanceId,
       serviceUrl,
       expiresAt: Date.now() + SETUP_TTL_SECONDS * 1000
-    });
+    };
+    if (input.postgres) {
+      await input.postgres.createPendingAction({
+        kind: "hostname-change",
+        key: hashSecret(changeToken),
+        secretHash: hashSecret(changeToken),
+        payload: pendingChange,
+        expiresAt: new Date(pendingChange.expiresAt).toISOString()
+      });
+    } else pendingHostnameChanges.set(changeToken, pendingChange);
     return jsonResponse({ changeToken, expiresInSeconds: SETUP_TTL_SECONDS }, 200);
   });
 
@@ -77,23 +89,48 @@ export function registerSetupEndpoints(input: {
     const body = await event.req.json().catch(() => null) as { changeToken?: string; serviceUrl?: string } | null;
     const changeToken = typeof body?.changeToken === "string" ? body.changeToken : "";
     const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
-    const entry = pendingHostnameChanges.get(changeToken);
+    const actionKey = hashSecret(changeToken);
+    const claim = input.postgres ? await input.postgres.claimPendingAction({
+      kind: "hostname-change",
+      key: actionKey,
+      secretHash: actionKey,
+      owner
+    }) : undefined;
+    if (claim?.state === "completed") return jsonResponse((claim.action.result ?? { ok: true }) as unknown as never, 200);
+    if (claim?.state === "busy") return jsonResponse({ error: "Hostname change is already being processed" }, 409);
+    const entry = claim?.state === "claimed"
+      ? claim.action.payload as unknown as PendingHostnameChange
+      : input.postgres ? undefined : pendingHostnameChanges.get(changeToken);
     if (!entry) return jsonResponse({ error: "Hostname change token not recognized or expired" }, 400);
-    if (!serviceUrl || serviceUrl !== entry.serviceUrl) return jsonResponse({ error: "Service URL does not match the requested hostname" }, 403);
+    if (!serviceUrl || serviceUrl !== entry.serviceUrl) {
+      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+      return jsonResponse({ error: "Service URL does not match the requested hostname" }, 403);
+    }
 
     const authorization = event.req.headers.get("authorization") ?? "";
     const apiKey = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
     const validated = apiKey ? await input.storage.validateApiKey(apiKey) : null;
-    if (!validated) return jsonResponse({ error: "Valid existing service API key required" }, 401);
+    if (!validated) {
+      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+      return jsonResponse({ error: "Valid existing service API key required" }, 401);
+    }
     const config = await input.storage.loadConfig();
     const service = findServiceInstance(config, entry.instanceId);
-    if (!service) return jsonResponse({ error: "Service instance not found" }, 404);
+    if (!service) {
+      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+      return jsonResponse({ error: "Service instance not found" }, 404);
+    }
     if (!applyVerifiedServiceOrigin(service, entry.instanceId, validated.serviceId, entry.serviceUrl)) {
+      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
       return jsonResponse({ error: "The hostname belongs to a different installed service instance" }, 403);
     }
     await input.storage.saveConfig(config);
-    pendingHostnameChanges.delete(changeToken);
-    return jsonResponse({ ok: true, serviceUrl: entry.serviceUrl }, 200);
+    const result = { ok: true, serviceUrl: entry.serviceUrl };
+    if (input.postgres) await input.postgres.completePendingAction({
+      kind: "hostname-change", key: actionKey, owner, result
+    });
+    else pendingHostnameChanges.delete(changeToken);
+    return jsonResponse(result, 200);
   });
 
   // (1) Admin asks CP to mint a setup token for a target serviceUrl.
@@ -156,8 +193,7 @@ export function registerSetupEndpoints(input: {
     // Track for redeem deduplication. We use the JTI from the issued token.
     const jti = readJti(setupToken);
     if (jti) {
-      pending.set(jti, {
-        setupToken,
+      const pendingSetup: PendingSetup = {
         serviceUrl,
         instanceId,
         sharedServiceId,
@@ -165,7 +201,16 @@ export function registerSetupEndpoints(input: {
         expectedPluginId,
         expiresAt: Date.now() + SETUP_TTL_SECONDS * 1000,
         redeemed: false
-      });
+      };
+      if (input.postgres) {
+        await input.postgres.createPendingAction({
+          kind: "setup",
+          key: jti,
+          secretHash: hashSecret(setupToken),
+          payload: pendingSetup as unknown as Record<string, unknown>,
+          expiresAt: new Date(pendingSetup.expiresAt).toISOString()
+        });
+      } else pending.set(jti, pendingSetup);
     }
 
     return jsonResponse({
@@ -195,7 +240,17 @@ export function registerSetupEndpoints(input: {
 
     const jti = readJti(body.setupToken);
     if (!jti) return jsonResponse({ error: "Setup token malformed" }, 400);
-    const entry = pending.get(jti);
+    const claim = input.postgres ? await input.postgres.claimPendingAction({
+      kind: "setup",
+      key: jti,
+      secretHash: hashSecret(body.setupToken),
+      owner
+    }) : undefined;
+    if (claim?.state === "completed") return jsonResponse((claim.action.result ?? {}) as unknown as never, 200);
+    if (claim?.state === "busy") return jsonResponse({ error: "Setup token is already being redeemed" }, 409);
+    const entry = claim?.state === "claimed"
+      ? claim.action.payload as unknown as PendingSetup
+      : input.postgres ? undefined : pending.get(jti);
     if (!entry) return jsonResponse({ error: "Setup token not recognized or expired" }, 400);
     if (entry.redeemed) return jsonResponse({ error: "Setup token already redeemed" }, 409);
     if (entry.expiresAt < Date.now()) {
@@ -203,13 +258,14 @@ export function registerSetupEndpoints(input: {
       return jsonResponse({ error: "Setup token expired" }, 400);
     }
     if (entry.expectedPluginId && !servicePluginIdsMatch(entry.expectedPluginId, body.pluginId)) {
+      if (input.postgres) await input.postgres.releasePendingAction("setup", jti, owner);
       return jsonResponse({ error: "The replacement service plugin id does not match the existing registration" }, 409);
     }
 
     // Mint the real per-service API key. Stored in platform config as a tenant or platform service.
     const apiKey = `bp_sk_t_${randomBytes(32).toString("base64url")}`;
     entry.redeemed = true;
-    pending.delete(jti);
+    if (!input.postgres) pending.delete(jti);
 
     // Persist registration on the CP side. id = instanceId from setup token
     // (pre-assigned UUIDv7) so routes/fragments referencing it resolve.
@@ -219,6 +275,7 @@ export function registerSetupEndpoints(input: {
     try {
       jwks = body.jwks === undefined ? undefined : PublicJwksSchema.parse(body.jwks);
     } catch {
+      if (input.postgres) await input.postgres.releasePendingAction("setup", jti, owner);
       return jsonResponse({ error: "Invalid RSA JWKS" }, 400);
     }
     try {
@@ -236,15 +293,22 @@ export function registerSetupEndpoints(input: {
         tenantScope: entry.tenantScope
       });
     } catch (err) {
+      if (input.postgres) await input.postgres.releasePendingAction("setup", jti, owner);
       return jsonResponse({ error: "Failed to register service", detail: (err as Error).message }, 500);
     }
 
-    return jsonResponse({
+    const result = {
       apiKey,
       cpId: input.cpState.cpId,
       cpJwksUri: input.cpState.jwksUri
-    } as Record<string, unknown> as never, 200);
+    };
+    if (input.postgres) await input.postgres.completePendingAction({ kind: "setup", key: jti, owner, result });
+    return jsonResponse(result as Record<string, unknown> as never, 200);
   });
+}
+
+function hashSecret(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function normalizeServiceOrigin(value: unknown): string | undefined {

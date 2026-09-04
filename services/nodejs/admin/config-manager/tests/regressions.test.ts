@@ -5,7 +5,7 @@ import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
-import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, getServicePluginId, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { render as renderTenants } from "../src/plugins/service-betterportal-config-manager/bp-routes/tenants/_renderer.bootstrap5/GET.js";
@@ -617,6 +617,18 @@ test("shared activation manifest lookup falls back to its shared service", () =>
     platformServices: []
   } as never;
   assert.equal(getCachedManifestForService(config, "activation", cache), manifest);
+});
+
+test("a replica hydrates shared activation manifest aliases from persisted config", () => {
+  hydrateManifestCache({
+    manifestCache: [{ serviceId: "shared-service", title: "CRM", viewIndex: {} }],
+    sharedServiceCatalog: [{ id: "shared-service", serviceId: "org.example.crm" }],
+    sharedServiceActivations: [{ id: "activation", sharedServiceId: "shared-service", enabled: true }],
+    tenants: [],
+    platformServices: []
+  } as never);
+  assert.equal(getManifestCache().get("activation")?.title, "CRM");
+  hydrateManifestCache({ manifestCache: [], sharedServiceCatalog: [], sharedServiceActivations: [], tenants: [], platformServices: [] } as never);
 });
 
 test("preview config schema falls back from an unsynced preview to its shared production service", () => {

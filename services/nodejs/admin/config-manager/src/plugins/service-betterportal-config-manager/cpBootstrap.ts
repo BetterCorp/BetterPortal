@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomBytes, generateKeyPairSync, createPublicKey } from "node:crypto";
 import type { RsaPublicJwk } from "@betterportal/framework";
+import type { PostgresStorage } from "./storage/postgres.js";
 
 export interface CpKeyPair {
   privateKeyPem: string;
@@ -29,17 +30,21 @@ export interface CpBootstrapState {
  */
 let cached: CpBootstrapState | null = null;
 
-export function cpBootstrap(input: {
+export async function cpBootstrap(input: {
   keyStorePath: string;
+  postgres?: PostgresStorage;
   issuer?: string;
   audience: string;
   host: string;
   port: number;
-}): CpBootstrapState {
+}): Promise<CpBootstrapState> {
   if (cached) return cached;
 
   const keyPath = resolve(input.keyStorePath);
-  const keyPair = loadOrGenerateKeyPair(keyPath);
+  const keyPair = input.postgres
+    ? await input.postgres.loadOrCreateIdentity(generateKeyPair)
+    : loadOrGenerateKeyPair(keyPath);
+  assertKeyPair(keyPair, input.postgres ? "PostgreSQL" : keyPath);
 
   if (!input.issuer) {
     throw new Error("Config manager cpIssuer is required and must be the public control-plane issuer URL.");
@@ -62,21 +67,28 @@ export function cpBootstrap(input: {
 function loadOrGenerateKeyPair(filePath: string): CpKeyPair {
   if (existsSync(filePath)) {
     const parsed = JSON.parse(readFileSync(filePath, "utf8")) as CpKeyPair;
-    if (typeof parsed.privateKeyPem !== "string" || typeof parsed.publicKeyPem !== "string" || typeof parsed.kid !== "string") {
-      throw new Error(`Malformed CP keypair file: ${filePath}`);
-    }
     return parsed;
   }
+  const pair = generateKeyPair();
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, JSON.stringify(pair, null, 2), { mode: 0o600 });
+  return pair;
+}
+
+function assertKeyPair(value: CpKeyPair, source: string): void {
+  if (typeof value?.privateKeyPem !== "string" || typeof value?.publicKeyPem !== "string" || typeof value?.kid !== "string") {
+    throw new Error(`Malformed CP keypair in ${source}`);
+  }
+}
+
+function generateKeyPair(): CpKeyPair {
   const { privateKey, publicKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
     publicKeyEncoding: { type: "spki", format: "pem" },
     privateKeyEncoding: { type: "pkcs8", format: "pem" }
   });
   const kid = randomBytes(16).toString("base64url");
-  const pair: CpKeyPair = { privateKeyPem: privateKey, publicKeyPem: publicKey, kid };
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, JSON.stringify(pair, null, 2), { mode: 0o600 });
-  return pair;
+  return { privateKeyPem: privateKey, publicKeyPem: publicKey, kid };
 }
 
 function publicKeyToJwk(publicKeyPem: string, kid: string): RsaPublicJwk {

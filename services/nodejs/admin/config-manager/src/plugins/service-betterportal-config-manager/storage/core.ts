@@ -29,6 +29,7 @@ export interface PostgresStorageOptions {
   readonly connectionString: string;
   readonly tableName?: string;
   readonly rowId?: string;
+  readonly legacyConfigPath?: string;
 }
 
 export type StorageOptions =

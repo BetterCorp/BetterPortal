@@ -159,6 +159,8 @@ export interface RouteUrlOptions {
 export interface WebhookEmitOptions {
   tenantId?: string;
   appId?: string;
+  /** Stable domain-event id. Reuse it when retrying an uncertain emission. */
+  idempotencyKey?: string;
 }
 
 /**

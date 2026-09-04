@@ -20,7 +20,9 @@ export const PostgresPlatformConfigStorageSchema = av.object({
   backend: av.literal("postgres"),
   connectionString: av.string().minLength(1),
   tableName: av.optional(av.string().minLength(1)),
-  rowId: av.optional(av.string().minLength(1))
+  rowId: av.optional(av.string().minLength(1)),
+  /** Existing YAML source to import when the PostgreSQL row is first created. */
+  legacyConfigPath: av.optional(av.string().minLength(1))
 });
 
 export const PlatformConfigStorageSchema = av.union([
@@ -48,13 +50,14 @@ export function createStorage(options: StorageOptions): PlatformConfigStore {
 export function createStorageFromConfig(
   storage: PlatformConfigStorage | undefined,
   cwd: string
-): { store: PlatformConfigStore; backend: "file" | "postgres" } {
+): { store: PlatformConfigStore; backend: "file" | "postgres"; legacyConfigPath?: string } {
   const resolvedStorage = storage ?? defaultStorageConfig();
 
   if (resolvedStorage.backend === "postgres") {
     return {
       backend: "postgres",
-      store: createStorage(resolvedStorage)
+      store: createStorage(resolvedStorage),
+      legacyConfigPath: path.resolve(cwd, resolvedStorage.legacyConfigPath ?? "./bp-config.yaml")
     };
   }
 

@@ -1,6 +1,4 @@
-import { createHmac, randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import {
   eventHeaders,
   jsonResponse,
@@ -15,58 +13,12 @@ import {
 } from "@betterportal/framework";
 import { eventObservability } from "@betterportal/framework";
 import { getManifestCache } from "./syncApi.js";
+import type { PostgresStorage, WebhookDeliveryRecord } from "./storage/postgres.js";
 
 const API_BASE = "/.well-known/bp";
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
-type DeliveryStatus = "pending" | "delivered" | "failed";
-
-interface DeliveryRecord {
-  id: string;
-  targetId: string;
-  serviceId: string;
-  eventId: string;
-  tenantId: string;
-  appId?: string;
-  payload: JsonValue;
-  attempts: number;
-  maxAttempts: number;
-  nextAttemptAt: string;
-  createdAt: string;
-  status: DeliveryStatus;
-  lastStatus?: number;
-  lastError?: string;
-}
-
-class WebhookDeliveryStore {
-  private readonly filePath: string;
-
-  constructor(filePath = "./.bp-webhook-deliveries.json") {
-    this.filePath = resolve(filePath);
-  }
-
-  list(): DeliveryRecord[] {
-    if (!existsSync(this.filePath)) return [];
-    try {
-      const parsed = JSON.parse(readFileSync(this.filePath, "utf8"));
-      return Array.isArray(parsed) ? parsed as DeliveryRecord[] : [];
-    } catch {
-      return [];
-    }
-  }
-
-  save(records: DeliveryRecord[]): void {
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const kept = records.filter((record) =>
-      record.status === "pending" || Date.parse(record.createdAt) >= cutoff
-    );
-    writeFileSync(this.filePath, JSON.stringify(kept, null, 2), "utf8");
-  }
-
-  add(records: DeliveryRecord[]): void {
-    this.save([...this.list(), ...records]);
-  }
-}
+type DeliveryRecord = WebhookDeliveryRecord;
 
 function readBearer(event: BetterPortalEvent): string | null {
   const auth = event.req.headers.get("authorization");
@@ -139,20 +91,25 @@ async function deliver(target: WebhookTarget, record: DeliveryRecord): Promise<{
   }
 }
 
-async function processDeliveries(store: PlatformConfigStore, deliveryStore: WebhookDeliveryStore): Promise<void> {
+async function processDeliveries(
+  store: PlatformConfigStore,
+  postgres: PostgresStorage | undefined,
+  owner: string,
+  memoryQueue: DeliveryRecord[]
+): Promise<void> {
   const config = await store.loadConfig();
   const targets = new Map(config.webhooks.targets.map((target) => [target.id, target]));
   const now = Date.now();
-  const records = deliveryStore.list();
-  let changed = false;
+  const records = postgres
+    ? await postgres.claimWebhookDeliveries(owner)
+    : memoryQueue.filter((record) => record.status === "pending" && Date.parse(record.nextAttemptAt) <= now);
 
   for (const record of records) {
-    if (record.status !== "pending" || Date.parse(record.nextAttemptAt) > now) continue;
     const target = targets.get(record.targetId);
     if (!target?.enabled || !config.tenants.some((tenant) => tenant.id === target.tenantId && tenant.active)) {
       record.status = "failed";
       record.lastError = "target disabled or tenant inactive";
-      changed = true;
+      if (postgres) await postgres.finishWebhookDelivery(owner, record);
       continue;
     }
 
@@ -162,15 +119,30 @@ async function processDeliveries(store: PlatformConfigStore, deliveryStore: Webh
     record.lastError = result.error;
     record.status = result.ok ? "delivered" : record.attempts >= record.maxAttempts ? "failed" : "pending";
     record.nextAttemptAt = new Date(Date.now() + backoff(record.attempts) * 1000).toISOString();
-    changed = true;
+    if (postgres) await postgres.finishWebhookDelivery(owner, record);
   }
-
-  if (changed) deliveryStore.save(records);
+  if (postgres) await postgres.cleanupWebhookDeliveries();
+  else {
+    for (let index = memoryQueue.length - 1; index >= 0; index -= 1) {
+      if (memoryQueue[index].status !== "pending") memoryQueue.splice(index, 1);
+    }
+  }
 }
 
-export function registerWebhookRoutes(app: BetterPortalH3App, store: PlatformConfigStore): { start(): void; stop(): void } {
-  const deliveryStore = new WebhookDeliveryStore();
+export function registerWebhookRoutes(
+  app: BetterPortalH3App,
+  store: PlatformConfigStore,
+  postgres?: PostgresStorage,
+  owner = "single"
+): { start(): void; stop(): void; drain(): Promise<void> } {
+  const memoryQueue: DeliveryRecord[] = [];
   let timer: ReturnType<typeof setInterval> | undefined;
+  let draining: Promise<void> | undefined;
+  const enqueue = async (records: DeliveryRecord[]) => {
+    if (postgres) await postgres.enqueueWebhookDeliveries(records);
+    else memoryQueue.push(...records.filter((record) => !memoryQueue.some((queued) => queued.id === record.id)));
+  };
+  const drain = () => draining ??= processDeliveries(store, postgres, owner, memoryQueue).finally(() => { draining = undefined; });
 
   app.get(`${API_BASE}/admin/webhooks/events`, async () => {
     const manifests = [...getManifestCache().entries()].map(([serviceId, manifest]) => ({
@@ -352,7 +324,9 @@ export function registerWebhookRoutes(app: BetterPortalH3App, store: PlatformCon
     const eventId = stringValue(body, "eventId");
     const tenantId = stringValue(body, "tenantId") ?? validated.tenantId;
     const appId = stringValue(body, "appId");
+    const idempotencyKey = event.req.headers.get("idempotency-key")?.trim() || stringValue(body, "idempotencyKey");
     if (!eventId || !tenantId) return jsonResponse({ error: "eventId and tenantId are required" }, 400);
+    if (!idempotencyKey) return jsonResponse({ error: "Idempotency-Key header or idempotencyKey is required" }, 400);
 
     const manifest = getManifestCache().get(validated.serviceId);
     if (!manifest?.webhooks.some((entry) => entry.id === eventId)) return jsonResponse({ error: "Webhook event is not declared by service manifest" }, 400);
@@ -361,7 +335,7 @@ export function registerWebhookRoutes(app: BetterPortalH3App, store: PlatformCon
     const targets = matchingTargets(config, validated.serviceId, eventId, tenantId, appId);
     const createdAt = new Date().toISOString();
     const records = targets.map((target): DeliveryRecord => ({
-      id: uuidv7(),
+      id: deterministicDeliveryId(validated.serviceId!, eventId, tenantId, appId, idempotencyKey, target.id),
       targetId: target.id,
       serviceId: validated.serviceId!,
       eventId,
@@ -374,7 +348,7 @@ export function registerWebhookRoutes(app: BetterPortalH3App, store: PlatformCon
       createdAt,
       status: "pending"
     }));
-    deliveryStore.add(records);
+    await enqueue(records);
     obs?.logger.info("BP WEBHOOK: queued service={serviceId} event={eventId} tenant={tenantId} app={appId} targets={targets}", {
       serviceId: validated.serviceId,
       eventId,
@@ -382,19 +356,25 @@ export function registerWebhookRoutes(app: BetterPortalH3App, store: PlatformCon
       appId: appId ?? "",
       targets: records.length
     });
-    await processDeliveries(store, deliveryStore);
+    if (!postgres) await drain();
     return jsonResponse({ queued: records.length } as JsonValue, 202);
   });
 
   return {
     start() {
       timer ??= setInterval(() => {
-        processDeliveries(store, deliveryStore).catch(() => undefined);
+        void drain().catch(() => undefined);
       }, 30_000);
+      timer.unref();
     },
     stop() {
       if (timer) clearInterval(timer);
       timer = undefined;
-    }
+    },
+    drain
   };
+}
+
+function deterministicDeliveryId(...parts: Array<string | undefined>): string {
+  return `wh_${createHash("sha256").update(parts.map((part) => part ?? "").join("\0")).digest("hex")}`;
 }

@@ -234,6 +234,31 @@ export function getManifestCache(): ReadonlyMap<string, CachedManifest> {
   return manifestCache;
 }
 
+/** Rebuild this replica's hot cache from the shared persisted cache. */
+export function hydrateManifestCache(config: BetterPortalConfig): void {
+  manifestCache.clear();
+  for (const stored of config.manifestCache ?? []) {
+    const manifest = normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0]);
+    cacheManifest(stored.serviceId, manifest);
+    for (const tenant of config.tenants) {
+      for (const service of tenant.services.filter((candidate) =>
+        candidate.id === stored.serviceId || candidate.serviceId === stored.serviceId
+      )) cacheManifest(service.id, manifest);
+    }
+    for (const service of config.platformServices.filter((candidate) =>
+      candidate.id === stored.serviceId || candidate.serviceId === stored.serviceId
+    )) cacheManifest(service.id, manifest);
+    for (const service of config.sharedServiceCatalog.filter((candidate) =>
+      candidate.id === stored.serviceId || candidate.serviceId === stored.serviceId
+    )) {
+      cacheManifest(service.id, manifest);
+      for (const activation of config.sharedServiceActivations.filter((candidate) =>
+        candidate.enabled && candidate.sharedServiceId === service.id
+      )) cacheManifest(activation.id, manifest);
+    }
+  }
+}
+
 /** Resolve manifests for service instances, including shared-service activation aliases. */
 export function getCachedManifestForService(
   config: BetterPortalConfig,

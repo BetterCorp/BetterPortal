@@ -3,6 +3,7 @@ import {
   createBroadcastEvent,
   createConfigSchema,
   createEventSchemas,
+  createFireAndForgetEvent,
   type Observable
 } from "@bsb/base";
 import * as av from "anyvali";
@@ -20,7 +21,7 @@ import { registerAdminApiRoutes } from "./adminApi.js";
 import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
-import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
+import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel } from "./m2mConnections.js";
 import { registerPreviewDeploymentApi } from "./previewApi.js";
 import {
@@ -45,6 +46,7 @@ import {
   createStorageFromConfig,
   getAvailableServiceInstanceIdsForApp,
   getServicePluginId,
+  PostgresStorage,
   PlatformConfigStorageSchema
 } from "./storage/index.js";
 import BetterportalConfigManagerClient from "../../.bsb/clients/service-betterportal-config-manager.js";
@@ -59,7 +61,7 @@ function applyWellKnownCors(event: BetterPortalEvent): Response | undefined {
   event.res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   event.res.headers.set(
     "Access-Control-Allow-Headers",
-    "Authorization,Content-Type,Accept,HX-Request,HX-Current-URL,HX-Target,HX-Trigger,HX-Trigger-Name,X-BP-Tenant-Id,X-BP-App-Id,traceparent,tracestate,baggage"
+    "Authorization,Content-Type,Accept,Idempotency-Key,HX-Request,HX-Current-URL,HX-Target,HX-Trigger,HX-Trigger-Name,X-BP-Tenant-Id,X-BP-App-Id,traceparent,tracestate,baggage"
   );
   event.res.headers.set(
     "Access-Control-Expose-Headers",
@@ -108,9 +110,10 @@ const PluginConfigSchema = av.object({
 });
 
 const PlatformConfigChangedEventSchema = av.object({
-  sourceId: av.string().minLength(1),
-  backend: av.enum_(["file", "postgres"] as const)
+  revision: av.number().min(0)
 });
+
+const WebhookDeliveryAvailableEventSchema = av.object({});
 
 const Config = createConfigSchema(
   {
@@ -124,14 +127,19 @@ const Config = createConfigSchema(
 );
 
 const EventSchemas = createEventSchemas({
-  emitEvents: {},
+  emitEvents: {
+    "webhook.delivery.available": createFireAndForgetEvent(
+      WebhookDeliveryAvailableEventSchema,
+      "Wakes one config-manager instance to process durable webhook deliveries."
+    )
+  },
   onEvents: {},
   emitReturnableEvents: {},
   onReturnableEvents: {},
   emitBroadcast: {
     "platform-config.changed": createBroadcastEvent(
       PlatformConfigChangedEventSchema,
-      "Emitted after platform config is saved by this config-manager instance."
+      "Emitted after a platform config revision is committed."
     )
   },
   onBroadcast: {}
@@ -142,9 +150,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   static EventSchemas = EventSchemas;
   protected readonly requireBetterPortalConfigSource = false;
   private storage!: PlatformConfigStore;
-  private webhookRuntime?: { start(): void; stop(): void };
+  private webhookRuntime?: { start(): void; stop(): void; drain(): Promise<void> };
   private previewExpiryTimer?: NodeJS.Timeout;
-  private readonly changeSourceId = uuidv7();
+  private outboxTimer?: NodeJS.Timeout;
+  private outboxDrain?: Promise<void>;
+  private readonly workerId = uuidv7();
+  private lastConfigRevision = -1;
+  private fileConfigRevision = 0;
+  private postgresStorage?: PostgresStorage;
   private readonly selfClient: BetterportalConfigManagerClient;
   /** CP-side signing keypair + issuer/audience info. Built on first init. */
   private cpState!: CpBootstrapState;
@@ -304,14 +317,24 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   protected async onRegistered(registry: BetterPortalRegistry, _obs: Observable): Promise<void> {
     const resolvedStorage = createStorageFromConfig(this.config.storage, this.cwd);
+    const cwd = this.cwd ?? ".";
+    if (resolvedStorage.store instanceof PostgresStorage) {
+      this.postgresStorage = resolvedStorage.store;
+      await this.postgresStorage.initialize({
+        configPath: resolvedStorage.legacyConfigPath,
+        cpKeyPath: resolve(cwd, this.config.cpKeyStorePath ?? "./.bp-cp-state/keys.json"),
+        webhookDeliveryPath: resolve(cwd, "./.bp-webhook-deliveries.json")
+      });
+    }
     this.storage = this.withChangeBroadcasts(resolvedStorage.store, _obs, {
       backend: resolvedStorage.backend
     });
+    hydrateManifestCache(await this.storage.loadConfig());
 
     // Initialize CP keypair + JWKS (P7).
-    const cwd = this.cwd ?? ".";
-    this.cpState = cpBootstrap({
+    this.cpState = await cpBootstrap({
       keyStorePath: resolve(cwd, this.config.cpKeyStorePath ?? "./.bp-cp-state/keys.json"),
+      postgres: this.postgresStorage,
       issuer: this.config.cpIssuer,
       audience: this.config.cpAudience ?? "betterportal-control-plane",
       host: this.config.host ?? "0.0.0.0",
@@ -330,10 +353,15 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     });
 
     await this.selfClient.onPlatformConfigChanged(_obs, async (eventObs, event) => {
-      if (event.sourceId === this.changeSourceId) return;
+      if (event.revision <= this.lastConfigRevision) return;
+      this.lastConfigRevision = event.revision;
       this.storage.invalidate();
+      hydrateManifestCache(await this.storage.loadConfig());
       // A config change may carry a freshly-pushed auth JWKS - rebuild verifiers.
       await this.warmAuthCache(eventObs);
+    });
+    await this.selfClient.onWebhookDeliveryAvailable(_obs, async () => {
+      await this.webhookRuntime?.drain();
     });
 
     setConfigManagerRouteContext({
@@ -361,7 +389,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     registerAdminApiRoutes(this.app, this.storage, this.cpState);
     registerMenuEditorRoutes(this.app, this.storage);
     registerFragmentsEditorRoutes(this.app, this.storage);
-    this.webhookRuntime = registerWebhookRoutes(this.app, this.storage);
+    this.webhookRuntime = registerWebhookRoutes(this.app, this.storage, this.postgresStorage, this.workerId);
     registerPreviewDeploymentApi({
       app: this.app,
       storage: this.storage,
@@ -389,20 +417,29 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     });
 
     // Setup token mint + redeem endpoints (P4)
-    registerSetupEndpoints({ app: this.app, storage: this.storage, cpState: this.cpState });
+    registerSetupEndpoints({
+      app: this.app,
+      storage: this.storage,
+      cpState: this.cpState,
+      postgres: this.postgresStorage,
+      owner: this.workerId
+    });
 
     // Bootstrap detection + endpoint (P6) - opens vanilla HTML wizard on empty DB
     await registerBootstrapEndpoint({
       app: this.app,
       storage: this.storage,
       cpState: this.cpState,
-      logger: _obs
+      logger: _obs,
+      postgres: this.postgresStorage,
+      owner: this.workerId
     });
 
     // Warm auth verifiers from persisted JWKS so the first authenticated request
     // after a restart never races an empty cache (#6).
     await this.warmAuthCache(_obs);
-    this.webhookRuntime.start();
+    this.webhookRuntime?.start();
+    this.startOutbox(_obs);
     await this.removeExpiredPreviews();
     this.previewExpiryTimer = setInterval(() => {
       void this.removeExpiredPreviews().catch((error) => _obs.log.warn("Preview expiry cleanup failed: {msg}", {
@@ -413,12 +450,18 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async removeExpiredPreviews(): Promise<void> {
-    const config = await this.storage.loadConfig();
-    if (deleteExpiredPreviewDeployments(config).length > 0) await this.storage.saveConfig(config);
+    const cleanup = async () => {
+      const config = await this.storage.loadConfig();
+      if (deleteExpiredPreviewDeployments(config).length > 0) await this.storage.saveConfig(config);
+      await this.postgresStorage?.cleanupExpiredActions();
+    };
+    if (this.postgresStorage) await this.postgresStorage.tryRunExclusive("maintenance", cleanup);
+    else await cleanup();
   }
 
   override async dispose(): Promise<void> {
     if (this.previewExpiryTimer) clearInterval(this.previewExpiryTimer);
+    if (this.outboxTimer) clearInterval(this.outboxTimer);
     this.webhookRuntime?.stop();
     await super.dispose();
   }
@@ -431,11 +474,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     return {
       loadConfig: () => store.loadConfig(),
       saveConfig: async (config, options) => {
-        await store.saveConfig(config, options);
-        if (options?.notify !== false) {
+        await store.saveConfig(config, metadata.backend === "file" && options?.notify !== false
+          ? { ...options, notify: false }
+          : options);
+        if (options?.notify !== false && metadata.backend === "file") {
           await this.events.emitBroadcast("platform-config.changed", obs, {
-            sourceId: this.changeSourceId,
-            backend: metadata.backend
+            revision: ++this.fileConfigRevision
           });
         }
       },
@@ -446,6 +490,39 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       invalidate: () => store.invalidate(),
       onChange: (listener) => store.onChange(listener)
     };
+  }
+
+  private startOutbox(obs: Observable): void {
+    if (!this.postgresStorage) return;
+    const run = async () => {
+      const records = await this.postgresStorage!.claimOutbox(this.workerId);
+      for (const record of records) {
+        try {
+          if (record.eventName === "platform-config.changed") {
+            await this.events.emitBroadcast("platform-config.changed", obs, {
+              revision: Number(record.payload.revision)
+            });
+          } else if (record.eventName === "webhook.delivery.available") {
+            await this.events.emitEvent("webhook.delivery.available", obs, {});
+          }
+          await this.postgresStorage!.completeOutbox(record.id, this.workerId);
+        } catch (error) {
+          await this.postgresStorage!.releaseOutbox(record.id, this.workerId);
+          obs.log.warn("Config-manager outbox delivery failed: {message}", {
+            message: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+    };
+    const drain = () => this.outboxDrain ??= run().finally(() => { this.outboxDrain = undefined; });
+    void drain().catch((error) => obs.log.warn("Config-manager outbox drain failed: {message}", {
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    this.outboxTimer = setInterval(() => void drain().catch((error) => obs.log.warn(
+      "Config-manager outbox drain failed: {message}",
+      { message: error instanceof Error ? error.message : String(error) }
+    )), 1_000);
+    this.outboxTimer.unref();
   }
 
   private async populateConfigAdminContext(event: BetterPortalEvent): Promise<void> {

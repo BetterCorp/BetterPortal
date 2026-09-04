@@ -1723,12 +1723,13 @@ export abstract class BPService<
       ...(bpContext.__bpResponseModel ? { responseModel: bpContext.__bpResponseModel } : {}),
       webhook: (eventId, payload, options) => this.emitWebhook(event, eventId, payload, {
         tenantId: options?.tenantId ?? bpContext.__bpTenantId,
-        appId: options?.appId ?? bpContext.__bpAppId
+        appId: options?.appId ?? bpContext.__bpAppId,
+        idempotencyKey: options?.idempotencyKey
       })
     };
   }
 
-  private async emitWebhook(event: BetterPortalEvent, eventId: string, payload: unknown, scope: { tenantId?: string; appId?: string }): Promise<void> {
+  private async emitWebhook(event: BetterPortalEvent, eventId: string, payload: unknown, scope: { tenantId?: string; appId?: string; idempotencyKey?: string }): Promise<void> {
     const credentials = this.controlPlaneCredentials();
     const obs = eventObservability(event);
     if (!credentials) {
@@ -1743,6 +1744,7 @@ export abstract class BPService<
       headers: {
         Accept: "application/json",
         "content-type": "application/json",
+        "Idempotency-Key": scope.idempotencyKey ?? event.req.headers.get("idempotency-key") ?? randomBytes(24).toString("base64url"),
         Authorization: `Bearer ${credentials.apiKey}`
       },
       body: JSON.stringify({
