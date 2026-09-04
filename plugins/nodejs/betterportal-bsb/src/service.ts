@@ -1460,24 +1460,27 @@ export abstract class BPService<
       return undefined;
     }
     if (origin && this.isPublicBpDiscoveryPath(event.url.pathname)) {
-      // Public-discovery: CORS open to any origin, but ALSO try to resolve scope
-      // so themed responses (login page, etc.) know which theme + tenant context to render under.
-      try {
-        const ctx = await this.resolveRequestContext(event);
-        if (ctx) this.applyRequestContext(event, ctx);
-      } catch {
-        // ignore - public path stays open even if scope can't be resolved
-      }
       const corsResult = handleCorsRequest(event, {
         origin: [origin],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowHeaders,
         credentials: true,
         exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader"],
+        maxAge: "600",
         preflight: { statusCode: 204 }
       });
 
       if (corsResult) return corsResult;
+      // Public-discovery: CORS open to any origin, but ALSO try to resolve scope
+      // so themed responses (login page, etc.) know which theme + tenant context to render under.
+      if (event.url.pathname !== "/.well-known/bp/health") {
+        try {
+          const ctx = await this.resolveRequestContext(event);
+          if (ctx) this.applyRequestContext(event, ctx);
+        } catch {
+          // ignore - public path stays open even if scope can't be resolved
+        }
+      }
       return undefined;
     }
 
@@ -1496,19 +1499,19 @@ export abstract class BPService<
         );
       }
 
-      const context = this.managementRequestContext() ?? await this.resolveRequestContext(event);
-      if (context) this.applyRequestContext(event, context);
-
       const corsResult = handleCorsRequest(event, {
         origin: allowedOrigins,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowHeaders,
         credentials: true,
         exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader"],
+        maxAge: "600",
         preflight: { statusCode: 204 }
       });
 
       if (corsResult) return corsResult;
+      const context = this.managementRequestContext() ?? await this.resolveRequestContext(event);
+      if (context) this.applyRequestContext(event, context);
       return undefined;
     }
 
@@ -1582,6 +1585,7 @@ export abstract class BPService<
       allowHeaders,
       credentials: true,
       exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader"],
+      maxAge: "600",
       preflight: { statusCode: 204 }
     });
 

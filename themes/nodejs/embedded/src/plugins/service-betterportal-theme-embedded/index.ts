@@ -40,6 +40,10 @@ import {
 import { loadEmbeddedAsset } from "./assets.js";
 import { EmbeddedDeveloperResources } from "./resources.js";
 import { renderEmbeddedHostPage, type EmbeddedRouteLink } from "./shell/index.js";
+import packageJson from "../../../package.json" with { type: "json" };
+
+const EMBEDDED_ASSET_BASE_URL = "/_themes/embedded/assets";
+const EMBEDDED_VERSION = packageJson.version;
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -194,6 +198,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   protected async onRegistered(_registry: BetterPortalRegistry, obs: Observable): Promise<void> {
     this.registerRoutes();
+    await loadEmbeddedAsset("embedded-core.js");
     obs.log.info("Embedded theme initialized");
   }
 
@@ -292,9 +297,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       }
 
       return htmlResponse(asset.body, 200, asset.contentType, {
-        "cache-control": assetPath === "embedded-core.js"
-          ? "no-store"
-          : "public, max-age=3600"
+        "cache-control": activeEvent.url.searchParams.get("v") === EMBEDDED_VERSION
+          ? "public, max-age=31536000, immutable"
+          : "no-cache"
       });
     });
   }
@@ -422,7 +427,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       return new Response(
         renderEmbeddedHostPage({
           title: requestContext.app.title,
-          assetBaseUrl: "/_themes/embedded/assets",
+          assetBaseUrl: EMBEDDED_ASSET_BASE_URL,
+          assetVersion: EMBEDDED_VERSION,
           initialRouteUrl,
           initialRouteError,
           initialServiceId: currentRoute?.serviceId,

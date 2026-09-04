@@ -2122,7 +2122,7 @@ function Bootstrap2Document(context: Bootstrap2ShellContext): HtmlRenderable {
         <link href={shellAssetUrl(context, "bootstrap.min.css")} rel="stylesheet" />
         {/* Bootstrap must initialize before the shell snapshots its component API. */}
         <script src={shellAssetUrl(context, "bootstrap.bundle.min.js")} defer></script>
-        <script src={shellAssetUrl(context, "bootstrap2-core.js")} defer></script>
+        <script src={shellAssetUrl(context, "bootstrap2-core.js")} fetchpriority="high" defer></script>
         <script src={shellAssetUrl(context, "bootstrap2-register.js")} defer></script>
         <style
           id="bp-theme-style"

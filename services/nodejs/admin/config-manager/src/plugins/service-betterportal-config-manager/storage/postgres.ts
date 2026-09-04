@@ -86,6 +86,9 @@ export class PostgresStorage extends BaseStorage {
   private schemaReady: Promise<void> | null = null;
   private legacyPaths: LegacyPaths = {};
   private readonly snapshots = new WeakMap<BetterPortalConfig, number>();
+  private cachedConfig: { config: BetterPortalConfig; revision: number } | null = null;
+  private configLoad: Promise<{ config: BetterPortalConfig; revision: number; generation: number }> | null = null;
+  private configGeneration = 0;
 
   constructor(options: PostgresStorageOptions) {
     super();
@@ -107,13 +110,20 @@ export class PostgresStorage extends BaseStorage {
 
   async loadConfig(): Promise<BetterPortalConfig> {
     await this.ensureSchema();
-    const result = await this.getPool().query<{ config: unknown; revision: string | number }>(
-      `select config, revision from ${this.quotedTableName} where id = $1`, [this.rowId]
-    );
-    if (!result.rows[0]) throw new Error(`Platform config row ${this.rowId} was not initialized`);
-    const config = this.parseConfig(result.rows[0].config);
-    this.snapshots.set(config, Number(result.rows[0].revision));
-    return config;
+    if (this.cachedConfig) return this.cloneSnapshot(this.cachedConfig);
+
+    const pending = this.configLoad ??= this.readConfig(this.configGeneration);
+    try {
+      const loaded = await pending;
+      if (loaded.generation !== this.configGeneration) {
+        if (this.configLoad === pending) this.configLoad = null;
+        return this.loadConfig();
+      }
+      this.cachedConfig = { config: loaded.config, revision: loaded.revision };
+      return this.cloneSnapshot(this.cachedConfig);
+    } finally {
+      if (this.configLoad === pending) this.configLoad = null;
+    }
   }
 
   async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void> {
@@ -141,12 +151,38 @@ export class PostgresStorage extends BaseStorage {
       await client.query("commit");
       this.snapshots.set(config, revision);
       this.snapshots.set(validated, revision);
+      this.configGeneration++;
+      this.cachedConfig = { config: structuredClone(validated), revision };
     } catch (error) {
       await client.query("rollback").catch(() => undefined);
       throw error;
     } finally {
       client.release();
     }
+  }
+
+  override invalidate(): void {
+    this.configGeneration++;
+    this.cachedConfig = null;
+    super.invalidate();
+  }
+
+  private async readConfig(generation: number): Promise<{ config: BetterPortalConfig; revision: number; generation: number }> {
+    const result = await this.getPool().query<{ config: unknown; revision: string | number }>(
+      `select config, revision from ${this.quotedTableName} where id = $1`, [this.rowId]
+    );
+    if (!result.rows[0]) throw new Error(`Platform config row ${this.rowId} was not initialized`);
+    return {
+      config: this.parseConfig(result.rows[0].config),
+      revision: Number(result.rows[0].revision),
+      generation
+    };
+  }
+
+  private cloneSnapshot(snapshot: { config: BetterPortalConfig; revision: number }): BetterPortalConfig {
+    const config = structuredClone(snapshot.config);
+    this.snapshots.set(config, snapshot.revision);
+    return config;
   }
 
   async loadOrCreateIdentity<T extends object>(create: () => T): Promise<T> {

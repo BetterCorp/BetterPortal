@@ -45,6 +45,32 @@ test("management auth stays root while handler routing uses the requested tenant
   assert.equal(event.__bpAppId, targetApp.id);
 });
 
+test("public preflight is cached without resolving request context", async () => {
+  const service = Object.create(BPService.prototype) as any;
+  let resolutions = 0;
+  service.resolveRequestContext = async () => {
+    resolutions++;
+    return null;
+  };
+  const url = new URL("https://config.test/.well-known/bp/health");
+  const event = {
+    url,
+    res: { headers: new Headers(), errHeaders: new Headers() },
+    req: new Request(url, {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://app.test",
+        "access-control-request-method": "GET"
+      }
+    })
+  };
+  const response = await service.handleWithCors(event);
+
+  assert.equal(response?.status, 204);
+  assert.equal(event.res.headers.get("access-control-max-age"), "600");
+  assert.equal(resolutions, 0);
+});
+
 function tenant(id: string, title: string, services: unknown[] = []) {
   return { id, slug: id, title, active: true, branding: {}, services, activatedPlatformServices: [] };
 }

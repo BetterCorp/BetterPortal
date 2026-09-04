@@ -5,29 +5,39 @@ import type { ResponseData } from "../../../previewEnvironmentManagement.js";
 
 function pageScript(): HtmlRenderable {
   return js(`(() => {
-    const tenant = document.getElementById("bp-preview-source-tenant");
-    const app = document.getElementById("bp-preview-source-app");
-    const syncApps = () => {
-      if (!tenant || !app) return;
-      [...app.options].forEach((option) => {
-        option.hidden = !!option.value && option.dataset.tenantId !== tenant.value;
+    const initialize = (root) => {
+      const tenant = root.querySelector("#bp-preview-source-tenant");
+      const app = root.querySelector("#bp-preview-source-app");
+      const syncApps = () => {
+        if (!tenant || !app) return;
+        [...app.options].forEach((option) => {
+          option.hidden = !!option.value && option.dataset.tenantId !== tenant.value;
+        });
+        if (app.selectedOptions[0]?.hidden) app.value = "";
+      };
+      if (tenant && !tenant.dataset.bpReady) tenant.addEventListener("change", syncApps);
+      if (tenant) tenant.dataset.bpReady = "true";
+      syncApps();
+
+      root.querySelectorAll("[data-bp-copy-target]:not([data-bp-ready])").forEach((button) => {
+        button.dataset.bpReady = "true";
+        button.addEventListener("click", async () => {
+          const target = document.getElementById(button.dataset.bpCopyTarget);
+          if (!target) return;
+          await navigator.clipboard.writeText(target.value || target.textContent || "");
+          const original = button.textContent;
+          button.textContent = "Copied";
+          setTimeout(() => { button.textContent = original; }, 1500);
+        });
       });
-      if (app.selectedOptions[0]?.hidden) app.value = "";
     };
-    tenant?.addEventListener("change", syncApps);
-    syncApps();
+    initialize(document);
+    document.body.addEventListener("htmx:afterSwap", (event) => initialize(event.detail?.target || document));
+  })()`);
+}
 
-    document.querySelectorAll("[data-bp-copy-target]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const target = document.getElementById(button.dataset.bpCopyTarget);
-        if (!target) return;
-        await navigator.clipboard.writeText(target.value || target.textContent || "");
-        const original = button.textContent;
-        button.textContent = "Copied";
-        setTimeout(() => { button.textContent = original; }, 1500);
-      });
-    });
-
+export function configEditorScript(): HtmlRenderable {
+  return js(`(() => {
     const decode64 = (value) => {
       const base64 = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
       return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
@@ -103,7 +113,8 @@ function pageScript(): HtmlRenderable {
     };
     const displayValue = (value) => typeof value === "string" ? value : JSON.stringify(value);
 
-    document.querySelectorAll("[data-bp-preview-config-form]").forEach((form) => {
+    document.querySelectorAll("[data-bp-preview-config-form]:not([data-bp-ready])").forEach((form) => {
+      form.dataset.bpReady = "true";
       const keyInput = form.querySelector("[data-bp-preview-key]");
       const status = form.querySelector("[data-bp-preview-config-status]");
       const dialog = form.querySelector("[data-bp-sync-dialog]");
@@ -340,7 +351,7 @@ function credentials(data: ResponseData): HtmlRenderable | null {
   );
 }
 
-function configEditor(group: ResponseData["groups"][number], path: string, ticketUrl: string): HtmlRenderable {
+export function configEditor(group: ResponseData["groups"][number], path: string, ticketUrl: string): HtmlRenderable {
   const hasFields = group.services.some((service) => service.fields.length > 0);
   const existing = (service: ResponseData["groups"][number]["services"][number], scope: "tenant" | "app") => {
     try { return JSON.parse(scope === "tenant" ? service.encryptedTenantConfig : service.encryptedAppConfig) as Record<string, unknown>; }
@@ -432,7 +443,15 @@ export function render(data: ResponseData): HtmlRenderable {
               </div>
               <div class="d-flex flex-wrap gap-2">
                 <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target={`#bp-new-${group.id}`}>New preview</button>
-                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target={`#bp-settings-${group.id}`}>Settings</button>
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  data-bs-toggle="collapse"
+                  data-bs-target={`#bp-settings-${group.id}`}
+                  hx-get={`${data.previewPath}?_c=config&groupId=${encodeURIComponent(group.id)}`}
+                  hx-trigger="click once"
+                  hx-target={`#bp-config-${group.id}`}
+                  hx-swap="innerHTML"
+                >Settings</button>
                 <button
                   class="btn btn-sm btn-outline-danger"
                   hx-delete={`${data.previewPath}?entity=group&id=${encodeURIComponent(group.id)}`}
@@ -494,7 +513,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   <input type="hidden" name="groupId" value={group.id} />
                   <button class="btn btn-outline-warning" type="submit" hx-confirm="Rotate this group API key? Existing CI credentials will stop working.">Rotate API key</button>
                 </form>
-                {configEditor(group, data.previewPath, data.configTicketUrl)}
+                <div id={`bp-config-${group.id}`}><div class="text-secondary small mt-3" role="status">Open settings to load service configuration.</div></div>
               </div>
             </div>
 

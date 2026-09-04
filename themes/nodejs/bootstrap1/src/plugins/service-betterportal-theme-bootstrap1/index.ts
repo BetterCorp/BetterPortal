@@ -47,6 +47,7 @@ import { isUserFacingRoute, renderBootstrap1HostPage, renderNavItems, shellStyle
 import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap1Asset } from "./assets.js";
 import { Bootstrap1DeveloperResources } from "./resources.js";
+import packageJson from "../../../package.json" with { type: "json" };
 
 // Parse-only base for relative request URLs. Never emit this origin.
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
@@ -89,9 +90,11 @@ const THEME_CONFIG_SCHEMAS: ConfigSchemaDescriptor[] = [
 ];
 
 const BOOTSTRAP1_ASSET_BASE_URL = "/_themes/bootstrap1/assets";
-const DEFAULT_BOOTSTRAP1_LOGO_URL = `${BOOTSTRAP1_ASSET_BASE_URL}/betterportal-logo.png`;
-const DEFAULT_BOOTSTRAP1_FAVICON_16_URL = `${BOOTSTRAP1_ASSET_BASE_URL}/betterportal-favicon-16.png`;
-const DEFAULT_BOOTSTRAP1_FAVICON_URL = `${BOOTSTRAP1_ASSET_BASE_URL}/betterportal-favicon-32.png`;
+const BOOTSTRAP1_VERSION = packageJson.version;
+const bootstrap1AssetUrl = (name: string) => `${BOOTSTRAP1_ASSET_BASE_URL}/${name}?v=${encodeURIComponent(BOOTSTRAP1_VERSION)}`;
+const DEFAULT_BOOTSTRAP1_LOGO_URL = bootstrap1AssetUrl("betterportal-logo.png");
+const DEFAULT_BOOTSTRAP1_FAVICON_16_URL = bootstrap1AssetUrl("betterportal-favicon-16.png");
+const DEFAULT_BOOTSTRAP1_FAVICON_URL = bootstrap1AssetUrl("betterportal-favicon-32.png");
 
 type SafeServiceTarget =
   | { ok: true; origin: string; path: string; url: string }
@@ -238,6 +241,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   // manual routes here so they sit alongside the auto-mounted /.well-known/* set.
   protected async onRegistered(_registry: BetterPortalRegistry, obs: Observable): Promise<void> {
     this.registerRoutes();
+    await loadBootstrap1Asset("bootstrap1-core.js");
     obs.log.info("Bootstrap1 theme initialized with default mode {mode}", {
       mode: this.config.defaultMode
     });
@@ -955,11 +959,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         status: 200,
         headers: {
           "content-type": asset.contentType,
-          // The shell runtime (standalone or inside the core bundle) changes with
-          // theme deploys - never let browsers serve a stale copy.
-          "cache-control": assetPath === "bootstrap1-shell.js" || assetPath === "bootstrap1-core.js"
-            ? "no-store"
-            : "public, max-age=3600"
+          "cache-control": activeEvent.url.searchParams.get("v") === BOOTSTRAP1_VERSION
+            ? "public, max-age=31536000, immutable"
+            : "no-cache"
         }
       });
     });
@@ -1160,7 +1162,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           faviconUrl: baseTheme.faviconUrl ?? DEFAULT_BOOTSTRAP1_FAVICON_URL,
           themeMode: effectiveMode,
           themeConfig: mergedThemeConfig,
-          assetBaseUrl: "/_themes/bootstrap1/assets",
+          assetBaseUrl: BOOTSTRAP1_ASSET_BASE_URL,
+          assetVersion: BOOTSTRAP1_VERSION,
           currentPath: activeEvent.url.pathname,
           initialRouteUrl,
           initialRouteError,

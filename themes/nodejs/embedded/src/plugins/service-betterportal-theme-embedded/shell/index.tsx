@@ -9,6 +9,7 @@ import {
 export interface EmbeddedShellContext {
   title: string;
   assetBaseUrl: string;
+  assetVersion?: string;
   bodyHtml: HtmlRenderable;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
@@ -28,6 +29,7 @@ export interface EmbeddedRouteLink {
 export interface EmbeddedHostPageContext {
   title: string;
   assetBaseUrl: string;
+  assetVersion?: string;
   initialRouteUrl?: string;
   initialServiceId?: string;
   initialRouteError?: string;
@@ -60,6 +62,7 @@ export const EmbeddedManifest: PluginManifest = createPluginManifest({
 });
 
 function EmbeddedDocument(context: EmbeddedShellContext): HtmlRenderable {
+  const version = context.assetVersion ? `?v=${encodeURIComponent(context.assetVersion)}` : "";
   return (
     <html lang="en">
       <head>
@@ -73,7 +76,7 @@ function EmbeddedDocument(context: EmbeddedShellContext): HtmlRenderable {
         {context.managementDiscoveryUrl ? <meta name="betterportal:management-discovery" content={context.managementDiscoveryUrl} /> : ""}
         {context.sessionId ? <meta name="betterportal:session-id" content={context.sessionId} /> : ""}
         <title>{context.title}</title>
-        <script src={`${context.assetBaseUrl}/embedded-core.js`} defer></script>
+        <script src={`${context.assetBaseUrl}/embedded-core.js${version}`} fetchpriority="high" defer></script>
         <style>{css({
           "html, body": {
             width: "100%",
@@ -185,6 +188,7 @@ export function renderEmbeddedHostPage(context: EmbeddedHostPageContext): string
   return renderEmbeddedShell({
     title: context.title,
     assetBaseUrl: context.assetBaseUrl,
+    assetVersion: context.assetVersion,
     aiManifestUrl: context.aiManifestUrl,
     automationCatalogUrl: context.automationCatalogUrl,
     managementDiscoveryUrl: context.managementDiscoveryUrl,

@@ -147,7 +147,11 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [{
 
 export const handleGet = createHandler(
   { response: ResponseSchema },
-  (ctx) => buildResponse(previewPath(ctx))
+  (ctx) => buildResponse(
+    previewPath(ctx),
+    {},
+    stringValue(ctx.query._c) === "config" ? stringValue(ctx.query.groupId) : undefined
+  )
 );
 
 export const handlePost = createHandler(
@@ -259,25 +263,31 @@ function previewPath(ctx: Pick<RouteHandlerContext, "routeUrl">): string {
     ?? "/preview-environments";
 }
 
-async function buildResponse(path: string, transient: Partial<ResponseData> = {}): Promise<ResponseData> {
+async function buildResponse(
+  path: string,
+  transient: Partial<ResponseData> = {},
+  configGroupId?: string
+): Promise<ResponseData> {
   const routeContext = getConfigManagerRouteContext();
   const fullConfig = await routeContext.storage.loadConfig();
-  const config = visibleAdminConfig(fullConfig);
-  const sourceApps = config.apps.map((app) => {
-    const tenant = config.tenants.find((candidate) => candidate.id === app.tenantId)!;
+  const visibleConfig = configGroupId === undefined ? visibleAdminConfig(fullConfig) : undefined;
+  const sourceApps = (visibleConfig?.apps ?? []).map((app) => {
+    const tenant = visibleConfig!.tenants.find((candidate) => candidate.id === app.tenantId)!;
     return {
       id: app.id,
       tenantId: tenant.id,
       title: app.title
     };
   });
-  const groups = fullConfig.previewEnvironmentGroups.map((group) => groupModel(fullConfig, group));
+  const groups = fullConfig.previewEnvironmentGroups
+    .filter((group) => configGroupId === undefined || group.id === configGroupId)
+    .map((group) => groupModel(fullConfig, group, configGroupId === group.id));
   return {
     title,
     previewPath: path,
     deploymentApiBase: PREVIEW_DEPLOYMENT_API_BASE,
     configTicketUrl: `${routeContext.serviceBaseUrl.replace(/\/+$/, "")}/.well-known/bp/admin/config-ticket`,
-    sourceTenants: config.tenants.map((tenant) => ({ id: tenant.id, title: tenant.title })),
+    sourceTenants: (visibleConfig?.tenants ?? []).map((tenant) => ({ id: tenant.id, title: tenant.title })),
     sourceApps,
     groups,
     issuedCredentials: [],
@@ -285,7 +295,7 @@ async function buildResponse(path: string, transient: Partial<ResponseData> = {}
   };
 }
 
-function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup) {
+function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup, includeConfig = false) {
   const sourceTenant = config.tenants.find((tenant) => tenant.id === group.sourceTenantId);
   const sourceApp = config.apps.find((app) => app.id === group.sourceAppId);
   return {
@@ -303,7 +313,7 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup) 
       requiredClaimsJson: JSON.stringify(group.oidc.requiredClaims, null, 2)
     } : undefined,
     services: group.services.map((service) => {
-      const descriptors = resolvePreviewConfigSchemas(config, group, service.serviceId) ?? [];
+      const descriptors = includeConfig ? resolvePreviewConfigSchemas(config, group, service.serviceId) ?? [] : [];
       const source = sourceConfigService(config, group, service.serviceId);
       const fields = [...new Map(descriptors.flatMap((descriptor) => descriptor.fields).map((field) => [
         `${field.scope}:${field.key}`,
@@ -324,8 +334,8 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup) 
         title: service.title ?? service.serviceId,
         fields,
         ...(source ? { source: { instanceId: source.instanceId, hostname: source.hostname } } : {}),
-        encryptedTenantConfig: JSON.stringify(service.config.tenant),
-        encryptedAppConfig: JSON.stringify(service.config.app)
+        encryptedTenantConfig: includeConfig ? JSON.stringify(service.config.tenant) : "{}",
+        encryptedAppConfig: includeConfig ? JSON.stringify(service.config.app) : "{}"
       };
     }),
     deployments: config.previewEnvironmentDeployments

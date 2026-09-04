@@ -36,6 +36,7 @@ export interface Bootstrap1ShellContext {
   themeMode: "light" | "dark";
   themeConfig: BetterPortalThemeConfig;
   assetBaseUrl: string;
+  assetVersion?: string;
   bodyHtml: HtmlRenderable;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
@@ -51,6 +52,7 @@ export interface Bootstrap1HostPageContext {
   themeMode: "light" | "dark";
   themeConfig: BetterPortalThemeConfig;
   assetBaseUrl: string;
+  assetVersion?: string;
   currentPath: string;
   initialRouteUrl?: string;
   initialServiceId?: string;
@@ -2081,6 +2083,11 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
   });
 }
 
+function shellAssetUrl(context: Bootstrap1ShellContext, name: string): string {
+  const version = context.assetVersion ? `?v=${encodeURIComponent(context.assetVersion)}` : "";
+  return `${context.assetBaseUrl}/${name}${version}`;
+}
+
 function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
   return (
     <html lang="en" data-bs-theme={context.themeMode}>
@@ -2095,12 +2102,12 @@ function Bootstrap1Document(context: Bootstrap1ShellContext): HtmlRenderable {
         {context.managementDiscoveryUrl ? <meta name="betterportal:management-discovery" content={context.managementDiscoveryUrl} /> : ""}
         {context.sessionId ? <meta name="betterportal:session-id" content={context.sessionId} /> : ""}
         <title>{context.title}</title>
-        <link rel="icon" type="image/png" sizes="16x16" href={context.faviconUrl ?? `${context.assetBaseUrl}/betterportal-favicon-16.png`} />
-        <link rel="icon" type="image/png" sizes="32x32" href={context.faviconUrl ?? `${context.assetBaseUrl}/betterportal-favicon-32.png`} />
-        <link href={`${context.assetBaseUrl}/bootstrap.min.css`} rel="stylesheet" />
+        <link rel="icon" type="image/png" sizes="16x16" href={context.faviconUrl ?? shellAssetUrl(context, "betterportal-favicon-16.png")} />
+        <link rel="icon" type="image/png" sizes="32x32" href={context.faviconUrl ?? shellAssetUrl(context, "betterportal-favicon-32.png")} />
+        <link href={shellAssetUrl(context, "bootstrap.min.css")} rel="stylesheet" />
         {/* Bootstrap must initialize before the shell snapshots its component API. */}
-        <script src={`${context.assetBaseUrl}/bootstrap.bundle.min.js`} defer></script>
-        <script src={`${context.assetBaseUrl}/bootstrap1-core.js`} defer></script>
+        <script src={shellAssetUrl(context, "bootstrap.bundle.min.js")} defer></script>
+        <script src={shellAssetUrl(context, "bootstrap1-core.js")} fetchpriority="high" defer></script>
         <style
           id="bp-theme-style"
           hx-get="/.well-known/bp/theme/style"
@@ -2304,6 +2311,7 @@ export function renderBootstrap1HostPage(context: Bootstrap1HostPageContext): st
     themeMode: context.themeMode,
     themeConfig: context.themeConfig,
     assetBaseUrl: context.assetBaseUrl,
+    assetVersion: context.assetVersion,
     aiManifestUrl: context.aiManifestUrl,
     automationCatalogUrl: context.automationCatalogUrl,
     managementDiscoveryUrl: context.managementDiscoveryUrl,

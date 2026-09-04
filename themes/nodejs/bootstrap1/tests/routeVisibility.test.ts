@@ -35,9 +35,11 @@ test("Bootstrap initializes before shell overlay cleanup", () => {
     themeMode: "light",
     themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
     assetBaseUrl: "/assets",
+    assetVersion: "10.6.9",
     bodyHtml: ""
   });
   assert.ok(html.indexOf("bootstrap.bundle.min.js") < html.indexOf("bootstrap1-core.js"));
+  assert.match(html, /bootstrap1-core\.js\?v=10\.6\.9[^>]*fetchpriority="high"/);
 });
 
 test("fullscreen chrome keeps the normal shell and does not imply auth", () => {

@@ -12,7 +12,9 @@ import { render as renderTenants } from "../src/plugins/service-betterportal-con
 import { render as renderServices } from "../src/plugins/service-betterportal-config-manager/bp-routes/services/_renderer.bootstrap5/GET.js";
 import { render as renderAuth } from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/_renderer.bootstrap5/GET.js";
 import { render as renderPreviewEnvironments } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/GET.js";
+import { render as renderPreviewConfigEditor } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/config.GET.js";
 import { resolvePreviewConfigSchemas } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
+import { PostgresStorage } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
 import { registerFragmentsEditorRoutes } from "../src/plugins/service-betterportal-config-manager/fragmentsEditor.js";
@@ -249,6 +251,30 @@ function s2sConfig(): {
   } as BetterPortalConfig;
   return { config, tenantId, appId, sourceId, targetId, bindingId };
 }
+
+test("Postgres config reads reuse an isolated validated snapshot until invalidated", async () => {
+  const config = BetterPortalConfigSchema.parse({});
+  let reads = 0;
+  const storage = new PostgresStorage({ connectionString: "postgres://unused" });
+  Object.assign(storage as object, {
+    schemaReady: Promise.resolve(),
+    pool: {
+      query: async () => {
+        reads++;
+        return { rows: [{ config, revision: 1 }] };
+      }
+    }
+  });
+
+  const [first, second] = await Promise.all([storage.loadConfig(), storage.loadConfig()]);
+  first.apps.push({} as never);
+  assert.equal(second.apps.length, 0);
+  assert.equal(reads, 1);
+
+  storage.invalidate();
+  await storage.loadConfig();
+  assert.equal(reads, 2);
+});
 
 test("dependency analysis finds disabled routes by plugin id", async () => {
   const value = s2sConfig();
@@ -1789,7 +1815,7 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
 });
 
 test("preview environment editor keeps config crypto in the browser", () => {
-  const html = String(renderPreviewEnvironments({
+  const data: Parameters<typeof renderPreviewEnvironments>[0] = {
     title: "Preview Environments",
     previewPath: "/preview-environments",
     deploymentApiBase: "/api/preview-groups",
@@ -1833,7 +1859,12 @@ test("preview environment editor keeps config crypto in the browser", () => {
       updatedAt: "2026-01-01T00:00:00.000Z"
     }],
     issuedCredentials: []
-  }));
+  };
+  const page = String(renderPreviewEnvironments(data));
+  const html = String(renderPreviewConfigEditor(data));
+  assert.match(page, /_c=config&amp;groupId=/);
+  assert.doesNotMatch(page, /BP_PREVIEW_CONFIG_KEY/);
+  assert.doesNotMatch(page, /crypto\.subtle\.encrypt/);
   assert.match(html, /BP_PREVIEW_CONFIG_KEY/);
   assert.doesNotMatch(html, /Service plugin IDs/);
   assert.match(html, /crypto\.subtle\.encrypt/);

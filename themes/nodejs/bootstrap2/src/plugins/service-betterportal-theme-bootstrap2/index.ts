@@ -242,6 +242,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   // manual routes here so they sit alongside the auto-mounted /.well-known/* set.
   protected async onRegistered(_registry: BetterPortalRegistry, obs: Observable): Promise<void> {
     this.registerRoutes();
+    await loadBootstrap2Asset("bootstrap2-core.js");
     obs.log.info("Bootstrap2 theme initialized with default mode {mode}", {
       mode: this.config.defaultMode
     });
