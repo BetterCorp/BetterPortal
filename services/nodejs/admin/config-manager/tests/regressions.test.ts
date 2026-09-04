@@ -1413,7 +1413,9 @@ test("service registration stays browser-mediated and tenant history follows the
   assert.match(html, /Offcanvas\?\.getInstance\(panel\)\?\.hide/);
   assert.match(html, /setTenantStatus\("secondary", "Installing service\.\.\."\)/);
   assert.match(html, /data-bp-reconfigure-service=""[^>]*data-bp-service-plugin-id="org\.example\.service"/);
-  assert.match(html, /health\?\.setupMode === true && health\.pluginId === button\.dataset\.bpServicePluginId/);
+  assert.match(html, /const needsReconnect = health\?\.setupMode === true && health\.pluginId === button\.dataset\.bpServicePluginId/);
+  assert.match(html, /status\.textContent = "needs reconnect"/);
+  assert.match(html, />Reconnect<\/button>/);
   assert.match(html, /reconfigure: true/);
   const script = /<script>\s*([\s\S]*)<\/script>/.exec(html)?.[1];
   assert.ok(script);

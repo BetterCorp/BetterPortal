@@ -103,7 +103,7 @@ function renderServiceCard(
               {service.capabilities.map((capability) => <span class="badge text-bg-light border me-1">{capability}</span>)}
             </div>
           ) : ""}
-          <div class="small mb-1"><strong>Status:</strong> <span class={`badge ${service.enabled ? "text-bg-success" : "text-bg-secondary"}`}>{service.enabled ? "active" : "disabled"}</span></div>
+          <div class="small mb-1"><strong>Status:</strong> <span data-bp-service-status class={`badge ${service.enabled ? "text-bg-success" : "text-bg-secondary"}`}>{service.enabled ? "active" : "disabled"}</span></div>
           <div class="small mb-2"><strong>Created:</strong> {service.createdAt}{service.lastSeenAt ? ` - Last seen: ${service.lastSeenAt}` : ""}{service.lastSyncAt ? ` - Last sync: ${service.lastSyncAt}` : ""}{service.syncedVersion ? ` - Synced version: ${service.syncedVersion}` : ""}</div>
           <div class="d-flex gap-2 flex-wrap align-items-center">
             {service.scope !== "shared" ? (
@@ -130,7 +130,7 @@ function renderServiceCard(
                     data-bp-service-url={normalizeUrl(service.hostname)}
                     data-bp-tenant-id={service.tenantId ?? ""}
                   >
-                    Reset / reconfigure
+                    Reconnect
                   </button>
                 ) : ""}
               </>
@@ -753,7 +753,13 @@ export function render(data: ResponseData): HtmlRenderable {
   document.querySelectorAll("[data-bp-reconfigure-service]").forEach(async (button) => {
     try {
       const health = await loadHealth(button.dataset.bpServiceUrl);
-      button.hidden = !(health?.setupMode === true && health.pluginId === button.dataset.bpServicePluginId);
+      const needsReconnect = health?.setupMode === true && health.pluginId === button.dataset.bpServicePluginId;
+      button.hidden = !needsReconnect;
+      const status = button.closest(".card")?.querySelector("[data-bp-service-status]");
+      if (needsReconnect && status) {
+        status.className = "badge text-bg-warning";
+        status.textContent = "needs reconnect";
+      }
     } catch { button.hidden = true; }
   });
   document.addEventListener("click", async (event) => {
@@ -766,12 +772,12 @@ export function render(data: ResponseData): HtmlRenderable {
     const reconfigureButton = event.target?.closest?.("[data-bp-reconfigure-service]");
     if (reconfigureButton) {
       event.preventDefault();
-      if (!window.confirm("Replace this service's lost setup with a new BetterPortal configuration?")) return;
+      if (!window.confirm("Reconnect this service to BetterPortal?")) return;
       reconfigureButton.disabled = true;
       try {
-        setAlert("secondary", "Reconfiguring service...");
+        setAlert("secondary", "Reconnecting service...");
         await reconfigureService(reconfigureButton);
-        setAlert("success", "Service reconfigured. Refreshing services...");
+        setAlert("success", "Service reconnected. Refreshing services...");
         await refreshServices();
       } catch (error) {
         setAlert("danger", error instanceof Error ? error.message : String(error));
