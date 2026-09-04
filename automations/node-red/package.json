@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/node-red-contrib-betterportal",
-  "version": "10.6.8",
+  "version": "10.6.9",
   "description": "Node-RED nodes for BetterPortal automation discovery.",
   "main": "index.js",
   "node-red": {
