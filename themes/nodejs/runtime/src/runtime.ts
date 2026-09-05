@@ -373,7 +373,8 @@ export function betterPortalShellRuntimeSource(): string {
       const disableInitialMainLoad = () => {
         const outlet = mainOutlet();
         if (!outlet) return;
-        if ((outlet.getAttribute("hx-trigger") || "").trim() === "load") {
+        const trigger = (outlet.getAttribute("hx-trigger") || "").trim();
+        if (trigger === "load" || !trigger) {
           outlet.removeAttribute("hx-trigger");
           outlet.removeAttribute("hx-get");
         }

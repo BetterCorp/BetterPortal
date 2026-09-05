@@ -280,6 +280,9 @@ export abstract class BPService<
   private s2sKeyPair: RsaKeyPair | null = null;
   private s2sIdentityReady = false;
   private sseAbortController: AbortController | null = null;
+  private syncReconnectTimer?: ReturnType<typeof setTimeout>;
+  /** Manifest acceptance is separate from receiving a cached config over SSE. */
+  private manifestSync: { state: "pending" | "retrying" | "synced"; lastAttemptAt?: string; lastSuccessAt?: string } = { state: "pending" };
   private readonly seoProbeCache = new Map<string, {
     expiresAt: number;
     data?: RuntimeSitemapRoute[];
@@ -1013,6 +1016,7 @@ export abstract class BPService<
 
   async dispose(): Promise<void> {
     this.sseAbortController?.abort();
+    clearTimeout(this.syncReconnectTimer);
     if (this.server.listening) {
       await new Promise<void>((resolve, reject) => {
         this.server.close((err?: Error) => err ? reject(err) : resolve());
@@ -1023,6 +1027,10 @@ export abstract class BPService<
   // Control plane sync
 
   private connectToControlPlane(obs: Observable): Promise<boolean> {
+    this.sseAbortController?.abort();
+    clearTimeout(this.syncReconnectTimer);
+    const controller = this.sseAbortController = new AbortController();
+    this.manifestSync = { state: "pending" };
     const baseUrl = this.resolvedCpUrl!.replace(/\/+$/, "");
     const url = `${baseUrl}/.well-known/bp/sync`;
     const pollUrl = `${url}/poll`;
@@ -1092,6 +1100,7 @@ export abstract class BPService<
     };
 
     const bootstrapFromPoll = async (): Promise<boolean> => {
+      this.manifestSync.lastAttemptAt = new Date().toISOString();
       obs.log.info("Control plane sync bootstrap polling: {url}", { url: pollUrl });
       // POST manifest with the poll so CP can cache it for resolvedServicePath injection
       // AND surface per-view permission requirements to the admin role editor.
@@ -1152,6 +1161,7 @@ export abstract class BPService<
       }
       const response = await fetch(pollUrl, {
         method: "POST",
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]),
         headers: {
           Accept: "application/json",
           "content-type": "application/json",
@@ -1187,11 +1197,13 @@ export abstract class BPService<
       }
 
       const config = await response.json();
+      if (controller.signal.aborted) return false;
       obs.log.info("BP SYNC CLIENT: bootstrap poll succeeded service={serviceId} status={status}", {
         serviceId: this.manifest.pluginId,
         status: response.status
       });
       applyScopedConfig(config, "poll");
+      this.manifestSync = { ...this.manifestSync, state: "synced", lastSuccessAt: new Date().toISOString() };
       return true;
     };
 
@@ -1212,12 +1224,18 @@ export abstract class BPService<
       });
     };
 
-    const connect = (): Promise<boolean> => {
-      const bootstrap = bootstrapFromPoll().catch((error) => {
+    const connect = async (): Promise<boolean> => {
+      if (controller.signal.aborted) return false;
+      const bootstrap = await bootstrapFromPoll().catch((error) => {
         logBootstrapPollError(error);
         return false;
       });
-      this.sseAbortController = new AbortController();
+      if (controller.signal.aborted) return false;
+      if (!bootstrap) {
+        this.manifestSync.state = "retrying";
+        scheduleReconnect();
+        return false;
+      }
       obs.log.info("BP SYNC CLIENT: opening SSE update stream service={serviceId} url={url}", {
         serviceId: this.manifest.pluginId,
         url
@@ -1228,7 +1246,7 @@ export abstract class BPService<
           Accept: "text/event-stream",
           Authorization: `Bearer ${apiKey}`
         },
-        signal: this.sseAbortController.signal
+        signal: controller.signal
       }).then(async (response) => {
         if (!response.ok || !response.body) {
           let body = "";
@@ -1326,7 +1344,9 @@ export abstract class BPService<
     };
 
     const scheduleReconnect = () => {
-      setTimeout(() => void connect(), 5000);
+      if (controller.signal.aborted) return;
+      clearTimeout(this.syncReconnectTimer);
+      this.syncReconnectTimer = setTimeout(() => void connect(), 5000);
     };
 
     return connect();
@@ -1990,7 +2010,8 @@ export abstract class BPService<
   private renderHealth(): Response {
     const synced = Boolean(this.scopedConfig);
     const localConfig = Boolean(this.configProvider);
-    const ready = !this.requireBetterPortalConfigSource || this.inSetupMode || synced || localConfig;
+    const ready = !this.requireBetterPortalConfigSource || this.inSetupMode || localConfig
+      || (synced && this.manifestSync.state === "synced");
     const status = ready ? 200 : 503;
 
     const response = jsonResponse({
@@ -2004,6 +2025,7 @@ export abstract class BPService<
         tenants: this.scopedConfig?.tenants.length ?? 0,
         apps: this.scopedConfig?.apps.length ?? 0
       },
+      manifestSync: this.manifestSync,
       sync: {
         mode: this.inSetupMode
           ? "setup"

@@ -27,7 +27,7 @@ import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManife
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
-import { getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
+import { ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService } from "./previewEnvironments.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
@@ -46,7 +46,7 @@ async function touchServiceActivity(
   const service = config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId);
   if (!service) return;
   const now = Date.now();
-  if (service[field] && now - Date.parse(service[field]) < SERVICE_ACTIVITY_INTERVAL_MS) return;
+  if (field === "lastSeenAt" && service[field] && now - Date.parse(service[field]) < SERVICE_ACTIVITY_INTERVAL_MS) return;
   service[field] = new Date(now).toISOString();
   await store.saveConfig(config, { notify: false });
 }
@@ -267,12 +267,13 @@ export function getCachedManifestForService(
   cache: ReadonlyMap<string, CachedManifest> = manifestCache
 ): CachedManifest | undefined {
   const read = (key: string): CachedManifest | undefined => {
-    const hot = cache.get(key);
-    if (hot) return hot;
     const stored = config.manifestCache?.find((entry) => entry.serviceId === key);
+    const hot = cache.get(key);
+    // Keep the fast path only when it describes this committed snapshot.
+    if (hot && (!stored || (hot.fetchedAt === Date.parse(stored.fetchedAt) && hot.manifestVersion === stored.manifestVersion))) return hot;
     return stored
       ? normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0])
-      : undefined;
+      : cache.get(key);
   };
   const direct = read(serviceInstanceId);
   if (direct) return direct;
@@ -510,7 +511,6 @@ export async function reconcileServiceRegistry(
   }
 
   const manifest = normalizeManifest({ serviceId, viewIndex, ...options });
-  cacheManifest(serviceId, manifest);
   await updateServiceMetadata(store, serviceId, manifest);
   return manifest;
 }
@@ -575,7 +575,8 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
 }
 
 export interface SyncEndpointOptions {
-  onManifestUpdated?: (serviceIds: string[], manifest: CachedManifest) => Promise<void>;
+  /** Mutate the same snapshot before commit; may run again after a revision conflict. No external side effects. */
+  onManifestUpdated?: (config: BetterPortalConfig, serviceIds: string[], manifest: CachedManifest) => void;
 }
 
 export function registerSyncEndpoint(
@@ -796,9 +797,12 @@ export function registerSyncEndpoint(
           configSchemas: body.configSchemas,
           webhooks: body.webhooks
         });
-        cacheManifest(serviceId, cachedManifest);
-        const serviceIds = await updateServiceMetadata(store, serviceId, cachedManifest);
-        await options.onManifestUpdated?.(serviceIds, cachedManifest);
+        await updateServiceMetadata(store, serviceId, cachedManifest, options.onManifestUpdated, async () => {
+          const current = await store.validateApiKey(apiKey);
+          if (!current || current.serviceId !== serviceId || current.tenantId !== validated.tenantId || current.scope !== validated.scope) {
+            throw new Error("Sync credentials changed during manifest submission; reconnect required");
+          }
+        });
         obs?.logger.info("BP SYNC POLL: cached manifest service={serviceId} version={version} views={count} configSchemas={configSchemas}", {
           serviceId,
           version: body.manifestVersion ?? "unknown",
@@ -964,9 +968,32 @@ function reconcileDependencyRoutes(config: BetterPortalConfig, app: BetterPortal
 async function updateServiceMetadata(
   store: PlatformConfigStore,
   serviceInstanceId: string,
-  manifest: CachedManifest
+  manifest: CachedManifest,
+  onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
+  validateCredentials?: () => Promise<void>
+): Promise<string[]> {
+  // Retry the whole mutation on a fresh snapshot, never overwrite a newer revision.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const serviceIds = await commitServiceMetadata(store, serviceInstanceId, manifest, onManifestUpdated, validateCredentials);
+      for (const id of serviceIds) cacheManifest(id, manifest);
+      return serviceIds;
+    } catch (error) {
+      if (!(error instanceof ConfigRevisionConflictError) || attempt >= 4) throw error;
+      store.invalidate();
+    }
+  }
+}
+
+async function commitServiceMetadata(
+  store: PlatformConfigStore,
+  serviceInstanceId: string,
+  manifest: CachedManifest,
+  onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
+  validateCredentials?: () => Promise<void>
 ): Promise<string[]> {
   const config = await store.loadConfig();
+  await validateCredentials?.();
   const persistedManifest = {
     ...manifest,
     serviceId: serviceInstanceId,
@@ -981,7 +1008,6 @@ async function updateServiceMetadata(
     const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
     if (!service) continue;
     routeServiceIds.add(service.id);
-    cacheManifest(service.id, manifest);
     service.capabilities = manifest.capabilities;
     if (manifest.authProvider) service.authProvider = manifest.authProvider;
     if (manifest.title) service.title = manifest.title;
@@ -990,7 +1016,6 @@ async function updateServiceMetadata(
   const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
   if (platform) {
     routeServiceIds.add(platform.id);
-    cacheManifest(platform.id, manifest);
     platform.capabilities = manifest.capabilities;
     if (manifest.authProvider) platform.authProvider = manifest.authProvider;
     if (manifest.title) platform.title = manifest.title;
@@ -998,10 +1023,8 @@ async function updateServiceMetadata(
   }
   const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
   if (shared) {
-    cacheManifest(shared.id, manifest);
     for (const activation of config.sharedServiceActivations.filter((candidate) => candidate.enabled && candidate.sharedServiceId === shared.id)) {
       routeServiceIds.add(activation.id);
-      cacheManifest(activation.id, manifest);
     }
     shared.tags = [...new Set([...(shared.tags ?? []), ...manifest.capabilities])];
     if (manifest.authProvider) shared.authProvider = manifest.authProvider;
@@ -1144,6 +1167,7 @@ async function updateServiceMetadata(
     }
     if (reconcileDependencyRoutes(config, app)) changed = true;
   }
+  onManifestUpdated?.(config, [...routeServiceIds], manifest);
   if (changed) await store.saveConfig(config);
   return [...routeServiceIds];
 }

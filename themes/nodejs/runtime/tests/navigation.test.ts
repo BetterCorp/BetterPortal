@@ -52,6 +52,26 @@ test("initial 401 loads login promptly and content clicks cannot reissue the ini
   assert.deepEqual(errors, []);
 });
 
+test("connection errors keep the main area inert and Reload makes only one explicit request", async t => {
+  let requests = 0;
+  const { page, errors } = await shell(t, async route => {
+    requests++;
+    await route.abort("failed");
+  });
+  await page.waitForSelector('[data-bp-error-action="reload"]');
+  const initialRequests = requests;
+  await page.locator("#bp-main").click({ position: { x: 2, y: 2 } });
+  await page.locator('[data-bp-error-action="reload"]').hover();
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 100)));
+  assert.equal(requests, initialRequests);
+  await page.locator('[data-bp-error-action="reload"]').click();
+  await page.waitForFunction(() => document.querySelector("#bp-main")?.textContent?.includes("Connection Error"));
+  assert.equal(requests, initialRequests + 1);
+  assert.equal(await page.locator("#bp-main").getAttribute("hx-get"), null);
+  assert.doesNotMatch(await page.locator("#bp-main").textContent() ?? "", /Route Configuration Error/);
+  assert.deepEqual(errors, []);
+});
+
 test("disabled auth links never preload or navigate, including their child elements", async t => {
   let authRequests = 0;
   const { page, errors } = await shell(t, route => {

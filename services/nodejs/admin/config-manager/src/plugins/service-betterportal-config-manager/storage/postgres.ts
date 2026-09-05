@@ -6,6 +6,7 @@ import * as yaml from "yaml";
 import { BetterPortalConfigSchema, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import {
   BaseStorage,
+  ConfigRevisionConflictError,
   hashApiKey,
   migrateOfficialPluginIds,
   migrateRouteOperations,
@@ -18,12 +19,7 @@ function quotePgIdent(identifier: string): string {
   return `"${identifier.replace(/"/g, "\"\"")}"`;
 }
 
-export class ConfigRevisionConflictError extends Error {
-  constructor(expected: number, actual: number) {
-    super(`Platform config changed concurrently (loaded revision ${expected}, current revision ${actual})`);
-    this.name = "ConfigRevisionConflictError";
-  }
-}
+export { ConfigRevisionConflictError } from "./core.js";
 
 export type PendingActionKind = "bootstrap" | "setup" | "hostname-change";
 /** Completion data fenced by the active lease owner and committed with config changes. */
@@ -232,7 +228,7 @@ export class PostgresStorage extends BaseStorage {
     await this.getPool().query(
       `insert into ${this.activityTable} (scope_id, service_id, ${column}) values ($1, $2, now())
        on conflict (scope_id, service_id) do update set ${column} = excluded.${column}
-       where ${this.activityTable}.${column} is null or ${this.activityTable}.${column} < now() - interval '60 seconds'`,
+       ${field === "lastSeenAt" ? `where ${this.activityTable}.${column} is null or ${this.activityTable}.${column} < now() - interval '60 seconds'` : ""}`,
       [this.rowId, serviceId]
     );
   }

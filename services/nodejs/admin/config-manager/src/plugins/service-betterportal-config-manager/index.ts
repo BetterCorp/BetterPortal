@@ -422,9 +422,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       replayEncryptionKey: this.cpState.keyPair.privateKeyPem
     });
     registerSyncEndpoint(this.app, this.storage, {
-      onManifestUpdated: async (serviceIds, manifest) => {
-        const config = await this.storage.loadConfig();
-        let changed = serviceIds.some((serviceId) => reconcilePreviewService(config, serviceId, manifest));
+      onManifestUpdated: (config, serviceIds, manifest) => {
+        for (const serviceId of serviceIds) reconcilePreviewService(config, serviceId, manifest);
         for (const deployment of config.previewEnvironmentDeployments) {
           const selections = buildM2MConnectionModel(config, deployment.appId)
             .filter((row) => row.status === "pending" && row.candidates.length === 1)
@@ -435,10 +434,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
               targetViewId: row.candidates[0].targetViewId
             }));
           if (selections.length > 0) {
-            changed = approveM2MConnections(config, deployment.appId, selections).created.length > 0 || changed;
+            approveM2MConnections(config, deployment.appId, selections);
           }
         }
-        if (changed) await this.storage.saveConfig(config);
       }
     });
 
