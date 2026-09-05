@@ -351,9 +351,17 @@ export function isAllowedRefererForContext(
   return buildOriginPolicy(context).allowedReferers.includes(referer);
 }
 
+/**
+ * Remove trailing slashes with a linear scan, avoiding regex backtracking.
+ *
+ * @param service - Service hostname or endpoint binding.
+ * @returns Base URL with only trailing slashes removed.
+ */
 export function serviceBaseUrl(service: { hostname: string } | { endpointBaseUrl: string }): string {
   const url = "hostname" in service ? service.hostname : service.endpointBaseUrl;
-  return url.replace(/\/+$/, "");
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end--;
+  return url.slice(0, end);
 }
 
 function splitRoutePath(pathname: string): string[] {

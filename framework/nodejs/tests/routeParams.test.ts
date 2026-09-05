@@ -7,11 +7,29 @@ import {
   buildManifestFromRegistry,
   buildServiceViewUrl,
   resolveAppRoute,
+  serviceBaseUrl,
   type BetterPortalApp,
   type BetterPortalRegistry,
   type RegisteredRoute
 } from "../src/index.js";
 import { scanRoutes } from "../src/codegen/scanner.js";
+
+test("service base URLs remove only trailing slashes for both binding formats", () => {
+  const internalSlashes = `https://service.test/${"/".repeat(32_000)}x`;
+  for (const [input, expected] of [
+    ["", ""],
+    ["/", ""],
+    ["///", ""],
+    ["https://service.test", "https://service.test"],
+    ["https://service.test/api///", "https://service.test/api"],
+    ["https://service.test/a//b/", "https://service.test/a//b"],
+    [internalSlashes, internalSlashes],
+    [`${internalSlashes}${"/".repeat(32_000)}`, internalSlashes]
+  ]) {
+    assert.equal(serviceBaseUrl({ hostname: input }), expected);
+    assert.equal(serviceBaseUrl({ endpointBaseUrl: input }), expected);
+  }
+});
 
 function writeRoute(base: string, segments: string[]): void {
   const directory = join(base, "bp-routes", ...segments);
