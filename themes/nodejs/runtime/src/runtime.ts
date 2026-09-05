@@ -1578,7 +1578,8 @@ export function betterPortalShellRuntimeSource(): string {
         for (const el of elements) {
           const bpCfg = bpConfigFor(el);
           if (bpCfg.ignore) continue;
-          if (el.closest(NO_ROUTE_SELECTOR)) continue;
+          // Shell menus opt out of URL rewriting, but their explicit route links still preload.
+          if (el.closest(NO_ROUTE_SELECTOR) && !el.hasAttribute("data-bp-route-link")) continue;
 
           if (applyPreloadConfig(el, bpCfg)) changed = true;
           if (sanitizeHtmxTarget(el)) changed = true;

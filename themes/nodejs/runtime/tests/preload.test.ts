@@ -13,18 +13,27 @@ test("Bootstrap 1 menu preloads are reused and can be refreshed after expiry", {
   const asset = await buildBetterPortalShellRuntimeAsset({});
   let requests = 0;
   let status = 200;
+  let navRequests = 0;
   const headers: Record<string, string>[] = [];
+  const menuLink = '<a id="menu" href="/next" data-bp-route-link data-bp-service="service" hx-get="https://service.test/view" hx-target="#bp-main" hx-swap="innerHTML" hx-push-url="/next" hx-preload="mouseover">Next</a>';
   await page.route("https://service.test/**", async route => {
     requests++;
     headers.push(route.request().headers());
     await route.fulfill({ status, contentType: "text/html", body: `<p id="result">Response ${requests}</p>`, headers: { "access-control-allow-origin": "*" } });
   });
-  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse","historyCacheSize":20}'></head><body>
+  await page.route("https://app.test/**", route => {
+    if (new URL(route.request().url()).pathname === "/.well-known/bp/theme/nav") {
+      navRequests++;
+      return route.fulfill({ contentType: "text/html", body: menuLink.replace(">Next<", ">Refreshed<") });
+    }
+    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse","historyCacheSize":20}'></head><body>
     <div data-bp-shell-root data-bp-menu-health="false" data-bp-services='{"service":"https://service.test"}'>
-      <a id="menu" href="/next" data-bp-route-link data-bp-service="service" hx-get="https://service.test/view" hx-target="#bp-main" hx-swap="innerHTML" hx-push-url="/next" hx-preload="mouseover">Next</a>
+      <nav id="nav" data-bp-no-route hx-get="/.well-known/bp/theme/nav" hx-trigger="bp:menu-changed from:body" hx-swap="innerHTML">${menuLink}<a id="plain" href="/plain" hx-get="https://service.test/plain" hx-preload="mouseover">Opted out</a></nav>
       <main id="bp-main" data-bp-loaded="yes"></main>
-    </div><script>${asset.body}</script></body></html>` }));
+    </div><script>${asset.body}</script></body></html>` });
+  });
   await page.goto("https://app.test/start");
+  assert.equal(await page.locator("#plain").getAttribute("data-bp-preload-bound"), null, "ordinary no-route links remain untouched");
   const link = page.locator("#menu");
   await link.dispatchEvent("mouseover");
   await page.waitForFunction(() => !!(document.querySelector("#menu") as any)._htmx?.preload);
@@ -67,5 +76,13 @@ test("Bootstrap 1 menu preloads are reused and can be refreshed after expiry", {
   await link.click();
   await page.waitForFunction(() => document.querySelector("#result")?.textContent === "Response 9");
   assert.equal(requests, 9, "a failed preload can be retried immediately");
+  await page.evaluate(() => document.body.dispatchEvent(new CustomEvent("bp:menu-changed", { bubbles: true })));
+  await page.getByRole("link", { name: "Refreshed", exact: true }).waitFor();
+  await link.dispatchEvent("focusin");
+  await page.waitForFunction(() => !!(document.querySelector("#menu") as any)._htmx?.preload);
+  await link.click();
+  await page.waitForFunction(() => document.querySelector("#result")?.textContent === "Response 10");
+  assert.equal(navRequests, 1, "menu refresh stays on the shell origin");
+  assert.equal(requests, 10, "a refreshed menu binds preload and reuses it on click");
   assert.deepEqual(errors, []);
 });
