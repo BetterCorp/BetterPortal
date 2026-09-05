@@ -20,7 +20,7 @@ import { render as renderPreviewConfigEditor } from "../src/plugins/service-bett
 import { resolvePreviewConfigSchemas } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
 import { PostgresStorage } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
-import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
+import { buildDefaultAdminRoutes, registerBootstrapEndpoint } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
 import { registerFragmentsEditorRoutes } from "../src/plugins/service-betterportal-config-manager/fragmentsEditor.js";
 import { registerMenuEditorRoutes } from "../src/plugins/service-betterportal-config-manager/menuEditor.js";
 import { registerPreviewDeploymentApi } from "../src/plugins/service-betterportal-config-manager/previewApi.js";
@@ -398,6 +398,37 @@ test("hostname confirmation releases its lease after a save conflict so an immed
   assert.equal(released, 1);
   fail = false;
   assert.equal((await confirm()).status, 200);
+});
+
+test("bootstrap completion releases failed leases on both initial setup and existing-config recovery", async () => {
+  for (const existing of [false, true]) {
+    const config = existing ? s2sConfig().config : BetterPortalConfigSchema.parse({});
+    const handlers = new Map<string, (event: any) => Promise<Response>>();
+    let busy = false, fail = true, released = 0;
+    const postgres = {
+      async createPendingAction() { return false; },
+      async claimPendingAction() { if (busy) return { state: "busy" }; busy = true; return { state: "claimed" }; },
+      async completePendingAction(_action: unknown, snapshot: unknown) {
+        assert.equal(Boolean(snapshot), !existing);
+        if (fail) throw new Error("atomic completion failed");
+        busy = false;
+      },
+      async releasePendingAction(kind: string, key: string) { assert.equal(kind, "bootstrap"); assert.equal(key, "bootstrap"); busy = false; released++; }
+    };
+    await registerBootstrapEndpoint({ app: { get() {}, post: (path: string, handler: any) => handlers.set(path, handler) },
+      storage: { loadConfig: async () => structuredClone(config) }, postgres,
+      cpState: { issuer: "https://config.example" }, logger: { log: { info() {}, warn() {} } } } as never);
+    const commit = () => handlers.get("/.well-known/bp/bootstrap/commit")!({ req: new Request("https://config.example/commit", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bootstrapKey: "test",
+        adminTenant: { title: "Admin" }, adminApp: { title: "Admin", hostname: "admin.example" },
+        authService: { hostname: "https://auth.example" }, themeService: { hostname: "https://theme.example" }
+      })
+    }) });
+    await assert.rejects(commit(), /atomic completion failed/);
+    assert.equal(released, 1);
+    fail = false;
+    assert.equal((await commit()).status, 200);
+  }
 });
 
 test("config sync shares projections, suppresses duplicates and closes revoked streams", { timeout: 5000 }, async (t) => {
