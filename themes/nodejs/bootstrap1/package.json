@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/theme-bootstrap1",
-  "version": "10.6.12",
+  "version": "10.6.13",
   "description": "BetterPortal v10 Bootstrap1 theme plugin for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
@@ -33,9 +33,9 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@betterportal/framework": "10.6.12",
-    "@betterportal/plugin-bsb": "10.6.12",
-    "@betterportal/theme-runtime": "10.6.12",
+    "@betterportal/framework": "10.6.13",
+    "@betterportal/plugin-bsb": "10.6.13",
+    "@betterportal/theme-runtime": "10.6.13",
     "@bsb/base": "^9.6.98",
     "anyvali": "^1.1.0",
     "bootstrap": "^5.3.8",
