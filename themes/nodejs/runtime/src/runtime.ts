@@ -359,6 +359,7 @@ export function betterPortalShellRuntimeSource(): string {
         if (!outlet) return;
         if ((outlet.getAttribute("hx-trigger") || "").trim() === "load") {
           outlet.removeAttribute("hx-trigger");
+          outlet.removeAttribute("hx-get");
         }
       };
 
@@ -711,6 +712,7 @@ export function betterPortalShellRuntimeSource(): string {
             mode: "cors",
             cache: "no-store",
             headers,
+            signal: AbortSignal.timeout(5000),
             body: "{}"
           });
         } catch {
@@ -728,11 +730,8 @@ export function betterPortalShellRuntimeSource(): string {
         const entries = Object.entries(liveBpHeaders()).filter(([, entry]) => headerRefreshDue(entry, force));
         if (entries.length === 0) return false;
 
-        let refreshed = false;
-        for (const [name, entry] of entries) {
-          refreshed = await refreshStoredHeader(name, entry) || refreshed;
-        }
-        return refreshed;
+        const results = await Promise.all(entries.map(([name, entry]) => refreshStoredHeader(name, entry)));
+        return results.some(Boolean);
       };
 
       const refreshStoredHeadersOnce = (force = false): Promise<boolean> => {
@@ -1286,8 +1285,11 @@ export function betterPortalShellRuntimeSource(): string {
         return { id, origin: id ? originForServiceId(id) : "" };
       };
 
+      const isDisabledControl = (el: Element) => !!el.closest("[disabled], [aria-disabled='true'], .disabled");
+
       const isPreloadableAnchor = (el: Element) => {
         if (el.tagName !== "A") return false;
+        if (isDisabledControl(el)) return false;
         const href = el.getAttribute("href") || "";
         if (!href || href.startsWith("#")) return false;
         if (href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("javascript:")) return false;
@@ -1396,6 +1398,11 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const applyPreloadConfig = (el: Element, cfg: BpElementConfig) => {
+        if (isDisabledControl(el)) {
+          const hadPreload = el.hasAttribute("hx-preload");
+          el.removeAttribute("hx-preload");
+          return hadPreload;
+        }
         if (!isPreloadableAnchor(el)) return false;
         if (cfg.preload === false) {
           if (!el.hasAttribute("hx-preload")) return false;
@@ -1415,10 +1422,15 @@ export function betterPortalShellRuntimeSource(): string {
         if (el.hasAttribute("data-bp-preload-bound")) return;
 
         const preload = () => {
-          if (!el.hasAttribute("hx-preload")) return;
+          if (!el.hasAttribute("hx-preload") || !isPreloadableAnchor(el)) return;
           const hxGet = el.getAttribute("hx-get");
           if (!hxGet) return;
           const action = new URL(hxGet, window.location.href).href.replace(/#.*$/, "");
+          const origin = new URL(action).origin;
+          if (!serviceIdForUrl(action) || origin === window.location.origin) return;
+          // Auth GETs can start login/logout flows: only explicit activation may issue them.
+          const loginUrl = shellRoot()?.getAttribute("data-bp-login-url");
+          if (loginUrl && origin === new URL(loginUrl, window.location.origin).origin) return;
           const headerState = JSON.stringify(liveBpHeaders());
 
           const state = (el as any)._htmx ?? ((el as any)._htmx = {});
@@ -1426,19 +1438,13 @@ export function betterPortalShellRuntimeSource(): string {
 
           const headers: Record<string, string> = { Accept: "text/html; mode=page" };
           attachBpHeaders(headers, action);
-          const serviceId = serviceContextFor(el).id;
           const entry = state.preload = {
-            prefetch: fetch(hxGet, {
+            prefetch: fetch(action, {
               method: "GET",
               mode: "cors",
               cache: "no-store",
+              redirect: "manual",
               headers
-            }).then((response) => {
-              if (response.ok && serviceId) {
-                setMenuServiceAvailability(serviceId, true);
-                syncMenuVisibility();
-              }
-              return response;
             }),
             action,
             headerState,
@@ -1543,7 +1549,7 @@ export function betterPortalShellRuntimeSource(): string {
         });
 
         let changed = false;
-        const newlyHtmxedForms: Element[] = [];
+        const newlyHtmxedElements: Element[] = [];
 
         for (const el of elements) {
           const bpCfg = bpConfigFor(el);
@@ -1650,7 +1656,7 @@ export function betterPortalShellRuntimeSource(): string {
               el.setAttribute(nativeHxMethod, nativeAction);
               hxMethodAttr = nativeHxMethod;
               hxMethodVal = nativeAction;
-              newlyHtmxedForms.push(el);
+              newlyHtmxedElements.push(el);
               changed = true;
             }
           }
@@ -1757,6 +1763,7 @@ export function betterPortalShellRuntimeSource(): string {
                 el.setAttribute(hxMethodAttr, absoluteServiceUrl);
               } else {
                 el.setAttribute("hx-get", absoluteServiceUrl);
+                newlyHtmxedElements.push(el);
               }
               el.setAttribute("hx-target", "#bp-main");
               el.setAttribute("hx-swap", "innerHTML");
@@ -1777,11 +1784,11 @@ export function betterPortalShellRuntimeSource(): string {
 
         if (changed && reprocess && htmx && typeof htmx.process === "function") {
           htmx.process(root);
-        } else if (newlyHtmxedForms.length > 0 && htmx && typeof htmx.process === "function") {
-          // Forms that gained hx-post AFTER htmx processed the swap have no
-          // submit binding yet. Process just those forms - never the whole
+        } else if (newlyHtmxedElements.length > 0 && htmx && typeof htmx.process === "function") {
+          // Elements that gained an action AFTER swap processing have no
+          // event binding yet. Process just those elements - never the whole
           // root, which would re-fire hx-trigger="load" requests.
-          for (const form of newlyHtmxedForms) htmx.process(form);
+          for (const el of newlyHtmxedElements) htmx.process(el);
         }
       };
 
@@ -1883,6 +1890,7 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       let lastAuthRefreshRetryUrl = "";
+      let mainRequestGeneration = 0;
 
       const retryMainRequest = (ctx: any): boolean => {
         const action = ctx?.request?.action;
@@ -1986,6 +1994,12 @@ export function betterPortalShellRuntimeSource(): string {
 
       // Force-recheck on click of disabled menu link; if back up, allow nav.
       document.body.addEventListener("click", async (event) => {
+        const control = (event.target as Element)?.closest?.("a, button, input, select, textarea");
+        if (control && isDisabledControl(control) && !control.classList.contains("bp-service-down")) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
         const target = (event.target as Element)?.closest?.(".bp-service-down") as Element | null;
         if (!target) return;
         event.preventDefault();
@@ -2040,6 +2054,10 @@ export function betterPortalShellRuntimeSource(): string {
         // already rewrote, PLUS any that were missed (dynamically added, etc.)
         htmx_before_init(elt: any) {
           if (!elt || !elt.getAttribute) return;
+          if (isMainTarget(elt) && elt.getAttribute("hx-get") === "") {
+            elt.removeAttribute("hx-get");
+            return false;
+          }
           if (elt instanceof Element && elt.closest(NO_ROUTE_SELECTOR)) return;
           if (elt instanceof Element) resolveServiceLinks(elt, false);
           if (elt instanceof Element) initializeBpElements(elt);
@@ -2140,12 +2158,17 @@ export function betterPortalShellRuntimeSource(): string {
         // Show loading state: main panel gets glaze, fragments get overlay
         htmx_before_request(_elt: any, detail: any) {
           const source = detail.ctx?.sourceElement;
+          if (source instanceof Element && isDisabledControl(source)) return false;
           const bpElement = requestBpElement(source);
           if (bpElement) showBpElementLoading(bpElement);
           const preload = (source as any)?._htmx?.preload;
           if (preload && preload.action === new URL(detail.ctx.request.action, window.location.href).href.replace(/#.*$/, "")
             && preload.headerState === JSON.stringify(liveBpHeaders()) && Date.now() < preload.expiresAt) {
-            detail.ctx.fetch = () => preload.prefetch;
+            const fetchRequest = detail.ctx.fetch;
+            detail.ctx.fetch = (input: RequestInfo | URL, init?: RequestInit) => preload.prefetch.then(
+              (response: Response) => response.ok ? response : fetchRequest(input, init),
+              () => fetchRequest(input, init)
+            );
           }
           if (preload) delete (source as any)._htmx.preload;
           if (requestTargetEscapesLane(detail)) {
@@ -2166,6 +2189,7 @@ export function betterPortalShellRuntimeSource(): string {
               return false;
             }
             clearError();
+            detail.ctx.__bpMainGeneration = ++mainRequestGeneration;
             if (hasLoaded()) setLoading(true);
           } else if (target instanceof Element) {
             target.classList.add("bp-fragment-loading");
@@ -2265,7 +2289,9 @@ export function betterPortalShellRuntimeSource(): string {
               const loginUrl = shellRoot()?.getAttribute("data-bp-login-url");
               const action = ctx?.request?.action || "";
               if (loginUrl && action !== lastAuthRefreshRetryUrl) {
+                setLoading(true);
                 void refreshStoredHeadersOnce(true).then((refreshed) => {
+                  if (ctx.__bpMainGeneration !== mainRequestGeneration) return;
                   if (refreshed) {
                     lastAuthRefreshRetryUrl = action;
                     if (retryMainRequest(ctx)) return;
@@ -2299,6 +2325,13 @@ export function betterPortalShellRuntimeSource(): string {
         // pipeline builds task fragments, so hx-sse ext reads the absolute
         // service-origin URL once the new content is processed.
         htmx_after_request(_elt: any, detail: any) {
+          // HTMX follows these before before_swap. A 401 belongs to the
+          // shell's auth flow, not service-supplied redirects or retargeting.
+          if (detail.ctx?.response?.status === 401 && isMainTarget(detail.ctx?.target)) {
+            for (const key of ["location", "redirect", "refresh", "pushurl", "replaceurl", "retarget", "reswap"]) {
+              if (detail.ctx.hx) delete detail.ctx.hx[key];
+            }
+          }
           try {
             const ctx = detail.ctx;
             const text: string | undefined = ctx?.text;

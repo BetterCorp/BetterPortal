@@ -28,7 +28,7 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   const source = betterPortalShellRuntimeSource();
 
   assert.match(source, /attachBpHeaders\(headers,action\)/);
-  assert.match(source, /detail\.ctx\.fetch=\(\)=>preload\.prefetch/);
+  assert.match(source, /detail\.ctx\.fetch=.*?preload\.prefetch\.then/);
   assert.match(source, /applyPreloadConfig\(el,bpCfg\).*?bindBpPreload\(el\).*?data-bp-shell-route/s);
   assert.match(source, /matchServiceRoute\(elServiceId,pathOnly,"api"\)/);
   assert.match(source, /configuredMatch=matchTenantRoute\(pathOnly\)/);

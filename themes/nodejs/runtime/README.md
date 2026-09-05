@@ -40,6 +40,8 @@ The shared runtime owns service/app URL rewriting, managed BP headers, header-aw
 
 Managed BP headers are sent only to registered app service origins over HTTPS. Local development may use HTTP on `localhost`, `127.0.0.1`, or `[::1]`; other HTTP service URLs must migrate to HTTPS. Shells publish origins for enabled route, slot, fragment, auth, and shell bindings. Legacy origin-based header ownership and scopes remain supported.
 
+Preload is speculative: disabled controls and the configured auth origin are excluded, HTTP redirects are not followed, and response directives/UI changes wait for explicit activation. Rewritten links retain the tenant URL in `href` and use the service URL in `hx-get`. Initial content loaders are one-shot; empty loader URLs are inert. On a main-content 401, the shell owns login navigation and bounds header refresh to five seconds; a late refresh cannot override a newer navigation.
+
 Plain internal `<a href="/route">` links and forms using native GET or POST are automatically upgraded to HTMX and routed through the owning service. For default `#bp-main` navigation, the configured app UI route is authoritative for `href` and history; the runtime never pushes an unconfigured service path. A bare `<form>` posts to its current service view. Use `bp-no-override` (or `data-bp-no-override`) on an element or ancestor to keep native browser behavior; `data-bp-no-route` remains supported for shell-owned elements.
 
 Runtime-managed HTMX requests automatically declare `Accept: text/html; mode=page|fragment`; SSE connects are always marked `HX-Request-Type: partial`, retain the SSE media type, and receive the same scoped BP auth/context headers as other self-service requests. Explicit non-HTML `Accept` headers are preserved.
