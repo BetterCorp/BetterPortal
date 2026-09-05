@@ -170,6 +170,20 @@ export const BetterPortalConfigSchema = av.optional(av.object({
   trustedProxyIps: av.array(av.string().minLength(1)).default([])
 }));
 
+/** Validate the credential destination shared by sync, install, and management requests. */
+function normalizeControlPlaneUrl(value: string): string {
+  let url: URL;
+  try { url = new URL(value); }
+  catch { throw new Error("Control-plane URL must be an absolute HTTPS URL (HTTP is allowed only on loopback)"); }
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.username || url.password || url.search || url.hash
+    || (url.protocol !== "https:" && !(url.protocol === "http:" && loopback))) {
+    throw new Error("Control-plane URL must use HTTPS without userinfo, query or fragment (HTTP is allowed only on loopback)");
+  }
+  // Issuer matching is exact; validation must not rewrite configured ports or paths.
+  return value.trim().replace(/\/+$/, "");
+}
+
 // Service definition
 
 export type AuthoritativeServiceType = "auth" | "theme";
@@ -471,7 +485,7 @@ export abstract class BPService<
 
   protected controlPlaneCredentials(): { url: string; apiKey: string } | null {
     if (!this.resolvedCpUrl || !this.resolvedApiKey) return null;
-    return { url: this.resolvedCpUrl.replace(/\/+$/, ""), apiKey: this.resolvedApiKey };
+    return { url: normalizeControlPlaneUrl(this.resolvedCpUrl), apiKey: this.resolvedApiKey };
   }
 
   /**
@@ -697,6 +711,7 @@ export abstract class BPService<
     if (!credentials) throw new Error("BetterPortal control-plane credentials are unavailable.");
 
     const response = await fetch(`${credentials.url}/.well-known/bp/admin/services/self-mutation`, {
+      redirect: "error",
       method: "PUT",
       headers: {
         Accept: "application/json",
@@ -1029,9 +1044,9 @@ export abstract class BPService<
   private connectToControlPlane(obs: Observable): Promise<boolean> {
     this.sseAbortController?.abort();
     clearTimeout(this.syncReconnectTimer);
+    const baseUrl = normalizeControlPlaneUrl(this.resolvedCpUrl!);
     const controller = this.sseAbortController = new AbortController();
     this.manifestSync = { state: "pending" };
-    const baseUrl = this.resolvedCpUrl!.replace(/\/+$/, "");
     const url = `${baseUrl}/.well-known/bp/sync`;
     const pollUrl = `${url}/poll`;
     const apiKey = this.resolvedApiKey!;
@@ -1161,6 +1176,7 @@ export abstract class BPService<
       }
       const response = await fetch(pollUrl, {
         method: "POST",
+        redirect: "error",
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]),
         headers: {
           Accept: "application/json",
@@ -1242,6 +1258,7 @@ export abstract class BPService<
       });
 
       fetch(url, {
+        redirect: "error",
         headers: {
           Accept: "text/event-stream",
           Authorization: `Bearer ${apiKey}`
@@ -1767,6 +1784,7 @@ export abstract class BPService<
       return;
     }
     const response = await fetch(`${credentials.url}/.well-known/bp/webhooks/events`, {
+      redirect: "error",
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -2405,10 +2423,9 @@ export abstract class BPService<
         );
       }
 
-      const normalizedCp = cpUrl.replace(/\/+$/, "");
-      const jwksUri = `${normalizedCp}/.well-known/jwks.json`;
-
       try {
+        const normalizedCp = normalizeControlPlaneUrl(cpUrl);
+        const jwksUri = `${normalizedCp}/.well-known/jwks.json`;
         const claims = await verifySetupToken(setupToken, {
           jwks: { jwksUri, issuer: normalizedCp },
           expectedIssuer: normalizedCp
@@ -2427,6 +2444,7 @@ export abstract class BPService<
         // Also pushes our JWKS (if we're an auth provider) so the CP can verify
         // JWTs we issue WITHOUT fetching JWKS from us (CM cannot reach services).
         const redeemResponse = await fetch(`${normalizedCp}/.well-known/bp/services/redeem`, {
+          redirect: "error",
           method: "POST",
           headers: { "content-type": "application/json", "accept": "application/json" },
           body: JSON.stringify({
@@ -2538,6 +2556,7 @@ export abstract class BPService<
 
       try {
         const response = await fetch(`${credentials.url}/.well-known/bp/services/confirm-hostname-change`, {
+          redirect: "error",
           method: "POST",
           headers: {
             "accept": "application/json",

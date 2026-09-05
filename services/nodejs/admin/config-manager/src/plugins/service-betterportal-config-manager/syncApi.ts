@@ -1169,6 +1169,7 @@ async function commitServiceMetadata(
   }
   onManifestUpdated?.(config, [...routeServiceIds], manifest);
   if (changed) await store.saveConfig(config);
+  manifest.fetchedAt = Date.parse(config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt);
   return [...routeServiceIds];
 }
 

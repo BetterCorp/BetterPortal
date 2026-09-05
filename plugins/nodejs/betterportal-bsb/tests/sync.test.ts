@@ -16,6 +16,23 @@ function serviceFixture() {
 }
 const obs = { log: { info() {}, warn() {} } };
 
+test("control-plane credentials require HTTPS or exact HTTP loopback and reject unsafe URLs before fetch", async t => {
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("unexpected request"); });
+  for (const url of ["http://config.test", "http://localhost.attacker.test", "http://127.0.0.1.attacker.test", "ftp://localhost", "https://user:pass@config.test", "https://config.test?key=secret", "https://config.test#fragment", "//config.test", "bad-url"]) {
+    const service = serviceFixture();
+    service.resolvedCpUrl = url;
+    assert.throws(() => service.connectToControlPlane(obs), /Control-plane URL/);
+    assert.throws(() => service.controlPlaneCredentials(), /Control-plane URL/);
+    await service.dispose();
+  }
+  assert.equal(fetchMock.mock.callCount(), 0);
+  for (const url of ["https://config.test", "https://config.test:443/prefix", "http://localhost:8080", "http://127.0.0.1:8080", "http://[::1]:8080"]) {
+    const service = serviceFixture();
+    service.resolvedCpUrl = url;
+    assert.deepEqual(service.controlPlaneCredentials(), { url, apiKey: "test-key" });
+  }
+});
+
 test("manifest failures retry without opening SSE or claiming readiness; disposal cancels retries", async t => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const service = serviceFixture();
@@ -23,6 +40,7 @@ test("manifest failures retry without opening SSE or claiming readiness; disposa
   let posts = 0;
   let streams = 0;
   t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    assert.equal(init.redirect, "error", "neither poll nor SSE may follow redirects");
     if (init.method === "POST") {
       posts++;
       return posts === 1 ? new Response("Conflict", { status: 409 })

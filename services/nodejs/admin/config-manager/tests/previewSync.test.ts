@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { BaseStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { FileStorage } from "../src/plugins/service-betterportal-config-manager/storage/file.js";
+import { PostgresStorage } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { registerSyncEndpoint } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { createPreviewGroup, provisionPreviewDeployment, reconcilePreviewService } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { buildPreviewDiagnostics, PreviewDiagnosticsSchema, previewServiceStatus } from "../src/plugins/service-betterportal-config-manager/previewDiagnostics.js";
@@ -48,6 +49,31 @@ test("file storage rejects stale snapshots without discarding the accepted manif
   fresh.manifestCache[0].manifestVersion = "2";
   await store.saveConfig(fresh);
   assert.equal((await store.loadConfig()).manifestCache[0].manifestVersion, "2");
+});
+
+test("Postgres readiness uses its own clock for manifests and delivery despite Node clock skew", async () => {
+  const { config, deployment } = fixture();
+  let persisted = config;
+  let delivered = false;
+  const instanceId = deployment.services[0].instanceId;
+  const databaseTime = new Date("2020-01-01T00:00:00.000Z");
+  const query = async (sql: string, params?: any[]) => {
+    if (sql.startsWith("select config")) return { rows: [{ config: persisted, revision: 1 }] };
+    if (sql.startsWith("select clock_timestamp")) return { rows: [{ now: databaseTime }] };
+    if (sql.startsWith("select service_id")) return { rows: delivered ? [{ service_id: instanceId, last_sync_at: databaseTime, last_seen_at: null }] : [] };
+    if (sql.startsWith("insert into") && sql.includes("_activity")) delivered = true;
+    if (sql.includes("set config =")) persisted = JSON.parse(params![1]);
+    return { rows: [], rowCount: 1 };
+  };
+  const store = new PostgresStorage({ connectionString: "postgres://unused" });
+  Object.assign(store, { schemaReady: Promise.resolve(), pool: { query, connect: async () => ({ query, release() {} }) } });
+  const snapshot = await store.loadConfig();
+  snapshot.manifestCache.push({ serviceId: instanceId, manifestVersion: "1", fetchedAt: "2030-01-01T00:00:00.000Z", viewIndex: {} } as any);
+  await store.saveConfig(snapshot);
+  assert.equal(snapshot.manifestCache[0].fetchedAt, databaseTime.toISOString());
+  await store.touchServiceActivity(instanceId, "lastSyncAt");
+  store.invalidate();
+  assert.equal(previewServiceStatus(await store.loadConfig(), deployment, instanceId).state, "configured");
 });
 
 test("concurrent preview manifests retry fresh snapshots and commit reconciliation atomically", async () => {

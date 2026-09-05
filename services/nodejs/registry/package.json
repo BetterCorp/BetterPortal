@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@betterportal/framework": "10.6.10",
-    "@bsb/base": "^9.6.97",
+    "@bsb/base": "^9.6.98",
     "anyvali": "^1.1.0"
   },
   "devDependencies": {

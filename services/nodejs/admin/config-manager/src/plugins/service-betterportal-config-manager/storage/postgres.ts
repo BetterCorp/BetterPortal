@@ -169,6 +169,14 @@ export class PostgresStorage extends BaseStorage {
       if (resetActivity.length) await client.query(
         `delete from ${this.activityTable} where scope_id = $1 and service_id = any($2::text[])`, [this.rowId, resetActivity]
       );
+      const previousManifests = new Map(current.rows[0].config.manifestCache.map(entry => [entry.serviceId, entry.fetchedAt]));
+      const refreshedManifests = validated.manifestCache.filter(entry => entry.fetchedAt !== previousManifests.get(entry.serviceId));
+      if (refreshedManifests.length) {
+        // Readiness compares manifest acceptance with delivery; both must use the DB clock.
+        const clock = await client.query<{ now: Date }>("select clock_timestamp() as now");
+        const fetchedAt = clock.rows[0].now.toISOString();
+        for (const entry of refreshedManifests) entry.fetchedAt = fetchedAt;
+      }
       const revision = currentRevision + 1;
       await client.query(
         `update ${this.quotedTableName} set config = $2::jsonb, revision = $3, updated_at = now() where id = $1`,
@@ -177,6 +185,10 @@ export class PostgresStorage extends BaseStorage {
       // Every persisted revision invalidates replica snapshots. Presence has its own table.
       await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision });
       await client.query("commit");
+      for (const entry of refreshedManifests) {
+        const submitted = config.manifestCache.find(candidate => candidate.serviceId === entry.serviceId);
+        if (submitted) submitted.fetchedAt = entry.fetchedAt;
+      }
       this.activityLoad = undefined;
       this.snapshots.set(config, revision);
       this.snapshots.set(validated, revision);
