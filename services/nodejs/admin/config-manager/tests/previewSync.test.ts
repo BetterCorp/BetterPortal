@@ -5,8 +5,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
-import { BaseStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BetterPortalConfigSchema, generateKeyPair, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { BaseStorage, ConfigRevisionConflictError, hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { FileStorage } from "../src/plugins/service-betterportal-config-manager/storage/file.js";
 import { PostgresStorage } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { registerSyncEndpoint } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
@@ -75,14 +75,18 @@ test("Postgres readiness uses its own clock for manifests and delivery despite N
   assert.equal(previewServiceStatus(await store.loadConfig(), deployment, instanceId).state, "configured");
 });
 
-test("concurrent preview manifests retry fresh snapshots and commit reconciliation atomically", async () => {
+test("concurrent preview manifests commit keys atomically, skip retries and expire queued work", async t => {
   const { config, deployment, names } = fixture(Array.from({ length: 12 }, (_, i) => `service${i}`));
+  const key = generateKeyPair();
   class RevisionStore extends BaseStorage {
     value = config;
     revision = 0;
     conflicts = 0;
     failNextSave = false;
     credentialChecks = 0;
+    revoked = new Set<string>();
+    saveGate?: Promise<void>;
+    saveStarted?: () => void;
     snapshots = new WeakMap<BetterPortalConfig, number>();
     async loadConfig() {
       const copy = structuredClone(this.value);
@@ -91,6 +95,10 @@ test("concurrent preview manifests retry fresh snapshots and commit reconciliati
     }
     async saveConfig(copy: BetterPortalConfig) {
       await setImmediate();
+      const gate = this.saveGate;
+      this.saveGate = undefined;
+      this.saveStarted?.();
+      await gate;
       if (this.failNextSave) { this.failNextSave = false; throw new Error("Storage unavailable"); }
       if (this.revision === 0) {
         // An admin/other replica commits after our first read.
@@ -101,15 +109,19 @@ test("concurrent preview manifests retry fresh snapshots and commit reconciliati
       if (revision !== this.revision) { this.conflicts++; throw new ConfigRevisionConflictError(revision, this.revision); }
       // Every accepted manifest's page is mounted in this same committed snapshot.
       const app = copy.apps.find(a => a.id === deployment.appId)!;
+      for (const service of copy.tenants.find(t => t.id === deployment.tenantId)!.services) {
+        assert.equal(!!service.keyId, copy.manifestCache.some(m => m.serviceId === service.id), "key and manifest commit together");
+      }
       for (const manifest of copy.manifestCache) for (const view of Object.values(manifest.viewIndex)) {
         assert.ok(app.routes.some(r => r.enabled && r.serviceId === manifest.serviceId && r.viewId === view.viewId));
       }
-      this.value = structuredClone(copy);
+      this.value = BetterPortalConfigSchema.parse(copy);
       this.revision++;
       this.notifyListeners();
     }
     async validateApiKey(key: string) {
       this.credentialChecks++;
+      if (this.revoked.has(key)) return null;
       return { scope: "tenant" as const, tenantId: deployment.tenantId, serviceId: deployment.services[Number(key)].instanceId };
     }
     async touchServiceActivity(id: string, field: "lastSeenAt" | "lastSyncAt") {
@@ -121,10 +133,11 @@ test("concurrent preview manifests retry fresh snapshots and commit reconciliati
   registerSyncEndpoint({ get: (path: string, handler: any) => handlers.set("GET " + path, handler), post: (path: string, handler: any) => handlers.set("POST " + path, handler) } as never, store, {
     onManifestUpdated: (snapshot, ids, manifest) => { for (const id of ids) reconcilePreviewService(snapshot, id, manifest); }
   });
-  const submit = (i: number) => handlers.get("POST /.well-known/bp/sync/poll")!({ req: new Request("https://config.example/.well-known/bp/sync/poll", {
+  const submit = (i: number, manifestVersion = "1", signal?: AbortSignal) => handlers.get("POST /.well-known/bp/sync/poll")!({ req: new Request("https://config.example/.well-known/bp/sync/poll", {
+    signal,
     method: "POST", headers: { authorization: "Bearer " + i, "content-type": "application/json" },
-    body: JSON.stringify({ manifestVersion: "1", viewIndex: {
-      [names[i] + ".index"]: { viewId: names[i] + ".index", title: names[i], path: "/" + names[i], pathVariants: [], operations: [{ operationId: names[i] + ".read", method: "GET", title: names[i], renderable: true, renderers: ["bootstrap5"], renderModes: ["page"], authRequired: false }] }
+    body: JSON.stringify({ manifestVersion, publicKeyPem: key.publicKeyPem, keyId: key.kid, viewIndex: {
+      [names[i] + ".index"]: { viewId: names[i] + ".index", title: names[i], path: "/" + names[i], pathVariants: [], operations: [{ operationId: names[i] + ".read", method: "GET", title: names[i], description: names[i], renderable: true, renderers: ["bootstrap5"], renderModes: ["page"], authRequired: false }] }
     } })
   }) });
   const responses = await Promise.all(names.map((_, i) => submit(i)));
@@ -136,13 +149,94 @@ test("concurrent preview manifests retry fresh snapshots and commit reconciliati
   assert.equal(store.value.apps.find(a => a.id === deployment.appId)!.routes.filter(r => r.enabled).length, names.length);
   assert.equal(store.value.manifestCache.length, names.length);
 
+  const accepted = structuredClone(store.value.manifestCache);
+  const retries = await Promise.all(Array.from({ length: 36 }, (_, i) => submit(i % names.length)));
+  assert.ok(retries.every(r => r.status === 200));
+  assert.equal(store.revision, names.length + 1, "identical retries do not write or broadcast");
+  assert.deepEqual(store.value.manifestCache, accepted, "retries preserve acceptance timestamps");
+
   store.failNextSave = true;
-  const [failed, following] = await Promise.allSettled([submit(0), submit(1)]);
+  const [failed, following] = await Promise.allSettled([submit(0, "2"), submit(1, "2")]);
   assert.equal(failed.status, "rejected");
   if (failed.status === "rejected") assert.match(failed.reason.message, /Storage unavailable/);
   assert.equal(following.status, "fulfilled", "a failed commit must not poison the queue");
   if (following.status === "fulfilled") assert.equal(following.value.status, 200);
-  assert.equal((await submit(0)).status, 200, "submissions continue after the queue drains");
+  assert.equal((await submit(0, "2")).status, 200, "submissions continue after the queue drains");
+
+  // Hold one database commit open while later clients cancel, time out, or lose access.
+  const gate = Promise.withResolvers<void>();
+  const started = Promise.withResolvers<void>();
+  t.after(() => gate.resolve());
+  store.saveGate = gate.promise;
+  store.saveStarted = started.resolve;
+  const deadlines: AbortController[] = [];
+  t.mock.method(AbortSignal, "timeout", (ms: number) => {
+    assert.equal(ms, 20_000, "server stops queued work before the 30-second client deadline");
+    const deadline = new AbortController();
+    deadlines.push(deadline);
+    return deadline.signal;
+  });
+  const active = submit(0, "3");
+  await started.promise;
+  const cancelledClient = new AbortController();
+  const cancelled = submit(1, "3", cancelledClient.signal);
+  const expired = submit(2, "3");
+  const revoked = submit(3, "3");
+  const followingActive = submit(4, "3");
+  await setImmediate();
+  store.revoked.add("3");
+  cancelledClient.abort();
+  deadlines[2].abort(new DOMException("Sync deadline exceeded", "TimeoutError"));
+  assert.equal((await cancelled).status, 503, "cancelled request returns before the active write finishes");
+  assert.equal((await expired).headers.get("retry-after"), "5");
+  const revisionBeforeRelease = store.revision;
+  gate.resolve();
+  assert.equal((await active).status, 200);
+  assert.equal((await revoked).status, 403, "credentials are rechecked after waiting");
+  assert.equal((await followingActive).status, 200);
+  assert.equal(store.revision, revisionBeforeRelease + 2, "expired and revoked requests never commit later");
+  assert.equal(store.value.manifestCache.find(m => m.serviceId === deployment.services[1].instanceId)!.manifestVersion, "2");
+  assert.equal(store.value.manifestCache.find(m => m.serviceId === deployment.services[2].instanceId)!.manifestVersion, "1");
+  assert.equal(store.value.manifestCache.find(m => m.serviceId === deployment.services[3].instanceId)!.manifestVersion, "1");
+});
+
+test("disk-backed sync preserves key rotation policy and detects changes within the same manifest version", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "bp-sync-keys-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const store = new FileStorage(join(directory, "config.yaml"));
+  const { config, deployment } = fixture(["tools"]);
+  const source = config.tenants[0].services[0];
+  const preview = config.tenants.find(tenant => tenant.id === deployment.tenantId)!.services[0];
+  source.apiKeyHash = hashApiKey("source-key");
+  preview.apiKeyHash = hashApiKey("preview-key");
+  await store.saveConfig(config);
+  let broadcasts = 0;
+  store.onChange(() => broadcasts++);
+  const handlers = new Map<string, (event: any) => Promise<Response>>();
+  registerSyncEndpoint({ get() {}, post: (path: string, handler: any) => handlers.set(path, handler) } as never, store, {
+    onManifestUpdated: (snapshot, ids, manifest) => { for (const id of ids) reconcilePreviewService(snapshot, id, manifest); }
+  });
+  const first = generateKeyPair(), rotated = generateKeyPair();
+  const submit = (apiKey: string, key = first, title = "Tools") => handlers.get("/.well-known/bp/sync/poll")!({ req: new Request("https://config.example/.well-known/bp/sync/poll", {
+    method: "POST", headers: { authorization: "Bearer " + apiKey, "content-type": "application/json" },
+    body: JSON.stringify({ publicKeyPem: key.publicKeyPem, keyId: key.kid, manifestVersion: "1", title, viewIndex: {} })
+  }) });
+  assert.equal((await submit("source-key")).status, 200);
+  assert.equal((await submit("preview-key")).status, 200);
+  assert.equal(broadcasts, 2);
+  assert.equal((await submit("source-key")).status, 200);
+  assert.equal((await submit("preview-key")).status, 200);
+  assert.equal(broadcasts, 2, "canonical disk round trips do not create spurious manifest changes");
+  assert.equal((await submit("source-key", rotated)).status, 409);
+  assert.equal(broadcasts, 2, "production key mismatch commits nothing");
+  assert.equal((await submit("preview-key", rotated)).status, 200);
+  assert.equal(broadcasts, 3, "preview key rotation commits once");
+  assert.equal((await submit("preview-key", rotated, "Updated tools")).status, 200);
+  assert.equal(broadcasts, 4, "changed content is accepted even without a version bump");
+  const saved = await store.loadConfig();
+  assert.equal(saved.tenants[0].services[0].keyId, first.kid);
+  assert.equal(saved.tenants.find(tenant => tenant.id === deployment.tenantId)!.services[0].keyId, rotated.kid);
+  assert.equal(saved.manifestCache.find(manifest => manifest.serviceId === preview.id)!.title, "Updated tools");
 });
 
 test("PVE readiness requires a persisted manifest, matching mounts and subsequent delivery; debug excludes secrets", () => {

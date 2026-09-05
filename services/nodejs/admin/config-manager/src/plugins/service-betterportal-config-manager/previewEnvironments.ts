@@ -574,7 +574,15 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
       });
     }
   }
-  app.routes = [...app.routes.filter((route) => route.serviceId !== serviceInstanceId), ...desired];
+  // Preserve route precedence: repeated sync must not move a service's routes to the end.
+  const remaining = new Map(desired.map(route => [route.id, route]));
+  app.routes = app.routes.flatMap(route => {
+    if (route.serviceId !== serviceInstanceId) return [route];
+    const replacement = remaining.get(route.id);
+    remaining.delete(route.id);
+    return replacement ? [replacement] : [];
+  });
+  app.routes.push(...remaining.values());
 }
 
 function rebuildPreviewMenu(config: BetterPortalConfig, app: BetterPortalApp): void {

@@ -326,6 +326,28 @@ export function getServicePluginId(config: BetterPortalConfig, serviceInstanceId
   return sharedService?.serviceId ?? sharedService?.id;
 }
 
+/** Apply key registration to the caller's snapshot so sync can commit it with its manifest. */
+export function applyServicePublicKey(
+  config: BetterPortalConfig,
+  serviceId: string,
+  scope: "tenant" | "platform",
+  tenantId: string | undefined,
+  publicKeyPem: string,
+  keyId: string,
+  options?: { replace?: boolean }
+): "registered" | "matched" | "mismatch" | "not-found" {
+  const service = scope === "tenant"
+    ? config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId)
+    : config.platformServices.find((candidate) => candidate.id === serviceId)
+      ?? config.sharedServiceCatalog.find((candidate) => candidate.id === serviceId);
+  if (!service) return "not-found";
+  if (service.publicKeyPem === publicKeyPem && service.keyId === keyId) return "matched";
+  if ((service.publicKeyPem || service.keyId) && !options?.replace) return "mismatch";
+  service.publicKeyPem = publicKeyPem;
+  service.keyId = keyId;
+  return "registered";
+}
+
 export abstract class BaseStorage implements PlatformConfigStore {
   protected listeners: Set<() => void> = new Set();
 
@@ -646,18 +668,9 @@ export abstract class BaseStorage implements PlatformConfigStore {
     options?: { replace?: boolean }
   ): Promise<"registered" | "matched" | "mismatch" | "not-found"> {
     const config = await this.loadConfig();
-    const service = scope === "tenant"
-      ? config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId)
-      : config.platformServices.find((candidate) => candidate.id === serviceId)
-        ?? config.sharedServiceCatalog.find((candidate) => candidate.id === serviceId);
-    if (!service) return "not-found";
-    if ((service.publicKeyPem || service.keyId) && !options?.replace) {
-      return service.publicKeyPem === publicKeyPem && service.keyId === keyId ? "matched" : "mismatch";
-    }
-    service.publicKeyPem = publicKeyPem;
-    service.keyId = keyId;
-    await this.saveConfig(config);
-    return "registered";
+    const result = applyServicePublicKey(config, serviceId, scope, tenantId, publicKeyPem, keyId, options);
+    if (result === "registered") await this.saveConfig(config);
+    return result;
   }
 
   async getScopedConfig(

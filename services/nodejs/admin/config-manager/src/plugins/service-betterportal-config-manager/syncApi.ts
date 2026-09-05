@@ -23,12 +23,13 @@ import type {
   ViewDemoScenario,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ServiceManifestCacheEntrySchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
+import { isDeepStrictEqual } from "node:util";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
-import { ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
+import { applyServicePublicKey, ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService } from "./previewEnvironments.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
@@ -350,6 +351,8 @@ function normalizeManifest(input: {
       ...(v.paramsSchema ? { paramsSchema: v.paramsSchema } : {}),
       operations: v.operations.map((operation) => ({
         ...operation,
+        title: operation.title || labels.title,
+        description: operation.description || labels.description,
         renderers: Array.isArray(operation.renderers) ? operation.renderers : [],
         renderModes: Array.isArray(operation.renderModes) ? operation.renderModes : operation.renderable
           ? [operation.method === "GET" ? "page" : "fragment"]
@@ -580,6 +583,10 @@ export interface SyncEndpointOptions {
   onManifestUpdated?: (config: BetterPortalConfig, serviceIds: string[], manifest: CachedManifest) => void;
 }
 
+class SyncSubmissionError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
 export function registerSyncEndpoint(
   app: BetterPortalH3App,
   store: PlatformConfigStore,
@@ -758,33 +765,20 @@ export function registerSyncEndpoint(
         shell?: ShellManifest;
         viewIndex?: NonNullable<Parameters<typeof normalizeManifest>[0]["viewIndex"]>;
       } | null;
+      let identity: { publicKeyPem: string; keyId: string } | undefined;
       if (body?.publicKeyPem || body?.keyId) {
         if (typeof body.publicKeyPem !== "string" || typeof body.keyId !== "string") {
           return jsonResponse({ error: "Both publicKeyPem and keyId are required" }, 400);
         }
-        let identity: { publicKeyPem: string; keyId: string };
         try {
           identity = validateServicePublicKey(body.publicKeyPem, body.keyId);
         } catch (error) {
           return jsonResponse({ error: error instanceof Error ? error.message : "Invalid S2S public key" }, 400);
         }
-        const registration = await store.registerServicePublicKey(
-          serviceId,
-          validated.scope,
-          validated.tenantId,
-          identity.publicKeyPem,
-          identity.keyId,
-          { replace: isPreviewService(await store.loadConfig(), serviceId) }
-        );
-        if (registration === "mismatch") {
-          return jsonResponse({
-            error: "The service already has a different S2S key. Use the explicit key recovery/rotation flow."
-          }, 409);
-        }
-        if (registration === "not-found") return jsonResponse({ error: "Service registration not found" }, 404);
       }
+      let cachedManifest: CachedManifest | undefined;
       if (body && (body.viewIndex || body.configSchemas)) {
-        const cachedManifest = normalizeManifest({
+        cachedManifest = normalizeManifest({
           serviceId,
           manifestVersion: body.manifestVersion,
           title: body.title,
@@ -798,17 +792,40 @@ export function registerSyncEndpoint(
           configSchemas: body.configSchemas,
           webhooks: body.webhooks
         });
-        await updateServiceMetadata(store, serviceId, cachedManifest, options.onManifestUpdated, async () => {
-          const current = await store.validateApiKey(apiKey);
-          if (!current || current.serviceId !== serviceId || current.tenantId !== validated.tenantId || current.scope !== validated.scope) {
-            throw new Error("Sync credentials changed during manifest submission; reconnect required");
+      }
+      if (identity || cachedManifest) {
+        // Leave time for projection/delivery before the client's 30-second deadline.
+        const signal = AbortSignal.any([event.req.signal, AbortSignal.timeout(20_000)]);
+        try {
+          await updateServiceMetadata(store, serviceId, cachedManifest, options.onManifestUpdated, async (config) => {
+            const current = await store.validateApiKey(apiKey);
+            if (!current || current.serviceId !== serviceId || current.tenantId !== validated.tenantId || current.scope !== validated.scope) {
+              throw new SyncSubmissionError("Sync credentials changed during submission; reconnect required", 403);
+            }
+            if (identity) {
+              const registration = applyServicePublicKey(config, serviceId, current.scope, current.tenantId,
+                identity.publicKeyPem, identity.keyId, { replace: isPreviewService(config, serviceId) });
+              if (registration === "mismatch") throw new SyncSubmissionError(
+                "The service already has a different S2S key. Use the explicit key recovery/rotation flow.", 409);
+              if (registration === "not-found") throw new SyncSubmissionError("Service registration not found", 404);
+            }
+          }, signal);
+        } catch (error) {
+          if (error instanceof SyncSubmissionError) return jsonResponse({ error: error.message }, error.status);
+          if (signal.aborted || error instanceof ConfigRevisionConflictError) {
+            const response = jsonResponse({ error: "Config sync is busy; retry submission" }, 503);
+            response.headers.set("retry-after", "5");
+            return response;
           }
-        });
+          throw error;
+        }
+      }
+      if (cachedManifest) {
         obs?.logger.info("BP SYNC POLL: cached manifest service={serviceId} version={version} views={count} configSchemas={configSchemas}", {
           serviceId,
-          version: body.manifestVersion ?? "unknown",
+          version: cachedManifest.manifestVersion,
           count: Object.keys(cachedManifest.viewIndex).length,
-          configSchemas: Array.isArray(body.configSchemas) ? body.configSchemas.length : 0
+          configSchemas: cachedManifest.configSchemas.length
         });
       }
     }
@@ -966,60 +983,89 @@ function reconcileDependencyRoutes(config: BetterPortalConfig, app: BetterPortal
   );
 }
 
-// ponytail: one queue per store because manifests share one config row; partition if storage does.
+// ponytail: one writer per store/config row; expired HTTP requests are skipped before mutation.
 const metadataUpdates = new WeakMap<PlatformConfigStore, Promise<void>>();
 
 async function updateServiceMetadata(
   store: PlatformConfigStore,
   serviceInstanceId: string,
-  manifest: CachedManifest,
+  manifest: CachedManifest | undefined,
   onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
-  validateCredentials?: () => Promise<void>
+  prepare?: (config: BetterPortalConfig) => Promise<void>,
+  signal?: AbortSignal
 ): Promise<string[]> {
   // Serialize the entire read/mutate/save, not just the write. Otherwise a burst
   // of local submissions consumes each other's retry budgets on stale snapshots.
   const update = (metadataUpdates.get(store) ?? Promise.resolve()).then(async () => {
     for (let attempt = 0; ; attempt++) {
       try {
-        const serviceIds = await commitServiceMetadata(store, serviceInstanceId, manifest, onManifestUpdated, validateCredentials);
-        for (const id of serviceIds) cacheManifest(id, manifest);
+        signal?.throwIfAborted();
+        const serviceIds = await commitServiceMetadata(store, serviceInstanceId, manifest, onManifestUpdated, prepare, signal);
+        if (manifest) for (const id of serviceIds) cacheManifest(id, manifest);
         return serviceIds;
       } catch (error) {
         if (!(error instanceof ConfigRevisionConflictError) || attempt >= 4) throw error;
         // Other replicas/admin writes still use optimistic revision checks.
         // Back off with jitter, then re-read and revalidate credentials.
-        await delay(25 * 2 ** attempt * (1 + Math.random()));
+        await delay(25 * 2 ** attempt * (1 + Math.random()), undefined, { signal });
         store.invalidate();
       }
     }
   });
-  const settled = update.then(() => {}, () => {});
-  metadataUpdates.set(store, settled);
-  try {
-    return await update;
-  } finally {
+  const settled = update.then(() => {}, () => {}).then(() => {
     if (metadataUpdates.get(store) === settled) metadataUpdates.delete(store);
+  });
+  metadataUpdates.set(store, settled);
+  if (!signal) return update;
+  let onAbort: () => void = () => {};
+  try {
+    return await new Promise<string[]>((resolve, reject) => {
+      onAbort = () => reject(signal.reason);
+      signal.addEventListener("abort", onAbort, { once: true });
+      if (signal.aborted) onAbort();
+      update.then(resolve, reject);
+    });
+  } finally {
+    signal.removeEventListener("abort", onAbort);
   }
 }
 
 async function commitServiceMetadata(
   store: PlatformConfigStore,
   serviceInstanceId: string,
-  manifest: CachedManifest,
+  manifest: CachedManifest | undefined,
   onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
-  validateCredentials?: () => Promise<void>
+  prepare?: (config: BetterPortalConfig) => Promise<void>,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const config = await store.loadConfig();
-  await validateCredentials?.();
-  const persistedManifest = {
+  const before = toJsonValue(config);
+  await prepare?.(config);
+  signal?.throwIfAborted();
+  const serviceIds = manifest ? applyServiceMetadata(config, serviceInstanceId, manifest, onManifestUpdated) : [];
+  signal?.throwIfAborted();
+  if (!isDeepStrictEqual(before, toJsonValue(config))) {
+    if (manifest) config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt = new Date().toISOString();
+    await store.saveConfig(config);
+  }
+  if (manifest) manifest.fetchedAt = Date.parse(config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt);
+  return serviceIds;
+}
+
+function applyServiceMetadata(
+  config: BetterPortalConfig,
+  serviceInstanceId: string,
+  manifest: CachedManifest,
+  onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"]
+): string[] {
+  const persistedIndex = config.manifestCache.findIndex((entry) => entry.serviceId === serviceInstanceId);
+  const persistedManifest = ServiceManifestCacheEntrySchema.parse({
     ...manifest,
     serviceId: serviceInstanceId,
-    fetchedAt: new Date(manifest.fetchedAt).toISOString()
-  };
-  const persistedIndex = config.manifestCache.findIndex((entry) => entry.serviceId === serviceInstanceId);
+    fetchedAt: config.manifestCache[persistedIndex]?.fetchedAt ?? new Date(manifest.fetchedAt).toISOString()
+  });
   if (persistedIndex === -1) config.manifestCache.push(persistedManifest);
   else config.manifestCache[persistedIndex] = persistedManifest;
-  let changed = true;
   const routeServiceIds = new Set<string>([serviceInstanceId]);
   for (const tenant of config.tenants) {
     const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
@@ -1028,7 +1074,6 @@ async function commitServiceMetadata(
     service.capabilities = manifest.capabilities;
     if (manifest.authProvider) service.authProvider = manifest.authProvider;
     if (manifest.title) service.title = manifest.title;
-    changed = true;
   }
   const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
   if (platform) {
@@ -1036,7 +1081,6 @@ async function commitServiceMetadata(
     platform.capabilities = manifest.capabilities;
     if (manifest.authProvider) platform.authProvider = manifest.authProvider;
     if (manifest.title) platform.title = manifest.title;
-    changed = true;
   }
   const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
   if (shared) {
@@ -1046,7 +1090,6 @@ async function commitServiceMetadata(
     shared.tags = [...new Set([...(shared.tags ?? []), ...manifest.capabilities])];
     if (manifest.authProvider) shared.authProvider = manifest.authProvider;
     if (manifest.title) shared.title = manifest.title;
-    changed = true;
   }
   for (const app of config.apps) {
     for (const route of app.routes) {
@@ -1067,7 +1110,6 @@ async function commitServiceMetadata(
       });
       if (!sameOperations(route.operations, resolvedOperations)) {
         route.operations = resolvedOperations;
-        changed = true;
       }
     }
     const staleApiRouteIds = new Set(app.routes
@@ -1077,18 +1119,15 @@ async function commitServiceMetadata(
       .map((route) => route.id));
     if (staleApiRouteIds.size > 0) {
       app.routes = app.routes.filter((route) => !staleApiRouteIds.has(route.id));
-      changed = true;
     }
     if (manifest.authProvider && app.auth && routeServiceIds.has(app.auth.serviceId)) {
       applyAuthProviderMetadata(app.auth, manifest.authProvider);
-      changed = true;
     }
     for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
       const view = manifest.viewIndex[route.viewId];
       if (!view) {
         if (route.enabled !== false) {
           route.enabled = false;
-          changed = true;
         }
         continue;
       }
@@ -1099,20 +1138,17 @@ async function commitServiceMetadata(
       if (validOperations.length === 0) {
         if (route.enabled !== false) {
           route.enabled = false;
-          changed = true;
         }
         continue;
       }
       if (!sameOperations(route.operations, validOperations)) {
         route.operations = validOperations;
-        changed = true;
       }
       const selectedOperations = validOperations.map((operationId) => manifestOperations.get(operationId)!.operation);
       const pageOperation = selectedOperations.find(isPageOperation);
       const operation = pageOperation ?? selectedOperations[0];
       if (route.operations.length > 1) {
         route.operations = [operation.operationId];
-        changed = true;
       }
       const wasApi = route.kind === "api";
       const selectedServicePath = !wasApi && pageOperation && route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
@@ -1120,46 +1156,37 @@ async function commitServiceMetadata(
         : view.path;
       if (route.targetPath !== selectedServicePath) {
         route.targetPath = selectedServicePath;
-        changed = true;
       }
       const routeIsApi = !pageOperation;
       if (routeIsApi) {
         const nextPath = apiRoutePath(manifest.serviceId, selectedServicePath);
         if (route.kind !== "api") {
           route.kind = "api";
-          changed = true;
         }
         if (route.path !== nextPath) {
           route.path = nextPath;
-          changed = true;
         }
         if (route.query !== undefined) {
           delete route.query;
-          changed = true;
         }
         if (route.servicePathVariant !== undefined) {
           delete route.servicePathVariant;
-          changed = true;
         }
         if (route.fixedParams !== undefined) {
           delete route.fixedParams;
-          changed = true;
         }
         if (route.title !== operation.title) {
           route.title = operation.title;
-          changed = true;
         }
       } else {
         if (wasApi) {
           route.kind = "page";
           route.enabled = false;
           route.path = pageRoutePath(manifest.serviceId, selectedServicePath);
-          changed = true;
         }
       }
       if (!route.title) {
         route.title = operation.title;
-        changed = true;
       }
     }
     for (const serviceId of syncedServiceIds) {
@@ -1178,15 +1205,12 @@ async function commitServiceMetadata(
             enablement: "auto",
             operations: [operation.operationId]
           });
-          changed = true;
         }
       }
     }
-    if (reconcileDependencyRoutes(config, app)) changed = true;
+    reconcileDependencyRoutes(config, app);
   }
   onManifestUpdated?.(config, [...routeServiceIds], manifest);
-  if (changed) await store.saveConfig(config);
-  manifest.fetchedAt = Date.parse(config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt);
   return [...routeServiceIds];
 }
 
