@@ -26,6 +26,7 @@ import type {
 import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService } from "./previewEnvironments.js";
@@ -965,6 +966,9 @@ function reconcileDependencyRoutes(config: BetterPortalConfig, app: BetterPortal
   );
 }
 
+// ponytail: one queue per store because manifests share one config row; partition if storage does.
+const metadataUpdates = new WeakMap<PlatformConfigStore, Promise<void>>();
+
 async function updateServiceMetadata(
   store: PlatformConfigStore,
   serviceInstanceId: string,
@@ -972,16 +976,29 @@ async function updateServiceMetadata(
   onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
   validateCredentials?: () => Promise<void>
 ): Promise<string[]> {
-  // Retry the whole mutation on a fresh snapshot, never overwrite a newer revision.
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const serviceIds = await commitServiceMetadata(store, serviceInstanceId, manifest, onManifestUpdated, validateCredentials);
-      for (const id of serviceIds) cacheManifest(id, manifest);
-      return serviceIds;
-    } catch (error) {
-      if (!(error instanceof ConfigRevisionConflictError) || attempt >= 4) throw error;
-      store.invalidate();
+  // Serialize the entire read/mutate/save, not just the write. Otherwise a burst
+  // of local submissions consumes each other's retry budgets on stale snapshots.
+  const update = (metadataUpdates.get(store) ?? Promise.resolve()).then(async () => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const serviceIds = await commitServiceMetadata(store, serviceInstanceId, manifest, onManifestUpdated, validateCredentials);
+        for (const id of serviceIds) cacheManifest(id, manifest);
+        return serviceIds;
+      } catch (error) {
+        if (!(error instanceof ConfigRevisionConflictError) || attempt >= 4) throw error;
+        // Other replicas/admin writes still use optimistic revision checks.
+        // Back off with jitter, then re-read and revalidate credentials.
+        await delay(25 * 2 ** attempt * (1 + Math.random()));
+        store.invalidate();
+      }
     }
+  });
+  const settled = update.then(() => {}, () => {});
+  metadataUpdates.set(store, settled);
+  try {
+    return await update;
+  } finally {
+    if (metadataUpdates.get(store) === settled) metadataUpdates.delete(store);
   }
 }
 

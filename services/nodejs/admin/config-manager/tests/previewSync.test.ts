@@ -19,9 +19,8 @@ import { demoScenarios, ResponseSchema } from "../src/plugins/service-betterport
 import { chromium } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "@betterportal/theme-runtime";
 
-function fixture() {
+function fixture(names = ["tools", "auth", "crm", "reports", "theme"]) {
   const tenantId = uuidv7(), appId = uuidv7();
-  const names = ["tools", "auth", "crm", "reports", "theme"];
   const services = names.map(name => ({ id: uuidv7(), hostname: `https://${name}.source.example`, apiKeyHash: "DO-NOT-EXPOSE", serviceId: `org.example.${name}`, title: name, createdAt: new Date().toISOString() }));
   const config = BetterPortalConfigSchema.parse({
     tenants: [{ id: tenantId, slug: "source", title: "Source", branding: {}, services }],
@@ -77,11 +76,13 @@ test("Postgres readiness uses its own clock for manifests and delivery despite N
 });
 
 test("concurrent preview manifests retry fresh snapshots and commit reconciliation atomically", async () => {
-  const { config, deployment, names } = fixture();
+  const { config, deployment, names } = fixture(Array.from({ length: 12 }, (_, i) => `service${i}`));
   class RevisionStore extends BaseStorage {
     value = config;
     revision = 0;
     conflicts = 0;
+    failNextSave = false;
+    credentialChecks = 0;
     snapshots = new WeakMap<BetterPortalConfig, number>();
     async loadConfig() {
       const copy = structuredClone(this.value);
@@ -90,6 +91,12 @@ test("concurrent preview manifests retry fresh snapshots and commit reconciliati
     }
     async saveConfig(copy: BetterPortalConfig) {
       await setImmediate();
+      if (this.failNextSave) { this.failNextSave = false; throw new Error("Storage unavailable"); }
+      if (this.revision === 0) {
+        // An admin/other replica commits after our first read.
+        this.value.tenants[0].title = "Concurrent admin edit";
+        this.revision++;
+      }
       const revision = this.snapshots.get(copy)!;
       if (revision !== this.revision) { this.conflicts++; throw new ConfigRevisionConflictError(revision, this.revision); }
       // Every accepted manifest's page is mounted in this same committed snapshot.
@@ -102,6 +109,7 @@ test("concurrent preview manifests retry fresh snapshots and commit reconciliati
       this.notifyListeners();
     }
     async validateApiKey(key: string) {
+      this.credentialChecks++;
       return { scope: "tenant" as const, tenantId: deployment.tenantId, serviceId: deployment.services[Number(key)].instanceId };
     }
     async touchServiceActivity(id: string, field: "lastSeenAt" | "lastSyncAt") {
@@ -113,17 +121,28 @@ test("concurrent preview manifests retry fresh snapshots and commit reconciliati
   registerSyncEndpoint({ get: (path: string, handler: any) => handlers.set("GET " + path, handler), post: (path: string, handler: any) => handlers.set("POST " + path, handler) } as never, store, {
     onManifestUpdated: (snapshot, ids, manifest) => { for (const id of ids) reconcilePreviewService(snapshot, id, manifest); }
   });
-  const responses = await Promise.all(names.map((name, i) => handlers.get("POST /.well-known/bp/sync/poll")!({ req: new Request("https://config.example/.well-known/bp/sync/poll", {
+  const submit = (i: number) => handlers.get("POST /.well-known/bp/sync/poll")!({ req: new Request("https://config.example/.well-known/bp/sync/poll", {
     method: "POST", headers: { authorization: "Bearer " + i, "content-type": "application/json" },
-    body: JSON.stringify({ manifestVersion: "1", viewIndex: name === "theme" ? {} : {
-      [name + ".index"]: { viewId: name + ".index", title: name, path: "/" + name, pathVariants: [], operations: [{ operationId: name + ".read", method: "GET", title: name, renderable: true, renderers: ["bootstrap5"], renderModes: ["page"], authRequired: false }] }
+    body: JSON.stringify({ manifestVersion: "1", viewIndex: {
+      [names[i] + ".index"]: { viewId: names[i] + ".index", title: names[i], path: "/" + names[i], pathVariants: [], operations: [{ operationId: names[i] + ".read", method: "GET", title: names[i], renderable: true, renderers: ["bootstrap5"], renderModes: ["page"], authRequired: false }] }
     } })
-  }) })));
-  assert.ok(store.conflicts > 0);
+  }) });
+  const responses = await Promise.all(names.map((_, i) => submit(i)));
+  assert.equal(store.conflicts, 1, "only the external edit conflicts; local submissions are serialized");
+  assert.equal(store.credentialChecks, names.length * 2 + 1, "credentials rechecked after waiting and on retry");
   assert.ok(responses.every(r => r.status === 200));
-  assert.equal(store.revision, 5, "one atomic commit per manifest, no extra reconciliation write");
-  assert.equal(store.value.apps.find(a => a.id === deployment.appId)!.routes.filter(r => r.enabled).length, 4);
-  assert.equal(store.value.manifestCache.length, 5);
+  assert.equal(store.revision, names.length + 1, "one atomic commit per manifest plus the external edit");
+  assert.equal(store.value.tenants[0].title, "Concurrent admin edit");
+  assert.equal(store.value.apps.find(a => a.id === deployment.appId)!.routes.filter(r => r.enabled).length, names.length);
+  assert.equal(store.value.manifestCache.length, names.length);
+
+  store.failNextSave = true;
+  const [failed, following] = await Promise.allSettled([submit(0), submit(1)]);
+  assert.equal(failed.status, "rejected");
+  if (failed.status === "rejected") assert.match(failed.reason.message, /Storage unavailable/);
+  assert.equal(following.status, "fulfilled", "a failed commit must not poison the queue");
+  if (following.status === "fulfilled") assert.equal(following.value.status, 200);
+  assert.equal((await submit(0)).status, 200, "submissions continue after the queue drains");
 });
 
 test("PVE readiness requires a persisted manifest, matching mounts and subsequent delivery; debug excludes secrets", () => {
