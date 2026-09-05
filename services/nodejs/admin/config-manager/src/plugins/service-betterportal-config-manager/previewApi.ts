@@ -1,3 +1,4 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import {
   jsonResponse,
   eventObservability,
@@ -21,6 +22,7 @@ export function registerPreviewDeploymentApi(input: {
   app: BetterPortalH3App;
   storage: PlatformConfigStore;
   controlPlaneUrl: string;
+  replayEncryptionKey: string;
 }): void {
   const route = `${PREVIEW_DEPLOYMENT_API_BASE}/:groupId/deployments/:key`;
 
@@ -35,7 +37,8 @@ export function registerPreviewDeploymentApi(input: {
       candidate.groupId === group.id && candidate.key === event.context.params?.key
     );
     if (!deployment) throw new PreviewEnvironmentError("Preview deployment was not found", 404);
-    return jsonResponse(deployment as unknown as JsonValue, 200, NO_STORE);
+    const { credentialReplay: _replay, ...publicDeployment } = deployment;
+    return jsonResponse(publicDeployment as unknown as JsonValue, 200, NO_STORE);
   }));
 
   input.app.post(route, async (event) => withPreviewApiErrors(event, async () => {
@@ -52,15 +55,22 @@ export function registerPreviewDeploymentApi(input: {
     const existing = config.previewEnvironmentDeployments.find((candidate) => candidate.groupId === groupId && candidate.key === key);
     const hostname = typeof body.hostname === "string" ? body.hostname : existing?.hostname;
     if (!hostname) throw new PreviewEnvironmentError("hostname is required when creating a preview");
-    const result = provisionPreviewDeployment(config, groupId, {
+    const request = {
       key,
       name: typeof body.name === "string" ? body.name : undefined,
       hostname,
       expiresInDays: parseExpiry(body.expiresInDays),
-      services: parseServices(body.services)
-    }, input.controlPlaneUrl);
-    await input.storage.saveConfig(config);
-    return jsonResponse({
+      services: parseServices(body.services).sort((a, b) => a.serviceId.localeCompare(b.serviceId))
+    };
+    const requestHash = createHash("sha256").update(JSON.stringify(request)).digest("hex");
+    const aad = `${groupId}:${key}:${requestHash}`;
+    const replay = existing?.credentialReplay;
+    if (replay?.requestHash === requestHash && Date.parse(replay.expiresAt) > Date.now()) {
+      const payload = openReplay(replay.ciphertext, input.replayEncryptionKey, aad);
+      return jsonResponse(payload, (payload as { created: boolean }).created ? 201 : 200, NO_STORE);
+    }
+    const result = provisionPreviewDeployment(config, groupId, request, input.controlPlaneUrl);
+    const payload = {
       created: result.created,
       preview: {
         key: result.deployment.key,
@@ -69,7 +79,14 @@ export function registerPreviewDeploymentApi(input: {
         expiresAt: result.deployment.expiresAt ?? null
       },
       credentials: result.credentials
-    } as unknown as JsonValue, result.created ? 201 : 200, NO_STORE);
+    } as unknown as JsonValue;
+    result.deployment.credentialReplay = {
+      requestHash,
+      ciphertext: sealReplay(payload, input.replayEncryptionKey, aad),
+      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString()
+    };
+    await input.storage.saveConfig(config);
+    return jsonResponse(payload, result.created ? 201 : 200, NO_STORE);
   }));
 
   input.app.delete(route, async (event) => withPreviewApiErrors(event, async () => {
@@ -86,6 +103,22 @@ export function registerPreviewDeploymentApi(input: {
     }
     return new Response(null, { status: 204, headers: NO_STORE });
   }));
+}
+
+function sealReplay(value: JsonValue, secret: string, aad: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", createHash("sha256").update(secret).digest(), iv);
+  cipher.setAAD(Buffer.from(aad));
+  const body = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), body]).toString("base64");
+}
+
+function openReplay(value: string, secret: string, aad: string): JsonValue {
+  const bytes = Buffer.from(value, "base64");
+  const decipher = createDecipheriv("aes-256-gcm", createHash("sha256").update(secret).digest(), bytes.subarray(0, 12));
+  decipher.setAAD(Buffer.from(aad));
+  decipher.setAuthTag(bytes.subarray(12, 28));
+  return JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString("utf8")) as JsonValue;
 }
 
 async function withPreviewApiErrors(event: BetterPortalEvent, action: () => Promise<Response>): Promise<Response> {

@@ -93,3 +93,14 @@ test("legacy aes256gcm secrets stay readable after the envelope change", () => {
   const store = new FileBackedServiceConfigStore({ filePath, configSchemas, encryptionKey });
   assert.equal(store.read(ticket("tenant-a")).tenant.token, "legacy-secret");
 });
+
+test("all JSON secret types are encrypted and survive reopening", () => {
+  const filePath = join(mkdtempSync(join(tmpdir(), "bp-json-secrets-")), "store.json");
+  const values = { object: { token: "hidden-object-token" }, array: ["hidden-array-token"], number: 42, bool: true, nil: null };
+  const options = { filePath, encryptionKey: "test-key-min16chars", configSchemas: [{ fields: Object.keys(values).map(key => ({ key, visibility: "secret" })) }] as never };
+  new FileBackedServiceConfigStore(options).write("tenant-a", undefined, values, ticket("tenant-a"));
+  const raw = readFileSync(filePath, "utf8");
+  assert.ok(!raw.includes("hidden-object-token") && !raw.includes("hidden-array-token"));
+  for (const value of Object.values(JSON.parse(raw).tenants["tenant-a"].tenant)) assert.match(value as string, /^enc:aes256gcm3:/);
+  assert.deepEqual(new FileBackedServiceConfigStore(options).read(ticket("tenant-a")).tenant, values);
+});

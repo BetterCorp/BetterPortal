@@ -114,6 +114,7 @@ const AUTH_TAG_LENGTH = 16;
 const IV_LENGTH = 12;
 const LEGACY_IV_LENGTH = 16;
 const ENCRYPTED_PREFIX = "enc:aes256gcm2:";
+const ENCRYPTED_JSON_PREFIX = "enc:aes256gcm3:";
 const LEGACY_ENCRYPTED_PREFIX = "enc:aes256gcm:";
 
 // spec/config.md 4.1 mandates scrypt N=32768. v1 shipped with node's default
@@ -141,22 +142,23 @@ function deriveKey(secret: string, cost: number): Buffer {
 }
 
 function isEncrypted(value: string): boolean {
-  return value.startsWith(ENCRYPTED_PREFIX) || value.startsWith(LEGACY_ENCRYPTED_PREFIX);
+  return value.startsWith(ENCRYPTED_PREFIX) || value.startsWith(ENCRYPTED_JSON_PREFIX) || value.startsWith(LEGACY_ENCRYPTED_PREFIX);
 }
 
-function encryptValue(plaintext: string, secret: string): string {
+function encryptValue(plaintext: string, secret: string, prefix = ENCRYPTED_PREFIX): string {
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, deriveKey(secret, KDF_COST), iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
   const payload = Buffer.concat([iv, authTag, encrypted]).toString("base64");
-  return `${ENCRYPTED_PREFIX}${payload}`;
+  return `${prefix}${payload}`;
 }
 
 function decryptValue(ciphertext: string, secret: string): string {
-  const legacy = !ciphertext.startsWith(ENCRYPTED_PREFIX);
+  const json = ciphertext.startsWith(ENCRYPTED_JSON_PREFIX);
+  const legacy = !json && !ciphertext.startsWith(ENCRYPTED_PREFIX);
   if (legacy && !ciphertext.startsWith(LEGACY_ENCRYPTED_PREFIX)) return ciphertext;
-  const prefix = legacy ? LEGACY_ENCRYPTED_PREFIX : ENCRYPTED_PREFIX;
+  const prefix = json ? ENCRYPTED_JSON_PREFIX : legacy ? LEGACY_ENCRYPTED_PREFIX : ENCRYPTED_PREFIX;
   const ivLength = legacy ? LEGACY_IV_LENGTH : IV_LENGTH;
   const payload = Buffer.from(ciphertext.slice(prefix.length), "base64");
   const iv = payload.subarray(0, ivLength);
@@ -186,7 +188,9 @@ function encryptSecrets(
   return Object.fromEntries(
     Object.entries(values).map(([k, v]) => [
       k,
-      secretKeys.has(k) && typeof v === "string" ? encryptValue(v, secret) : v
+      secretKeys.has(k)
+        ? typeof v === "string" ? encryptValue(v, secret) : encryptValue(JSON.stringify(v), secret, ENCRYPTED_JSON_PREFIX)
+        : v
     ])
   );
 }
@@ -200,7 +204,7 @@ function decryptSecrets(
     Object.entries(values).map(([k, v]) => [
       k,
       secretKeys.has(k) && typeof v === "string" && isEncrypted(v)
-        ? decryptValue(v, secret)
+        ? v.startsWith(ENCRYPTED_JSON_PREFIX) ? JSON.parse(decryptValue(v, secret)) as JsonValue : decryptValue(v, secret)
         : v
     ])
   );

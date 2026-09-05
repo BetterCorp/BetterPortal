@@ -530,6 +530,11 @@ export const PreviewEnvironmentDeploymentServiceSchema = av.object({
 export type PreviewEnvironmentDeploymentService = Infer<typeof PreviewEnvironmentDeploymentServiceSchema>;
 
 export const PreviewEnvironmentDeploymentSchema = av.object({
+  credentialReplay: av.optional(av.object({
+    requestHash: av.string(),
+    ciphertext: av.string(),
+    expiresAt: av.string().format("date-time")
+  })),
   id: UuidV7Schema,
   groupId: UuidV7Schema,
   key: av.string().minLength(1).maxLength(255),

@@ -197,6 +197,8 @@ export interface RouteHandlerContextBase<
   readonly config?: TServiceConfig;
   /** Optional response model injected by services before generated view handlers run. */
   readonly responseModel?: unknown;
+  /** Aborted when a streaming response is cancelled. */
+  readonly signal?: AbortSignal;
   /** BP-managed response header API. Always present when adapter wires it. */
   readonly bpHeaders?: BpHeadersApi;
   /** Response headers for HTMX/native headers without raw event reach-through. */

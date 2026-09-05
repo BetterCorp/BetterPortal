@@ -41,6 +41,7 @@ async function touchServiceActivity(
   field: "lastSeenAt" | "lastSyncAt"
 ): Promise<void> {
   if (scope !== "tenant" || !tenantId) return;
+  if (store.touchServiceActivity) return store.touchServiceActivity(serviceId, field);
   const config = await store.loadConfig();
   const service = config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId);
   if (!service) return;
@@ -582,6 +583,19 @@ export function registerSyncEndpoint(
   store: PlatformConfigStore,
   options: SyncEndpointOptions = {}
 ): void {
+  const projections = new Map<string, Promise<string>>();
+  store.onChange(() => projections.clear());
+  const projection = (serviceId: string, scope: "platform" | "tenant", tenantId?: string) => {
+    const key = JSON.stringify([scope, tenantId, serviceId]);
+    let pending = projections.get(key);
+    if (!pending) {
+      pending = store.getScopedConfig(serviceId, scope, tenantId)
+        .then((config) => JSON.stringify(injectResolvedServicePaths(config)));
+      projections.set(key, pending);
+      void pending.catch(() => { if (projections.get(key) === pending) projections.delete(key); });
+    }
+    return pending;
+  };
   app.get(SYNC_PATH, async (event: BetterPortalEvent) => {
     const obs = eventObservability(event);
     const authHeader = event.req.headers.get("authorization");
@@ -620,19 +634,33 @@ export function registerSyncEndpoint(
     });
 
     const stream = createEventStream(event);
-
+    let closed = false;
+    let sending = false;
+    let dirty = false;
+    let lastData: string | undefined;
     const sendScopedConfig = async () => {
-      const scoped = await store.getScopedConfig(serviceId, validated.scope, validated.tenantId);
-      const resolved = injectResolvedServicePaths(scoped);
-      obs?.logger.info("BP SYNC: sending config service={serviceId} tenants={tenants} apps={apps}", {
-        serviceId,
-        tenants: resolved.tenants.length,
-        apps: resolved.apps.length
-      });
-      await stream.push({
-        event: "config",
-        data: JSON.stringify(resolved)
-      });
+      dirty = true;
+      if (sending || closed) return;
+      sending = true;
+      try {
+        while (dirty && !closed) {
+          dirty = false;
+          const current = await store.validateApiKey(apiKey);
+          if (!current || current.serviceId !== serviceId || current.scope !== validated.scope || current.tenantId !== validated.tenantId) {
+            closed = true;
+            await stream.close();
+            return;
+          }
+          const data = await projection(serviceId, validated.scope, validated.tenantId);
+          // A change during projection invalidates the result before it leaves the process.
+          if (dirty) continue;
+          if (closed || data === lastData) continue;
+          await stream.push({ event: "config", data });
+          lastData = data;
+        }
+      } finally {
+        sending = false;
+      }
       await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt").catch((error) => {
         obs?.logger.warn("BP SYNC: failed updating last sync service={serviceId}: {msg}", {
           serviceId,
@@ -660,6 +688,7 @@ export function registerSyncEndpoint(
     }, SERVICE_ACTIVITY_INTERVAL_MS);
 
     stream.onClosed(() => {
+      closed = true;
       clearInterval(lastSeenTimer);
       obs?.logger.info("BP SYNC: stream closed service={serviceId}", {
         serviceId
@@ -779,22 +808,20 @@ export function registerSyncEndpoint(
       }
     }
 
-    const scoped = await store.getScopedConfig(serviceId, validated.scope, validated.tenantId);
-    const resolved = injectResolvedServicePaths(scoped);
+    const data = await projection(serviceId, validated.scope, validated.tenantId);
     await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt").catch((error) => {
       obs?.logger.warn("BP SYNC POLL: failed updating last sync service={serviceId}: {msg}", {
         serviceId,
         msg: error instanceof Error ? error.message : String(error)
       });
     });
-    obs?.logger.info("BP SYNC POLL: sending config service={serviceId} scope={scope} tenant={tenantId} tenants={tenants} apps={apps}", {
+    obs?.logger.info("BP SYNC POLL: sending config service={serviceId} scope={scope} tenant={tenantId} bytes={bytes}", {
       serviceId,
       scope: validated.scope,
       tenantId: validated.tenantId ?? "",
-      tenants: resolved.tenants.length,
-      apps: resolved.apps.length
+      bytes: data.length
     });
-    return jsonResponse(resolved as unknown as JsonValue);
+    return new Response(data, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
   };
 
   app.get(`${SYNC_PATH}/poll`, pollHandler);

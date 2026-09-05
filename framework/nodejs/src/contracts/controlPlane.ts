@@ -118,6 +118,8 @@ export interface ScopedConfigApp {
 export interface PlatformConfigStore {
   loadConfig(): Promise<BetterPortalConfig>;
   saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void>;
+  /** Optional separate presence storage; must not advance the platform config revision. */
+  touchServiceActivity?(serviceId: string, field: "lastSeenAt" | "lastSyncAt"): Promise<void>;
 
   validateApiKey(apiKey: string): Promise<{
     scope: "tenant" | "platform";

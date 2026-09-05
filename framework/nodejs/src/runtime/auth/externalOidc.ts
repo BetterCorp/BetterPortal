@@ -39,6 +39,9 @@ export async function verifyExternalOidcToken(
   if (typeof verified.sub !== "string" || verified.sub.length === 0) {
     throw new Error("OIDC token subject is missing");
   }
+  if (typeof verified.exp !== "number" || !Number.isFinite(verified.exp)) {
+    throw new Error("OIDC token expiry is missing or invalid");
+  }
   return verified as Record<string, unknown>;
 }
 

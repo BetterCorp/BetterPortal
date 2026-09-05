@@ -51,6 +51,7 @@ export async function driveStream(
   try {
     let result = await gen.next();
     while (!result.done) {
+      ctx.signal?.throwIfAborted();
       const item = handler.itemSchema.parse(result.value);
       count++;
       await sink.onItem(item);
@@ -67,7 +68,7 @@ export async function driveStream(
     } catch {
       // generator cleanup failure is not reportable past this point
     }
-    await sink.onError(toErrorFrame(error));
+    if (!ctx.signal?.aborted) await sink.onError(toErrorFrame(error));
   }
 }
 
@@ -109,20 +110,33 @@ export function ndjsonStreamResponse(
   ctx: AnyCtx
 ): Response {
   const encoder = new TextEncoder();
+  const abort = new AbortController();
+  const signal = ctx.signal ? AbortSignal.any([ctx.signal, abort.signal]) : abort.signal;
+  let resume: (() => void) | undefined;
 
   const body = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const push = (frame: Record<string, unknown>) => {
+    start(controller) {
+      const push = async (frame: Record<string, unknown>) => {
+        while (!signal.aborted && (controller.desiredSize ?? 0) <= 0) {
+          await new Promise<void>(resolve => { resume = resolve; });
+        }
+        signal.throwIfAborted();
         controller.enqueue(encoder.encode(`${JSON.stringify(frame)}\n`));
       };
-      await driveStream(handler, ctx, {
+      const onAbort = () => { resume?.(); controller.error(signal.reason); };
+      signal.addEventListener("abort", onAbort, { once: true });
+      if (signal.aborted) onAbort();
+      void driveStream(handler, { ...ctx, signal }, {
         onItem: (item) => push({ kind: "item", data: item }),
         onSummary: (summary) => push({ kind: "summary", data: summary }),
         onError: (frame) => push(frame as unknown as Record<string, unknown>),
         onEnd: (count) => push({ kind: "end", count })
+      }).then(() => { if (!signal.aborted) controller.close(); }, error => {
+        if (!signal.aborted) controller.error(error);
       });
-      controller.close();
-    }
+    },
+    pull() { resume?.(); resume = undefined; },
+    cancel() { abort.abort(); resume?.(); }
   });
 
   return new Response(body, {

@@ -5,9 +5,10 @@ import {
   type CacheHints
 } from "@betterportal/framework";
 import { createHandler } from "./.bp-generated/route-runtime.js";
+import type { AuthRuntime } from "./index.js";
 
 export const QuerySchema = av.object({});
-export const HeadersSchema = av.object({});
+export const HeadersSchema = av.object({ "x-bp-refresh": av.optional(av.string()) });
 export const RequestSchema = av.object({});
 
 export const ResponseSchema = av.object({
@@ -32,8 +33,9 @@ export const cacheHints: CacheHints = {
 };
 
 export const handlePost = createHandler(
-  { response: ResponseSchema },
-  (ctx) => {
+  { response: ResponseSchema, headers: HeadersSchema },
+  async (ctx) => {
+    await revokePresentedRefreshToken(ctx.plugin.runtime, ctx.headers["x-bp-refresh"], ctx.tenant.id, ctx.app.id);
     // Always emit BP-RemoveHeader so the client shim drops the stored token -
     // logout must clear state even when called with a dead or missing token.
     ctx.bpHeaders?.remove("Authorization");
@@ -54,3 +56,11 @@ export const handlePost = createHandler(
 );
 
 export const handleGet = handlePost;
+
+export async function revokePresentedRefreshToken(runtime: AuthRuntime, token: string | undefined, tenantId: string, appId: string): Promise<void> {
+  if (!token) return;
+  let claims;
+  try { claims = await runtime.tokenIssuer.verifyRefreshToken({ refreshToken: token, tenantId, appId }); }
+  catch { return; } // Logout still clears invalid or expired credentials.
+  runtime.userStore.revokeRefreshToken(claims.jti, claims.exp);
+}

@@ -6,6 +6,7 @@ import * as yaml from "yaml";
 import { BetterPortalConfigSchema, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import {
   BaseStorage,
+  hashApiKey,
   migrateOfficialPluginIds,
   migrateRouteOperations,
   migrateRouteParamSyntax,
@@ -25,6 +26,12 @@ export class ConfigRevisionConflictError extends Error {
 }
 
 export type PendingActionKind = "bootstrap" | "setup" | "hostname-change";
+export interface PendingActionCompletion {
+  kind: PendingActionKind;
+  key: string;
+  owner: string;
+  result: Record<string, unknown>;
+}
 
 export interface PendingActionRecord {
   readonly kind: PendingActionKind;
@@ -82,6 +89,9 @@ export class PostgresStorage extends BaseStorage {
   private readonly actionsTable: string;
   private readonly deliveriesTable: string;
   private readonly outboxTable: string;
+  private readonly activityTable: string;
+  private activityLoad?: Promise<Map<string, { lastSeenAt?: string; lastSyncAt?: string }>>;
+  private activityLoadedAt = 0;
   private pool: Pool | null = null;
   private schemaReady: Promise<void> | null = null;
   private legacyPaths: LegacyPaths = {};
@@ -89,6 +99,7 @@ export class PostgresStorage extends BaseStorage {
   private cachedConfig: { config: BetterPortalConfig; revision: number } | null = null;
   private configLoad: Promise<{ config: BetterPortalConfig; revision: number; generation: number }> | null = null;
   private configGeneration = 0;
+  private credentialIndex?: { config: BetterPortalConfig; entries: Map<string, NonNullable<Awaited<ReturnType<BaseStorage["validateApiKey"]>>>> };
 
   constructor(options: PostgresStorageOptions) {
     super();
@@ -101,6 +112,7 @@ export class PostgresStorage extends BaseStorage {
     this.actionsTable = quotePgIdent(`${this.tableName}_actions`);
     this.deliveriesTable = quotePgIdent(`${this.tableName}_webhook_deliveries`);
     this.outboxTable = quotePgIdent(`${this.tableName}_outbox`);
+    this.activityTable = quotePgIdent(`${this.tableName}_activity`);
   }
 
   async initialize(paths: LegacyPaths = {}): Promise<void> {
@@ -126,7 +138,7 @@ export class PostgresStorage extends BaseStorage {
     }
   }
 
-  async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void> {
+  async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; completeAction?: PendingActionCompletion }): Promise<void> {
     await this.ensureSchema();
     const validated = this.parseConfig(config);
     this.validateConfigReferences(validated);
@@ -134,12 +146,14 @@ export class PostgresStorage extends BaseStorage {
     const client = await this.getPool().connect();
     try {
       await client.query("begin");
+      if (options?.completeAction) await this.finishAction(client, options.completeAction);
       const current = await client.query<{ revision: string | number }>(
         `select revision from ${this.quotedTableName} where id = $1 for update`, [this.rowId]
       );
       if (!current.rows[0]) throw new Error(`Platform config row ${this.rowId} was not initialized`);
       const currentRevision = Number(current.rows[0].revision);
       if (expectedRevision !== undefined && expectedRevision !== currentRevision) {
+        this.invalidate();
         throw new ConfigRevisionConflictError(expectedRevision, currentRevision);
       }
       const revision = currentRevision + 1;
@@ -147,12 +161,14 @@ export class PostgresStorage extends BaseStorage {
         `update ${this.quotedTableName} set config = $2::jsonb, revision = $3, updated_at = now() where id = $1`,
         [this.rowId, JSON.stringify(validated), revision]
       );
-      if (options?.notify !== false) await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision });
+      // Every persisted revision invalidates replica snapshots. Presence has its own table.
+      await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision });
       await client.query("commit");
       this.snapshots.set(config, revision);
       this.snapshots.set(validated, revision);
       this.configGeneration++;
       this.cachedConfig = { config: structuredClone(validated), revision };
+      super.invalidate();
     } catch (error) {
       await client.query("rollback").catch(() => undefined);
       throw error;
@@ -167,6 +183,24 @@ export class PostgresStorage extends BaseStorage {
     super.invalidate();
   }
 
+  override async validateApiKey(apiKey: string): ReturnType<BaseStorage["validateApiKey"]> {
+    await this.ensureSchema();
+    if (!this.cachedConfig) await this.loadConfig();
+    if (!this.cachedConfig) return this.validateApiKey(apiKey);
+    const config = this.cachedConfig.config;
+    if (this.credentialIndex?.config !== config) {
+      const entries: NonNullable<PostgresStorage["credentialIndex"]>["entries"] = new Map();
+      for (const service of [...config.platformServices, ...config.sharedServiceCatalog]) {
+        if (service.enabled && service.apiKeyHash) entries.set(service.apiKeyHash, { scope: "platform", serviceId: service.id, service });
+      }
+      for (const tenant of config.tenants.filter(tenant => tenant.active)) for (const service of tenant.services) {
+        if (service.enabled && service.apiKeyHash) entries.set(service.apiKeyHash, { scope: "tenant", tenantId: tenant.id, serviceId: service.id, service });
+      }
+      this.credentialIndex = { config, entries };
+    }
+    return structuredClone(this.credentialIndex.entries.get(hashApiKey(apiKey)) ?? null);
+  }
+
   private async readConfig(generation: number): Promise<{ config: BetterPortalConfig; revision: number; generation: number }> {
     const result = await this.getPool().query<{ config: unknown; revision: string | number }>(
       `select config, revision from ${this.quotedTableName} where id = $1`, [this.rowId]
@@ -179,10 +213,37 @@ export class PostgresStorage extends BaseStorage {
     };
   }
 
-  private cloneSnapshot(snapshot: { config: BetterPortalConfig; revision: number }): BetterPortalConfig {
+  private async cloneSnapshot(snapshot: { config: BetterPortalConfig; revision: number }): Promise<BetterPortalConfig> {
     const config = structuredClone(snapshot.config);
     this.snapshots.set(config, snapshot.revision);
+    const activity = await this.loadServiceActivity();
+    for (const tenant of config.tenants) for (const service of tenant.services) {
+      Object.assign(service, activity.get(service.id));
+    }
     return config;
+  }
+
+  async touchServiceActivity(serviceId: string, field: "lastSeenAt" | "lastSyncAt"): Promise<void> {
+    await this.ensureSchema();
+    const column = field === "lastSeenAt" ? "last_seen_at" : "last_sync_at";
+    await this.getPool().query(
+      `insert into ${this.activityTable} (scope_id, service_id, ${column}) values ($1, $2, now())
+       on conflict (scope_id, service_id) do update set ${column} = excluded.${column}
+       where ${this.activityTable}.${column} is null or ${this.activityTable}.${column} < now() - interval '60 seconds'`,
+      [this.rowId, serviceId]
+    );
+  }
+
+  private loadServiceActivity(): Promise<Map<string, { lastSeenAt?: string; lastSyncAt?: string }>> {
+    if (this.activityLoad && Date.now() - this.activityLoadedAt < 5000) return this.activityLoad;
+    this.activityLoadedAt = Date.now();
+    this.activityLoad = this.getPool().query<{ service_id: string; last_seen_at: Date | null; last_sync_at: Date | null }>(
+      `select service_id, last_seen_at, last_sync_at from ${this.activityTable} where scope_id = $1`, [this.rowId]
+    ).then(result => new Map(result.rows.map(row => [row.service_id, {
+      ...(row.last_seen_at ? { lastSeenAt: row.last_seen_at.toISOString() } : {}),
+      ...(row.last_sync_at ? { lastSyncAt: row.last_sync_at.toISOString() } : {})
+    }]))).catch(error => { this.activityLoad = undefined; throw error; });
+    return this.activityLoad;
   }
 
   async loadOrCreateIdentity<T extends object>(create: () => T): Promise<T> {
@@ -300,19 +361,22 @@ export class PostgresStorage extends BaseStorage {
     }
   }
 
-  async completePendingAction(input: {
-    kind: PendingActionKind;
-    key: string;
-    owner: string;
-    result: Record<string, unknown>;
-  }): Promise<void> {
+  async completePendingAction(input: PendingActionCompletion, config?: BetterPortalConfig): Promise<void> {
+    if (config) return this.saveConfig(config, { completeAction: input });
     await this.ensureSchema();
-    await this.getPool().query(
+    const client = await this.getPool().connect();
+    try { await this.finishAction(client, input); } finally { client.release(); }
+  }
+
+  private async finishAction(client: PoolClient, input: PendingActionCompletion): Promise<void> {
+    const updated = await client.query(
       `update ${this.actionsTable} set status = 'completed', result = $5::jsonb,
           lease_owner = null, lease_until = null
-        where scope_id = $1 and kind = $2 and action_key = $3 and lease_owner = $4`,
+        where scope_id = $1 and kind = $2 and action_key = $3 and lease_owner = $4
+          and status = 'processing' and lease_until > now() and expires_at > now()`,
       [this.rowId, input.kind, input.key, input.owner, JSON.stringify(input.result)]
     );
+    if (updated.rowCount !== 1) throw new Error("Pending action lease was lost");
   }
 
   async releasePendingAction(kind: PendingActionKind, key: string, owner: string): Promise<void> {
@@ -499,6 +563,9 @@ export class PostgresStorage extends BaseStorage {
       await client.query(`alter table ${this.quotedTableName} add column if not exists revision bigint not null default 0`);
       await client.query(`create table if not exists ${this.identityTable} (
         scope_id text primary key, identity jsonb not null, created_at timestamptz not null default now())`);
+      await client.query(`create table if not exists ${this.activityTable} (
+        scope_id text not null, service_id text not null, last_seen_at timestamptz, last_sync_at timestamptz,
+        primary key (scope_id, service_id))`);
       await client.query(`create table if not exists ${this.actionsTable} (
         scope_id text not null, kind text not null, action_key text not null, secret_hash text not null,
         payload jsonb not null, expires_at timestamptz not null, status text not null default 'pending',

@@ -1593,7 +1593,9 @@ async function handleStreamSse(
 
   (async () => {
     try {
-      await driveStream(handler, ctx, {
+      const abort = new AbortController();
+      stream.onClosed(() => abort.abort());
+      await driveStream(handler, { ...ctx, signal: abort.signal }, {
         onItem: async (item) => {
           await stream.push({
             event: "item",

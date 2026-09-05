@@ -166,7 +166,7 @@ export async function registerBootstrapEndpoint(input: {
     }
 
     const freshConfig = await input.storage.loadConfig();
-    const owner = input.owner ?? "single";
+    const owner = uuidv7();
     if (input.postgres) {
       const claim = await input.postgres.claimPendingAction({
         kind: "bootstrap",
@@ -343,19 +343,6 @@ export async function registerBootstrapEndpoint(input: {
       adminTenantId,
       managementAppId: adminAppId
     };
-
-    await input.storage.saveConfig(freshConfig);
-    if (state) state.consumed = true;
-
-    input.logger.log.info(
-      "Bootstrap committed: tenant={tid} app={aid}; admin URL={adminUrl}",
-      {
-        tid: adminTenantId,
-        aid: adminAppId,
-        adminUrl: body.adminApp.hostname
-      }
-    );
-
     const result = {
       ok: true,
       adminTenantId,
@@ -371,6 +358,13 @@ export async function registerBootstrapEndpoint(input: {
     };
     if (input.postgres) await input.postgres.completePendingAction({
       kind: "bootstrap", key: "bootstrap", owner, result
+    }, freshConfig);
+    else {
+      await input.storage.saveConfig(freshConfig);
+      if (state) state.consumed = true;
+    }
+    input.logger.log.info("Bootstrap committed: tenant={tid} app={aid}; admin URL={adminUrl}", {
+      tid: adminTenantId, aid: adminAppId, adminUrl: body.adminApp.hostname
     });
     return jsonResponse(result as unknown as never, 200);
   });

@@ -7,13 +7,14 @@ import {
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
 import { createHandler } from "./.bp-generated/route-runtime.js";
+import { revokePresentedRefreshToken } from "./logoutFlow.js";
 
 export const QuerySchema = av.object({
   action: av.optional(av.string()).describe("Optional login route action, currently supports logout."),
   next: av.optional(av.string()).describe("The view path that redirected to the login page and should be redirected back to after a successful login.")
 });
 
-export const HeadersSchema = av.object({});
+export const HeadersSchema = av.object({ "x-bp-refresh": av.optional(av.string()) });
 
 export const RequestSchema = av.object({
   username: av.string().minLength(1).describe("Username for the account signing in."),
@@ -73,11 +74,12 @@ export const cacheHints: CacheHints = {
 };
 
 export const handleGet = createHandler(
-  { response: ResponseSchema, query: QuerySchema },
-  (ctx) => {
+  { response: ResponseSchema, query: QuerySchema, headers: HeadersSchema },
+  async (ctx) => {
     const runtime = ctx.plugin.runtime;
     const requiresFirstAdmin = runtime.userStore.hasNoUsers();
     if ((ctx.query as Infer<typeof QuerySchema>).action === "logout") {
+      await revokePresentedRefreshToken(runtime, ctx.headers["x-bp-refresh"], ctx.tenant.id, ctx.app.id);
       const nextUrl = resolveAppAuthRedirect(ctx, "afterLogout");
       ctx.bpHeaders?.remove("Authorization");
       ctx.bpHeaders?.remove("X-BP-Refresh");
@@ -155,7 +157,7 @@ export const handlePost = createHandler(
       tenantId: user.tenantId,
       appId,
       authProvider: 'betterportal.default',
-      refreshContext: {},
+      refreshContext: { version: runtime.userStore.findById(user.id)?.refreshVersion ?? 0 },
       roles: user.roles,
       name: user.name ?? user.username,
       email: user.email,

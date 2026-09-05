@@ -36,4 +36,8 @@ test("external OIDC verification enforces signature, issuer and audience without
   assert.equal(claims.sub, "repo:example/private:pull_request");
   assert.equal(claims.repository, "example/private");
   await assert.rejects(verifyExternalOidcToken(token, { ...options, audience: "other" }), /aud/i);
+  const noExpiry = await new SignJWT({ sub: "review" })
+    .setProtectedHeader({ alg: "RS256", typ: "JWT", kid: pair.kid })
+    .setIssuer(options.issuer).setAudience(options.audience).sign(privateKey);
+  await assert.rejects(verifyExternalOidcToken(noExpiry, options), /expiry/i);
 });

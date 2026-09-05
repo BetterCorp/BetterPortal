@@ -69,6 +69,9 @@ test("public preflight is cached without resolving request context", async () =>
   assert.equal(response?.status, 204);
   assert.equal(event.res.headers.get("access-control-max-age"), "600");
   assert.equal(resolutions, 0);
+  event.req = new Request(url);
+  await service.handleWithCors(event);
+  assert.equal(resolutions, 0, "no-Origin health checks must not load platform config");
 });
 
 function tenant(id: string, title: string, services: unknown[] = []) {

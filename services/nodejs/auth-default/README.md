@@ -2,6 +2,8 @@
 
 Default BetterPortal v10 auth plugin package.
 
+The file-backed user store is single-process; do not share it between auth replicas. First-admin registration is exclusive within that process. Logout revokes the presented `X-BP-Refresh` session, and password changes or disabling a user invalidate all their refresh sessions. Revocations survive restarts. Already-issued access tokens remain valid until expiry.
+
 This package defines the initial JWT-oriented auth contract for:
 
 - runtime identity

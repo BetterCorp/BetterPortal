@@ -50,30 +50,33 @@ export function createSse<
     async *handler(ctx) {
       const scopeKey = key(ctx);
       const queue: Input[] = [];
+      let overflow = false;
       let resume: (() => void) | undefined;
       const listener = (input: Input) => {
-        queue.push(input);
+        // A slow subscriber reconnects instead of retaining an unbounded event history.
+        if (queue.length >= 256) { overflow = true; queue.length = 0; scoped.delete(listener); }
+        else queue.push(input);
         resume?.();
         resume = undefined;
       };
       const scoped = listeners.get(scopeKey) ?? new Set<(input: Input) => void>();
       scoped.add(listener);
       listeners.set(scopeKey, scoped);
-      const aborted = ctx.signal && new Promise<void>((resolve) => {
-        if (ctx.signal!.aborted) resolve();
-        else ctx.signal!.addEventListener("abort", () => resolve(), { once: true });
-      });
+      const onAbort = () => resume?.();
+      ctx.signal?.addEventListener("abort", onAbort, { once: true });
 
       try {
-        while (true) {
-          if (queue.length === 0) {
+        while (!ctx.signal?.aborted) {
+          if (queue.length === 0 && !overflow) {
             const next = new Promise<void>((resolve) => { resume = resolve; });
-            await (aborted ? Promise.race([next, aborted]) : next);
+            await next;
           }
           if (ctx.signal?.aborted) return;
+          if (overflow) throw new Error("SSE subscriber exceeded its pending event limit");
           yield schemas.event.parse(await map(queue.shift()!, ctx)) as Infer<TEventSchema>;
         }
       } finally {
+        ctx.signal?.removeEventListener("abort", onAbort);
         scoped.delete(listener);
         if (scoped.size === 0) listeners.delete(scopeKey);
       }

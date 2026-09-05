@@ -164,6 +164,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   /** Cache of (tenantId, appId) -> app.auth config + JWT verifier from synced storage. */
   private readonly authConfigCache = new Map<string, { auth: AppAuthConfig; verifier: JwtVerifier; aliases: Record<string, string>; root: { tenantId?: string; appId?: string }; cachedAt: number }>();
   private readonly authCacheTtlMs = 60 * 1000;
+  private authCacheGeneration = 0;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
@@ -228,15 +229,18 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
    * so the first authenticated request never races an empty cache.
    */
   private async warmAuthCache(obs?: Observable): Promise<void> {
+    const generation = this.authCacheGeneration;
     try {
       const config = await this.storage.loadConfig();
+      if (generation !== this.authCacheGeneration) return;
+      const next: typeof this.authConfigCache = new Map();
       let warmed = 0;
       for (const app of config.apps) {
         const auth = (app as unknown as { auth?: AppAuthConfig }).auth;
         if (!auth?.publicKeys || !Array.isArray(auth.publicKeys.keys) || auth.publicKeys.keys.length === 0) {
           continue;
         }
-        this.authConfigCache.set(`${app.tenantId}::${app.id}`, {
+        next.set(`${app.tenantId}::${app.id}`, {
           auth,
           verifier: createStaticJwksVerifier({
             jwks: auth.publicKeys,
@@ -253,6 +257,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         });
         warmed += 1;
       }
+      this.authConfigCache.clear();
+      for (const [key, entry] of next) this.authConfigCache.set(key, entry);
       if (warmed > 0) obs?.log.debug("Warmed auth verifier cache for {count} app(s)", { count: warmed });
     } catch {
       // Non-fatal - getJwtVerifier falls back to lazy refresh on demand.
@@ -261,13 +267,16 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private async refreshAuthCache(tenantId: string, appId: string): Promise<void> {
     const key = `${tenantId}::${appId}`;
+    const generation = this.authCacheGeneration;
     try {
       const config = await this.storage.loadConfig();
+      if (generation !== this.authCacheGeneration) return;
       const app = config.apps.find((a) => a.id === appId && a.tenantId === tenantId);
       const auth = (app as unknown as { auth?: AppAuthConfig })?.auth;
-      if (!auth) return;
+      if (!auth) { this.authConfigCache.delete(key); return; }
       // CM cannot reach services - must use the JWKS the auth service pushed at /install.
       if (!auth.publicKeys || !Array.isArray(auth.publicKeys.keys) || auth.publicKeys.keys.length === 0) {
+        this.authConfigCache.delete(key);
         return;
       }
       const verifier = createStaticJwksVerifier({
@@ -355,6 +364,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     await this.selfClient.onPlatformConfigChanged(_obs, async (eventObs, event) => {
       if (event.revision <= this.lastConfigRevision) return;
       this.lastConfigRevision = event.revision;
+      this.authCacheGeneration++;
+      this.authConfigCache.clear();
       this.storage.invalidate();
       hydrateManifestCache(await this.storage.loadConfig());
       // A config change may carry a freshly-pushed auth JWKS - rebuild verifiers.
@@ -393,7 +404,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     registerPreviewDeploymentApi({
       app: this.app,
       storage: this.storage,
-      controlPlaneUrl: this.cpState.issuer
+      controlPlaneUrl: this.cpState.issuer,
+      replayEncryptionKey: this.cpState.keyPair.privateKeyPem
     });
     registerSyncEndpoint(this.app, this.storage, {
       onManifestUpdated: async (serviceIds, manifest) => {
@@ -452,7 +464,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private async removeExpiredPreviews(): Promise<void> {
     const cleanup = async () => {
       const config = await this.storage.loadConfig();
-      if (deleteExpiredPreviewDeployments(config).length > 0) await this.storage.saveConfig(config);
+      let changed = deleteExpiredPreviewDeployments(config).length > 0;
+      for (const deployment of config.previewEnvironmentDeployments) {
+        if (deployment.credentialReplay && Date.parse(deployment.credentialReplay.expiresAt) <= Date.now()) {
+          delete deployment.credentialReplay;
+          changed = true;
+        }
+      }
+      if (changed) await this.storage.saveConfig(config);
       await this.postgresStorage?.cleanupExpiredActions();
     };
     if (this.postgresStorage) await this.postgresStorage.tryRunExclusive("maintenance", cleanup);
@@ -473,6 +492,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   ): PlatformConfigStore {
     return {
       loadConfig: () => store.loadConfig(),
+      ...(store.touchServiceActivity ? { touchServiceActivity: store.touchServiceActivity.bind(store) } : {}),
       saveConfig: async (config, options) => {
         await store.saveConfig(config, metadata.backend === "file" && options?.notify !== false
           ? { ...options, notify: false }

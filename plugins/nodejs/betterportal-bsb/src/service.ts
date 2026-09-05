@@ -1062,7 +1062,10 @@ export abstract class BPService<
       };
     };
 
+    let lastAppliedConfig: string | undefined;
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
+      const serialized = JSON.stringify(rawConfig);
+      if (serialized === lastAppliedConfig) return;
       const nextConfig = rawConfig as ScopedServiceConfig;
       this.applyPreviewConfig(nextConfig);
       this.scopedConfig = nextConfig;
@@ -1072,6 +1075,7 @@ export abstract class BPService<
       // bp-config.yaml is never shared.
       try {
         this.scopedConfigCache.write(rawConfig);
+        lastAppliedConfig = serialized;
       } catch (err) {
         obs.log.warn("Failed to persist scoped config cache: {msg}", { msg: (err as Error).message });
       }
@@ -1517,7 +1521,7 @@ export abstract class BPService<
 
     if (!origin) {
       try {
-        const context = await this.resolveRequestContext(event);
+        const context = event.url.pathname === "/.well-known/bp/health" ? null : await this.resolveRequestContext(event);
         if (context) this.applyRequestContext(event, context);
       } catch (error) {
         this.logContextResolutionFailure(event, "embedded", error);

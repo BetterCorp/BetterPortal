@@ -619,7 +619,19 @@ export function betterPortalShellRuntimeSource(): string {
       let headerRefreshInFlight: Promise<boolean> | null = null;
 
       const readBpHeaders = (): Record<string, BpStoredHeader> => {
-        try { return JSON.parse(localStorage.getItem(BP_HEADERS_KEY) || "{}"); }
+        try {
+          const raw = JSON.parse(localStorage.getItem(BP_HEADERS_KEY) || "{}");
+          const normalized: Record<string, BpStoredHeader> = Object.create(null);
+          const conflicts = new Set<string>();
+          for (const [name, value] of Object.entries(raw)) {
+            const key = name.toLowerCase();
+            if (Object.hasOwn(normalized, key)) conflicts.add(key);
+            normalized[key] = value as BpStoredHeader;
+          }
+          // Ambiguous legacy names must not choose a different service's credential.
+          for (const key of conflicts) delete normalized[key];
+          return normalized;
+        }
         catch { return {}; }
       };
 
@@ -757,11 +769,18 @@ export function betterPortalShellRuntimeSource(): string {
 
       /** Attach stored headers to an outgoing request's header map. */
       const attachBpHeaders = (requestHeaders: Record<string, string>, requestUrl: string, explicitServiceId = "") => {
+        const registeredServiceId = serviceIdForUrl(requestUrl);
+        if (!registeredServiceId) return;
+        if (explicitServiceId) {
+          try {
+            if (new URL(serviceOrigins[explicitServiceId]).origin !== new URL(requestUrl, window.location.origin).origin) return;
+          } catch { return; }
+        }
         const targetServiceId = explicitServiceId || serviceIdForUrl(requestUrl);
         for (const [name, entry] of Object.entries(liveBpHeaders())) {
           if (!entry || typeof entry.value !== "string") continue;
           if (entry.scope && entry.scope !== targetServiceId) continue;
-          if (requestHeaders[name] !== undefined) continue; // explicit wins
+          if (Object.keys(requestHeaders).some(key => key.toLowerCase() === name.toLowerCase())) continue; // explicit wins
           requestHeaders[name] = entry.value;
         }
         const baggageName = Object.keys(requestHeaders).find((name) => name.toLowerCase() === "baggage") ?? "baggage";
@@ -792,6 +811,7 @@ export function betterPortalShellRuntimeSource(): string {
           try { return new URL(requestUrl, window.location.origin).origin; } catch { return ""; }
         })();
         const responderId = serviceIdForUrl(requestUrl);
+        if (!responderId) return;
         const responder = responderId || responderOrigin;
         const ownerMatches = (owner: string) =>
           (!!responderId && owner === responderId) || (!!responderOrigin && owner === responderOrigin);
@@ -806,9 +826,9 @@ export function betterPortalShellRuntimeSource(): string {
             const [pair, ...attrParts] = directive.split(";");
             const eq = (pair || "").indexOf("=");
             if (eq <= 0) continue;
-            const name = pair.slice(0, eq).trim();
+            const name = pair.slice(0, eq).trim().toLowerCase();
             const value = pair.slice(eq + 1).trim();
-            if (!name) continue;
+            if (!/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(name)) continue;
 
             const existing = stored[name];
             if (existing && existing.locked && !ownerMatches(existing.owner)) continue;
@@ -841,7 +861,7 @@ export function betterPortalShellRuntimeSource(): string {
 
         if (removeRaw) {
           for (const rawName of removeRaw.split(",")) {
-            const name = rawName.trim();
+            const name = rawName.trim().toLowerCase();
             const existing = stored[name];
             if (!existing) continue;
             if (existing.locked && !ownerMatches(existing.owner)) continue;
@@ -953,8 +973,8 @@ export function betterPortalShellRuntimeSource(): string {
 
       const clearAuthorizationHeader = () => {
         const stored = liveBpHeaders();
-        if (!stored.Authorization) return;
-        delete stored.Authorization;
+        if (!stored.authorization) return;
+        delete stored.authorization;
         writeBpHeaders(stored);
         scheduleHeaderRefreshes();
         triggerBodyEvent("bp:fragments-changed");
@@ -1393,15 +1413,16 @@ export function betterPortalShellRuntimeSource(): string {
           if (!el.hasAttribute("hx-preload")) return;
           const hxGet = el.getAttribute("hx-get");
           if (!hxGet) return;
-          const action = hxGet.replace(/#.*$/, "");
+          const action = new URL(hxGet, window.location.href).href.replace(/#.*$/, "");
+          const headerState = JSON.stringify(liveBpHeaders());
 
           const state = (el as any)._htmx ?? ((el as any)._htmx = {});
-          if (state.preload) return;
+          if (state.preload?.action === action && state.preload.headerState === headerState && Date.now() < state.preload.expiresAt) return;
 
           const headers: Record<string, string> = { Accept: "text/html; mode=page" };
           attachBpHeaders(headers, action);
           const serviceId = serviceContextFor(el).id;
-          state.preload = {
+          const entry = state.preload = {
             prefetch: fetch(hxGet, {
               method: "GET",
               mode: "cors",
@@ -1415,12 +1436,12 @@ export function betterPortalShellRuntimeSource(): string {
               return response;
             }),
             action,
+            headerState,
             expiresAt: Date.now() + 5000
           };
 
-          state.preload.prefetch.catch(() => {
-            if (state.preload?.action === action) delete state.preload;
-          });
+          const discard = () => { if (state.preload === entry) delete state.preload; };
+          entry.prefetch.then((response: Response) => { if (!response.ok) discard(); }, discard);
         };
 
         el.addEventListener("mouseover", preload, { passive: true });
@@ -1944,20 +1965,18 @@ export function betterPortalShellRuntimeSource(): string {
       const runMenuHealthChecks = async () => {
         const origins = (() => { try { return JSON.parse(shellRoot()?.getAttribute("data-bp-services") || "{}"); } catch { return {}; } })() as Record<string, string>;
         const entries = Object.entries(origins);
-        const results: Record<string, boolean> = {};
         await Promise.all(entries.map(async ([sid, origin]) => {
+          let available = false;
           try {
             const url = `${origin.replace(/\/+$/, "")}/.well-known/bp/health`;
             const headers: Record<string, string> = { Accept: "application/json" };
             attachBpHeaders(headers, url, sid);
-            const r = await fetch(url, { method: "GET", mode: "cors", cache: "no-store", headers });
-            results[sid] = r.ok;
-          } catch { results[sid] = false; }
+            const r = await fetch(url, { method: "GET", mode: "cors", cache: "no-store", headers, signal: AbortSignal.timeout(5000) });
+            available = r.ok;
+          } catch { /* unavailable */ }
+          setMenuServiceAvailability(sid, available);
+          syncMenuVisibility();
         }));
-        Object.entries(results).forEach(([serviceId, available]) => {
-          setMenuServiceAvailability(serviceId, available);
-        });
-        syncMenuVisibility();
       };
 
       // Force-recheck on click of disabled menu link; if back up, allow nav.
@@ -2119,10 +2138,11 @@ export function betterPortalShellRuntimeSource(): string {
           const bpElement = requestBpElement(source);
           if (bpElement) showBpElementLoading(bpElement);
           const preload = (source as any)?._htmx?.preload;
-          if (preload && preload.action === detail.ctx?.request?.action && Date.now() < preload.expiresAt) {
+          if (preload && preload.action === new URL(detail.ctx.request.action, window.location.href).href.replace(/#.*$/, "")
+            && preload.headerState === JSON.stringify(liveBpHeaders()) && Date.now() < preload.expiresAt) {
             detail.ctx.fetch = () => preload.prefetch;
-            delete (source as any)._htmx.preload;
           }
+          if (preload) delete (source as any)._htmx.preload;
           if (requestTargetEscapesLane(detail)) {
             if (source instanceof Element && sanitizeHtmxTarget(source)) {
               htmx.process(source);

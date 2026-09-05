@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { H3 } from "h3";
+import { setImmediate } from "node:timers/promises";
+import { registerWebhookRoutes } from "../src/plugins/service-betterportal-config-manager/webhooks.js";
+import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
 import { test } from "node:test";
 import * as av from "anyvali";
 import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
@@ -259,7 +263,8 @@ test("Postgres config reads reuse an isolated validated snapshot until invalidat
   Object.assign(storage as object, {
     schemaReady: Promise.resolve(),
     pool: {
-      query: async () => {
+      query: async (sql: string) => {
+        if (sql.includes("last_seen_at")) return { rows: [] };
         reads++;
         return { rows: [{ config, revision: 1 }] };
       }
@@ -274,6 +279,110 @@ test("Postgres config reads reuse an isolated validated snapshot until invalidat
   storage.invalidate();
   await storage.loadConfig();
   assert.equal(reads, 2);
+});
+
+test("Postgres conflicts invalidate stale snapshots and action completion is fenced in the config transaction", async () => {
+  const config = BetterPortalConfigSchema.parse({});
+  let revision = 1;
+  let leaseValid = true;
+  const statements: string[] = [];
+  const query = async (sql: string, params?: unknown[]) => {
+    statements.push(sql);
+    if (sql.includes("select config")) return { rows: [{ config, revision }] };
+    if (sql.includes("select revision")) return { rows: [{ revision }] };
+    if (sql.includes("set status = 'completed'")) return { rows: [], rowCount: leaseValid ? 1 : 0 };
+    if (sql.includes("set config =")) revision = Number(params?.[2]);
+    return { rows: [], rowCount: 1 };
+  };
+  const storage = new PostgresStorage({ connectionString: "postgres://unused" });
+  Object.assign(storage, { schemaReady: Promise.resolve(), pool: { query, connect: async () => ({ query, release() {} }) } });
+  const stale = await storage.loadConfig();
+  revision = 2;
+  await assert.rejects(storage.saveConfig(stale), /revision/i);
+  const fresh = await storage.loadConfig();
+  statements.length = 0;
+  await storage.touchServiceActivity("service", "lastSeenAt");
+  assert.equal(revision, 2);
+  assert.equal(statements.length, 1);
+  assert.match(statements[0], /_activity/);
+  statements.length = 0;
+  const action = { kind: "setup" as const, key: "key", owner: "request-owner", result: { apiKey: "test" } };
+  await storage.completePendingAction(action, fresh);
+  assert.equal(statements[0], "begin");
+  assert.match(statements[1], /lease_owner = \$4[\s\S]*lease_until > now\(\)/);
+  assert.ok(statements.some(sql => sql.includes("_outbox")));
+  assert.equal(statements.at(-1), "commit");
+  leaseValid = false;
+  statements.length = 0;
+  await assert.rejects(storage.completePendingAction(action, fresh), /lease was lost/);
+  assert.equal(statements.at(-1), "rollback");
+  assert.equal(statements.some(sql => sql.includes("set config =")), false);
+  statements.length = 0;
+  await storage.saveConfig(await storage.loadConfig(), { notify: false });
+  assert.ok(statements.some(sql => sql.includes("_outbox")), "all config revisions must reach replicas");
+});
+
+test("config sync shares projections, suppresses duplicates and closes revoked streams", { timeout: 5000 }, async (t) => {
+  const app = new H3();
+  const listeners = new Set<() => void>();
+  let allowed = true;
+  let projections = 0;
+  const store = {
+    onChange(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    validateApiKey: async () => allowed ? { scope: "platform", serviceId: "service", service: {} } : null,
+    getScopedConfig: async () => { projections++; return { managementOrigins: [], tenants: [], apps: [] }; }
+  };
+  registerSyncEndpoint(app, store as never);
+  const readers = await Promise.all([1, 2].map(async () => {
+    const response = await app.request("/.well-known/bp/sync", { headers: { authorization: "Bearer key" } });
+    const reader = response.body!.getReader();
+    t.after(() => reader.cancel().catch(() => {}));
+    assert.match(new TextDecoder().decode((await reader.read()).value), /event: config/);
+    return reader;
+  }));
+  assert.equal(projections, 1);
+  for (const listener of listeners) listener();
+  await setImmediate();
+  assert.equal(projections, 2, "subscribers share the refreshed projection");
+  const pending = readers.map(reader => reader.read());
+  allowed = false;
+  for (const listener of listeners) listener();
+  assert.ok((await Promise.all(pending)).every(result => result.done), "no duplicate or revoked config frame");
+});
+
+test("auth cache drops removed apps and JWKS", async () => {
+  const plugin = Object.create(ConfigManagerPlugin.prototype) as any;
+  const config = BetterPortalConfigSchema.parse({});
+  Object.assign(plugin, { storage: { loadConfig: async () => config }, authCacheGeneration: 0, authConfigCache: new Map([["tenant::app", {}]]) });
+  await plugin.warmAuthCache();
+  assert.equal(plugin.authConfigCache.size, 0);
+  plugin.authConfigCache.set("tenant::app", {});
+  await plugin.refreshAuthCache("tenant", "app");
+  assert.equal(plugin.authConfigCache.size, 0);
+});
+
+test("webhooks claim only the next delivery and bound fetch lifetime", async (t) => {
+  const order: string[] = [];
+  let claimed = 0;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    assert.ok(options.signal instanceof AbortSignal);
+    order.push("fetch");
+    return new Response(new ReadableStream({ cancel() { order.push("cancel"); } }));
+  });
+  const runtime = registerWebhookRoutes(new H3(), {
+    loadConfig: async () => ({ tenants: [{ id: "tenant", active: true }], webhooks: { targets: [{ id: "target", tenantId: "tenant", enabled: true, secret: "secret", url: "https://webhook.test" }] } })
+  } as never, {
+    claimWebhookDeliveries: async (_owner: string, count: number) => {
+      assert.equal(count, 1);
+      order.push("claim");
+      if (claimed++ === 2) return [];
+      return [{ id: String(claimed), targetId: "target", attempts: 0, maxAttempts: 3, payload: {} }];
+    },
+    finishWebhookDelivery: async () => { order.push("finish"); },
+    cleanupWebhookDeliveries: async () => {}
+  } as never);
+  await runtime.drain();
+  assert.deepEqual(order, ["claim", "fetch", "cancel", "finish", "claim", "fetch", "cancel", "finish", "claim"]);
 });
 
 test("dependency analysis finds disabled routes by plugin id", async () => {
@@ -851,7 +960,8 @@ test("poll sync records service presence and config delivery", async () => {
       saves += 1;
     },
     validateApiKey: async () => ({ scope: "tenant", serviceId: service.id, tenantId: "tenant-a", service }),
-    getScopedConfig: async () => ({ managementOrigins: [], tenants: [], apps: [] })
+      getScopedConfig: async () => ({ managementOrigins: [], tenants: [], apps: [] }),
+      onChange: () => () => {}
   } as never);
 
   const poll = handlers.get("GET /.well-known/bp/sync/poll");
@@ -1783,7 +1893,8 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
       delete: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`DELETE ${path}`, handler)
     } as never,
     storage: new MemoryStorage(config),
-    controlPlaneUrl: "https://config.example"
+    controlPlaneUrl: "https://config.example",
+    replayEncryptionKey: "review-test-only-replay-key"
   });
   const path = "/api/preview-groups/:groupId/deployments/:key";
   const call = (method: "GET" | "POST" | "DELETE", authorization?: string) => handlers.get(`${method} ${path}`)!({
@@ -1804,10 +1915,12 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
   const created = await call("POST", `Bearer ${apiKey}`);
   assert.equal(created.status, 201);
   assert.equal(created.headers.get("cache-control"), "no-store");
-  assert.equal((await created.json() as { credentials: unknown[] }).credentials.length, 1);
+  const firstResult = await created.json() as { credentials: unknown[] };
+  assert.equal(firstResult.credentials.length, 1);
   const refreshed = await call("POST", `Bearer ${apiKey}`);
-  assert.equal(refreshed.status, 200);
-  assert.equal((await refreshed.json() as { credentials: unknown[] }).credentials.length, 0);
+  assert.equal(refreshed.status, 201);
+  assert.deepEqual(await refreshed.json(), firstResult);
+  assert.ok(!JSON.stringify(config).includes("BP_SERVICE_API_KEY"));
   assert.equal((await call("GET", `Bearer ${apiKey}`)).status, 200);
   assert.equal((await call("DELETE", `Bearer ${apiKey}`)).status, 204);
   assert.equal((await call("DELETE", `Bearer ${apiKey}`)).status, 204);
@@ -1863,6 +1976,8 @@ test("preview environment editor keeps config crypto in the browser", () => {
   const page = String(renderPreviewEnvironments(data));
   const html = String(renderPreviewConfigEditor(data));
   assert.match(page, /_c=config&amp;groupId=/);
+  assert.doesNotMatch(page, /click once/);
+  assert.match(page, /querySelector\('form'\)/);
   assert.doesNotMatch(page, /BP_PREVIEW_CONFIG_KEY/);
   assert.doesNotMatch(page, /crypto\.subtle\.encrypt/);
   assert.match(html, /BP_PREVIEW_CONFIG_KEY/);

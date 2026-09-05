@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs";
 import { dirname } from "node:path";
 import { uuidv7 } from "@betterportal/framework";
 
@@ -17,6 +17,7 @@ export interface StoredUser {
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
+  refreshVersion?: number;
 }
 
 export interface AuthenticatedUser {
@@ -32,6 +33,7 @@ export interface AuthenticatedUser {
 interface UserStoreFile {
   version: 1;
   users: StoredUser[];
+  revokedRefreshTokens?: Record<string, number>;
 }
 
 export interface CreateUserInput {
@@ -52,14 +54,16 @@ export class UserStore {
     this.filePath = filePath;
   }
 
-  async createUser(input: CreateUserInput): Promise<StoredUser> {
+  async createUser(input: CreateUserInput, firstAdminOnly = false): Promise<StoredUser> {
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    // File auth is single-process: no await between the uniqueness check and commit.
     const file = this.load();
+    if (firstAdminOnly && file.users.length > 0) throw new Error("First admin has already been created");
     if (file.users.some((user) => user.username === input.username && user.tenantId === input.tenantId)) {
       throw new Error(`User ${input.username} already exists for tenant ${input.tenantId}`);
     }
 
     const now = Date.now();
-    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     const user: StoredUser = {
       id: generateUserId(),
       username: input.username,
@@ -136,6 +140,7 @@ export class UserStore {
     const user = file.users.find((entry) => entry.id === userId);
     if (!user) throw new Error(`User ${userId} not found`);
     user.passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    user.refreshVersion = (user.refreshVersion ?? 0) + 1;
     user.updatedAt = Date.now();
     this.save(file);
   }
@@ -145,6 +150,7 @@ export class UserStore {
     const user = file.users.find((entry) => entry.id === userId);
     if (!user) throw new Error(`User ${userId} not found`);
     user.enabled = enabled;
+    if (!enabled) user.refreshVersion = (user.refreshVersion ?? 0) + 1;
     user.updatedAt = Date.now();
     this.save(file);
   }
@@ -156,6 +162,18 @@ export class UserStore {
     user.appRoles[appId] = roles;
     user.updatedAt = Date.now();
     this.save(file);
+  }
+
+  revokeRefreshToken(jti: string, expiresAt: number): void {
+    const file = this.load();
+    const now = Math.floor(Date.now() / 1000);
+    file.revokedRefreshTokens = Object.fromEntries(Object.entries(file.revokedRefreshTokens ?? {}).filter(([, exp]) => exp > now));
+    if (expiresAt > now) file.revokedRefreshTokens[jti] = expiresAt;
+    this.save(file);
+  }
+
+  isRefreshTokenRevoked(jti: string): boolean {
+    return (this.load().revokedRefreshTokens?.[jti] ?? 0) > Math.floor(Date.now() / 1000);
   }
 
   private load(): UserStoreFile {
@@ -175,7 +193,9 @@ export class UserStore {
 
   private save(file: UserStoreFile): void {
     mkdirSync(dirname(this.filePath), { recursive: true });
-    writeFileSync(this.filePath, JSON.stringify(file, null, 2), { mode: 0o600 });
+    const temp = `${this.filePath}.${uuidv7()}.tmp`;
+    writeFileSync(temp, JSON.stringify(file, null, 2), { mode: 0o600 });
+    renameSync(temp, this.filePath);
     this.cache = file;
   }
 }

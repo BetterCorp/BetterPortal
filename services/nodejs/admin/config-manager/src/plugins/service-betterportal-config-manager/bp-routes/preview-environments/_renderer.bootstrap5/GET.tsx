@@ -448,7 +448,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   data-bs-toggle="collapse"
                   data-bs-target={`#bp-settings-${group.id}`}
                   hx-get={`${data.previewPath}?_c=config&groupId=${encodeURIComponent(group.id)}`}
-                  hx-trigger="click once"
+                  hx-trigger={`click[!document.getElementById('bp-config-${group.id}').querySelector('form')]`}
                   hx-target={`#bp-config-${group.id}`}
                   hx-swap="innerHTML"
                 >Settings</button>
