@@ -162,6 +162,13 @@ const dynamicRoute = {
   operations: ["reports.read"]
 };
 
+test("service view URLs reject credentials and non-HTTP targets before rendering", () => {
+  for (const hostname of ["https://user:pass@plans.example", "https://user@plans.example", "https://:pass@plans.example", "javascript:alert(1)", "//plans.example", "invalid"]) {
+    assert.equal(buildServiceViewUrl({ hostname }, dynamicRoute, "/plans/one"), null);
+    assert.equal(buildServiceViewUrl({ endpointBaseUrl: hostname }, dynamicRoute, "/plans/one"), null);
+  }
+});
+
 test("static app routes win and fixed service params resolve without leaking placeholders", () => {
   const staticRoute = { ...dynamicRoute, id: "019f0000-0000-7000-8000-000000000005", path: "/plans" };
   assert.equal(resolveAppRoute(app([dynamicRoute, staticRoute]), "/plans")?.id, staticRoute.id);

@@ -218,6 +218,19 @@ export function resolveServiceForTenant(
   serviceId: string,
   context: BetterPortalResolvedRequestContext
 ): BetterPortalResolvedServiceBinding | null {
+  const activation = config.sharedServiceActivations.find(candidate => candidate.id === serviceId);
+  if (activation) {
+    if (!activation.enabled || activation.tenantId !== context.tenant.id
+      || (activation.appId && activation.appId !== context.app.id)) return null;
+    const shared = config.sharedServiceCatalog.find(candidate => candidate.enabled && candidate.id === activation.sharedServiceId);
+    if (!shared) return null;
+    return { tenant: context.tenant, app: context.app, service: {
+      id: activation.id, hostname: shared.baseUrl, apiKeyHash: shared.apiKeyHash,
+      serviceId: shared.serviceId, title: shared.title, description: shared.description,
+      capabilities: shared.tags, authProvider: shared.authProvider,
+      deploymentMode: "bp-hosted", createdAt: activation.activatedAt, enabled: true
+    } };
+  }
   const tenantService = context.tenant.services.find(
     (s) => s.enabled && (s.id === serviceId || s.serviceId === serviceId)
   );
@@ -435,6 +448,10 @@ export function buildServiceViewUrl(
   currentPath: string
 ): string | null {
   const baseUrl = serviceBaseUrl(binding);
+  try {
+    const parsed = new URL(baseUrl);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+  } catch { return null; }
   const params = { ...route.fixedParams, ...(extractRouteParams(route.path, currentPath) ?? {}) };
   const servicePath = route.resolvedServicePath ?? route.servicePathVariant ?? route.targetPath;
   const resolvedPath = servicePath

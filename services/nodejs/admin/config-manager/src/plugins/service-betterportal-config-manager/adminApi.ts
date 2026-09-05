@@ -2949,7 +2949,7 @@ export function renderConfigClientShell(d: {
   const bpHeaders = () => {
     try {
       const stored = JSON.parse(localStorage.getItem("bp.headers") || "{}");
-      const auth = stored.Authorization;
+      const auth = Object.entries(stored).find(([name]) => name.toLowerCase() === "authorization")?.[1];
       return auth && typeof auth.value === "string" ? { Authorization: auth.value } : {};
     } catch {
       return {};

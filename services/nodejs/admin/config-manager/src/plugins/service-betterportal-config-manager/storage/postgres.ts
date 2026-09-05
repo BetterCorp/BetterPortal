@@ -146,8 +146,8 @@ export class PostgresStorage extends BaseStorage {
     try {
       await client.query("begin");
       if (options?.completeAction) await this.finishAction(client, options.completeAction);
-      const current = await client.query<{ revision: string | number }>(
-        `select revision from ${this.quotedTableName} where id = $1 for update`, [this.rowId]
+      const current = await client.query<{ config: BetterPortalConfig; revision: string | number }>(
+        `select config, revision from ${this.quotedTableName} where id = $1 for update`, [this.rowId]
       );
       if (!current.rows[0]) throw new Error(`Platform config row ${this.rowId} was not initialized`);
       const currentRevision = Number(current.rows[0].revision);
@@ -155,6 +155,20 @@ export class PostgresStorage extends BaseStorage {
         this.invalidate();
         throw new ConfigRevisionConflictError(expectedRevision, currentRevision);
       }
+      // Presence belongs to an installed identity, not merely its reusable service ID.
+      const services = new Map(validated.tenants.flatMap(tenant => tenant.services.map(service => [service.id, service] as const)));
+      const resetActivity: string[] = [];
+      for (const previous of current.rows[0].config.tenants.flatMap(tenant => tenant.services)) {
+        const next = services.get(previous.id);
+        if (!next || previous.apiKeyHash !== next.apiKeyHash || previous.hostname !== next.hostname
+          || (previous.lastSeenAt && !next.lastSeenAt) || (previous.lastSyncAt && !next.lastSyncAt)) {
+          resetActivity.push(previous.id);
+          if (next) { delete next.lastSeenAt; delete next.lastSyncAt; }
+        }
+      }
+      if (resetActivity.length) await client.query(
+        `delete from ${this.activityTable} where scope_id = $1 and service_id = any($2::text[])`, [this.rowId, resetActivity]
+      );
       const revision = currentRevision + 1;
       await client.query(
         `update ${this.quotedTableName} set config = $2::jsonb, revision = $3, updated_at = now() where id = $1`,
@@ -163,6 +177,7 @@ export class PostgresStorage extends BaseStorage {
       // Every persisted revision invalidates replica snapshots. Presence has its own table.
       await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision });
       await client.query("commit");
+      this.activityLoad = undefined;
       this.snapshots.set(config, revision);
       this.snapshots.set(validated, revision);
       this.configGeneration++;
@@ -179,6 +194,7 @@ export class PostgresStorage extends BaseStorage {
   override invalidate(): void {
     this.configGeneration++;
     this.cachedConfig = null;
+    this.activityLoad = undefined;
     super.invalidate();
   }
 

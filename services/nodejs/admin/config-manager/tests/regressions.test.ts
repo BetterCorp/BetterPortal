@@ -8,7 +8,7 @@ import * as av from "anyvali";
 import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
-import { applyVerifiedServiceOrigin, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
+import { applyVerifiedServiceOrigin, registerSetupEndpoints, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, getServicePluginId, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
@@ -257,6 +257,16 @@ function s2sConfig(): {
   return { config, tenantId, appId, sourceId, targetId, bindingId };
 }
 
+function assertStoredAuthHeaders(html: string): void {
+  const helper = /const bpHeaders = \(\) => \{[\s\S]*?\n\s*\};/.exec(html)?.[0];
+  assert.ok(helper);
+  const readHeaders = new Function("localStorage", helper + "; return bpHeaders();");
+  for (const name of ["Authorization", "authorization", "AUTHORIZATION"]) {
+    assert.deepEqual(readHeaders({ getItem: () => JSON.stringify({ [name]: { value: "Bearer test" } }) }), { Authorization: "Bearer test" });
+  }
+  assert.deepEqual(readHeaders({ getItem: () => "bad-json" }), {});
+}
+
 test("Postgres config reads reuse an isolated validated snapshot until invalidated", async () => {
   const config = BetterPortalConfigSchema.parse({});
   let reads = 0;
@@ -321,6 +331,73 @@ test("Postgres conflicts invalidate stale snapshots and action completion is fen
   statements.length = 0;
   await storage.saveConfig(await storage.loadConfig(), { notify: false });
   assert.ok(statements.some(sql => sql.includes("_outbox")), "all config revisions must reach replicas");
+});
+
+test("Postgres clears rotated service activity atomically and invalidates presence caches on replicas", async () => {
+  let { config } = s2sConfig();
+  const serviceId = config.tenants[0].services[0].id;
+  let activity = [{ service_id: serviceId, last_seen_at: new Date(), last_sync_at: new Date() }];
+  let revision = 1;
+  const statements: string[] = [];
+  const query = async (sql: string, params?: any[]) => {
+    statements.push(sql);
+    if (sql.startsWith("select config")) return { rows: [{ config, revision }] };
+    if (sql.startsWith("select service_id")) return { rows: activity };
+    if (sql.startsWith("delete from") && sql.includes("_activity")) {
+      assert.deepEqual(params?.[1], [serviceId]);
+      activity = [];
+    }
+    if (sql.includes("set config =")) { config = JSON.parse(params![1]); revision = params![2]; }
+    return { rows: [], rowCount: 1 };
+  };
+  const makeStore = () => {
+    const store = new PostgresStorage({ connectionString: "postgres://unused" });
+    Object.assign(store, { schemaReady: Promise.resolve(), pool: { query, connect: async () => ({ query, release() {} }) } });
+    return store;
+  };
+  const store = makeStore(), replica = makeStore();
+  const loaded = await store.loadConfig();
+  assert.ok((await replica.loadConfig()).tenants[0].services[0].lastSyncAt);
+  loaded.tenants[0].services[0].apiKeyHash = "rotated";
+  loaded.tenants[0].services[0].hostname = "https://replacement.example";
+  delete loaded.tenants[0].services[0].lastSeenAt;
+  delete loaded.tenants[0].services[0].lastSyncAt;
+  statements.length = 0;
+  await store.saveConfig(loaded);
+  assert.equal(statements[0], "begin");
+  assert.ok(statements.findIndex(sql => sql.startsWith("delete from")) < statements.indexOf("commit"));
+  replica.invalidate();
+  for (const current of [store, replica]) {
+    const service = (await current.loadConfig()).tenants[0].services[0];
+    assert.equal(service.lastSeenAt, undefined);
+    assert.equal(service.lastSyncAt, undefined);
+  }
+});
+
+test("hostname confirmation releases its lease after a save conflict so an immediate retry can succeed", async () => {
+  const { config, sourceId } = s2sConfig();
+  const handlers = new Map<string, (event: any) => Promise<Response>>();
+  let busy = false, fail = true, released = 0;
+  const postgres = {
+    async claimPendingAction() {
+      if (busy) return { state: "busy" };
+      busy = true;
+      return { state: "claimed", action: { payload: { instanceId: sourceId, serviceUrl: "https://changed.example" } } };
+    },
+    async completePendingAction() { if (fail) throw new Error("revision conflict"); busy = false; },
+    async releasePendingAction() { busy = false; released++; }
+  };
+  registerSetupEndpoints({ app: { post: (path: string, handler: any) => handlers.set(path, handler) },
+    storage: { loadConfig: async () => structuredClone(config), validateApiKey: async () => ({ serviceId: sourceId }) }, postgres,
+    cpState: {} } as never);
+  const confirm = () => handlers.get("/.well-known/bp/services/confirm-hostname-change")!({ req: new Request("https://config.example/confirm", {
+    method: "POST", headers: { authorization: "Bearer test", "content-type": "application/json" },
+    body: JSON.stringify({ changeToken: "token", serviceUrl: "https://changed.example" })
+  }) });
+  await assert.rejects(confirm(), /revision conflict/);
+  assert.equal(released, 1);
+  fail = false;
+  assert.equal((await confirm()).status, 200);
 });
 
 test("config sync shares projections, suppresses duplicates and closes revoked streams", { timeout: 5000 }, async (t) => {
@@ -1606,6 +1683,7 @@ test("service config editor transfers scoped values and defaults the first app",
   });
 
   assert.match(html, /data-bp-config-export/);
+  assertStoredAuthHeaders(html);
   assert.match(html, /data-bp-config-import/);
   assert.match(html, /betterportal\.service-config/);
   assert.match(html, /apps\[0\]\?\.id/);
@@ -2017,6 +2095,7 @@ test("preview environment editor keeps config crypto in the browser", () => {
   assert.doesNotMatch(page, /BP_PREVIEW_CONFIG_KEY/);
   assert.doesNotMatch(page, /crypto\.subtle\.encrypt/);
   assert.match(html, /BP_PREVIEW_CONFIG_KEY/);
+  assertStoredAuthHeaders(html);
   assert.doesNotMatch(html, /Service plugin IDs/);
   assert.match(html, /crypto\.subtle\.encrypt/);
   assert.match(html, /Sync from prod/);

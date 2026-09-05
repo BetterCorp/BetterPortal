@@ -51,6 +51,30 @@ test("NDJSON pauses a fast producer and cancels it when the reader leaves", asyn
   assert.equal(finished, true);
 });
 
+test("abort settles the driver during pending producer I/O and queues cleanup without late callbacks", async () => {
+  for (const rejectLate of [false, true]) {
+    const abort = new AbortController();
+    const work = Promise.withResolvers<void>();
+    let cleaned = false, returnCalled = false, settled = false;
+    const generator = (async function* () { try { await work.promise; yield 1; } finally { cleaned = true; } })();
+    const originalReturn = generator.return.bind(generator);
+    generator.return = value => { returnCalled = true; return originalReturn(value); };
+    const unexpected = () => assert.fail("callback after cancellation");
+    const driver = driveStream({ run: () => generator, itemSchema: av.int() } as never, { signal: abort.signal } as never,
+      { onItem: unexpected, onSummary: unexpected, onError: unexpected, onEnd: unexpected }).then(() => { settled = true; });
+    await setImmediate();
+    abort.abort();
+    await setImmediate();
+    assert.equal(settled, true);
+    assert.equal(returnCalled, true);
+    assert.equal(cleaned, false, "abort-unaware I/O cannot be forcibly interrupted by an async generator return");
+    if (rejectLate) work.reject(new Error("late failure")); else work.resolve();
+    await driver;
+    await setImmediate();
+    assert.equal(cleaned, true);
+  }
+});
+
 test("SSE cancels idle subscribers and rejects overflowing subscribers", async () => {
   const sse = createSse({ input: av.int(), event: av.int() }, value => value);
   const abort = new AbortController();

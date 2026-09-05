@@ -36,14 +36,26 @@ function toErrorFrame(error: unknown): StreamErrorFrame {
   };
 }
 
+/** Stop waiting on abort, while still observing late producer/sink rejections. */
+function waitForStreamWork<T>(work: Promise<T> | T, signal?: AbortSignal): Promise<T> {
+  if (!signal) return Promise.resolve(work);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => { signal.removeEventListener("abort", onAbort); reject(signal.reason); };
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+    Promise.resolve(work).then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+
 /**
  * Drive the generator, validating each frame payload, and report frames to
  * the sink in legal order: items, optional summary, then one terminal callback.
  *
  * @remarks
  * Each callback is awaited for backpressure. Cancellation suppresses subsequent
- * callbacks and closes the generator once pending producer/sink work settles.
- * Producers must pass the context signal to I/O for prompt cancellation.
+ * callbacks and settles the driver immediately, requesting generator cleanup.
+ * Async generators queue return behind pending next calls: producers must pass
+ * the context signal to I/O to release their resources promptly.
  * Validation and producer failures are reported through the sink's error callback.
  */
 export async function driveStream(
@@ -55,25 +67,27 @@ export async function driveStream(
   let count = 0;
   try {
     ctx.signal?.throwIfAborted();
-    let result = await gen.next();
+    let result = await waitForStreamWork(gen.next(), ctx.signal);
     while (!result.done) {
       ctx.signal?.throwIfAborted();
       const item = handler.itemSchema.parse(result.value);
       count++;
-      await sink.onItem(item);
+      await waitForStreamWork(sink.onItem(item), ctx.signal);
       ctx.signal?.throwIfAborted();
-      result = await gen.next();
+      result = await waitForStreamWork(gen.next(), ctx.signal);
     }
     ctx.signal?.throwIfAborted();
     if (result.value !== undefined && handler.summarySchema) {
       const summary = handler.summarySchema.parse(result.value);
-      await sink.onSummary(summary);
+      await waitForStreamWork(sink.onSummary(summary), ctx.signal);
     }
     ctx.signal?.throwIfAborted();
-    await sink.onEnd(count);
+    await waitForStreamWork(sink.onEnd(count), ctx.signal);
   } catch (error) {
     try {
-      await gen.return?.(undefined);
+      const cleanup = gen.return?.(undefined);
+      if (ctx.signal?.aborted) void cleanup?.catch(() => {});
+      else await waitForStreamWork(cleanup, ctx.signal);
     } catch {
       // generator cleanup failure is not reportable past this point
     }

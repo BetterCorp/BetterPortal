@@ -102,37 +102,42 @@ export function registerSetupEndpoints(input: {
       ? claim.action.payload as unknown as PendingHostnameChange
       : input.postgres ? undefined : pendingHostnameChanges.get(changeToken);
     if (!entry) return jsonResponse({ error: "Hostname change token not recognized or expired" }, 400);
-    if (!serviceUrl || serviceUrl !== entry.serviceUrl) {
-      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
-      return jsonResponse({ error: "Service URL does not match the requested hostname" }, 403);
-    }
+    try {
+      if (!serviceUrl || serviceUrl !== entry.serviceUrl) {
+        if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+        return jsonResponse({ error: "Service URL does not match the requested hostname" }, 403);
+      }
 
-    const authorization = event.req.headers.get("authorization") ?? "";
-    const apiKey = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-    const validated = apiKey ? await input.storage.validateApiKey(apiKey) : null;
-    if (!validated) {
+      const authorization = event.req.headers.get("authorization") ?? "";
+      const apiKey = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+      const validated = apiKey ? await input.storage.validateApiKey(apiKey) : null;
+      if (!validated) {
+        if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+        return jsonResponse({ error: "Valid existing service API key required" }, 401);
+      }
+      const config = await input.storage.loadConfig();
+      const service = findServiceInstance(config, entry.instanceId);
+      if (!service) {
+        if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+        return jsonResponse({ error: "Service instance not found" }, 404);
+      }
+      if (!applyVerifiedServiceOrigin(service, entry.instanceId, validated.serviceId, entry.serviceUrl)) {
+        if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+        return jsonResponse({ error: "The hostname belongs to a different installed service instance" }, 403);
+      }
+      const result = { ok: true, serviceUrl: entry.serviceUrl };
+      if (input.postgres) await input.postgres.completePendingAction({
+        kind: "hostname-change", key: actionKey, owner, result
+      }, config);
+      else {
+        await input.storage.saveConfig(config);
+        pendingHostnameChanges.delete(changeToken);
+      }
+      return jsonResponse(result, 200);
+    } catch (error) {
       if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
-      return jsonResponse({ error: "Valid existing service API key required" }, 401);
+      throw error;
     }
-    const config = await input.storage.loadConfig();
-    const service = findServiceInstance(config, entry.instanceId);
-    if (!service) {
-      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
-      return jsonResponse({ error: "Service instance not found" }, 404);
-    }
-    if (!applyVerifiedServiceOrigin(service, entry.instanceId, validated.serviceId, entry.serviceUrl)) {
-      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
-      return jsonResponse({ error: "The hostname belongs to a different installed service instance" }, 403);
-    }
-    const result = { ok: true, serviceUrl: entry.serviceUrl };
-    if (input.postgres) await input.postgres.completePendingAction({
-      kind: "hostname-change", key: actionKey, owner, result
-    }, config);
-    else {
-      await input.storage.saveConfig(config);
-      pendingHostnameChanges.delete(changeToken);
-    }
-    return jsonResponse(result, 200);
   });
 
   // (1) Admin asks CP to mint a setup token for a target serviceUrl.

@@ -71,7 +71,8 @@ export function configEditorScript(): HtmlRenderable {
     };
     const bpHeaders = () => {
       try {
-        const auth = JSON.parse(localStorage.getItem("bp.headers") || "{}").Authorization;
+        const stored = JSON.parse(localStorage.getItem("bp.headers") || "{}");
+        const auth = Object.entries(stored).find(([name]) => name.toLowerCase() === "authorization")?.[1];
         return auth && typeof auth.value === "string" ? { Authorization: auth.value } : {};
       } catch { return {}; }
     };

@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ConfigSchemaDescriptor } from "../contracts/config.js";
 import { JsonObjectSchema, type JsonValue } from "../contracts/json.js";
@@ -229,6 +229,18 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
     this.encryptionKey = options.encryptionKey;
     this.secretKeys = resolveSecretKeys(options.configSchemas);
     this.state = this.loadFromDisk();
+    // Upgrade plaintext secrets in every tenant/app, including an unclaimed legacy bucket.
+    let migrated = false;
+    for (const bucket of [...Object.values(this.state.tenants), ...(this.state.legacy ? [this.state.legacy] : [])]) {
+      for (const values of [bucket.tenant, ...Object.values(bucket.app)]) {
+        for (const key of this.secretKeys) {
+          if (!Object.hasOwn(values, key) || (typeof values[key] === "string" && isEncrypted(values[key]))) continue;
+          values[key] = encryptSecrets({ [key]: values[key] }, this.secretKeys, this.encryptionKey)[key];
+          migrated = true;
+        }
+      }
+    }
+    if (migrated) this.saveToDisk();
   }
 
   read(ticket: ServiceConfigTicketClaims): ServiceConfigState {
@@ -321,7 +333,7 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
     const raw = readFileSync(this.filePath, "utf8");
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object" && parsed.tenants && typeof parsed.tenants === "object") {
-      return { tenants: parsed.tenants };
+      return { tenants: parsed.tenants, ...(parsed.legacy ? { legacy: parsed.legacy } : {}) };
     }
     return { tenants: {}, legacy: { tenant: parsed.tenant ?? {}, app: parsed.app ?? {} } };
   }
@@ -331,6 +343,12 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(this.filePath, JSON.stringify({ tenants: this.state.tenants }, null, 2), "utf8");
+    const temporaryPath = `${this.filePath}.${randomBytes(12).toString("hex")}.tmp`;
+    try {
+      writeFileSync(temporaryPath, JSON.stringify(this.state, null, 2), { encoding: "utf8", flag: "wx", mode: 0o600 });
+      renameSync(temporaryPath, this.filePath);
+    } finally {
+      rmSync(temporaryPath, { force: true });
+    }
   }
 }
