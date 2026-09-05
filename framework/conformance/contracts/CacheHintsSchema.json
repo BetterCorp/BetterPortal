@@ -1,0 +1,29 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "ttlSeconds": {
+        "kind": "int",
+        "min": 0,
+        "default": 0
+      },
+      "varyBy": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "ttlSeconds",
+      "varyBy"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

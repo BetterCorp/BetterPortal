@@ -1,0 +1,34 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "serviceId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "fragmentId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "targetPath": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "enabled": {
+        "kind": "bool",
+        "default": true
+      }
+    },
+    "required": [
+      "serviceId",
+      "fragmentId",
+      "targetPath",
+      "enabled"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

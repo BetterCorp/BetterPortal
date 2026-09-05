@@ -1,0 +1,71 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "iss": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "aud": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "exp": {
+        "kind": "int",
+        "min": 1
+      },
+      "iat": {
+        "kind": "int",
+        "min": 0
+      },
+      "jti": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "tokenType": {
+        "kind": "literal",
+        "value": "cp-envelope"
+      },
+      "tenantId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "appId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "originUserJti": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "cpId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "cpJwksUri": {
+        "kind": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "iss",
+      "aud",
+      "exp",
+      "iat",
+      "jti",
+      "tokenType",
+      "tenantId",
+      "appId",
+      "cpId",
+      "cpJwksUri"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

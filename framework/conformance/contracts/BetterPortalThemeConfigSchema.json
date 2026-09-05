@@ -1,0 +1,246 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "brandName": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "documentTitle": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "lightLogoUrl": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "format": "url"
+        }
+      },
+      "darkLogoUrl": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "format": "url"
+        }
+      },
+      "faviconUrl": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "format": "url"
+        }
+      },
+      "mode": {
+        "kind": "enum",
+        "values": [
+          "light",
+          "dark",
+          "system"
+        ],
+        "default": "light"
+      },
+      "bootstrap": {
+        "kind": "object",
+        "properties": {
+          "primary": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "secondary": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "success": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "info": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "warning": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "danger": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "light": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "dark": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [],
+        "unknownKeys": "strip",
+        "default": {}
+      },
+      "light": {
+        "kind": "object",
+        "properties": {
+          "background": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "surface": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "surfaceAlt": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "text": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "textSoft": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "border": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "accentSoft": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [],
+        "unknownKeys": "strip",
+        "default": {}
+      },
+      "dark": {
+        "kind": "object",
+        "properties": {
+          "background": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "surface": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "surfaceAlt": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "text": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "textSoft": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "border": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "accentSoft": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [],
+        "unknownKeys": "strip",
+        "default": {}
+      }
+    },
+    "required": [
+      "mode",
+      "bootstrap",
+      "light",
+      "dark"
+    ],
+    "unknownKeys": "strip",
+    "default": {
+      "mode": "light",
+      "bootstrap": {},
+      "light": {},
+      "dark": {}
+    }
+  },
+  "definitions": {},
+  "extensions": {}
+}

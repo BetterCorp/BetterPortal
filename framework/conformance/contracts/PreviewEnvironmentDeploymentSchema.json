@@ -1,0 +1,128 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "credentialReplay": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "requestHash": {
+              "kind": "string"
+            },
+            "ciphertext": {
+              "kind": "string"
+            },
+            "expiresAt": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "requestHash",
+            "ciphertext",
+            "expiresAt"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "id": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "groupId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "key": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 255
+      },
+      "name": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "hostname": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "tenantId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "appId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "expiresInDays": {
+        "kind": "nullable",
+        "inner": {
+          "kind": "int",
+          "min": 1,
+          "max": 3650
+        }
+      },
+      "expiresAt": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "format": "date-time"
+        }
+      },
+      "services": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "serviceId": {
+              "kind": "string",
+              "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+            },
+            "instanceId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "url": {
+              "kind": "string",
+              "format": "url"
+            }
+          },
+          "required": [
+            "serviceId",
+            "instanceId",
+            "url"
+          ],
+          "unknownKeys": "strip"
+        },
+        "minItems": 1
+      },
+      "createdAt": {
+        "kind": "string",
+        "format": "date-time"
+      },
+      "updatedAt": {
+        "kind": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id",
+      "groupId",
+      "key",
+      "name",
+      "hostname",
+      "tenantId",
+      "appId",
+      "expiresInDays",
+      "services",
+      "createdAt",
+      "updatedAt"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

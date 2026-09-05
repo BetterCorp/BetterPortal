@@ -1,0 +1,24 @@
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { importSchema, exportSchema, encrypt, decrypt, safeParseEncrypted } from "anyvali";
+
+createServer(async (request, response) => {
+  try {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (!body.document && !/^[A-Za-z][A-Za-z0-9_]*$/.test(body.contract)) throw new Error("Invalid contract");
+    const document = body.document ?? JSON.parse(await readFile(new URL(`contracts/${body.contract}.json`, import.meta.url), "utf8"));
+    let schema = importSchema(document);
+    if (body.action === "roundtrip") schema = importSchema(exportSchema(schema));
+    let result = body.action === "import" ? { success: true, data: true } : schema.safeParse(body.input);
+    if (body.action === "encrypt") result = { success: true, data: encrypt(schema, body.input, (_path, value) => `encrypted:${JSON.stringify(value)}`) };
+    if (body.action === "decrypt") result = { success: true, data: decrypt(schema, body.input, (_path, value) => JSON.parse(value.slice("encrypted:".length))) };
+    if (body.action === "encrypted") result = safeParseEncrypted(schema, body.input);
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify({ valid: result.success, ...(result.success ? { output: result.data } : {}), document: exportSchema(schema) }));
+  } catch (error) {
+    response.statusCode = 500;
+    response.end(JSON.stringify({ error: error.message }));
+  }
+}).listen(Number(process.argv[2] ?? 8310), "127.0.0.1");

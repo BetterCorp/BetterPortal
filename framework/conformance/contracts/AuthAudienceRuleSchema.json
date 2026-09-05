@@ -1,0 +1,31 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "realm": {
+        "kind": "enum",
+        "values": [
+          "runtime",
+          "control-plane"
+        ]
+      },
+      "audiences": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "realm",
+      "audiences"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

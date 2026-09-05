@@ -1,0 +1,116 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "description": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "match": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "query": {
+              "kind": "optional",
+              "inner": {
+                "kind": "record",
+                "valueSchema": {
+                  "kind": "ref",
+                  "ref": "#/definitions/BetterPortalJsonValue"
+                }
+              }
+            },
+            "params": {
+              "kind": "optional",
+              "inner": {
+                "kind": "record",
+                "valueSchema": {
+                  "kind": "ref",
+                  "ref": "#/definitions/BetterPortalJsonValue"
+                }
+              }
+            },
+            "headers": {
+              "kind": "optional",
+              "inner": {
+                "kind": "record",
+                "valueSchema": {
+                  "kind": "string"
+                }
+              }
+            },
+            "request": {
+              "kind": "optional",
+              "inner": {
+                "kind": "record",
+                "valueSchema": {
+                  "kind": "ref",
+                  "ref": "#/definitions/BetterPortalJsonValue"
+                }
+              }
+            }
+          },
+          "required": [],
+          "unknownKeys": "strip"
+        }
+      },
+      "response": {
+        "kind": "ref",
+        "ref": "#/definitions/BetterPortalJsonValue"
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "response"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

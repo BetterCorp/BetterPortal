@@ -1,0 +1,318 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "description": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "scope": {
+        "kind": "enum",
+        "values": [
+          "tenant",
+          "app"
+        ]
+      },
+      "jsonSchema": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "ref",
+          "ref": "#/definitions/BetterPortalJsonValue"
+        }
+      },
+      "groups": {
+        "kind": "optional",
+        "inner": {
+          "kind": "array",
+          "items": {
+            "kind": "object",
+            "properties": {
+              "id": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "description": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "string"
+                }
+              },
+              "order": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "int"
+                }
+              },
+              "optional": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "bool"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "unknownKeys": "strip"
+          }
+        }
+      },
+      "fields": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "key": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "title": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "description": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "scope": {
+              "kind": "enum",
+              "values": [
+                "tenant",
+                "app"
+              ]
+            },
+            "visibility": {
+              "kind": "enum",
+              "values": [
+                "public",
+                "protected",
+                "secret"
+              ]
+            },
+            "ownership": {
+              "kind": "enum",
+              "values": [
+                "bp",
+                "plugin",
+                "mixed"
+              ]
+            },
+            "sourceOfTruth": {
+              "kind": "enum",
+              "values": [
+                "bp",
+                "plugin",
+                "external"
+              ]
+            },
+            "groupId": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "minLength": 1
+              }
+            },
+            "order": {
+              "kind": "optional",
+              "inner": {
+                "kind": "int"
+              }
+            },
+            "defaultValue": {
+              "kind": "optional",
+              "inner": {
+                "kind": "ref",
+                "ref": "#/definitions/BetterPortalJsonValue"
+              }
+            },
+            "ui": {
+              "kind": "optional",
+              "inner": {
+                "kind": "object",
+                "properties": {
+                  "control": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "enum",
+                      "values": [
+                        "text",
+                        "textarea",
+                        "password",
+                        "number",
+                        "checkbox",
+                        "select",
+                        "multiselect",
+                        "color",
+                        "date",
+                        "time",
+                        "datetime-local",
+                        "url",
+                        "email"
+                      ]
+                    }
+                  },
+                  "placeholder": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "string"
+                    }
+                  },
+                  "options": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "properties": {
+                          "value": {
+                            "kind": "string",
+                            "minLength": 1
+                          },
+                          "label": {
+                            "kind": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "unknownKeys": "strip"
+                      }
+                    }
+                  },
+                  "optionsSource": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "enum",
+                      "values": [
+                        "app.routes"
+                      ]
+                    }
+                  },
+                  "min": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "union",
+                      "variants": [
+                        {
+                          "kind": "number"
+                        },
+                        {
+                          "kind": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "max": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "union",
+                      "variants": [
+                        {
+                          "kind": "number"
+                        },
+                        {
+                          "kind": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "step": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "number"
+                    }
+                  },
+                  "rows": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "int",
+                      "min": 1
+                    }
+                  }
+                },
+                "required": [],
+                "unknownKeys": "strip"
+              }
+            },
+            "required": {
+              "kind": "bool",
+              "default": false
+            }
+          },
+          "required": [
+            "key",
+            "title",
+            "description",
+            "scope",
+            "visibility",
+            "ownership",
+            "sourceOfTruth",
+            "required"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "description",
+      "scope",
+      "jsonSchema",
+      "fields"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

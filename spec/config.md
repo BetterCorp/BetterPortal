@@ -1,386 +1,172 @@
 # Configuration
 
-**Version:** `bp-protocol/2`
+**Version:** bp-protocol/2
 
-BetterPortal has **two** kinds of config:
+Platform configuration, scoped runtime snapshots, and per-service settings are
+different documents. Their portable AnyVali contracts are checked into
+[framework/conformance/contracts](../framework/conformance/contracts/).
 
-1. **Platform config (`bp-config.yaml`)** - global state managed by the admin (`config-manager`) service. Defines tenants, apps, shell service references, routes, menus, fragments, and service bindings.
-2. **Per-service config** - settings each service exposes for tenants/apps to customize (e.g., an API key, a default greeting). Served via `/.well-known/bp/config*` endpoints.
+## 1. Platform and scoped configuration
 
-This document specifies both.
+The config manager owns bp-config.yaml or its configured storage backend.
+Ordinary services never share or write this file. Local configuration providers
+may read and validate a platform document without BSB. Storage backends preserve
+the JSON-after-parse contract, BetterPortalConfigSchema.
 
----
+Tenant, app, service-instance, activation, and route IDs are lowercase UUIDv7.
+Slugs and reverse-DNS plugin IDs are distinct identifiers. Apps reference concrete
+instances/activations, including shell.serviceId and auth.serviceId. A shared
+catalog identity is not an activation identity.
 
-## 1. Platform config
-
-### 1.1 File location and discovery
-
-The default file backend is referenced by each SDK's storage configuration. SDKs that support another backend MUST implement an equivalent provider that yields the same JSON-after-parse shape.
-
-YAML is RECOMMENDED for human-edited deployments. JSON is allowed. The conformance suite uses YAML.
-
-### 1.2 Top-level shape
-
-```yaml
-platformServices: [<platformService>, ...]
-tenants:          [<tenant>, ...]
-apps:             [<app>, ...]
-configManagement: <configManagement>        # optional
-```
-
-### 1.2.1 Storage backends
-
-The platform config store is modular. Backends MUST validate data against the same platform config schema before returning it.
-
-| Backend | Behavior |
-|---|---|
-| `file` | Reads/writes the parsed YAML document at the configured file path. |
-| `postgres` | Reads/writes one JSONB platform config document from a PostgreSQL table. |
-
-Stores SHOULD read from their backing storage on each `loadConfig()` call. They MUST NOT depend on polling or filesystem watchers for correctness. Config changes are propagated by the config manager emitting a change event after a successful write; subscribers then reload from storage when they need the latest config.
-
-The reference PostgreSQL backend stores one row:
-
-```sql
-create table if not exists bp_platform_config (
-  id text primary key,
-  config jsonb not null,
-  updated_at timestamptz not null default now()
-);
-```
-
-The default row id is `default`. This is not full multi-tenant storage isolation; tenancy remains represented inside the platform config document until a finer-grained tenant store is introduced.
-
-### 1.2.2 Config management metadata
-
-`configManagement` is optional metadata for the admin/control-plane surface:
-
-```yaml
-configManagement:
-  adminTenantId: betterportal
-  auth:
-    mechanism: none        # none | dev-token | jwt | oidc
-    issuer: https://idp.example.com/
-    audience: betterportal-admin
-    requiredPermissions:
-      - config.write
-```
-
-`adminTenantId` identifies the tenant that owns the admin surface. `auth` records the intended authentication mechanism. SDKs MAY enforce this metadata, but the metadata itself is not a tenant isolation model.
-
-### 1.3 Shell services
-
-Shells are normal tenant services or shared-service activations. There is no separate top-level theme registry. An app selects a concrete instance with `app.shell.serviceId`; the control plane resolves its synced manifest `shell: { service, renderer }` into read-only scoped app context.
-
-### 1.4 Shared services
-
-`sharedServiceCatalog` defines platform-managed services that can be activated for tenants or apps. `sharedServiceActivations` creates the concrete service instance ids that apps reference.
-
-The catalog id is stable for the shared provider. The activation id is the service instance id used by `app.shell.serviceId`, `app.auth.serviceId`, routes, slots, fragments, and role grants.
-
-```yaml
-sharedServiceCatalog:
-  - id: org.betterportal.auth.default       # shared provider id
-    serviceId: org.betterportal.auth.default # pluginId
-    title: BetterPortal Default Auth
-    baseUrl: http://localhost:3210
-    apiKeyHash: <sha256 hex>                    # filled by install/redeem
-    category: auth
-    tags: [auth]
-    enabled: true
-
-sharedServiceActivations:
-  - id: 019...                                  # activation/service instance id
-    tenantId: betterportal
-    appId: 019...                               # optional; absent = tenant-wide
-    sharedServiceId: org.betterportal.auth.default
-    activatedAt: 2026-05-20T00:00:00.000Z
-    enabled: true
-```
-
-Legacy `platformServices` and `tenant.activatedPlatformServices` still exist for older platform bindings, but new shared auth/theme-style services SHOULD use `sharedServiceCatalog` plus `sharedServiceActivations`.
-
-### 1.5 Tenant
-
-```yaml
-tenants:
-  - id: betterportal                         # [a-z0-9][a-z0-9-]*, max 64
-    slug: betterportal                       # URL-safe variant
-    title: BetterPortal
-    active: true
-    branding:
-      brandName: BetterPortal                # free-form key/value
-    services:                                # tenant-scoped service bindings
-      - id: hello-view                       # binding id (NOT pluginId)
-        hostname: http://localhost:3200
-        apiKeyHash: ""                       # sha256 hex; empty for dev
-        serviceId: org.betterportal.hello-view   # pluginId
-        title: Hello View
-        deploymentMode: self-hosted | bp-hosted | customer-hosted
-        createdAt: <iso>
-        lastSeenAt: <iso>                    # optional
-        enabled: true
-    activatedPlatformServices: []            # legacy platformServices[] binding ids
-```
-
-### 1.6 App
-
-```yaml
-apps:
-  - id: betterportal-web                     # [a-z0-9][a-z0-9-]*, max 64
-    tenantId: betterportal
-    slug: web
-    title: BetterPortal Web
-    hostnames: [localhost:3100]              # host(:port) values matched against Host header
-    originOverrides: []
-    refererOverrides: []
-    shell:
-      serviceId: shell-bootstrap1            # service instance / activation UUIDv7
-    themeConfig:                             # arbitrary; theme defines schema
-      mode: system
-      bootstrap: {...}
-    defaultRoute: /
-    routes:                                  # public path -> service.view binding
-      - id: hello                            # opaque
-        path: /
-        serviceId: hello-view                # tenant.services[].id or sharedServiceActivations[].id
-        viewId: hello.index                  # pluginId-scoped viewId
-        targetPath: /hello                   # path on the service
-        title: Hello
-        enabled: true
-        operations: [hello.read]              # selected manifest operation ids
-    menu:                                    # tree; see fragment-html.md section 4 for events
-      - id: m-hello
-        type: link | group | external | section | divider
-        title: Hello
-        routeId: hello
-        enabled: true
-        children: []                         # only for type=group
-    fragments:                               # location -> list of fragment bindings
-      nav:
-        - serviceId: hello-view
-          fragmentId: profile
-          targetPath: /hello                 # public path on the service
-          enabled: true
-      footer: []
-    slots: []                                # LEGACY - prefer fragments
-```
-
-### 1.7 Resolution rules
-
-- A request's tenant+app is resolved by matching the `Host` header against `apps[].hostnames` (or `originOverrides`).
-- The matched app's `routes[]` are searched in order; longest prefix wins.
-- `routes[].targetPath` is the path the service is hit at; `route.path` is the public path.
-- `routes[].operations` is the allowlist identity. HTTP methods, schemas, auth, and render policy are resolved from those manifest operations and are not copied into app config.
-- Only a renderable GET operation is a navigable page. Non-GET operations remain service/API mounts even when they publish HTML renderers.
-- Services do not write `bp-config.yaml`. Only the admin service (`config-manager`) writes it.
-
----
-
-## 2. Per-service config
-
-Each service declares one or more **config schemas** in its manifest. Tenants and apps store values per schema via the config endpoints.
-
-### 2.1 `GET /.well-known/bp/config/schema`
-
-Returns the service's config surface:
-
-```jsonc
-{
-  "serviceId": "<pluginId>",
-  "mode": "static" | "dynamic" | "hybrid",
-  "configSchemas": [ <ConfigSchemaDescriptor>, ... ],
-  "supportsCustomUi": false,
-  "customUiPath": "/.well-known/bp/config/ui",   // only if supportsCustomUi=true
-  "supportsWrite": true
-}
-```
+The CP returns a **bare scoped snapshot**, not an envelope containing config:
 
 | Field | Meaning |
 |---|---|
-| `mode: static` | Schema is fixed; values come from `bp-config.yaml` directly. No read/write endpoints. |
-| `mode: dynamic` | Schema is fixed but values live in the service. Read/write via the endpoints below. |
-| `mode: hybrid` | Both - some fields static, some dynamic. |
-| `supportsCustomUi` | Admin tooling SHOULD navigate to `customUiPath` instead of generating a form. |
-| `supportsWrite` | If `false`, the POST endpoint returns `501`. |
+| managementOrigins | Management request origins. |
+| tenants | Relevant tenants with branding and redacted service registrations; no API-key hashes. |
+| apps | Runtime apps; routes and fragments are scoped inbound mounts. |
+| configApps (optional) | Apps whose settings may be managed, potentially broader than runtime apps. |
+| serviceIdentity (optional) | Authenticated installed-service ID, public key and key ID. |
+| m2m (optional) | Local service IDs, relevant peer public keys, bindings and grants. |
+| configManagement (optional) | Management tenant/app IDs and minimal management context. |
+| previewConfig (optional) | Revision and encrypted tenant/app settings. |
 
-`ConfigSchemaDescriptor` is defined in `manifest.md` section 3.
+ScopedServiceConfigSchema derives fields from the platform schemas. Apps receive
+resolved shell context containing serviceId, service, and renderer.
+Optional appRoutes and appFragments contain the full app index for outgoing
+URL resolution; they **must never become the inbound allowlist**.
 
-Config schema descriptors MAY include `groups[]` plus per-field `groupId`, `order`, and `defaultValue` metadata. These fields are UI metadata and do not change storage semantics: writes still persist only declared `fields[].key` values. Admin UIs SHOULD use `field.order` for deterministic display, render grouped fields together, and use `field.defaultValue` as the visible fallback when neither tenant nor app scope has a value. For app scope, `group.optional` MAY be rendered as a group-level override toggle that clears all fields in that group when disabled.
+Resolve browser context from trusted addressing and active tenant/app bindings.
+Standalone tenant/app headers and HX-Current-URL do not establish scope.
+Proxy headers require explicit trust. Ports must compare host and port correctly
+and must not inherit Node's historical same-host port fallback when it makes
+app selection ambiguous.
 
-### 2.2 `GET /.well-known/bp/config`
+Route operations select stable manifest operation IDs. Schemas, methods, auth,
+rendering, and dependencies remain operation-owned. Only renderable GET mounts
+are shell navigation. Service requests use resolvedServicePath, then
+servicePathVariant, then targetPath, not the shell navigation path.
 
-Read tenant- and/or app-scoped values.
+## 2. Standalone control-plane synchronization
 
-Request headers:
+These are BP responsibilities even though Node currently implements them in
+plugins/nodejs/betterportal-bsb/src/service.ts.
 
-```
-Authorization: Bearer <ticket>     <- see section 3
-X-BP-Tenant-Id: <tenantId>
-X-BP-App-Id: <appId>               <- optional; presence determines scope
-```
+1. Validate the CP destination before attaching credentials. Require absolute
+   HTTPS without userinfo, query, or fragment. HTTP exceptions are exactly
+   localhost, 127.0.0.1, and [::1]. Reject credential-bearing redirects.
+2. POST /.well-known/bp/sync/poll with the CP API key as bearer and JSON containing
+   manifestVersion, title, capabilities, configSchemas, webhooks, apiContracts,
+   m2mRequests, developerResources, optional shell/authProvider,
+   publicKeyPem/keyId when provisioned, and viewIndex.
+3. viewIndex is keyed by view ID. Entries include view metadata, path variants,
+   params schema, method-specific operations, and fragment descriptors.
+   Operations include IDs/methods, renderers/modes, authRequired, permissions,
+   schemas (query, headers, request, response, metadataResponse), dependencies,
+   API contracts, demos, and declared raw/SEO/chrome metadata.
+   This submits the manifest, not just a heartbeat.
+4. Validate the complete returned snapshot, scope references, and preview
+   decryption before atomic replacement. Persist through a replaceable store;
+   invalidate policy, URL, and verifier caches on a successful update. Invalid
+   updates preserve the old snapshot. Failed preview decryption/persistence must
+   not partially clear existing config.
+5. GET /.well-known/bp/sync with Accept: text/event-stream. Apply complete
+   event: config JSON messages through the same replacement path. Support LF,
+   CRLF, multiline data, bounded input, reconnects, and polling fallback.
+   Re-submit the manifest on reconnect/bootstrap. Node retries after five seconds
+   and uses a 30-second bootstrap request timeout.
+6. Readiness requires successful manifest submission and a valid snapshot.
+   Restored cache is last-known-good data, not proof of current manifest sync.
+   Cancel fetches, retry timers, streams, and subscribers on shutdown.
 
-Response:
+Public health is only ok=true at 200 or ok=false at 503; authorized diagnostics
+are a separate representation. See [protocol.md](protocol.md).
 
-```jsonc
-{
-  "serviceId": "<pluginId>",
-  "tenantId": "<tenantId>",
-  "appId": "<appId>",                  // present iff request included X-BP-App-Id
-  "values": {
-    "key": "value",
-    "secretKey": "__redacted__"        // secret fields are always redacted on read
-  }
-}
-```
+## 3. Per-service settings API
 
-Status codes:
+GET /.well-known/bp/config/schema is public and returns serviceId, configSchemas,
+mode (static, bp-managed, or hybrid), supportsCustomUi, optional customUiPath,
+and supportsWrite. Modes describe ownership; actual read/write availability
+follows supplied callbacks. Unsupported reads/writes return 501.
 
-- `200` - success.
-- `401` - missing or invalid ticket.
-- `403` - ticket valid but tenant/app scope mismatch.
-- `404` - service does not implement `mode: dynamic` or `hybrid`.
+GET /.well-known/bp/config requires config.read. The ticket establishes the
+tenant; optional X-BP-App-Id selects app overrides. Authorize that app against
+configApps (or runtime apps when absent) and the active tenant. Return serviceId,
+tenantId, optional appId, and values. An app read returns stored overrides, not
+merged effective config. Secret values are replaced with __redacted__.
 
-### 2.3 `POST /.well-known/bp/config`
+POST /.well-known/bp/config requires config.write. Its body is
+ServiceConfigWriteRequestSchema: tenantId, optional appId, values, and clearKeys
+(default empty array). appId is optional but not nullable. clearKeys explicitly
+removes overrides; empty strings and null are values when the field schema
+permits them, not alternate clear operations. tenantId must match the ticket.
 
-Write tenant- or app-scoped values.
+Ports must validate declared field names/scopes and preserve existing secrets
+when redaction placeholders are resubmitted. The current low-level Node store
+does not implement all these field-policy checks; this is not permission to
+discard validation in a new SDK.
 
-Request body:
+Success returns ok=true, serviceId, tenantId, optional appId, and redacted values.
+HX-Trigger: bp:config-saved is optional. Runtime settings merge tenant defaults
+followed by app overrides. Store operations and event delivery have small
+replaceable interfaces. In-process publication does not supply cross-replica
+delivery.
 
-```jsonc
-{
-  "tenantId": "<must match X-BP-Tenant-Id and ticket>",
-  "appId": "<optional; must match X-BP-App-Id if present>",
-  "values": { "key": "value", ... }
-}
-```
+Custom configuration UI uses the same authorized API. Public field visibility
+is descriptor metadata, not a bypass for ticket-protected reads.
 
-- Only keys declared in the matching `ConfigSchemaDescriptor.fields[]` are persisted; unknown keys are silently dropped (or rejected with `400` at the service's discretion).
-- Secret fields are encrypted at rest. The wire value is plaintext (TLS-protected) and the service encrypts on persist.
-- An empty string value means "clear the field". To set a literal empty string, use `null` (and adjust the schema to allow null).
-- A value of `"__redacted__"` for a secret field is interpreted as "keep existing"; the service does not overwrite.
+## 4. Config tickets
 
-Response on success:
+Tickets are CP-signed RS256 JWTs. Verify configured issuer/key, typ=JWT, safe kid,
+expiry/issuance time, audience betterportal-service-config, realm=control-plane,
+target serviceId, and requested action. Reject untrusted jku/x5u URLs.
 
-```jsonc
-{
-  "ok": true,
-  "serviceId": "<pluginId>",
-  "tenantId": "<tenantId>",
-  "appId": "<appId>",                  // if applicable
-  "values": { ... }                    // current values after write, with secrets redacted
-}
-```
+ServiceConfigTicketClaimsSchema includes tenantId and optional bindingId, but no
+appId. Authorize app scope from the snapshot. Actions are schema.read,
+config.read, and config.write. Invalid tickets return 401; an authorized
+credential with denied tenant/app scope returns 403.
 
-Services SHOULD emit `HX-Trigger: bp:config-saved` on successful writes so admin UIs can refresh.
+Node's development static-token path requires explicit BP_ALLOW_DEV_CONFIG_TOKEN=true
+and a configured token. No known default token grants access. Production services
+fail closed before provisioning.
 
-### 2.4 Custom UI
+## 5. Encryption and redaction
 
-If `supportsCustomUi: true`, the admin tooling navigates the user to `customUiPath` (rendered by the service) instead of generating a form from `configSchemas`.
+Use AnyVali sensitive metadata and native sensitive traversal APIs. An imported
+schema must retain that metadata: supplying an encryption callback is insufficient
+when the importer discarded sensitive=true.
 
-Custom UI request:
+Persist a service-generated CSPRNG key of at least 256 bits with bootstrap state;
+do not substitute an operator password. State writes must be atomic.
 
-```
-GET <serviceOrigin><customUiPath>?tenantId=<id>&appId=<id>
-```
+| Envelope | Encoding and key derivation |
+|---|---|
+| enc:aes256gcm2: | String UTF-8; Base64 of 12-byte IV, 16-byte tag, ciphertext. scrypt salt bp-config-store, N=32768, r=8, p=1, 32-byte output. |
+| enc:aes256gcm3: | Same as v2, but plaintext is JSON, retaining non-string secret types. |
+| enc:aes256gcm: | Legacy read compatibility: 16-byte IV and N=16384. Upgrade on a subsequent write. |
 
-The service returns a full HTML fragment ready to swap into `#bp-main`. The fragment is responsible for its own form posting (typically back to a service-internal save endpoint that wraps `POST /.well-known/bp/config`).
+The native AnyVali encrypted-value marker is encrypted:. A storage adapter must
+explicitly bridge that marker to legacy BP envelopes when using native sensitive
+APIs; unrecognized envelopes are not authenticated ciphertext. Do not log
+plaintext or keys. Config API reads always redact secrets.
 
----
+### 5.1 Preview config
 
-## 3. Config tickets
+Preview keys are bp_pck_ followed by base64url of exactly 32 bytes.
+Preview values use encrypted:bp-aes256gcm-v1: followed by IV-base64url,
+a colon, and ciphertext-with-appended-tag-base64url. AES-GCM uses a 12-byte IV
+and 16-byte tag. Associated data is the UTF-8 concatenation of
+betterportal.preview-config.v1, newline, tenant or app, newline, and the
+dot-joined field path.
 
-The `Authorization: Bearer` value used on `/.well-known/bp/config*` endpoints is a **config ticket**, NOT the user's session token.
+Scope/path/key tampering must fail authentication. Decrypt and validate both
+scopes before applying a revision. Keep the prior revision on failure.
+Empty strings are valid encrypted values where the schema permits them, even
+though the current Node decrypt helper rejects tag-only payloads.
+Preview settings confer no management permissions.
 
-Tickets are short-lived JWTs (or opaque equivalents) issued by the admin service on the user's behalf, scoped to:
+## 6. Acceptance
 
-- a `serviceId` (the target service)
-- a `tenantId` and optional `appId`
-- one or more `actions` from: `config.read`, `config.write`
-
-### 3.1 Ticket claim shape (JWT)
-
-```jsonc
-{
-  "iss": "<admin-service-pluginId>",
-  "aud": ["<target-pluginId>"],
-  "sub": "<user-or-admin-id>",
-  "exp": <unix-seconds>,
-  "iat": <unix-seconds>,
-  "jti": "<unique-id>",
-  "realm": "control-plane" | "runtime" | "<custom>",
-
-  // BetterPortal-specific
-  "tenantId": "<tenantId>",
-  "appId": "<appId>",                       // optional
-  "serviceId": "<target-pluginId>",
-  "actions": ["config.read", "config.write"]
-}
-```
-
-### 3.2 Verification
-
-A service verifying a config ticket MUST:
-
-1. Verify the JWT signature against the admin service's JWKS (`<admin-origin>/.well-known/jwks.json` or a configured static key in dev).
-2. Check `exp > now` and `iat <= now`.
-3. Check `aud` includes its own `pluginId`.
-4. Check `serviceId` equals its own `pluginId`.
-5. Check the requested action (`config.read` for GET, `config.write` for POST) is in `actions`.
-6. Check `tenantId` and `appId` match the request's `X-BP-Tenant-Id` and `X-BP-App-Id` headers (and the body's `tenantId`/`appId` for POST).
-
-Any failure -> `401` (signature/exp/iat/aud) or `403` (scope mismatch).
-
-### 3.3 Dev tokens
-
-Config tickets are RS256 JWTs signed by the control plane's key and verified against its JWKS (section3.1). There is no shared signing secret - only the control plane can mint a ticket.
-
-For local development a service MAY additionally accept a static bearer string equal to a configured `configApiToken`. This path is OFF by default and MUST be explicitly enabled with the environment variable `BP_ALLOW_DEV_CONFIG_TOKEN=true`; with it disabled (the default) the service rejects every request until it has been provisioned by the control plane. Because the static token lets the caller name an arbitrary tenant via `X-BP-Tenant-Id`, production deployments MUST NOT set `BP_ALLOW_DEV_CONFIG_TOKEN`. The reference SDKs ship no default `configApiToken`; the legacy world-known value `bp-dev-config-token` is no longer a signing key and grants nothing on its own.
-
----
-
-## 4. Encryption at rest
-
-Secret fields (`visibility: "secret"`) MUST be encrypted before persistence.
-
-### 4.1 Algorithm
-
-- Cipher: AES-256-GCM
-- IV: 96 bits, random per encryption (NOT per service)
-- Auth tag: 128 bits
-- Key derivation: scrypt(`<encryptionKey>`, salt=`"bp-config-store"`, N=32768, r=8, p=1, len=32)
-- Encoding: `enc:aes256gcm2:<base64(iv || authTag || ciphertext)>`
-
-Implementations MUST write the `enc:aes256gcm2:` envelope. The earlier
-`enc:aes256gcm:` envelope (16-byte IV, scrypt N=16384) is deprecated;
-implementations SHOULD continue to decrypt it so existing stores remain
-readable, and SHOULD re-encrypt such values into the current envelope on the
-next write.
-
-### 4.2 Key management
-
-The encryption key is per-service and MUST be generated by the service, not
-supplied by an operator: at least 256 bits from a cryptographically secure RNG,
-persisted in the service's bootstrap state and delivered to the config store
-from there. Implementations MUST NOT expose the key as a configuration or
-environment setting - a fixed KDF salt is only sound when the key is
-high-entropy. Rotation requires re-encrypting all stored values.
-
-### 4.3 Redaction on read
-
-`GET /.well-known/bp/config` returns `"__redacted__"` for secret fields regardless of caller. Admin tooling never sees the cleartext after write.
-
----
-
-## 5. Conformance
-
-A service implementing dynamic config:
-
-- MUST serve `GET /.well-known/bp/config/schema`.
-- MUST serve `GET /.well-known/bp/config` and `POST /.well-known/bp/config` (or return `501` if write-only or read-only).
-- MUST validate tickets per section 3.2.
-- MUST encrypt secret fields per section 4.
-- MUST redact secrets on read.
-- MUST NOT log cleartext values for secret fields.
-
-See `conformance.md` for the test matrix.
+The [capability ledger](../framework/conformance/CAPABILITIES.md) tracks schema,
+crypto, sync, persistence, readiness, and isolation gates. Compilation alone
+does not establish interoperability.

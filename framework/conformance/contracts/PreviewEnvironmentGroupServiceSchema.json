@@ -1,0 +1,89 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "serviceId": {
+        "kind": "string",
+        "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+      },
+      "title": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "config": {
+        "kind": "object",
+        "properties": {
+          "tenant": {
+            "kind": "record",
+            "valueSchema": {
+              "kind": "ref",
+              "ref": "#/definitions/BetterPortalJsonValue"
+            },
+            "default": {}
+          },
+          "app": {
+            "kind": "record",
+            "valueSchema": {
+              "kind": "ref",
+              "ref": "#/definitions/BetterPortalJsonValue"
+            },
+            "default": {}
+          }
+        },
+        "required": [
+          "tenant",
+          "app"
+        ],
+        "unknownKeys": "strip",
+        "default": {
+          "tenant": {},
+          "app": {}
+        }
+      }
+    },
+    "required": [
+      "serviceId",
+      "config"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

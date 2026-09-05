@@ -16,7 +16,7 @@ If you are writing a service in a language other than TypeScript, this is your s
 | [ai.md](ai.md) | App `llms*.txt`, AI manifest, developer resources, API discovery, and client flow. |
 | [fragment-html.md](fragment-html.md) | HTML conventions for fragments and view bodies: required attributes, relative URLs, HTMX patterns the client rewriter expects. |
 | [config.md](config.md) | `bp-config.yaml` (platform), per-service config schemas, `/.well-known/bp/config*` endpoints. |
-| [auth.md](auth.md) | View auth (OIDC-compliant JWT + JWKS), config ticket claims, `ViewAuthRequirement` semantics. |
+| [auth.md](auth.md) | BP access/refresh JWTs, scoped roles, service/delegated auth, and config tickets. |
 | [sse.md](sse.md) | Server-Sent Events conventions: per-view streams (`/__sse`), per-renderer tick output, control-plane config sync. |
 | [streaming.md](streaming.md) | Partial responses: frame envelope, NDJSON streaming, per-frame validation, streamed HTML rendering, deferred components. |
 | [search.md](search.md) | Federated search: `search.v1` capability, provider endpoint, pinned result schema, aggregator rules (viewId link resolution, hiding, custom result HTML). |
@@ -39,7 +39,7 @@ These rules constrain every spec in this directory:
 
 - **HTML is API.** Services emit semantic HTML fragments. Clients consume them as-is. No client-side templating or reparsing.
 - **Each service is its own origin.** Browsers call services directly, not through a proxy. CORS-correctness is mandatory.
-- **Schema-first.** Every input and output is validated against a declared schema. Schemas are language-neutral (JSON Schema-style); SDKs map them to their native validators.
+- **Schema-first.** Input/output validation and interchange use AnyVali exclusively. Its portable documents are not JSON Schema or Pydantic models. Native generated types derive from those documents and preserve wire names, defaults, recursive definitions, and missing versus null values.
 - **No client framework.** The protocol assumes HTMX as the client runtime. If your SDK emits markup that does not work in plain HTMX, it is non-conformant.
 - **Server emits relative URLs.** All `href`, `hx-get`, `hx-post`, `hx-sse:connect`, etc. are root-relative. The client rewrites them to absolute service origins using service context (`data-bp-service`, `bp-service-id`, or `data-bp-config="service=<id>"`).
 - **Cookies are theme-origin only.** Cross-origin auth uses bearer tokens via `hx-headers`. See `auth.md`.

@@ -1,0 +1,13 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "enum",
+    "values": [
+      "runtime",
+      "control-plane"
+    ]
+  },
+  "definitions": {},
+  "extensions": {}
+}

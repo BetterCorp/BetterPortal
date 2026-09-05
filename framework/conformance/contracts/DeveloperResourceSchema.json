@@ -1,0 +1,60 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+      },
+      "kind": {
+        "kind": "enum",
+        "values": [
+          "guide",
+          "template",
+          "skill",
+          "example"
+        ]
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "description": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "mediaType": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[^\\r\\n]+$"
+      },
+      "language": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "content": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 524288
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "title",
+      "mediaType",
+      "content"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

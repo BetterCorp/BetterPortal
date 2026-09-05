@@ -48,5 +48,6 @@ export * from "./runtime/auth/serviceToken.js";
 export * from "./runtime/auth/tokens.js";
 export * from "./runtime/auth/verifier.js";
 export * from "./contracts/controlPlane.js";
+export * from "./contracts/scopedConfig.js";
 export * from "./runtime/uuid.js";
 export * from "./adapters/h3.js";

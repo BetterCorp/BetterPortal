@@ -1,0 +1,69 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "intersection",
+    "allOf": [
+      {
+        "kind": "object",
+        "properties": {
+          "serviceName": {
+            "kind": "string",
+            "minLength": 1
+          },
+          "serviceVersion": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "serviceInstanceId": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "environment": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "region": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "serviceName"
+        ],
+        "unknownKeys": "strip"
+      },
+      {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "union",
+          "variants": [
+            {
+              "kind": "string"
+            },
+            {
+              "kind": "number"
+            },
+            {
+              "kind": "bool"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "definitions": {},
+  "extensions": {}
+}

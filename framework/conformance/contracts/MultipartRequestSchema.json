@@ -1,0 +1,114 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "fields": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "union",
+          "variants": [
+            {
+              "kind": "string"
+            },
+            {
+              "kind": "array",
+              "items": {
+                "kind": "string"
+              }
+            }
+          ]
+        }
+      },
+      "files": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "union",
+          "variants": [
+            {
+              "kind": "object",
+              "properties": {
+                "fieldName": {
+                  "kind": "string"
+                },
+                "filename": {
+                  "kind": "string"
+                },
+                "contentType": {
+                  "kind": "string"
+                },
+                "size": {
+                  "kind": "int",
+                  "min": 0
+                },
+                "data": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "uint8"
+                  },
+                  "metadata": {
+                    "contentEncoding": "binary"
+                  }
+                }
+              },
+              "required": [
+                "fieldName",
+                "filename",
+                "contentType",
+                "size",
+                "data"
+              ],
+              "unknownKeys": "strip"
+            },
+            {
+              "kind": "array",
+              "items": {
+                "kind": "object",
+                "properties": {
+                  "fieldName": {
+                    "kind": "string"
+                  },
+                  "filename": {
+                    "kind": "string"
+                  },
+                  "contentType": {
+                    "kind": "string"
+                  },
+                  "size": {
+                    "kind": "int",
+                    "min": 0
+                  },
+                  "data": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "uint8"
+                    },
+                    "metadata": {
+                      "contentEncoding": "binary"
+                    }
+                  }
+                },
+                "required": [
+                  "fieldName",
+                  "filename",
+                  "contentType",
+                  "size",
+                  "data"
+                ],
+                "unknownKeys": "strip"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "required": [
+      "fields",
+      "files"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

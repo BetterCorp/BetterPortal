@@ -1,0 +1,68 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "service": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "renderer": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "fragments": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "id": {
+              "kind": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+            },
+            "kind": {
+              "kind": "enum",
+              "values": [
+                "fragment",
+                "block"
+              ]
+            },
+            "title": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "description": {
+              "kind": "string"
+            },
+            "defaultItems": {
+              "kind": "array",
+              "items": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "title",
+            "description",
+            "defaultItems"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "service",
+      "renderer",
+      "fragments"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

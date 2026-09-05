@@ -1,0 +1,17 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "enum",
+    "values": [
+      "framework",
+      "auth",
+      "theme",
+      "service",
+      "utility",
+      "integration"
+    ]
+  },
+  "definitions": {},
+  "extensions": {}
+}

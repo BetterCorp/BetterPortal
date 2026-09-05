@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "AnyVali": {
+        "type": "Direct",
+        "requested": "[1.1.0, 1.1.0]",
+        "resolved": "1.1.0",
+        "contentHash": "1enfcqGkZbqeAecw8Vt/agka2wJhTbL2LvD8isXO0agml2LJGDXpMJiosDsFe1nIiMeR7LEFL+ICWV+OnnAttw=="
+      }
+    }
+  }
+}

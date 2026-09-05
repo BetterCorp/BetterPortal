@@ -1,0 +1,224 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "iss": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "aud": {
+        "kind": "union",
+        "variants": [
+          {
+            "kind": "string",
+            "minLength": 1
+          },
+          {
+            "kind": "array",
+            "items": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          }
+        ]
+      },
+      "sub": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "exp": {
+        "kind": "int",
+        "min": 1
+      },
+      "iat": {
+        "kind": "int",
+        "min": 0
+      },
+      "nbf": {
+        "kind": "optional",
+        "inner": {
+          "kind": "int",
+          "min": 0
+        }
+      },
+      "jti": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "realm": {
+        "kind": "enum",
+        "values": [
+          "runtime",
+          "control-plane"
+        ]
+      },
+      "tenantId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "appId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "roles": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      },
+      "tokenType": {
+        "kind": "enum",
+        "values": [
+          "access",
+          "refresh",
+          "cp-envelope",
+          "setup",
+          "install"
+        ]
+      },
+      "authProvider": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "refreshContext": {
+        "kind": "optional",
+        "inner": {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      },
+      "providerSubject": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "provider": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "username": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string"
+              }
+            },
+            "profileUrl": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string"
+              }
+            },
+            "accountId": {
+              "kind": "optional",
+              "inner": {
+                "kind": "union",
+                "variants": [
+                  {
+                    "kind": "string"
+                  },
+                  {
+                    "kind": "number"
+                  }
+                ]
+              }
+            },
+            "nodeId": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string"
+              }
+            },
+            "scope": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string"
+              }
+            }
+          },
+          "required": [],
+          "unknownKeys": "strip"
+        }
+      },
+      "name": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "email": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "picture": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      }
+    },
+    "required": [
+      "iss",
+      "aud",
+      "sub",
+      "exp",
+      "iat",
+      "jti",
+      "realm",
+      "tenantId",
+      "appId",
+      "roles",
+      "tokenType"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

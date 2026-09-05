@@ -1,0 +1,293 @@
+[
+  {
+    "id": "auth-defaults",
+    "contract": "ApiAuthRequirementSchema",
+    "input": {},
+    "output": {
+      "required": false,
+      "callers": [
+        "user"
+      ],
+      "permissions": []
+    }
+  },
+  {
+    "id": "missing-required",
+    "contract": "UuidV7Schema",
+    "input": null,
+    "valid": false
+  },
+  {
+    "id": "wrong-uuid-version",
+    "contract": "UuidV7Schema",
+    "input": "01900000-0000-4000-8000-000000000001",
+    "valid": false
+  },
+  {
+    "id": "valid-uuid",
+    "contract": "UuidV7Schema",
+    "input": "01900000-0000-7000-8000-000000000001",
+    "output": "01900000-0000-7000-8000-000000000001"
+  },
+  {
+    "id": "recursive-json",
+    "contract": "JsonObjectSchema",
+    "input": {
+      "a": [
+        null,
+        true,
+        1,
+        {
+          "b": [
+            "x"
+          ]
+        }
+      ]
+    },
+    "output": {
+      "a": [
+        null,
+        true,
+        1,
+        {
+          "b": [
+            "x"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "config-state-defaults",
+    "contract": "ServiceConfigStateSchema",
+    "input": {},
+    "output": {
+      "tenant": {},
+      "app": {}
+    }
+  },
+  {
+    "id": "config-write-presence",
+    "contract": "ServiceConfigWriteRequestSchema",
+    "input": {
+      "tenantId": "tenant",
+      "values": {
+        "secret": null
+      },
+      "ignored": true
+    },
+    "output": {
+      "tenantId": "tenant",
+      "values": {
+        "secret": null
+      },
+      "clearKeys": []
+    }
+  },
+  {
+    "id": "config-write-null-app",
+    "contract": "ServiceConfigWriteRequestSchema",
+    "input": {
+      "tenantId": "tenant",
+      "appId": null,
+      "values": {}
+    },
+    "valid": false
+  },
+  {
+    "id": "empty-service-callers",
+    "contract": "ApiAuthRequirementSchema",
+    "input": {
+      "callers": []
+    },
+    "valid": false
+  },
+  {
+    "id": "invalid-action",
+    "contract": "ServiceConfigActionSchema",
+    "input": "admin",
+    "valid": false
+  },
+  {
+    "id": "sensitive-encrypt",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "secret": {
+            "kind": "string",
+            "metadata": {
+              "description": "Private setting",
+              "sensitive": true
+            }
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "action": "encrypt",
+    "input": {
+      "secret": "plaintext"
+    },
+    "output": {
+      "secret": "encrypted:\"plaintext\""
+    }
+  },
+  {
+    "id": "sensitive-reject-plaintext-storage",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "secret": {
+            "kind": "string",
+            "metadata": {
+              "description": "Private setting",
+              "sensitive": true
+            }
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "action": "encrypted",
+    "input": {
+      "secret": "plaintext"
+    },
+    "valid": false
+  },
+  {
+    "id": "sensitive-decrypt",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "secret": {
+            "kind": "string",
+            "metadata": {
+              "description": "Private setting",
+              "sensitive": true
+            }
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "action": "decrypt",
+    "input": {
+      "secret": "encrypted:\"plaintext\""
+    },
+    "output": {
+      "secret": "plaintext"
+    }
+  },
+  {
+    "id": "default-null",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "value": {
+            "kind": "nullable",
+            "inner": {
+              "kind": "string"
+            },
+            "default": null
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {},
+    "output": {
+      "value": null
+    }
+  },
+  {
+    "id": "coerce-int",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int",
+        "coerce": {
+          "toInt": true
+        }
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "42",
+    "output": 42
+  },
+  {
+    "id": "unknown-reject",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {},
+        "required": [],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {
+      "x": 1
+    },
+    "valid": false
+  },
+  {
+    "id": "recursive-export-reimport",
+    "contract": "JsonObjectSchema",
+    "action": "roundtrip",
+    "input": {
+      "a": [
+        null,
+        true,
+        {
+          "x": 2
+        }
+      ]
+    },
+    "output": {
+      "a": [
+        null,
+        true,
+        {
+          "x": 2
+        }
+      ]
+    }
+  }
+]

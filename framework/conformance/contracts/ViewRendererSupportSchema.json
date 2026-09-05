@@ -1,0 +1,83 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "defaultRenderer": {
+        "kind": "string",
+        "minLength": 1,
+        "default": "default"
+      },
+      "renderModes": {
+        "kind": "array",
+        "items": {
+          "kind": "enum",
+          "values": [
+            "page",
+            "fragment",
+            "embed"
+          ]
+        },
+        "default": []
+      },
+      "slots": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      },
+      "renderers": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "id": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "title": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "slotId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "renderModes": {
+              "kind": "array",
+              "items": {
+                "kind": "enum",
+                "values": [
+                  "page",
+                  "fragment",
+                  "embed"
+                ]
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "slotId",
+            "renderModes"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "defaultRenderer",
+      "renderModes",
+      "slots",
+      "renderers"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

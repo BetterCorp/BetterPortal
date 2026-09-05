@@ -2,7 +2,7 @@
 
 **Version:** `bp-protocol/2`
 
-A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the relevant subset of tests below. A future `bp-conformance` CLI will automate this; for now treat this document as the manual checklist.
+A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the relevant tests below. The runnable HTTP schema gate is in [framework/conformance](../framework/conformance/README.md). The [capability ledger](../framework/conformance/CAPABILITIES.md) records the remaining port gates; the schema harness alone is not full protocol conformance.
 
 ## 1. Service conformance (minimum)
 
@@ -11,8 +11,9 @@ A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the
 | Test | Pass criteria |
 |---|---|
 | `GET /.well-known/bp/manifest` | 200, `application/json`, body matches `manifest.md`. |
-| `GET /.well-known/bp/health` after ready | 200, `application/json`, body has `{ "ok": true, "ready": true, "pluginId": "<pluginId>" }`. |
-| `GET /.well-known/bp/health` before first sync | 503, `application/json`, body has `{ "ok": false, "ready": false }`, unless the service is in setup mode. |
+| `GET /.well-known/bp/health` after ready | 200, `application/json`, public body is exactly `{ "ok": true }`. |
+| `GET /.well-known/bp/health` before successful manifest synchronization | 503, public body is exactly `{ "ok": false }`, unless in setup mode. |
+| Health diagnostics | Only setup mode or a verified access-token user bound to the active management tenant/app; private, no-store; Vary includes Authorization. |
 | `GET /.well-known/bp/schema.json` | 200, `application/json`, body matches `schema-json.md`. |
 
 ### 1.2 CORS
@@ -42,18 +43,18 @@ A BetterPortal-conformant **service**, **theme**, **IdP**, or **SDK** passes the
 
 | Test | Pass criteria |
 |---|---|
-| `GET <view-path>?<invalid-query>` | 400 with `error: "validation_failed"` and `issues[]` describing the field. |
+| `GET <view-path>?<invalid-query>` | 400 with a validation error representation; no handler invocation. Do not require a universal machine-code string. |
 | Response body validated against `jsonResponseSchema` | Matches the schema exactly. Unknown keys are stripped by default or rejected when the schema explicitly selects `"reject"`; passthrough is forbidden. |
 
 ### 1.6 Error shape
 
 | Test | Pass criteria |
 |---|---|
-| All 4xx/5xx responses | `application/json` body matches `protocol.md` section 4 shape. |
+| 4xx/5xx responses | Match the negotiated JSON/HTML/empty-body representation in protocol.md section 4. Streaming failures use terminal frames. |
 
 ## 2. Service with dynamic config
 
-Add these tests if the service declares `mode: dynamic` or `mode: hybrid` in `/.well-known/bp/config/schema`:
+Add these tests if the service exposes managed settings (`mode: bp-managed` or `mode: hybrid`):
 
 | Test | Pass criteria |
 |---|---|
@@ -140,7 +141,7 @@ In addition to section 1, themes:
 |---|---|
 | `GET /.well-known/openid-configuration` | 200, JSON discovery doc per OIDC. |
 | `GET /.well-known/jwks.json` | 200, JWKS. |
-| Issued tokens | RS256 JWTs, `iss/sub/aud/exp/iat` present. |
+| BP-issued tokens | RS256 JWTs satisfying JwtClaimsSchema, access/refresh purpose enforced, tenant/app binding and scoped roles checked. External OIDC credentials require an explicit exchange. |
 | Refresh-token grant | Supported (RECOMMENDED). |
 
 ## 7. SDK conformance
@@ -151,7 +152,7 @@ Beyond servicing the wire protocol, an SDK SHOULD:
 |---|---|
 | Codegen for file-based routing | Optional but RECOMMENDED. Match the Node SDK's `bp-routes/` convention. |
 | Manifest auto-derivation | Build the manifest from declared route handlers; avoid hand-written manifests. |
-| Schema mapping | Map the language's native schema lib (Zod, anyvali, pydantic, etc.) to the JSON descriptor in `manifest.md` section 4. |
+| Schema interchange | AnyVali native import/export and sensitive APIs; shared documents generate native types. No second validation system. |
 | Bearer auth middleware | Provide a helper that wraps `JwksVerifier`-equivalent for the language. |
 | Encrypted config store | AES-256-GCM with scrypt key derivation per `config.md` section 4. |
 | `BPService` base | A language-idiomatic base class / interface that hides h3/express/etc. plumbing. |
@@ -161,7 +162,7 @@ Beyond servicing the wire protocol, an SDK SHOULD:
 A service or SDK that passes the relevant sections MAY publish:
 
 ```
-BetterPortal-Protocol-Version: 1
+BetterPortal-Protocol-Version: 2
 BetterPortal-Conformance: service, dynamic-config, view-auth, sse
 ```
 
@@ -171,8 +172,7 @@ BetterPortal-Conformance: service, dynamic-config, view-auth, sse
 
 These are documented but not yet tested by conformance:
 
-- Service-to-service auth flows.
-- Custom realm/tier semantics.
+- Individual auth-provider implementations (framework service/delegated auth remains a required port gate).
 - Embedded mode (`Accept: text/html; mode=embed`).
 - Plugin marketplace metadata.
 - Internationalization of UI strings.

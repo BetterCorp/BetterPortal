@@ -1,0 +1,52 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "kind": {
+        "kind": "literal",
+        "value": "authress.io"
+      },
+      "roleClaimPath": {
+        "kind": "string",
+        "minLength": 1,
+        "default": "roles"
+      },
+      "subjectClaimPath": {
+        "kind": "string",
+        "minLength": 1,
+        "default": "sub"
+      },
+      "nameClaimPath": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "emailClaimPath": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "pictureClaimPath": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "roleClaimPath",
+      "subjectClaimPath"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

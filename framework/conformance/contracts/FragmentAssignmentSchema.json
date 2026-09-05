@@ -1,0 +1,29 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "serviceId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "fragmentId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "enabled": {
+        "kind": "bool",
+        "default": true
+      }
+    },
+    "required": [
+      "serviceId",
+      "fragmentId",
+      "enabled"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

@@ -1,0 +1,54 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "description": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "path": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "methods": {
+        "kind": "array",
+        "items": {
+          "kind": "enum",
+          "values": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        "minItems": 1
+      },
+      "supportsCustomUi": {
+        "kind": "bool",
+        "default": false
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "description",
+      "path",
+      "methods",
+      "supportsCustomUi"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

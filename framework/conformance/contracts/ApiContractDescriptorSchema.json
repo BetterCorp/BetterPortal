@@ -1,0 +1,89 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "description": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "version": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "viewId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "methods": {
+        "kind": "array",
+        "items": {
+          "kind": "enum",
+          "values": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "OPTIONS"
+          ]
+        },
+        "minItems": 1
+      },
+      "capabilities": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      },
+      "permissions": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      },
+      "modes": {
+        "kind": "array",
+        "items": {
+          "kind": "enum",
+          "values": [
+            "service",
+            "delegated"
+          ]
+        },
+        "minItems": 1,
+        "default": [
+          "service"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "version",
+      "viewId",
+      "methods",
+      "capabilities",
+      "permissions",
+      "modes"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

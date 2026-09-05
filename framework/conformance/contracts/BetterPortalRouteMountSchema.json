@@ -1,0 +1,286 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "kind": {
+        "kind": "enum",
+        "values": [
+          "page",
+          "api"
+        ],
+        "default": "page"
+      },
+      "path": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "serviceId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "viewId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "servicePathVariant": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "fixedParams": {
+        "kind": "optional",
+        "inner": {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "authRequired": {
+        "kind": "optional",
+        "inner": {
+          "kind": "bool"
+        }
+      },
+      "sitemap": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "kind": {
+              "kind": "enum",
+              "values": [
+                "default",
+                "exclude",
+                "metadata",
+                "provider"
+              ]
+            },
+            "lastModified": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "format": "date-time"
+              }
+            },
+            "changeFrequency": {
+              "kind": "optional",
+              "inner": {
+                "kind": "enum",
+                "values": [
+                  "always",
+                  "hourly",
+                  "daily",
+                  "weekly",
+                  "monthly",
+                  "yearly",
+                  "never"
+                ]
+              }
+            },
+            "priority": {
+              "kind": "optional",
+              "inner": {
+                "kind": "number",
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "robots": {
+        "kind": "optional",
+        "inner": {
+          "kind": "array",
+          "items": {
+            "kind": "object",
+            "properties": {
+              "userAgent": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "access": {
+                "kind": "enum",
+                "values": [
+                  "allow",
+                  "disallow"
+                ]
+              },
+              "crawlDelaySeconds": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "int",
+                  "min": 0,
+                  "max": 86400
+                }
+              }
+            },
+            "required": [
+              "userAgent",
+              "access"
+            ],
+            "unknownKeys": "strip"
+          }
+        }
+      },
+      "targetPath": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "resolvedServicePath": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "resolvedMethods": {
+        "kind": "optional",
+        "inner": {
+          "kind": "array",
+          "items": {
+            "kind": "enum",
+            "values": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "OPTIONS"
+            ]
+          },
+          "minItems": 1
+        }
+      },
+      "query": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "title": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "icon": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "enabled": {
+        "kind": "bool",
+        "default": true
+      },
+      "enablement": {
+        "kind": "optional",
+        "inner": {
+          "kind": "enum",
+          "values": [
+            "auto",
+            "enabled",
+            "disabled"
+          ]
+        }
+      },
+      "operations": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "minItems": 1
+      },
+      "chrome": {
+        "kind": "optional",
+        "inner": {
+          "kind": "intersection",
+          "allOf": [
+            {
+              "kind": "object",
+              "properties": {
+                "hideMenu": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "bool"
+                  }
+                },
+                "hideHeader": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "bool"
+                  }
+                },
+                "hideFooter": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "bool"
+                  }
+                },
+                "fullScreen": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "bool"
+                  }
+                }
+              },
+              "required": [],
+              "unknownKeys": "strip"
+            },
+            {
+              "kind": "record",
+              "valueSchema": {
+                "kind": "union",
+                "variants": [
+                  {
+                    "kind": "string"
+                  },
+                  {
+                    "kind": "number"
+                  },
+                  {
+                    "kind": "bool"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "path",
+      "serviceId",
+      "viewId",
+      "enabled",
+      "operations"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

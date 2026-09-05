@@ -1,0 +1,10 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "string",
+    "minLength": 1
+  },
+  "definitions": {},
+  "extensions": {}
+}

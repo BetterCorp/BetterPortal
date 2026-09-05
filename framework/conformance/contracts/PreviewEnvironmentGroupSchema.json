@@ -1,0 +1,200 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "name": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "sourceTenantId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "sourceAppId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "expiresInDays": {
+        "kind": "nullable",
+        "inner": {
+          "kind": "int",
+          "min": 1,
+          "max": 3650
+        },
+        "default": 30
+      },
+      "elevatedRoleIds": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "maxItems": 100,
+        "default": []
+      },
+      "apiKeyHash": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "oidc": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "issuer": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "audience": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "jwksUri": {
+              "kind": "string",
+              "format": "url"
+            },
+            "subjectPrefix": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "minLength": 1
+              }
+            },
+            "requiredClaims": {
+              "kind": "record",
+              "valueSchema": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": {}
+            }
+          },
+          "required": [
+            "issuer",
+            "audience",
+            "jwksUri",
+            "requiredClaims"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "services": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "serviceId": {
+              "kind": "string",
+              "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+            },
+            "title": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "minLength": 1
+              }
+            },
+            "config": {
+              "kind": "object",
+              "properties": {
+                "tenant": {
+                  "kind": "record",
+                  "valueSchema": {
+                    "kind": "ref",
+                    "ref": "#/definitions/BetterPortalJsonValue"
+                  },
+                  "default": {}
+                },
+                "app": {
+                  "kind": "record",
+                  "valueSchema": {
+                    "kind": "ref",
+                    "ref": "#/definitions/BetterPortalJsonValue"
+                  },
+                  "default": {}
+                }
+              },
+              "required": [
+                "tenant",
+                "app"
+              ],
+              "unknownKeys": "strip",
+              "default": {
+                "tenant": {},
+                "app": {}
+              }
+            }
+          },
+          "required": [
+            "serviceId",
+            "config"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      },
+      "createdAt": {
+        "kind": "string",
+        "format": "date-time"
+      },
+      "updatedAt": {
+        "kind": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "sourceTenantId",
+      "sourceAppId",
+      "expiresInDays",
+      "elevatedRoleIds",
+      "apiKeyHash",
+      "services",
+      "createdAt",
+      "updatedAt"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

@@ -1,0 +1,26 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "accessTokenSeconds": {
+        "kind": "int",
+        "min": 1,
+        "default": 900
+      },
+      "refreshTokenSeconds": {
+        "kind": "int",
+        "min": 1,
+        "default": 604800
+      }
+    },
+    "required": [
+      "accessTokenSeconds",
+      "refreshTokenSeconds"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}
