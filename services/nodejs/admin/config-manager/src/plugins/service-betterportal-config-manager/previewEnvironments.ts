@@ -26,6 +26,7 @@ export interface PreviewGroupInput {
   sourceTenantId: string;
   sourceAppId: string;
   expiresInDays: number | null;
+  elevatedRoleIds?: string[];
   oidc?: PreviewEnvironmentGroup["oidc"];
 }
 
@@ -112,6 +113,7 @@ export function createPreviewGroup(
     sourceTenantId: sourceTenant.id,
     sourceAppId: sourceApp.id,
     expiresInDays: normalizeExpiry(input.expiresInDays),
+    elevatedRoleIds: normalizeElevatedRoleIds(input.elevatedRoleIds ?? []),
     apiKeyHash: hashApiKey(apiKey),
     ...(input.oidc ? { oidc: normalizeOidc(input.oidc) } : {}),
     services: [],
@@ -125,12 +127,14 @@ export function createPreviewGroup(
 export function updatePreviewGroup(
   config: BetterPortalConfig,
   groupId: string,
-  input: Pick<PreviewGroupInput, "name" | "expiresInDays" | "oidc">,
+  input: Pick<PreviewGroupInput, "name" | "expiresInDays" | "oidc" | "elevatedRoleIds">,
   now = new Date()
 ): PreviewEnvironmentGroup {
   const group = requireGroup(config, groupId);
+  const elevatedRoleIds = input.elevatedRoleIds === undefined ? group.elevatedRoleIds : normalizeElevatedRoleIds(input.elevatedRoleIds);
   group.name = requiredText(input.name, "Group name", 120);
   group.expiresInDays = normalizeExpiry(input.expiresInDays);
+  group.elevatedRoleIds = elevatedRoleIds;
   if (input.oidc) group.oidc = normalizeOidc(input.oidc);
   else delete group.oidc;
   group.updatedAt = now.toISOString();
@@ -716,6 +720,12 @@ function normalizeOidc(oidc: NonNullable<PreviewEnvironmentGroup["oidc"]>): NonN
       requiredText(value, `OIDC claim ${key}`, 512)
     ]))
   };
+}
+
+/** Normalize exact role IDs; this list never represents wildcard role matching. */
+function normalizeElevatedRoleIds(values: string[]): string[] {
+  if (values.length > 100) throw new PreviewEnvironmentError("At most 100 elevated role IDs are allowed");
+  return [...new Set(values.map(value => requiredText(value, "Role ID", 128)))];
 }
 
 function normalizeExpiry(value: number | null): number | null {

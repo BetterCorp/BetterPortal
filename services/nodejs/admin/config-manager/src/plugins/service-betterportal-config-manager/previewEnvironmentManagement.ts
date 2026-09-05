@@ -99,6 +99,7 @@ const GroupSchema = av.object({
   sourceAppId: av.string().minLength(1),
   sourceLabel: av.string().minLength(1),
   expiresInDays: av.optional(av.int().min(1)),
+  elevatedRoleIds: av.array(av.string().minLength(1).maxLength(128)).maxItems(100).default([]),
   oidc: av.optional(OidcSchema),
   services: av.array(GroupServiceSchema),
   deployments: av.array(DeploymentSchema),
@@ -172,6 +173,7 @@ export const handlePost = createHandler(
         sourceTenantId,
         sourceAppId,
         expiresInDays: expiryValue(ctx.request.expiresInDays),
+        elevatedRoleIds: stringValue(ctx.request.elevatedRoleIds).split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean),
         oidc: oidcValue(ctx.request)
       });
       await routeContext.storage.saveConfig(config);
@@ -217,6 +219,7 @@ export const handlePut = createHandler(
       updatePreviewGroup(config, stringValue(ctx.request.groupId), {
         name: stringValue(ctx.request.name),
         expiresInDays: expiryValue(ctx.request.expiresInDays),
+        elevatedRoleIds: stringValue(ctx.request.elevatedRoleIds).split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean),
         oidc: oidcValue(ctx.request)
       });
       await routeContext.storage.saveConfig(config);
@@ -311,6 +314,7 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup, 
     sourceAppId: group.sourceAppId,
     sourceLabel: `${sourceTenant?.title ?? "Missing tenant"} / ${sourceApp?.title ?? "Missing app"}`,
     expiresInDays: group.expiresInDays ?? undefined,
+    elevatedRoleIds: group.elevatedRoleIds,
     oidc: group.oidc ? {
       issuer: group.oidc.issuer,
       audience: group.oidc.audience,

@@ -513,6 +513,7 @@ export const PreviewEnvironmentGroupSchema = av.object({
   sourceTenantId: UuidV7Schema,
   sourceAppId: UuidV7Schema,
   expiresInDays: av.nullable(av.int().min(1).max(3650)).default(30),
+  elevatedRoleIds: av.array(av.string().minLength(1).maxLength(128)).maxItems(100).default([]),
   apiKeyHash: NonEmptyStringSchema,
   oidc: av.optional(PreviewEnvironmentOidcSchema),
   services: av.array(PreviewEnvironmentGroupServiceSchema).default([]),

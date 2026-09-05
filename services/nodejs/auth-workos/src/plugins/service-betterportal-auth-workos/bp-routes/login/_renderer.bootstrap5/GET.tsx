@@ -41,14 +41,17 @@ export function render(data: ResponseData): HtmlRenderable {
       </section>
       <script>
         {js(() => {
-          const root = document.currentScript?.closest(".bp-workos-shell") as HTMLElement | null;
-          const url = root?.dataset.redirectUrl;
-          if (!url || root?.dataset.mode === "error" || root?.dataset.autoRedirect !== "true") return;
-          const link = document.createElement("a");
-          link.href = url;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
+          // js() emits its body directly; keep returns and bindings inside a function.
+          (() => {
+            const root = document.currentScript?.closest(".bp-workos-shell") as HTMLElement | null;
+            const url = root?.dataset.redirectUrl;
+            if (!url || root?.dataset.mode === "error" || root?.dataset.autoRedirect !== "true") return;
+            const link = document.createElement("a");
+            link.href = url;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          })();
         })}
       </script>
       <style>

@@ -1036,6 +1036,43 @@ export abstract class BaseStorage implements PlatformConfigStore {
     return [...new Set(origins)];
   }
 
+  /** Expand configured preview roles into ordinary grants without changing persisted/source roles. */
+  private previewAuth(config: BetterPortalConfig, app: BetterPortalApp): BetterPortalApp["auth"] {
+    const auth = app.auth;
+    if (!auth || app.tenantId === config.configManagement.adminTenantId) return auth;
+    const deployment = config.previewEnvironmentDeployments.find(value => value.appId === app.id && value.tenantId === app.tenantId);
+    const group = deployment && config.previewEnvironmentGroups.find(value => value.id === deployment.groupId);
+    const roleIds = group?.elevatedRoleIds ?? [];
+    if (!group || !roleIds.length || group.sourceAppId === app.id || group.sourceTenantId === app.tenantId) return auth;
+    const available = getAvailableServiceInstanceIdsForApp(config, app);
+    const grants = new Map<string, { serviceId: string; viewId: string; permissions: Array<"read" | "create" | "update" | "delete"> }>();
+    const addGrant = (serviceId: string, viewId: string) => {
+      if (available.has(serviceId)) grants.set(`${serviceId}:${viewId}`, { serviceId, viewId, permissions: ["read", "create", "update", "delete"] });
+    };
+    for (const route of app.routes.filter(value => value.enabled && available.has(value.serviceId))) {
+      addGrant(route.serviceId, route.viewId);
+      const manifest = config.manifestCache.find(value => value.serviceId === route.serviceId);
+      for (const operation of manifest?.viewIndex[route.viewId]?.operations ?? []) {
+        if (!route.operations.includes(operation.operationId)) continue;
+        for (const required of operation.permissions) {
+          // Requirements can name a plugin rather than an instance; only resolve within this preview.
+          const targets = available.has(required.serviceId) ? [required.serviceId]
+            : [...available].filter(id => getServicePluginId(config, id) === required.serviceId);
+          for (const serviceId of targets) addGrant(serviceId, required.viewId);
+        }
+      }
+    }
+    return { ...auth, roles: [
+      ...auth.roles.filter(role => !roleIds.includes(role.id)),
+      ...roleIds.map(id => {
+        const role = auth.roles.find(value => value.id === id) ?? { id, title: id, permissions: [] };
+        const permissions = new Map(role.permissions.map(grant => [`${grant.serviceId}:${grant.viewId}`, grant]));
+        for (const [key, grant] of grants) permissions.set(key, grant);
+        return { ...role, permissions: structuredClone([...permissions.values()]) };
+      })
+    ] };
+  }
+
   private scopeApp(config: BetterPortalConfig, app: BetterPortalApp, serviceKeys: string[], isShellCaller: boolean, isAuthCaller: boolean): ScopedApp {
     const serviceKeySet = new Set(serviceKeys);
     return {
@@ -1064,7 +1101,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
           ),
       appFragments: app.fragments,
       shellFragments: isShellCaller ? app.shellFragments : {},
-      auth: app.auth
+      auth: this.previewAuth(config, app)
     };
   }
 }

@@ -30,6 +30,7 @@ import {
   provisionPreviewDeployment,
   reconcilePreviewService,
   updatePreviewDeploymentExpiry,
+  updatePreviewGroup,
   visibleAdminConfig
 } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import * as adminAuthView from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/GET.js";
@@ -1815,6 +1816,86 @@ test("role sync controls require a discovered endpoint", () => {
   assert.equal(resolveRoleSyncUrl("https://auth.example", ambiguousAuth, "betterportal", "tenant", "app"), undefined);
 });
 
+test("preview role elevation is opt-in, scoped, dynamic and revocable", async () => {
+  const tenantId = uuidv7();
+  const appId = uuidv7();
+  const serviceId = uuidv7();
+  const config = BetterPortalConfigSchema.parse({
+    tenants: [{ id: tenantId, slug: "source", title: "Source", branding: {}, services: [{
+      id: serviceId, serviceId: "org.example.service", hostname: "https://source.example",
+      apiKeyHash: "hash", title: "Service", createdAt: new Date().toISOString()
+    }] }],
+    apps: [{ id: appId, tenantId, slug: "source", title: "Source", hostnames: ["source.example"],
+      auth: { serviceId, expectedIssuer: "issuer", expectedAudience: "audience", jwksUri: "https://source.example/jwks",
+        roles: ["staff", "viewer"].map(id => ({ id, title: id, permissions: [{ serviceId, viewId: "home", permissions: ["read"] }] })) },
+      routes: [{ id: uuidv7(), kind: "page", path: "/", serviceId, viewId: "home", enabled: true, operations: ["home.view"] }]
+    }]
+  });
+  const { group } = createPreviewGroup(config, { name: "PRs", sourceTenantId: tenantId, sourceAppId: appId, expiresInDays: 30 });
+  assert.deepEqual(group.elevatedRoleIds, []);
+  const { deployment } = provisionPreviewDeployment(config, group.id, {
+    key: "roles", hostname: "preview.example", services: [{ serviceId: "org.example.service", url: "https://preview-service.example" }]
+  }, "https://config.example");
+  const preview = config.apps.find(app => app.id === deployment.appId)!;
+  const previewServiceId = deployment.services[0].instanceId;
+  preview.routes[0].enabled = true;
+  const originalAuth = structuredClone(preview.auth);
+  const sourceAuth = structuredClone(config.apps[0].auth);
+  const store = new MemoryStorage(config);
+  const scopedAuth = async () => (await store.getScopedConfig(previewServiceId, "tenant", preview.tenantId)).apps[0].auth!;
+  assert.deepEqual(await scopedAuth(), originalAuth);
+
+  updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: ["admin", " staff ", "client", "staff"] });
+  assert.deepEqual(group.elevatedRoleIds, ["admin", "staff", "client"]);
+  const grant = { serviceId: previewServiceId, viewId: "home", permissions: ["read", "create", "update", "delete"] };
+  for (const id of group.elevatedRoleIds) {
+    assert.deepEqual((await scopedAuth()).roles.find(role => role.id === id)?.permissions, [grant]);
+  }
+  assert.deepEqual((await scopedAuth()).roles.find(role => role.id === "viewer"), originalAuth!.roles.find(role => role.id === "viewer"));
+  assert.deepEqual((await store.getScopedConfig(serviceId, "tenant", tenantId)).apps[0].auth, sourceAuth);
+  assert.deepEqual(preview.auth, originalAuth, "derived grants are never persisted");
+
+  // Later manifest syncs include custom permission views, but cannot grant source-service access.
+  preview.routes.push({ ...preview.routes[0], id: uuidv7(), path: "/new", viewId: "new" });
+  config.manifestCache = BetterPortalConfigSchema.parse({ manifestCache: [{
+    serviceId: previewServiceId, manifestVersion: "1", fetchedAt: new Date().toISOString(),
+    viewIndex: { new: { viewId: "new", title: "New", description: "New", path: "/new", operations: [{
+      operationId: "home.view", method: "GET", title: "New", description: "New", authRequired: true, renderable: true,
+      permissions: [
+        { serviceId: "org.example.service", viewId: "records", permissions: ["update"] },
+        { serviceId, viewId: "source-only", permissions: ["read"] }
+      ]
+    }] } }
+  }] }).manifestCache;
+  assert.deepEqual((await scopedAuth()).roles.find(role => role.id === "staff")?.permissions,
+    [grant, { ...grant, viewId: "new" }, { ...grant, viewId: "records" }]);
+  preview.routes[1].enabled = false;
+  assert.deepEqual((await scopedAuth()).roles.find(role => role.id === "staff")?.permissions, [grant]);
+
+  config.configManagement.adminTenantId = preview.tenantId;
+  assert.deepEqual(await scopedAuth(), originalAuth, "management tenants cannot be elevated");
+  config.configManagement.adminTenantId = undefined;
+  const originalGroupId = deployment.groupId;
+  deployment.groupId = uuidv7();
+  assert.deepEqual(await scopedAuth(), originalAuth, "orphaned previews cannot be elevated");
+  deployment.groupId = originalGroupId;
+  deployment.tenantId = uuidv7();
+  assert.deepEqual(await scopedAuth(), originalAuth, "deployment tenant must match");
+  deployment.tenantId = preview.tenantId;
+
+  updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: [] });
+  assert.deepEqual(await scopedAuth(), originalAuth, "removing the list restores normal permissions");
+  assert.throws(() => updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: [" "] }), /Role ID/);
+  assert.throws(() => updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: ["a".repeat(129)] }), /Role ID/);
+  assert.throws(() => updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: Array(101).fill("admin") }), /100/);
+  assert.deepEqual(group.elevatedRoleIds, []);
+  const fragmentGrant = { serviceId: previewServiceId, viewId: "fragment-only", permissions: ["read" as const] };
+  preview.auth!.roles.find(role => role.id === "staff")!.permissions.push(fragmentGrant);
+  updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: ["staff"] });
+  assert.deepEqual((await scopedAuth()).roles.find(role => role.id === "staff")?.permissions,
+    [grant, fragmentGrant], "elevation preserves existing grants outside route views");
+});
+
 test("preview groups clone, reconcile, refresh and expire in isolation", () => {
   const tenantId = uuidv7();
   const appId = uuidv7();
@@ -2087,6 +2168,7 @@ test("preview environment editor keeps config crypto in the browser", () => {
       sourceAppId: uuidv7(),
       sourceLabel: "Source / App",
       expiresInDays: 30,
+      elevatedRoleIds: ["admin", "staff", "client"],
       services: [{
         serviceId: "org.example.service",
         title: "Example",
@@ -2120,6 +2202,8 @@ test("preview environment editor keeps config crypto in the browser", () => {
   };
   const page = String(renderPreviewEnvironments(data));
   const html = String(renderPreviewConfigEditor(data));
+  assert.match(page, /name="elevatedRoleIds"/);
+  assert.match(page, /admin\nstaff\nclient/);
   assert.match(page, /_c=config&amp;groupId=/);
   assert.doesNotMatch(page, /click once/);
   assert.match(page, /querySelector\('form'\)/);

@@ -934,7 +934,7 @@ export abstract class BPService<
 
     const bpSchema = buildBpSchema(registry, this.manifest);
     registerBpWellKnownRoutes(this.app, this.manifest, bpSchema, {
-      health: () => this.renderHealth()
+      health: async (event) => this.renderHealth(this.inSetupMode || await this.canReadHealthDiagnostics(event))
     });
     this.registerShellFragmentRoutes(registry);
     this.registerSeoRoutes();
@@ -2025,17 +2025,42 @@ export abstract class BPService<
     return false;
   }
 
-  private renderHealth(): Response {
+  /** Verify a management-app user before disclosing live service diagnostics. */
+  private async canReadHealthDiagnostics(event: BetterPortalEvent): Promise<boolean> {
+    const bearer = /^Bearer\s+(\S+)$/i.exec(event.req.headers.get("authorization") ?? "")?.[1];
+    if (!bearer) return false;
+    try {
+      const context = this.managementRequestContext() ?? await this.resolveRequestContext(event);
+      if (!context || !context.tenant.active) return false;
+      const { tenant, app } = context;
+      const root = this.getPlatformRootAuthScope(tenant.id, app.id);
+      if (root?.tenantId !== tenant.id || root.appId !== app.id) return false;
+      const verifier = this.getConfiguredJwtVerifier(tenant.id, app.id);
+      if (!verifier) return false;
+      const claims = await verifier.verify(bearer, { tenantId: tenant.id, appId: app.id });
+      return claims.tokenType === "access" && !!claims.sub
+        && claims.tenantId === tenant.id && claims.appId === app.id;
+    } catch {
+      // Invalid credentials or unavailable auth must never expose diagnostics.
+      return false;
+    }
+  }
+
+  /** Keep live probes minimal; setup and verified management users may see diagnostics. */
+  private renderHealth(includeDiagnostics = this.inSetupMode): Response {
     const synced = Boolean(this.scopedConfig);
     const localConfig = Boolean(this.configProvider);
     const ready = !this.requireBetterPortalConfigSource || this.inSetupMode || localConfig
       || (synced && this.manifestSync.state === "synced");
     const status = ready ? 200 : 503;
+    const headers = { "cache-control": "private, no-store", vary: "Authorization" };
+    if (!includeDiagnostics) return jsonResponse({ ok: ready }, status, headers);
 
     const response = jsonResponse({
       ok: ready,
       ready,
       pluginId: this.manifest.pluginId,
+      version: this.manifest.version,
       setupMode: this.inSetupMode,
       config: {
         synced,
@@ -2064,7 +2089,7 @@ export abstract class BPService<
               : "local-config"
           : "awaiting-sync"
       }
-    }, status);
+    }, status, headers);
     return ready
       ? response
       : withCoreHttpOutcome(response, {

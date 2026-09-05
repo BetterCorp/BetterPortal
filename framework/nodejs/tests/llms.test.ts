@@ -108,6 +108,9 @@ test("well-known resource routes expose descriptors and inert content", async ()
     const address = server.address();
     assert(address && typeof address === "object");
     const base = `http://127.0.0.1:${address.port}`;
+    const healthResponse = await fetch(`${base}/.well-known/bp/health`);
+    assert.deepEqual(await healthResponse.json(), { ok: true });
+    assert.equal(healthResponse.headers.get("cache-control"), "no-store");
     const indexResponse = await fetch(`${base}/.well-known/bp/resources`);
     const index = await indexResponse.json() as { resources: Array<Record<string, unknown>> };
     const contentResponse = await fetch(`${base}/.well-known/bp/resources/ui.skill`);

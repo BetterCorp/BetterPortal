@@ -4,15 +4,21 @@ Preview groups clone one source tenant/app into isolated, non-editable preview r
 
 Creating a group does not require a service list. Each new preview records the service IDs and URLs supplied by its create request, allowing different deployment keys in the same group to contain different services. Service-specific preview configuration becomes available after those services are discovered and sync their manifests.
 
+## Preview role elevation
+
+Each group's **Preview admin role IDs** setting accepts exact role IDs separated by commas or newlines (for example, `admin`, `staff`, `client`). It defaults to empty, preserving normal role permissions. It does not assign roles to users: the authenticated user's token must already contain a listed role.
+
+Listed roles receive read/create/update/delete grants for enabled routes and their declared permission requirements in that group's previews. Config manager derives these grants when sending scoped config, so existing previews pick up changes and newly discovered routes on their next config sync. Removing an ID restores that role's normal permissions. Source app roles are never modified, and elevation does not grant platform-administrator access or bypass token validation and tenant/app isolation.
+
 ## Readiness and diagnostics
 
-The services' shared BSB client submits its manifest before opening the config update stream. Submissions time out after 30 seconds and failures retry after five seconds; receiving cached config alone is not manifest acceptance. Health responses expose `manifestSync.state`, `lastAttemptAt`, and `lastSuccessAt`. Control-plane clients remain unready until their first successful manifest submission. Local-config and setup modes keep their existing readiness behavior.
+The services' shared BSB client submits its manifest before opening the config update stream. Submissions time out after 30 seconds and failures retry after five seconds; receiving cached config alone is not manifest acceptance. Live public health responses contain only `ok`. Setup-mode probes and authenticated users of the admin tenant's management app can also see the service version and sync diagnostics. Health responses must not be cached. Control-plane clients remain unready until their first successful manifest submission. Local-config and setup modes keep their existing readiness behavior.
 
 Config manager persists service metadata, preview routes/menu, and automatic connection approvals in one config revision. Revision conflicts retry the whole mutation on a fresh snapshot, up to five attempts; remaining failures are retried by the client. File storage detects concurrent writes within one process; replicated config managers require PostgreSQL.
 
 The PVE list distinguishes missing registrations, missing manifests, incomplete route reconciliation, pending config delivery, and **Configured**. Configured means persisted operations have enabled mounts and config delivery was recorded after manifest acceptance; it is not a live availability check or a service-side acknowledgement that every dependency works.
 
-Each deployment has a **Debug** button opening an on-demand sidebar. It shows source/preview IDs, service origins, persisted manifest versions and timestamps, last-seen/config-delivery timestamps, missing operation mounts, auth redirect bindings, and route/menu inclusion. It does not include credentials, encrypted config values, or replay payloads, and uses the existing preview read permission. Remote retry/error state is available in service health/logs, not persisted in this sidebar.
+Each deployment has a **Debug** button opening an on-demand sidebar. It shows source/preview IDs, service origins, persisted manifest versions and timestamps, last-seen/config-delivery timestamps, missing operation mounts, auth redirect bindings, and route/menu inclusion. It does not include credentials, encrypted config values, or replay payloads, and uses the existing preview read permission. Remote retry/error state is available in authorized service health responses and service logs, not persisted in this sidebar.
 
 For previews created before these fixes, rebuild/redeploy services with the updated BSB plugin so they resubmit their manifests. Rebuild themes with the updated shared theme runtime to receive browser navigation/preload fixes, including custom Bootstrap-based themes. Updating config manager alone cannot replace JavaScript already bundled into a theme image.
 

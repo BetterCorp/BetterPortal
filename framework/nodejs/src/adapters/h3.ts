@@ -2070,18 +2070,18 @@ export function registerBpWellKnownRoutes(
   manifest: PluginManifest,
   bpSchema: BpSchemaOutput,
   options: {
-    health?: () => Response | JsonValue;
+    health?: (event: BetterPortalEvent) => Response | JsonValue | Promise<Response | JsonValue>;
   } = {}
 ): void {
   app.get("/.well-known/bp/schema.json", () => {
     return jsonResponse(bpSchema as unknown as JsonValue);
   });
 
-  app.get("/.well-known/bp/health", () => {
-    const health = options.health?.();
+  app.get("/.well-known/bp/health", async (event) => {
+    const health = await options.health?.(event);
     if (health instanceof Response) return health;
     if (health !== undefined) return jsonResponse(health);
-    return jsonResponse({ ok: true, pluginId: manifest.pluginId });
+    return jsonResponse({ ok: true }, 200, { "cache-control": "no-store" });
   });
 
   app.get("/.well-known/bp/manifest", () => {

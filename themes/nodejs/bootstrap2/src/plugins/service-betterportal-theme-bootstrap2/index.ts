@@ -300,7 +300,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.get("/.well-known/bp/ai.json", (event) => this.handleAiManifest(event));
     this.app.get("/.well-known/bp/manifest", (event) => this.handleManifest(event));
     this.app.get("/.well-known/bp/public", (event) => this.handlePublicDiscovery(event));
-    this.app.get("/.well-known/bp/health", (event) => this.handleHealth(event));
 
     registerServiceConfigRoutes({
       app: this.app,
@@ -1192,16 +1191,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         ...this.manifest,
         traceId: span.traceId
       } as JsonValue);
-    });
-  }
-
-  private async handleHealth(event: BetterPortalEvent): Promise<Response> {
-    return withObservedEvent(event, this.observability, "theme.bootstrap2.health", () => {
-      return jsonResponse({
-        ok: true,
-        plugin: "service-betterportal-theme-bootstrap2",
-        port: this.config.port
-      });
     });
   }
 

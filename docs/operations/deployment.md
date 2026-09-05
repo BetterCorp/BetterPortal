@@ -173,3 +173,5 @@ Use these endpoints for health checks and manifest validation.
 `/.well-known/bp/health` is a readiness check, not just a process-liveness check. A service running in control-plane sync mode should return `503` until it has applied its first scoped config snapshot. Configure load balancers and startup checks to wait for `200` before sending user traffic.
 
 Setup mode is different: a not-yet-adopted service may report healthy for bootstrap/install endpoints while still returning `503` for normal view traffic until installation and sync complete.
+
+Live anonymous health probes return only `{ "ok": true }` or `{ "ok": false }`. Additional diagnostics, including the service version, require a valid access token from the configured admin tenant's management app in the `Authorization: Bearer ...` header. Config manager also uses the normal management Origin/Referer to resolve that app. Setup-mode diagnostics remain public so config manager can discover services that need installation or reconnect. Responses are never cacheable; invalid credentials fall back to the minimal public result.

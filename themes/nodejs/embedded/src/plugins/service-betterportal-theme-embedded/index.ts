@@ -222,7 +222,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.get("/llms-ui.txt", (event) => this.handleLlmsUi(event));
     this.app.get("/.well-known/bp/manifest", (event) => this.handleManifest(event));
     this.app.get("/.well-known/bp/public", (event) => this.handlePublicDiscovery(event));
-    this.app.get("/.well-known/bp/health", (event) => this.handleHealth(event));
     this.app.get("/**", (event) => this.handleIndex(event));
   }
 
@@ -460,16 +459,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         ...this.manifest,
         traceId: span.traceId
       } as JsonValue);
-    });
-  }
-
-  private async handleHealth(event: BetterPortalEvent): Promise<Response> {
-    return withObservedEvent(event, this.observability, "theme.embedded.health", () => {
-      return jsonResponse({
-        ok: true,
-        plugin: "service-betterportal-theme-embedded",
-        port: this.config.port
-      });
     });
   }
 

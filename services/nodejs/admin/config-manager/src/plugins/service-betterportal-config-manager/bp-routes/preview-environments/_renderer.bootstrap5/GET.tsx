@@ -505,6 +505,11 @@ export function render(data: ResponseData): HtmlRenderable {
                     <div class="col-12 col-md-8"><label class="form-label">Group name</label><input class="form-control" name="name" value={group.name} required /></div>
                     <div class="col-12 col-md-4"><label class="form-label">Maximum/default expiry</label>{expiryInput(group.expiresInDays)}</div>
                   </div>
+                  <div class="mb-3">
+                    <label class="form-label" for={`bp-elevated-roles-${group.id}`}>Preview admin role IDs</label>
+                    <textarea id={`bp-elevated-roles-${group.id}`} class="form-control" name="elevatedRoleIds" rows="3" maxlength="12900" aria-describedby={`bp-elevated-roles-help-${group.id}`}>{(group.elevatedRoleIds ?? []).join("\n")}</textarea>
+                    <div class="form-text" id={`bp-elevated-roles-help-${group.id}`}>One exact role ID per line (or comma-separated), e.g. admin, staff, client. Users with any listed role get full access within this group's previews only. Empty keeps normal permissions. Changes apply to existing previews on config sync.</div>
+                  </div>
                   {oidcFields(`bp-group-${group.id}`, group.oidc)}
                   <button class="btn btn-primary" type="submit">Save settings</button>
                 </form>
@@ -573,6 +578,11 @@ export function render(data: ResponseData): HtmlRenderable {
             </div>
             <div class="mb-3"><label class="form-label">Maximum/default expiry</label>{expiryInput(30)}</div>
             {oidcFields("bp-new-group")}
+            <div class="mb-3">
+              <label class="form-label" for="bp-new-elevated-roles">Preview admin role IDs</label>
+              <textarea id="bp-new-elevated-roles" class="form-control" name="elevatedRoleIds" rows="3" maxlength="12900" placeholder="admin, staff, client" aria-describedby="bp-new-elevated-roles-help"></textarea>
+              <div class="form-text" id="bp-new-elevated-roles-help">One exact role ID per line or comma-separated. Grants full access only inside this group's previews; it does not assign roles to users or grant platform-admin access. Empty keeps normal permissions.</div>
+            </div>
             <button class="btn btn-primary w-100" type="submit">Create group</button>
           </form>
         </div>
