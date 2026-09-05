@@ -97,7 +97,7 @@ export const handlePost = createHandler(
         name: body.name,
         tenantId,
         appRoles: { [appId]: ["*"] }
-      });
+      }, true);
       const next = (ctx.query as { next?: string }).next;
       const query = next ? { next } : undefined;
       return {

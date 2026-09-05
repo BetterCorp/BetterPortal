@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ConfigSchemaDescriptor } from "../contracts/config.js";
 import { JsonObjectSchema, type JsonValue } from "../contracts/json.js";
@@ -114,6 +114,7 @@ const AUTH_TAG_LENGTH = 16;
 const IV_LENGTH = 12;
 const LEGACY_IV_LENGTH = 16;
 const ENCRYPTED_PREFIX = "enc:aes256gcm2:";
+const ENCRYPTED_JSON_PREFIX = "enc:aes256gcm3:";
 const LEGACY_ENCRYPTED_PREFIX = "enc:aes256gcm:";
 
 // spec/config.md 4.1 mandates scrypt N=32768. v1 shipped with node's default
@@ -141,22 +142,23 @@ function deriveKey(secret: string, cost: number): Buffer {
 }
 
 function isEncrypted(value: string): boolean {
-  return value.startsWith(ENCRYPTED_PREFIX) || value.startsWith(LEGACY_ENCRYPTED_PREFIX);
+  return value.startsWith(ENCRYPTED_PREFIX) || value.startsWith(ENCRYPTED_JSON_PREFIX) || value.startsWith(LEGACY_ENCRYPTED_PREFIX);
 }
 
-function encryptValue(plaintext: string, secret: string): string {
+function encryptValue(plaintext: string, secret: string, prefix = ENCRYPTED_PREFIX): string {
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, deriveKey(secret, KDF_COST), iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
   const payload = Buffer.concat([iv, authTag, encrypted]).toString("base64");
-  return `${ENCRYPTED_PREFIX}${payload}`;
+  return `${prefix}${payload}`;
 }
 
 function decryptValue(ciphertext: string, secret: string): string {
-  const legacy = !ciphertext.startsWith(ENCRYPTED_PREFIX);
+  const json = ciphertext.startsWith(ENCRYPTED_JSON_PREFIX);
+  const legacy = !json && !ciphertext.startsWith(ENCRYPTED_PREFIX);
   if (legacy && !ciphertext.startsWith(LEGACY_ENCRYPTED_PREFIX)) return ciphertext;
-  const prefix = legacy ? LEGACY_ENCRYPTED_PREFIX : ENCRYPTED_PREFIX;
+  const prefix = json ? ENCRYPTED_JSON_PREFIX : legacy ? LEGACY_ENCRYPTED_PREFIX : ENCRYPTED_PREFIX;
   const ivLength = legacy ? LEGACY_IV_LENGTH : IV_LENGTH;
   const payload = Buffer.from(ciphertext.slice(prefix.length), "base64");
   const iv = payload.subarray(0, ivLength);
@@ -186,7 +188,9 @@ function encryptSecrets(
   return Object.fromEntries(
     Object.entries(values).map(([k, v]) => [
       k,
-      secretKeys.has(k) && typeof v === "string" ? encryptValue(v, secret) : v
+      secretKeys.has(k)
+        ? typeof v === "string" ? encryptValue(v, secret) : encryptValue(JSON.stringify(v), secret, ENCRYPTED_JSON_PREFIX)
+        : v
     ])
   );
 }
@@ -200,7 +204,7 @@ function decryptSecrets(
     Object.entries(values).map(([k, v]) => [
       k,
       secretKeys.has(k) && typeof v === "string" && isEncrypted(v)
-        ? decryptValue(v, secret)
+        ? v.startsWith(ENCRYPTED_JSON_PREFIX) ? JSON.parse(decryptValue(v, secret)) as JsonValue : decryptValue(v, secret)
         : v
     ])
   );
@@ -225,6 +229,18 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
     this.encryptionKey = options.encryptionKey;
     this.secretKeys = resolveSecretKeys(options.configSchemas);
     this.state = this.loadFromDisk();
+    // Upgrade plaintext secrets in every tenant/app, including an unclaimed legacy bucket.
+    let migrated = false;
+    for (const bucket of [...Object.values(this.state.tenants), ...(this.state.legacy ? [this.state.legacy] : [])]) {
+      for (const values of [bucket.tenant, ...Object.values(bucket.app)]) {
+        for (const key of this.secretKeys) {
+          if (!Object.hasOwn(values, key) || (typeof values[key] === "string" && isEncrypted(values[key]))) continue;
+          values[key] = encryptSecrets({ [key]: values[key] }, this.secretKeys, this.encryptionKey)[key];
+          migrated = true;
+        }
+      }
+    }
+    if (migrated) this.saveToDisk();
   }
 
   read(ticket: ServiceConfigTicketClaims): ServiceConfigState {
@@ -317,7 +333,7 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
     const raw = readFileSync(this.filePath, "utf8");
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object" && parsed.tenants && typeof parsed.tenants === "object") {
-      return { tenants: parsed.tenants };
+      return { tenants: parsed.tenants, ...(parsed.legacy ? { legacy: parsed.legacy } : {}) };
     }
     return { tenants: {}, legacy: { tenant: parsed.tenant ?? {}, app: parsed.app ?? {} } };
   }
@@ -327,6 +343,12 @@ export class FileBackedServiceConfigStore implements ServiceConfigStore {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(this.filePath, JSON.stringify({ tenants: this.state.tenants }, null, 2), "utf8");
+    const temporaryPath = `${this.filePath}.${randomBytes(12).toString("hex")}.tmp`;
+    try {
+      writeFileSync(temporaryPath, JSON.stringify(this.state, null, 2), { encoding: "utf8", flag: "wx", mode: 0o600 });
+      renameSync(temporaryPath, this.filePath);
+    } finally {
+      rmSync(temporaryPath, { force: true });
+    }
   }
 }

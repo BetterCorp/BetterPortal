@@ -57,7 +57,6 @@ import {
   type RsaKeyPair,
   type ServiceTokenVerifier,
   type ScopedTenant,
-  type BetterPortalRouteChrome,
   type BetterPortalSseContracts,
   type BetterPortalConfig as PlatformConfig,
   type ServiceConfigAction,
@@ -71,7 +70,7 @@ import {
   toHtmlString
 } from "@betterportal/framework";
 import { createH3Router, isBpManagementAuthPath, isBpManagementAuthRoute, type H3AuthContext } from "@betterportal/framework/lib/adapters/h3.js";
-import { BootstrapStateStore, type BootstrapStateFile } from "./bootstrapState.js";
+import { BootstrapStateStore } from "./bootstrapState.js";
 import { ScopedConfigCache } from "./scopedConfigCache.js";
 import {
   createBetterPortalApp,
@@ -170,6 +169,20 @@ export const BetterPortalConfigSchema = av.optional(av.object({
   // trustedProxyHeaders/cfProxy are enabled.
   trustedProxyIps: av.array(av.string().minLength(1)).default([])
 }));
+
+/** Validate the credential destination shared by sync, install, and management requests. */
+function normalizeControlPlaneUrl(value: string): string {
+  let url: URL;
+  try { url = new URL(value); }
+  catch { throw new Error("Control-plane URL must be an absolute HTTPS URL (HTTP is allowed only on loopback)"); }
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.username || url.password || url.search || url.hash
+    || (url.protocol !== "https:" && !(url.protocol === "http:" && loopback))) {
+    throw new Error("Control-plane URL must use HTTPS without userinfo, query or fragment (HTTP is allowed only on loopback)");
+  }
+  // Issuer matching is exact; validation must not rewrite configured ports or paths.
+  return value.trim().replace(/\/+$/, "");
+}
 
 // Service definition
 
@@ -281,6 +294,9 @@ export abstract class BPService<
   private s2sKeyPair: RsaKeyPair | null = null;
   private s2sIdentityReady = false;
   private sseAbortController: AbortController | null = null;
+  private syncReconnectTimer?: ReturnType<typeof setTimeout>;
+  /** Manifest acceptance is separate from receiving a cached config over SSE. */
+  private manifestSync: { state: "pending" | "retrying" | "synced"; lastAttemptAt?: string; lastSuccessAt?: string } = { state: "pending" };
   private readonly seoProbeCache = new Map<string, {
     expiresAt: number;
     data?: RuntimeSitemapRoute[];
@@ -469,7 +485,7 @@ export abstract class BPService<
 
   protected controlPlaneCredentials(): { url: string; apiKey: string } | null {
     if (!this.resolvedCpUrl || !this.resolvedApiKey) return null;
-    return { url: this.resolvedCpUrl.replace(/\/+$/, ""), apiKey: this.resolvedApiKey };
+    return { url: normalizeControlPlaneUrl(this.resolvedCpUrl), apiKey: this.resolvedApiKey };
   }
 
   /**
@@ -695,6 +711,7 @@ export abstract class BPService<
     if (!credentials) throw new Error("BetterPortal control-plane credentials are unavailable.");
 
     const response = await fetch(`${credentials.url}/.well-known/bp/admin/services/self-mutation`, {
+      redirect: "error",
       method: "PUT",
       headers: {
         Accept: "application/json",
@@ -757,7 +774,7 @@ export abstract class BPService<
   }
 
   /**
-   * Override to provide the service-instance-id -> pluginId alias map used by the
+   * Override to provide the service-instance-id → pluginId alias map used by the
    * permission check (role grants use instance ids, route auth uses pluginIds).
    * Default: reads the tenant's service bindings from scopedConfig.
    */
@@ -1014,6 +1031,7 @@ export abstract class BPService<
 
   async dispose(): Promise<void> {
     this.sseAbortController?.abort();
+    clearTimeout(this.syncReconnectTimer);
     if (this.server.listening) {
       await new Promise<void>((resolve, reject) => {
         this.server.close((err?: Error) => err ? reject(err) : resolve());
@@ -1024,7 +1042,11 @@ export abstract class BPService<
   // Control plane sync
 
   private connectToControlPlane(obs: Observable): Promise<boolean> {
-    const baseUrl = this.resolvedCpUrl!.replace(/\/+$/, "");
+    this.sseAbortController?.abort();
+    clearTimeout(this.syncReconnectTimer);
+    const baseUrl = normalizeControlPlaneUrl(this.resolvedCpUrl!);
+    const controller = this.sseAbortController = new AbortController();
+    this.manifestSync = { state: "pending" };
     const url = `${baseUrl}/.well-known/bp/sync`;
     const pollUrl = `${url}/poll`;
     const apiKey = this.resolvedApiKey!;
@@ -1062,7 +1084,10 @@ export abstract class BPService<
       };
     };
 
+    let lastAppliedConfig: string | undefined;
     const applyScopedConfig = (rawConfig: unknown, source: "poll" | "stream"): void => {
+      const serialized = JSON.stringify(rawConfig);
+      if (serialized === lastAppliedConfig) return;
       const nextConfig = rawConfig as ScopedServiceConfig;
       this.applyPreviewConfig(nextConfig);
       this.scopedConfig = nextConfig;
@@ -1072,6 +1097,7 @@ export abstract class BPService<
       // bp-config.yaml is never shared.
       try {
         this.scopedConfigCache.write(rawConfig);
+        lastAppliedConfig = serialized;
       } catch (err) {
         obs.log.warn("Failed to persist scoped config cache: {msg}", { msg: (err as Error).message });
       }
@@ -1089,6 +1115,7 @@ export abstract class BPService<
     };
 
     const bootstrapFromPoll = async (): Promise<boolean> => {
+      this.manifestSync.lastAttemptAt = new Date().toISOString();
       obs.log.info("Control plane sync bootstrap polling: {url}", { url: pollUrl });
       // POST manifest with the poll so CP can cache it for resolvedServicePath injection
       // AND surface per-view permission requirements to the admin role editor.
@@ -1149,6 +1176,8 @@ export abstract class BPService<
       }
       const response = await fetch(pollUrl, {
         method: "POST",
+        redirect: "error",
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]),
         headers: {
           Accept: "application/json",
           "content-type": "application/json",
@@ -1184,11 +1213,13 @@ export abstract class BPService<
       }
 
       const config = await response.json();
+      if (controller.signal.aborted) return false;
       obs.log.info("BP SYNC CLIENT: bootstrap poll succeeded service={serviceId} status={status}", {
         serviceId: this.manifest.pluginId,
         status: response.status
       });
       applyScopedConfig(config, "poll");
+      this.manifestSync = { ...this.manifestSync, state: "synced", lastSuccessAt: new Date().toISOString() };
       return true;
     };
 
@@ -1209,23 +1240,30 @@ export abstract class BPService<
       });
     };
 
-    const connect = (): Promise<boolean> => {
-      const bootstrap = bootstrapFromPoll().catch((error) => {
+    const connect = async (): Promise<boolean> => {
+      if (controller.signal.aborted) return false;
+      const bootstrap = await bootstrapFromPoll().catch((error) => {
         logBootstrapPollError(error);
         return false;
       });
-      this.sseAbortController = new AbortController();
+      if (controller.signal.aborted) return false;
+      if (!bootstrap) {
+        this.manifestSync.state = "retrying";
+        scheduleReconnect();
+        return false;
+      }
       obs.log.info("BP SYNC CLIENT: opening SSE update stream service={serviceId} url={url}", {
         serviceId: this.manifest.pluginId,
         url
       });
 
       fetch(url, {
+        redirect: "error",
         headers: {
           Accept: "text/event-stream",
           Authorization: `Bearer ${apiKey}`
         },
-        signal: this.sseAbortController.signal
+        signal: controller.signal
       }).then(async (response) => {
         if (!response.ok || !response.body) {
           let body = "";
@@ -1323,7 +1361,9 @@ export abstract class BPService<
     };
 
     const scheduleReconnect = () => {
-      setTimeout(() => void connect(), 5000);
+      if (controller.signal.aborted) return;
+      clearTimeout(this.syncReconnectTimer);
+      this.syncReconnectTimer = setTimeout(() => void connect(), 5000);
     };
 
     return connect();
@@ -1517,7 +1557,7 @@ export abstract class BPService<
 
     if (!origin) {
       try {
-        const context = await this.resolveRequestContext(event);
+        const context = event.url.pathname === "/.well-known/bp/health" ? null : await this.resolveRequestContext(event);
         if (context) this.applyRequestContext(event, context);
       } catch (error) {
         this.logContextResolutionFailure(event, "embedded", error);
@@ -1744,6 +1784,7 @@ export abstract class BPService<
       return;
     }
     const response = await fetch(`${credentials.url}/.well-known/bp/webhooks/events`, {
+      redirect: "error",
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -1987,7 +2028,8 @@ export abstract class BPService<
   private renderHealth(): Response {
     const synced = Boolean(this.scopedConfig);
     const localConfig = Boolean(this.configProvider);
-    const ready = !this.requireBetterPortalConfigSource || this.inSetupMode || synced || localConfig;
+    const ready = !this.requireBetterPortalConfigSource || this.inSetupMode || localConfig
+      || (synced && this.manifestSync.state === "synced");
     const status = ready ? 200 : 503;
 
     const response = jsonResponse({
@@ -2001,6 +2043,7 @@ export abstract class BPService<
         tenants: this.scopedConfig?.tenants.length ?? 0,
         apps: this.scopedConfig?.apps.length ?? 0
       },
+      manifestSync: this.manifestSync,
       sync: {
         mode: this.inSetupMode
           ? "setup"
@@ -2044,7 +2087,7 @@ export abstract class BPService<
     }, input);
   }
 
-  private localServiceInstanceIds(context: BetterPortalResolvedRequestContext): Set<string> {
+  private localServiceInstanceIds(_context: BetterPortalResolvedRequestContext): Set<string> {
     const ids = new Set(this.scopedConfig?.m2m?.localServiceIds ?? []);
     if (this.scopedConfig?.serviceIdentity?.id) ids.add(this.scopedConfig.serviceIdentity.id);
     return ids;
@@ -2346,7 +2389,7 @@ export abstract class BPService<
 
   /**
    * Mounts POST /.well-known/bp/install - the browser-driven service installer.
-   * Caller posts { setupToken, cpUrl }. Service fetches CP JWKS, verifies the
+   * Caller posts `{ setupToken, cpUrl }`. Service fetches CP JWKS, verifies the
    * setup token, then redeems it for the real apiKey via CP /services/redeem.
    * Persists credentials and starts CP sync.
    */
@@ -2380,10 +2423,9 @@ export abstract class BPService<
         );
       }
 
-      const normalizedCp = cpUrl.replace(/\/+$/, "");
-      const jwksUri = `${normalizedCp}/.well-known/jwks.json`;
-
       try {
+        const normalizedCp = normalizeControlPlaneUrl(cpUrl);
+        const jwksUri = `${normalizedCp}/.well-known/jwks.json`;
         const claims = await verifySetupToken(setupToken, {
           jwks: { jwksUri, issuer: normalizedCp },
           expectedIssuer: normalizedCp
@@ -2402,6 +2444,7 @@ export abstract class BPService<
         // Also pushes our JWKS (if we're an auth provider) so the CP can verify
         // JWTs we issue WITHOUT fetching JWKS from us (CM cannot reach services).
         const redeemResponse = await fetch(`${normalizedCp}/.well-known/bp/services/redeem`, {
+          redirect: "error",
           method: "POST",
           headers: { "content-type": "application/json", "accept": "application/json" },
           body: JSON.stringify({
@@ -2456,7 +2499,6 @@ export abstract class BPService<
         this.inSetupMode = false;
         this.initializeS2SIdentity(obs);
 
-        // eslint-disable-next-line no-console
         console.log(`\n*** BP install complete for ${this.manifest.pluginId} ***\n    apiKey: ${redeemBody.apiKey}\n    cpUrl:  ${normalizedCp}\n`);
         obs.log.info("Install complete for {pluginId}; apiKey persisted; starting CP sync", { pluginId: this.manifest.pluginId });
 
@@ -2514,6 +2556,7 @@ export abstract class BPService<
 
       try {
         const response = await fetch(`${credentials.url}/.well-known/bp/services/confirm-hostname-change`, {
+          redirect: "error",
           method: "POST",
           headers: {
             "accept": "application/json",

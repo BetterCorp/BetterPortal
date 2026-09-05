@@ -218,6 +218,19 @@ export function resolveServiceForTenant(
   serviceId: string,
   context: BetterPortalResolvedRequestContext
 ): BetterPortalResolvedServiceBinding | null {
+  const activation = config.sharedServiceActivations.find(candidate => candidate.id === serviceId);
+  if (activation) {
+    if (!activation.enabled || activation.tenantId !== context.tenant.id
+      || (activation.appId && activation.appId !== context.app.id)) return null;
+    const shared = config.sharedServiceCatalog.find(candidate => candidate.enabled && candidate.id === activation.sharedServiceId);
+    if (!shared) return null;
+    return { tenant: context.tenant, app: context.app, service: {
+      id: activation.id, hostname: shared.baseUrl, apiKeyHash: shared.apiKeyHash,
+      serviceId: shared.serviceId, title: shared.title, description: shared.description,
+      capabilities: shared.tags, authProvider: shared.authProvider,
+      deploymentMode: "bp-hosted", createdAt: activation.activatedAt, enabled: true
+    } };
+  }
   const tenantService = context.tenant.services.find(
     (s) => s.enabled && (s.id === serviceId || s.serviceId === serviceId)
   );
@@ -251,6 +264,44 @@ export function resolveServiceForTenant(
   }
 
   return null;
+}
+
+/**
+ * Resolve the credential-destination map for a tenant's application.
+ *
+ * @remarks
+ * Includes enabled routes, slots, fragments, auth and the active shell's bindings.
+ * Each binding must resolve through tenant authorization. Invalid URLs and URLs
+ * containing credentials are omitted; the browser separately enforces HTTPS.
+ * This map must come from trusted configuration, never service-rendered HTML.
+ *
+ * @param config - Platform snapshot used to resolve service registrations.
+ * @param context - Resolved tenant and application for the shell request.
+ * @returns Service binding IDs mapped to normalized HTTP(S) origins.
+ */
+export function resolveAppServiceOrigins(config: BetterPortalConfig, context: BetterPortalResolvedRequestContext): Record<string, string> {
+  const app = context.app;
+  const ids = new Set([
+    ...app.routes.filter(binding => binding.enabled).map(binding => binding.serviceId),
+    ...app.slots.filter(binding => binding.enabled).map(binding => binding.serviceId),
+    ...Object.values(app.fragments).flat().filter(binding => binding.enabled).map(binding => binding.serviceId)
+  ]);
+  if (app.auth?.serviceId) ids.add(app.auth.serviceId);
+  if (app.shell?.serviceId) ids.add(app.shell.serviceId);
+  for (const setting of Object.values(app.shellFragments[app.shell?.serviceId ?? ""] ?? {})) {
+    const items = setting.mode === "items" ? setting.items : setting.mode === "override" ? [setting.item] : [];
+    for (const item of items) if (item.source === "service") ids.add(item.serviceId);
+  }
+  const origins: Record<string, string> = {};
+  for (const id of ids) {
+    const binding = resolveServiceForTenant(config, id, context);
+    if (!binding) continue;
+    try {
+      const url = new URL(serviceBaseUrl(binding.service));
+      if (["https:", "http:"].includes(url.protocol) && !url.username && !url.password) origins[id] = url.origin;
+    } catch { /* Invalid service URLs are not credential destinations. */ }
+  }
+  return origins;
 }
 
 function ensureAllowedOrigins(app: BetterPortalResolvedRequestContext["app"]): string[] {
@@ -300,9 +351,17 @@ export function isAllowedRefererForContext(
   return buildOriginPolicy(context).allowedReferers.includes(referer);
 }
 
+/**
+ * Remove trailing slashes with a linear scan, avoiding regex backtracking.
+ *
+ * @param service - Service hostname or endpoint binding.
+ * @returns Base URL with only trailing slashes removed.
+ */
 export function serviceBaseUrl(service: { hostname: string } | { endpointBaseUrl: string }): string {
   const url = "hostname" in service ? service.hostname : service.endpointBaseUrl;
-  return url.replace(/\/+$/, "");
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end--;
+  return url.slice(0, end);
 }
 
 function splitRoutePath(pathname: string): string[] {
@@ -397,6 +456,10 @@ export function buildServiceViewUrl(
   currentPath: string
 ): string | null {
   const baseUrl = serviceBaseUrl(binding);
+  try {
+    const parsed = new URL(baseUrl);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+  } catch { return null; }
   const params = { ...route.fixedParams, ...(extractRouteParams(route.path, currentPath) ?? {}) };
   const servicePath = route.resolvedServicePath ?? route.servicePathVariant ?? route.targetPath;
   const resolvedPath = servicePath

@@ -4,8 +4,7 @@ import type {
   BetterPortalRegistry,
   RegisteredMethodRoute,
   RegisteredRoute,
-  RegisteredViewRenderer,
-  ViewRendererSet
+  RegisteredViewRenderer
 } from "../contracts/registry.js";
 import type { AdminApiDescriptor, BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
 import type { ViewMetadata, ViewOperationMetadata } from "../contracts/view.js";

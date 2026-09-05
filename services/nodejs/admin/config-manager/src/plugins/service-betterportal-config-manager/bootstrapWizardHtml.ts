@@ -4,10 +4,10 @@
  * Flow (browser-side):
  *  1. Operator enters bootstrap key + admin tenant/app + theme URL + auth URL.
  *  2. Browser:
- *     a) POST /.well-known/bp/bootstrap/commit  -> registers admin tenant/app in CP DB
- *     b) For each of {theme, auth}:
- *        - POST /.well-known/bp/admin/services/begin-install -> get setupToken
- *        - POST {serviceUrl}/.well-known/bp/install with {setupToken, cpUrl}
+ *     a) POST /.well-known/bp/bootstrap/commit  → registers admin tenant/app in CP DB
+ *     b) For each of `{theme, auth}`:
+ *        - POST /.well-known/bp/admin/services/begin-install → get setupToken
+ *        - POST `{serviceUrl}`/.well-known/bp/install with `{setupToken, cpUrl}`
  *     c) Redirect to admin app URL
  *  3. Admin app's login flow redirects to /register while the auth service has
  *     zero users; the operator creates the first admin THERE (app origin, so

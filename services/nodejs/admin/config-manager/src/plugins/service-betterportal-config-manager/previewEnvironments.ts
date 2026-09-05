@@ -310,6 +310,7 @@ export function updatePreviewDeploymentExpiry(
 ): PreviewEnvironmentDeployment {
   const deployment = config.previewEnvironmentDeployments.find((candidate) => candidate.id === deploymentId);
   if (!deployment) throw new PreviewEnvironmentError("Preview deployment was not found", 404);
+  delete deployment.credentialReplay;
   deployment.expiresInDays = normalizeExpiry(expiresInDays);
   const expiresAt = expiryDate(now, deployment.expiresInDays);
   if (expiresAt) deployment.expiresAt = expiresAt;
@@ -387,6 +388,7 @@ function updateDeployment(
 ): { deployment: PreviewEnvironmentDeployment; credentials: IssuedPreviewCredential[]; created: false } {
   const tenant = config.tenants.find((candidate) => candidate.id === deployment.tenantId);
   if (!tenant) throw new PreviewEnvironmentError("Preview deployment tenant is missing", 409);
+  delete deployment.credentialReplay;
   const credentials: IssuedPreviewCredential[] = [];
   for (const binding of deployment.services) {
     const nextUrl = requestedServices.get(binding.serviceId)!;

@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { H3 } from "h3";
+import { setImmediate } from "node:timers/promises";
+import { registerWebhookRoutes } from "../src/plugins/service-betterportal-config-manager/webhooks.js";
+import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
 import { test } from "node:test";
 import * as av from "anyvali";
 import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
-import { applyVerifiedServiceOrigin, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
+import { applyVerifiedServiceOrigin, registerSetupEndpoints, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
 import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, reconcileServiceRegistry, registerSyncEndpoint, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel, revokeM2MConnection } from "../src/plugins/service-betterportal-config-manager/m2mConnections.js";
 import { BaseStorage, getAvailableServiceInstanceIdsForApp, getServicePluginId, migrateAuthViewIds, migrateOfficialPluginIds, migrateRouteOperations, migrateRouteParamSyntax } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
@@ -16,7 +20,7 @@ import { render as renderPreviewConfigEditor } from "../src/plugins/service-bett
 import { resolvePreviewConfigSchemas } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
 import { PostgresStorage } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
-import { buildDefaultAdminRoutes } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
+import { buildDefaultAdminRoutes, registerBootstrapEndpoint } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
 import { registerFragmentsEditorRoutes } from "../src/plugins/service-betterportal-config-manager/fragmentsEditor.js";
 import { registerMenuEditorRoutes } from "../src/plugins/service-betterportal-config-manager/menuEditor.js";
 import { registerPreviewDeploymentApi } from "../src/plugins/service-betterportal-config-manager/previewApi.js";
@@ -25,6 +29,7 @@ import {
   deleteExpiredPreviewDeployments,
   provisionPreviewDeployment,
   reconcilePreviewService,
+  updatePreviewDeploymentExpiry,
   visibleAdminConfig
 } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import * as adminAuthView from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/GET.js";
@@ -252,6 +257,16 @@ function s2sConfig(): {
   return { config, tenantId, appId, sourceId, targetId, bindingId };
 }
 
+function assertStoredAuthHeaders(html: string): void {
+  const helper = /const bpHeaders = \(\) => \{[\s\S]*?\n\s*\};/.exec(html)?.[0];
+  assert.ok(helper);
+  const readHeaders = new Function("localStorage", helper + "; return bpHeaders();");
+  for (const name of ["Authorization", "authorization", "AUTHORIZATION"]) {
+    assert.deepEqual(readHeaders({ getItem: () => JSON.stringify({ [name]: { value: "Bearer test" } }) }), { Authorization: "Bearer test" });
+  }
+  assert.deepEqual(readHeaders({ getItem: () => "bad-json" }), {});
+}
+
 test("Postgres config reads reuse an isolated validated snapshot until invalidated", async () => {
   const config = BetterPortalConfigSchema.parse({});
   let reads = 0;
@@ -259,7 +274,8 @@ test("Postgres config reads reuse an isolated validated snapshot until invalidat
   Object.assign(storage as object, {
     schemaReady: Promise.resolve(),
     pool: {
-      query: async () => {
+      query: async (sql: string) => {
+        if (sql.includes("last_seen_at")) return { rows: [] };
         reads++;
         return { rows: [{ config, revision: 1 }] };
       }
@@ -274,6 +290,225 @@ test("Postgres config reads reuse an isolated validated snapshot until invalidat
   storage.invalidate();
   await storage.loadConfig();
   assert.equal(reads, 2);
+});
+
+test("Postgres conflicts invalidate stale snapshots and action completion is fenced in the config transaction", async () => {
+  const config = BetterPortalConfigSchema.parse({});
+  let revision = 1;
+  let leaseValid = true;
+  const statements: string[] = [];
+  const query = async (sql: string, params?: unknown[]) => {
+    statements.push(sql);
+    if (sql.includes("select config")) return { rows: [{ config, revision }] };
+    if (sql.includes("select revision")) return { rows: [{ revision }] };
+    if (sql.includes("set status = 'completed'")) return { rows: [], rowCount: leaseValid ? 1 : 0 };
+    if (sql.includes("set config =")) revision = Number(params?.[2]);
+    return { rows: [], rowCount: 1 };
+  };
+  const storage = new PostgresStorage({ connectionString: "postgres://unused" });
+  Object.assign(storage, { schemaReady: Promise.resolve(), pool: { query, connect: async () => ({ query, release() {} }) } });
+  const stale = await storage.loadConfig();
+  revision = 2;
+  await assert.rejects(storage.saveConfig(stale), /revision/i);
+  const fresh = await storage.loadConfig();
+  statements.length = 0;
+  await storage.touchServiceActivity("service", "lastSeenAt");
+  assert.equal(revision, 2);
+  assert.equal(statements.length, 1);
+  assert.match(statements[0], /_activity/);
+  statements.length = 0;
+  const action = { kind: "setup" as const, key: "key", owner: "request-owner", result: { apiKey: "test" } };
+  await storage.completePendingAction(action, fresh);
+  assert.equal(statements[0], "begin");
+  assert.match(statements[1], /lease_owner = \$4[\s\S]*lease_until > now\(\)/);
+  assert.ok(statements.some(sql => sql.includes("_outbox")));
+  assert.equal(statements.at(-1), "commit");
+  leaseValid = false;
+  statements.length = 0;
+  await assert.rejects(storage.completePendingAction(action, fresh), /lease was lost/);
+  assert.equal(statements.at(-1), "rollback");
+  assert.equal(statements.some(sql => sql.includes("set config =")), false);
+  statements.length = 0;
+  await storage.saveConfig(await storage.loadConfig(), { notify: false });
+  assert.ok(statements.some(sql => sql.includes("_outbox")), "all config revisions must reach replicas");
+});
+
+test("Postgres clears rotated service activity atomically and invalidates presence caches on replicas", async () => {
+  let { config } = s2sConfig();
+  const serviceId = config.tenants[0].services[0].id;
+  let activity = [{ service_id: serviceId, last_seen_at: new Date(), last_sync_at: new Date() }];
+  let revision = 1;
+  const statements: string[] = [];
+  const query = async (sql: string, params?: any[]) => {
+    statements.push(sql);
+    if (sql.startsWith("select config")) return { rows: [{ config, revision }] };
+    if (sql.startsWith("select service_id")) return { rows: activity };
+    if (sql.startsWith("delete from") && sql.includes("_activity")) {
+      assert.deepEqual(params?.[1], [serviceId]);
+      activity = [];
+    }
+    if (sql.includes("set config =")) { config = JSON.parse(params![1]); revision = params![2]; }
+    return { rows: [], rowCount: 1 };
+  };
+  const makeStore = () => {
+    const store = new PostgresStorage({ connectionString: "postgres://unused" });
+    Object.assign(store, { schemaReady: Promise.resolve(), pool: { query, connect: async () => ({ query, release() {} }) } });
+    return store;
+  };
+  const store = makeStore(), replica = makeStore();
+  const loaded = await store.loadConfig();
+  assert.ok((await replica.loadConfig()).tenants[0].services[0].lastSyncAt);
+  loaded.tenants[0].services[0].apiKeyHash = "rotated";
+  loaded.tenants[0].services[0].hostname = "https://replacement.example";
+  delete loaded.tenants[0].services[0].lastSeenAt;
+  delete loaded.tenants[0].services[0].lastSyncAt;
+  statements.length = 0;
+  await store.saveConfig(loaded);
+  assert.equal(statements[0], "begin");
+  assert.ok(statements.findIndex(sql => sql.startsWith("delete from")) < statements.indexOf("commit"));
+  replica.invalidate();
+  for (const current of [store, replica]) {
+    const service = (await current.loadConfig()).tenants[0].services[0];
+    assert.equal(service.lastSeenAt, undefined);
+    assert.equal(service.lastSyncAt, undefined);
+  }
+});
+
+test("hostname confirmation releases its lease after a save conflict so an immediate retry can succeed", async () => {
+  const { config, sourceId } = s2sConfig();
+  const handlers = new Map<string, (event: any) => Promise<Response>>();
+  let busy = false, fail = true, released = 0;
+  const postgres = {
+    async claimPendingAction() {
+      if (busy) return { state: "busy" };
+      busy = true;
+      return { state: "claimed", action: { payload: { instanceId: sourceId, serviceUrl: "https://changed.example" } } };
+    },
+    async completePendingAction() { if (fail) throw new Error("revision conflict"); busy = false; },
+    async releasePendingAction() { busy = false; released++; }
+  };
+  registerSetupEndpoints({ app: { post: (path: string, handler: any) => handlers.set(path, handler) },
+    storage: { loadConfig: async () => structuredClone(config), validateApiKey: async () => ({ serviceId: sourceId }) }, postgres,
+    cpState: {} } as never);
+  const confirm = () => handlers.get("/.well-known/bp/services/confirm-hostname-change")!({ req: new Request("https://config.example/confirm", {
+    method: "POST", headers: { authorization: "Bearer test", "content-type": "application/json" },
+    body: JSON.stringify({ changeToken: "token", serviceUrl: "https://changed.example" })
+  }) });
+  await assert.rejects(confirm(), /revision conflict/);
+  assert.equal(released, 1);
+  fail = false;
+  assert.equal((await confirm()).status, 200);
+});
+
+test("bootstrap completion releases failed leases on both initial setup and existing-config recovery", async () => {
+  for (const existing of [false, true]) {
+    const config = existing ? s2sConfig().config : BetterPortalConfigSchema.parse({});
+    const handlers = new Map<string, (event: any) => Promise<Response>>();
+    let busy = false, fail = true, released = 0;
+    const postgres = {
+      async createPendingAction() { return false; },
+      async claimPendingAction() { if (busy) return { state: "busy" }; busy = true; return { state: "claimed" }; },
+      async completePendingAction(_action: unknown, snapshot: unknown) {
+        assert.equal(Boolean(snapshot), !existing);
+        if (fail) throw new Error("atomic completion failed");
+        busy = false;
+      },
+      async releasePendingAction(kind: string, key: string) { assert.equal(kind, "bootstrap"); assert.equal(key, "bootstrap"); busy = false; released++; }
+    };
+    await registerBootstrapEndpoint({ app: { get() {}, post: (path: string, handler: any) => handlers.set(path, handler) },
+      storage: { loadConfig: async () => structuredClone(config) }, postgres,
+      cpState: { issuer: "https://config.example" }, logger: { log: { info() {}, warn() {} } } } as never);
+    const commit = () => handlers.get("/.well-known/bp/bootstrap/commit")!({ req: new Request("https://config.example/commit", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bootstrapKey: "test",
+        adminTenant: { title: "Admin" }, adminApp: { title: "Admin", hostname: "admin.example" },
+        authService: { hostname: "https://auth.example" }, themeService: { hostname: "https://theme.example" }
+      })
+    }) });
+    await assert.rejects(commit(), /atomic completion failed/);
+    assert.equal(released, 1);
+    fail = false;
+    assert.equal((await commit()).status, 200);
+  }
+});
+
+test("config sync shares projections, suppresses duplicates and closes revoked streams", { timeout: 5000 }, async (t) => {
+  const app = new H3();
+  const listeners = new Set<() => void>();
+  let allowed = true;
+  let projections = 0;
+  const store = {
+    onChange(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    validateApiKey: async () => allowed ? { scope: "platform", serviceId: "service", service: {} } : null,
+    getScopedConfig: async () => { projections++; return { managementOrigins: [], tenants: [], apps: [] }; }
+  };
+  registerSyncEndpoint(app, store as never);
+  const readers = await Promise.all([1, 2].map(async () => {
+    const response = await app.request("/.well-known/bp/sync", { headers: { authorization: "Bearer key" } });
+    const reader = response.body!.getReader();
+    t.after(() => reader.cancel().catch(() => {}));
+    assert.match(new TextDecoder().decode((await reader.read()).value), /event: config/);
+    return reader;
+  }));
+  assert.equal(projections, 1);
+  for (const listener of listeners) listener();
+  await setImmediate();
+  assert.equal(projections, 2, "subscribers share the refreshed projection");
+  const pending = readers.map(reader => reader.read());
+  allowed = false;
+  for (const listener of listeners) listener();
+  assert.ok((await Promise.all(pending)).every(result => result.done), "no duplicate or revoked config frame");
+});
+
+test("auth cache drops removed apps and JWKS", async () => {
+  const plugin = Object.create(ConfigManagerPlugin.prototype) as any;
+  const config = BetterPortalConfigSchema.parse({});
+  Object.assign(plugin, { storage: { loadConfig: async () => config }, authCacheGeneration: 0, authConfigCache: new Map([["tenant::app", {}]]) });
+  await plugin.warmAuthCache();
+  assert.equal(plugin.authConfigCache.size, 0);
+  plugin.authConfigCache.set("tenant::app", {});
+  let loaded!: (value: typeof config) => void;
+  let invalidated = false;
+  plugin.storage.invalidate = () => { invalidated = true; };
+  plugin.storage.loadConfig = () => new Promise(resolve => { loaded = resolve; });
+  const warming = plugin.refreshConfigCaches();
+  assert.equal(invalidated, true);
+  assert.equal(plugin.authConfigCache.size, 1, "old verifier remains available during storage IO");
+  loaded(config);
+  await warming;
+  assert.equal(plugin.authConfigCache.size, 0, "removed app disappears when replacement is ready");
+  plugin.authConfigCache.set("tenant::app", {});
+  const stale = plugin.warmAuthCache();
+  plugin.authCacheGeneration++;
+  loaded(config);
+  await stale;
+  assert.equal(plugin.authConfigCache.size, 1, "outdated loads cannot replace the current generation");
+  plugin.storage.loadConfig = async () => config;
+  await plugin.refreshAuthCache("tenant", "app");
+  assert.equal(plugin.authConfigCache.size, 0);
+});
+
+test("webhooks claim only the next delivery and bound fetch lifetime", async (t) => {
+  const order: string[] = [];
+  let claimed = 0;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    assert.ok(options.signal instanceof AbortSignal);
+    order.push("fetch");
+    return new Response(new ReadableStream({ cancel() { order.push("cancel"); } }));
+  });
+  const runtime = registerWebhookRoutes(new H3(), {
+    loadConfig: async () => ({ tenants: [{ id: "tenant", active: true }], webhooks: { targets: [{ id: "target", tenantId: "tenant", enabled: true, secret: "secret", url: "https://webhook.test" }] } })
+  } as never, {
+    claimWebhookDeliveries: async (_owner: string, count: number) => {
+      assert.equal(count, 1);
+      order.push("claim");
+      if (claimed++ === 2) return [];
+      return [{ id: String(claimed), targetId: "target", attempts: 0, maxAttempts: 3, payload: {} }];
+    },
+    finishWebhookDelivery: async () => { order.push("finish"); },
+    cleanupWebhookDeliveries: async () => {}
+  } as never);
+  await runtime.drain();
+  assert.deepEqual(order, ["claim", "fetch", "cancel", "finish", "claim", "fetch", "cancel", "finish", "claim"]);
 });
 
 test("dependency analysis finds disabled routes by plugin id", async () => {
@@ -851,7 +1086,8 @@ test("poll sync records service presence and config delivery", async () => {
       saves += 1;
     },
     validateApiKey: async () => ({ scope: "tenant", serviceId: service.id, tenantId: "tenant-a", service }),
-    getScopedConfig: async () => ({ managementOrigins: [], tenants: [], apps: [] })
+      getScopedConfig: async () => ({ managementOrigins: [], tenants: [], apps: [] }),
+      onChange: () => () => {}
   } as never);
 
   const poll = handlers.get("GET /.well-known/bp/sync/poll");
@@ -1478,6 +1714,7 @@ test("service config editor transfers scoped values and defaults the first app",
   });
 
   assert.match(html, /data-bp-config-export/);
+  assertStoredAuthHeaders(html);
   assert.match(html, /data-bp-config-import/);
   assert.match(html, /betterportal\.service-config/);
   assert.match(html, /apps\[0\]\?\.id/);
@@ -1776,14 +2013,16 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
     expiresInDays: 30
   });
   const handlers = new Map<string, (event: never) => Promise<Response>>();
+  const storage = new MemoryStorage(config);
   registerPreviewDeploymentApi({
     app: {
       get: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`GET ${path}`, handler),
       post: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`POST ${path}`, handler),
       delete: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`DELETE ${path}`, handler)
     } as never,
-    storage: new MemoryStorage(config),
-    controlPlaneUrl: "https://config.example"
+    storage,
+    controlPlaneUrl: "https://config.example",
+    replayEncryptionKey: "review-test-only-replay-key"
   });
   const path = "/api/preview-groups/:groupId/deployments/:key";
   const call = (method: "GET" | "POST" | "DELETE", authorization?: string) => handlers.get(`${method} ${path}`)!({
@@ -1804,10 +2043,29 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
   const created = await call("POST", `Bearer ${apiKey}`);
   assert.equal(created.status, 201);
   assert.equal(created.headers.get("cache-control"), "no-store");
-  assert.equal((await created.json() as { credentials: unknown[] }).credentials.length, 1);
+  const firstResult = await created.json() as { credentials: unknown[] };
+  assert.equal(firstResult.credentials.length, 1);
   const refreshed = await call("POST", `Bearer ${apiKey}`);
-  assert.equal(refreshed.status, 200);
-  assert.equal((await refreshed.json() as { credentials: unknown[] }).credentials.length, 0);
+  assert.equal(refreshed.status, 201);
+  assert.deepEqual(await refreshed.json(), firstResult);
+  const current = await storage.loadConfig();
+  const managed = provisionPreviewDeployment(current, group.id, {
+    key: "123", hostname: "pr-123.example",
+    services: [{ serviceId: "org.example.service", url: "https://moved-pr-123.example" }]
+  }, "https://config.example");
+  assert.equal(managed.deployment.credentialReplay, undefined);
+  await storage.saveConfig(current);
+  const retried = await call("POST", `Bearer ${apiKey}`);
+  assert.equal(retried.status, 200);
+  const retriedResult = await retried.json() as { credentials: unknown[] };
+  assert.equal(retriedResult.credentials.length, 1);
+  assert.notDeepEqual(retriedResult.credentials, firstResult.credentials, "must not replay the invalidated API key");
+  const afterRetry = await storage.loadConfig();
+  const deployment = afterRetry.previewEnvironmentDeployments[0];
+  assert.ok(deployment.credentialReplay);
+  updatePreviewDeploymentExpiry(afterRetry, deployment.id, 14);
+  assert.equal(deployment.credentialReplay, undefined);
+  assert.ok(!JSON.stringify(config).includes("BP_SERVICE_API_KEY"));
   assert.equal((await call("GET", `Bearer ${apiKey}`)).status, 200);
   assert.equal((await call("DELETE", `Bearer ${apiKey}`)).status, 204);
   assert.equal((await call("DELETE", `Bearer ${apiKey}`)).status, 204);
@@ -1863,9 +2121,12 @@ test("preview environment editor keeps config crypto in the browser", () => {
   const page = String(renderPreviewEnvironments(data));
   const html = String(renderPreviewConfigEditor(data));
   assert.match(page, /_c=config&amp;groupId=/);
+  assert.doesNotMatch(page, /click once/);
+  assert.match(page, /querySelector\('form'\)/);
   assert.doesNotMatch(page, /BP_PREVIEW_CONFIG_KEY/);
   assert.doesNotMatch(page, /crypto\.subtle\.encrypt/);
   assert.match(html, /BP_PREVIEW_CONFIG_KEY/);
+  assertStoredAuthHeaders(html);
   assert.doesNotMatch(html, /Service plugin IDs/);
   assert.match(html, /crypto\.subtle\.encrypt/);
   assert.match(html, /Sync from prod/);

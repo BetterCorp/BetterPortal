@@ -10,7 +10,7 @@
     "clean": "bsb-plugin-cli clean",
     "start": "bsb-plugin-cli start",
     "dev": "bsb-plugin-cli dev",
-    "test": "node --import tsx --test tests/regressions.test.ts && bsb-plugin-cli test",
+    "test": "node --import tsx --test tests/*.test.ts && bsb-plugin-cli test",
     "prepublishOnly": "npm run build",
     "publish:client": "bsb-client-cli publish",
     "bp:gen": "bp run gen",
@@ -28,7 +28,7 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
-    "@bsb/tests": "^9.6.97",
+    "@bsb/tests": "^9.6.98",
     "@types/node": "^26.4.0",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.12",
@@ -37,7 +37,7 @@
   "dependencies": {
     "@betterportal/framework": "10.6.10",
     "@betterportal/plugin-bsb": "10.6.10",
-    "@bsb/base": "^9.6.97",
+    "@bsb/base": "^9.6.98",
     "anyvali": "^1.1.0",
     "jsx-htmx": "4.0.0"
   },

@@ -5,7 +5,7 @@ import { renderItem, renderSummary } from "./index.stream.js";
 
 /**
  * Buffered full-page render (spec/streaming.md section 4.2): the framework runs the
- * stream to completion and hands the derived { items, summary } shape here.
+ * stream to completion and hands the derived `{ items, summary }` shape here.
  * Reuses the per-frame renderers so streamed and buffered output match.
  */
 export function render(data: { items: DelayedItem[]; summary?: DelayedSummary }): HtmlRenderable {

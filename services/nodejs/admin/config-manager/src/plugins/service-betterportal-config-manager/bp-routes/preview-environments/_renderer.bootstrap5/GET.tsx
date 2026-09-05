@@ -71,7 +71,8 @@ export function configEditorScript(): HtmlRenderable {
     };
     const bpHeaders = () => {
       try {
-        const auth = JSON.parse(localStorage.getItem("bp.headers") || "{}").Authorization;
+        const stored = JSON.parse(localStorage.getItem("bp.headers") || "{}");
+        const auth = Object.entries(stored).find(([name]) => name.toLowerCase() === "authorization")?.[1];
         return auth && typeof auth.value === "string" ? { Authorization: auth.value } : {};
       } catch { return {}; }
     };
@@ -448,7 +449,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   data-bs-toggle="collapse"
                   data-bs-target={`#bp-settings-${group.id}`}
                   hx-get={`${data.previewPath}?_c=config&groupId=${encodeURIComponent(group.id)}`}
-                  hx-trigger="click once"
+                  hx-trigger={`click[!document.getElementById('bp-config-${group.id}').querySelector('form')]`}
                   hx-target={`#bp-config-${group.id}`}
                   hx-swap="innerHTML"
                 >Settings</button>
@@ -523,9 +524,9 @@ export function render(data: ResponseData): HtmlRenderable {
                   <thead><tr><th>Preview</th><th>App</th><th>Services</th><th>Expiry</th><th></th></tr></thead>
                   <tbody>{group.deployments.map((deployment) => (
                     <tr>
-                      <td><div class="fw-semibold">{deployment.name}</div><code class="small">{deployment.key}</code><div><span class={`badge ${deployment.ready ? "text-bg-success" : "text-bg-warning"}`}>{deployment.ready ? "Synced" : "Waiting for sync"}</span></div></td>
+                      <td><div class="fw-semibold">{deployment.name}</div><code class="small">{deployment.key}</code><div><span class={`badge ${deployment.ready ? "text-bg-success" : "text-bg-warning"}`}>{deployment.ready ? "Configured" : "Needs attention"}</span></div></td>
                       <td><a href={deployment.hostname.startsWith("http") ? deployment.hostname : `https://${deployment.hostname}`} target="_blank" rel="noreferrer">{deployment.hostname}</a></td>
-                      <td>{deployment.services.map((service) => <div class="small"><span class={`badge ${service.ready ? "text-bg-success" : "text-bg-warning"}`}>{service.ready ? "Synced" : "Waiting"}</span> <span class="font-monospace">{service.serviceId}</span></div>)}</td>
+                      <td>{deployment.services.map((service) => <div class="small"><span class={`badge ${service.ready ? "text-bg-success" : "text-bg-warning"}`}>{service.status.state}</span> <span class="font-monospace">{service.serviceId}</span></div>)}</td>
                       <td>
                         <form class="d-flex gap-2" hx-put={data.previewPath} hx-target="#bp-main" hx-swap="innerHTML">
                           <input type="hidden" name="action" value="update-expiry" />
@@ -535,7 +536,11 @@ export function render(data: ResponseData): HtmlRenderable {
                         </form>
                         <div class="small text-secondary mt-1">{deployment.expiresAt ? new Date(deployment.expiresAt).toLocaleString() : "Never expires"}</div>
                       </td>
-                      <td><button class="btn btn-sm btn-outline-danger" hx-delete={`${data.previewPath}?entity=deployment&id=${encodeURIComponent(deployment.id)}`} hx-confirm={`Delete preview ${deployment.name}?`} hx-target="#bp-main" hx-swap="innerHTML">Delete</button></td>
+                      <td>
+                        <button type="button" class="btn btn-sm btn-outline-secondary me-2" data-bs-toggle="offcanvas" data-bs-target="#bp-preview-debug"
+                          hx-get={`${data.previewPath}?_c=debug&deploymentId=${encodeURIComponent(deployment.id)}`} hx-target="#bp-preview-debug-body" hx-swap="innerHTML">Debug</button>
+                        <button class="btn btn-sm btn-outline-danger" hx-delete={`${data.previewPath}?entity=deployment&id=${encodeURIComponent(deployment.id)}`} hx-confirm={`Delete preview ${deployment.name}?`} hx-target="#bp-main" hx-swap="innerHTML">Delete</button>
+                      </td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -545,6 +550,10 @@ export function render(data: ResponseData): HtmlRenderable {
         </section>
       ))}
 
+      <aside class="offcanvas offcanvas-end" tabindex={-1} id="bp-preview-debug" aria-labelledby="bp-preview-debug-title" style="width:min(95vw,52rem)">
+        <div class="offcanvas-header"><h3 class="offcanvas-title h5" id="bp-preview-debug-title">Preview diagnostics</h3><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
+        <div class="offcanvas-body" id="bp-preview-debug-body" aria-live="polite">Select a deployment to load diagnostics.</div>
+      </aside>
       <aside class="offcanvas offcanvas-end" tabindex={-1} id="bp-create-preview-group" aria-labelledby="bp-create-preview-group-title">
         <div class="offcanvas-header">
           <h3 class="offcanvas-title h5" id="bp-create-preview-group-title">Create preview group</h3>

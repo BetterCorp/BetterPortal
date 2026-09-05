@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs";
 import { dirname } from "node:path";
 import { uuidv7 } from "@betterportal/framework";
 
@@ -17,8 +17,10 @@ export interface StoredUser {
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
+  refreshVersion?: number;
 }
 
+/** Authenticated identity and revocation version captured during password verification. */
 export interface AuthenticatedUser {
   id: string;
   username: string;
@@ -27,11 +29,14 @@ export interface AuthenticatedUser {
   picture?: string;
   tenantId: string;
   roles: string[];
+  /** Issue refresh tokens with this snapshot value, not a later store read. */
+  refreshVersion: number;
 }
 
 interface UserStoreFile {
   version: 1;
   users: StoredUser[];
+  revokedRefreshTokens?: Record<string, number>;
 }
 
 export interface CreateUserInput {
@@ -52,14 +57,16 @@ export class UserStore {
     this.filePath = filePath;
   }
 
-  async createUser(input: CreateUserInput): Promise<StoredUser> {
+  async createUser(input: CreateUserInput, firstAdminOnly = false): Promise<StoredUser> {
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    // File auth is single-process: no await between the uniqueness check and commit.
     const file = this.load();
+    if (firstAdminOnly && file.users.length > 0) throw new Error("First admin has already been created");
     if (file.users.some((user) => user.username === input.username && user.tenantId === input.tenantId)) {
       throw new Error(`User ${input.username} already exists for tenant ${input.tenantId}`);
     }
 
     const now = Date.now();
-    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     const user: StoredUser = {
       id: generateUserId(),
       username: input.username,
@@ -91,6 +98,12 @@ export class UserStore {
     return this.load().users.length;
   }
 
+  /**
+   * Verify credentials and return a consistent identity/revocation snapshot.
+   *
+   * @returns Null for invalid credentials, disabled users, or password/version
+   * changes that complete while bcrypt verification is awaiting its result.
+   */
   async authenticate(tenantId: string, appId: string, username: string, password: string): Promise<AuthenticatedUser | null> {
     const file = this.load();
     const user = file.users.find((entry) => entry.username === username && entry.tenantId === tenantId);
@@ -103,8 +116,10 @@ export class UserStore {
       return null;
     }
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
+    const passwordHash = user.passwordHash;
+    const refreshVersion = user.refreshVersion ?? 0;
+    const ok = await bcrypt.compare(password, passwordHash);
+    if (!ok || !user.enabled || user.passwordHash !== passwordHash || (user.refreshVersion ?? 0) !== refreshVersion) {
       return null;
     }
 
@@ -116,7 +131,8 @@ export class UserStore {
       name: user.name,
       picture: user.picture,
       tenantId: user.tenantId,
-      roles
+      roles,
+      refreshVersion
     };
   }
 
@@ -136,6 +152,7 @@ export class UserStore {
     const user = file.users.find((entry) => entry.id === userId);
     if (!user) throw new Error(`User ${userId} not found`);
     user.passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    user.refreshVersion = (user.refreshVersion ?? 0) + 1;
     user.updatedAt = Date.now();
     this.save(file);
   }
@@ -145,6 +162,7 @@ export class UserStore {
     const user = file.users.find((entry) => entry.id === userId);
     if (!user) throw new Error(`User ${userId} not found`);
     user.enabled = enabled;
+    if (!enabled) user.refreshVersion = (user.refreshVersion ?? 0) + 1;
     user.updatedAt = Date.now();
     this.save(file);
   }
@@ -156,6 +174,18 @@ export class UserStore {
     user.appRoles[appId] = roles;
     user.updatedAt = Date.now();
     this.save(file);
+  }
+
+  revokeRefreshToken(jti: string, expiresAt: number): void {
+    const file = this.load();
+    const now = Math.floor(Date.now() / 1000);
+    file.revokedRefreshTokens = Object.fromEntries(Object.entries(file.revokedRefreshTokens ?? {}).filter(([, exp]) => exp > now));
+    if (expiresAt > now) file.revokedRefreshTokens[jti] = expiresAt;
+    this.save(file);
+  }
+
+  isRefreshTokenRevoked(jti: string): boolean {
+    return (this.load().revokedRefreshTokens?.[jti] ?? 0) > Math.floor(Date.now() / 1000);
   }
 
   private load(): UserStoreFile {
@@ -175,7 +205,9 @@ export class UserStore {
 
   private save(file: UserStoreFile): void {
     mkdirSync(dirname(this.filePath), { recursive: true });
-    writeFileSync(this.filePath, JSON.stringify(file, null, 2), { mode: 0o600 });
+    const temp = `${this.filePath}.${uuidv7()}.tmp`;
+    writeFileSync(temp, JSON.stringify(file, null, 2), { mode: 0o600 });
+    renameSync(temp, this.filePath);
     this.cache = file;
   }
 }

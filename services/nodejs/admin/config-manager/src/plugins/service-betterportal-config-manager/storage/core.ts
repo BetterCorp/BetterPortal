@@ -19,6 +19,14 @@ import type {
 
 export type StorageBackend = "file" | "postgres";
 
+/** A stale snapshot must be reloaded and its mutation reapplied, never saved over newer config. */
+export class ConfigRevisionConflictError extends Error {
+  constructor(expected: number, actual: number) {
+    super(`Platform config changed concurrently (loaded revision ${expected}, current revision ${actual})`);
+    this.name = "ConfigRevisionConflictError";
+  }
+}
+
 export interface FileStorageOptions {
   readonly backend?: "file";
   readonly configPath: string;

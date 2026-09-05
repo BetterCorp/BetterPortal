@@ -97,6 +97,7 @@ export function createHandler<
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace -- Declaration merging exposes schema inference types on the public factory.
 export namespace createHandler {
   export function forContext<TPlugin = never, TServiceConfig = Record<string, unknown>>() {
     return createHandler as <
@@ -184,6 +185,7 @@ export function createRawHandler<
   return raw;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace -- Declaration merging exposes schema inference types on the public factory.
 export namespace createRawHandler {
   export function forContext<TPlugin = never, TServiceConfig = Record<string, unknown>>() {
     return createRawHandler as unknown as <

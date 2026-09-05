@@ -69,6 +69,7 @@ async function deliver(target: WebhookTarget, record: DeliveryRecord): Promise<{
   try {
     const response = await fetch(target.url, {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "content-type": "application/json",
         "x-bp-webhook-id": record.id,
@@ -85,7 +86,9 @@ async function deliver(target: WebhookTarget, record: DeliveryRecord): Promise<{
         payload: record.payload
       })
     });
-    return { ok: response.ok, status: response.status, error: response.ok ? undefined : await response.text().catch(() => response.statusText) };
+    // Do not buffer an unbounded error body or leave a successful body unread.
+    await response.body?.cancel();
+    return { ok: response.ok, status: response.status, error: response.ok ? undefined : response.statusText };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
@@ -101,10 +104,16 @@ async function processDeliveries(
   const targets = new Map(config.webhooks.targets.map((target) => [target.id, target]));
   const now = Date.now();
   const records = postgres
-    ? await postgres.claimWebhookDeliveries(owner)
+    ? (async function* () {
+      for (let count = 0; count < 25; count++) {
+        const claimed = await postgres.claimWebhookDeliveries(owner, 1);
+        if (!claimed.length) return;
+        yield claimed[0];
+      }
+    })()
     : memoryQueue.filter((record) => record.status === "pending" && Date.parse(record.nextAttemptAt) <= now);
 
-  for (const record of records) {
+  for await (const record of records) {
     const target = targets.get(record.targetId);
     if (!target?.enabled || !config.tenants.some((tenant) => tenant.id === target.tenantId && tenant.active)) {
       record.status = "failed";

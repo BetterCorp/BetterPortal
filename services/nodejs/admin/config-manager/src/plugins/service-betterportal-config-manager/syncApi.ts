@@ -27,7 +27,7 @@ import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ShellManife
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
-import { getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
+import { ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService } from "./previewEnvironments.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
@@ -41,11 +41,12 @@ async function touchServiceActivity(
   field: "lastSeenAt" | "lastSyncAt"
 ): Promise<void> {
   if (scope !== "tenant" || !tenantId) return;
+  if (store.touchServiceActivity) return store.touchServiceActivity(serviceId, field);
   const config = await store.loadConfig();
   const service = config.tenants.find((tenant) => tenant.id === tenantId)?.services.find((candidate) => candidate.id === serviceId);
   if (!service) return;
   const now = Date.now();
-  if (service[field] && now - Date.parse(service[field]) < SERVICE_ACTIVITY_INTERVAL_MS) return;
+  if (field === "lastSeenAt" && service[field] && now - Date.parse(service[field]) < SERVICE_ACTIVITY_INTERVAL_MS) return;
   service[field] = new Date(now).toISOString();
   await store.saveConfig(config, { notify: false });
 }
@@ -266,12 +267,13 @@ export function getCachedManifestForService(
   cache: ReadonlyMap<string, CachedManifest> = manifestCache
 ): CachedManifest | undefined {
   const read = (key: string): CachedManifest | undefined => {
-    const hot = cache.get(key);
-    if (hot) return hot;
     const stored = config.manifestCache?.find((entry) => entry.serviceId === key);
+    const hot = cache.get(key);
+    // Keep the fast path only when it describes this committed snapshot.
+    if (hot && (!stored || (hot.fetchedAt === Date.parse(stored.fetchedAt) && hot.manifestVersion === stored.manifestVersion))) return hot;
     return stored
       ? normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0])
-      : undefined;
+      : cache.get(key);
   };
   const direct = read(serviceInstanceId);
   if (direct) return direct;
@@ -509,7 +511,6 @@ export async function reconcileServiceRegistry(
   }
 
   const manifest = normalizeManifest({ serviceId, viewIndex, ...options });
-  cacheManifest(serviceId, manifest);
   await updateServiceMetadata(store, serviceId, manifest);
   return manifest;
 }
@@ -574,7 +575,8 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
 }
 
 export interface SyncEndpointOptions {
-  onManifestUpdated?: (serviceIds: string[], manifest: CachedManifest) => Promise<void>;
+  /** Mutate the same snapshot before commit; may run again after a revision conflict. No external side effects. */
+  onManifestUpdated?: (config: BetterPortalConfig, serviceIds: string[], manifest: CachedManifest) => void;
 }
 
 export function registerSyncEndpoint(
@@ -582,6 +584,19 @@ export function registerSyncEndpoint(
   store: PlatformConfigStore,
   options: SyncEndpointOptions = {}
 ): void {
+  const projections = new Map<string, Promise<string>>();
+  store.onChange(() => projections.clear());
+  const projection = (serviceId: string, scope: "platform" | "tenant", tenantId?: string) => {
+    const key = JSON.stringify([scope, tenantId, serviceId]);
+    let pending = projections.get(key);
+    if (!pending) {
+      pending = store.getScopedConfig(serviceId, scope, tenantId)
+        .then((config) => JSON.stringify(injectResolvedServicePaths(config)));
+      projections.set(key, pending);
+      void pending.catch(() => { if (projections.get(key) === pending) projections.delete(key); });
+    }
+    return pending;
+  };
   app.get(SYNC_PATH, async (event: BetterPortalEvent) => {
     const obs = eventObservability(event);
     const authHeader = event.req.headers.get("authorization");
@@ -620,19 +635,33 @@ export function registerSyncEndpoint(
     });
 
     const stream = createEventStream(event);
-
+    let closed = false;
+    let sending = false;
+    let dirty = false;
+    let lastData: string | undefined;
     const sendScopedConfig = async () => {
-      const scoped = await store.getScopedConfig(serviceId, validated.scope, validated.tenantId);
-      const resolved = injectResolvedServicePaths(scoped);
-      obs?.logger.info("BP SYNC: sending config service={serviceId} tenants={tenants} apps={apps}", {
-        serviceId,
-        tenants: resolved.tenants.length,
-        apps: resolved.apps.length
-      });
-      await stream.push({
-        event: "config",
-        data: JSON.stringify(resolved)
-      });
+      dirty = true;
+      if (sending || closed) return;
+      sending = true;
+      try {
+        while (dirty && !closed) {
+          dirty = false;
+          const current = await store.validateApiKey(apiKey);
+          if (!current || current.serviceId !== serviceId || current.scope !== validated.scope || current.tenantId !== validated.tenantId) {
+            closed = true;
+            await stream.close();
+            return;
+          }
+          const data = await projection(serviceId, validated.scope, validated.tenantId);
+          // A change during projection invalidates the result before it leaves the process.
+          if (dirty) continue;
+          if (closed || data === lastData) continue;
+          await stream.push({ event: "config", data });
+          lastData = data;
+        }
+      } finally {
+        sending = false;
+      }
       await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt").catch((error) => {
         obs?.logger.warn("BP SYNC: failed updating last sync service={serviceId}: {msg}", {
           serviceId,
@@ -660,6 +689,7 @@ export function registerSyncEndpoint(
     }, SERVICE_ACTIVITY_INTERVAL_MS);
 
     stream.onClosed(() => {
+      closed = true;
       clearInterval(lastSeenTimer);
       obs?.logger.info("BP SYNC: stream closed service={serviceId}", {
         serviceId
@@ -767,9 +797,12 @@ export function registerSyncEndpoint(
           configSchemas: body.configSchemas,
           webhooks: body.webhooks
         });
-        cacheManifest(serviceId, cachedManifest);
-        const serviceIds = await updateServiceMetadata(store, serviceId, cachedManifest);
-        await options.onManifestUpdated?.(serviceIds, cachedManifest);
+        await updateServiceMetadata(store, serviceId, cachedManifest, options.onManifestUpdated, async () => {
+          const current = await store.validateApiKey(apiKey);
+          if (!current || current.serviceId !== serviceId || current.tenantId !== validated.tenantId || current.scope !== validated.scope) {
+            throw new Error("Sync credentials changed during manifest submission; reconnect required");
+          }
+        });
         obs?.logger.info("BP SYNC POLL: cached manifest service={serviceId} version={version} views={count} configSchemas={configSchemas}", {
           serviceId,
           version: body.manifestVersion ?? "unknown",
@@ -779,22 +812,20 @@ export function registerSyncEndpoint(
       }
     }
 
-    const scoped = await store.getScopedConfig(serviceId, validated.scope, validated.tenantId);
-    const resolved = injectResolvedServicePaths(scoped);
+    const data = await projection(serviceId, validated.scope, validated.tenantId);
     await touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSyncAt").catch((error) => {
       obs?.logger.warn("BP SYNC POLL: failed updating last sync service={serviceId}: {msg}", {
         serviceId,
         msg: error instanceof Error ? error.message : String(error)
       });
     });
-    obs?.logger.info("BP SYNC POLL: sending config service={serviceId} scope={scope} tenant={tenantId} tenants={tenants} apps={apps}", {
+    obs?.logger.info("BP SYNC POLL: sending config service={serviceId} scope={scope} tenant={tenantId} bytes={bytes}", {
       serviceId,
       scope: validated.scope,
       tenantId: validated.tenantId ?? "",
-      tenants: resolved.tenants.length,
-      apps: resolved.apps.length
+      bytes: data.length
     });
-    return jsonResponse(resolved as unknown as JsonValue);
+    return new Response(data, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
   };
 
   app.get(`${SYNC_PATH}/poll`, pollHandler);
@@ -937,9 +968,32 @@ function reconcileDependencyRoutes(config: BetterPortalConfig, app: BetterPortal
 async function updateServiceMetadata(
   store: PlatformConfigStore,
   serviceInstanceId: string,
-  manifest: CachedManifest
+  manifest: CachedManifest,
+  onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
+  validateCredentials?: () => Promise<void>
+): Promise<string[]> {
+  // Retry the whole mutation on a fresh snapshot, never overwrite a newer revision.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const serviceIds = await commitServiceMetadata(store, serviceInstanceId, manifest, onManifestUpdated, validateCredentials);
+      for (const id of serviceIds) cacheManifest(id, manifest);
+      return serviceIds;
+    } catch (error) {
+      if (!(error instanceof ConfigRevisionConflictError) || attempt >= 4) throw error;
+      store.invalidate();
+    }
+  }
+}
+
+async function commitServiceMetadata(
+  store: PlatformConfigStore,
+  serviceInstanceId: string,
+  manifest: CachedManifest,
+  onManifestUpdated?: SyncEndpointOptions["onManifestUpdated"],
+  validateCredentials?: () => Promise<void>
 ): Promise<string[]> {
   const config = await store.loadConfig();
+  await validateCredentials?.();
   const persistedManifest = {
     ...manifest,
     serviceId: serviceInstanceId,
@@ -954,7 +1008,6 @@ async function updateServiceMetadata(
     const service = tenant.services.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
     if (!service) continue;
     routeServiceIds.add(service.id);
-    cacheManifest(service.id, manifest);
     service.capabilities = manifest.capabilities;
     if (manifest.authProvider) service.authProvider = manifest.authProvider;
     if (manifest.title) service.title = manifest.title;
@@ -963,7 +1016,6 @@ async function updateServiceMetadata(
   const platform = config.platformServices.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
   if (platform) {
     routeServiceIds.add(platform.id);
-    cacheManifest(platform.id, manifest);
     platform.capabilities = manifest.capabilities;
     if (manifest.authProvider) platform.authProvider = manifest.authProvider;
     if (manifest.title) platform.title = manifest.title;
@@ -971,10 +1023,8 @@ async function updateServiceMetadata(
   }
   const shared = config.sharedServiceCatalog.find((candidate) => candidate.id === serviceInstanceId || candidate.serviceId === serviceInstanceId);
   if (shared) {
-    cacheManifest(shared.id, manifest);
     for (const activation of config.sharedServiceActivations.filter((candidate) => candidate.enabled && candidate.sharedServiceId === shared.id)) {
       routeServiceIds.add(activation.id);
-      cacheManifest(activation.id, manifest);
     }
     shared.tags = [...new Set([...(shared.tags ?? []), ...manifest.capabilities])];
     if (manifest.authProvider) shared.authProvider = manifest.authProvider;
@@ -1117,7 +1167,9 @@ async function updateServiceMetadata(
     }
     if (reconcileDependencyRoutes(config, app)) changed = true;
   }
+  onManifestUpdated?.(config, [...routeServiceIds], manifest);
   if (changed) await store.saveConfig(config);
+  manifest.fetchedAt = Date.parse(config.manifestCache.find(entry => entry.serviceId === serviceInstanceId)!.fetchedAt);
   return [...routeServiceIds];
 }
 

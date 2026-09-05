@@ -28,7 +28,7 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   const source = betterPortalShellRuntimeSource();
 
   assert.match(source, /attachBpHeaders\(headers,action\)/);
-  assert.match(source, /detail\.ctx\.fetch=\(\)=>preload\.prefetch/);
+  assert.match(source, /detail\.ctx\.fetch=.*?preload\.prefetch\.then/);
   assert.match(source, /applyPreloadConfig\(el,bpCfg\).*?bindBpPreload\(el\).*?data-bp-shell-route/s);
   assert.match(source, /matchServiceRoute\(elServiceId,pathOnly,"api"\)/);
   assert.match(source, /configuredMatch=matchTenantRoute\(pathOnly\)/);
@@ -42,9 +42,9 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
 test("shared HTMX requests declare page or partial response mode", () => {
   const source = betterPortalShellRuntimeSource();
 
-  assert.match(source, /acceptValue\.trim\(\)\.toLowerCase\(\)===\"text\/html\"/);
-  assert.match(source, /isSseConnect\|\|!isMainTarget\(ctx\.target\)\?\"fragment\":\"page\"/);
-  assert.match(source, /isSseConnect\)ctx\.request\.headers\[\"HX-Request-Type\"\]=\"partial\"/);
+  assert.match(source, /acceptValue\.trim\(\)\.toLowerCase\(\)==="text\/html"/);
+  assert.match(source, /isSseConnect\|\|!isMainTarget\(ctx\.target\)\?"fragment":"page"/);
+  assert.match(source, /isSseConnect\)ctx\.request\.headers\["HX-Request-Type"\]="partial"/);
 });
 
 test("service fragment SSE URLs are rewritten before bp-element injection", () => {

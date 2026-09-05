@@ -93,3 +93,33 @@ test("legacy aes256gcm secrets stay readable after the envelope change", () => {
   const store = new FileBackedServiceConfigStore({ filePath, configSchemas, encryptionKey });
   assert.equal(store.read(ticket("tenant-a")).tenant.token, "legacy-secret");
 });
+
+test("all JSON secret types are encrypted and survive reopening", () => {
+  const filePath = join(mkdtempSync(join(tmpdir(), "bp-json-secrets-")), "store.json");
+  const values = { object: { token: "hidden-object-token" }, array: ["hidden-array-token"], number: 42, bool: true, nil: null };
+  const options = { filePath, encryptionKey: "test-key-min16chars", configSchemas: [{ fields: Object.keys(values).map(key => ({ key, visibility: "secret" })) }] as never };
+  new FileBackedServiceConfigStore(options).write("tenant-a", undefined, values, ticket("tenant-a"));
+  const raw = readFileSync(filePath, "utf8");
+  assert.ok(!raw.includes("hidden-object-token") && !raw.includes("hidden-array-token"));
+  for (const value of Object.values(JSON.parse(raw).tenants["tenant-a"].tenant)) assert.match(value as string, /^enc:aes256gcm3:/);
+  assert.deepEqual(new FileBackedServiceConfigStore(options).read(ticket("tenant-a")).tenant, values);
+});
+
+test("loading migrates plaintext secrets in every bucket without losing legacy data or double encryption", () => {
+  const values = { text: "hidden", object: { token: "secret" }, array: ["secret"], number: 42, bool: false, nil: null };
+  for (const legacy of [false, true]) {
+    const filePath = join(mkdtempSync(join(tmpdir(), "bp-migrate-secrets-")), "store.json");
+    const bucket = { tenant: { ...values, public: "visible" }, app: { app: values } };
+    writeFileSync(filePath, JSON.stringify(legacy ? bucket : { tenants: { "tenant-a": bucket, "tenant-b": bucket } }));
+    const options = { filePath, encryptionKey: "test-key-min16chars", configSchemas: [{ fields: Object.keys(values).map(key => ({ key, visibility: "secret" })) }] as never };
+    new FileBackedServiceConfigStore(options);
+    const migrated = readFileSync(filePath, "utf8");
+    assert.doesNotMatch(migrated, /"hidden"|"secret"/);
+    const reopened = new FileBackedServiceConfigStore(options);
+    assert.equal(readFileSync(filePath, "utf8"), migrated, "already encrypted values are untouched");
+    assert.deepEqual(reopened.read(ticket("tenant-a")), bucket);
+    if (!legacy) assert.deepEqual(reopened.read(ticket("tenant-b")), bucket);
+    reopened.write("tenant-a", undefined, { unrelated: true }, ticket("tenant-a"));
+    assert.deepEqual(new FileBackedServiceConfigStore(options).read(ticket("tenant-a")).app.app, values);
+  }
+});

@@ -75,7 +75,6 @@ export interface BpStreamHandler<
   ): AsyncGenerator<TItem, TSummary | void, void>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isStreamHandler(value: unknown): value is BpStreamHandler<any, any, any, any, any> {
   return typeof value === "object"
     && value !== null
@@ -102,11 +101,8 @@ export interface StreamShellContext {
  * regular `index.tsx` page renderer over the derived `{ items, summary }` data.
  */
 export interface StreamRendererSet {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly renderShell: (ctx: StreamShellContext) => HtmlRenderable;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly renderItem: (item: any) => HtmlRenderable;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly renderSummary?: (summary: any) => HtmlRenderable;
   readonly renderError?: (error: StreamErrorFrame) => HtmlRenderable;
 }

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
+import { jsonResponse, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, PublicJwks, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
 import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, signSetupToken } from "@betterportal/framework";
@@ -27,11 +27,11 @@ const SETUP_TTL_SECONDS = 5 * 60;
 /**
  * Register the two CM endpoints that drive the browser-mediated install:
  *   1. POST /.well-known/bp/admin/services/begin-install
- *      -> admin UI requests a setup token bound to (serviceUrl, scope?)
- *      -> returns { setupToken, cpUrl, cpJwksUri }
+ *      → admin UI requests a setup token bound to (serviceUrl, scope?)
+ *      → returns `{ setupToken, cpUrl, cpJwksUri }`
  *   2. POST /.well-known/bp/services/redeem
- *      -> service exchanges single-use setupToken for the real apiKey
- *      -> returns { apiKey, cpId, cpJwksUri }
+ *      → service exchanges single-use setupToken for the real apiKey
+ *      → returns `{ apiKey, cpId, cpJwksUri }`
  */
 export function registerSetupEndpoints(input: {
   app: BetterPortalH3App;
@@ -42,7 +42,6 @@ export function registerSetupEndpoints(input: {
 }): void {
   const pending = new Map<string, PendingSetup>();
   const pendingHostnameChanges = new Map<string, PendingHostnameChange>();
-  const owner = input.owner ?? "single";
 
   function sweep(): void {
     const now = Date.now();
@@ -85,6 +84,7 @@ export function registerSetupEndpoints(input: {
   });
 
   input.app.post("/.well-known/bp/services/confirm-hostname-change", async (event) => {
+    const owner = uuidv7();
     sweep();
     const body = await event.req.json().catch(() => null) as { changeToken?: string; serviceUrl?: string } | null;
     const changeToken = typeof body?.changeToken === "string" ? body.changeToken : "";
@@ -102,35 +102,42 @@ export function registerSetupEndpoints(input: {
       ? claim.action.payload as unknown as PendingHostnameChange
       : input.postgres ? undefined : pendingHostnameChanges.get(changeToken);
     if (!entry) return jsonResponse({ error: "Hostname change token not recognized or expired" }, 400);
-    if (!serviceUrl || serviceUrl !== entry.serviceUrl) {
-      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
-      return jsonResponse({ error: "Service URL does not match the requested hostname" }, 403);
-    }
+    try {
+      if (!serviceUrl || serviceUrl !== entry.serviceUrl) {
+        if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+        return jsonResponse({ error: "Service URL does not match the requested hostname" }, 403);
+      }
 
-    const authorization = event.req.headers.get("authorization") ?? "";
-    const apiKey = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-    const validated = apiKey ? await input.storage.validateApiKey(apiKey) : null;
-    if (!validated) {
+      const authorization = event.req.headers.get("authorization") ?? "";
+      const apiKey = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+      const validated = apiKey ? await input.storage.validateApiKey(apiKey) : null;
+      if (!validated) {
+        if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+        return jsonResponse({ error: "Valid existing service API key required" }, 401);
+      }
+      const config = await input.storage.loadConfig();
+      const service = findServiceInstance(config, entry.instanceId);
+      if (!service) {
+        if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+        return jsonResponse({ error: "Service instance not found" }, 404);
+      }
+      if (!applyVerifiedServiceOrigin(service, entry.instanceId, validated.serviceId, entry.serviceUrl)) {
+        if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
+        return jsonResponse({ error: "The hostname belongs to a different installed service instance" }, 403);
+      }
+      const result = { ok: true, serviceUrl: entry.serviceUrl };
+      if (input.postgres) await input.postgres.completePendingAction({
+        kind: "hostname-change", key: actionKey, owner, result
+      }, config);
+      else {
+        await input.storage.saveConfig(config);
+        pendingHostnameChanges.delete(changeToken);
+      }
+      return jsonResponse(result, 200);
+    } catch (error) {
       if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
-      return jsonResponse({ error: "Valid existing service API key required" }, 401);
+      throw error;
     }
-    const config = await input.storage.loadConfig();
-    const service = findServiceInstance(config, entry.instanceId);
-    if (!service) {
-      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
-      return jsonResponse({ error: "Service instance not found" }, 404);
-    }
-    if (!applyVerifiedServiceOrigin(service, entry.instanceId, validated.serviceId, entry.serviceUrl)) {
-      if (input.postgres) await input.postgres.releasePendingAction("hostname-change", actionKey, owner);
-      return jsonResponse({ error: "The hostname belongs to a different installed service instance" }, 403);
-    }
-    await input.storage.saveConfig(config);
-    const result = { ok: true, serviceUrl: entry.serviceUrl };
-    if (input.postgres) await input.postgres.completePendingAction({
-      kind: "hostname-change", key: actionKey, owner, result
-    });
-    else pendingHostnameChanges.delete(changeToken);
-    return jsonResponse(result, 200);
   });
 
   // (1) Admin asks CP to mint a setup token for a target serviceUrl.
@@ -224,6 +231,7 @@ export function registerSetupEndpoints(input: {
 
   // (2) Service redeems setup token for real apiKey.
   input.app.post("/.well-known/bp/services/redeem", async (event) => {
+    const owner = uuidv7();
     sweep();
     const body = await event.req.json().catch(() => null) as {
       setupToken?: string;
@@ -264,8 +272,6 @@ export function registerSetupEndpoints(input: {
 
     // Mint the real per-service API key. Stored in platform config as a tenant or platform service.
     const apiKey = `bp_sk_t_${randomBytes(32).toString("base64url")}`;
-    entry.redeemed = true;
-    if (!input.postgres) pending.delete(jti);
 
     // Persist registration on the CP side. id = instanceId from setup token
     // (pre-assigned UUIDv7) so routes/fragments referencing it resolve.
@@ -278,8 +284,14 @@ export function registerSetupEndpoints(input: {
       if (input.postgres) await input.postgres.releasePendingAction("setup", jti, owner);
       return jsonResponse({ error: "Invalid RSA JWKS" }, 400);
     }
+    const result = {
+      apiKey,
+      cpId: input.cpState.cpId,
+      cpJwksUri: input.cpState.jwksUri
+    };
+    if (!input.postgres) entry.redeemed = true;
     try {
-      await registerServiceInPlatformConfig({
+      const config = await registerServiceInPlatformConfig({
         storage: input.storage,
         instanceId: entry.instanceId,
         pluginId: body.pluginId,
@@ -292,17 +304,18 @@ export function registerSetupEndpoints(input: {
         sharedServiceId: entry.sharedServiceId,
         tenantScope: entry.tenantScope
       });
+      if (input.postgres) await input.postgres.completePendingAction({ kind: "setup", key: jti, owner, result }, config);
+      else {
+        await input.storage.saveConfig(config);
+        entry.redeemed = true;
+        pending.delete(jti);
+      }
     } catch (err) {
+      if (!input.postgres) entry.redeemed = false;
       if (input.postgres) await input.postgres.releasePendingAction("setup", jti, owner);
       return jsonResponse({ error: "Failed to register service", detail: (err as Error).message }, 500);
     }
 
-    const result = {
-      apiKey,
-      cpId: input.cpState.cpId,
-      cpJwksUri: input.cpState.jwksUri
-    };
-    if (input.postgres) await input.postgres.completePendingAction({ kind: "setup", key: jti, owner, result });
     return jsonResponse(result as Record<string, unknown> as never, 200);
   });
 }
@@ -372,7 +385,7 @@ async function registerServiceInPlatformConfig(input: {
   jwks?: PublicJwks;
   sharedServiceId?: string;
   tenantScope?: { tenantId: string; appId?: string };
-}): Promise<void> {
+}): Promise<BetterPortalConfig> {
   const config = await input.storage.loadConfig();
   const apiKeyHash = await hashApiKey(input.apiKey);
   const now = new Date().toISOString();
@@ -476,7 +489,7 @@ async function registerServiceInPlatformConfig(input: {
       config.platformServices.push(service);
     }
   }
-  await input.storage.saveConfig(config);
+  return config;
 }
 
 function defaultCapabilities(pluginId: string): string[] {

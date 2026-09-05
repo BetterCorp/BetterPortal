@@ -156,10 +156,19 @@ Pre-release. APIs are stabilizing. Expect breaking changes between minor version
 ## Contributing
 
 PRs welcome. Before opening one:
+
 - Read `llms.txt` end-to-end - especially **section 1b Design constraints**.
-- `npm run -ws build` should pass on every workspace.
+- Run `npm run build`, `npm run lint`, and `npm test` from the repository root. CI requires all three to pass.
 - New routes require `npx bp-codegen` before commit.
 - Don't break the no-iframes / no-SPA / no-absolute-URLs rules.
+
+### Lint and documentation
+
+The shared ESLint configuration checks authored JavaScript, TypeScript, TSX, and tests; generated code, build outputs, and dependencies are excluded. `npm run lint:fix` applies available safe automatic fixes. Warnings and unused suppression directives fail CI.
+
+Use TSDoc for new or changed public APIs and non-obvious lifecycle, concurrency, and security behavior. Explain guarantees, failure behavior, and ownership; add `@param`, `@returns`, and `@throws` where they clarify the contract. Avoid comments that just repeat a name or type. The [TSDoc syntax rule](https://tsdoc.org/pages/packages/eslint-plugin-tsdoc/) validates existing documentation syntax; documentation coverage remains a review requirement.
+
+Keep any necessary ESLint suppression on the narrowest scope and include a `-- reason`. Existing explicit `any` at schema and HTMX boundaries remains allowed; lint does not replace the TypeScript build or runtime tests. No formatting preset or type-aware lint rules are enabled.
 
 ## License
 

@@ -7,11 +7,29 @@ import {
   buildManifestFromRegistry,
   buildServiceViewUrl,
   resolveAppRoute,
+  serviceBaseUrl,
   type BetterPortalApp,
   type BetterPortalRegistry,
   type RegisteredRoute
 } from "../src/index.js";
 import { scanRoutes } from "../src/codegen/scanner.js";
+
+test("service base URLs remove only trailing slashes for both binding formats", () => {
+  const internalSlashes = `https://service.test/${"/".repeat(32_000)}x`;
+  for (const [input, expected] of [
+    ["", ""],
+    ["/", ""],
+    ["///", ""],
+    ["https://service.test", "https://service.test"],
+    ["https://service.test/api///", "https://service.test/api"],
+    ["https://service.test/a//b/", "https://service.test/a//b"],
+    [internalSlashes, internalSlashes],
+    [`${internalSlashes}${"/".repeat(32_000)}`, internalSlashes]
+  ]) {
+    assert.equal(serviceBaseUrl({ hostname: input }), expected);
+    assert.equal(serviceBaseUrl({ endpointBaseUrl: input }), expected);
+  }
+});
 
 function writeRoute(base: string, segments: string[]): void {
   const directory = join(base, "bp-routes", ...segments);
@@ -161,6 +179,13 @@ const dynamicRoute = {
   enabled: true,
   operations: ["reports.read"]
 };
+
+test("service view URLs reject credentials and non-HTTP targets before rendering", () => {
+  for (const hostname of ["https://user:pass@plans.example", "https://user@plans.example", "https://:pass@plans.example", "javascript:alert(1)", "//plans.example", "invalid"]) {
+    assert.equal(buildServiceViewUrl({ hostname }, dynamicRoute, "/plans/one"), null);
+    assert.equal(buildServiceViewUrl({ endpointBaseUrl: hostname }, dynamicRoute, "/plans/one"), null);
+  }
+});
 
 test("static app routes win and fixed service params resolve without leaking placeholders", () => {
   const staticRoute = { ...dynamicRoute, id: "019f0000-0000-7000-8000-000000000005", path: "/plans" };

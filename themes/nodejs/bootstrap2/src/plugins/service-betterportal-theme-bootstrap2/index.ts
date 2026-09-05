@@ -18,6 +18,7 @@ import {
   htmlResponse,
   registerServiceConfigRoutes,
   resolveServiceForTenant,
+  resolveAppServiceOrigins,
   resolveAppRoute,
   resolveRequestContextDetailed,
   resolveThemeRequestContext,
@@ -28,13 +29,10 @@ import {
   resolveThemeHostname,
   withObservedEvent,
   type BetterPortalEvent,
-  type BetterPortalH3App,
-  type BetterPortalObservability,
   type BetterPortalConfig as PlatformConfig,
   type BetterPortalRegistry,
   type ConfigSchemaDescriptor,
   type JsonValue,
-  type ServiceConfigAction,
   type ServiceConfigTicketClaims
 } from "@betterportal/framework";
 import {
@@ -108,11 +106,6 @@ function parseAbsoluteHttpUrl(value: string): URL | null {
   } catch {
     return null;
   }
-}
-
-function normalizeOrigin(value: string): string | null {
-  const parsed = parseAbsoluteHttpUrl(value);
-  return parsed?.origin ?? null;
 }
 
 function sameOrigin(a: string, b: string): boolean {
@@ -1087,10 +1080,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
       const navItems = buildNavTree(menu);
 
-      // routeLinks: every enabled app route - NOT just menu leaves - so the
-      // client service map (data-bp-services) covers all bound services. Menu-
-      // less routes like the auth service's /login and /register must still
-      // resolve a service origin for header ownership/scoping on the client.
+      // Client route lookup also needs enabled routes absent from the menu.
       const routeLinks = enabledRoutes
         .map((r) => buildLinkFromRoute(r))
         .filter((x): x is NonNullable<ReturnType<typeof buildLinkFromRoute>> => x !== null);
@@ -1174,6 +1164,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           initialRouteStatus: routeNotFound ? 404 : undefined,
           initialServiceId: currentRoute?.serviceId,
           routeLinks,
+          serviceOrigins: resolveAppServiceOrigins(portalConfig, requestContext),
           navItems: navItems as any,
           loginUrl,
           chrome: currentRoute?.chrome,

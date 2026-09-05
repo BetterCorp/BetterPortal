@@ -123,7 +123,7 @@ export async function verifyServiceConfigTicket(
       clockToleranceSeconds: options.clockToleranceSeconds ?? 0
     });
   } catch (error) {
-    throw new Error(`Config ticket verification failed: ${(error as Error).message}`);
+    throw new Error(`Config ticket verification failed: ${(error as Error).message}`, { cause: error });
   }
   if (!verified || typeof verified !== "object") {
     throw new Error("Config ticket verifier returned non-object claims");

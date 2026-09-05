@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHmac, createSign, generateKeyPairSync, randomBytes } from "node:crypto";
+import { createHmac, createSign } from "node:crypto";
 import { generateKeyPair, signJwt, verifyJwt, type KeyResolver } from "@betterportal/framework";
 
 const ISSUER = "https://auth.test.local";

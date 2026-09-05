@@ -172,20 +172,6 @@ const WELL_KNOWN_EXPORTS = [
 
 const ALL_DETECTABLE = [...HANDLER_NAMES, ...WELL_KNOWN_EXPORTS] as const;
 
-/** Map handler function name -> HTTP method(s). */
-function handlerToMethods(handlerName: string): string[] {
-  switch (handlerName) {
-    case "handleGet": return ["GET"];
-    case "handlePost": return ["POST"];
-    case "handleGetPost": return ["GET", "POST"];
-    case "handlePut": return ["PUT"];
-    case "handlePatch": return ["PATCH"];
-    case "handleDelete": return ["DELETE"];
-    case "handleOptions": return ["OPTIONS"];
-    default: return [];
-  }
-}
-
 function methodFromFileName(fileName: string): string | undefined {
   const match = fileName.match(/^([A-Z]+)\.ts$/);
   if (!match) return undefined;
@@ -568,8 +554,8 @@ function hasExportModifier(node: ts.Node): boolean {
  * Convert a directory path relative to bp-routes/ into one or more HTTP paths
  * and extract param names. Required params use [name]; optional params use [[name]].
  *
- * Example: "users/[userId]/posts" -> [{ httpPath: "/users/:userId/posts", paramNames: ["userId"] }]
- * Example: "tenants/[[tenantId]]/services" -> "/tenants/services" and "/tenants/:tenantId/services"
+ * Example: "users/[userId]/posts" → [`{ httpPath: "/users/:userId/posts", paramNames: ["userId"] }`]
+ * Example: "tenants/[[tenantId]]/services" → "/tenants/services" and "/tenants/:tenantId/services"
  */
 function buildRoutePaths(segments: string[]): Array<{ httpPath: string; paramNames: string[] }> {
   let variants: Array<{ segments: string[]; paramNames: string[] }> = [
@@ -618,7 +604,7 @@ function buildRoutePaths(segments: string[]): Array<{ httpPath: string; paramNam
  * Build a viewId from path segments.
  * Param segments become `$`, and `.index` is appended.
  *
- * Example: ["users", "[userId]"] -> "users.$userId.index"
+ * Example: ["users", "[userId]"] → "users.$userId.index"
  */
 function buildViewId(segments: string[]): string {
   const parts = segments.map((seg) => {
@@ -634,11 +620,11 @@ function buildViewId(segments: string[]): string {
  * Parse a theme file name to determine renderer type and attributes.
  *
  * Patterns:
- *  - index.tsx          -> page, rendererId = "default"
- *  - index.GET.tsx      -> page, rendererId = "default", method = "GET"
- *  - name.tsx           -> component, rendererId = name
- *  - name.POST.tsx      -> component, rendererId = name, method = "POST"
- *  - _location.id.tsx   -> fragment, fragmentLocation = location, fragmentId = id
+ *  - index.tsx          → page, rendererId = "default"
+ *  - index.GET.tsx      → page, rendererId = "default", method = "GET"
+ *  - name.tsx           → component, rendererId = name
+ *  - name.POST.tsx      → component, rendererId = name, method = "POST"
+ *  - _location.id.tsx   → fragment, fragmentLocation = location, fragmentId = id
  */
 function parseRendererFile(
   fileName: string,

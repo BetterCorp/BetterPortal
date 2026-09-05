@@ -59,6 +59,7 @@ export interface Bootstrap1HostPageContext {
   initialRouteError?: string;
   initialRouteStatus?: number;
   routeLinks: Bootstrap1RouteLink[];
+  serviceOrigins?: Record<string, string>;
   navItems?: Bootstrap1NavItem[];
   loginUrl?: string;
   logoutUrl?: string;
@@ -135,12 +136,6 @@ function titleFromSegment(segment: string): string {
   return words
     .map((word) => word.slice(0, 1).toUpperCase() + word.slice(1))
     .join(" ");
-}
-
-function routeIconText(title: string): string {
-  const words = title.split(/\s+/).filter(Boolean).slice(0, 2);
-  const initials = words.map((word) => word.slice(0, 1).toUpperCase()).join("");
-  return initials || title.slice(0, 2).toUpperCase();
 }
 
 function routeBreadcrumb(groupTitle: string | null, route: Bootstrap1RouteLink): string {
@@ -2155,7 +2150,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
   const navItems = context.navItems ?? buildNavItems(context.routeLinks.filter(isUserFacingRoute));
   const activeRoute = context.routeLinks.find((route) => route.active);
   const currentBreadcrumb = activeBreadcrumb(navItems);
-  const serviceMap = buildServiceMap(context.routeLinks);
+  const serviceMap = context.serviceOrigins ?? buildServiceMap(context.routeLinks);
   const hasInitialRouteError = Boolean(context.initialRouteError);
   const initialRouteErrorTitle = context.initialRouteStatus === 404 ? "Route Not Found" : "Route Configuration Error";
   return (

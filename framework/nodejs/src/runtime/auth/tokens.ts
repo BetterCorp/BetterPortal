@@ -88,7 +88,7 @@ export async function verifyJwt(token: string, options: VerifyJwtOptions): Promi
       clockToleranceSeconds: options.clockToleranceSeconds ?? 0
     });
   } catch (error) {
-    throw new Error(`Library verification failed: ${(error as Error).message}`);
+    throw new Error(`Library verification failed: ${(error as Error).message}`, { cause: error });
   }
 
   if (!libVerified || typeof libVerified !== "object") {

@@ -9,7 +9,7 @@ import { BpSchemaOutputSchema, type BpSchemaOutput } from "@betterportal/framewo
 import * as av from "anyvali";
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { ContractRegistryStore } from "./store.js";
+import { ContractRegistryStore, type StoredContract } from "./store.js";
 
 const PublisherSchema = av.object({
   token: av.string().minLength(16),
@@ -63,6 +63,16 @@ function safeEqual(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+function contractResponse(request: IncomingMessage, reply: ServerResponse, stored: StoredContract): void {
+  const etag = `"${stored.digest}"`;
+  const headers = { ETag: etag, "BP-Registry-Ref": stored.registryRef, "cache-control": "public, no-cache", "access-control-allow-origin": "*" };
+  const matches = request.headers["if-none-match"]?.split(",").some((value) => value.trim() === "*" || value.trim().replace(/^W\//, "") === etag);
+  if (matches) {
+    reply.writeHead(304, headers);
+    reply.end();
+  } else json(reply, 200, stored.contract, headers);
+}
+
 export class Plugin extends BSBService<InstanceType<typeof Config>, typeof EventSchemas> {
   static Config = Config;
   static EventSchemas = EventSchemas;
@@ -96,9 +106,9 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
     await new Promise<void>((resolve, reject) => this.server.close((error) => error ? reject(error) : resolve()));
   }
 
-  private authorized(request: IncomingMessage, namespace: string, pluginId: string): boolean {
+  private authorized(request: IncomingMessage, namespace: string): boolean {
     const publisher = this.config.publishers[namespace];
-    if (!publisher || !publisher.pluginIdPrefixes.some((prefix) => pluginId.startsWith(prefix))) return false;
+    if (!publisher) return false;
     const header = request.headers.authorization ?? "";
     return header.startsWith("Bearer ") && safeEqual(header.slice(7), publisher.token);
   }
@@ -116,6 +126,10 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
   }
 
   private async publish(request: IncomingMessage, reply: ServerResponse, namespace: string, name: string): Promise<void> {
+    if (!this.authorized(request, namespace)) {
+      json(reply, 403, { error: "forbidden" }, { Connection: "close" });
+      return;
+    }
     let contract: BpSchemaOutput;
     try {
       contract = BpSchemaOutputSchema.parse(await this.body(request));
@@ -125,7 +139,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
     }
     const registryRef = `${namespace}/${name}`;
     const { pluginId, version } = contract.manifest;
-    if (!this.authorized(request, namespace, pluginId)) {
+    if (!this.config.publishers[namespace].pluginIdPrefixes.some((prefix) => pluginId.startsWith(prefix))) {
       json(reply, 403, { error: "forbidden", message: `Publisher cannot publish ${pluginId} under ${namespace}` });
       return;
     }
@@ -166,7 +180,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
         const registryRef = `${decodeURIComponent(schemaMatch[1])}/${decodeURIComponent(schemaMatch[2])}`;
         const stored = this.store.get(registryRef, decodeURIComponent(schemaMatch[3]));
         return stored
-          ? json(reply, 200, stored.contract, { ETag: `"${stored.digest}"`, "BP-Registry-Ref": stored.registryRef })
+          ? contractResponse(request, reply, stored)
           : json(reply, 404, { error: "not_found" });
       }
 
@@ -175,7 +189,7 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
         const pluginId = decodeURIComponent(idMatch[1]);
         const stored = this.store.getByPluginId(pluginId, decodeURIComponent(idMatch[2]));
         return stored
-          ? json(reply, 200, stored.contract, { ETag: `"${stored.digest}"`, "BP-Registry-Ref": stored.registryRef })
+          ? contractResponse(request, reply, stored)
           : json(reply, 404, { error: "not_found" });
       }
 

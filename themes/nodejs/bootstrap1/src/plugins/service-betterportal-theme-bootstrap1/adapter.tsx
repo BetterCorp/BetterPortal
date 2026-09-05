@@ -61,7 +61,9 @@ export const Bootstrap1AdapterSource = js(() => {
         try {
           bootstrap?.Modal.getInstance(element)?.dispose();
           bootstrap?.Offcanvas.getInstance(element)?.dispose();
-        } catch {}
+        } catch {
+          // Already-disposed overlays must not prevent DOM cleanup.
+        }
         element.remove();
       });
       teleported.clear();

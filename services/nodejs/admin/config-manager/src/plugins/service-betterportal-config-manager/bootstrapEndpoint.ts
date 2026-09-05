@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
-import { uuidv7, type BetterPortalRouteMount, type PlatformConfigStore } from "@betterportal/framework";
+import { jsonResponse, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
+import { uuidv7, type BetterPortalConfig, type BetterPortalRouteMount, type PlatformConfigStore } from "@betterportal/framework";
 import type { Observable } from "@bsb/base";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { renderBootstrapWizardHtml } from "./bootstrapWizardHtml.js";
@@ -81,10 +81,10 @@ interface BootstrapKeyState {
 /**
  * P6 + P12 - Bootstrap detection + wizard endpoint.
  *
- * On startup, checks platform config for any tenant. If none -> generates a
+ * On startup, checks platform config for any tenant. If none → generates a
  * 15-min bootstrap key, logs it to stdout, and exposes:
- *   GET  /.well-known/bp/bootstrap        -> vanilla HTML wizard form
- *   POST /.well-known/bp/bootstrap/commit -> accepts {key, adminTenant, adminApp, themeUrl, authUrl}
+ *   GET  /.well-known/bp/bootstrap        → vanilla HTML wizard form
+ *   POST /.well-known/bp/bootstrap/commit → accepts `{key, adminTenant, adminApp, themeUrl, authUrl}`
  *
  * Once committed, the bootstrap state is consumed; endpoints return 410 Gone.
  */
@@ -166,7 +166,15 @@ export async function registerBootstrapEndpoint(input: {
     }
 
     const freshConfig = await input.storage.loadConfig();
-    const owner = input.owner ?? "single";
+    const owner = uuidv7();
+    const completeBootstrap = async (result: Record<string, unknown>, snapshot?: BetterPortalConfig): Promise<void> => {
+      try {
+        await input.postgres!.completePendingAction({ kind: "bootstrap", key: "bootstrap", owner, result }, snapshot);
+      } catch (error) {
+        await input.postgres!.releasePendingAction("bootstrap", "bootstrap", owner);
+        throw error;
+      }
+    };
     if (input.postgres) {
       const claim = await input.postgres.claimPendingAction({
         kind: "bootstrap",
@@ -179,7 +187,7 @@ export async function registerBootstrapEndpoint(input: {
       if (claim.state !== "claimed") return jsonResponse({ error: "Invalid or expired bootstrap key" }, 401);
       if (freshConfig.tenants.length > 0) {
         const result = existingBootstrapResult(freshConfig, input.cpState.issuer);
-        await input.postgres.completePendingAction({ kind: "bootstrap", key: "bootstrap", owner, result });
+        await completeBootstrap(result);
         return jsonResponse(result as unknown as never, 200);
       }
     } else {
@@ -343,19 +351,6 @@ export async function registerBootstrapEndpoint(input: {
       adminTenantId,
       managementAppId: adminAppId
     };
-
-    await input.storage.saveConfig(freshConfig);
-    if (state) state.consumed = true;
-
-    input.logger.log.info(
-      "Bootstrap committed: tenant={tid} app={aid}; admin URL={adminUrl}",
-      {
-        tid: adminTenantId,
-        aid: adminAppId,
-        adminUrl: body.adminApp.hostname
-      }
-    );
-
     const result = {
       ok: true,
       adminTenantId,
@@ -369,8 +364,13 @@ export async function registerBootstrapEndpoint(input: {
       authSharedServiceId,
       themeSharedServiceId
     };
-    if (input.postgres) await input.postgres.completePendingAction({
-      kind: "bootstrap", key: "bootstrap", owner, result
+    if (input.postgres) await completeBootstrap(result, freshConfig);
+    else {
+      await input.storage.saveConfig(freshConfig);
+      if (state) state.consumed = true;
+    }
+    input.logger.log.info("Bootstrap committed: tenant={tid} app={aid}; admin URL={adminUrl}", {
+      tid: adminTenantId, aid: adminAppId, adminUrl: body.adminApp.hostname
     });
     return jsonResponse(result as unknown as never, 200);
   });

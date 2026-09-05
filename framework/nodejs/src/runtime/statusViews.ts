@@ -47,7 +47,7 @@ export function resolveStatusRenderer(
  * - 1xx, 3xx: no body emitted by framework.
  * - 4xx, 5xx: try specific renderer; if absent, return status with empty body.
  */
-export function shouldFallThroughToDefaultRenderer(statusCode: number): boolean {
+export function shouldFallThroughToDefaultRenderer(_statusCode: number): boolean {
   return false;
 }
 

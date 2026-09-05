@@ -86,13 +86,14 @@ export default createHandler(
     }
 
     const user = runtime.userStore.findById(claims.sub);
-    if (!user || !user.enabled) {
+    if (!user || !user.enabled || runtime.userStore.isRefreshTokenRevoked(claims.jti)
+      || (claims.refreshContext.version ?? 0) !== (user.refreshVersion ?? 0)) {
       ctx.setStatus?.(401);
       ctx.bpHeaders?.remove('Authorization');
       ctx.bpHeaders?.remove('X-BP-Refresh');
       return {
         status: "error" as const,
-        message: "User no longer exists or is disabled."
+        message: "User unavailable or refresh session revoked."
       };
     }
 

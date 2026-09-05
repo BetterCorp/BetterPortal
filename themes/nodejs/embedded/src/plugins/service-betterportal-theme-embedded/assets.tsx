@@ -15,13 +15,13 @@ const EmbeddedAdapterSource = js(() => {
       if (outlet) outlet.classList.toggle("bp-embedded__loading", loading);
     },
     showRequestError: function (_status, _content) {
-      var outlet = document.querySelector("[data-bp-main-outlet]");
+      const outlet = document.querySelector("[data-bp-main-outlet]");
       if (outlet) outlet.innerHTML = '<div class="bp-embedded__error">Unable to load embedded content.</div>';
     },
     replaceMainWithError: function (_title, message, _action, _context, outlet) {
       if (!outlet) return;
       outlet.innerHTML = "";
-      var error = document.createElement("div");
+      const error = document.createElement("div");
       error.className = "bp-embedded__error";
       error.textContent = message || "Unable to load embedded content.";
       outlet.appendChild(error);

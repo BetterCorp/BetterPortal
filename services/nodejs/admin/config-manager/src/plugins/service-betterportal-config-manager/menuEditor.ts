@@ -56,12 +56,12 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
-function locate(items: MenuItem[], id: string, parent: MenuItem[] = items):
+function locate(items: MenuItem[], id: string):
   { item: MenuItem; parent: MenuItem[]; index: number } | null {
   for (let i = 0; i < items.length; i++) {
     if (items[i].id === id) return { item: items[i], parent: items, index: i };
     if (items[i].type === "group" && items[i].children) {
-      const found = locate(items[i].children!, id, items[i].children!);
+      const found = locate(items[i].children!, id);
       if (found) return found;
     }
   }
@@ -107,15 +107,6 @@ function getServiceTitle(config: any, serviceId: string | undefined): string {
   }
   const ps = (config.platformServices ?? []).find((x: any) => x.id === serviceId);
   return ps ? (ps.title || ps.id) : serviceId;
-}
-
-function getServiceHostname(config: any, serviceId: string): string | null {
-  for (const t of config.tenants ?? []) {
-    const s = (t.services ?? []).find((x: any) => x.id === serviceId);
-    if (s) return s.hostname ?? null;
-  }
-  const ps = (config.platformServices ?? []).find((x: any) => x.id === serviceId);
-  return ps?.hostname ?? null;
 }
 
 function getServicesForApp(config: any, appDef: any): Array<{ id: string; title: string }> {
@@ -572,7 +563,6 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     if (!found) return htmlResponse("", 200, "text/html; mode=fragment");
 
     // Determine depth by walking up
-    let depth = 0;
     const computeDepth = (items: MenuItem[], target: string, d: number): number => {
       for (const it of items) {
         if (it.id === target) return d;
@@ -583,7 +573,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       }
       return -1;
     };
-    depth = computeDepth(menu, itemId, 0);
+    let depth = computeDepth(menu, itemId, 0);
     if (depth < 0) depth = 0;
 
     const route = found.item.routeId

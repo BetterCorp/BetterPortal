@@ -13,6 +13,7 @@ import {
 } from "@betterportal/framework";
 import { getConfigManagerRouteContext } from "./routeContext.js";
 import { getCachedManifestForService } from "./syncApi.js";
+import { PreviewDiagnosticsSchema, PreviewServiceStatusSchema, buildPreviewDiagnostics, previewServiceStatus } from "./previewDiagnostics.js";
 import {
   PREVIEW_DEPLOYMENT_API_BASE,
   PreviewEnvironmentError,
@@ -65,7 +66,8 @@ const DeploymentServiceSchema = av.object({
   instanceId: av.string().minLength(1),
   url: av.string().minLength(1),
   lastSyncAt: av.optional(av.string()),
-  ready: av.bool()
+  ready: av.bool(),
+  status: PreviewServiceStatusSchema
 });
 
 const DeploymentSchema = av.object({
@@ -123,7 +125,8 @@ export const ResponseSchema = av.object({
   notice: av.optional(av.string()),
   error: av.optional(av.string()),
   issuedApiKey: av.optional(av.string()),
-  issuedCredentials: av.array(CredentialSchema).default([])
+  issuedCredentials: av.array(CredentialSchema).default([]),
+  diagnostics: av.optional(PreviewDiagnosticsSchema)
 });
 export type ResponseData = Infer<typeof ResponseSchema>;
 
@@ -150,7 +153,8 @@ export const handleGet = createHandler(
   (ctx) => buildResponse(
     previewPath(ctx),
     {},
-    stringValue(ctx.query._c) === "config" ? stringValue(ctx.query.groupId) : undefined
+    stringValue(ctx.query._c) === "config" ? stringValue(ctx.query.groupId) : undefined,
+    stringValue(ctx.query._c) === "debug" ? stringValue(ctx.query.deploymentId) : undefined
   )
 );
 
@@ -266,11 +270,12 @@ function previewPath(ctx: Pick<RouteHandlerContext, "routeUrl">): string {
 async function buildResponse(
   path: string,
   transient: Partial<ResponseData> = {},
-  configGroupId?: string
+  configGroupId?: string,
+  debugDeploymentId?: string
 ): Promise<ResponseData> {
   const routeContext = getConfigManagerRouteContext();
   const fullConfig = await routeContext.storage.loadConfig();
-  const visibleConfig = configGroupId === undefined ? visibleAdminConfig(fullConfig) : undefined;
+  const visibleConfig = configGroupId === undefined && debugDeploymentId === undefined ? visibleAdminConfig(fullConfig) : undefined;
   const sourceApps = (visibleConfig?.apps ?? []).map((app) => {
     const tenant = visibleConfig!.tenants.find((candidate) => candidate.id === app.tenantId)!;
     return {
@@ -280,7 +285,7 @@ async function buildResponse(
     };
   });
   const groups = fullConfig.previewEnvironmentGroups
-    .filter((group) => configGroupId === undefined || group.id === configGroupId)
+    .filter((group) => debugDeploymentId === undefined && (configGroupId === undefined || group.id === configGroupId))
     .map((group) => groupModel(fullConfig, group, configGroupId === group.id));
   return {
     title,
@@ -291,6 +296,7 @@ async function buildResponse(
     sourceApps,
     groups,
     issuedCredentials: [],
+    ...(debugDeploymentId !== undefined ? { diagnostics: buildPreviewDiagnostics(fullConfig, debugDeploymentId) } : {}),
     ...transient
   };
 }
@@ -341,13 +347,13 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup, 
     deployments: config.previewEnvironmentDeployments
       .filter((deployment) => deployment.groupId === group.id)
       .map((deployment) => {
-        const tenant = config.tenants.find((candidate) => candidate.id === deployment.tenantId);
         const services = deployment.services.map((binding) => {
-          const registration = tenant?.services.find((candidate) => candidate.id === binding.instanceId);
+          const status = previewServiceStatus(config, deployment, binding.instanceId);
           return {
             ...binding,
-            lastSyncAt: registration?.lastSyncAt,
-            ready: Boolean(registration?.lastSyncAt)
+            lastSyncAt: status.lastSyncAt,
+            ready: status.state === "configured",
+            status
           };
         });
         return {

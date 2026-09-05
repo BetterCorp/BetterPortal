@@ -2,7 +2,7 @@
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../GET.js";
 
-export function render(data: ResponseData): HtmlRenderable {
+export function render(_data: ResponseData): HtmlRenderable {
   return (
     <section class="container-fluid px-0">
       <div class="bp-split-pane" data-bp-detail-open="false">

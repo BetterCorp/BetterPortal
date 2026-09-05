@@ -3,7 +3,6 @@ import type { BaseSchema, Infer, ParseContext, SchemaNode } from "anyvali";
 import {
   DeploymentModeSchema,
   HttpMethodSchema,
-  PluginCategorySchema,
   PluginIdSchema,
   RenderModeSchema,
   UuidV7Schema
@@ -288,7 +287,7 @@ export const BetterPortalAppSchema = av.object({
   menu: av.array(BetterPortalMenuItemSchema).default([]),
   slots: av.array(BetterPortalSlotAssignmentSchema).default([]),
   fragments: av.record(av.array(BetterPortalFragmentAssignmentSchema)).default({}),
-  /** Shell service instance UUID -> shell fragment id -> explicit setting. Missing means shell default. */
+  /** Shell service instance UUID → shell fragment id → explicit setting. Missing means shell default. */
   shellFragments: av.record(av.record(BetterPortalShellFragmentSettingSchema)).default({}),
   auth: av.optional(AppAuthConfigSchema),
   statusViewIds: av.optional(av.record(NonEmptyStringSchema))
@@ -530,6 +529,11 @@ export const PreviewEnvironmentDeploymentServiceSchema = av.object({
 export type PreviewEnvironmentDeploymentService = Infer<typeof PreviewEnvironmentDeploymentServiceSchema>;
 
 export const PreviewEnvironmentDeploymentSchema = av.object({
+  credentialReplay: av.optional(av.object({
+    requestHash: av.string(),
+    ciphertext: av.string(),
+    expiresAt: av.string().format("date-time")
+  })),
   id: UuidV7Schema,
   groupId: UuidV7Schema,
   key: av.string().minLength(1).maxLength(255),
