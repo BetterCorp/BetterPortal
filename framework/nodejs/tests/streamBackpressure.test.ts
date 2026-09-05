@@ -2,8 +2,31 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
 import * as av from "anyvali";
-import { ndjsonStreamResponse } from "../src/runtime/stream.js";
+import { driveStream, ndjsonStreamResponse } from "../src/runtime/stream.js";
 import { createSse } from "../src/runtime/sse.js";
+
+test("stream cancellation suppresses advancement and terminal callbacks", async () => {
+  for (const stage of ["before", "next", "item", "summary"]) {
+    const abort = new AbortController();
+    const calls: string[] = [];
+    if (stage === "before") abort.abort();
+    await driveStream({
+      itemSchema: av.int(), summarySchema: av.int(),
+      async *run() {
+        calls.push("next");
+        if (stage === "next") abort.abort();
+        if (stage === "item") { yield 1; calls.push("advanced"); }
+        return 2;
+      }
+    } as never, { signal: abort.signal } as never, {
+      onItem() { calls.push("item"); abort.abort(); },
+      onSummary() { calls.push("summary"); abort.abort(); },
+      onEnd() { calls.push("end"); },
+      onError() { calls.push("error"); }
+    });
+    assert.deepEqual(calls, stage === "before" ? [] : stage === "next" ? ["next"] : ["next", stage]);
+  }
+});
 
 test("NDJSON pauses a fast producer and cancels it when the reader leaves", async () => {
   let produced = 0;

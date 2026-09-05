@@ -29,6 +29,7 @@ import {
   deleteExpiredPreviewDeployments,
   provisionPreviewDeployment,
   reconcilePreviewService,
+  updatePreviewDeploymentExpiry,
   visibleAdminConfig
 } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import * as adminAuthView from "../src/plugins/service-betterportal-config-manager/bp-routes/auth/GET.js";
@@ -357,6 +358,23 @@ test("auth cache drops removed apps and JWKS", async () => {
   await plugin.warmAuthCache();
   assert.equal(plugin.authConfigCache.size, 0);
   plugin.authConfigCache.set("tenant::app", {});
+  let loaded!: (value: typeof config) => void;
+  let invalidated = false;
+  plugin.storage.invalidate = () => { invalidated = true; };
+  plugin.storage.loadConfig = () => new Promise(resolve => { loaded = resolve; });
+  const warming = plugin.refreshConfigCaches();
+  assert.equal(invalidated, true);
+  assert.equal(plugin.authConfigCache.size, 1, "old verifier remains available during storage IO");
+  loaded(config);
+  await warming;
+  assert.equal(plugin.authConfigCache.size, 0, "removed app disappears when replacement is ready");
+  plugin.authConfigCache.set("tenant::app", {});
+  const stale = plugin.warmAuthCache();
+  plugin.authCacheGeneration++;
+  loaded(config);
+  await stale;
+  assert.equal(plugin.authConfigCache.size, 1, "outdated loads cannot replace the current generation");
+  plugin.storage.loadConfig = async () => config;
   await plugin.refreshAuthCache("tenant", "app");
   assert.equal(plugin.authConfigCache.size, 0);
 });
@@ -1886,13 +1904,14 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
     expiresInDays: 30
   });
   const handlers = new Map<string, (event: never) => Promise<Response>>();
+  const storage = new MemoryStorage(config);
   registerPreviewDeploymentApi({
     app: {
       get: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`GET ${path}`, handler),
       post: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`POST ${path}`, handler),
       delete: (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`DELETE ${path}`, handler)
     } as never,
-    storage: new MemoryStorage(config),
+    storage,
     controlPlaneUrl: "https://config.example",
     replayEncryptionKey: "review-test-only-replay-key"
   });
@@ -1920,6 +1939,23 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
   const refreshed = await call("POST", `Bearer ${apiKey}`);
   assert.equal(refreshed.status, 201);
   assert.deepEqual(await refreshed.json(), firstResult);
+  const current = await storage.loadConfig();
+  const managed = provisionPreviewDeployment(current, group.id, {
+    key: "123", hostname: "pr-123.example",
+    services: [{ serviceId: "org.example.service", url: "https://moved-pr-123.example" }]
+  }, "https://config.example");
+  assert.equal(managed.deployment.credentialReplay, undefined);
+  await storage.saveConfig(current);
+  const retried = await call("POST", `Bearer ${apiKey}`);
+  assert.equal(retried.status, 200);
+  const retriedResult = await retried.json() as { credentials: unknown[] };
+  assert.equal(retriedResult.credentials.length, 1);
+  assert.notDeepEqual(retriedResult.credentials, firstResult.credentials, "must not replay the invalidated API key");
+  const afterRetry = await storage.loadConfig();
+  const deployment = afterRetry.previewEnvironmentDeployments[0];
+  assert.ok(deployment.credentialReplay);
+  updatePreviewDeploymentExpiry(afterRetry, deployment.id, 14);
+  assert.equal(deployment.credentialReplay, undefined);
   assert.ok(!JSON.stringify(config).includes("BP_SERVICE_API_KEY"));
   assert.equal((await call("GET", `Bearer ${apiKey}`)).status, 200);
   assert.equal((await call("DELETE", `Bearer ${apiKey}`)).status, 204);

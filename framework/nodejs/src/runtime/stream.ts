@@ -49,18 +49,22 @@ export async function driveStream(
   const gen = handler.run(ctx);
   let count = 0;
   try {
+    ctx.signal?.throwIfAborted();
     let result = await gen.next();
     while (!result.done) {
       ctx.signal?.throwIfAborted();
       const item = handler.itemSchema.parse(result.value);
       count++;
       await sink.onItem(item);
+      ctx.signal?.throwIfAborted();
       result = await gen.next();
     }
+    ctx.signal?.throwIfAborted();
     if (result.value !== undefined && handler.summarySchema) {
       const summary = handler.summarySchema.parse(result.value);
       await sink.onSummary(summary);
     }
+    ctx.signal?.throwIfAborted();
     await sink.onEnd(count);
   } catch (error) {
     try {

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import bcrypt from "bcrypt";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,24 @@ import { UserStore } from "../src/userStore.js";
 import { createBpTokenIssuer, generateKeyPair, uuidv7 } from "@betterportal/framework";
 import refresh from "../src/plugins/service-betterportal-auth-default/bp-routes/refresh/POST.js";
 import { handlePost as logout } from "../src/plugins/service-betterportal-auth-default/logoutFlow.js";
+
+test("login rejects a password change or disable during password verification", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-login-race-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const store = new UserStore(join(dir, "users.json"));
+  const user = await store.createUser({ username: "admin", password: "old-password", tenantId: "tenant" });
+  assert.equal((await store.authenticate("tenant", "app", "admin", "old-password"))?.refreshVersion, 0);
+  let finish!: (ok: boolean) => void;
+  t.mock.method(bcrypt, "compare", () => new Promise<boolean>(resolve => { finish = resolve; }));
+  const changing = store.authenticate("tenant", "app", "admin", "old-password");
+  await store.setPassword(user.id, "new-password");
+  finish(true);
+  assert.equal(await changing, null);
+  const disabling = store.authenticate("tenant", "app", "admin", "new-password");
+  store.setEnabled(user.id, false);
+  finish(true);
+  assert.equal(await disabling, null);
+});
 
 test("first-admin creation is exclusive and refresh revocation survives restart", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "bp-users-"));

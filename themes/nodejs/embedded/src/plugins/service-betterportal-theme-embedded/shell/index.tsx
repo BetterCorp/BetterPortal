@@ -34,6 +34,7 @@ export interface EmbeddedHostPageContext {
   initialServiceId?: string;
   initialRouteError?: string;
   routeLinks: EmbeddedRouteLink[];
+  serviceOrigins?: Record<string, string>;
   chrome?: BetterPortalShellChrome;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
@@ -150,7 +151,7 @@ function buildServiceMap(routeLinks: EmbeddedRouteLink[]): Record<string, string
 }
 
 function EmbeddedBody(context: EmbeddedHostPageContext): HtmlRenderable {
-  const serviceMap = buildServiceMap(context.routeLinks);
+  const serviceMap = context.serviceOrigins ?? buildServiceMap(context.routeLinks);
   const hasInitialRouteError = Boolean(context.initialRouteError);
   return (
     <div

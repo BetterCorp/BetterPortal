@@ -23,9 +23,11 @@ test("Embedded shell receives initial generic chrome", () => {
     assetBaseUrl: "/assets",
     assetVersion: "10.6.9",
     routeLinks: [],
+    serviceOrigins: { fragment: "https://fragment.test" },
     chrome: { fullScreen: true, hideHeader: true }
   });
   assert.match(html, /data-bp-chrome-full-screen="true"/);
+  assert.match(html, /data-bp-services="[^"\n]*fragment[^"\n]*https:\/\/fragment\.test/);
   assert.match(html, /data-bp-chrome-hide-header="true"/);
   assert.match(html, /data-bp-menu-health="false"/);
   assert.match(html, /embedded-core\.js\?v=10\.6\.9[^>]*fetchpriority="high"/);

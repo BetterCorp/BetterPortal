@@ -38,6 +38,8 @@ const asset = await buildBetterPortalShellRuntimeAsset({
 
 The shared runtime owns service/app URL rewriting, managed BP headers, header-aware preload, HTMX lifecycle handling, downloads, history, authentication failures, SSE, `bp-element` states, and route chrome state. It never discovers service schemas in the browser.
 
+Managed BP headers are sent only to registered app service origins over HTTPS. Local development may use HTTP on `localhost`, `127.0.0.1`, or `[::1]`; other HTTP service URLs must migrate to HTTPS. Shells publish origins for enabled route, slot, fragment, auth, and shell bindings. Legacy origin-based header ownership and scopes remain supported.
+
 Plain internal `<a href="/route">` links and forms using native GET or POST are automatically upgraded to HTMX and routed through the owning service. For default `#bp-main` navigation, the configured app UI route is authoritative for `href` and history; the runtime never pushes an unconfigured service path. A bare `<form>` posts to its current service view. Use `bp-no-override` (or `data-bp-no-override`) on an element or ancestor to keep native browser behavior; `data-bp-no-route` remains supported for shell-owned elements.
 
 Runtime-managed HTMX requests automatically declare `Accept: text/html; mode=page|fragment`; SSE connects are always marked `HX-Request-Type: partial`, retain the SSE media type, and receive the same scoped BP auth/context headers as other self-service requests. Explicit non-HTML `Accept` headers are preserved.

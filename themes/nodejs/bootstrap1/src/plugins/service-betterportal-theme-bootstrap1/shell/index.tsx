@@ -59,6 +59,7 @@ export interface Bootstrap1HostPageContext {
   initialRouteError?: string;
   initialRouteStatus?: number;
   routeLinks: Bootstrap1RouteLink[];
+  serviceOrigins?: Record<string, string>;
   navItems?: Bootstrap1NavItem[];
   loginUrl?: string;
   logoutUrl?: string;
@@ -2155,7 +2156,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
   const navItems = context.navItems ?? buildNavItems(context.routeLinks.filter(isUserFacingRoute));
   const activeRoute = context.routeLinks.find((route) => route.active);
   const currentBreadcrumb = activeBreadcrumb(navItems);
-  const serviceMap = buildServiceMap(context.routeLinks);
+  const serviceMap = context.serviceOrigins ?? buildServiceMap(context.routeLinks);
   const hasInitialRouteError = Boolean(context.initialRouteError);
   const initialRouteErrorTitle = context.initialRouteStatus === 404 ? "Route Not Found" : "Route Configuration Error";
   return (

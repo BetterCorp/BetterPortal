@@ -771,15 +771,20 @@ export function betterPortalShellRuntimeSource(): string {
       const attachBpHeaders = (requestHeaders: Record<string, string>, requestUrl: string, explicitServiceId = "") => {
         const registeredServiceId = serviceIdForUrl(requestUrl);
         if (!registeredServiceId) return;
+        const targetUrl = new URL(requestUrl, window.location.origin);
+        const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(targetUrl.hostname);
+        if (targetUrl.protocol !== "https:" && !(targetUrl.protocol === "http:" && loopback)) return;
         if (explicitServiceId) {
+          explicitServiceId = serviceOrigins[explicitServiceId] ? explicitServiceId : serviceIdByOrigin[explicitServiceId] ?? "";
+          if (!explicitServiceId) return;
           try {
-            if (new URL(serviceOrigins[explicitServiceId]).origin !== new URL(requestUrl, window.location.origin).origin) return;
+            if (new URL(serviceOrigins[explicitServiceId]).origin !== targetUrl.origin) return;
           } catch { return; }
         }
-        const targetServiceId = explicitServiceId || serviceIdForUrl(requestUrl);
+        const targetServiceId = explicitServiceId || registeredServiceId;
         for (const [name, entry] of Object.entries(liveBpHeaders())) {
           if (!entry || typeof entry.value !== "string") continue;
-          if (entry.scope && entry.scope !== targetServiceId) continue;
+          if (entry.scope && entry.scope !== targetServiceId && entry.scope !== targetUrl.origin) continue;
           if (Object.keys(requestHeaders).some(key => key.toLowerCase() === name.toLowerCase())) continue; // explicit wins
           requestHeaders[name] = entry.value;
         }

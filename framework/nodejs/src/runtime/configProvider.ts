@@ -253,6 +253,32 @@ export function resolveServiceForTenant(
   return null;
 }
 
+/** Credential destinations come from enabled app bindings, never fragment HTML. */
+export function resolveAppServiceOrigins(config: BetterPortalConfig, context: BetterPortalResolvedRequestContext): Record<string, string> {
+  const app = context.app;
+  const ids = new Set([
+    ...app.routes.filter(binding => binding.enabled).map(binding => binding.serviceId),
+    ...app.slots.filter(binding => binding.enabled).map(binding => binding.serviceId),
+    ...Object.values(app.fragments).flat().filter(binding => binding.enabled).map(binding => binding.serviceId)
+  ]);
+  if (app.auth?.serviceId) ids.add(app.auth.serviceId);
+  if (app.shell?.serviceId) ids.add(app.shell.serviceId);
+  for (const setting of Object.values(app.shellFragments[app.shell?.serviceId ?? ""] ?? {})) {
+    const items = setting.mode === "items" ? setting.items : setting.mode === "override" ? [setting.item] : [];
+    for (const item of items) if (item.source === "service") ids.add(item.serviceId);
+  }
+  const origins: Record<string, string> = {};
+  for (const id of ids) {
+    const binding = resolveServiceForTenant(config, id, context);
+    if (!binding) continue;
+    try {
+      const url = new URL(serviceBaseUrl(binding.service));
+      if (["https:", "http:"].includes(url.protocol) && !url.username && !url.password) origins[id] = url.origin;
+    } catch { /* Invalid service URLs are not credential destinations. */ }
+  }
+  return origins;
+}
+
 function ensureAllowedOrigins(app: BetterPortalResolvedRequestContext["app"]): string[] {
   const generated = app.hostnames.flatMap((hostname) => {
     if (hostname.startsWith("http://") || hostname.startsWith("https://")) {

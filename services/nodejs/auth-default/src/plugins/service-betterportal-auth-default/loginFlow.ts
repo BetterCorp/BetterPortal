@@ -157,7 +157,7 @@ export const handlePost = createHandler(
       tenantId: user.tenantId,
       appId,
       authProvider: 'betterportal.default',
-      refreshContext: { version: runtime.userStore.findById(user.id)?.refreshVersion ?? 0 },
+      refreshContext: { version: user.refreshVersion },
       roles: user.roles,
       name: user.name ?? user.username,
       email: user.email,

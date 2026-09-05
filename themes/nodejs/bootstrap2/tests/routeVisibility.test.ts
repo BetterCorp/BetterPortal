@@ -100,9 +100,11 @@ test("fullscreen chrome keeps the normal shell and does not imply auth", () => {
     assetBaseUrl: "/assets",
     currentPath: "/login",
     routeLinks: [],
+    serviceOrigins: { fragment: "https://fragment.test" },
     chrome: { fullScreen: true }
   });
   assert.match(html, /data-bp-chrome-full-screen="true"/);
+  assert.match(html, /data-bp-services="[^"\n]*fragment[^"\n]*https:\/\/fragment\.test/);
   assert.match(html, /class="bp-admin"/);
   assert.doesNotMatch(html, /data-bp-auth-mode/);
 });

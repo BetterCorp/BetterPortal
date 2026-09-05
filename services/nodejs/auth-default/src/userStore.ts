@@ -28,6 +28,7 @@ export interface AuthenticatedUser {
   picture?: string;
   tenantId: string;
   roles: string[];
+  refreshVersion: number;
 }
 
 interface UserStoreFile {
@@ -107,8 +108,10 @@ export class UserStore {
       return null;
     }
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
+    const passwordHash = user.passwordHash;
+    const refreshVersion = user.refreshVersion ?? 0;
+    const ok = await bcrypt.compare(password, passwordHash);
+    if (!ok || !user.enabled || user.passwordHash !== passwordHash || (user.refreshVersion ?? 0) !== refreshVersion) {
       return null;
     }
 
@@ -120,7 +123,8 @@ export class UserStore {
       name: user.name,
       picture: user.picture,
       tenantId: user.tenantId,
-      roles
+      roles,
+      refreshVersion
     };
   }
 

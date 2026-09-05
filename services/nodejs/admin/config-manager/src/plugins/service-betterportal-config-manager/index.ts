@@ -228,10 +228,20 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
    * each config change (e.g. an auth service installing and pushing its JWKS),
    * so the first authenticated request never races an empty cache.
    */
-  private async warmAuthCache(obs?: Observable): Promise<void> {
+  private async refreshConfigCaches(obs?: Observable): Promise<void> {
+    const generation = ++this.authCacheGeneration;
+    this.storage.invalidate();
+    const config = await this.storage.loadConfig();
+    if (generation !== this.authCacheGeneration) return;
+    hydrateManifestCache(config);
+    // Keep current verifiers available until their replacement is ready.
+    await this.warmAuthCache(obs, config);
+  }
+
+  private async warmAuthCache(obs?: Observable, snapshot?: Awaited<ReturnType<PlatformConfigStore["loadConfig"]>>): Promise<void> {
     const generation = this.authCacheGeneration;
     try {
-      const config = await this.storage.loadConfig();
+      const config = snapshot ?? await this.storage.loadConfig();
       if (generation !== this.authCacheGeneration) return;
       const next: typeof this.authConfigCache = new Map();
       let warmed = 0;
@@ -364,12 +374,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     await this.selfClient.onPlatformConfigChanged(_obs, async (eventObs, event) => {
       if (event.revision <= this.lastConfigRevision) return;
       this.lastConfigRevision = event.revision;
-      this.authCacheGeneration++;
-      this.authConfigCache.clear();
-      this.storage.invalidate();
-      hydrateManifestCache(await this.storage.loadConfig());
-      // A config change may carry a freshly-pushed auth JWKS - rebuild verifiers.
-      await this.warmAuthCache(eventObs);
+      await this.refreshConfigCaches(eventObs);
     });
     await this.selfClient.onWebhookDeliveryAvailable(_obs, async () => {
       await this.webhookRuntime?.drain();
