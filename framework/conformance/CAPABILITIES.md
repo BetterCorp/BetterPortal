@@ -7,7 +7,8 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-868/876 schema probes; token/service security passes 459/459 scenarios. See
+868/876 schema probes; token/service security passes 459/459 scenarios and JWKS
+checks pass 80/80. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -30,7 +31,7 @@ future scenarios; they are not assertions that those tests already exist.
 | allowlist | adapters/h3.ts resolveAppRouteAccess | Pending exact operation allowlists, GET fragment/slot mounts | config.md §1 | denied-operation, sibling-method, no-appRoutes-inbound |
 | URLs | runtime/configProvider.ts, adapters/h3.ts; BSB service.ts | Pending service aliases, routeUrl/uiRouteUrl, params/query/fragments/SSE | docs/building/shell-links.md | service-alias, cross-service-path, optional-param, shell-navigation |
 | jwt | runtime/auth/tokens.ts, jwtCrypto.ts, verifier.ts | Python security.py; C# Security.cs: six purposes, RS256 issuance/verification, strict headers, time and trust checks | auth.md §1; port READMEs | security_cases.py: cross-signature, wrong-purpose, time, issuer-audience, jku-x5u |
-| jwks | runtime/auth/jwks.ts, keypair.ts | Pending local/static/remote keys and cache invalidation | auth.md §1.1 | rotation, unknown-kid, trusted-destination, no-redirect |
+| jwks | runtime/auth/jwks.ts, keypair.ts | Python keys.py/C# Keys.cs: static RSA JWKS, remote cache, rotation/invalidation, bounded HTTP and cancellation; key persistence pending | auth.md §1.1; port READMEs | key_cases.py: 80 checks, including native transport policy and cancellation |
 | roles | adapters/h3.ts resolveUserRequestAuth | Pending scoped role expansion and management-only elevation | auth.md §1.2 | revoked-role, instance-alias, forged-root, preview-elevation |
 | auth-helpers | runtime/auth/issuer.ts, externalOidc.ts, redirect.ts, envelope.ts | Partial: refresh pairs/scope binding and CP/setup purposes; external bridge, redirects/cookies and installation binding pending | auth.md; port READMEs | security_cases.py refresh-pair, envelope-purpose; refresh-scope negative tests pending |
 | config-ticket | runtime/configTicket.ts, serviceConfig.ts | Partial: CP-signed ticket and service/tenant/action checks; config routes/configApps policy pending | config.md §4 | security_cases.py cross-ticket, wrong-service, wrong-action; configApps-scope pending |

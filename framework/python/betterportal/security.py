@@ -6,7 +6,6 @@ from enum import Enum
 from functools import cached_property
 import base64
 import inspect
-import json
 import re
 import secrets
 import time
@@ -18,6 +17,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from .contracts import contract, parse
+from .jsoncodec import loads
 
 CONFIG_TICKET_AUDIENCE = "betterportal-service-config"
 _KID = re.compile(r"[A-Za-z0-9_-]{1,256}\Z")
@@ -128,18 +128,7 @@ def _jwt_object(part: str) -> dict[str, Any]:
     if base64.urlsafe_b64encode(raw).decode().rstrip("=") != part:
         raise TokenError("Invalid JWT encoding")
 
-    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise TokenError("Duplicate JWT member")
-            result[key] = value
-        return result
-
-    def invalid_constant(value: str) -> None:
-        raise TokenError("Invalid JSON number")
-
-    value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique, parse_constant=invalid_constant)
+    value = loads(raw.decode("utf-8"))
     if not isinstance(value, dict):
         raise TokenError("JWT part must be an object")
     return value

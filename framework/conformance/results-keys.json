@@ -1,0 +1,406 @@
+{
+  "scenarios": 80,
+  "passed": 80,
+  "results": [
+    {
+      "runtime": "node",
+      "id": "jwks-configured-query",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "jwks-root-query",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "jwks-native-keys-parallel-cache",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "jwks-rotation-miss-throttle",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "jwks-content-type",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "jwks-invalid-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "jwks-http-error",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "jwks-invalid-kid-no-fetch",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-configured-query",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-root-query",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-native-keys-parallel-cache",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-rotation-miss-throttle",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-content-type",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-invalid-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-http-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-invalid-kid-no-fetch",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-True-0",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-True-1",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-True-2",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-True-3",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-0",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-1",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-2",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-3",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-4",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-5",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-6",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-7",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-8",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-9",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-10",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-11",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-12",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-13",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-14",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-endpoint-False-15",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-no-redirect",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-response-limit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-duplicate-id",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-duplicate-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-waiter-cancellation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-shutdown-cancellation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-invalidate-inflight",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "jwks-total-deadline",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-configured-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-root-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-native-keys-parallel-cache",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-rotation-miss-throttle",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-content-type",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-invalid-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-http-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-invalid-kid-no-fetch",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-True-0",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-True-1",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-True-2",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-True-3",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-0",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-1",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-2",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-3",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-4",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-5",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-6",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-7",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-8",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-9",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-10",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-11",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-12",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-13",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-14",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-endpoint-False-15",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-no-redirect",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-response-limit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-duplicate-id",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-duplicate-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-waiter-cancellation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-shutdown-cancellation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-invalidate-inflight",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "jwks-total-deadline",
+      "passed": true
+    }
+  ]
+}

@@ -19,8 +19,13 @@ signing/verifying language pair, six token purposes, signature tampering,
 issuer/audience/key checks, malformed claims/headers, config-ticket scope/actions,
 refresh-role clearing, revoked service bindings/grants, caller mode, method,
 permissions and tenant/app isolation. Full delegated user authorization, scoped
-role revocation, setup installation binding and JWKS caching remain acceptance
-work. .NET dependencies are locked in [packages.lock.json](../dotnet/BetterPortal/packages.lock.json);
+role revocation and setup installation binding remain acceptance work.
+The [JWKS suite](results-keys.json) adds 80 passing checks: shared Node/port
+key loading, cache/rotation and query compatibility, plus native endpoint policy,
+redirect rejection, response bounds, total deadlines, cancellation and cache
+invalidation. Native-only checks exercise APIs absent from Node's existing helper;
+the suite does not replace Node policy with a test implementation.
+.NET dependencies are locked in [packages.lock.json](../dotnet/BetterPortal/packages.lock.json);
 the Python probe dependencies are pinned in [requirements.txt](requirements.txt).
 
 | Failure | Evidence | Consequence |
@@ -59,6 +64,7 @@ dotnet restore framework/dotnet/Conformance --locked-mode
 dotnet build framework/dotnet/Conformance --no-restore
 python framework/conformance/verify.py --roundtrip-all --report results.json
 python framework/conformance/verify.py --suite security
+python framework/conformance/verify.py --suite keys
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -69,7 +75,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|all` (default: all).
+Both runners accept `--suite schema|security|keys|all` (default: all).
 
 The HTTP runner can also target independently launched adapters:
 

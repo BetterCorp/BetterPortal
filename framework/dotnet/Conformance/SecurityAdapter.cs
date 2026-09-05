@@ -11,7 +11,8 @@ internal static class SecurityAdapter
     {
         string Text(string name) => (string)body[name]!;
         var action = Text("action");
-        if (action == "jwt-key") return new { publicKeyPem = Key.PublicKeyPem, kid = Key.Kid };
+        if (action.StartsWith("keys-", StringComparison.Ordinal)) return await KeyAdapter.Run(body);
+        if (action == "jwt-key") return new { publicKeyPem = Key.PublicKeyPem, kid = Key.Kid, jwk = Key.PublicJwk() };
         if (action == "jwt-pair") return new TokenIssuer(Key, Text("issuer"), Text("audience"))
             .IssuePair((Dictionary<string, object?>)body["user"]!);
         var purpose = Enum.GetValues<TokenPurpose>().Single(p => Tokens.PurposeName(p) == Text("purpose"));

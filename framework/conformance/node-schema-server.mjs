@@ -8,7 +8,7 @@ createServer(async (request, response) => {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
-    if (body.action?.startsWith("jwt-")) {
+    if (body.action?.startsWith("jwt-") || body.action?.startsWith("keys-")) {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(await security(body)));
       return;

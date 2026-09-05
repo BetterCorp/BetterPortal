@@ -1,5 +1,6 @@
 // Test-only adapter to the real Node security entry points. Never expose this server.
-import { generateKeyPair } from "../nodejs/lib/runtime/auth/keypair.js";
+import { generateKeyPair, publicKeyToJwk } from "../nodejs/lib/runtime/auth/keypair.js";
+import { keyActions } from "./node-keys.mjs";
 import { signRs256Jwt } from "../nodejs/lib/runtime/auth/jwtCrypto.js";
 import { signJwt, verifyJwt } from "../nodejs/lib/runtime/auth/tokens.js";
 import { signCpEnvelope, signSetupToken, verifyCpEnvelope, verifySetupToken } from "../nodejs/lib/runtime/auth/envelope.js";
@@ -10,7 +11,8 @@ import { createBpTokenIssuer } from "../nodejs/lib/runtime/auth/issuer.js";
 const key = generateKeyPair();
 export async function security(body) {
   const { action, purpose, claims } = body;
-  if (action === "jwt-key") return { publicKeyPem: key.publicKeyPem, kid: key.kid };
+  if (action.startsWith("keys-")) return keyActions(body);
+  if (action === "jwt-key") return { publicKeyPem: key.publicKeyPem, kid: key.kid, jwk: publicKeyToJwk(key.publicKeyPem, key.kid) };
   const typ = purpose === "service" ? "BP-S2S-JWT" : "JWT";
   if (action === "jwt-raw") return { token: signRs256Jwt(claims, key.privateKeyPem, { alg: "RS256", typ, kid: key.kid, ...body.header }) };
   if (action === "jwt-pair") return createBpTokenIssuer({ keyPair: key, issuer: body.issuer, audience: body.audience,

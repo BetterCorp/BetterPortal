@@ -14,7 +14,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            if body.get("action", "").startswith("jwt-"):
+            if body.get("action", "").startswith(("jwt-", "keys-")):
                 payload = security(body)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")

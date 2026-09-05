@@ -1,6 +1,7 @@
 """Test-only security actions; no signing endpoint belongs in a consumer host."""
 import asyncio
 import jwt
+from python_keys import key_actions
 from betterportal.security import KeyPair, TokenPurpose, TokenIssuer, TokenError, sign_token, verify_token, verify_config_ticket, authorize_service
 
 KEY = KeyPair.generate()
@@ -8,8 +9,10 @@ KEY = KeyPair.generate()
 
 def security(body):
     action = body["action"]
+    if action.startswith("keys-"):
+        return asyncio.run(key_actions(body))
     if action == "jwt-key":
-        return {"publicKeyPem": KEY.public_key_pem, "kid": KEY.kid}
+        return {"publicKeyPem": KEY.public_key_pem, "kid": KEY.kid, "jwk": KEY.public_jwk()}
     if action == "jwt-pair":
         return TokenIssuer(KEY, body["issuer"], body["audience"]).issue_pair(body["user"])
     purpose = TokenPurpose(body["purpose"])

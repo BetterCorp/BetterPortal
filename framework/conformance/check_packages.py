@@ -24,7 +24,10 @@ sys.path.insert(0, str(wheel.resolve()))
 import betterportal
 from betterportal.contracts import parse
 from betterportal.security import KeyPair
+from betterportal.keys import public_keys, secure_endpoint
 assert str(wheel.resolve()) in betterportal.__file__
 assert parse("JsonObjectSchema", {"x": [None, {"y": True}]}) == {"x": [None, {"y": True}]}
-assert KeyPair.generate().public_jwk()["alg"] == "RS256"
+key = KeyPair.generate()
+assert public_keys({"keys": [key.public_jwk()]})[key.kid] == key.public_key_pem
+assert secure_endpoint("https://keys.example") == "https://keys.example"
 print("Wheel and sdist contain identical canonical contracts; standalone wheel import, recursive parsing and RSA passed")
