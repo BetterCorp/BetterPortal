@@ -50,7 +50,7 @@ async function loadJwksKeys(options: JwksLookupOptions, generation: number): Pro
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    throw new Error(`JWKS endpoint returned invalid JSON: ${options.jwksUri}: ${(error as Error).message}`);
+    throw new Error(`JWKS endpoint returned invalid JSON: ${options.jwksUri}: ${(error as Error).message}`, { cause: error });
   }
 
   const rawKeys = (parsed as { keys?: unknown }).keys;

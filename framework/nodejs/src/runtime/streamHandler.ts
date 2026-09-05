@@ -110,6 +110,7 @@ export function createStreamHandler<
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace -- Declaration merging exposes schema inference types on the public factory.
 export namespace createStreamHandler {
   export function forContext<TPlugin = never, TServiceConfig = Record<string, unknown>>() {
     return createStreamHandler as <

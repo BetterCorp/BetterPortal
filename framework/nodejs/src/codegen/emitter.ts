@@ -8,10 +8,10 @@ import type { ScanResult, ScannedMethodModule, ScannedRoute, ScannedStreamRender
  *
  * Steps:
  *  1. Remove the trailing ".index" suffix.
- *  2. Replace `$paramName` -> `ParamName` (capitalize after $).
+ *  2. Replace `$paramName` → `ParamName` (capitalize after $).
  *  3. Split on dots, capitalize each segment after the first.
  *
- * Example: "users.$userId.index" -> "usersUserId"
+ * Example: "users.$userId.index" → "usersUserId"
  */
 function viewIdToCamel(viewId: string): string {
   // Strip trailing .index
@@ -212,7 +212,7 @@ interface RenderersByRenderer {
   fragments: Array<{ renderer: ScannedViewRenderer; importName: string; sseImportName?: string }>;
   /** Streaming frame renderers from index.stream.tsx. */
   stream?: { renderer: ScannedStreamRenderer; importName: string };
-  /** statusCode -> { page?, components: id -> ..., fragments: loc.id -> ... } */
+  /** statusCode → `{ page?, components: id → ..., fragments: loc.id → ... }` */
   statusRenderers: Map<number, {
     pages: Array<{ renderer: ScannedViewRenderer; importName: string }>;
     components: Map<string, { renderer: ScannedViewRenderer; importName: string }>;

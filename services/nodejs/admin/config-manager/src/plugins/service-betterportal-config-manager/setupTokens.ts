@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
+import { jsonResponse, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, PublicJwks, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
 import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, signSetupToken } from "@betterportal/framework";
@@ -27,11 +27,11 @@ const SETUP_TTL_SECONDS = 5 * 60;
 /**
  * Register the two CM endpoints that drive the browser-mediated install:
  *   1. POST /.well-known/bp/admin/services/begin-install
- *      -> admin UI requests a setup token bound to (serviceUrl, scope?)
- *      -> returns { setupToken, cpUrl, cpJwksUri }
+ *      → admin UI requests a setup token bound to (serviceUrl, scope?)
+ *      → returns `{ setupToken, cpUrl, cpJwksUri }`
  *   2. POST /.well-known/bp/services/redeem
- *      -> service exchanges single-use setupToken for the real apiKey
- *      -> returns { apiKey, cpId, cpJwksUri }
+ *      → service exchanges single-use setupToken for the real apiKey
+ *      → returns `{ apiKey, cpId, cpJwksUri }`
  */
 export function registerSetupEndpoints(input: {
   app: BetterPortalH3App;

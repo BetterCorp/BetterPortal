@@ -29,7 +29,7 @@ import {
   revokeM2MConnection,
   type M2MConnectionSelection
 } from "./m2mConnections.js";
-import { isPreviewApp, isPreviewTenant } from "./previewEnvironments.js";
+import { isPreviewApp } from "./previewEnvironments.js";
 
 const API_BASE = "/.well-known/bp/admin";
 const CONFIG_TICKET_TTL_SECONDS = 5 * 60;
@@ -1090,7 +1090,7 @@ export function registerAdminApiRoutes(
     if (targetsPreview) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
   });
 
-  app.get("/.well-known/bp/management", async (event) => {
+  app.get("/.well-known/bp/management", async () => {
     const config = await store.loadConfig();
     return jsonResponse(managementDiscovery(config, cpState));
   });
@@ -2894,108 +2894,6 @@ function renderWizardStep3(d: { apiKey: string; deploymentMode: string; title: s
   </div>
   <button class="btn btn-primary w-100" data-bs-dismiss="offcanvas">Done</button>
 </div>`;
-}
-
-function renderConfigForm(d: {
-  hostname: string;
-  tenantId: string;
-  appId: string;
-  serviceTitle: string;
-  fields: Array<{ key: string; title: string; description?: string; visibility?: string; ui?: ConfigFieldUiHint }>;
-  values: Record<string, unknown>;
-  tenantApps: Array<{ id: string; title: string; routes?: Array<{ path: string; title: string }> }>;
-  needsApp: boolean;
-}): string {
-  const appSelector = d.needsApp
-    ? `<div class="mb-3">
-      <label class="form-label">App</label>
-      <select class="form-select" name="appId" required
-        hx-get="/.well-known/bp/admin/configure"
-        hx-trigger="change"
-        hx-target="#bp-config-edit-form"
-        hx-swap="innerHTML"
-        hx-include="closest form"
-        hx-vals='{"hostname":"${escapeHtml(d.hostname)}","tenantId":"${escapeHtml(d.tenantId)}","title":"${escapeHtml(d.serviceTitle)}"}'>
-        <option value="">Select app...</option>
-        ${d.tenantApps.map((a) => `<option value="${escapeHtml(a.id)}"${a.id === d.appId ? " selected" : ""}>${escapeHtml(a.title)}</option>`).join("")}
-      </select>
-    </div>`
-    : "";
-
-  if (d.needsApp && !d.appId) {
-    return `<div class="small text-secondary mb-3">${escapeHtml(d.serviceTitle)} - <span class="font-monospace">${escapeHtml(d.hostname)}</span></div>
-${appSelector}
-<div class="alert alert-info">Select an app to load its config</div>`;
-  }
-
-  const fieldsHtml = d.fields.map((f) => {
-    const val = d.values[f.key] ?? "";
-    const placeholder = f.visibility === "secret" && val === "__redacted__" ? "(unchanged)" : "";
-    const renderedVal = f.visibility === "secret" && val === "__redacted__" ? "" : String(val);
-    return `<div class="mb-3">
-      <label class="form-label">${escapeHtml(f.title)}</label>
-      ${renderConfigControl(f, renderedVal, placeholder, false)}
-      ${f.description ? `<div class="form-text">${escapeHtml(f.description)}</div>` : ""}
-    </div>`;
-  }).join("");
-
-  return `<div class="small text-secondary mb-3">${escapeHtml(d.serviceTitle)} - <span class="font-monospace">${escapeHtml(d.hostname)}</span></div>
-${appSelector}
-<form hx-post="/.well-known/bp/admin/configure-save" hx-target="#bp-config-save-status" hx-swap="innerHTML"
-  hx-on::after-request="if(event.detail.successful) setTimeout(()=>bootstrap.Offcanvas.getInstance(document.getElementById('bp-config-edit-panel'))?.hide(), 800)">
-  <input type="hidden" name="hostname" value="${escapeHtml(d.hostname)}" />
-  <input type="hidden" name="tenantId" value="${escapeHtml(d.tenantId)}" />
-  <input type="hidden" name="appId" value="${escapeHtml(d.appId)}" />
-  <input type="hidden" name="serviceTitle" value="${escapeHtml(d.serviceTitle)}" />
-  ${fieldsHtml}
-  <div id="bp-config-save-status"></div>
-  <button type="submit" class="btn btn-primary w-100">Save Configuration</button>
-</form>`;
-}
-
-type ConfigFieldUiHint = {
-  control?: string;
-  placeholder?: string;
-  options?: Array<{ value: string; label: string }>;
-  optionsSource?: "app.routes";
-  min?: string | number;
-  max?: string | number;
-  step?: number;
-  rows?: number;
-};
-
-function renderConfigControl(
-  field: { key: string; visibility?: string; ui?: ConfigFieldUiHint },
-  value: string,
-  placeholder: string,
-  disabled: boolean
-): string {
-  const ui = field.ui ?? {};
-  const control = field.visibility === "secret" ? "password" : ui.control ?? "text";
-  const name = escapeHtml(field.key);
-  const disabledAttr = disabled ? " disabled" : "";
-  const placeholderAttr = escapeHtml(placeholder || ui.placeholder || "");
-  const attrs = [
-    ui.min !== undefined ? `min="${escapeHtml(String(ui.min))}"` : "",
-    ui.max !== undefined ? `max="${escapeHtml(String(ui.max))}"` : "",
-    ui.step !== undefined ? `step="${escapeHtml(String(ui.step))}"` : ""
-  ].filter(Boolean).join(" ");
-  if (control === "textarea") {
-    return `<textarea class="form-control" name="${name}" rows="${escapeHtml(String(ui.rows ?? 3))}" placeholder="${placeholderAttr}"${disabledAttr}>${escapeHtml(value)}</textarea>`;
-  }
-  if (control === "select" || control === "multiselect") {
-    const selectedValues = new Set(control === "multiselect" ? value.split(",").map((entry) => entry.trim()) : [value]);
-    const options = (ui.options ?? []).map((option) =>
-      `<option value="${escapeHtml(option.value)}"${selectedValues.has(option.value) ? " selected" : ""}>${escapeHtml(option.label)}</option>`
-    ).join("");
-    return `<select class="form-select" name="${name}"${control === "multiselect" ? " multiple" : ""}${disabledAttr}>${options}</select>`;
-  }
-  if (control === "checkbox") {
-    const checked = value === "true" || value === "1" || value === "on";
-    return `<input class="form-check-input" type="checkbox" name="${name}" value="true"${checked ? " checked" : ""}${disabledAttr} />`;
-  }
-  const inputType = ["number", "color", "date", "time", "datetime-local", "url", "email", "password"].includes(control) ? control : "text";
-  return `<input class="form-control" type="${inputType}" name="${name}" value="${escapeHtml(value)}" placeholder="${placeholderAttr}" ${attrs}${disabledAttr} />`;
 }
 
 export function renderConfigClientShell(d: {

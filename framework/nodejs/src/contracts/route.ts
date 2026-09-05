@@ -227,6 +227,7 @@ export interface RouteHandlerContextBase<
 }
 
 type PluginHandlerContext<TPlugin> = [TPlugin] extends [never]
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Empty intersection identity intentionally adds no plugin fields.
   ? {}
   : {
       /** Public feature explicitly exported by the BSB plugin that owns this route. */

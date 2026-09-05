@@ -74,7 +74,7 @@ function applyWellKnownCors(event: BetterPortalEvent): Response | undefined {
   return undefined;
 }
 
-/** Tenant service-instance id (UUIDv7) -> pluginId, for the auth permission check. */
+/** Tenant service-instance id (UUIDv7) → pluginId, for the auth permission check. */
 function buildServiceIdAliases(
   config: {
     tenants: Array<{ id: string; services: Array<{ id: string; serviceId?: string }> }>;
@@ -161,7 +161,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private readonly selfClient: BetterportalConfigManagerClient;
   /** CP-side signing keypair + issuer/audience info. Built on first init. */
   private cpState!: CpBootstrapState;
-  /** Cache of (tenantId, appId) -> app.auth config + JWT verifier from synced storage. */
+  /** Cache of (tenantId, appId) → app.auth config + JWT verifier from synced storage. */
   private readonly authConfigCache = new Map<string, { auth: AppAuthConfig; verifier: JwtVerifier; aliases: Record<string, string>; root: { tenantId?: string; appId?: string }; cachedAt: number }>();
   private readonly authCacheTtlMs = 60 * 1000;
   private authCacheGeneration = 0;
@@ -223,10 +223,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   /**
-   * Eagerly build verifiers for every app that already has pushed JWKS in
-   * persisted config. Called at startup (publicKeys survive restarts) and after
-   * each config change (e.g. an auth service installing and pushing its JWKS),
-   * so the first authenticated request never races an empty cache.
+   * Refresh manifest and verifier caches after a config-change broadcast.
+   *
+   * @remarks
+   * Retains live verifiers while storage loads. The generation fence discards
+   * superseded snapshots; entries removed from the new config disappear at swap.
    */
   private async refreshConfigCaches(obs?: Observable): Promise<void> {
     const generation = ++this.authCacheGeneration;
@@ -238,6 +239,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     await this.warmAuthCache(obs, config);
   }
 
+  /**
+   * Build a complete verifier cache from persisted JWKS at startup or refresh.
+   *
+   * @remarks
+   * An already-loaded snapshot avoids a second read during broadcast handling.
+   * Replacement is synchronous; build failures preserve the previous cache and
+   * allow later lazy refresh. No remote auth service is queried.
+   */
   private async warmAuthCache(obs?: Observable, snapshot?: Awaited<ReturnType<PlatformConfigStore["loadConfig"]>>): Promise<void> {
     const generation = this.authCacheGeneration;
     try {

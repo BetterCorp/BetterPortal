@@ -9,11 +9,10 @@ import type { BpStreamHandler, StreamErrorFrame } from "../contracts/streaming.j
  * summarySchema) BEFORE leaving the process, in every representation.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyStreamHandler = BpStreamHandler<any, any, any, any, any>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCtx = RouteHandlerContext<any, any, any, any>;
 
+/** Validated stream items and optional generator-return summary. */
 export interface BufferedStreamResult {
   items: unknown[];
   summary?: unknown;
@@ -23,7 +22,7 @@ export interface BufferedStreamResult {
 export interface StreamDriverSink {
   onItem(item: unknown): Promise<void> | void;
   onSummary(summary: unknown): Promise<void> | void;
-  /** Terminal - exactly one of onError / onEnd fires, then nothing. */
+  /** Terminal failure callback; cancellation suppresses both terminal callbacks. */
   onError(frame: StreamErrorFrame): Promise<void> | void;
   onEnd(count: number): Promise<void> | void;
 }
@@ -39,7 +38,13 @@ function toErrorFrame(error: unknown): StreamErrorFrame {
 
 /**
  * Drive the generator, validating each frame payload, and report frames to
- * the sink in legal order: items -> summary? -> exactly one terminal.
+ * the sink in legal order: items, optional summary, then one terminal callback.
+ *
+ * @remarks
+ * Each callback is awaited for backpressure. Cancellation suppresses subsequent
+ * callbacks and closes the generator once pending producer/sink work settles.
+ * Producers must pass the context signal to I/O for prompt cancellation.
+ * Validation and producer failures are reported through the sink's error callback.
  */
 export async function driveStream(
   handler: AnyStreamHandler,
@@ -79,7 +84,8 @@ export async function driveStream(
 /**
  * Run the stream to completion and assemble the derived buffered shape
  * `{ items, summary? }` (spec/streaming.md section 2.1). Throws on any failure so
- * buffered representations surface real HTTP status codes.
+ * buffered representations surface real HTTP status codes. Cancellation returns
+ * the items already received without a terminal frame.
  */
 export async function driveStreamBuffered(
   handler: AnyStreamHandler,

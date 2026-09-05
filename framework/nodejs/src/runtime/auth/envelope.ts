@@ -129,7 +129,7 @@ async function verifyTypedToken(token: string, options: VerifyEnvelopeOptions): 
       clockToleranceSeconds: options.clockToleranceSeconds ?? 0
     });
   } catch (error) {
-    throw new Error(`Envelope verification failed: ${(error as Error).message}`);
+    throw new Error(`Envelope verification failed: ${(error as Error).message}`, { cause: error });
   }
   if (!verified || typeof verified !== "object") {
     throw new Error("Verifier returned non-object claims");

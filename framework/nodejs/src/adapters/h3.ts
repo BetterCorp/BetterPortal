@@ -74,7 +74,7 @@ export interface H3RouterObservabilityOptions {
   resolveAuth?: (event: BetterPortalEvent, route: RegisteredRoute) => Promise<H3AuthContext | undefined> | H3AuthContext | undefined;
   /**
    * Validate that the resolved (tenantId, appId) is allowed to use this service.
-   * Returning { allowed: false } emits 426 Upgrade Required with optional upgradeUrl.
+   * Returning `{ allowed: false }` emits 426 Upgrade Required with optional upgradeUrl.
    * Called for every request after tenant/app context is resolved.
    */
   validateTenantApp?: (tenantId: string, appId: string) => Promise<import("../contracts/auth.js").TenantAppValidation> | import("../contracts/auth.js").TenantAppValidation;
@@ -95,7 +95,7 @@ export interface H3AuthContext {
   readonly appId: string;
   readonly appAuthConfig?: AppAuthConfig;
   /**
-   * Service-id alias map: tenant service-instance id (UUIDv7) -> pluginId.
+   * Service-id alias map: tenant service-instance id (UUIDv7) → pluginId.
    * Role grants in app.auth reference instance ids; route auth requirements
    * are authored against pluginIds. The permission check accepts either.
    */
@@ -925,7 +925,7 @@ function rewriteServiceRouteTokens(
 ): string {
   let rewritten = html;
   for (const attr of BP_ROUTE_TOKEN_ATTRS) {
-    const attrRe = new RegExp(`\\b${attr}=([\"'])\\{([A-Za-z0-9_$.-]+)\\}\\1`, "g");
+    const attrRe = new RegExp(`\\b${attr}=(["'])\\{([A-Za-z0-9_$.-]+)\\}\\1`, "g");
     rewritten = rewritten.replace(attrRe, (match, quote: string, viewId: string) => {
       const resolved = routeUrl?.(viewId);
       if (!resolved) {
@@ -1508,7 +1508,6 @@ async function handleRouteRequest(
 
 // -- Streaming routes (spec/streaming.md) ----------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyStreamHandler = BpStreamHandler<any, any, any, any, any>;
 
 /**

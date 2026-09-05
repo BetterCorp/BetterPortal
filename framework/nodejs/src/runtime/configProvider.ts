@@ -253,7 +253,19 @@ export function resolveServiceForTenant(
   return null;
 }
 
-/** Credential destinations come from enabled app bindings, never fragment HTML. */
+/**
+ * Resolve the credential-destination map for a tenant's application.
+ *
+ * @remarks
+ * Includes enabled routes, slots, fragments, auth and the active shell's bindings.
+ * Each binding must resolve through tenant authorization. Invalid URLs and URLs
+ * containing credentials are omitted; the browser separately enforces HTTPS.
+ * This map must come from trusted configuration, never service-rendered HTML.
+ *
+ * @param config - Platform snapshot used to resolve service registrations.
+ * @param context - Resolved tenant and application for the shell request.
+ * @returns Service binding IDs mapped to normalized HTTP(S) origins.
+ */
 export function resolveAppServiceOrigins(config: BetterPortalConfig, context: BetterPortalResolvedRequestContext): Record<string, string> {
   const app = context.app;
   const ids = new Set([

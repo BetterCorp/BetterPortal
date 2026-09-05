@@ -120,10 +120,8 @@ export interface RegisteredViewRenderer {
   /** Fragment id (e.g., "profile" from _nav.profile.tsx). Only for fragments. */
   readonly fragmentId?: string;
   /** The render function exported by the theme file. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly render: (data: any, context: ViewRenderContext) => HtmlRenderable;
   /** SSE event renderer sourced from `_<location>.<fragmentId>.sse.tsx`. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly sseRender?: (data: any, context: ViewRenderContext) => HtmlRenderable;
 }
 
@@ -205,7 +203,6 @@ export interface RegisteredMethodRoute {
   readonly title: string;
   readonly description: string;
   readonly schemas: RouteSchemas;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly handler: AnyRouteHandler | AnyRawRouteHandler | BpStreamHandler<any, any, any, any, any>;
   readonly raw?: boolean;
   readonly auth: ApiAuthRequirement;
@@ -233,13 +230,12 @@ export interface RegisteredRoute {
   readonly schemas: RouteSchemas;
   readonly methodRoutes?: Readonly<Partial<Record<HttpMethod, RegisteredMethodRoute>>>;
   /** Handler functions keyed by HTTP method. Streaming routes register a branded BpStreamHandler object instead of a function. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly handlers: Readonly<Partial<Record<HttpMethod, AnyRouteHandler | AnyRawRouteHandler | BpStreamHandler<any, any, any, any, any>>>>;
   readonly raw?: boolean;
   readonly title: string;
   readonly description: string;
   /**
-   * Status code -> renderer map (per theme), broken down by renderer kind.
+   * Status code → renderer map (per theme), broken down by renderer kind.
    * Adapter looks up by (rendererKey, statusCode, kind, optional renderer id).
    */
   readonly statusRenderers?: Readonly<Record<string, Readonly<Record<number, StatusRenderersByKind>>>>;
@@ -271,7 +267,7 @@ export interface RegisteredShellFragment {
 
 /** The complete compiled registry - output of codegen. */
 export interface BetterPortalRegistry {
-  /** Dependency alias -> canonical plugin id, generated from betterportal.lock.json. */
+  /** Dependency alias → canonical plugin id, generated from betterportal.lock.json. */
   readonly dependencies?: Readonly<Record<string, string>>;
   readonly routes: ReadonlyArray<RegisteredRoute>;
   readonly shellFragments?: ReadonlyArray<RegisteredShellFragment>;

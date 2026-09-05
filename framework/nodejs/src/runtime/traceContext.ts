@@ -4,8 +4,8 @@ const ZERO_TRACE_ID = "0".repeat(32);
 const ZERO_SPAN_ID = "0".repeat(16);
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BAGGAGE_KEY = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
-const SIMPLE_TRACESTATE_KEY = /^[a-z][a-z0-9_\-*\/]{0,255}$/;
-const MULTI_TENANT_TRACESTATE_KEY = /^[a-z0-9][a-z0-9_\-*\/]{0,240}@[a-z][a-z0-9_\-*\/]{0,13}$/;
+const SIMPLE_TRACESTATE_KEY = /^[a-z][a-z0-9_\-*/]{0,255}$/;
+const MULTI_TENANT_TRACESTATE_KEY = /^[a-z0-9][a-z0-9_\-*/]{0,240}@[a-z][a-z0-9_\-*/]{0,13}$/;
 
 export interface BetterPortalRequestPropagation {
   readonly parent?: BetterPortalRemoteTraceContext;
@@ -39,6 +39,7 @@ export function formatTraceParent(context: Pick<BetterPortalRemoteTraceContext, 
 export function parseTraceState(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
   const normalized = value.trim();
+  // eslint-disable-next-line no-control-regex -- Trace headers must reject control characters.
   if (!normalized || normalized.length > 512 || /[\u0000-\u001f\u007f]/.test(normalized)) return undefined;
   const members = normalized.split(",").map((member) => member.trim());
   const keys = new Set<string>();
@@ -50,6 +51,7 @@ export function parseTraceState(value: string | null | undefined): string | unde
       || memberValue.length === 0
       || memberValue.length > 256
       || memberValue.endsWith(" ")
+      // eslint-disable-next-line no-control-regex -- Trace headers must reject control characters.
       || /[=,\u0000-\u001f\u007f]/.test(memberValue)
       || (!SIMPLE_TRACESTATE_KEY.test(key) && !MULTI_TENANT_TRACESTATE_KEY.test(key))
       || keys.has(key)) return true;
@@ -72,7 +74,8 @@ export function parseBaggage(value: string | null | undefined): { baggage?: stri
     if (separator <= 0) continue;
     const key = member.slice(0, separator).trim();
     const valueAndProperties = member.slice(separator + 1).trim();
-    if (!BAGGAGE_KEY.test(key) || !valueAndProperties || /[\u0000-\u001f\u007f,\\\"]/.test(valueAndProperties)) continue;
+    // eslint-disable-next-line no-control-regex -- Trace headers must reject control characters.
+    if (!BAGGAGE_KEY.test(key) || !valueAndProperties || /[\u0000-\u001f\u007f,\\"]/.test(valueAndProperties)) continue;
     if (key === "bp.session_id") {
       const candidate = valueAndProperties.split(";", 1)[0];
       if (!isUuidV7(candidate) || sessionId !== undefined) continue;

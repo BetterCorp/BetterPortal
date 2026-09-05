@@ -26,10 +26,13 @@ export class ConfigRevisionConflictError extends Error {
 }
 
 export type PendingActionKind = "bootstrap" | "setup" | "hostname-change";
+/** Completion data fenced by the active lease owner and committed with config changes. */
 export interface PendingActionCompletion {
   kind: PendingActionKind;
   key: string;
+  /** Lease owner token; stale or expired claims cannot complete the action. */
   owner: string;
+  /** Persisted response returned to retries after the action has completed. */
   result: Record<string, unknown>;
 }
 

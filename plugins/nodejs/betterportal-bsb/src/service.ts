@@ -57,7 +57,6 @@ import {
   type RsaKeyPair,
   type ServiceTokenVerifier,
   type ScopedTenant,
-  type BetterPortalRouteChrome,
   type BetterPortalSseContracts,
   type BetterPortalConfig as PlatformConfig,
   type ServiceConfigAction,
@@ -71,7 +70,7 @@ import {
   toHtmlString
 } from "@betterportal/framework";
 import { createH3Router, isBpManagementAuthPath, isBpManagementAuthRoute, type H3AuthContext } from "@betterportal/framework/lib/adapters/h3.js";
-import { BootstrapStateStore, type BootstrapStateFile } from "./bootstrapState.js";
+import { BootstrapStateStore } from "./bootstrapState.js";
 import { ScopedConfigCache } from "./scopedConfigCache.js";
 import {
   createBetterPortalApp,
@@ -757,7 +756,7 @@ export abstract class BPService<
   }
 
   /**
-   * Override to provide the service-instance-id -> pluginId alias map used by the
+   * Override to provide the service-instance-id → pluginId alias map used by the
    * permission check (role grants use instance ids, route auth uses pluginIds).
    * Default: reads the tenant's service bindings from scopedConfig.
    */
@@ -2048,7 +2047,7 @@ export abstract class BPService<
     }, input);
   }
 
-  private localServiceInstanceIds(context: BetterPortalResolvedRequestContext): Set<string> {
+  private localServiceInstanceIds(_context: BetterPortalResolvedRequestContext): Set<string> {
     const ids = new Set(this.scopedConfig?.m2m?.localServiceIds ?? []);
     if (this.scopedConfig?.serviceIdentity?.id) ids.add(this.scopedConfig.serviceIdentity.id);
     return ids;
@@ -2350,7 +2349,7 @@ export abstract class BPService<
 
   /**
    * Mounts POST /.well-known/bp/install - the browser-driven service installer.
-   * Caller posts { setupToken, cpUrl }. Service fetches CP JWKS, verifies the
+   * Caller posts `{ setupToken, cpUrl }`. Service fetches CP JWKS, verifies the
    * setup token, then redeems it for the real apiKey via CP /services/redeem.
    * Persists credentials and starts CP sync.
    */
@@ -2460,7 +2459,6 @@ export abstract class BPService<
         this.inSetupMode = false;
         this.initializeS2SIdentity(obs);
 
-        // eslint-disable-next-line no-console
         console.log(`\n*** BP install complete for ${this.manifest.pluginId} ***\n    apiKey: ${redeemBody.apiKey}\n    cpUrl:  ${normalizedCp}\n`);
         obs.log.info("Install complete for {pluginId}; apiKey persisted; starting CP sync", { pluginId: this.manifest.pluginId });
 

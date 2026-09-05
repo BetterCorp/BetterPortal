@@ -2,6 +2,8 @@ import type { BaseSchema, Infer } from "anyvali";
 import type { BetterPortalResolvedApp, BetterPortalTenant } from "../contracts/platformConfig.js";
 import type { SseMapperContext } from "../contracts/route.js";
 
+/** Augmentation point populated by generated service-specific SSE contracts. */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Generated declarations merge their contract fields into this interface.
 export interface BetterPortalSseContracts {}
 
 export interface SseScope {
@@ -84,6 +86,7 @@ export function createSse<
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace -- Declaration merging exposes schema inference types on the public factory.
 export namespace createSse {
   export function forContext<TPlugin = never, TServiceConfig = Record<string, unknown>>() {
     return createSse as <

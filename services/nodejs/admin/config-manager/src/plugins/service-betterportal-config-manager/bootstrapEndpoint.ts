@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { jsonResponse, type BetterPortalEvent, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
+import { jsonResponse, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7, type BetterPortalRouteMount, type PlatformConfigStore } from "@betterportal/framework";
 import type { Observable } from "@bsb/base";
 import type { CpBootstrapState } from "./cpBootstrap.js";
@@ -81,10 +81,10 @@ interface BootstrapKeyState {
 /**
  * P6 + P12 - Bootstrap detection + wizard endpoint.
  *
- * On startup, checks platform config for any tenant. If none -> generates a
+ * On startup, checks platform config for any tenant. If none → generates a
  * 15-min bootstrap key, logs it to stdout, and exposes:
- *   GET  /.well-known/bp/bootstrap        -> vanilla HTML wizard form
- *   POST /.well-known/bp/bootstrap/commit -> accepts {key, adminTenant, adminApp, themeUrl, authUrl}
+ *   GET  /.well-known/bp/bootstrap        → vanilla HTML wizard form
+ *   POST /.well-known/bp/bootstrap/commit → accepts `{key, adminTenant, adminApp, themeUrl, authUrl}`
  *
  * Once committed, the bootstrap state is consumed; endpoints return 410 Gone.
  */

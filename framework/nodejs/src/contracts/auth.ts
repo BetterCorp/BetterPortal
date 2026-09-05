@@ -138,7 +138,7 @@ export const AppAuthConfigSchema = av.object({
   expectedIssuer: NonEmptyStringSchema,
   expectedAudience: NonEmptyStringSchema,
   /** Reference URL only - published by the auth service for clients/browsers.
-   *  Verifiers MUST use publicKeys (pushed at /install) to avoid CM -> service fetch. */
+   *  Verifiers MUST use publicKeys (pushed at /install) to avoid CM → service fetch. */
   jwksUri: NonEmptyStringSchema,
   /** Public JWKS pushed by the auth service at /install and on key rotation.
    *  CP-side JWT verification uses these static keys, never fetches jwksUri. */

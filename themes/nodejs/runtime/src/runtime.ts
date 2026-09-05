@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { js, type RawText } from "jsx-htmx";
 
+/** JavaScript asset assembled on the server for delivery by a theme. */
 export interface ShellRuntimeAsset {
   body: string;
   contentType: string;
@@ -10,6 +11,14 @@ export interface ShellRuntimeAsset {
 export type BetterPortalShellChromeValue = string | number | boolean;
 export type BetterPortalShellChrome = Readonly<Record<string, BetterPortalShellChromeValue>>;
 
+/**
+ * Presentation hooks supplied by a theme before the shared runtime starts.
+ *
+ * @remarks
+ * Hooks are optional and synchronous. They own visual cleanup, loading and
+ * error presentation only; routing, managed credentials and preload remain
+ * owned by the shared runtime. Cleanup hooks must tolerate repeated calls.
+ */
 export interface BetterPortalShellAdapter {
   syncProfileMirror?(): void;
   cleanupTransientUi?(): void;
@@ -53,6 +62,7 @@ function chromeDataKey(rawKey: string): string | null {
   return /^[a-z][a-z0-9-]*$/.test(key) ? key : null;
 }
 
+/** Convert declared route chrome into safe, normalized HTML data attributes. */
 export function betterPortalChromeAttributes(
   chrome?: BetterPortalShellChrome
 ): Record<string, string> {
@@ -86,6 +96,13 @@ function readTextAsset(filePath: string): Promise<ShellRuntimeAsset> {
 
 export const BETTERPORTAL_HTMX_EXTENSIONS = "bp-shell, sse";
 
+/**
+ * Generate the browser runtime without vendor scripts or a theme adapter.
+ *
+ * @remarks
+ * The generated code requires HTMX and runs once per shell document. It owns
+ * request rewriting, header scope enforcement, passive preload and auth recovery.
+ */
 export function betterPortalShellRuntimeSource(): string {
   // esbuild/tsx wraps functions with __name() for .name preservation;
   // shim it for the browser where that helper doesn't exist
@@ -130,8 +147,6 @@ export function betterPortalShellRuntimeSource(): string {
       const breadcrumbNode = () => document.querySelector("[data-bp-current-breadcrumb]");
       const navGroups = () => Array.from(document.querySelectorAll("[data-bp-nav-group]")) as HTMLDetailsElement[];
       const mainOutlet = () => document.querySelector("#bp-main, [data-bp-main-outlet]");
-      const contentFrame = () => document.querySelector(".bp-admin__content-frame");
-      const topbarProgress = () => document.querySelector("#bp-topbar-progress");
       const errorNode = () => document.querySelector("#bp-content-error");
 
       type SplitPaneState = {
@@ -354,6 +369,7 @@ export function betterPortalShellRuntimeSource(): string {
 
       const markLoaded = () => { mainOutlet()?.setAttribute("data-bp-loaded", "yes"); };
       const hasLoaded = () => mainOutlet()?.getAttribute("data-bp-loaded") === "yes";
+      /** Remove the one-shot action as well as its trigger so later clicks cannot reload it. */
       const disableInitialMainLoad = () => {
         const outlet = mainOutlet();
         if (!outlet) return;
@@ -694,6 +710,7 @@ export function betterPortalShellRuntimeSource(): string {
         return entry.expires - Math.floor(Date.now() / 1000) <= before;
       };
 
+      /** Refresh one managed header within five seconds; failures leave recovery to the caller. */
       const refreshStoredHeader = async (name: string, entry: BpStoredHeader): Promise<boolean> => {
         const refreshUrl = refreshUrlForHeader(entry);
         if (!refreshUrl) return false;
@@ -734,6 +751,7 @@ export function betterPortalShellRuntimeSource(): string {
         return results.some(Boolean);
       };
 
+      /** Coalesce concurrent auth recovery attempts; success means at least one header changed. */
       const refreshStoredHeadersOnce = (force = false): Promise<boolean> => {
         if (!headerRefreshInFlight) {
           headerRefreshInFlight = refreshStoredHeaders(force).finally(() => {
@@ -1416,6 +1434,11 @@ export function betterPortalShellRuntimeSource(): string {
         return false;
       };
 
+      /**
+       * Bind passive, short-lived prefetching to an eligible link.
+       * Auth destinations and disabled controls are excluded. No response
+       * directives or redirects are followed until explicit activation.
+       */
       const bindBpPreload = (el: Element) => {
         if (!isPreloadableAnchor(el)) return;
         if (!el.hasAttribute("hx-preload")) return;
@@ -1890,6 +1913,7 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       let lastAuthRefreshRetryUrl = "";
+      /** A refresh continuation may navigate only while its initiating request is current. */
       let mainRequestGeneration = 0;
 
       const retryMainRequest = (ctx: any): boolean => {
@@ -2497,10 +2521,18 @@ export function betterPortalShellRuntimeSource(): string {
 }
 
 
+/** Presentation source inserted between HTMX and the shared runtime. */
 export interface BuildBetterPortalShellRuntimeOptions {
   adapterSource?: BetterPortalShellRuntimeSource;
 }
 
+/**
+ * Assemble HTMX, the optional adapter, shared runtime and SSE in dependency order.
+ *
+ * @param options - Theme adapter source, if the shell supplies presentation hooks.
+ * @returns JavaScript response body and its content type.
+ * @throws If an installed vendor asset cannot be read.
+ */
 export async function buildBetterPortalShellRuntimeAsset(
   options: BuildBetterPortalShellRuntimeOptions
 ): Promise<ShellRuntimeAsset> {
@@ -2513,6 +2545,7 @@ export async function buildBetterPortalShellRuntimeAsset(
   };
 }
 
+/** Load an allowlisted vendor asset, or return null for an unknown asset path. */
 export async function loadShellRuntimeVendorAsset(assetPath: string): Promise<ShellRuntimeAsset | null> {
   const normalized = assetPath.replace(/^\/+/, "");
   const path = normalized === "htmx.min.js"

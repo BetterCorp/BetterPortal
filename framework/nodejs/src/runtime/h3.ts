@@ -324,6 +324,7 @@ function responseKind(event: BetterPortalEvent, response: Response): string {
 }
 
 function normalizeDiagnosticReason(value: string): string {
+  // eslint-disable-next-line no-control-regex -- Strip control characters from diagnostic output.
   return value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, DIAGNOSTIC_BODY_LIMIT);
 }
 

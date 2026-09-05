@@ -1,4 +1,4 @@
-import { generateKeyPairSync, createPublicKey, randomBytes, type KeyObject } from "node:crypto";
+import { generateKeyPairSync, createPublicKey, randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, unlinkSync } from "node:fs";
 import { dirname } from "node:path";
 import type { RsaPublicJwk } from "../../contracts/auth.js";

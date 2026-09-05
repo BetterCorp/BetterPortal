@@ -57,6 +57,19 @@ export const handlePost = createHandler(
 
 export const handleGet = handlePost;
 
+/**
+ * Persist revocation of a valid refresh token belonging to the requested scope.
+ *
+ * @remarks
+ * Missing, invalid and expired tokens are ignored so logout can still clear
+ * browser credentials. Storage failures propagate; callers must not claim a
+ * server-side revocation succeeded when persistence failed.
+ *
+ * @param runtime - Auth service issuer and persistent user store.
+ * @param token - Presented refresh token, if any.
+ * @param tenantId - Tenant against which the token must validate.
+ * @param appId - Application against which the token must validate.
+ */
 export async function revokePresentedRefreshToken(runtime: AuthRuntime, token: string | undefined, tenantId: string, appId: string): Promise<void> {
   if (!token) return;
   let claims;

@@ -138,12 +138,6 @@ function titleFromSegment(segment: string): string {
     .join(" ");
 }
 
-function routeIconText(title: string): string {
-  const words = title.split(/\s+/).filter(Boolean).slice(0, 2);
-  const initials = words.map((word) => word.slice(0, 1).toUpperCase()).join("");
-  return initials || title.slice(0, 2).toUpperCase();
-}
-
 function routeBreadcrumb(groupTitle: string | null, route: Bootstrap2RouteLink): string {
   if (!groupTitle || groupTitle === route.title) {
     return "";

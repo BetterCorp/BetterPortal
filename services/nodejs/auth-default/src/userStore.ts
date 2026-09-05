@@ -20,6 +20,7 @@ export interface StoredUser {
   refreshVersion?: number;
 }
 
+/** Authenticated identity and revocation version captured during password verification. */
 export interface AuthenticatedUser {
   id: string;
   username: string;
@@ -28,6 +29,7 @@ export interface AuthenticatedUser {
   picture?: string;
   tenantId: string;
   roles: string[];
+  /** Issue refresh tokens with this snapshot value, not a later store read. */
   refreshVersion: number;
 }
 
@@ -96,6 +98,12 @@ export class UserStore {
     return this.load().users.length;
   }
 
+  /**
+   * Verify credentials and return a consistent identity/revocation snapshot.
+   *
+   * @returns Null for invalid credentials, disabled users, or password/version
+   * changes that complete while bcrypt verification is awaiting its result.
+   */
   async authenticate(tenantId: string, appId: string, username: string, password: string): Promise<AuthenticatedUser | null> {
     const file = this.load();
     const user = file.users.find((entry) => entry.username === username && entry.tenantId === tenantId);

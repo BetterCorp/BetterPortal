@@ -42,9 +42,9 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
 test("shared HTMX requests declare page or partial response mode", () => {
   const source = betterPortalShellRuntimeSource();
 
-  assert.match(source, /acceptValue\.trim\(\)\.toLowerCase\(\)===\"text\/html\"/);
-  assert.match(source, /isSseConnect\|\|!isMainTarget\(ctx\.target\)\?\"fragment\":\"page\"/);
-  assert.match(source, /isSseConnect\)ctx\.request\.headers\[\"HX-Request-Type\"\]=\"partial\"/);
+  assert.match(source, /acceptValue\.trim\(\)\.toLowerCase\(\)==="text\/html"/);
+  assert.match(source, /isSseConnect\|\|!isMainTarget\(ctx\.target\)\?"fragment":"page"/);
+  assert.match(source, /isSseConnect\)ctx\.request\.headers\["HX-Request-Type"\]="partial"/);
 });
 
 test("service fragment SSE URLs are rewritten before bp-element injection", () => {
