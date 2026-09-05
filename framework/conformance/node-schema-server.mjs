@@ -1,16 +1,23 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { importSchema, exportSchema, encrypt, decrypt, safeParseEncrypted } from "anyvali";
+import { importSchema, exportSchema, encrypt, decrypt, safeParseEncrypted, object } from "anyvali";
+import { security } from "./node-security.mjs";
 
 createServer(async (request, response) => {
   try {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action?.startsWith("jwt-")) {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await security(body)));
+      return;
+    }
     if (!body.document && !/^[A-Za-z][A-Za-z0-9_]*$/.test(body.contract)) throw new Error("Invalid contract");
     const document = body.document ?? JSON.parse(await readFile(new URL(`contracts/${body.contract}.json`, import.meta.url), "utf8"));
     let schema = importSchema(document);
-    if (body.action === "roundtrip") schema = importSchema(exportSchema(schema));
+    if (body.wrap) schema = object({ payload: schema });
+    if (body.roundtrip || body.action === "roundtrip") schema = importSchema(exportSchema(schema));
     let result = body.action === "import" ? { success: true, data: true } : schema.safeParse(body.input);
     if (body.action === "encrypt") result = { success: true, data: encrypt(schema, body.input, (_path, value) => `encrypted:${JSON.stringify(value)}`) };
     if (body.action === "decrypt") result = { success: true, data: decrypt(schema, body.input, (_path, value) => JSON.parse(value.slice("encrypted:".length))) };

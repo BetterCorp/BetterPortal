@@ -5,10 +5,11 @@ delivery order is specification/fixtures → contracts/security → runtime/host
 → authoring → full interoperability. A blocked earlier gate prevents claiming
 later gates. Publishing and BSB plugins are separate follow-ups.
 
-Current state: canonical documents, native schema adapters, and a runnable HTTP
-schema compatibility gate exist. The gate fails with published AnyVali 1.1.0;
-see [README](README.md). Neither language is yet a service runtime. All entries
-below remain pending in both ports except the specifically marked partial work.
+Current state: canonical documents, native schema adapters, token/service security,
+native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
+868/876 schema probes; token/service security passes 459/459 scenarios. See
+[README](README.md). Neither language is yet a service runtime. Entries remain
+pending except the specifically marked partial work.
 
 Paths in the source column are relative to framework/nodejs/src unless prefixed
 with BSB (plugins/nodejs/betterportal-bsb/src). Acceptance IDs name required
@@ -16,7 +17,7 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 127 canonical documents; Python contracts.py and C# Contracts.cs partial; native import compatibility blocked | manifest.md §4 | schema-cases.json; all-document import/export sweep |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 127 canonical documents embedded in both packages; native imports and field selection; two expanded SDK probes fail | manifest.md §4 | schema-cases.json; 868/876 including all-document round trips |
 | native-types | codegen/emitter.ts, cli/client.ts | Pending C# types/Python typing from AnyVali; no independent platform schema copies | manifest.md §4 | type-presence, type-recursion, type-defaults, generated-build |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Pending typed operations and handler/render contexts | manifest.md §1 | duplicate-operation, per-method-policy, missing-schema |
 | manifest | runtime/manifest.ts, registry.ts | Pending manifest/schema generation | manifest.md; schema-json.md | manifest-defaults, operation-identity, discovery-schema |
@@ -28,12 +29,12 @@ future scenarios; they are not assertions that those tests already exist.
 | cors | runtime/h3.ts; BSB service.ts | Pending trusted-origin policy and preflights | protocol.md §2 | allowed-preflight, denied-origin, vary, credential-headers |
 | allowlist | adapters/h3.ts resolveAppRouteAccess | Pending exact operation allowlists, GET fragment/slot mounts | config.md §1 | denied-operation, sibling-method, no-appRoutes-inbound |
 | URLs | runtime/configProvider.ts, adapters/h3.ts; BSB service.ts | Pending service aliases, routeUrl/uiRouteUrl, params/query/fragments/SSE | docs/building/shell-links.md | service-alias, cross-service-path, optional-param, shell-navigation |
-| jwt | runtime/auth/tokens.ts, jwtCrypto.ts, verifier.ts | Pending RS256 issuance/verification | auth.md §1 | cross-signature, wrong-purpose, time, issuer-audience, jku-x5u |
+| jwt | runtime/auth/tokens.ts, jwtCrypto.ts, verifier.ts | Python security.py; C# Security.cs: six purposes, RS256 issuance/verification, strict headers, time and trust checks | auth.md §1; port READMEs | security_cases.py: cross-signature, wrong-purpose, time, issuer-audience, jku-x5u |
 | jwks | runtime/auth/jwks.ts, keypair.ts | Pending local/static/remote keys and cache invalidation | auth.md §1.1 | rotation, unknown-kid, trusted-destination, no-redirect |
 | roles | adapters/h3.ts resolveUserRequestAuth | Pending scoped role expansion and management-only elevation | auth.md §1.2 | revoked-role, instance-alias, forged-root, preview-elevation |
-| auth-helpers | runtime/auth/issuer.ts, externalOidc.ts, redirect.ts, envelope.ts | Pending refresh pairs, external token bridge, redirects/cookies, CP/setup helpers | auth.md | refresh-purpose, scope-binding, redirect-safety, envelope-purpose |
-| config-ticket | runtime/configTicket.ts, serviceConfig.ts | Pending CP-signed ticket and action/scope checks | config.md §4 | cross-ticket, wrong-service, wrong-action, configApps-scope |
-| s2s | runtime/auth/serviceToken.ts; BSB service.ts | Pending service/delegated tokens and outbound calls | auth.md §3 | partial-envelope, wrong-peer, expired-grant, revoked-binding, delegated-both |
+| auth-helpers | runtime/auth/issuer.ts, externalOidc.ts, redirect.ts, envelope.ts | Partial: refresh pairs/scope binding and CP/setup purposes; external bridge, redirects/cookies and installation binding pending | auth.md; port READMEs | security_cases.py refresh-pair, envelope-purpose; refresh-scope negative tests pending |
+| config-ticket | runtime/configTicket.ts, serviceConfig.ts | Partial: CP-signed ticket and service/tenant/action checks; config routes/configApps policy pending | config.md §4 | security_cases.py cross-ticket, wrong-service, wrong-action; configApps-scope pending |
+| s2s | runtime/auth/serviceToken.ts; BSB service.ts | Partial: service tokens and current binding/grant policy including mode; delegated user half and outbound calls pending | auth.md §3 | security_cases.py wrong-peer, revoked binding/grant, method/mode/permission and scope; delegated-both pending |
 | local-config | runtime/configProvider.ts | Pending native local configuration provider | config.md §1 | local-valid, local-invalid, no-shared-CM-file |
 | settings | runtime/configStore.ts, serviceConfig.ts | Pending replaceable persistent store, scope overlays and write validation | config.md §3 | tenant-overlay, scope-key, redaction-placeholder, atomic-write-failure |
 | encryption | runtime/configStore.ts | Pending native sensitive APIs with v1/v2/v3 BP envelope compatibility | config.md §5 | cross-encrypt, typed-secret, legacy-read, tamper, no-plaintext |
@@ -51,7 +52,7 @@ future scenarios; they are not assertions that those tests already exist.
 | discovery-tools | codegen/scanner.ts, emitter.ts, validate.ts | Pending compiler-supported C# and module-based Python discovery | docs/building/routes-and-views.md | route-dirs, optional-params, stable-ID, renderer-fragment-SSE-selection |
 | contract-tools | cli/project.ts, contract.ts, publish.ts | Pending betterportal.json, registry identity, local exports/publishing | docs/building/services.md | registry-identity, native-export, local-contract-resolution |
 | dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Pending typed clients using runtime context and explicit caller mode | auth.md §3 | betterportal.lock.json, frozen-build, digest-mismatch, all-language-pairs |
-| delivery | .github/workflows/ci.yml | Pending port type checks, docs examples, wheels/NuGet and integration CI | Port READMEs (pending) | Python 3.10+, .NET 10, CM+Bootstrap, six client/server pairs |
+| delivery | .github/workflows/ci.yml | Partial: mypy/compiler checks, local wheel/sdist/NuGet builds, embedded-corpus package check and executed README examples; CI pending | Port READMEs | check_packages.py, check_docs.py; Python 3.10/Linux, CM+Bootstrap and six client/server pairs pending |
 
 ## BP and BSB ownership
 
@@ -68,11 +69,11 @@ JavaScript are not port deliverables. Existing Node services are integration pee
 
 ## Known defects must not become compatibility requirements
 
-- AnyVali 1.1.0 import drops sensitive metadata in JS, Python, and C#. The native
-  encryption/storage gate must pass before ports may persist secrets.
-- Python 1.1.0 importer rejects Node record valueSchema and wrapper inner keys.
-- C# 1.1.0 import loses explicit null defaults. Native export/reimport of recursive
-  definitions is separately tested; never accept a dangling reference.
+- AnyVali 1.1.1 fixes the original 1.1.0 metadata, wire-name, null-default and
+  recursive root interchange failures. Python still replaces explicit null with
+  a default; all SDKs document a native-parent composition limitation. Both
+  expanded probes remain failing. Never accept dangling references or mask the
+  presence defect with a second validator. Real encrypted storage is a later gate.
 - Node's platform menu schema is bounded but its exported document can exceed
   application JSON's depth limit. The development exporter uses native AnyVali
   export and supplies BP's existing recursive JSON definition without parsing

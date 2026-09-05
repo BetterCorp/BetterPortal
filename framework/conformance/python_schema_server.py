@@ -7,14 +7,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 from betterportal.contracts import contract, export
 import anyvali as av
+from python_security import security
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if body.get("action", "").startswith("jwt-"):
+                payload = security(body)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload).encode())
+                return
             schema = av.import_schema(body["document"]) if "document" in body else contract(body["contract"])
-            if body.get("action") == "roundtrip":
+            if body.get("wrap"):
+                schema = av.object_({"payload": schema})
+            if body.get("roundtrip") or body.get("action") == "roundtrip":
                 schema = av.import_schema(export(schema))
             if body.get("action") == "import":
                 payload = {"valid": True, "output": True, "document": export(schema)}

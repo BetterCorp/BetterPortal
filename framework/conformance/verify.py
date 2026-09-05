@@ -17,8 +17,10 @@ import time
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--python", default=sys.executable, help="Python with AnyVali 1.1.0 installed")
+    parser.add_argument("--python", default=sys.executable, help="Python with the pinned AnyVali package installed")
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--roundtrip-all", action="store_true")
+    parser.add_argument("--suite", choices=["schema", "security", "all"], default="all")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
     dll = root.parent / "dotnet/Conformance/bin/Debug/net10.0/Conformance.dll"
@@ -54,7 +56,9 @@ def main() -> int:
                     log.seek(0)
                     raise RuntimeError(f"Adapter failed to start: {command}\n{log.read()}")
                 urls.append(url)
-            command = [sys.executable, str(root / "run.py"), *urls, "--labels", "node", "python", "dotnet", "--all-contracts"]
+            command = [sys.executable, str(root / "run.py"), *urls, "--labels", "node", "python", "dotnet", "--all-contracts", "--suite", args.suite]
+            if args.roundtrip_all:
+                command.append("--roundtrip-all")
             if args.report:
                 command += ["--report", str(args.report)]
             return subprocess.call(command)

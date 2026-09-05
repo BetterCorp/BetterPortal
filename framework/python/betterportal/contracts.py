@@ -2,19 +2,34 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from importlib.resources import files
+import json
 from pathlib import Path
 from typing import Any
 
 import anyvali as av
 
 
-@lru_cache(maxsize=None)
-def contract(name: str) -> av.BaseSchema[Any]:
+def document(name: str, *path: str) -> dict[str, Any]:
     if not name.isidentifier():
         raise ValueError("Invalid contract name")
-    # Initial conformance adapter; consumer packaging is a later gate.
-    source = Path(__file__).resolve().parents[2] / "conformance" / "contracts" / (name + ".json")
-    return av.import_schema(source.read_text(encoding="utf-8"))
+    source = files("betterportal").joinpath("_contracts").joinpath(name + ".json")
+    if not source.is_file():
+        # Editable repository checkout; wheels and sdists contain the same generated corpus.
+        source = Path(__file__).resolve().parents[2] / "conformance" / "contracts" / (name + ".json")
+    result = json.loads(source.read_text(encoding="utf-8"))
+    for field in path:
+        node = result["root"]
+        while node["kind"] in ("optional", "nullable"):
+            node = node["inner"]
+        result["root"] = node["properties"][field]
+    return result
+
+
+@lru_cache(maxsize=None)
+def contract(name: str, *path: str) -> av.BaseSchema[Any]:
+    """Import a canonical contract or field, preserving its recursive definitions."""
+    return av.import_schema(document(name, *path))
 
 
 def parse(name: str, value: Any) -> Any:

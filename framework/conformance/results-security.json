@@ -1,0 +1,2301 @@
+{
+  "scenarios": 459,
+  "passed": 459,
+  "results": [
+    {
+      "runtime": "node->node",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-access",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-access-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-access-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-access-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-access-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-refresh",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-refresh-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-refresh-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-refresh-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-refresh-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-cp-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-cp-envelope-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-cp-envelope-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-cp-envelope-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-cp-envelope-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-setup",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-setup-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-setup-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-setup-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-config-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-config-ticket-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-config-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-config-ticket-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "ticket-serviceId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "ticket-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-service-tamper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-service-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-service-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-appId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-viewId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-mode",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-requiredPermissions",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-revoked-bindings",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-revoked-grants",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-wrong-local-target",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-expired",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-not-yet-valid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-missing-exp",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-missing-iat",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-wrong-purpose",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-invalid-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-invalid-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-header-jku",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-header-x5u",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-header-typ",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-header-kid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "jwt-refresh-pair",
+      "passed": true
+    }
+  ]
+}

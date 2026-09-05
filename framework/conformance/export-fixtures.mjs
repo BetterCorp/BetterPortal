@@ -9,6 +9,7 @@ const fixtures = {
   "sensitive-reject-plaintext-storage": sensitive,
   "sensitive-decrypt": sensitive,
   "default-null": av.object({ value: av.nullable(av.string()).default(null) }, { unknownKeys: "reject" }),
+  "default-present-null": av.object({ value: av.string().default("fallback") }, { unknownKeys: "reject" }),
   "coerce-int": av.int().coerce({ toInt: true }),
   "unknown-reject": av.object({}, { unknownKeys: "reject" })
 };

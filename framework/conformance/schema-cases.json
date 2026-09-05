@@ -289,5 +289,59 @@
         }
       ]
     }
+  },
+  {
+    "id": "default-present-null",
+    "input": {
+      "value": null
+    },
+    "valid": false,
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "value": {
+            "kind": "string",
+            "default": "fallback"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    }
+  },
+  {
+    "id": "recursive-composition",
+    "contract": "JsonObjectSchema",
+    "action": "roundtrip",
+    "wrap": true,
+    "input": {
+      "payload": {
+        "a": [
+          null,
+          true,
+          {
+            "x": 2
+          }
+        ]
+      }
+    },
+    "output": {
+      "payload": {
+        "a": [
+          null,
+          true,
+          {
+            "x": 2
+          }
+        ]
+      }
+    }
   }
 ]

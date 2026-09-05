@@ -7,16 +7,25 @@ namespace BetterPortal;
 public static class Contracts
 {
     private static readonly ConcurrentDictionary<string, Schema> Schemas = new();
-    public static Schema Get(string name) => Schemas.GetOrAdd(name, key =>
+    public static Schema Get(string name, params string[] path) => Schemas.GetOrAdd(name + "/" + string.Join("/", path), _ => Import(Json.Write(Document(name, path))));
+
+    public static Dictionary<string, object?> Document(string name, params string[] path)
     {
-        if (!System.Text.RegularExpressions.Regex.IsMatch(key, "^[A-Za-z][A-Za-z0-9_]*$"))
+        if (!System.Text.RegularExpressions.Regex.IsMatch(name, "\\A[A-Za-z][A-Za-z0-9_]*\\z"))
             throw new ArgumentException("Invalid contract name");
         var assembly = typeof(Contracts).Assembly;
-        using var stream = assembly.GetManifestResourceStream($"BetterPortal.Contracts.{key}.json")
-            ?? throw new ArgumentException($"Unknown contract {key}");
+        using var stream = assembly.GetManifestResourceStream($"BetterPortal.Contracts.{name}.json")
+            ?? throw new ArgumentException($"Unknown contract {name}");
         using var reader = new StreamReader(stream);
-        return Import(reader.ReadToEnd());
-    });
+        var document = (Dictionary<string, object?>)Json.Read(reader.ReadToEnd())!;
+        foreach (var field in path)
+        {
+            var node = (Dictionary<string, object?>)document["root"]!;
+            while (node["kind"] is "optional" or "nullable") node = (Dictionary<string, object?>)node["inner"]!;
+            document["root"] = ((Dictionary<string, object?>)node["properties"]!)[field];
+        }
+        return document;
+    }
 
     public static Schema Import(string json)
     {

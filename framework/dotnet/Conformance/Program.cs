@@ -11,9 +11,12 @@ app.MapPost("/", async (HttpRequest request) =>
     {
         using var reader = new StreamReader(request.Body);
         var body = (Dictionary<string, object?>)Json.Read(await reader.ReadToEndAsync())!;
+        if (body.GetValueOrDefault("action") is string securityAction && securityAction.StartsWith("jwt-", StringComparison.Ordinal))
+            return Results.Text(Json.Write(await SecurityAdapter.Run(body)), "application/json");
         var schema = body.TryGetValue("document", out var document) ? Contracts.Import(Json.Write(document)) : Contracts.Get((string)body["contract"]!);
         var action = body.GetValueOrDefault("action") as string;
-        if (action == "roundtrip") schema = V.Import(V.Export(schema));
+        if (body.GetValueOrDefault("wrap") is true) schema = V.Object(new() { ["payload"] = schema });
+        if (body.GetValueOrDefault("roundtrip") is true || action == "roundtrip") schema = V.Import(V.Export(schema));
         if (action == "encrypt")
             return Results.Text(Json.Write(new { valid = true, output = V.Encrypt(schema, body["input"], (path, value) => "encrypted:" + Json.Write(value)) }), "application/json");
         if (action == "decrypt")
