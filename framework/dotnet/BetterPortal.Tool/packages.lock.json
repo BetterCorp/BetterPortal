@@ -3,19 +3,9 @@
   "dependencies": {
     "net10.0": {
       "AnyVali": {
-        "type": "Direct",
-        "requested": "[1.1.1, 1.1.1]",
+        "type": "Transitive",
         "resolved": "1.1.1",
         "contentHash": "4EwXOEP+n0wc8o0ZOQvclTHhl8HS0ejkm4NOswXhYgJh3RNy8nYvTkENm8+praHbxi+3ZE4k1sN7kAQAW0YLBw=="
-      },
-      "Microsoft.IdentityModel.JsonWebTokens": {
-        "type": "Direct",
-        "requested": "[8.22.0, 8.22.0]",
-        "resolved": "8.22.0",
-        "contentHash": "kv6peMLjALZLDAy2H3F77KjVRdwiscn2p/g3ui2chcbuEcAX2MpAbyDcYnJ7Vyh8jZ1aJWrniUMCDWoOgnu4NQ==",
-        "dependencies": {
-          "Microsoft.IdentityModel.Tokens": "8.22.0"
-        }
       },
       "Microsoft.Bcl.Cryptography": {
         "type": "Transitive",
@@ -40,6 +30,14 @@
         "resolved": "8.22.0",
         "contentHash": "LU3V3owsu4vGpCg2kyL7SsQEuHwcoJ8FSNBqzLADzCf3/PcKUTcx5Plsd51DoTJMfK/WigXV/03UhaN5JXE6uQ=="
       },
+      "Microsoft.IdentityModel.JsonWebTokens": {
+        "type": "Transitive",
+        "resolved": "8.22.0",
+        "contentHash": "kv6peMLjALZLDAy2H3F77KjVRdwiscn2p/g3ui2chcbuEcAX2MpAbyDcYnJ7Vyh8jZ1aJWrniUMCDWoOgnu4NQ==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Tokens": "8.22.0"
+        }
+      },
       "Microsoft.IdentityModel.Logging": {
         "type": "Transitive",
         "resolved": "8.22.0",
@@ -56,6 +54,13 @@
           "Microsoft.Bcl.Cryptography": "10.0.2",
           "Microsoft.Extensions.Logging.Abstractions": "8.0.0",
           "Microsoft.IdentityModel.Logging": "8.22.0"
+        }
+      },
+      "betterportal": {
+        "type": "Project",
+        "dependencies": {
+          "AnyVali": "[1.1.1, 1.1.1]",
+          "Microsoft.IdentityModel.JsonWebTokens": "[8.22.0, 8.22.0]"
         }
       }
     }

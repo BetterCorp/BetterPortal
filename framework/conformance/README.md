@@ -3,13 +3,13 @@
 **The full .NET/Python framework delivery is incomplete.** This directory supplies
 canonical AnyVali contracts, native adapters, HTTP schema/security fixtures, and a
 capability ledger. Token and service-envelope interoperability is verified;
-request hosting, authoring, encrypted configuration and Bootstrap integration
+request hosting, route tooling, encrypted configuration and Bootstrap integration
 remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [868/876 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 19 semantic cases and imports all 127 documents, then repeats
+Published AnyVali **1.1.1** passes [880/888 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 21 semantic cases and imports all 127 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -33,9 +33,10 @@ the Python probe dependencies are pinned in [requirements.txt](requirements.txt)
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
 | A new native parent loses its imported child's recursive definitions (all SDKs) | recursive-composition and its round trip | Composed portable contracts must retain every referenced definition. |
 
-AnyVali documents the native-parent composition limitation. Resolve it through
-supported portable document composition or an upstream enhancement; never ship
-unresolved references. The explicit-null defect needs an AnyVali fix. BP packages
+AnyVali documents the native-parent composition limitation. BP now provides
+portable document composition before native import; recursive and sensitive
+composition probes pass in all three languages. The original native-parent probe
+remains visible. The explicit-null defect needs an AnyVali fix. BP packages
 contain no alternate validator or monkeypatch. The obsolete pre-1.1.1 SDK patch
 has been removed.
 
@@ -52,8 +53,10 @@ to reproduce SDK defects or infer framework completeness from a package build.
 ## Run from the repository root
 
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
-The recorded run used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 on Windows;
-Python 3.10 and Linux execution are still acceptance work.
+Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
+Windows. Both Python versions return the same eight SDK failures; the complete
+Python 3.10 run passes 1,419/1,427 schema, security and key checks. Linux execution
+is still acceptance work.
 
 ```sh
 npm run build --workspace @betterportal/framework
@@ -102,7 +105,11 @@ Node is a repository development tool here; consumer wheels/NuGet packages must
 embed the artifacts and must never invoke Node or BSB during build or runtime.
 The .NET assembly and Python wheels/source distributions embed the corpus.
 Python also supports direct repository imports for development. Native type
-generation remains pending. `.gitattributes` fixes LF for canonical JSON so
+generators project these documents into C# input/output types and Python typing
+declarations. Run `check_types.py` after building `BetterPortal.Tool` to check
+generation drift, positive/negative compiler checks, recursive aliases, defaults,
+field presence, union wire preservation and custom application documents.
+`.gitattributes` fixes LF for canonical JSON so
 byte-for-byte checks remain stable on Windows.
 
 ## Native package checks
@@ -112,14 +119,17 @@ python -m pip install build setuptools wheel mypy
 python -m build framework/python --outdir .tmp-run/ports-packages
 python framework/conformance/check_packages.py .tmp-run/ports-packages
 python framework/conformance/check_docs.py
+dotnet build framework/dotnet/BetterPortal.Tool
+python framework/conformance/check_types.py
 python -m mypy framework/python/betterportal --follow-imports=silent --follow-untyped-imports
 dotnet pack framework/dotnet/BetterPortal --no-restore --output .tmp-run/ports-packages
+dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output .tmp-run/ports-packages
 ```
 
 The package check compares every wheel/sdist document byte for byte, then imports
 the wheel directly to exercise recursive parsing and RSA generation without Node
 or the source tree. `--follow-untyped-imports` lets mypy inspect AnyVali, whose
-wheel lacks py.typed. Python 3.10 and Linux execution remain delivery checks.
+wheel lacks py.typed. Linux execution remains a delivery check.
 
 ## Remaining delivery
 

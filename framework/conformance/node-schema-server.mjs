@@ -16,6 +16,10 @@ createServer(async (request, response) => {
     if (!body.document && !/^[A-Za-z][A-Za-z0-9_]*$/.test(body.contract)) throw new Error("Invalid contract");
     const document = body.document ?? JSON.parse(await readFile(new URL(`contracts/${body.contract}.json`, import.meta.url), "utf8"));
     let schema = importSchema(document);
+    if (body.wrapDocument) {
+      const child = exportSchema(schema);
+      schema = importSchema({ ...child, root: { kind: "object", properties: { payload: child.root }, required: ["payload"], unknownKeys: "strip" } });
+    }
     if (body.wrap) schema = object({ payload: schema });
     if (body.roundtrip || body.action === "roundtrip") schema = importSchema(exportSchema(schema));
     let result = body.action === "import" ? { success: true, data: true } : schema.safeParse(body.input);

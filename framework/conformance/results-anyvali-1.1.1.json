@@ -1,6 +1,6 @@
 {
-  "scenarios": 876,
-  "passed": 868,
+  "scenarios": 888,
+  "passed": 880,
   "results": [
     {
       "runtime": "node",
@@ -100,6 +100,16 @@
     },
     {
       "runtime": "node",
+      "id": "portable-recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "portable-sensitive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -828,6 +838,16 @@
       "id": "recursive-composition-roundtrip",
       "passed": false,
       "error": "HTTP 500: {\"error\":\"Unresolved definition: BetterPortalJsonValue\"}"
+    },
+    {
+      "runtime": "node",
+      "id": "portable-recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "portable-sensitive-composition-roundtrip",
+      "passed": true
     },
     {
       "runtime": "node",
@@ -1563,6 +1583,16 @@
     },
     {
       "runtime": "python",
+      "id": "portable-recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "portable-sensitive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -2292,6 +2322,16 @@
       "id": "recursive-composition-roundtrip",
       "passed": false,
       "error": "{'valid': False, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'payload': {'kind': 'record', 'values': {'kind': 'ref', 'ref': '#/definitions/BetterPortalJsonValue'}}}, 'required': ['payload'], 'unknownKeys': 'strip'}}}"
+    },
+    {
+      "runtime": "python",
+      "id": "portable-recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "portable-sensitive-composition-roundtrip",
+      "passed": true
     },
     {
       "runtime": "python",
@@ -3026,6 +3066,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "portable-recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "portable-sensitive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -3754,6 +3804,16 @@
       "id": "recursive-composition-roundtrip",
       "passed": false,
       "error": "HTTP 500: {\"error\":\"Unresolved definition: BetterPortalJsonValue\"}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "portable-recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "portable-sensitive-composition-roundtrip",
+      "passed": true
     },
     {
       "runtime": "dotnet",

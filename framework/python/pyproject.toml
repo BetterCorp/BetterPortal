@@ -9,7 +9,10 @@ description = "BetterPortal native contracts and security policy"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "AGPL-3.0-only"
-dependencies = ["anyvali==1.1.1", "PyJWT[crypto]>=2.13.0,<3", "cryptography>=50.0.1,<51", "httpx>=0.28.1,<1"]
+dependencies = ["anyvali==1.1.1", "PyJWT[crypto]>=2.13.0,<3", "cryptography>=50.0.1,<51", "httpx>=0.28.1,<1", "typing_extensions>=4.4,<5"]
+
+[project.scripts]
+bp-python = "betterportal.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["betterportal*"]

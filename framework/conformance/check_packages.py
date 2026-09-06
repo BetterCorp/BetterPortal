@@ -2,6 +2,8 @@
 import argparse
 from pathlib import Path
 import sys
+import subprocess
+import os
 import tarfile
 import zipfile
 
@@ -19,6 +21,9 @@ with zipfile.ZipFile(wheel) as archive, tarfile.open(sdist) as source:
         with source.extractfile(entry) as stream:
             assert stream.read() == path.read_bytes(), member
     assert "betterportal/py.typed" in archive.namelist()
+    assert "betterportal/generated_types.py" in archive.namelist()
+    metadata, = [name for name in archive.namelist() if name.endswith(".dist-info/entry_points.txt")]
+    assert "bp-python = betterportal.cli:main" in archive.read(metadata).decode()
 
 sys.path.insert(0, str(wheel.resolve()))
 import betterportal
@@ -30,4 +35,7 @@ assert parse("JsonObjectSchema", {"x": [None, {"y": True}]}) == {"x": [None, {"y
 key = KeyPair.generate()
 assert public_keys({"keys": [key.public_jwk()]})[key.kid] == key.public_key_pem
 assert secure_endpoint("https://keys.example") == "https://keys.example"
-print("Wheel and sdist contain identical canonical contracts; standalone wheel import, recursive parsing and RSA passed")
+subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
+    str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
+    env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)
+print("Wheel and sdist contain identical canonical contracts; standalone wheel import, recursive parsing, RSA and native type CLI passed")

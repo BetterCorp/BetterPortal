@@ -1,7 +1,7 @@
 # BetterPortal .NET port
 
 .NET 10. This is an in-progress port, **not yet a service runtime**. ASP.NET Core
-operation hosting, configuration, authoring and generated clients remain in the
+operation hosting, configuration, route tooling and generated clients remain in the
 [capability ledger](../conformance/CAPABILITIES.md).
 
 Implemented: embedded canonical AnyVali 1.1.1 contracts, RSA keys, RS256 token
@@ -22,6 +22,34 @@ neither Node nor BSB. `Contracts.Document` returns a portable document;
 `Contracts.Get` imports it natively, also supporting named field selection with
 the original recursive definitions. JSON conversion retains missing dictionary
 keys versus null. AnyVali remains the only schema validator.
+`Contracts.ObjectDocument` composes portable roots while retaining definitions and
+rejecting conflicting names. The core package has no ASP.NET hosting dependency.
+
+The native .NET tool generates types for application contracts:
+
+```sh
+bp-dotnet types --contracts ./contracts --output ./GeneratedTypes.cs --namespace MyService.Contracts
+bp-dotnet types --contracts ./contracts --output ./GeneratedTypes.cs --namespace MyService.Contracts --check
+```
+
+Build the tool with `dotnet build framework/dotnet/BetterPortal.Tool`; package it
+with `dotnet pack framework/dotnet/BetterPortal.Tool`. Until publication, install
+that package from a local NuGet source. `--platform` selects embedded BP contracts.
+`BetterPortal.Generated` contains generated input/output records, enums and unions.
+`Optional<T>` distinguishes omission from present null. Input defaults are optional;
+output defaults are materialized by `Contracts.Parse<T>`, which validates with
+AnyVali before typed decoding. Recursive JSON uses the native JSON DOM. Tuple
+positions, arbitrary intersections and coercion constraints remain in AnyVali;
+their CLR projections are intentionally broader.
+
+```csharp
+using BetterPortal;
+using BetterPortal.Generated;
+
+var input = new ApiAuthRequirementInput();
+var policy = Contracts.Parse<ApiAuthRequirement>("ApiAuthRequirementSchema", input);
+if (policy.Required || policy.Permissions.Count != 0) throw new Exception("Unexpected defaults");
+```
 
 ```csharp
 using BetterPortal;

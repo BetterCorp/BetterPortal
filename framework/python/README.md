@@ -1,7 +1,7 @@
 # BetterPortal Python port
 
 Python 3.10+. This is an in-progress port, **not yet a service runtime**.
-Starlette/ASGI hosting, configuration, authoring and generated clients remain in
+Starlette/ASGI hosting, configuration, route tooling and generated clients remain in
 the [capability ledger](../conformance/CAPABILITIES.md).
 
 Implemented: embedded canonical AnyVali 1.1.1 contracts, RS256 keys and token
@@ -23,6 +23,24 @@ wheel from its source distribution and importing it require neither Node nor BSB
 The repository build copies those documents; there is no independently maintained
 Python schema definition. `betterportal.contracts.document` returns a portable
 document; `contract` imports it natively, including when selecting a named field.
+`object_document` composes portable roots before importing, retaining recursive
+definitions and rejecting conflicting definition names.
+
+Native input/output typing is generated from those documents:
+
+```sh
+bp-python types --contracts ./contracts --output ./generated_types.py
+bp-python types --contracts ./contracts --output ./generated_types.py --check
+```
+
+`python -m betterportal` is equivalent to `bp-python`. Use `--platform` instead of
+`--contracts` to regenerate the embedded BP types. `betterportal.generated_types`
+exports `TypedDict` declarations, enums as `Literal`, and recursive aliases.
+Input types allow omitted defaults; output types require materialized defaults.
+Nullable fields remain distinct from optional fields. AnyVali performs all runtime
+validation. Python represents AnyVali tuples as lists; positional constraints,
+general intersections and coercion inputs cannot always be expressed precisely by
+Python typing and remain in the AnyVali document.
 
 ```python
 from betterportal.contracts import parse

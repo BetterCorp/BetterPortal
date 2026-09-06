@@ -343,5 +343,70 @@
         ]
       }
     }
+  },
+  {
+    "id": "portable-recursive-composition",
+    "contract": "JsonObjectSchema",
+    "action": "roundtrip",
+    "input": {
+      "payload": {
+        "a": [
+          null,
+          true,
+          {
+            "x": 2
+          }
+        ]
+      }
+    },
+    "output": {
+      "payload": {
+        "a": [
+          null,
+          true,
+          {
+            "x": 2
+          }
+        ]
+      }
+    },
+    "wrapDocument": true
+  },
+  {
+    "id": "portable-sensitive-composition",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "secret": {
+            "kind": "string",
+            "metadata": {
+              "description": "Private setting",
+              "sensitive": true
+            }
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "action": "encrypt",
+    "input": {
+      "payload": {
+        "secret": "plaintext"
+      }
+    },
+    "output": {
+      "payload": {
+        "secret": "encrypted:\"plaintext\""
+      }
+    },
+    "wrapDocument": true
   }
 ]

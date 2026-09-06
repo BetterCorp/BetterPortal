@@ -7,7 +7,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-868/876 schema probes; token/service security passes 459/459 scenarios and JWKS
+880/888 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
@@ -18,8 +18,8 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 127 canonical documents embedded in both packages; native imports and field selection; two expanded SDK probes fail | manifest.md §4 | schema-cases.json; 868/876 including all-document round trips |
-| native-types | codegen/emitter.ts, cli/client.ts | Pending C# types/Python typing from AnyVali; no independent platform schema copies | manifest.md §4 | type-presence, type-recursion, type-defaults, generated-build |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 127 canonical documents embedded in both packages; native imports, field selection and portable object composition; two expanded SDK probes fail | manifest.md §4 | schema-cases.json; 880/888 including all-document round trips |
+| native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Pending typed operations and handler/render contexts | manifest.md §1 | duplicate-operation, per-method-policy, missing-schema |
 | manifest | runtime/manifest.ts, registry.ts | Pending manifest/schema generation | manifest.md; schema-json.md | manifest-defaults, operation-identity, discovery-schema |
 | validation | adapters/h3.ts, codegen/schemaPolicy.ts | Pending input/output AnyVali validation | protocol.md §4 | params-query-headers-body, invalid-output, unknown-keys |
@@ -53,7 +53,7 @@ future scenarios; they are not assertions that those tests already exist.
 | discovery-tools | codegen/scanner.ts, emitter.ts, validate.ts | Pending compiler-supported C# and module-based Python discovery | docs/building/routes-and-views.md | route-dirs, optional-params, stable-ID, renderer-fragment-SSE-selection |
 | contract-tools | cli/project.ts, contract.ts, publish.ts | Pending betterportal.json, registry identity, local exports/publishing | docs/building/services.md | registry-identity, native-export, local-contract-resolution |
 | dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Pending typed clients using runtime context and explicit caller mode | auth.md §3 | betterportal.lock.json, frozen-build, digest-mismatch, all-language-pairs |
-| delivery | .github/workflows/ci.yml | Partial: mypy/compiler checks, local wheel/sdist/NuGet builds, embedded-corpus package check and executed README examples; CI pending | Port READMEs | check_packages.py, check_docs.py; Python 3.10/Linux, CM+Bootstrap and six client/server pairs pending |
+| delivery | .github/workflows/ci.yml | Partial: mypy/compiler checks, Python 3.10/3.13 HTTP gates, local wheel/sdist/NuGet builds, embedded-corpus package check and executed README examples; CI pending | Port READMEs | check_packages.py, check_docs.py, check_types.py; Linux, CM+Bootstrap and six client/server pairs pending |
 
 ## BP and BSB ownership
 
@@ -73,7 +73,8 @@ JavaScript are not port deliverables. Existing Node services are integration pee
 - AnyVali 1.1.1 fixes the original 1.1.0 metadata, wire-name, null-default and
   recursive root interchange failures. Python still replaces explicit null with
   a default; all SDKs document a native-parent composition limitation. Both
-  expanded probes remain failing. Never accept dangling references or mask the
+  expanded probes remain failing; BP portable composition passes its separate
+  recursive and sensitive-field probes. Never accept dangling references or mask the
   presence defect with a second validator. Real encrypted storage is a later gate.
 - Node's platform menu schema is bounded but its exported document can exceed
   application JSON's depth limit. The development exporter uses native AnyVali

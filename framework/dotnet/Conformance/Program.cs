@@ -1,6 +1,12 @@
 using AnyVali;
 using BetterPortal;
 
+if (args.Contains("--types", StringComparer.Ordinal))
+{
+    TypeChecks.Run();
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 app.MapPost("/", async (HttpRequest request) =>
@@ -15,6 +21,11 @@ app.MapPost("/", async (HttpRequest request) =>
             return Results.Text(Json.Write(await SecurityAdapter.Run(body)), "application/json");
         var schema = body.TryGetValue("document", out var document) ? Contracts.Import(Json.Write(document)) : Contracts.Get((string)body["contract"]!);
         var action = body.GetValueOrDefault("action") as string;
+        if (body.GetValueOrDefault("wrapDocument") is true)
+            schema = Contracts.Import(Contracts.ObjectDocument(new Dictionary<string, Dictionary<string, object?>>
+            {
+                ["payload"] = (Dictionary<string, object?>)Json.Read(Json.Write(V.Export(schema)))!
+            }));
         if (body.GetValueOrDefault("wrap") is true) schema = V.Object(new() { ["payload"] = schema });
         if (body.GetValueOrDefault("roundtrip") is true || action == "roundtrip") schema = V.Import(V.Export(schema));
         if (action == "encrypt")

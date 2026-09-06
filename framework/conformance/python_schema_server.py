@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
-from betterportal.contracts import contract, export
+from betterportal.contracts import contract, export, object_document
 import anyvali as av
 from python_security import security
 
@@ -22,6 +22,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(payload).encode())
                 return
             schema = av.import_schema(body["document"]) if "document" in body else contract(body["contract"])
+            if body.get("wrapDocument"):
+                schema = av.import_schema(object_document({"payload": export(schema)}))
             if body.get("wrap"):
                 schema = av.object_({"payload": schema})
             if body.get("roundtrip") or body.get("action") == "roundtrip":
