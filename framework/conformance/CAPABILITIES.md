@@ -7,13 +7,14 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-880/888 schema probes; token/service security passes 459/459 scenarios and JWKS
+928/936 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite streams 113/113, SSE subscriptions/wire 71/71 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
-input/output types. HTTP operation hosting and registry registration remain pending.
+input/output types. JSON operation registration and manifest generation pass 89/89
+registry checks. HTTP operation hosting remains pending.
 Context resolution passes 102/103; its Python null-active check is blocked by the
-same upstream null/default defect. The combined gate passes 2,530/2,539. See
+same upstream null/default defect. The combined gate passes 2,667/2,676. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -23,10 +24,10 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 127 canonical documents embedded in both packages; native imports, field selection and portable object composition; two expanded SDK probes fail | manifest.md §4 | schema-cases.json; 880/888 including all-document round trips |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 129 canonical documents embedded in both packages, including derived authoring declarations; native imports, field selection and portable object composition; two expanded SDK probes fail | manifest.md §4 | schema-cases.json; 928/936 including all-document round trips |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
-| registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Python handler.py/C# Handler.cs: typed handler functions and input contexts; operation registry/full contexts pending | manifest.md §1; port READMEs | handler_cases.py plus check_types.py; duplicate-operation, per-method-policy and missing-schema pending |
-| manifest | runtime/manifest.ts, registry.ts | Pending manifest/schema generation | manifest.md; schema-json.md | manifest-defaults, operation-identity, discovery-schema |
+| registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed handlers, Operation/Route/Registry for JSON, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; full contexts and renderer/raw/stream registration pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
+| manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors; rendering/streaming metadata pending | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
 | validation | adapters/h3.ts, codegen/schemaPolicy.ts | Python handler.py/C# Handler.cs: native per-field input and response parsing, distinct input/output errors and cancellation; host/schema-authoring policy pending | protocol.md §4; port READMEs | handler_cases.py: 44 checks for params/query/headers/body, defaults/coercion, recursive values, invalid output and unknown keys |
 | multipart/raw | contracts/route.ts, adapters/h3.ts | Pending bounded uploads, repeated fields, native raw/file responses | protocol.md | multipart-bounds, repeated-fields, raw-download, bodyless-status |
 | negotiation | runtime/media.ts, adapters/h3.ts | Python media.py/C# Media.cs: availability, quality, exclusions and modes; host/rendering integration pending | protocol.md §3; port READMEs | media_cases.py: 124 checks; exact-renderer and per-method-schema pending |

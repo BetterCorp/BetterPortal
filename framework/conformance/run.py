@@ -14,9 +14,10 @@ from sse_cases import run_sse
 from context_cases import run_context
 from cors_cases import run_cors
 from handler_cases import run_handlers
+from registry_cases import run_registry
 
 RUNNERS = {"security": run_security, "keys": run_keys, "encryption": run_encryption, "authorization": run_authorization,
-           "media": run_media, "streams": run_streams, "sse": run_sse, "context": run_context, "cors": run_cors, "handlers": run_handlers}
+           "media": run_media, "streams": run_streams, "sse": run_sse, "context": run_context, "cors": run_cors, "handlers": run_handlers, "registry": run_registry}
 SUITES = ["schema", *RUNNERS, "all"]
 
 

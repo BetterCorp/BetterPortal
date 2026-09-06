@@ -21,17 +21,26 @@ public sealed record RequestContext(ScopedContext Scope, AuthorizedCaller Caller
 public sealed record HandlerContext<TParams, TQuery, THeaders, TBody>(RequestContext RequestContext,
     TParams Params, TQuery Query, THeaders Headers, TBody Request, CancellationToken Cancellation);
 
-public sealed class Handler<TParams, TQuery, THeaders, TBody, TResult>
+/// <summary>Common registration surface for handlers with different input/output types.</summary>
+public abstract class Handler
 {
-    public Schema ResponseSchema { get; }
-    public IReadOnlyDictionary<string, Schema> Schemas { get; }
+    public abstract Schema ResponseSchema { get; }
+    public abstract IReadOnlyDictionary<string, Schema> Schemas { get; }
     public Dictionary<string, object?> InputDocument => Contracts.ObjectDocument(new[] { "params", "query", "headers", "request" }.ToDictionary(name => name,
         name => (Dictionary<string, object?>)Json.Read(Json.Write(V.Export(Schemas.GetValueOrDefault(name, Contracts.Get("JsonObjectSchema")))))!), "reject");
+    internal abstract ValueTask<object?> InvokeBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation);
+}
+
+public sealed class Handler<TParams, TQuery, THeaders, TBody, TResult> : Handler
+{
+    public override Schema ResponseSchema { get; }
+    public override IReadOnlyDictionary<string, Schema> Schemas { get; }
     private readonly Func<HandlerContext<TParams, TQuery, THeaders, TBody>, ValueTask<TResult>> run;
 
     public Handler(Schema response, Func<HandlerContext<TParams, TQuery, THeaders, TBody>, ValueTask<TResult>> run,
         Schema? @params = null, Schema? query = null, Schema? headers = null, Schema? request = null)
     {
+        ArgumentNullException.ThrowIfNull(response); ArgumentNullException.ThrowIfNull(run);
         ResponseSchema = response; this.run = run;
         Schemas = new Dictionary<string, Schema?>(StringComparer.Ordinal)
         { ["params"] = @params, ["query"] = query, ["headers"] = headers, ["request"] = request }
@@ -53,4 +62,6 @@ public sealed class Handler<TParams, TQuery, THeaders, TBody, TResult>
         try { return Contracts.Parse<TResult>(ResponseSchema, result); }
         catch (ValidationError error) { throw new HandlerOutputException(error); }
     }
+    internal override async ValueTask<object?> InvokeBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation) =>
+        await Invoke(context, values, cancellation);
 }

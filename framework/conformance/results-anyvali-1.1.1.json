@@ -1,6 +1,6 @@
 {
-  "scenarios": 888,
-  "passed": 880,
+  "scenarios": 936,
+  "passed": 928,
   "results": [
     {
       "runtime": "node",
@@ -110,6 +110,36 @@
     },
     {
       "runtime": "node",
+      "id": "operation-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "manifest-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "manifest-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -465,6 +495,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-ManifestDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-MultipartRequestSchema",
       "passed": true
     },
@@ -476,6 +511,11 @@
     {
       "runtime": "node",
       "id": "import-ObservabilityValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-OperationDeclarationSchema",
       "passed": true
     },
     {
@@ -851,6 +891,36 @@
     },
     {
       "runtime": "node",
+      "id": "operation-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "manifest-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "manifest-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-auth-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1206,6 +1276,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-ManifestDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-MultipartRequestSchema-roundtrip",
       "passed": true
     },
@@ -1217,6 +1292,11 @@
     {
       "runtime": "node",
       "id": "import-ObservabilityValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-OperationDeclarationSchema-roundtrip",
       "passed": true
     },
     {
@@ -1593,6 +1673,36 @@
     },
     {
       "runtime": "python",
+      "id": "operation-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "manifest-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "manifest-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -1948,6 +2058,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ManifestDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-MultipartRequestSchema",
       "passed": true
     },
@@ -1959,6 +2074,11 @@
     {
       "runtime": "python",
       "id": "import-ObservabilityValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-OperationDeclarationSchema",
       "passed": true
     },
     {
@@ -2335,6 +2455,36 @@
     },
     {
       "runtime": "python",
+      "id": "operation-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "manifest-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "manifest-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-auth-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -2690,6 +2840,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ManifestDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-MultipartRequestSchema-roundtrip",
       "passed": true
     },
@@ -2701,6 +2856,11 @@
     {
       "runtime": "python",
       "id": "import-ObservabilityValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-OperationDeclarationSchema-roundtrip",
       "passed": true
     },
     {
@@ -3076,6 +3236,36 @@
     },
     {
       "runtime": "dotnet",
+      "id": "operation-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "manifest-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "manifest-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -3431,6 +3621,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ManifestDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-MultipartRequestSchema",
       "passed": true
     },
@@ -3442,6 +3637,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ObservabilityValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-OperationDeclarationSchema",
       "passed": true
     },
     {
@@ -3817,6 +4017,36 @@
     },
     {
       "runtime": "dotnet",
+      "id": "operation-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "manifest-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "manifest-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-auth-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -4172,6 +4402,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ManifestDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-MultipartRequestSchema-roundtrip",
       "passed": true
     },
@@ -4183,6 +4418,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ObservabilityValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-OperationDeclarationSchema-roundtrip",
       "passed": true
     },
     {

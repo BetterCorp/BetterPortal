@@ -40,6 +40,7 @@ app.MapPost("/", async (HttpRequest request) =>
         var body = (Dictionary<string, object?>)Json.Read(await reader.ReadToEndAsync())!;
         if (body.GetValueOrDefault("action") is "runtime") return Results.Json(new { runtime = "dotnet" });
         if (body.GetValueOrDefault("action") is "handler") return Results.Json(await HandlerAdapter.Run(body));
+        if (body.GetValueOrDefault("action") is "registry") return Results.Json(RegistryAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "context" or "http-origin") return Results.Json(ContextAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "sse-probe") return Results.Json(await SseAdapter.Probe());
         if (body.GetValueOrDefault("action") is "sse-wire") return await SseAdapter.Wire(body);

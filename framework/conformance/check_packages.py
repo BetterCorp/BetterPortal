@@ -39,6 +39,7 @@ from betterportal.context import ScopedConfig, http_origin
 from betterportal.context import OriginPolicy
 from betterportal.cors import Cors
 from betterportal.handler import Handler, RequestContext
+from betterportal.registry import Operation, Route, Registry
 from betterportal.authorization import AuthorizedCaller
 from betterportal.contracts import contract
 import asyncio
@@ -81,6 +82,9 @@ scope = ScopedConfig({"managementOrigins": [], "tenants": [{"id": tenant_id, "sl
 assert scope is not None
 handler = Handler(contract("JsonObjectSchema"), lambda context: context.query, query=contract("JsonObjectSchema"))
 assert asyncio.run(handler.invoke(RequestContext(scope, AuthorizedCaller(), "GET", "/"), {"query": {"nested": [None]}})) == {"nested": [None]}
+registry = Registry([Route("hello.index", "/", [Operation(handler, {"operationId": "hello.get", "method": "GET", "title": "Hello", "description": "Hello operation", "auth": {}})])])
+manifest = registry.manifest({"pluginId": "com.example.hello", "title": "Hello", "description": "Example service", "version": "1.0.0"})
+assert manifest["views"][0]["operations"][0]["operationId"] == "hello.get"
 subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
     str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
     env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)

@@ -42,7 +42,11 @@ class TypeGenerator:
     @staticmethod
     def fingerprint(node: dict[str, Any], document: dict[str, Any]) -> str:
         # Equal reference spellings can mean different definitions in different documents.
-        return json.dumps([node, document.get("definitions", {})], sort_keys=True, separators=(",", ":"))
+        def has_reference(value: Any) -> bool:
+            if isinstance(value, dict):
+                return value.get("kind") == "ref" or any(has_reference(child) for child in value.values())
+            return isinstance(value, list) and any(has_reference(child) for child in value)
+        return json.dumps([node, document.get("definitions", {}) if has_reference(node) else {}], sort_keys=True, separators=(",", ":"))
 
     def reserve(self, hint: str, identity: str) -> str:
         name = _identifier(hint)

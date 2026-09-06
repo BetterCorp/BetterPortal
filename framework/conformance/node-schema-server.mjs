@@ -12,6 +12,7 @@ import { sseProbe, sseResponse } from "./node-sse.mjs";
 import { contextRequest } from "./node-context.mjs";
 import { corsRequest } from "./node-cors.mjs";
 import { handlerRequest } from "./node-handler.mjs";
+import { registryRequest } from "./node-registry.mjs";
 
 createServer(async (request, response) => {
   try {
@@ -32,6 +33,11 @@ createServer(async (request, response) => {
     if (body.action === "handler") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(await handlerRequest(body)));
+      return;
+    }
+    if (body.action === "registry") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(registryRequest(body)));
       return;
     }
     if (body.action === "context") {

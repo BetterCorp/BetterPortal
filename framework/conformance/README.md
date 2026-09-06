@@ -8,8 +8,8 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [880/888 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 21 semantic cases and imports all 127 documents, then repeats
+Published AnyVali **1.1.1** passes [928/936 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 27 semantic cases and imports all 129 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -89,8 +89,19 @@ params/query/headers/body validation, defaults, coercion, recursive requests,
 unknown-key handling, invalid output and cancellation. Node shared cases invoke
 the real H3 operation adapter and `createHandler`. The ports preserve null/array
 bodies and repeated query values that Node's older parsing flattens; HTTP decoding
-and operation registration in the native hosts remain pending. Compiler checks
+in the native hosts remains pending. Compiler checks
 reject mismatched handler input/output types and verify generated model parsing.
+
+The [registry suite](results-registry.json) passes 89 checks for native operation,
+route and manifest registration: canonical defaults, explicit auth, stable IDs,
+per-method schemas/policies, dependency aliases, local targets, config admin APIs,
+API contract bindings and schema interchange across every language pair. Node
+shared cases use its actual manifest and discovery builders. Native-only cases
+reject duplicate or ambiguous routes and unsafe paths, and publish API contracts
+once for optional path variants; Node currently duplicates those descriptors.
+Authoring declarations are portable projections of the canonical wire contracts,
+excluding derived fields. Renderer/raw/stream registration and route-directory
+discovery remain delivery work.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -120,8 +131,8 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,530/2,539
-checks across eleven suites. Failures are those original SDK probes plus the
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,667/2,676
+checks across twelve suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.
 
@@ -144,6 +155,7 @@ python framework/conformance/verify.py --suite sse
 python framework/conformance/verify.py --suite context
 python framework/conformance/verify.py --suite cors
 python framework/conformance/verify.py --suite handlers
+python framework/conformance/verify.py --suite registry
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -154,7 +166,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.

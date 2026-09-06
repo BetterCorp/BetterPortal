@@ -12,8 +12,30 @@ this low-level helper does not authorize calls. `HandlerInputError` identifies t
 invalid field (400), while `HandlerOutputError` reports invalid output (500).
 Absent input containers become `{}`; explicit null remains present. The
 `input_document` property exports the four parsed handler input fields for native
-type generation. Registry registration and full handler/render context helpers
-remain delivery work.
+type generation. Full handler/render context helpers remain delivery work.
+
+`Operation`, `Route` and `Registry` register JSON handlers and derive canonical
+manifests and discovery schemas from their AnyVali schemas. Every operation needs
+an explicit `auth` declaration and a unique stable ID. Methods share the view's
+params schema; their query, headers, body, response and policy remain separate.
+Dependency aliases resolve to plugin IDs, and local dependencies must exist with
+the declared method. Path variants belong to one view and publish API contracts
+once. Directory discovery and renderer/raw/stream registration remain pending.
+
+```python
+from betterportal.contracts import contract
+from betterportal.handler import Handler
+from betterportal.registry import Operation, Route, Registry
+
+operation = Operation(Handler(contract("JsonObjectSchema"), lambda context: {"hello": "world"}), {
+    "operationId": "hello.get", "method": "GET", "title": "Hello",
+    "description": "Return a greeting", "auth": {},
+})
+registry = Registry([Route("hello.index", "/hello", [operation])])
+manifest = registry.manifest({"pluginId": "com.example.hello", "title": "Hello",
+                              "description": "Example service", "version": "1.0.0"})
+assert manifest["views"][0]["operations"][0]["operationId"] == "hello.get"
+```
 
 `betterportal.context.ScopedConfig` imports a canonical scoped snapshot and checks
 tenant/app references, duplicate identities and ambiguous hostnames. Browser

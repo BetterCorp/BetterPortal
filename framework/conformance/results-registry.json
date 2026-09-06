@@ -1,0 +1,451 @@
+{
+  "scenarios": 89,
+  "passed": 89,
+  "results": [
+    {
+      "runtime": "node",
+      "id": "registry-defaults-methods-variants",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-defaults-methods-variants",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-defaults-methods-variants",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-api-contract",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-api-contract",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-api-contract",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-api-contract-variants",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-api-contract-variants",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-local-dependency",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-local-dependency",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-local-dependency",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-external-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-external-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-external-alias",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-local-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-local-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-local-alias",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-unknown-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-unknown-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-unknown-alias",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-missing-local-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-missing-local-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-missing-local-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-wrong-local-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-wrong-local-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-wrong-local-method",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-contract-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-contract-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-contract-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-robots",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-robots",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-robots",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-invalid-robots",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-invalid-robots",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-invalid-robots",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-config-admin-discovery",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-config-admin-discovery",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-config-admin-discovery",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-config-admin-override",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-config-admin-override",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-config-admin-override",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-derived-field-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-derived-field-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-derived-field-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-explicit-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-explicit-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-explicit-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-operation-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-operation-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-operation-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-duplicate-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-duplicate-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-duplicate-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-duplicate-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-duplicate-view",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-duplicate-view",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-ambiguous-parameter-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-ambiguous-parameter-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-different-param-schemas",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-different-param-schemas",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-0",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-0",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-1",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-1",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-2",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-2",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-3",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-3",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-4",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-4",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-5",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-5",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-6",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-6",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-7",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-7",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-8",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-8",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-path-9",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-path-9",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-response-schema-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-response-schema-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-response-schema-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-response-schema-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-response-schema-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-response-schema-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-response-schema-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-response-schema-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-response-schema-from-dotnet",
+      "passed": true
+    }
+  ]
+}

@@ -408,5 +408,116 @@
       }
     },
     "wrapDocument": true
+  },
+  {
+    "id": "operation-declaration-defaults",
+    "contract": "OperationDeclarationSchema",
+    "input": {
+      "operationId": "hello.read",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello",
+      "auth": {}
+    },
+    "output": {
+      "operationId": "hello.read",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello",
+      "auth": {
+        "required": false,
+        "callers": [
+          "user"
+        ],
+        "permissions": []
+      },
+      "robots": [],
+      "dependencies": [],
+      "apiContracts": [],
+      "demoScenarios": [],
+      "cacheHints": {
+        "ttlSeconds": 0,
+        "varyBy": []
+      }
+    }
+  },
+  {
+    "id": "manifest-declaration-defaults",
+    "contract": "ManifestDeclarationSchema",
+    "input": {
+      "pluginId": "com.example.hello",
+      "version": "1.0.0",
+      "title": "Hello",
+      "description": "Hello"
+    },
+    "output": {
+      "pluginId": "com.example.hello",
+      "version": "1.0.0",
+      "title": "Hello",
+      "description": "Hello",
+      "category": "service",
+      "deploymentModes": [
+        "self-hosted"
+      ],
+      "capabilities": [],
+      "configSchemas": [],
+      "permissions": [],
+      "adminApis": [],
+      "webhooks": [],
+      "apiContracts": [],
+      "m2mRequests": [],
+      "developerResources": [],
+      "cacheHints": {
+        "metadataTtlSeconds": 1800
+      }
+    }
+  },
+  {
+    "id": "operation-declaration-derived-denied",
+    "contract": "OperationDeclarationSchema",
+    "input": {
+      "operationId": "hello.read",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello",
+      "raw": true,
+      "auth": {}
+    },
+    "valid": false
+  },
+  {
+    "id": "manifest-declaration-derived-denied",
+    "contract": "ManifestDeclarationSchema",
+    "input": {
+      "pluginId": "com.example.hello",
+      "version": "1.0.0",
+      "title": "Hello",
+      "description": "Hello",
+      "views": []
+    },
+    "valid": false
+  },
+  {
+    "id": "operation-declaration-auth-required",
+    "contract": "OperationDeclarationSchema",
+    "input": {
+      "operationId": "hello.read",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello"
+    },
+    "valid": false
+  },
+  {
+    "id": "operation-declaration-id-syntax",
+    "contract": "OperationDeclarationSchema",
+    "input": {
+      "operationId": "invalid id",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello",
+      "auth": {}
+    },
+    "valid": false
   }
 ]

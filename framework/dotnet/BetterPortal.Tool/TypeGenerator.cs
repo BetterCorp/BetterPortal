@@ -30,7 +30,14 @@ internal sealed class TypeGenerator
         IEnumerable<object?> list => list.Select(Ordered).ToArray(), _ => value
     };
     private static string Canonical(object? value) => Json.Write(Ordered(value));
-    private static string Fingerprint(Node node, Node document) => Canonical(new object?[] { node, document.GetValueOrDefault("definitions", new Node()) });
+    private static bool HasReference(object? value) => value switch
+    {
+        Node node => Equals(node.GetValueOrDefault("kind"), "ref") || node.Values.Any(HasReference),
+        IEnumerable<object?> items => items.Any(HasReference), _ => false
+    };
+    // A non-referencing node has the same identity even inside a document with definitions.
+    // Keep the whole definition scope when references occur, preserving distinct bindings.
+    private static string Fingerprint(Node node, Node document) => Canonical(new object?[] { node, HasReference(node) ? document.GetValueOrDefault("definitions", new Node()) : new Node() });
     private static string Kind(Node node) => (string)node["kind"]!;
     private static Node Child(Node node, string key, string alias) => (Node)(node.TryGetValue(key, out var value) ? value! : node[alias]!);
     private static Node[] Nodes(object? value) => ((IEnumerable<object?>)value!).Cast<Node>().ToArray();

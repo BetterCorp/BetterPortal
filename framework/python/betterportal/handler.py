@@ -53,6 +53,10 @@ class Handler(Generic[Params, Query, Headers, Body, Result]):
                  run: Callable[[HandlerContext[Params, Query, Headers, Body]], Result | Awaitable[Result]], *,
                  params: av.BaseSchema[Params] | None = None, query: av.BaseSchema[Query] | None = None,
                  headers: av.BaseSchema[Headers] | None = None, request: av.BaseSchema[Body] | None = None):
+        if not isinstance(response, av.BaseSchema) or not callable(run):
+            raise TypeError("An AnyVali response schema and handler function are required")
+        if any(schema is not None and not isinstance(schema, av.BaseSchema) for schema in (params, query, headers, request)):
+            raise TypeError("Handler inputs must use AnyVali schemas")
         self.response_schema, self.run = response, run
         self.schemas: Mapping[str, av.BaseSchema[Any]] = MappingProxyType({name: schema for name, schema in
             (("params", params), ("query", query), ("headers", headers), ("request", request)) if schema is not None})

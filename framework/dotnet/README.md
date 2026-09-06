@@ -12,8 +12,33 @@ config; the helper does not authorize calls. `HandlerInputException` identifies
 the invalid field (400), and `HandlerOutputException` reports invalid output (500).
 Omitted input containers become `{}`; explicit null stays present. `InputDocument`
 exports the four parsed input fields for native type generation. The cancellation
-token reaches the handler and cancels its wait. Registry registration and full
-handler/render context helpers remain delivery work.
+token reaches the handler and cancels its wait. Full handler/render context
+helpers remain delivery work.
+
+`Operation`, `Route` and `Registry` register JSON handlers and derive canonical
+manifests and discovery schemas from their AnyVali schemas. Operations require
+explicit auth and unique stable IDs. Each view shares one params schema across
+methods; query, headers, body, response and policy are method-specific. Registry
+generation resolves dependency aliases and checks local operation/method targets.
+Path variants publish API contracts once per view. Directory discovery and
+renderer/raw/stream registration remain pending.
+
+```csharp
+using BetterPortal;
+using BetterPortal.Generated;
+
+var handler = new Handler<object?, object?, object?, object?, object?>(
+    Contracts.Get("JsonObjectSchema"), context => ValueTask.FromResult<object?>(new { hello = "world" }));
+var operation = new Operation(handler, new OperationDeclarationInput {
+    OperationId = "hello.get", Method = HttpMethodInput.GET, Title = "Hello",
+    Description = "Return a greeting", Auth = new()
+});
+var registry = new Registry([new Route("hello.index", "/hello", [operation])]);
+var manifest = registry.Manifest(new ManifestDeclarationInput {
+    PluginId = "com.example.hello", Title = "Hello", Description = "Example service", Version = "1.0.0"
+});
+if (manifest.Views[0].Operations[0].OperationId != "hello.get") throw new Exception("Operation ID changed");
+```
 
 `ScopedConfig` imports the canonical scoped snapshot and checks tenant/app
 references, duplicate identities and ambiguous hostnames. Browser lookup compares

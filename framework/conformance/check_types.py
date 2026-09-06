@@ -101,6 +101,26 @@ for documents in ({"SameSchema": portable({"kind": "string"}), "Same": portable(
         assert "collision" in str(error), str(error)
 custom_cs = custom / "Application.cs"
 subprocess.run(["dotnet", str(tool), "types", "--contracts", str(source), "--output", str(custom_cs), "--namespace", "Application.class"], check=True)
+# Unrelated definitions must not hide canonical types; referenced bindings stay distinct.
+bindings = custom / "bindings"
+bindings.mkdir(exist_ok=True)
+method = {"kind": "enum", "values": ["GET", "POST"]}
+reference = {"kind": "ref", "ref": "#/definitions/Value"}
+documents = {
+    "MethodSchema": portable(method),
+    "EnvelopeSchema": {**portable(object_node({"method": method})), "definitions": {"Unused": {"kind": "bool"}}},
+    "TextEnvelopeSchema": {**portable(object_node({"value": reference})), "definitions": {"Value": {"kind": "string"}}},
+    "FlagEnvelopeSchema": {**portable(object_node({"value": reference})), "definitions": {"Value": {"kind": "bool"}}},
+}
+for name, value in documents.items():
+    (bindings / (name + ".json")).write_text(json.dumps(value), encoding="utf-8")
+projection = generate_types(documents)
+assert "'method': Required['MethodInput']" in projection, projection
+scope = {}
+exec(projection, scope)
+for name, expected in (("TextEnvelope", str), ("FlagEnvelope", bool)):
+    assert typing.get_args(typing.get_type_hints(scope[name], scope, include_extras=True)["value"]) == (expected,)
+subprocess.run(["dotnet", str(tool), "types", "--contracts", str(bindings), "--output", str(custom / "Bindings.cs"), "--namespace", "Application.class"], check=True)
 project = ET.Element("Project", Sdk="Microsoft.NET.Sdk")
 properties = ET.SubElement(project, "PropertyGroup")
 for key, value in {"TargetFramework": "net10.0", "OutputType": "Exe", "Nullable": "enable", "TreatWarningsAsErrors": "true"}.items():
@@ -115,8 +135,12 @@ var value = Contracts.Parse<global::Application.@class.Application>(schema, wire
 if (value.Choice.Match(_ => false, second => second.Detail == "retained") != true)
     throw new System.Exception("Union decoding lost fields or changed enum case");
 if (!Json.Write(value).Contains("\\\"detail\\\":\\\"retained\\\"")) throw new System.Exception("Union wire value changed");
+var canonical = new EnvelopeInput { Method = MethodInput.GET };
+var text = Contracts.Parse<TextEnvelope>(Contracts.Import(System.IO.File.ReadAllText(System.IO.Path.Combine(args[1], "TextEnvelopeSchema.json"))), new { value = "retained" });
+var flag = Contracts.Parse<FlagEnvelope>(Contracts.Import(System.IO.File.ReadAllText(System.IO.Path.Combine(args[1], "FlagEnvelopeSchema.json"))), new { value = true });
+if ((string)text.Value != "retained" || !(bool)flag.Value) throw new System.Exception("Different reference bindings were merged");
 ''', encoding="utf-8")
-subprocess.run(["dotnet", "run", "--project", str(custom), "-p:UseSharedCompilation=false", "--", str(source)], check=True)
+subprocess.run(["dotnet", "run", "--project", str(custom), "-p:UseSharedCompilation=false", "--", str(source), str(bindings)], check=True)
 
 negative_dotnet = directory / "csharp-negative"
 negative_dotnet.mkdir(exist_ok=True)
