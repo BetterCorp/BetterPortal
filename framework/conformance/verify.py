@@ -20,7 +20,7 @@ def main() -> int:
     parser.add_argument("--python", default=sys.executable, help="Python with the pinned AnyVali package installed")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--roundtrip-all", action="store_true")
-    parser.add_argument("--suite", choices=["schema", "security", "keys", "encryption", "authorization", "media", "all"], default="all")
+    parser.add_argument("--suite", choices=["schema", "security", "keys", "encryption", "authorization", "media", "streams", "all"], default="all")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
     dll = root.parent / "dotnet/Conformance/bin/Debug/net10.0/Conformance.dll"

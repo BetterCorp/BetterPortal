@@ -47,6 +47,14 @@ q=0, specific exclusions, available offers, 406, quoted parameters and malformed
 headers. HTTP quality and precedence follow [RFC 9110 section 12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1).
 Rendering and host integration remain pending.
 
+The [finite stream suite](results-streams.json) passes 80 checks over real HTTP
+buffered JSON/NDJSON and lifecycle probes: ordered validated items, optional/null
+summary, one terminal, producer/validation errors, native frame/buffer limits,
+pull backpressure, wire disconnects, early close and cancellation. Native buffered cancellation
+propagates instead of returning partial success. Recursive response schema
+composition is also checked. SSE/HTML transports and operation hosting remain
+pending; these test adapters are not consumer hosts.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
@@ -92,6 +100,7 @@ python framework/conformance/verify.py --suite keys
 python framework/conformance/verify.py --suite encryption
 python framework/conformance/verify.py --suite authorization
 python framework/conformance/verify.py --suite media
+python framework/conformance/verify.py --suite streams
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -102,7 +111,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|all` (default: all).
 
 The HTTP runner can also target independently launched adapters:
 

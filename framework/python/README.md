@@ -1,5 +1,29 @@
 # BetterPortal Python port
 
+`betterportal.streaming.StreamHandler` validates each item and optional `Summary`
+before delivery. Its response schema is derived from the item/summary AnyVali
+documents, preserving recursive definitions. `frames` and `ndjson` pull only as
+the consumer advances; `buffered` defaults to 10,000 items and 8 MiB, and each
+frame defaults to 1 MiB. Limits are configurable. Cancellation propagates and
+closes the producer; buffered cancellation never returns partial success. Close
+iterators with `contextlib.aclosing` when leaving early. Producer I/O must be
+cancellation-aware. Errors expose generic messages without producer secrets.
+
+```python
+import asyncio
+from betterportal.contracts import contract
+from betterportal.streaming import StreamHandler, Summary
+
+async def produce(context):
+    yield {"result": [None, 1]}
+    yield Summary({"total": 1})
+
+handler = StreamHandler(contract("JsonValueSchema"), produce, contract("JsonValueSchema"))
+assert asyncio.run(handler.buffered(None))["summary"] == {"total": 1}
+```
+
+These helpers do not yet supply operation hosting or themed stream renderers.
+
 `betterportal.media.negotiate` selects JSON, HTML (page/fragment/embed), metadata,
 or NDJSON from Accept and the operation's available representations. It honors
 specific exclusions, q=0 and request-order ties, and raises `NotAcceptable` (406)

@@ -17,6 +17,8 @@ app.MapPost("/", async (HttpRequest request) =>
     {
         using var reader = new StreamReader(request.Body);
         var body = (Dictionary<string, object?>)Json.Read(await reader.ReadToEndAsync())!;
+        if (body.GetValueOrDefault("action") is "stream-probe") return Results.Json(await StreamAdapter.Probe());
+        if (body.GetValueOrDefault("action") is "stream") return await StreamAdapter.Run(body, request.HttpContext.RequestAborted);
         if (body.GetValueOrDefault("action") is "media")
         {
             try

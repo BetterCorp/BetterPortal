@@ -8,7 +8,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
 880/888 schema probes; token/service security passes 459/459 scenarios and JWKS
-checks pass 80/80; encryption passes 318/318, authorization 306/306 and media 124/124. See
+checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124 and finite streams 80/80. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -43,7 +43,7 @@ future scenarios; they are not assertions that those tests already exist.
 | sync | BSB service.ts connectToControlPlane; scopedConfigCache.ts | Pending standalone manifest POST, SSE/poll, restart cache | config.md §2 | submission-before-ready, failed-bootstrap, reconnect, invalid-snapshot |
 | readiness | BSB service.ts renderHealth/canReadHealthDiagnostics | Pending public minimal health and authorized diagnostics | protocol.md §1.1 | public-minimal, admin-scoped, refresh-denied, cache-not-ready |
 | lifecycle | BSB service.ts, bootstrapState.ts | Pending install/redeem bootstrap, key persistence, shutdown cancellation | config.md §2 | exact-loopback, redirect-denied, pinned-key, shutdown-no-retry |
-| streaming | runtime/stream.ts, streamHandler.ts | Pending SSE/NDJSON/buffered frames, cancellation/backpressure | streaming.md | order, summary, single-terminal, invalid-item, slow-sink, cancel |
+| streaming | runtime/stream.ts, streamHandler.ts | Python streaming.py/C# Streaming.cs: validated finite frames, derived schema, bounded buffered/NDJSON output and cancellation; SSE/HTML transports and host integration pending | streaming.md; port READMEs | stream_cases.py: 80 checks for wire order, summary/null, validation, single terminal, limits, backpressure and cancellation |
 | subscribers | runtime/sse.ts | Pending bounded tenant/app subscriptions and replaceable transport | sse.md | tenant-only, overflow, disconnect-cleanup, no-unconfigured-broadcast |
 | events | BSB service.ts webhook | Pending declared webhook emission through CP | manifest.md | payload-contract, idempotency, scope, declared-event-only |
 | theme-helpers | BSB service.ts shell fragments; runtime/view.ts | Pending shell context/fragments/chrome helpers; reuse browser assets | docs/building/themes.md | shell-fragment-overrides, service-origin-map, Bootstrap-shell-example |
@@ -87,6 +87,8 @@ JavaScript are not port deliverables. Existing Node services are integration pee
   types. The protocol's unacceptable-representation rules still apply to ports.
 - The historical host matcher may ignore a mismatched port. Never turn that into
   ambiguous tenant/app authorization in the ports.
+- Node's buffered stream helper can return partial items on cancellation. Native
+  helpers propagate cancellation; incomplete buffered data must not appear successful.
 
 These observations do not authorize unrelated Node refactoring. The Node preview
 length fix is directly required by empty-secret interoperability; other Node work

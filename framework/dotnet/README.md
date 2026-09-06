@@ -1,5 +1,30 @@
 # BetterPortal .NET port
 
+`StreamHandler<TItem, TSummary, TContext>` validates each `StreamValue.Item` or
+`StreamValue.Summary` before delivery and derives the buffered AnyVali schema.
+`Frames`/`Ndjson` use async enumeration for backpressure; `Buffered` defaults to
+10,000 items and 8 MiB, and frames to 1 MiB. Limits are configurable. Cancellation
+never emits a terminal frame or returns partial buffered success. A pending
+producer releases the caller immediately and is disposed once its I/O settles;
+producers must pass cancellation to I/O to release resources promptly.
+Dispose async enumerators when leaving early. Errors expose generic messages.
+
+```csharp
+using BetterPortal;
+
+async IAsyncEnumerable<StreamValue<int, int>> Produce(object? context, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation)
+{
+    await Task.CompletedTask;
+    cancellation.ThrowIfCancellationRequested();
+    yield return StreamValue<int, int>.Item(1);
+    yield return StreamValue<int, int>.Summary(1);
+}
+var handler = new StreamHandler<int, int, object?>(Contracts.Get("JsonValueSchema"), Produce, Contracts.Get("JsonValueSchema"));
+if (Convert.ToInt32((await handler.Buffered(null))["summary"]) != 1) throw new Exception("Wrong summary");
+```
+
+These helpers do not yet supply operation hosting or themed stream renderers.
+
 `Media.Negotiate` selects JSON, HTML (page/fragment/embed), metadata, or NDJSON
 from Accept and the operation's available representations. Specific exclusions,
 q=0 and request-order ties are honored; no acceptable representation raises

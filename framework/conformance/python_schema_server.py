@@ -12,12 +12,24 @@ from python_encryption import encryption
 from python_authorization import authorization
 from betterportal.media import negotiate, NotAcceptable
 from dataclasses import asdict
+from python_stream import streaming, probe as stream_probe
+import asyncio
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if body.get("action") == "stream-probe":
+                payload = asyncio.run(stream_probe())
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload).encode())
+                return
+            if body.get("action") == "stream":
+                asyncio.run(streaming(self, body))
+                return
             if body.get("action") == "media":
                 try:
                     options = {"available": body["available"]} if "available" in body else {}
@@ -58,6 +70,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = av.safe_parse_encrypted(schema, body["input"])
                 payload = {"valid": result.success, "output": result.data}
             self.send_response(200)
+        except (BrokenPipeError, ConnectionResetError):
+            return
         except Exception as error:
             payload = {"error": str(error)}
             self.send_response(500)

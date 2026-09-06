@@ -5,12 +5,28 @@ import { security } from "./node-security.mjs";
 import { encryption } from "./node-encryption.mjs";
 import { authorization } from "./node-authorization.mjs";
 import { resolveRequestedRepresentation } from "../nodejs/lib/runtime/media.js";
+import { streaming, streamProbe } from "./node-stream.mjs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 createServer(async (request, response) => {
   try {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action === "stream-probe") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await streamProbe()));
+      return;
+    }
+    if (body.action === "stream") {
+      const abort = new AbortController();
+      response.once("close", () => abort.abort());
+      const result = await streaming(body, abort.signal);
+      response.writeHead(result.status, Object.fromEntries(result.headers));
+      await pipeline(Readable.fromWeb(result.body), response);
+      return;
+    }
     if (body.action === "media") {
       const value = resolveRequestedRepresentation(body.accept);
       response.setHeader("Content-Type", "application/json");
@@ -48,6 +64,8 @@ createServer(async (request, response) => {
     response.setHeader("Content-Type", "application/json");
     response.end(JSON.stringify({ valid: result.success, ...(result.success ? { output: result.data } : {}), document: exportSchema(schema) }));
   } catch (error) {
+    if (response.destroyed || response.writableEnded) return;
+    if (response.headersSent) { response.destroy(error); return; }
     response.statusCode = 500;
     response.end(JSON.stringify({ error: error.message }));
   }

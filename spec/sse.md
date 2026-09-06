@@ -213,7 +213,7 @@ cache alone never establishes readiness. View routes and tenant/app config
 endpoints return `503` until ready. An explicitly configured local provider is a
 separate runtime mode. Setup mode serves only its bootstrap/install surface;
 normal views remain unavailable. Public health responses stay minimal, as
-specified in [protocol.md](protocol.md#11-health).
+specified in [protocol.md](protocol.md#11-health-response).
 
 The long-lived SSE log should make the state obvious. Log the bootstrap poll result, log when config is applied, and log the SSE connection as an update stream that is connected and awaiting changes. A final "connecting" line without a later "connected/awaiting updates" line is ambiguous and should be avoided.
 

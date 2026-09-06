@@ -1,0 +1,406 @@
+{
+  "scenarios": 80,
+  "passed": 80,
+  "results": [
+    {
+      "runtime": "node",
+      "id": "wire-disconnect",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "backpressure-close",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "cancel-producer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "empty-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "empty-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "order-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "null-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "optional-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "optional-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "invalid-item-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "invalid-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "invalid-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "producer-error-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "producer-error-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "wire-disconnect",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "backpressure-close",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "cancel-producer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "cancel-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "derived-recursive-schema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "empty-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "empty-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "order-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "null-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "optional-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "optional-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "invalid-item-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "invalid-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "invalid-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "producer-error-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "producer-error-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "after-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "after-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "undeclared-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "undeclared-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "frame-bound-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "frame-bound-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "item-limit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "buffer-byte-limit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "empty-buffer-limit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "wire-disconnect",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "backpressure-close",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "cancel-producer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "cancel-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "derived-recursive-schema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "cancel-uncooperative",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "empty-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "empty-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "order-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "null-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "optional-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "optional-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "invalid-item-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "invalid-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "invalid-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "producer-error-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "producer-error-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "after-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "after-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "undeclared-summary-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "undeclared-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "frame-bound-buffered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "frame-bound-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "item-limit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "buffer-byte-limit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "empty-buffer-limit",
+      "passed": true
+    }
+  ]
+}

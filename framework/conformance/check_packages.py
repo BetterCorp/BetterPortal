@@ -32,6 +32,9 @@ from betterportal.security import KeyPair
 from betterportal.keys import public_keys, secure_endpoint
 from betterportal.encryption import ConfigCipher, generate_preview_key, encrypt_preview_value, decrypt_preview_value
 from betterportal.authorization import AuthContext, authorize_request
+from betterportal.media import negotiate
+from betterportal.streaming import StreamHandler, Summary
+from betterportal.contracts import contract
 import asyncio
 assert str(wheel.resolve()) in betterportal.__file__
 assert parse("JsonObjectSchema", {"x": [None, {"y": True}]}) == {"x": [None, {"y": True}]}
@@ -44,6 +47,12 @@ preview_key = generate_preview_key()
 assert decrypt_preview_value(preview_key, "tenant", ["secret"], encrypt_preview_value(preview_key, "tenant", ["secret"], "")) == ""
 anonymous = asyncio.run(authorize_request({}, {}, AuthContext("unresolved", "unresolved"), view_id="hello", method="GET"))
 assert anonymous.mode is None and anonymous.user is None and anonymous.service is None
+assert negotiate("text/html;mode=fragment").mode == "fragment"
+async def produce(context):
+    yield {"nested": [None, True]}
+    yield Summary(None)
+handler = StreamHandler(contract("JsonValueSchema"), produce, contract("JsonValueSchema"))
+assert asyncio.run(handler.buffered(None)) == {"items": [{"nested": [None, True]}], "summary": None}
 subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
     str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
     env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)
