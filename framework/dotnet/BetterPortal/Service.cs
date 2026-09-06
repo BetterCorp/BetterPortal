@@ -27,6 +27,8 @@ public sealed partial class Service : IAsyncDisposable
     }
     public bool Ready => state is not null && !closed && configApi.Ready && (!managed || submitted);
     public bool Managed => managed;
+    /// <summary>Cancelled when service shutdown begins. Does not own caller transports.</summary>
+    public CancellationToken Stopping => shutdown.Token;
     internal void SuspendSync() => submitted = false;
     public Generated.PluginManifest Manifest => Contracts.Parse<Generated.PluginManifest>("PluginManifestSchema", schema.Manifest);
     public Generated.BpSchemaOutput Schema() => Contracts.Parse<Generated.BpSchemaOutput>("BpSchemaOutputSchema", schema);

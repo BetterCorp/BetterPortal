@@ -10,10 +10,12 @@ import { verifyJwt } from "../nodejs/lib/runtime/auth/tokens.js";
 import { getSigningKeyForKid, clearJwksCache } from "../nodejs/lib/runtime/auth/jwks.js";
 import { registryRequest, rendererSets } from "./node-registry.mjs";
 import { urlCalls } from "./node-urls.mjs";
+import { FeedProbe } from "./node-feeds.mjs";
 
 export async function hostingRequest(body) {
   clearJwksCache();
   let invoked = 0;
+  const feeds = new FeedProbe(body);
   const snapshot = ScopedServiceConfigSchema.parse(body.snapshot);
   const config = { ...snapshot, platformServices: [], sharedServiceActivations: [], sharedServiceCatalog: [],
     manifestCache: snapshot.apps.filter(app => app.shell).map(app => ({ serviceId: app.shell.serviceId, shell: app.shell })) };
@@ -65,7 +67,7 @@ export async function hostingRequest(body) {
     const primary = methodRoutes.GET ?? Object.values(methodRoutes)[0];
     return { viewId: item.viewId, path, paramNames: path.split("/").filter(part => part.startsWith(":")).map(part => part.slice(1)), methods: Object.keys(methodRoutes),
       schemas: primary.schemas, handlers: Object.fromEntries(Object.entries(methodRoutes).map(([method, spec]) => [method, spec.handler])), methodRoutes,
-      title: primary.title, description: primary.description, ...rendererSets(item) };
+      title: primary.title, description: primary.description, ...rendererSets(item), ...feeds.bind(item) };
   }));
   const app = createBetterPortalApp();
   app.use(event => {
@@ -87,8 +89,11 @@ export async function hostingRequest(body) {
   registerBpWellKnownRoutes(app, schema.manifest, schema);
   const request = body.request;
   const payload = request.bodyBase64 ? Buffer.from(request.bodyBase64, "base64") : request.body;
-  const response = await app.fetch(new Request("http://service.test" + request.path, { method: request.method, headers: request.headers,
-    ...(payload !== undefined && !["GET", "HEAD"].includes(request.method) ? { body: payload } : {}) }));
-  const content = Buffer.from(await response.arrayBuffer());
-  return { status: response.status, headers: Object.fromEntries(response.headers), body: content.toString(), bodyBase64: content.toString("base64"), cookies: response.headers.getSetCookie(), invoked };
+  feeds.start();
+  try {
+    const response = await app.fetch(new Request("http://service.test" + request.path, { method: request.method, headers: request.headers,
+      ...(payload !== undefined && !["GET", "HEAD"].includes(request.method) ? { body: payload } : {}) }));
+    const content = Buffer.from(await response.arrayBuffer());
+    return { status: response.status, headers: Object.fromEntries(response.headers), body: content.toString(), bodyBase64: content.toString("base64"), cookies: response.headers.getSetCookie(), invoked, ...feeds.result() };
+  } finally { await feeds.close(); }
 }

@@ -37,6 +37,16 @@ export function rendererSets(item) {
       renderShell: render(spec.shell), renderItem: render(spec.item),
       ...(spec.summary ? { renderSummary: render(spec.summary) } : {}), ...(spec.error ? { renderError: render(spec.error) } : {}) };
   }
+  for (const spec of item.feed?.renderers ?? []) {
+    const declaration = spec.declaration;
+    const target = sets[declaration.renderer]?.fragments.find(entry => entry.method === "GET" && entry.rendererId === declaration.key);
+    if (target) target.sseRender = (data, context) => {
+      if (spec.throw || Object.hasOwn(spec, "throwOn") && spec.throwOn === data) throw new Error("private-render-secret");
+      if (spec.text !== undefined) return spec.text;
+      const value = JSON.stringify(spec.dataOnly ? data : { data, context: { tenant: context.tenant, app: context.app, request: context.request, route: context.route } });
+      return "<pre>" + value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") + "</pre>";
+    };
+  }
   return { renderers: sets, statusRenderers: statuses };
 }
 

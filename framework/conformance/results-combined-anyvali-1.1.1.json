@@ -1,6 +1,6 @@
 {
-  "scenarios": 5042,
-  "passed": 5014,
+  "scenarios": 5203,
+  "passed": 5175,
   "results": [
     {
       "runtime": "node",
@@ -25238,6 +25238,811 @@
     {
       "runtime": "dotnet",
       "id": "finite-dotnet-auth-machine-grant-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-data",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-empty",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-strings",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-scope-isolation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-nullable",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-input-rejection",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-context",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-themed",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-fragment-only",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-safe-render-context",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-feed-overrides-finite",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-denied-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-no-full-mount",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-query-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-initial-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-query-default",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-data",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-strings",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-scope-isolation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-nullable",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-input-rejection",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-context",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-themed",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-fragment-only",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-safe-render-context",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-render-recovery",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-feed-overrides-finite",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-denied-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-no-full-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-query-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-missing-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-wrong-theme",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-fragment-tick-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-fragment-theme-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-component-selector",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-duplicate-selector",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-wrong-origin",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-head-no-subscription",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-cancel-subscribe",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-cancel-mapper",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-cancel-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-backpressure",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-disconnect-after-event",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-service-shutdown-subscribe",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-service-shutdown-mapper",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-service-shutdown-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-mapper-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-invalid-event",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-corrupt-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-corrupt-contract",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-event-bound",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-render-bound",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-overflow",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-host-shutdown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-preflight-GET",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-preflight-POST",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-accept-cannot-grant-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-initial-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-query-default",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-headers-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-data",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-strings",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-scope-isolation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-nullable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-input-rejection",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-context",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-themed",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-fragment-only",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-safe-render-context",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-render-recovery",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-feed-overrides-finite",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-denied-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-no-full-mount",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-query-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-missing-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-wrong-theme",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-fragment-tick-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-fragment-theme-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-component-selector",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-duplicate-selector",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-wrong-origin",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-head-no-subscription",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-cancel-subscribe",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-cancel-mapper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-cancel-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-backpressure",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-disconnect-after-event",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-service-shutdown-subscribe",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-service-shutdown-mapper",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-service-shutdown-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-mapper-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-invalid-event",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-corrupt-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-corrupt-contract",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-event-bound",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-render-bound",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-overflow",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-host-shutdown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-preflight-GET",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-preflight-POST",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-accept-cannot-grant-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-initial-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-query-default",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-headers-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-node-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-node-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-node-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-node-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-node-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-node-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-node-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-node-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-node-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-node-auth-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-node-auth-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-node-auth-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-node-auth-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-node-auth-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-node-auth-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-python-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-python-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-python-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-python-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-python-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-python-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-python-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-python-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-python-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-python-auth-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-python-auth-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-python-auth-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-python-auth-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-python-auth-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-python-auth-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-dotnet-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-dotnet-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-dotnet-auth-user",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-dotnet-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-dotnet-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-dotnet-auth-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "feed-dotnet-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-dotnet-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-dotnet-auth-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-dotnet-auth-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-dotnet-auth-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-dotnet-auth-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-dotnet-auth-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "feed-dotnet-auth-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "feed-dotnet-auth-machine-grant-revoked",
       "passed": true
     }
   ]

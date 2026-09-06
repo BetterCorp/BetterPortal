@@ -11,6 +11,7 @@ internal static class HostingAdapter
     {
         var invoked = 0; var cancelled = false;
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var feeds = new FeedProbe(body, started);
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var stream = new Node { ["reads"] = 0, ["closed"] = false };
         var hasStream = false;
@@ -122,10 +123,12 @@ internal static class HostingAdapter
                         Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), (data, context) => Render(item, data, context))));
             }), ((List<object?>)item.GetValueOrDefault("pathVariants", new List<object?>())!).Cast<string>())),
             ((Node)body.GetValueOrDefault("dependencies", new Node())!).ToDictionary(pair => pair.Key, pair => (string)pair.Value!));
+        registry = feeds.Bind(registry);
         await using var service = new Service(registry, Contracts.Parse<BetterPortal.Generated.ManifestDeclarationInput>("ManifestDeclarationSchema", body["declaration"]),
             body.GetValueOrDefault("snapshot") is { } snapshot ? new ScopedConfig(snapshot) : null);
         if (body.GetValueOrDefault("closed") is true) await service.DisposeAsync();
         var builder = WebApplication.CreateBuilder(); builder.Logging.ClearProviders(); builder.WebHost.UseUrls("http://127.0.0.1:0");
+        if (body.GetValueOrDefault("feedHostShutdown") is true) builder.Services.AddBetterPortal(service);
         await using var host = builder.Build();
         if (body.GetValueOrDefault("rawOutputProbe") is "backpressure") host.Use(async (context, next) =>
         {
@@ -137,6 +140,7 @@ internal static class HostingAdapter
         });
         host.MapBetterPortal(service, Convert.ToInt32(body.GetValueOrDefault("maxBodyBytes", 1024 * 1024)));
         await host.StartAsync();
+        feeds.Start();
         try
         {
             var address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
@@ -152,10 +156,26 @@ internal static class HostingAdapter
             {
                 var call = client.SendAsync(request, timeout.Token);
                 var observed = 0;
+                if (body.GetValueOrDefault("feedShutdown") is true)
+                {
+                    await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                    if (body.GetValueOrDefault("feedHostShutdown") is true)
+                    {
+                        var stopping = host.StopAsync();
+                        try { await stopping.WaitAsync(TimeSpan.FromSeconds(1)); }
+                        catch (TimeoutException) { await service.DisposeAsync(); await stopping; return new { shutdown = false, invoked, feed = feeds.Result }; }
+                    }
+                    else await service.DisposeAsync();
+                    try { using var reply = await call.WaitAsync(TimeSpan.FromSeconds(1)); }
+                    catch (TimeoutException) { return new { shutdown = false, invoked, feed = feeds.Result }; }
+                    catch (HttpRequestException) { }
+                    await feeds.WaitClosed();
+                    return new { shutdown = true, transportOpen = await feeds.TransportOpen(), invoked, feed = feeds.Result };
+                }
                 if (body.GetValueOrDefault("rawOutputProbe") is "backpressure")
                 {
                     await firstWrite.Task.WaitAsync(TimeSpan.FromSeconds(3));
-                    observed = Convert.ToInt32(stream["reads"]); releaseWrite.TrySetResult();
+                    observed = feeds.Enabled ? feeds.Mapped : Convert.ToInt32(stream["reads"]); releaseWrite.TrySetResult();
                 }
                 if (body.GetValueOrDefault("cancel") is true)
                 {
@@ -165,19 +185,21 @@ internal static class HostingAdapter
                 using var response = await call;
                 var content = await response.Content.ReadAsByteArrayAsync(timeout.Token);
                 if (hasStream) await finished.Task.WaitAsync(TimeSpan.FromSeconds(3));
-                if (body.GetValueOrDefault("rawOutputProbe") is "backpressure") return new { observed, stream, invoked };
+                if (body.GetValueOrDefault("rawOutputProbe") is "backpressure") return new { observed, stream, invoked, feed = feeds.Result };
                 return new { status = (int)response.StatusCode, headers = response.Headers.Concat(response.Content.Headers).ToDictionary(pair => pair.Key.ToLowerInvariant(), pair => string.Join(", ", pair.Value)),
                     body = System.Text.Encoding.UTF8.GetString(content), bodyBase64 = Convert.ToBase64String(content),
-                    cookies = response.Headers.TryGetValues("set-cookie", out var cookies) ? cookies.ToArray() : [], stream, invoked };
+                    cookies = response.Headers.TryGetValues("set-cookie", out var cookies) ? cookies.ToArray() : [], stream, invoked, feed = feeds.Result };
             }
             catch (OperationCanceledException) when (body.GetValueOrDefault("cancel") is true)
             {
+                if (feeds.Enabled) { await feeds.WaitClosed(); return new { cancelled = true, invoked, feed = feeds.Result }; }
                 await finished.Task.WaitAsync(TimeSpan.FromSeconds(3));
                 if (body.GetValueOrDefault("rawProbe") is true) return new { cancelled, invoked, stream };
                 return new { cancelled, invoked };
             }
             catch (HttpRequestException) when (body.GetValueOrDefault("rawProbe") is true)
             {
+                if (feeds.Enabled) { await feeds.WaitClosed(); return new { transportError = true, invoked, feed = feeds.Result }; }
                 if (hasStream) await finished.Task.WaitAsync(TimeSpan.FromSeconds(3));
                 return new { transportError = true, stream, invoked };
             }

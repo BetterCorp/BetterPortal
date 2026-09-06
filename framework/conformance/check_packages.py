@@ -35,6 +35,7 @@ from betterportal.authorization import AuthContext, authorize_request
 from betterportal.media import negotiate
 from betterportal.streaming import StreamHandler, Summary
 from betterportal.sse import LocalEvents, SseRoute, EventScope, encode_event
+from betterportal.feeds import SseFeed
 from betterportal.context import ScopedConfig, http_origin
 from betterportal.context import OriginPolicy
 from betterportal.cors import Cors
@@ -80,9 +81,11 @@ async def sse():
     transport = LocalEvents()
     try:
         route = SseRoute("example", contract("JsonValueSchema"), contract("JsonValueSchema"), lambda value, context: value, transport=transport)
+        owner = Handler(contract("JsonValueSchema"), lambda context: None)
+        feed = SseFeed(owner, route)
         scope = EventScope("tenant", "app")
         async with route.subscribe(scope, None) as events:
-            await route.publish(scope, {"nested": [None]})
+            await feed.publish(scope, {"nested": [None]})
             assert await events.__anext__() == {"nested": [None]}
     finally:
         await transport.aclose()

@@ -14,6 +14,7 @@ from betterportal.response import RawHandler, RawResponse
 from betterportal.rendering import Renderer
 from betterportal.registry import Operation, Route, Registry
 from betterportal.service import Service
+from python_feeds import FeedProbe
 
 
 def url_calls(context, calls):
@@ -36,6 +37,7 @@ def url_calls(context, calls):
 async def hosting_request(body):
     invoked = 0; cancelled = False
     started = asyncio.Event()
+    feeds = FeedProbe(body, started)
     stream = {"reads": 0, "closed": False}
     class RawBody:
         def __init__(self, spec): self.spec, self.index = spec, 0
@@ -84,7 +86,7 @@ async def hosting_request(body):
                 started.set()
                 try: await asyncio.sleep(30)
                 finally: cancelled = True
-            if item.get("throw"): raise ValueError("private-render-secret")
+            if item.get("throw") or "throwOn" in item and item["throwOn"] == data: raise ValueError("private-render-secret")
             if "text" in item: return item["text"]
             value = url_calls(context, item["urlCalls"]) if "urlCalls" in item else data if item.get("dataOnly") else {"data": data, "context": context.data}
             return "<pre>" + html.escape(json.dumps(value)) + "</pre>"
@@ -122,8 +124,12 @@ async def hosting_request(body):
         return RawHandler(function(spec), **schemas) if "raw" in spec and not spec.get("jsonHandler") else Handler(av.import_schema(spec["response"]), function(spec), renderers=renderers, **schemas)
     registry = Registry([Route(item["viewId"], item["path"], [Operation(handler(spec), spec["declaration"], error_renderers=[renderer(item) for item in spec.get("errorRenderers", [])])
         for spec in item["operations"]], path_variants=item.get("pathVariants", [])) for item in body["routes"]], dependencies=body.get("dependencies"))
-    async with Service(registry, body["declaration"], ScopedConfig(body["snapshot"]) if body.get("snapshot") is not None else None) as service:
+    registry = feeds.bind(registry, render_function)
+    async with Service(registry, body["declaration"], ScopedConfig(body["snapshot"]) if body.get("snapshot") is not None else None) as service, feeds:
         app = create_app(service, max_body_bytes=body.get("maxBodyBytes", 1024 * 1024))
+        if body.get("feedHostShutdown"):
+            lifespan = app.router.lifespan_context(app)
+            await lifespan.__aenter__()
         if body.get("closed"): await service.aclose()
         request = body["request"]
         payload = base64.b64decode(request["bodyBase64"]) if "bodyBase64" in request else request.get("body", "").encode()
@@ -147,31 +153,40 @@ async def hosting_request(body):
             task = asyncio.create_task(app(scope, receive, send))
             try:
                 await asyncio.wait_for(first.wait(), 3)
-                observed = stream["reads"]
+                observed = feeds.stats["mapped"] if feeds.specs else stream["reads"]
                 if body["rawOutputProbe"] == "disconnect":
                     await asyncio.wait_for(started.wait(), 3); disconnected.set()
                 else: release.set()
                 try: await asyncio.wait_for(task, 3)
                 except asyncio.CancelledError:
                     if body["rawOutputProbe"] != "disconnect": raise
-                return {"observed": observed, "stream": stream, "cancelled": cancelled, "invoked": invoked}
+                return {"observed": observed, "stream": stream, "cancelled": cancelled, "invoked": invoked, **feeds.result()}
             finally:
                 task.cancel(); await asyncio.gather(task, return_exceptions=True)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://service.test") as client:
             call = asyncio.create_task(client.request(request["method"], request["path"], headers=request.get("headers", {}), content=payload))
             try:
+                if body.get("feedShutdown"):
+                    await asyncio.wait_for(started.wait(), 3)
+                    if body.get("feedHostShutdown"): await lifespan.__aexit__(None, None, None)
+                    else: await service.aclose()
+                    try: await asyncio.wait_for(asyncio.shield(call), 1)
+                    except asyncio.TimeoutError: return {"shutdown": False, "invoked": invoked, **feeds.result()}
+                    except asyncio.CancelledError: pass
+                    await feeds.inner.publish(feeds.address, b"null")
+                    return {"shutdown": True, "transportOpen": True, "invoked": invoked, **feeds.result()}
                 if body.get("cancel"):
                     await asyncio.wait_for(started.wait(), timeout=3)
                     call.cancel()
                 response = await asyncio.wait_for(call, timeout=8)
                 return {"status": response.status_code, "headers": dict(response.headers), "body": response.text, "bodyBase64": base64.b64encode(response.content).decode(),
-                        "cookies": response.headers.get_list("set-cookie"), "stream": stream, "invoked": invoked}
+                        "cookies": response.headers.get_list("set-cookie"), "stream": stream, "invoked": invoked, **feeds.result()}
             except asyncio.CancelledError:
                 if not body.get("cancel"): raise
-                return {"cancelled": cancelled, "invoked": invoked, **({"stream": stream} if body.get("rawProbe") else {})}
+                return {"cancelled": cancelled, "invoked": invoked, **({"stream": stream} if body.get("rawProbe") else {}), **feeds.result()}
             except Exception:
                 if not body.get("rawProbe"): raise
-                return {"transportError": True, "stream": stream, "invoked": invoked}
+                return {"transportError": True, "stream": stream, "invoked": invoked, **feeds.result()}
             finally:
                 call.cancel()
                 await asyncio.gather(call, return_exceptions=True)

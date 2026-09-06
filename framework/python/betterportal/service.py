@@ -74,6 +74,7 @@ class Service:
         self._cleanup: set[asyncio.Task[None]] = set()
         self._writers: set[asyncio.Task[Any]] = set()
         self._closed = False
+        self._stopping = asyncio.Event()
 
     def _build(self, snapshot: ScopedConfig) -> _Snapshot:
         if self._instance_id is not None and snapshot.document().get("serviceIdentity", {}).get("id") != self._instance_id:
@@ -86,6 +87,10 @@ class Service:
 
     @property
     def managed(self) -> bool: return self._managed
+
+    async def wait_stopped(self) -> None:
+        """Wait until service shutdown begins, without taking ownership of it."""
+        await self._stopping.wait()
 
     async def _bind_installation(self, instance_id: str | None, tenant_lock: str | None) -> None:
         async with self._updates:
@@ -307,6 +312,7 @@ class Service:
 
     async def aclose(self) -> None:
         self._closed = True
+        self._stopping.set()
         writers = tuple(self._writers - {asyncio.current_task()})
         for task in writers: task.cancel()
         await asyncio.gather(*writers, return_exceptions=True)

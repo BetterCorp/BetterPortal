@@ -29,6 +29,7 @@ from config_api_cases import run_config_api
 from bootstrap_cases import run_bootstrap
 from installation_cases import run_installation
 from finite_cases import run_finite
+from feed_cases import run_feeds
 
 RUNNERS = {"security": run_security, "keys": run_keys, "encryption": run_encryption, "authorization": run_authorization,
            "media": run_media, "streams": run_streams, "sse": run_sse, "context": run_context, "cors": run_cors, "handlers": run_handlers, "registry": run_registry, "access": run_access, "hosting": run_hosting, "raw": run_raw, "rendering": run_rendering, "urls": run_urls, "snapshots": run_snapshots, "sync": run_sync, "settings": run_settings}
@@ -37,6 +38,7 @@ RUNNERS["config-api"] = run_config_api
 RUNNERS["bootstrap"] = run_bootstrap
 RUNNERS["installation"] = run_installation
 RUNNERS["finite"] = run_finite
+RUNNERS["feeds"] = run_feeds
 SUITES = ["schema", *RUNNERS, "all"]
 
 

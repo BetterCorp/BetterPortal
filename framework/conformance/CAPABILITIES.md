@@ -9,7 +9,7 @@ Current state: canonical documents, native schema adapters, token/service securi
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
 1,210/1,236 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
-finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71 and CORS 33/33.
+finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
 input/output types. JSON operation registration and manifest generation pass 89/89
 registry checks. Prototype JSON hosts pass 222/222 HTTP/ASGI checks; raw responses
@@ -18,7 +18,7 @@ Typed HTML callbacks, presentation context, fragments/components and status/erro
 rendering pass 163/163 checks.
 Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
-persistence 70/70, config HTTP hosting 138/139 and protected bootstrap storage 147/147, and installation 131/131. The full gate passes 5,014/5,042;
+persistence 70/70, config HTTP hosting 138/139 and protected bootstrap storage 147/147, and installation 131/131. The full gate passes 5,175/5,203;
 the remaining probes expose SDK defects/limitations, including Python's explicit-null
 tenant flag affecting config authorization.
 Inbound operation mounts and local permission aliases pass 130/130 access checks.
@@ -35,7 +35,7 @@ future scenarios; they are not assertions that those tests already exist.
 |---|---|---|---|---|
 | contracts | contracts/*.ts, runtime/jsonSchema.ts | 149 canonical documents embedded in both packages, including derived authoring declarations; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,210/1,236 including all-document round trips |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
-| registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; full contexts and subscriber-feed registration pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
+| registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; typed subscriber-feed binding; full contexts pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors and renderer/streaming metadata | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
 | validation | adapters/h3.ts, codegen/schemaPolicy.ts | Native typed handlers and JSON hosts validate per-field input/output, retain null/arrays and enforce body/query/header bounds; full authoring policy pending | protocol.md §4; port READMEs | handler_cases.py: 44 checks; hosting_cases.py adds decoding, errors, method dispatch and client cancellation |
 | multipart/raw | contracts/route.ts, adapters/h3.ts | Bounded native forms/uploads with canonical types; explicit raw byte/stream/file responses with header validation, CORS ownership, HEAD disposal and cancellation; JSON/raw registration stays explicit | protocol.md; port READMEs | hosting_cases.py: input bounds and multipart; raw_cases.py: 101 checks for downloads, statuses, cookies, header injection, stream order/backpressure and disposal |
@@ -60,8 +60,8 @@ future scenarios; they are not assertions that those tests already exist.
 | lifecycle | BSB service.ts, bootstrapState.ts | Native ASGI lifespan and ASP.NET hosted service own installation/sync cancellation and service disposal; encrypted atomic bootstrap/identity storage | config.md §2; port READMEs | sync_cases.py: exact-loopback, redirect-denied, shutdown-no-retry, cancelled startup/storage failure and host lifetime; bootstrap_cases.py: file interchange, tampering, identity/redaction, atomic failure and cancellation |
 | installation | BSB service.ts registerInstallEndpoint, validateTenantApp; CM setupTokens.ts | Native ServiceInstallation pins CP/service trust, redeems setup tokens, persists credentials/identity, activates config API and sync; replay/reconfiguration, instance pinning, signed/persisted tenant locks and restart | config.md §2.2; port READMEs | installation_cases.py: actual Node installer/config-manager plus native failure, scope, transport, concurrency, cancellation and readiness checks; Node credential logging regression |
 | hostname-change | BSB service.ts registerHostnameChangeEndpoint; CM setupTokens.ts | Pending confirmation through configured CP and atomic update of the installed public-address binding | config.md §2 | opaque-change-token, same-instance, replacement-denied, CP-rejection, restart-address-binding |
-| streaming | runtime/stream.ts, streamHandler.ts | Python streaming.py/C# Streaming.cs: validated finite frames, derived schema, bounded buffered/NDJSON/SSE output and cancellation; finite.py/Finite.cs register typed finite handlers and stream renderers through existing host policy | streaming.md; port READMEs | stream_cases.py: 113 primitive checks; finite_cases.py: 332 host checks for buffered/NDJSON/SSE, typed shells/frames, limits/cancellation, input/mount/auth policy and manifest metadata |
-| subscribers | runtime/sse.ts | Python sse.py/C# Sse.cs: validated scoped routes, replaceable transport, bounded local delivery, SSE encoding, tick render functions and shutdown; host authorization/renderer selection pending | sse.md; port READMEs | sse_cases.py: 71 shared/native checks for isolation, overflow, validation, mutation, cancellation, shutdown, multiline wire data, render recovery and flushing |
+| streaming | runtime/stream.ts, streamHandler.ts | Python streaming.py/C# Streaming.cs: validated finite frames, derived schema, bounded buffered/NDJSON/SSE output and cancellation; finite.py/Finite.cs register typed finite handlers and stream renderers through existing host policy | streaming.md; port READMEs | stream_cases.py: 113 primitive checks; finite_cases.py: 344 host checks for buffered/NDJSON/SSE, typed shells/frames, limits/cancellation, input/mount/auth policy and manifest metadata |
+| subscribers | runtime/sse.ts | Python sse.py/C# Sse.cs: validated scoped routes, replaceable transport, bounded local delivery, SSE encoding, tick render functions and shutdown; feeds.py/Feeds.cs bind typed feeds to the owning GET and enforce host authorization, exact renderer selection and cancellation | sse.md; port READMEs | sse_cases.py: 71 shared/native checks for isolation, overflow, validation, mutation, cancellation, shutdown, multiline wire data, render recovery and flushing; feed_cases.py: 161 checks for input/transport/event boundaries, scope/auth/mounts, fragments, backpressure, overflow and service/host shutdown |
 | events | BSB service.ts webhook | Pending declared webhook emission through CP | manifest.md | payload-contract, idempotency, scope, declared-event-only |
 | theme-helpers | BSB service.ts shell fragments; runtime/view.ts | Pending shell context/fragments/chrome helpers; reuse browser assets | docs/building/themes.md | shell-fragment-overrides, service-origin-map, Bootstrap-shell-example |
 | discovery | runtime/llms.ts; BSB seo.ts, service.ts | Public health/manifest/schema JSON in native hosts; developer resources, AI/LLM discovery and SEO hooks pending | ai.md; protocol.md; port READMEs | hosting_cases.py: health/manifest/schema; public-resource-bounds, app-discovery, sitemap-visibility and robots pending |
@@ -116,6 +116,10 @@ JavaScript are not port deliverables. Existing Node services are integration pee
   fragment-only mount cannot authorize the full frame stream. Node currently
   passes these selectors into the generic SSE mount check. Ports also keep an
   absent sibling method schema separate from a GET stream's input schema.
+- Node's subscriber adapter can fall back to raw events when a selected tick is
+  unavailable, omits header-schema validation and tick URL rewriting, and closes
+  on render failures. Native hosts require exact ticks, reject Accept-only fragment
+  authorization, validate headers, rewrite tick URLs and recover with safe error events.
 - Node's structured status helper suppresses 206 and redirect bodies. Ports retain
   these bodies and suppress only 204/205/304; explicit HTML status renderers still
   have no success-renderer fallback.

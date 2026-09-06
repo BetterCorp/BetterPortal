@@ -233,14 +233,17 @@ public static class Hosting
         }
         var bindings = groups.Select(pair => (Pattern: pair.Key, Operations: pair.Value, Sse: false)).ToList();
         foreach (var (pattern, operations) in groups)
-            if (operations.TryGetValue("GET", out var get) && get.Route.Operations.Single(item => item.Method == "GET").Handler.IsStreaming)
+            if (operations.TryGetValue("GET", out var get) && (get.Route.Sse is not null || get.Route.Operations.Single(item => item.Method == "GET").Handler.IsStreaming))
             {
                 var path = pattern.TrimEnd('/') + "/__sse";
-                if (groups.ContainsKey(path)) throw new ArgumentException("Route conflicts with finite SSE: " + path);
+                if (groups.ContainsKey(path)) throw new ArgumentException("Route conflicts with SSE: " + path);
                 bindings.Add((path, new() { ["GET"] = get }, true));
             }
         foreach (var (pattern, operations, sse) in bindings) endpoints.MapMethods(pattern, operations.Keys.Concat(operations.ContainsKey("GET") ? ["HEAD", "OPTIONS"] : new[] { "OPTIONS" }).Distinct(), async (HttpContext context) =>
         {
+            var requestAborted = context.RequestAborted;
+            using var lifetime = service.Ready ? CancellationTokenSource.CreateLinkedTokenSource(requestAborted, service.Stopping, endpoints.Lifetime.ApplicationStopping) : null;
+            if (lifetime is not null) context.RequestAborted = lifetime.Token;
             IReadOnlyDictionary<string, string> responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin" };
             ScopedContext? failureScope = null; Operation? operation = null; Route? route = null; Representation? representation = null;
             var kind = "page"; string? key = null; var matched = ""; var requested = "GET";
@@ -267,11 +270,11 @@ public static class Hosting
             try
             {
                 headers = Headers(context.Request); query = Pairs(context.Request.QueryString.Value ?? "");
-                if (sse && (query.ContainsKey("_f") || query.ContainsKey("_c"))) throw new RequestException(400, "Stream connections do not accept renderer selectors");
                 if (query.GetValueOrDefault("_f") is { } selector && selector is not string) throw new RequestException(400, "Invalid fragment selector");
                 var fragment = (string?)query.GetValueOrDefault("_f");
                 requested = context.Request.Method == "OPTIONS" ? headers.GetValueOrDefault("access-control-request-method", "") : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;
                 if (!operations.TryGetValue(requested, out var binding)) throw new RequestException(context.Request.Method == "OPTIONS" ? 403 : 405, "Method not allowed");
+                if (sse && (query.ContainsKey("_c") || binding.Route.Sse is null && query.ContainsKey("_f"))) throw new RequestException(400, "Stream connection does not support this selector");
                 route = binding.Route; matched = binding.Path;
                 parameters = Segments(binding.Path).Select((part, index) => (part, index)).Where(item => item.part.StartsWith(':'))
                     .ToDictionary(item => item.part[1..], item => context.Request.RouteValues["_bp" + item.index]);
@@ -312,6 +315,17 @@ public static class Hosting
                 var values = new Node { ["params"] = parameters, ["query"] = query, ["headers"] = headers, ["request"] = value };
                 RenderContext StreamContext(string renderer, object? parsedParams, object? parsedQuery) => RenderContext.Create(requestContext, binding.Route.ViewId, binding.Path,
                     renderer, "fragment", "page", null, 200, parsedParams, parsedQuery, context.RequestAborted);
+                if (sse && binding.Route.Sse is { } feed)
+                {
+                    RenderContext EventContext(string renderer, object? parsedParams, object? parsedQuery)
+                    {
+                        var path = context.Request.Path.Value![..^"/__sse".Length];
+                        if (path.Length == 0) path = "/";
+                        var presentation = requestContext with { Path = path, Urls = service.Urls(requestContext.Scope, path, headers, context.Request.Scheme) };
+                        return RenderContext.Create(presentation, binding.Route.ViewId, binding.Path, renderer, "fragment", "fragment", fragment, 200, parsedParams, parsedQuery, context.RequestAborted);
+                    }
+                    await ReplyRaw(context, feed.OpenStream(requestContext, values, fragment, EventContext, context.RequestAborted), responseHeaders); return;
+                }
                 if (operation.Handler.IsStreaming && (sse || representation?.Kind == "ndjson"))
                 {
                     await ReplyRaw(context, operation.Handler.OpenStream(requestContext, values, sse, StreamContext, context.RequestAborted), responseHeaders); return;
@@ -363,13 +377,14 @@ public static class Hosting
             catch (CorsDeniedException) { await Reply(context, new { error = "Origin or method is not allowed" }, 403, new Dictionary<string, string> { ["vary"] = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers" }); }
             catch (NotAcceptableException) { await Failure(406, "Representation not available"); }
             catch (HandlerInputException error) { await Failure(400, "Invalid request " + error.Field); }
-            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { context.Abort(); }
             catch (BadHttpRequestException error) { await Failure(error.StatusCode, "Invalid request body"); }
             catch (Exception)
             {
                 if (context.Response.HasStarted) context.Abort();
                 else { context.Response.Clear(); await Failure(500, "Request failed"); }
             }
+            finally { context.RequestAborted = requestAborted; }
         });
         return endpoints;
     }

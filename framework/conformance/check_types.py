@@ -73,9 +73,36 @@ stream_renderers = StreamRenderers[TokenLifetimeConfig, TokenLifetimeConfig]("bo
 finite = FiniteHandler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig, TokenLifetimeConfig](
     contract("TokenLifetimeConfigSchema"), produce, summary=contract("TokenLifetimeConfigSchema"),
     query=contract("ApiAuthRequirementSchema"), stream_renderers=[stream_renderers])
+import anyvali as av
+from betterportal.feeds import SseFeed
+from betterportal.sse import LocalEvents, SseRoute, EventScope
+from betterportal.registry import Operation, Route
+from betterportal.generated_types import OperationDeclarationInput
+initial = Renderer[TokenLifetimeConfig]({"renderer": "bootstrap5", "kind": "fragment", "key": "nav.clock"}, render)
+owner = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, renderers=[initial])
+transport = LocalEvents()
+events = SseRoute[str, TokenLifetimeConfig, HandlerContext[Any, ApiAuthRequirement, Any, Any]]("clock", av.string(),
+    contract("TokenLifetimeConfigSchema"), lambda value, context: output, transport=transport)
+feed = SseFeed(owner, events, renderers=[initial])
+operation_input: OperationDeclarationInput = {"operationId": "clock.get", "method": "GET", "title": "Clock", "description": "Clock", "auth": {}}
+operation = Operation(owner, operation_input)
+route = Route("clock", "/clock", [operation], sse=feed)
+assert route.sse is feed
+for build in (
+    lambda: Route("wrong", "/clock", [operation], sse=feed),
+    lambda: Route("clock", "/clock", [Operation(handler, operation_input)], sse=feed),
+    lambda: SseFeed(handler, events, renderers=[initial]),
+    lambda: SseFeed(owner, events, renderers=[initial, initial]),
+    lambda: SseFeed(owner, events, renderers=[renderer]),
+    lambda: Route("clock", "/clock", [Operation(owner, {**operation_input, "method": "POST"})], sse=feed),
+):
+    try: build()
+    except ValueError: pass
+    else: raise AssertionError("Invalid subscriber binding accepted")
 ''', encoding="utf-8")
 command = [python, "-m", "mypy", "--follow-imports=silent", "--follow-untyped-imports", "--cache-dir", str(root / ".tmp-run/mypy-ports")]
 subprocess.run([*command, str(positive)], env=environment, check=True)
+subprocess.run([python, str(positive)], env=environment, check=True)
 negative = directory / "negative.py"
 negative.write_text('''from betterportal.generated_types import ApiAuthRequirement, TokenType, TokenLifetimeConfigInput
 missing: ApiAuthRequirement = {}
@@ -96,9 +123,13 @@ from betterportal.urls import Urls
 invalid_url = Urls.path("/hello", {"query": {"array": [1]}})
 from betterportal.finite import StreamRenderers
 bad_stream = StreamRenderers[ApiAuthRequirement, ApiAuthRequirement]("bootstrap5", lambda data, context: data["missing"], lambda data, context: 42)
+from betterportal.feeds import SseFeed
+from betterportal.sse import EventScope
+async def bad_publish(feed: SseFeed[Any, Any, Any, Any, ApiAuthRequirement, ApiAuthRequirement]) -> None:
+    await feed.publish(EventScope("tenant", "app"), "wrong input type")
 ''', encoding="utf-8")
 result = subprocess.run([*command, str(negative)], env=environment, capture_output=True, text=True)
-assert result.returncode == 1 and result.stdout.count(": error:") == 14, result.stdout + result.stderr
+assert result.returncode == 1 and result.stdout.count(": error:") == 15, result.stdout + result.stderr
 
 tool = root / "framework/dotnet/BetterPortal.Tool/bin/Debug/net10.0/BetterPortal.Tool.dll"
 subprocess.run(["dotnet", str(tool), "types", "--platform", "--output", str(root / "framework/dotnet/BetterPortal/GeneratedTypes.cs"), "--check"], check=True)
@@ -192,6 +223,28 @@ var streamed = new FiniteHandler<object?, object?, object?, object?, BetterPorta
             (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.SseConnectPath),
             (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.Required.ToString())) });
 if (!streamed.IsStreaming || streamed.StreamRendererKeys.Count != 1) throw new System.Exception("Missing typed stream renderers");
+await using var transport = new LocalEvents();
+var fragment = new Renderer<BetterPortal.Generated.ApiAuthRequirement>(new() { Renderer = "bootstrap5", Kind = BetterPortal.Generated.RendererDeclarationInputKind.Fragment, Key = "nav.clock" },
+    (data, context) => data.Required.ToString());
+var owner = new Handler<object?, object?, object?, object?, BetterPortal.Generated.ApiAuthRequirement>(Contracts.Get("ApiAuthRequirementSchema"),
+    context => System.Threading.Tasks.ValueTask.FromResult(Contracts.Parse<BetterPortal.Generated.ApiAuthRequirement>("ApiAuthRequirementSchema", new BetterPortal.Generated.ApiAuthRequirementInput())), renderers: new[] { fragment });
+var events = new SseRoute<string, BetterPortal.Generated.ApiAuthRequirement, HandlerContext<object?, object?, object?, object?>>("clock", AnyVali.V.String(), Contracts.Get("ApiAuthRequirementSchema"),
+    (input, context, cancellation) => System.Threading.Tasks.ValueTask.FromResult(Contracts.Parse<BetterPortal.Generated.ApiAuthRequirement>("ApiAuthRequirementSchema", new BetterPortal.Generated.ApiAuthRequirementInput())), transport);
+var feed = SseFeed<string, BetterPortal.Generated.ApiAuthRequirement>.Bind(owner, events, new[] { fragment });
+var operation = new Operation(owner, new() { OperationId = "clock.get", Method = BetterPortal.Generated.HttpMethodInput.GET, Title = "Clock", Description = "Clock", Auth = new() });
+var route = new Route("clock", "/clock", new[] { operation }, sse: feed);
+if (route.Sse != feed) throw new System.Exception("Missing typed feed");
+foreach (System.Action build in new System.Action[] {
+    () => { _ = new Route("wrong", "/clock", new[] { operation }, sse: feed); },
+    () => { _ = new Route("clock", "/clock", new[] { new Operation(handler, new() { OperationId = "clock.get", Method = BetterPortal.Generated.HttpMethodInput.GET, Title = "Clock", Description = "Clock", Auth = new() }) }, sse: feed); },
+    () => { _ = SseFeed<string, BetterPortal.Generated.ApiAuthRequirement>.Bind(handler, events, new[] { fragment }); },
+    () => { _ = SseFeed<string, BetterPortal.Generated.ApiAuthRequirement>.Bind(owner, events, new[] { fragment, fragment }); },
+    () => { _ = SseFeed<string, BetterPortal.Generated.ApiAuthRequirement>.Bind(owner, events, new[] { renderer }); },
+    () => { _ = new Route("clock", "/clock", new[] { new Operation(owner, new() { OperationId = "clock.post", Method = BetterPortal.Generated.HttpMethodInput.POST, Title = "Clock", Description = "Clock", Auth = new() }) }, sse: feed); }
+}) {
+    try { build(); } catch (System.ArgumentException) { continue; }
+    throw new System.Exception("Invalid subscriber binding accepted");
+}
 ''', encoding="utf-8")
 subprocess.run(["dotnet", "run", "--project", str(custom), "-p:UseSharedCompilation=false", "--", str(source), str(bindings)], check=True)
 
@@ -217,7 +270,9 @@ var urlOptions = new RouteUrlOptionsInput { Absolute = "true" };
 var stream = new BetterPortal.StreamRenderers<ApiAuthRequirement, ApiAuthRequirement>("bootstrap5",
     (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.Missing),
     (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.Required.Trim()));
+static System.Threading.Tasks.Task BadPublish(BetterPortal.SseFeed<ApiAuthRequirement, ApiAuthRequirement> feed) =>
+    feed.Publish(new("tenant", "app"), "wrong input type").AsTask();
 ''', encoding="utf-8")
 result = subprocess.run(["dotnet", "build", str(negative_dotnet), "-m:1", "-p:UseSharedCompilation=false"], capture_output=True, text=True)
-assert result.returncode != 0 and "CS9035" in result.stdout and "CS0029" in result.stdout and "CS1061" in result.stdout, result.stdout + result.stderr
+assert result.returncode != 0 and "CS9035" in result.stdout and "CS0029" in result.stdout and "CS1061" in result.stdout and "CS1503" in result.stdout, result.stdout + result.stderr
 print("Native generators, positive/negative Python typing and C# wire checks passed")

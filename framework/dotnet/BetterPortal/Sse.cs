@@ -157,28 +157,41 @@ public sealed class SseRoute<TInput, TEvent, TContext>(string viewId, Schema inp
     public async ValueTask<Subscription> Subscribe(EventScope scope, TContext context, CancellationToken cancellation = default) =>
         new(this, await transport.Subscribe(new(ViewId, scope), cancellation), context);
 
-    public async Task WriteSse(EventScope scope, TContext context, Stream destination,
+    public Task WriteSse(EventScope scope, TContext context, Stream destination,
         Func<TEvent, CancellationToken, ValueTask<string>>? render = null, string? eventType = null, CancellationToken cancellation = default)
+        => SseWire.Write(Messages(scope, context, render, eventType, cancellation), destination, maxPayloadBytes, cancellation);
+
+    public async IAsyncEnumerable<byte[]> Wire(EventScope scope, TContext context,
+        Func<TEvent, CancellationToken, ValueTask<string>>? render = null, string? eventType = null,
+        [EnumeratorCancellation] CancellationToken cancellation = default)
+    {
+        await foreach (var message in Messages(scope, context, render, eventType, cancellation))
+            yield return await SseWire.Encode(message, maxPayloadBytes, cancellation);
+    }
+    private async IAsyncEnumerable<SseItem<string>> Messages(EventScope scope, TContext context,
+        Func<TEvent, CancellationToken, ValueTask<string>>? render, string? eventType, [EnumeratorCancellation] CancellationToken cancellation)
     {
         SseWire.CheckName(eventType);
         await using var subscription = await Subscribe(scope, context, cancellation);
-        await SseWire.Write(Events(cancellation), destination, maxPayloadBytes, cancellation);
-        async IAsyncEnumerable<SseItem<string>> Events([EnumeratorCancellation] CancellationToken signal)
+        await foreach (var value in subscription.Read(cancellation))
         {
-            await foreach (var value in subscription.Read(signal))
+            SseItem<string> message;
+            try
             {
-                SseItem<string> message;
-                try
-                {
-                    var data = render is null ? value is string text ? text : Json.Write(value) : await render(value, signal).AsTask().WaitAsync(signal);
-                    if (new UTF8Encoding(false, true).GetByteCount(data) > maxPayloadBytes) throw new ArgumentException("SSE data byte limit exceeded");
-                    message = new(data, eventType);
-                }
-                catch (OperationCanceledException) when (signal.IsCancellationRequested) { throw; }
-                catch (Exception) { message = new("{\"code\":\"render_failed\",\"message\":\"Event rendering failed\"}", "error"); }
-                yield return message;
+                var data = render is null ? EventData(value) : await render(value, cancellation).AsTask().WaitAsync(cancellation);
+                if (new UTF8Encoding(false, true).GetByteCount(data) > maxPayloadBytes) throw new ArgumentException("SSE data byte limit exceeded");
+                message = new(data, eventType);
             }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+            catch (Exception) { message = new("{\"code\":\"render_failed\",\"message\":\"Event rendering failed\"}", "error"); }
+            yield return message;
         }
+    }
+    private static string EventData(TEvent value)
+    {
+        // Generated unions and object-typed contracts can wrap strings in JsonElement.
+        var encoded = System.Text.Json.JsonSerializer.SerializeToElement(value, Json.Options);
+        return encoded.ValueKind == System.Text.Json.JsonValueKind.String ? encoded.GetString()! : encoded.GetRawText();
     }
 
     public sealed class Subscription(SseRoute<TInput, TEvent, TContext> route, IEventSubscription subscription, TContext context) : IAsyncDisposable

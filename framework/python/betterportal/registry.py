@@ -10,6 +10,7 @@ from .contracts import contract, export, parse
 from .generated_types import OperationDeclarationInput, OperationDeclaration, ManifestDeclarationInput, PluginManifest, BpSchemaOutput, ViewRenderError
 from .handler import Handler, RequestContext, Invocation
 from .finite import FiniteHandler
+from .feeds import SseFeed
 from .response import RawHandler, RawResponse
 from .rendering import Renderer, RenderContext, html_metadata, content_type, renderers as unique_renderers
 
@@ -91,12 +92,16 @@ def _segments(path: str) -> tuple[str, ...]:
 
 
 class Route:
-    def __init__(self, view_id: str, path: str, operations: Iterable[Operation], *, path_variants: Iterable[str] = ()):
+    def __init__(self, view_id: str, path: str, operations: Iterable[Operation], *, path_variants: Iterable[str] = (),
+                 sse: SseFeed[Any, Any, Any, Any, Any, Any] | None = None):
         self.view_id = contract("ViewMetadataSchema", "viewId").parse(view_id)
         self.paths = tuple(sorted(set([path, *path_variants]), key=lambda value: (-sum(segment.startswith(":") for segment in _segments(value)), -len(value), value)))
         self.operations = tuple(operations)
+        self.sse = sse
         if not self.operations or len({operation.method for operation in self.operations}) != len(self.operations):
             raise ValueError("A route needs unique method operations")
+        if sse is not None and (sse.route.view_id != self.view_id or not any(operation.method == "GET" and operation.handler is sse.owner for operation in self.operations)):
+            raise ValueError("SSE must belong to this view's GET handler")
         schemas = [export(operation.handler.schemas["params"]) if "params" in operation.handler.schemas else {} for operation in self.operations]
         if any(schema != schemas[0] for schema in schemas[1:]):
             raise ValueError("A view must publish one consistent params schema")

@@ -105,18 +105,21 @@ async def _decode(request: Request, body: bytes) -> tuple[Any, Any]:
 _Output = TypeVar("_Output")
 
 
-async def _connected(request: Request, work: Coroutine[Any, Any, _Output]) -> _Output:
+async def _connected(request: Request, work: Coroutine[Any, Any, _Output], service: Service | None = None) -> _Output:
     """The body is drained before watching receive, so the watcher cannot steal input."""
     async def disconnected():
         while (await request.receive())["type"] != "http.disconnect": pass
-    task = asyncio.create_task(work); watcher = asyncio.create_task(disconnected())
+    task = asyncio.create_task(work)
+    watchers = [asyncio.create_task(disconnected())]
+    if service is not None: watchers.append(asyncio.create_task(service.wait_stopped()))
     try:
         try:
-            done, _ = await asyncio.wait((task, watcher), return_when=asyncio.FIRST_COMPLETED)
+            done, _ = await asyncio.wait((task, *watchers), return_when=asyncio.FIRST_COMPLETED)
             if task not in done: raise asyncio.CancelledError
         finally:
-            task.cancel(); watcher.cancel()
-            await asyncio.gather(task, watcher, return_exceptions=True)
+            task.cancel()
+            for watcher in watchers: watcher.cancel()
+            await asyncio.gather(task, *watchers, return_exceptions=True)
         return await task
     except BaseException:
         # A handler may catch cancellation and return an owned stream anyway.
@@ -127,8 +130,8 @@ async def _connected(request: Request, work: Coroutine[Any, Any, _Output]) -> _O
 
 
 class _RawReply(Response):
-    def __init__(self, raw: RawResponse, headers: dict[str, str], *, head: bool):
-        self.raw = raw
+    def __init__(self, raw: RawResponse, headers: dict[str, str], *, head: bool, service: Service | None = None):
+        self.raw, self.service = raw, service
         pairs = [(name.lower().encode("ascii"), value.encode("latin-1")) for name, value in raw.headers]
         for name, value in headers.items():
             if name.lower() == "vary":
@@ -150,7 +153,7 @@ class _RawReply(Response):
         try:
             if isinstance(self.reply, StreamingResponse):
                 # Watch receive for every ASGI version, including while a producer waits.
-                await _connected(Request(scope, receive), self.reply.stream_response(send))
+                await _connected(Request(scope, receive), self.reply.stream_response(send), self.service)
             else: await self.reply(scope, receive, send)
         finally:
             close = getattr(getattr(self.reply, "body_iterator", None), "aclose", None)
@@ -193,9 +196,9 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                             url_context=service.urls(scope, request.url.path, headers, request.url.scheme)),
                             route.view_id, matched, theme, representation.mode or "page", kind, key, status, params, query)
                         value = await operation.render_error(context, message)
-                        return _RawReply(value, response_headers, head=request.method == "HEAD") if value is not None else None
+                        return _RawReply(value, response_headers, head=request.method == "HEAD", service=service) if value is not None else None
                     try:
-                        rendered = await _connected(request, render())
+                        rendered = await _connected(request, render(), service if service.ready else None)
                         if rendered is not None: return rendered
                     except Exception:
                         status, message = 500, "Request failed"
@@ -215,42 +218,48 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 values = {"params": params, "query": query, "headers": headers, "request": value}
                 def stream_context(theme, parsed_params, parsed_query):
                     return RenderContext.create(context, route.view_id, matched, theme, "fragment", "page", None, 200, parsed_params, parsed_query)
+                if sse and route.sse is not None:
+                    def event_context(theme, parsed_params, parsed_query):
+                        path = request.url.path.removesuffix("/__sse") or "/"
+                        presentation = replace(context, path=path, url_context=service.urls(context.scope, path, headers, request.url.scheme))
+                        return RenderContext.create(presentation, route.view_id, matched, theme, "fragment", "fragment", fragment, 200, parsed_params, parsed_query)
+                    return _RawReply(route.sse.open_stream(context, values, fragment=fragment, render_context=event_context), response_headers, head=request.method == "HEAD", service=service)
                 if isinstance(operation.handler, FiniteHandler) and (sse or representation is not None and representation.kind == "ndjson"):
-                    return _RawReply(operation.handler.open_stream(context, values, sse=sse, render_context=stream_context), response_headers, head=request.method == "HEAD")
+                    return _RawReply(operation.handler.open_stream(context, values, sse=sse, render_context=stream_context), response_headers, head=request.method == "HEAD", service=service)
                 if isinstance(operation.handler, FiniteHandler) and requested == "GET" and kind == "page" and representation is not None and representation.kind == "html":
                     connection = quote(request.url.path.rstrip("/"), safe="/:@!$&'()*+,;=-._~") + "/__sse"
                     if request.scope["query_string"]: connection += "?" + quote(request.scope["query_string"].decode("utf-8"), safe="!$&'()*+,-./:;=?@_~%")
                     shell = await operation.handler.shell(context, values, connection, representation.mode or "page", stream_context)
                     if shell is not None:
-                        return _RawReply(RawResponse(shell.encode("utf-8"), headers={"content-type": html_content_type("fragment", operation.declaration.get("chrome")), "cache-control": "no-store"}), response_headers, head=request.method == "HEAD")
+                        return _RawReply(RawResponse(shell.encode("utf-8"), headers={"content-type": html_content_type("fragment", operation.declaration.get("chrome")), "cache-control": "no-store"}), response_headers, head=request.method == "HEAD", service=service)
                 if representation is not None and representation.kind == "html":
                     theme = context.scope.app.get("shell", {}).get("renderer")
                     if not any(item.identity[:3] == (theme, kind, key) for item in operation.handler.renderers):
                         raise NotAcceptable("Requested renderer is not available")
                 output = await operation.execute(context, values)
-                if operation.handler.is_raw: return _RawReply(output.value, response_headers, head=request.method == "HEAD")
+                if operation.handler.is_raw: return _RawReply(output.value, response_headers, head=request.method == "HEAD", service=service)
                 status = context.response.status
                 application_headers = [(name, value) for name, value in context.response.headers if name.lower() != "content-type"]
-                if status in (204, 205, 304): return _RawReply(RawResponse(status=status, headers=application_headers), response_headers, head=request.method == "HEAD")
+                if status in (204, 205, 304): return _RawReply(RawResponse(status=status, headers=application_headers), response_headers, head=request.method == "HEAD", service=service)
                 if representation is not None and representation.kind == "html":
                     try: renderer = select_renderer(operation.handler.renderers, theme, kind, key, status)
                     except NotAcceptable:
                         if status == 200: raise
-                        return _RawReply(RawResponse(status=status, headers=application_headers), response_headers, head=request.method == "HEAD")
+                        return _RawReply(RawResponse(status=status, headers=application_headers), response_headers, head=request.method == "HEAD", service=service)
                     render_context = RenderContext.create(context, route.view_id, matched, renderer.identity[0], representation.mode or "page", kind, key, status, output.params, output.query)
                     html = await renderer.render(output.value, render_context)
                     content_mode = "fragment" if kind != "page" else representation.mode or "page"
-                    return _RawReply(RawResponse(html.encode("utf-8"), status=status, headers=[*application_headers, ("content-type", html_content_type(content_mode, operation.declaration.get("chrome")))]), response_headers, head=request.method == "HEAD")
+                    return _RawReply(RawResponse(html.encode("utf-8"), status=status, headers=[*application_headers, ("content-type", html_content_type(content_mode, operation.declaration.get("chrome")))]), response_headers, head=request.method == "HEAD", service=service)
                 content = JSONResponse(output.value).body
-                return _RawReply(RawResponse(content, status=status, headers=[*application_headers, ("content-type", "application/json")]), response_headers, head=request.method == "HEAD")
+                return _RawReply(RawResponse(content, status=status, headers=[*application_headers, ("content-type", "application/json")]), response_headers, head=request.method == "HEAD", service=service)
             try:
                 headers = _headers(request); query = _query(request.scope["query_string"])
-                if sse and ("_f" in query or "_c" in query): raise RequestError(400, "Stream connections do not accept renderer selectors")
                 fragment = query.get("_f")
                 if fragment is not None and not isinstance(fragment, str): raise RequestError(400, "Invalid fragment selector")
                 requested = headers.get("access-control-request-method", "") if request.method == "OPTIONS" else "GET" if request.method == "HEAD" else request.method
                 if requested not in operations: raise RequestError(403 if request.method == "OPTIONS" else 405, "Method not allowed")
                 route, matched = operations[requested]
+                if sse and ("_c" in query or route.sse is None and "_f" in query): raise RequestError(400, "Stream connection does not support this selector")
                 params = {part[1:]: request.path_params[f"_bp{index}"] for index, part in enumerate(_segments(matched)) if part.startswith(":")}
                 if request.method == "OPTIONS":
                     response_headers = service.preflight(route, headers, matched_path=matched, fragment=fragment, scheme=request.url.scheme, mode=mode)
@@ -272,7 +281,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                     raise RequestError(400, "Invalid or ambiguous renderer selector")
                 kind, key = ("fragment", fragment) if fragment is not None else ("component", component) if component is not None else ("page", None)
                 body = await _body(request, max_body_bytes)
-                return await _connected(request, execute(headers, query, body))
+                return await _connected(request, execute(headers, query, body), service if service.ready else None)
             except RequestError as exception:
                 response_headers = {**response_headers, **exception.headers}
                 return await failure(exception.status, str(exception), exception.scope)
@@ -358,9 +367,9 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
     for pattern, operations in groups.items():
         routes.append(HttpRoute(pattern, endpoint(operations), methods=[*operations, "OPTIONS"]))
     for pattern, operations in groups.items():
-        if "GET" in operations and isinstance(next(item for item in operations["GET"][0].operations if item.method == "GET").handler, FiniteHandler):
+        if "GET" in operations and (operations["GET"][0].sse is not None or isinstance(next(item for item in operations["GET"][0].operations if item.method == "GET").handler, FiniteHandler)):
             stream_path = pattern.rstrip("/") + "/__sse"
-            if stream_path in groups: raise ValueError("Route conflicts with finite SSE: " + stream_path)
+            if stream_path in groups: raise ValueError("Route conflicts with SSE: " + stream_path)
             routes.append(HttpRoute(stream_path, endpoint({"GET": operations["GET"]}, sse=True), methods=["GET", "OPTIONS"]))
     # Include generated SSE paths in Starlette's static-before-parameter ordering.
     routes.sort(key=lambda route: tuple(part.startswith("{") for part in route.path.split("/")))

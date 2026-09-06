@@ -1,7 +1,7 @@
 # BetterPortal Python port
 
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
-hosting for JSON, HTML, raw and finite-stream operations. It is **not ready for production**: the AnyVali
+hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not ready for production**: the AnyVali
 snapshot gate below still fails. Full theme helpers, route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
@@ -259,12 +259,60 @@ asyncio.run(example())
 messages. The optional async or sync renderer returns HTML; failures emit a generic
 `error` event and later events continue. Without a renderer, strings are sent as
 text and other values as JSON. Close the generator with `contextlib.aclosing`
-when stopping early. Operation authorization and renderer selection remain host work.
+when stopping early. `SseFeed` supplies operation authorization and renderer selection
+through the host, as shown below.
 `encode_event` also supports bounded event names/IDs, retry, empty data and multiline
 text per [WHATWG SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream).
 The default data bound is 1 MiB before SSE line prefixes; names/IDs are limited to
 1 KiB. Hosts set `Content-Type: text/event-stream`, disable response caching and
 flush each message; the codec does not schedule heartbeats or keep replay history.
+
+`SseFeed` binds that contract to an existing GET handler. Register it as `Route(...,
+sse=feed)` to expose `<path>/__sse`, including optional path variants. The connection
+inherits GET input schemas, authentication, permissions and tenant/app mounts without
+executing the GET function. Publish with `await feed.publish(trusted_scope, value)`.
+The transport belongs to the application; disconnects and service shutdown release
+request subscriptions without closing a shared transport.
+
+Tick renderers must match a success fragment on the owning GET handler. `_f=nav.clock`
+selects that tick and the resolved app's shell selects the theme. Missing ticks return
+406; a fragment-only mount cannot expose raw events through a missing tick or an
+Accept header. Components are unavailable on feeds. Without `_f`, strings are text
+and other values are JSON. Mapping/validation failures close the connection; renderer
+failures emit a safe error and allow subsequent events. HEAD opens no subscription.
+
+```python
+import asyncio
+from html import escape
+from typing import Any
+import anyvali as av
+from betterportal.feeds import SseFeed
+from betterportal.handler import Handler, HandlerContext
+from betterportal.registry import Operation, Route, Registry
+from betterportal.rendering import Renderer
+from betterportal.sse import LocalEvents, SseRoute
+
+async def example():
+    transport = LocalEvents()
+    try:
+        fragment = Renderer[str]({"renderer": "bootstrap5", "kind": "fragment", "key": "nav.clock"},
+                                 lambda value, context: f"<span>{escape(value)}</span>")
+        handler = Handler[Any, Any, Any, Any, str](av.string(), lambda context: "Waiting", renderers=[fragment])
+        contract = SseRoute[str, str, HandlerContext[Any, Any, Any, Any]]("clock.index", av.string(), av.string(),
+            lambda value, context: value, transport=transport)
+        feed = SseFeed(handler, contract, renderers=[fragment])
+        registry = Registry([Route("clock.index", "/clock", [Operation(handler, {
+            "operationId": "clock.get", "method": "GET", "title": "Clock", "description": "Live clock", "auth": {}
+        })], sse=feed)])
+        assert registry.routes[0].sse is feed
+    finally:
+        await transport.aclose()
+
+asyncio.run(example())
+```
+
+The existing BP browser assets consume `/clock/__sse?_f=nav.clock` with
+`hx-sse:connect`. No template engine, replay history or external broker is added.
 
 `betterportal.streaming.StreamHandler` validates each item and optional `Summary`
 before delivery. Its response schema is derived from the item/summary AnyVali
@@ -330,7 +378,7 @@ assert registry.routes[0].operations[0].handler is handler
 
 Mount this registry with `Service` and `create_app` as above. The consuming shell
 loads BP's existing HTMX/SSE browser assets; the runtime does not add a template
-engine. Native subscriber feeds and global theme helpers remain pending.
+engine. Global theme helpers remain pending.
 
 `betterportal.media.negotiate` selects JSON, HTML (page/fragment/embed), metadata,
 or NDJSON from Accept and the operation's available representations. It honors

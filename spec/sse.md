@@ -67,6 +67,8 @@ For an event-driven route created with `createSse(...)`:
 When `_f` is present:
 
 - The service applies the matching fragment's `renderTick(event)` and emits the rendered HTML as the SSE `data:` field.
+- The tick MUST belong to a success fragment on the owning GET operation. If the selected fragment or app renderer has no tick renderer, return 406 before subscribing; do not fall back to raw event data.
+- A fragment-only mount authorizes only its selected tick. An Accept fragment parameter alone MUST NOT authorize the raw SSE feed. Component selectors are unavailable on SSE connections.
 
 When `_f` is absent:
 
@@ -92,6 +94,7 @@ The `hx-sse:close="<eventname>"` attribute closes the connection on that event.
 ### 1.5 Lifecycle
 
 - A client closing the connection (browser tab closed, `EventSource.close()`) MUST cause the server to release resources.
+- Service shutdown MUST cancel pending subscription reads and propagate cancellation to mapper/renderer I/O. Closing a request subscription does not transfer ownership of an application-supplied event transport.
 - Reconnection is the client's responsibility. The HTMX ext auto-reconnects with backoff.
 - A server MAY send `retry: <ms>` to control reconnect delay.
 - A server MAY close the connection cleanly by ending the stream with a final blank line.

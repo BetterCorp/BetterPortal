@@ -77,15 +77,19 @@ public sealed class Route
     public string ViewId { get; }
     public IReadOnlyList<string> Paths { get; }
     public IReadOnlyList<Operation> Operations { get; }
+    public SseFeed? Sse { get; }
     public IReadOnlyList<string> ParamNames => Paths.SelectMany(path => Segments(path).Where(part => part.StartsWith(':')).Select(part => part[1..])).Distinct(StringComparer.Ordinal).ToArray();
-    public Route(string viewId, string path, IEnumerable<Operation> operations, IEnumerable<string>? pathVariants = null)
+    public Route(string viewId, string path, IEnumerable<Operation> operations, IEnumerable<string>? pathVariants = null, SseFeed? sse = null)
     {
         ViewId = (string)Contracts.Parse(Contracts.Get("ViewMetadataSchema", "viewId"), viewId)!;
         Paths = Array.AsReadOnly(new[] { path }.Concat(pathVariants ?? []).Distinct(StringComparer.Ordinal)
             .OrderByDescending(value => Segments(value).Count(part => part.StartsWith(':'))).ThenByDescending(value => value.Length).ThenBy(value => value, StringComparer.Ordinal).ToArray());
         Operations = Array.AsReadOnly(operations.ToArray());
+        Sse = sse;
         if (Operations.Count == 0 || Operations.Select(operation => operation.Method).Distinct(StringComparer.Ordinal).Count() != Operations.Count)
             throw new ArgumentException("A route needs unique method operations");
+        if (sse is not null && (sse.ViewId != ViewId || !Operations.Any(operation => operation.Method == "GET" && ReferenceEquals(operation.Handler, sse.Owner))))
+            throw new ArgumentException("SSE must belong to this view's GET handler");
         var schemas = Operations.Select(operation => operation.Handler.Schemas.TryGetValue("params", out var schema) ? Operation.Export(schema) : new Node()).ToArray();
         if (schemas.Skip(1).Any(schema => !System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(Json.Write(schemas[0])),
             System.Text.Json.Nodes.JsonNode.Parse(Json.Write(schema))))) throw new ArgumentException("A view must publish one consistent params schema");

@@ -1,7 +1,7 @@
 # BetterPortal .NET port
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
-for JSON, HTML, raw and finite-stream operations. Full theme helpers, native route
+for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers, native route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The cross-language snapshot gate is still blocked by the Python SDK defect below.
 
@@ -256,12 +256,53 @@ if (!await events.MoveNextAsync() || events.Current != "tick") throw new Excepti
 `route.WriteSse(scope, context, destination, render: ...)` owns the subscription.
 The optional async renderer returns HTML; failures emit a generic `error` event
 and later events continue. Without a renderer, strings are sent as text and other
-values as JSON. Operation authorization and renderer selection remain host work.
+values as JSON. `SseFeed` supplies operation authorization and renderer selection
+through the host, as shown below. `Wire` exposes the same messages as an owned async
+byte sequence for hosting adapters.
 `SseWire.Write` uses .NET's `SseItem<string>` and `SseFormatter` for UTF-8 multiline
 messages, IDs and retry. It bounds data to 1 MiB before SSE line prefixes and names/IDs
 to 1 KiB, validates UTF-8 and flushes each event before requesting another. Hosts
 set `Content-Type: text/event-stream` and disable response caching; the codec does
 not schedule heartbeats or keep replay history.
+
+`SseFeed<TInput, TEvent>.Bind` attaches that contract to an existing typed GET handler.
+Register it as `new Route(..., sse: feed)` to expose `<path>/__sse`, including optional
+path variants. Connections inherit GET input schemas, authentication, permissions
+and tenant/app mounts without executing the GET function. Publish with
+`await feed.Publish(trustedScope, value, cancellation)`.
+The application owns its transport. Disconnects, service disposal and host stop
+cancel request subscriptions without closing a shared transport. Mapper/renderer
+I/O must honor the supplied cancellation token.
+
+Tick renderers must match a success fragment on the owning GET handler. `_f=nav.clock`
+selects that tick; the resolved app shell selects the theme. Missing ticks return
+406; a fragment-only mount cannot expose raw events through a missing tick or an
+Accept header. Components are unavailable on feeds. Without `_f`, strings are text
+and other values are JSON. Mapping/validation failures close the connection; renderer
+failures emit a safe error and allow subsequent events. HEAD opens no subscription.
+
+```csharp
+using System.Net;
+using AnyVali;
+using BetterPortal;
+using BetterPortal.Generated;
+
+await using var transport = new LocalEvents();
+var fragment = new Renderer<string>(new() { Renderer = "bootstrap5", Kind = RendererDeclarationInputKind.Fragment, Key = "nav.clock" },
+    (value, context) => $"<span>{WebUtility.HtmlEncode(value)}</span>");
+var handler = new Handler<object?, object?, object?, object?, string>(V.String(),
+    context => ValueTask.FromResult("Waiting"), renderers: [fragment]);
+var contract = new SseRoute<string, string, HandlerContext<object?, object?, object?, object?>>(
+    "clock.index", V.String(), V.String(), (value, context, cancellation) => ValueTask.FromResult(value), transport);
+var feed = SseFeed<string, string>.Bind(handler, contract, [fragment]);
+var registry = new Registry([new Route("clock.index", "/clock", [new Operation(handler, new() {
+    OperationId = "clock.get", Method = HttpMethodInput.GET, Title = "Clock", Description = "Live clock", Auth = new()
+})], sse: feed)]);
+if (registry.Routes[0].Sse != feed) throw new Exception("Missing subscriber feed");
+```
+
+The existing BP browser assets consume `/clock/__sse?_f=nav.clock` with
+`hx-sse:connect`. No template engine, replay history or external broker is added.
 
 `StreamHandler<TItem, TSummary, TContext>` validates each `StreamValue.Item` or
 `StreamValue.Summary` before delivery and derives the buffered AnyVali schema.
@@ -334,7 +375,7 @@ if (registry.Routes[0].Operations[0].Handler != handler) throw new Exception("Mi
 
 Mount this registry with `Service` and `MapBetterPortal` as above. The consuming
 shell loads BP's existing HTMX/SSE browser assets; the runtime does not add a
-template engine. Native subscriber feeds and global theme helpers remain pending.
+template engine. Global theme helpers remain pending.
 
 `Media.Negotiate` selects JSON, HTML (page/fragment/embed), metadata, or NDJSON
 from Accept and the operation's available representations. Specific exclusions,
