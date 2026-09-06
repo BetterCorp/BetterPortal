@@ -85,6 +85,7 @@ jobs:
           python framework/conformance/check_clientgen.py
           python framework/conformance/check_projects.py
           python framework/conformance/check_registry_tools.py
+          python framework/conformance/check_export.py
           python framework/conformance/check_docs.py
 
       - name: Build and verify unpublished packages

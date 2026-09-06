@@ -23,7 +23,7 @@ internal sealed class Project
         var path = Path.Combine(directory, file);
         return (Node)Contracts.Parse(schema, File.Exists(path) ? Json.Read(Utf8.GetString(Read(path))) : new Node())!;
     }
-    private static byte[] Read(string path)
+    internal static byte[] Read(string path)
     {
         using var file = File.OpenRead(path); using var output = new MemoryStream();
         var buffer = new byte[16384]; int count;
@@ -35,7 +35,7 @@ internal sealed class Project
         return output.ToArray();
     }
     private static string Digest(byte[] data) => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(data));
-    private static void Write(string path, byte[] data)
+    internal static void Write(string path, byte[] data)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         if (File.Exists(path) && Read(path).AsSpan().SequenceEqual(data)) return;

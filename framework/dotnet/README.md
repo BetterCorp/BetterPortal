@@ -2,7 +2,7 @@
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
 for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers, native route
-tooling and generated clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
+tooling and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The cross-language snapshot gate is still blocked by the Python SDK defect below.
 
 Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
@@ -172,7 +172,7 @@ var operation = new Operation(handler, new OperationDeclarationInput {
     OperationId = "hello.get", Method = HttpMethodInput.GET, Title = "Hello",
     Description = "Return a greeting", Auth = new()
 });
-var registry = new Registry([new Route("hello.index", "/hello", [operation])]);
+var registry = new Registry([new BetterPortal.Route("hello.index", "/hello", [operation])]);
 var manifest = registry.Manifest(new ManifestDeclarationInput {
     PluginId = "com.example.hello", Title = "Hello", Description = "Example service", Version = "1.0.0"
 });
@@ -266,7 +266,7 @@ set `Content-Type: text/event-stream` and disable response caching; the codec do
 not schedule heartbeats or keep replay history.
 
 `SseFeed<TInput, TEvent>.Bind` attaches that contract to an existing typed GET handler.
-Register it as `new Route(..., sse: feed)` to expose `<path>/__sse`, including optional
+Register it as `new BetterPortal.Route(..., sse: feed)` to expose `<path>/__sse`, including optional
 path variants. Connections inherit GET input schemas, authentication, permissions
 and tenant/app mounts without executing the GET function. Publish with
 `await feed.Publish(trustedScope, value, cancellation)`.
@@ -295,7 +295,7 @@ var handler = new Handler<object?, object?, object?, object?, string>(V.String()
 var contract = new SseRoute<string, string, HandlerContext<object?, object?, object?, object?>>(
     "clock.index", V.String(), V.String(), (value, context, cancellation) => ValueTask.FromResult(value), transport);
 var feed = SseFeed<string, string>.Bind(handler, contract, [fragment]);
-var registry = new Registry([new Route("clock.index", "/clock", [new Operation(handler, new() {
+var registry = new Registry([new BetterPortal.Route("clock.index", "/clock", [new Operation(handler, new() {
     OperationId = "clock.get", Method = HttpMethodInput.GET, Title = "Clock", Description = "Live clock", Auth = new()
 })], sse: feed)]);
 if (registry.Routes[0].Sse != feed) throw new Exception("Missing subscriber feed");
@@ -819,7 +819,7 @@ using AnyVali;
 var declaration = new BetterPortal.Generated.ManifestDeclarationInput {
     PluginId = "com.example.peer", Title = "Peer", Description = "Example", Version = "1.0.0"
 };
-var registry = new Registry([new Route("value", "/value", [new Operation(
+var registry = new Registry([new BetterPortal.Route("value", "/value", [new Operation(
     new Handler<object?, object?, object?, object?, string>(V.String(), _ => ValueTask.FromResult("value")),
     new() { OperationId = "value.get", Method = BetterPortal.Generated.HttpMethodInput.GET,
         Title = "Value", Description = "Read value", Auth = new() })])]);
@@ -912,4 +912,47 @@ redirects and compressed/non-JSON responses, and enforce 16 MiB payload limits
 and a 30-second total deadline per request. Ctrl+C cancels pending HTTP work.
 They send no environment proxy credentials or stored cookies; publisher
 credentials are never sent on lookups or included in upstream error messages.
-Contract export commands remain delivery work.
+
+## Export an application contract
+
+Define a public static factory in your service assembly, using the same registry
+and manifest declaration as the host. This standalone example also prints its ID:
+
+```csharp
+using AnyVali;
+using BetterPortal;
+using BetterPortal.Generated;
+
+Console.WriteLine(ContractDefinition.Export().Manifest.PluginId);
+
+public static class ContractDefinition
+{
+    public static BpSchemaOutput Export()
+    {
+        var handler = new Handler<object?, object?, object?, object?, string>(
+            V.String(), _ => ValueTask.FromResult("Hello"));
+        return new Registry([new BetterPortal.Route("hello.index", "/hello", [new Operation(handler, new() {
+            OperationId = "hello.get", Method = HttpMethodInput.GET, Title = "Hello",
+            Description = "Hello operation", Auth = new()
+        })])]).Schema(new() {PluginId = "com.example.hello", Title = "Hello",
+                            Description = "Example service", Version = "1.0.0"});
+    }
+}
+```
+
+Compile the service, then select its factory by compiled type and method name:
+
+```sh
+dotnet build
+bp-dotnet export --assembly bin/Debug/net10.0/MyService.dll --factory ContractDefinition:Export --project . --output bp-contract.json
+bp-dotnet export --assembly bin/Debug/net10.0/MyService.dll --factory ContractDefinition:Export --project . --output bp-contract.json --check
+```
+
+For a namespaced factory, use `MyService.ContractDefinition:Export`. The method
+takes no arguments and returns `BetterPortal.Generated.BpSchemaOutput`.
+The exporter loads the explicitly selected assembly and its compiled dependencies;
+it does not parse C# source or invoke the application entry point. The factory runs
+as application code. Export uses AnyVali validation, limits the document to 16 MiB
+and atomically replaces the output; `--check` detects drift without writing.
+Assembly and output paths are relative to `--project`. Route-directory discovery
+remains delivery work.

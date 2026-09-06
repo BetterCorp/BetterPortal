@@ -13,13 +13,12 @@ for snippet in re.findall(r"```python\n(.*?)```", python_readme.read_text(), re.
 
 directory = root / ".tmp-run/ports-docs"
 directory.mkdir(parents=True, exist_ok=True)
-project = ET.Element("Project", Sdk="Microsoft.NET.Sdk")
+project = ET.Element("Project", Sdk="Microsoft.NET.Sdk.Web")
 properties = ET.SubElement(project, "PropertyGroup")
 for name, value in {"TargetFramework": "net10.0", "OutputType": "Exe", "Nullable": "enable", "ImplicitUsings": "enable"}.items():
     ET.SubElement(properties, name).text = value
 ET.SubElement(ET.SubElement(project, "ItemGroup"), "ProjectReference", Include=str(root / "framework/dotnet/BetterPortal/BetterPortal.csproj"))
 ET.SubElement(ET.SubElement(project, "ItemGroup"), "ProjectReference", Include=str(root / "framework/dotnet/BetterPortal.AspNetCore/BetterPortal.AspNetCore.csproj"))
-ET.SubElement(ET.SubElement(project, "ItemGroup"), "FrameworkReference", Include="Microsoft.AspNetCore.App")
 ET.ElementTree(project).write(directory / "Examples.csproj", encoding="unicode")
 subprocess.run(["dotnet", "restore", str(directory)], check=True)
 for snippet in re.findall(r"```csharp\n(.*?)```", (root / "framework/dotnet/README.md").read_text(), re.S):

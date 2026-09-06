@@ -1,6 +1,7 @@
 using BetterPortal;
 using BetterPortal.Tool;
 
+if (args.Length > 0 && args[0] == "export") return ContractExporter.Command(args[1..]);
 if (args.Length > 0 && args[0] is "deps" or "publish")
 {
     using var cancellation = new CancellationTokenSource();
@@ -16,6 +17,7 @@ if (args.Length == 0 || args[0] is not ("types" or "client"))
     Console.Error.WriteLine("bp-dotnet deps add SELECTOR [--path PROJECT | --registry URL] [--alias NAME] [--project DIR]");
     Console.Error.WriteLine("bp-dotnet deps sync --frozen [--check] [--project DIR]");
     Console.Error.WriteLine("bp-dotnet publish --contract FILE [--project DIR] [--registry URL]");
+    Console.Error.WriteLine("bp-dotnet export --assembly FILE --factory Namespace.Type:Method --output FILE [--project DIR] [--check]");
     return 2;
 }
 var options = new Dictionary<string, string?>();

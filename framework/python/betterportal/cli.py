@@ -9,6 +9,7 @@ from .jsoncodec import loads
 from .typegen import generate_types
 from .clientgen import generate_client
 from .project import Project
+from .contract_export import export_contract
 
 
 def main() -> None:
@@ -25,6 +26,11 @@ def main() -> None:
     client.add_argument("--output", type=Path, required=True)
     client.add_argument("--class-name", default="DependencyClient")
     client.add_argument("--check", action="store_true", help="Fail if the generated client is stale")
+    export = commands.add_parser("export", help="Export a contract from a synchronous application module factory")
+    export.add_argument("--module", required=True, help="package.module:factory")
+    export.add_argument("--project", type=Path, default=Path.cwd())
+    export.add_argument("--output", type=Path, required=True)
+    export.add_argument("--check", action="store_true", help="Verify an exported contract without writing")
     publish = commands.add_parser("publish", help="Publish an exported contract to the configured registry")
     publish.add_argument("--contract", type=Path, required=True)
     publish.add_argument("--project", type=Path, default=Path.cwd())
@@ -43,6 +49,10 @@ def main() -> None:
     sync.add_argument("--frozen", action="store_true", required=True)
     sync.add_argument("--check", action="store_true", help="Verify generated dependencies without writing files")
     args = parser.parse_args()
+    if args.command == "export":
+        export_contract(args.module, args.project, args.output, check=args.check)
+        print(args.project / args.output)
+        return
     if args.command == "publish":
         print(json.dumps(asyncio.run(Project(args.project).publish(args.contract, args.registry))))
         return

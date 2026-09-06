@@ -3,7 +3,7 @@
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
 hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not ready for production**: the AnyVali
 snapshot gate below still fails. Full theme helpers, route
-tooling and generated clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
+tooling and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
 Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
 in `betterportal.asgi` owns the `Service` lifespan. A service combines a registry,
@@ -907,4 +907,43 @@ Both commands require HTTPS with exact-loopback HTTP exceptions, reject
 redirects and compressed/non-JSON responses, and enforce 16 MiB payload limits
 and a 30-second total deadline per request. They send no environment proxy
 credentials or stored cookies; publisher credentials are never sent on lookups
-or included in upstream error messages. Contract export commands remain delivery work.
+or included in upstream error messages.
+
+## Export an application contract
+
+Define a synchronous factory in your application module, using the same registry
+and manifest declaration as the host:
+
+```python
+import anyvali as av
+from betterportal.generated_types import BpSchemaOutput
+from betterportal.handler import Handler
+from betterportal.registry import Operation, Registry, Route
+
+def contract() -> BpSchemaOutput:
+    handler = Handler(av.string(), lambda context: "Hello")
+    registry = Registry([Route("hello.index", "/hello", [Operation(handler, {
+        "operationId": "hello.get", "method": "GET", "title": "Hello",
+        "description": "Hello operation", "auth": {}
+    })])])
+    return registry.schema({"pluginId": "com.example.hello", "title": "Hello",
+                            "description": "Example service", "version": "1.0.0"})
+
+assert contract()["manifest"]["pluginId"] == "com.example.hello"
+```
+
+For a factory in `my_service/definition.py`:
+
+```sh
+bp-python export --module my_service.definition:contract --project . --output bp-contract.json
+bp-python export --module my_service.definition:contract --project . --output bp-contract.json --check
+```
+
+The command imports that explicitly selected module with the project directory on
+the Python import path. Module initialization and the factory execute as application
+code; keep host startup under its normal entry-point guard. The factory takes no
+arguments and returns the registry's contract. Export uses AnyVali validation,
+limits the document to 16 MiB and atomically replaces the output. `--check` detects
+drift without writing. Output paths are relative to `--project`. No request handler
+or host lifecycle is invoked by the exporter. Route-directory discovery remains
+delivery work.

@@ -31,6 +31,8 @@ Linux. Its separate schema runs add two failing defaulted-record probes for #127
 the earlier combined reports have not been relabeled as new full runs.
 Registry installation/publishing adds 122 passing Windows/Linux CLI checks and two
 canonical response documents; its schema gate retains the same 30 SDK failures.
+Native factory export passes 27 Windows/Linux checks, including compiled assembly
+dependencies, Python packages, failed/stale outputs and cross-language consumers.
 Inbound operation mounts and local permission aliases pass 130/130 access checks.
 Context resolution passes 102/103; its Python null-active check is blocked by the
 same upstream null/default defect. See
@@ -78,9 +80,9 @@ future scenarios; they are not assertions that those tests already exist.
 | observability | contracts/observability.ts, runtime/traceContext.ts, h3.ts | Pending replaceable logging/tracing/metrics and safe diagnostics | protocol.md §4 | trace-propagation, outcome-status, secret-redaction |
 | scaffold | codegen/init.ts, cli/bp.ts | Pending native commands with runnable examples | Port READMEs (pending) | scaffold-build-run, no-node-no-BSB |
 | discovery-tools | codegen/scanner.ts, emitter.ts, validate.ts | Pending compiler-supported C# and module-based Python discovery | docs/building/routes-and-views.md | route-dirs, optional-params, stable-ID, renderer-fragment-SSE-selection |
-| contract-tools | cli/project.ts, contract.ts, publish.ts | Native project/lock parsing, explicit local and registry installation preserve identity/version; publishing submits validated exported contracts through bounded authenticated HTTP; automatic discovery and export commands pending | docs/building/services.md; port READMEs | check_projects.py: 130 CLI checks; check_registry_tools.py: 122 checks against the real Node registry, hostile responses and offline builds; native-export pending |
+| contract-tools | cli/project.ts, contract.ts, publish.ts | Native project/lock parsing, explicit local and registry installation preserve identity/version; explicit Python module/C# compiled factories export validated runtime contracts; publishing uses bounded authenticated HTTP; automatic local discovery pending | docs/building/services.md; port READMEs | check_projects.py: 130 CLI checks; check_registry_tools.py: 122 checks against the real Node registry, hostile responses and offline builds; check_export.py: 27 native factory/consumer checks |
 | dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Native runtime and generated JSON clients use AnyVali documents and scoped credentials; project commands install local/registry contracts and verify shared byte locks before frozen generation; raw/streaming clients pending | auth.md §3; port READMEs | client_cases.py: 210 checks, including four generated cross-language host pairs in user/service/delegated modes; check_clientgen.py compiles all three registry exports; check_projects.py: 130 CLI checks for locks, tampering, migration, alias conflicts and frozen builds; two Node-generated outbound pairs pending |
-| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py, check_projects.py, check_registry_tools.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
+| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py, check_projects.py, check_registry_tools.py, check_export.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
 
 ## BP and BSB ownership
 

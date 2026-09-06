@@ -315,8 +315,8 @@ uses SHA-256 without locale-dependent serialization. Node accepts these pins and
 retains its legacy locks; native migration requires explicit installation and
 preserves aliases sharing the old cache. Corrupt caches, changed selectors,
 missing pins and colliding native filenames fail verification. Six canonical
-AnyVali documents define project/lock data. Automatic local discovery and contract
-export commands remain delivery work.
+AnyVali documents define project/lock data. Automatic local discovery remains
+delivery work.
 
 `check_registry_tools.py` passes 122 CLI checks on Windows and Linux against the real Node
 registry handler and file store, plus explicitly separate hostile HTTP fixtures.
@@ -328,6 +328,17 @@ isolation and total deadlines against trickling responses. After the registry
 process stops, every installed client still verifies through an offline frozen build.
 Two shared AnyVali documents describe registry catalog and publication responses.
 No remote registry or package release is performed by these tests.
+
+`check_export.py` passes 27 checks on Windows and Linux. Native commands export
+actual registry factories from Python packages and compiled ASP.NET Core applications,
+including relative module imports and a separate managed assembly dependency. Factories use
+the runtime's schema builders; request handlers are never executed by discovery.
+Checks cover stable `--check` output, invalid signatures/results, missing factories,
+16 MiB bounds, preservation on failure and both native consumers of each export.
+The C# command loads compiled metadata and does not parse source. These explicit
+factory commands are separate from the still-pending route-directory discovery tools.
+C# README examples compile and run under the Web SDK so its implicit imports are
+included; route construction explicitly names `BetterPortal.Route`.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -523,6 +534,7 @@ python framework/conformance/check_types.py
 python framework/conformance/check_clientgen.py
 python framework/conformance/check_projects.py
 python framework/conformance/check_registry_tools.py
+python framework/conformance/check_export.py
 python framework/conformance/check_docs.py
 dotnet pack framework/dotnet/BetterPortal --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output .tmp-run/ports-packages
