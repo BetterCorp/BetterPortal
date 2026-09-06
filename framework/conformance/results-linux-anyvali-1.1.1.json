@@ -1,6 +1,6 @@
 {
-  "scenarios": 5203,
-  "passed": 5175,
+  "scenarios": 5338,
+  "passed": 5310,
   "results": [
     {
       "runtime": "node",
@@ -293,6 +293,21 @@
     },
     {
       "runtime": "node",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -854,6 +869,16 @@
     {
       "runtime": "node",
       "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeResponseSchema",
       "passed": true
     },
     {
@@ -1327,6 +1352,21 @@
     },
     {
       "runtime": "node",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-unknown-field-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1892,6 +1932,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ServiceInstallRequestSchema-roundtrip",
       "passed": true
     },
@@ -2358,6 +2408,21 @@
     {
       "runtime": "python",
       "id": "stream-shell-unknown-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-unknown-field",
       "passed": true
     },
     {
@@ -2927,6 +2992,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceHostnameChangeResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceInstallRequestSchema",
       "passed": true
     },
@@ -3393,6 +3468,21 @@
     {
       "runtime": "python",
       "id": "stream-shell-unknown-rejected-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-unknown-field-roundtrip",
       "passed": true
     },
     {
@@ -3962,6 +4052,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceInstallRequestSchema-roundtrip",
       "passed": true
     },
@@ -4427,6 +4527,21 @@
     {
       "runtime": "dotnet",
       "id": "stream-shell-unknown-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-unknown-field",
       "passed": true
     },
     {
@@ -4996,6 +5111,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ServiceInstallRequestSchema",
       "passed": true
     },
@@ -5461,6 +5586,21 @@
     {
       "runtime": "dotnet",
       "id": "stream-shell-unknown-rejected-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-unknown-field-roundtrip",
       "passed": true
     },
     {
@@ -6026,6 +6166,16 @@
     {
       "runtime": "dotnet",
       "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
       "passed": true
     },
     {
@@ -23182,6 +23332,11 @@
     },
     {
       "runtime": "python",
+      "id": "installation-jwks-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "installation-redeem-cancel",
       "passed": true
     },
@@ -23192,12 +23347,22 @@
     },
     {
       "runtime": "python",
+      "id": "installation-redeem-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "installation-sync-cancel",
       "passed": true
     },
     {
       "runtime": "python",
       "id": "installation-sync-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-sync-host-stop",
       "passed": true
     },
     {
@@ -23502,12 +23667,22 @@
     },
     {
       "runtime": "dotnet",
+      "id": "installation-jwks-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "installation-redeem-cancel",
       "passed": true
     },
     {
       "runtime": "dotnet",
       "id": "installation-redeem-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-host-stop",
       "passed": true
     },
     {
@@ -23521,6 +23696,11 @@
       "passed": true
     },
     {
+      "runtime": "dotnet",
+      "id": "installation-sync-host-stop",
+      "passed": true
+    },
+    {
       "runtime": "node",
       "id": "finite-order-json",
       "passed": true
@@ -26043,6 +26223,501 @@
     {
       "runtime": "dotnet",
       "id": "feed-dotnet-auth-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-real-cp-confirm-restart-preserves-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-real-cp-confirm-restart-preserves-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-headers-cannot-change-configured-address",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-file-cp-single-use-token-does-not-undo-commit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-unrecognized-token-preserves-old-binding",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-jwt",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-non-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-invalid-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-oversized",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-get",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-head",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-input-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-uninstalled",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-denied-key",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-denied-instance",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-busy",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-upstream-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-redirect",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-wrong-media",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-malformed",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-false-ok",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-wrong-address",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-unsafe-address",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-large",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-deadline",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-wrong-instance",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-wrong-address",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-missing-instance",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-missing-registration",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-invalid-snapshot",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-committed-address-requires-normal-sync",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirmation-cannot-bypass-revoked-credential",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-byte-limit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-success-response-omits-upstream-secrets",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirmation-and-projection-share-deadline",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-atomic-save-failure",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-persistence-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-persistence-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-persistence-cancel-after-save",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-persistence-parallel-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-confirm-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-projection-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-real-cp-confirm-restart-preserves-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-headers-cannot-change-configured-address",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-file-cp-single-use-token-does-not-undo-commit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-unrecognized-token-preserves-old-binding",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-jwt",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-non-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-invalid-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-oversized",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-get",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-head",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-input-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-uninstalled",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-denied-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-denied-instance",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-busy",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-upstream-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-redirect",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-wrong-media",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-malformed",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-false-ok",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-wrong-address",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-unsafe-address",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-large",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-deadline",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-wrong-instance",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-wrong-address",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-missing-instance",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-missing-registration",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-invalid-snapshot",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-committed-address-requires-normal-sync",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirmation-cannot-bypass-revoked-credential",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-byte-limit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-success-response-omits-upstream-secrets",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirmation-and-projection-share-deadline",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-atomic-save-failure",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-persistence-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-persistence-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-persistence-cancel-after-save",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-persistence-parallel-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-confirm-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-projection-host-stop",
       "passed": true
     }
   ]

@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 6dc6b0f2af46c87c88f184c155385a00ee1a9d7bdff4de4de645874769b56804
+# Generated from AnyVali documents; do not edit. SHA256: 45b015e0cce81e613f3427aff37bbda33fc8eba352036e3f7dbc3eea7f456846
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -4295,6 +4295,24 @@ ServiceConfigWriteResponseInput = TypedDict('ServiceConfigWriteResponseInput', {
     'appId': NotRequired['str'],
     'values': Required['JsonObjectInput'],
     'ok': Required['Literal[True]'],
+})
+
+ServiceHostnameChangeRequest = TypedDict('ServiceHostnameChangeRequest', {
+    'changeToken': Required['str'],
+})
+
+ServiceHostnameChangeRequestInput = TypedDict('ServiceHostnameChangeRequestInput', {
+    'changeToken': Required['str'],
+})
+
+ServiceHostnameChangeResponse = TypedDict('ServiceHostnameChangeResponse', {
+    'ok': Required['Literal[True]'],
+    'serviceUrl': Required['str'],
+})
+
+ServiceHostnameChangeResponseInput = TypedDict('ServiceHostnameChangeResponseInput', {
+    'ok': Required['Literal[True]'],
+    'serviceUrl': Required['str'],
 })
 
 ServiceInstallRequest = TypedDict('ServiceInstallRequest', {

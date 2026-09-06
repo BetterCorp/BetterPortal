@@ -152,6 +152,40 @@ Cancellation before credential commit leaves prior state intact; cancellation
 after commit retains it for restart/retry. Shutdown drains work and clears readiness.
 File storage has one owner; shared persistence needs its own transactional store.
 
+### 2.3 Standalone hostname changes
+
+POST `/.well-known/bp/hostname-change` accepts the portable AnyVali
+`ServiceHostnameChangeRequestSchema`: `{changeToken}`. The existing CP creates a
+single-use opaque `bp_hc_` token containing 32 random bytes, bound to an installed
+instance and replacement origin, with a five-minute lifetime. It is not a JWT.
+
+Set the host-configured public service origin to the replacement origin and
+restart the native installation owner using its existing protected state. A
+different stored address pauses activation: health and operation requests stay
+503, while install/JWKS/hostname endpoints remain available. Request Host,
+Forwarded and X-Forwarded-* headers cannot choose the replacement address. Setup
+reconfiguration cannot bypass hostname confirmation or change the pinned CP.
+
+The owner sends the token and configured serviceUrl to its pinned CP's
+`/.well-known/bp/services/confirm-hostname-change` endpoint, authenticated with the
+stored service API key. It validates the response, then submits the manifest to
+the authenticated poll endpoint and validates its current scoped projection.
+The projection must identify the stored instance and publish exactly its new
+origin. A cached confirmation for another instance is insufficient. Responses
+are bounded to 1 MiB for confirmation and 16 MiB for projection, within one total
+deadline; redirects and unsafe HTTP origins are rejected.
+
+Only then does the owner atomically replace the protected installation address,
+preserving instance, CP, tenant lock, RSA identity, API key and config key. Normal
+sync resumes and readiness requires a valid persisted snapshot. Failed sync after
+commit returns 503 with installed:true and retries; restart resumes the committed
+binding. Cancellation/storage failure before local commit preserves the old
+binding. CP and local files are not one transaction: if CP committed but local
+save failed, request a new hostname token and retry. File-backed CP tokens are
+consumed once; their replay rejection never undoes a committed local change.
+Legacy Node state must first acquire its native binding through the existing
+same-instance setup reconfiguration path.
+
 ## 3. Per-service settings API
 
 GET /.well-known/bp/config/schema is public and returns serviceId, configSchemas,

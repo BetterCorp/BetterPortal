@@ -104,6 +104,13 @@ portable("ServiceInstallationBindingSchema", installationBinding);
 portable("ServiceInstallRequestSchema", objectNode({
   setupToken: { ...secretString, maxLength: 32768 }, cpUrl: setupFields.cpUrl
 }, "reject"));
+// setupTokens.ts issues opaque 32-byte hostname tokens, not JWTs.
+portable("ServiceHostnameChangeRequestSchema", objectNode({
+  changeToken: { ...secretString, minLength: 49, maxLength: 49, pattern: "^bp_hc_[A-Za-z0-9_-]{43}$" }
+}, "reject"));
+portable("ServiceHostnameChangeResponseSchema", objectNode({
+  ok: { kind: "literal", value: true }, serviceUrl: setupFields.serviceUrl
+}));
 // Existing config-manager setupTokens.ts redemption and BSB install responses.
 // Native success deliberately omits the old response's unnecessary API key.
 portable("ServiceRedeemResponseSchema", objectNode({

@@ -1,6 +1,6 @@
 {
-  "scenarios": 131,
-  "passed": 131,
+  "scenarios": 137,
+  "passed": 137,
   "results": [
     {
       "runtime": "node",
@@ -319,6 +319,11 @@
     },
     {
       "runtime": "python",
+      "id": "installation-jwks-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "installation-redeem-cancel",
       "passed": true
     },
@@ -329,12 +334,22 @@
     },
     {
       "runtime": "python",
+      "id": "installation-redeem-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "installation-sync-cancel",
       "passed": true
     },
     {
       "runtime": "python",
       "id": "installation-sync-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-sync-host-stop",
       "passed": true
     },
     {
@@ -639,6 +654,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "installation-jwks-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "installation-redeem-cancel",
       "passed": true
     },
@@ -649,12 +669,22 @@
     },
     {
       "runtime": "dotnet",
+      "id": "installation-redeem-host-stop",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "installation-sync-cancel",
       "passed": true
     },
     {
       "runtime": "dotnet",
       "id": "installation-sync-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-sync-host-stop",
       "passed": true
     }
   ]

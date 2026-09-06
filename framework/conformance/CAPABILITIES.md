@@ -7,7 +7,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-1,210/1,236 schema probes; token/service security passes 459/459 scenarios and JWKS
+1,240/1,266 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
@@ -18,7 +18,8 @@ Typed HTML callbacks, presentation context, fragments/components and status/erro
 rendering pass 163/163 checks.
 Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
-persistence 70/70, config HTTP hosting 138/139 and protected bootstrap storage 147/147, and installation 131/131. The full gate passes 5,175/5,203;
+persistence 70/70, config HTTP hosting 138/139, protected bootstrap storage 147/147,
+installation 137/137 and hostname changes 99/99. The full gate passes 5,310/5,338;
 the remaining probes expose SDK defects/limitations, including Python's explicit-null
 tenant flag affecting config authorization. Windows Python 3.10 and Linux Python
 3.14 produce the same full-gate failure identities. Linux compiler, documentation
@@ -36,7 +37,7 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 149 canonical documents embedded in both packages, including derived authoring declarations; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,210/1,236 including all-document round trips |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 151 canonical documents embedded in both packages, including derived authoring declarations; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,240/1,266 including all-document round trips |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; typed subscriber-feed binding; full contexts pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors and renderer/streaming metadata | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
@@ -62,7 +63,7 @@ future scenarios; they are not assertions that those tests already exist.
 | readiness | BSB service.ts renderHealth/canReadHealthDiagnostics | Managed health requires current manifest acknowledgment and a persisted valid snapshot; restored cache stays unready, explicit CP denial/shutdown suspends readiness, transient failures retain valid policy; authorized diagnostics pending | protocol.md §1.1; port READMEs | hosting_cases.py, snapshot_cases.py and sync_cases.py: bootstrap, cache, failed save, denial/recovery, real-CP credential revocation and public-minimal; diagnostic authorization pending |
 | lifecycle | BSB service.ts, bootstrapState.ts | Native ASGI lifespan and ASP.NET hosted service own installation/sync cancellation and service disposal; encrypted atomic bootstrap/identity storage | config.md §2; port READMEs | sync_cases.py: exact-loopback, redirect-denied, shutdown-no-retry, cancelled startup/storage failure and host lifetime; bootstrap_cases.py: file interchange, tampering, identity/redaction, atomic failure and cancellation |
 | installation | BSB service.ts registerInstallEndpoint, validateTenantApp; CM setupTokens.ts | Native ServiceInstallation pins CP/service trust, redeems setup tokens, persists credentials/identity, activates config API and sync; replay/reconfiguration, instance pinning, signed/persisted tenant locks and restart | config.md §2.2; port READMEs | installation_cases.py: actual Node installer/config-manager plus native failure, scope, transport, concurrency, cancellation and readiness checks; Node credential logging regression |
-| hostname-change | BSB service.ts registerHostnameChangeEndpoint; CM setupTokens.ts | Pending confirmation through configured CP and atomic update of the installed public-address binding | config.md §2 | opaque-change-token, same-instance, replacement-denied, CP-rejection, restart-address-binding |
+| hostname-change | BSB service.ts registerHostnameChangeEndpoint; CM setupTokens.ts | Native ServiceInstallation confirms through the pinned CP, proves the current instance/address projection, atomically replaces the protected binding and resumes normal sync; configured address and credentials retain ownership | config.md §2.3; port READMEs | hostname_cases.py: 99 checks for real CP/Node/native lifecycle, pending readiness, forged headers, input/response bounds, revoked credentials, wrong instance/address, atomic failure, restart, concurrency and host/transport cancellation |
 | streaming | runtime/stream.ts, streamHandler.ts | Python streaming.py/C# Streaming.cs: validated finite frames, derived schema, bounded buffered/NDJSON/SSE output and cancellation; finite.py/Finite.cs register typed finite handlers and stream renderers through existing host policy | streaming.md; port READMEs | stream_cases.py: 113 primitive checks; finite_cases.py: 344 host checks for buffered/NDJSON/SSE, typed shells/frames, limits/cancellation, input/mount/auth policy and manifest metadata |
 | subscribers | runtime/sse.ts | Python sse.py/C# Sse.cs: validated scoped routes, replaceable transport, bounded local delivery, SSE encoding, tick render functions and shutdown; feeds.py/Feeds.cs bind typed feeds to the owning GET and enforce host authorization, exact renderer selection and cancellation | sse.md; port READMEs | sse_cases.py: 71 shared/native checks for isolation, overflow, validation, mutation, cancellation, shutdown, multiline wire data, render recovery and flushing; feed_cases.py: 161 checks for input/transport/event boundaries, scope/auth/mounts, fragments, backpressure, overflow and service/host shutdown |
 | events | BSB service.ts webhook | Pending declared webhook emission through CP | manifest.md | payload-contract, idempotency, scope, declared-event-only |
@@ -92,7 +93,7 @@ JavaScript are not port deliverables. Existing Node services are integration pee
 
 - AnyVali 1.1.1 fixes the original 1.1.0 metadata, wire-name, null-default and
   recursive root interchange failures. Python still replaces explicit null with
-  a default; all SDKs document a native-parent composition limitation. Both
+  a default; all SDKs document a native-parent composition limitation (#133). Both
   expanded probes remain failing; BP portable composition passes its separate
   recursive and sensitive-field probes. Never accept dangling references or mask the
   presence defect with a second validator. Encryption primitives and preview

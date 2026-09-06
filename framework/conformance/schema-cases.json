@@ -1105,5 +1105,35 @@
       "private": "hidden"
     },
     "valid": false
+  },
+  {
+    "id": "hostname-token",
+    "contract": "ServiceHostnameChangeRequestSchema",
+    "input": {
+      "changeToken": "bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "output": {
+      "changeToken": "bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "id": "hostname-token-sensitive",
+    "contract": "ServiceHostnameChangeRequestSchema",
+    "action": "encrypt",
+    "input": {
+      "changeToken": "bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "output": {
+      "changeToken": "encrypted:\"bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    }
+  },
+  {
+    "id": "hostname-token-unknown-field",
+    "contract": "ServiceHostnameChangeRequestSchema",
+    "input": {
+      "changeToken": "bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "serviceUrl": "https://renamed.test"
+    },
+    "valid": false
   }
 ]

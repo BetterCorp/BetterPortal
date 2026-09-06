@@ -8,8 +8,8 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,210/1,236 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 57 semantic cases and imports all 149 documents, then repeats
+Published AnyVali **1.1.1** passes [1,240/1,266 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 60 semantic cases and imports all 151 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -259,19 +259,30 @@ PEM data in a public field, including appended content, is rejected. The host
 supplies the protected master key. The same 147 checks pass on
 [Python 3.13](results-bootstrap-python313.json).
 
-The [installation suite](results-installation.json) passes 131/131 checks. It uses the actual Node BSB
+The [installation suite](results-installation.json) passes 137/137 checks. It uses the actual Node BSB
 installer and config-manager setup/redeem/sync routes, with setup signatures from
 all three languages. Native checks additionally cover pinned CP/service trust,
 malformed/oversized responses, redirects, deadlines, protected atomic credentials,
 replay, reconfiguration, settings activation, restart, failed startup/sync and
 snapshot instance binding. Signed tenant locks cover operations, preflights and
 config tickets. Cancellation checks block JWKS, redemption, credential persistence
-and initial sync; a committed rotation can resume without redeeming again.
+and initial sync; a committed rotation can resume without redeeming again. Actual
+ASGI/ASP.NET shutdown also cancels blocked JWKS, redemption and initial sync requests.
 The Node fixture exposed an installer console message containing the CP API key;
 that redundant message is removed, and credential logging is a failing regression
 condition. Node's legacy API-key response and first-request tenant claim are not
-native compatibility requirements. The same 131 installation checks pass on
-[Python 3.13](results-installation-python313.json). Hostname-change confirmation remains pending.
+native compatibility requirements. The earlier 131 installation checks also pass on
+[Python 3.13](results-installation-python313.json).
+
+The [hostname suite](results-hostname.json) passes 99 checks. It drives the real
+Node config-manager confirmation flow and the three service hosts, preserving
+credentials and signing identity across confirmation and restart. Native checks
+add configured-origin pinning, unready address changes, opaque-token validation,
+current instance/address proof after confirmation, bounded responses, a shared
+confirmation/projection deadline, atomic local persistence and cancellation.
+CP failures, redirects, stale credentials, wrong instances and forged forwarding
+headers cannot replace the local binding. Host shutdown cancels both confirmation
+and projection. A consumed CP token cannot undo a successful local change.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -279,7 +290,8 @@ native compatibility requirements. The same 131 installation checks pass on
 | A new native parent loses its imported child's recursive definitions (all SDKs) | recursive-composition and its round trip | Composed portable contracts must retain every referenced definition. |
 | Sensitive metadata directly on ref nodes is ignored (all SDKs) | sensitive-ref encrypt/decrypt/plaintext rejection, direct and roundtrip | Encryption callbacks are skipped and plaintext passes encrypted validation. |
 
-AnyVali documents the native-parent composition limitation. BP now provides
+AnyVali documents the native-parent composition limitation, now tracked in
+[AnyVali #133](https://github.com/BetterCorp/AnyVali/issues/133). BP provides
 portable document composition before native import; recursive and sensitive
 composition probes pass in all three languages. The original native-parent probe
 remains visible. The explicit-null defect is tracked in
@@ -310,17 +322,24 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 5,175/5,203
-checks across twenty-six suites. Failures are the original SDK probes, the
+[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 5,310/5,338
+checks across twenty-seven suites. Failures are the original SDK probes, the
 context/config null-active regressions and eighteen sensitive-ref regressions.
 This combined report records one serialized run, including subscriber feeds,
-finite operations, installation and sync cancellation regressions. Its 28 failure
+finite operations, hostname changes, installation and sync cancellation regressions. Its 28 failure
 identities exactly match the previous checkpoint; no new failures were introduced.
 The [Linux Python 3.14.4 run](results-linux-anyvali-1.1.1.json), using Node 24.4.0
-and .NET SDK 10.0.400/runtime 10.0.11, passes the same 5,175/5,203 checks with
-exactly the same 28 failure identities. It ran from a clean archive of commit
-`6520ac9` on the native Linux filesystem; compiler, executable documentation and
+and .NET SDK 10.0.400/runtime 10.0.11, passes the same 5,310/5,338 checks with
+exactly the same 28 failure identities. It ran from a separate copy of this
+checkpoint on the native Linux filesystem; compiler, executable documentation and
 package checks also passed there.
+
+The conformance executable uses workstation GC for its small sequential probes.
+Diagnostics on Windows identified a 2.875-second server-GC pause during a
+two-second shutdown assertion. The fixture also reuses each host's bootstrap
+store instead of deriving its encryption key again for every state inspection.
+The runtime checks pass with the original deadlines and no tracing enabled;
+consumer packages do not select a GC mode.
 
 The [CI ports job](../../.github/workflows/ci.yml) runs Python 3.10 and 3.14 on
 Linux with .NET 10, checks canonical exports and native types, executes README
@@ -364,6 +383,7 @@ python framework/conformance/verify.py --suite settings-store
 python framework/conformance/verify.py --suite config-api
 python framework/conformance/verify.py --suite bootstrap
 python framework/conformance/verify.py --suite installation
+python framework/conformance/verify.py --suite hostname
 python framework/conformance/verify.py --suite finite
 python framework/conformance/verify.py --suite feeds
 ```
@@ -441,7 +461,7 @@ wheel lacks py.typed. These checks passed on Windows and Linux.
 [CAPABILITIES.md](CAPABILITIES.md) maps the full requested scope to existing BP
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
-HTTP suite (global theme helpers, hostname changes,
+HTTP suite (global theme helpers,
 authorized diagnostics and generated clients) and standalone examples remain
 incomplete. CI is wired but awaits a hosted run and upstream AnyVali fixes.
 Publishing and BSB plugins remain separate follow-ups.

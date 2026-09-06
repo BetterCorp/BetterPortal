@@ -1,6 +1,6 @@
 {
-  "scenarios": 1236,
-  "passed": 1210,
+  "scenarios": 1266,
+  "passed": 1240,
   "results": [
     {
       "runtime": "node",
@@ -293,6 +293,21 @@
     },
     {
       "runtime": "node",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -854,6 +869,16 @@
     {
       "runtime": "node",
       "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeResponseSchema",
       "passed": true
     },
     {
@@ -1327,6 +1352,21 @@
     },
     {
       "runtime": "node",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-unknown-field-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1892,6 +1932,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ServiceInstallationBindingSchema-roundtrip",
       "passed": true
     },
@@ -2358,6 +2408,21 @@
     {
       "runtime": "python",
       "id": "stream-shell-unknown-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-unknown-field",
       "passed": true
     },
     {
@@ -2927,6 +2992,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceHostnameChangeResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceInstallationBindingSchema",
       "passed": true
     },
@@ -3393,6 +3468,21 @@
     {
       "runtime": "python",
       "id": "stream-shell-unknown-rejected-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-unknown-field-roundtrip",
       "passed": true
     },
     {
@@ -3962,6 +4052,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceInstallationBindingSchema-roundtrip",
       "passed": true
     },
@@ -4427,6 +4527,21 @@
     {
       "runtime": "dotnet",
       "id": "stream-shell-unknown-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-unknown-field",
       "passed": true
     },
     {
@@ -4996,6 +5111,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ServiceInstallationBindingSchema",
       "passed": true
     },
@@ -5461,6 +5586,21 @@
     {
       "runtime": "dotnet",
       "id": "stream-shell-unknown-rejected-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-unknown-field-roundtrip",
       "passed": true
     },
     {
@@ -6026,6 +6166,16 @@
     {
       "runtime": "dotnet",
       "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
       "passed": true
     },
     {

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -11,7 +12,7 @@ import httpx
 
 from .bootstrap import BootstrapStateStore
 from .config_api import ConfigApi
-from .context import http_origin
+from .context import ScopedConfig, http_origin
 from .contracts import parse
 from .encryption import ConfigCipher
 from .generated_types import AuthProviderRuntimeMetadataInput, ServiceConfigManagementMode
@@ -21,14 +22,15 @@ from .security import KeyPair, TokenError, TokenPurpose, verify_token
 from .service import RequestError, Service
 from .settings import ServiceSettings, SettingsSchema
 from .storage import StateStore
-from .sync import ControlPlaneSync
+from .sync import ControlPlaneSync, build_submission
 
 
 class ServiceInstallation:
     """One installation owner. Trust and the public service address come from host configuration.
 
     The host starts/closes this owner before closing its Service. Reconfiguration
-    can rotate credentials for the same instance; it cannot change CP or address.
+    can rotate credentials for the same instance. Changing the configured public
+    address pauses activation until the configured CP confirms a hostname token.
     """
     def __init__(self, service: Service, state: BootstrapStateStore, cp_url: str, service_url: str, *,
                  settings_store: StateStore | None = None, cp_jwks_uri: str | None = None,
@@ -71,18 +73,19 @@ class ServiceInstallation:
     def status(self) -> dict[str, Any]:
         return {"installed": self._installed, "closed": self._closed, "sync": self._sync.status if self._sync else None}
 
-    def _binding(self, value: Any) -> dict[str, Any]:
+    def _binding(self, value: Any, *, check_address: bool = True) -> dict[str, Any]:
         binding = parse("ServiceInstallationBindingSchema", value)
+        origin = http_origin(secure_endpoint(binding["serviceUrl"]))
         if (binding["cpUrl"].rstrip("/") != self._cp or binding["cpJwksUri"] != self._jwks
-                or http_origin(secure_endpoint(binding["serviceUrl"])) != self._address):
+                or check_address and origin != self._address):
             raise TokenError("Setup token does not match the configured installation")
         return binding
 
-    def _credentials(self, value: dict[str, Any]) -> None:
+    def _credentials(self, value: dict[str, Any], *, check_address: bool = True) -> None:
         if value.get("cpUrl", "").rstrip("/") != self._cp or value.get("cpJwksUri", self._jwks) != self._jwks:
             raise ValueError("Stored credentials do not match the configured control plane")
         if "installation" in value:
-            tenant = self._binding(value["installation"]).get("scope", {}).get("tenantId")
+            tenant = self._binding(value["installation"], check_address=check_address).get("scope", {}).get("tenantId")
             if tenant is not None and value.get("tenantLock", tenant) != tenant: raise ValueError("Stored installation tenant does not match its lock")
 
     async def _activate(self, value: dict[str, Any]) -> bool:
@@ -118,29 +121,73 @@ class ServiceInstallation:
                 if self._closed or self._started: raise RuntimeError("Installation is closed or already started")
                 self._started = True
                 value = await self._store.read()
-                if "apiKey" in value: self._credentials(value)
+                if "apiKey" in value: self._credentials(value, check_address=False)
                 self._identity = await self._store.identity()
                 if "apiKey" not in value: return False
                 self._installed = True
+                if "installation" in value and http_origin(value["installation"]["serviceUrl"]) != self._address:
+                    return False
                 return await self._activate(value)
         finally: self._writers.discard(task)
+
+    async def _post(self, path: str, payload: Any, schema: str, *, api_key: str | None = None, limit: int = 1024 * 1024) -> dict[str, Any]:
+        headers = {"accept": "application/json"}
+        if api_key is not None: headers["authorization"] = "Bearer " + api_key
+        data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
+        if len(data) > limit: raise ValueError("Control-plane request exceeds limit")
+        async with self._client.stream("POST", self._cp + "/.well-known/bp/" + path, content=data,
+                                       headers={**headers, "content-type": "application/json"}) as response:
+            self._client.cookies.clear()
+            if response.status_code in (400, 401, 403, 404, 409):
+                raise RequestError(response.status_code, "Control plane rejected the request")
+            if response.status_code != 200 or response.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+                raise ValueError("Invalid control-plane response")
+            buffer = bytearray()
+            async for chunk in response.aiter_bytes(chunk_size=8192):
+                if len(buffer) + len(chunk) > limit: raise ValueError("Control-plane response exceeds limit")
+                buffer.extend(chunk)
+        return parse(schema, loads(buffer.decode("utf-8")))
 
     async def _redeem(self, token: str) -> dict[str, Any]:
         payload = {"setupToken": token, "pluginId": self.service.manifest["pluginId"], "serviceUrl": self._address, "jwks": self.jwks()}
         if self._provider is not None: payload["authProvider"] = self._provider
-        async with self._client.stream("POST", self._cp + "/.well-known/bp/services/redeem", json=payload,
-                                       headers={"accept": "application/json"}) as response:
-            self._client.cookies.clear()
-            if response.status_code != 200 or response.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
-                raise ValueError("Invalid redemption response")
-            data = bytearray()
-            async for chunk in response.aiter_bytes(chunk_size=8192):
-                if len(data) + len(chunk) > 1024 * 1024: raise ValueError("Redemption response exceeds 1 MiB")
-                data.extend(chunk)
-        value = parse("ServiceRedeemResponseSchema", loads(data.decode("utf-8")))
+        value = await self._post("services/redeem", payload, "ServiceRedeemResponseSchema")
         if value["cpJwksUri"] != self._jwks or any(ord(c) < 33 or ord(c) > 126 for c in value["apiKey"]):
             raise ValueError("Invalid redemption credentials")
         return value
+
+    async def change_hostname(self, body: Any) -> tuple[int, dict[str, Any]]:
+        try: request = parse("ServiceHostnameChangeRequestSchema", body)
+        except av.ValidationError: raise RequestError(400, "Invalid hostname-change request") from None
+        task = asyncio.current_task(); assert task is not None
+        self._writers.add(task)
+        try:
+            async with self._gate:
+                if self._closed or not self._started: raise RequestError(503, "Installation is not available")
+                value = await self._store.read()
+                if "apiKey" not in value or "installation" not in value:
+                    raise RequestError(409, "An installed service binding is required")
+                self._credentials(value, check_address=False)
+                binding = value["installation"]
+                async def confirm():
+                    result = await self._post("services/confirm-hostname-change", {**request, "serviceUrl": self._address},
+                        "ServiceHostnameChangeResponseSchema", api_key=value["apiKey"])
+                    if http_origin(secure_endpoint(result["serviceUrl"])) != self._address: raise ValueError("Unexpected confirmed address")
+                    # A cached CP confirmation alone does not prove which instance owns
+                    # it. Read the authenticated current projection before local commit.
+                    snapshot = ScopedConfig(await self._post("sync/poll", build_submission(self.service.manifest,
+                        key_pair=self.identity, auth_provider=self._provider), "ScopedServiceConfigSchema", api_key=value["apiKey"], limit=16 * 1024 * 1024)).document()
+                    services = [item for tenant in snapshot["tenants"] for item in tenant["services"]] + snapshot.get("m2m", {}).get("services", [])
+                    addresses = {http_origin(secure_endpoint(item["hostname"])) for item in services if item["id"] == binding["instanceId"]}
+                    if snapshot.get("serviceIdentity", {}).get("id") != binding["instanceId"] or addresses != {self._address}:
+                        raise ValueError("Control plane did not bind this instance to the configured address")
+                    return result
+                try: result = await asyncio.wait_for(confirm(), self._timeout)
+                except RequestError: raise
+                except Exception: raise RequestError(502, "Control-plane hostname confirmation failed") from None
+                value = await self._store.write({"installation": {**binding, "serviceUrl": self._address}})
+                return (200, result) if await self._activate(value) else (503, {"error": "Hostname confirmed; awaiting valid control-plane configuration", "installed": True})
+        finally: self._writers.discard(task)
 
     async def install(self, body: Any) -> tuple[int, dict[str, Any]]:
         try: request = parse("ServiceInstallRequestSchema", body)
@@ -160,8 +207,10 @@ class ServiceInstallation:
                 if tenant is not None and value.get("tenantLock") is not None and tenant != value["tenantLock"]:
                     raise RequestError(409, "Setup cannot change the installed tenant")
                 if "apiKey" in value:
-                    self._credentials(value)
+                    self._credentials(value, check_address=False)
                     previous = value.get("installation")
+                    if previous and http_origin(previous["serviceUrl"]) != self._address:
+                        raise RequestError(409, "Confirm the configured hostname before reconfiguration")
                     expected = previous["instanceId"] if previous else (self.service.snapshot() or {}).get("serviceIdentity", {}).get("id")
                     if expected != binding["instanceId"]: raise RequestError(409, "Setup cannot replace the installed service instance")
                     if previous and previous["jti"] == binding["jti"]:

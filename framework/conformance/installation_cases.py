@@ -182,15 +182,18 @@ def run_installation(urls, labels):
                          "body": {"tenantId": TENANT, "values": {"count": "12", "secret": "installation-setting-secret"}}}
                 read = {"path": "/.well-known/bp/config", "headers": headers}
                 operation = {"path": "/check/item", "headers": {"origin": "https://app.test"}}
-                steps = invoke(url, control, [{"path": "/.well-known/bp/config/schema"}, issue(control), {"path": "/.well-known/bp/config/schema"},
-                    operation, write, read, operation, issue(control), operation, {"kind": "restart"}, read, operation], declaration=declaration, returnConfig=True)
+                # Readiness follows the initial poll. Wait for the first SSE snapshot
+                # before testing unchanged config reads; auth rejects retired snapshots.
+                settled = {"kind": "wait", "updates": 2}
+                steps = invoke(url, control, [{"path": "/.well-known/bp/config/schema"}, issue(control), settled, {"path": "/.well-known/bp/config/schema"},
+                    operation, write, read, operation, issue(control), settled, operation, {"kind": "restart"}, settled, read, operation], declaration=declaration, returnConfig=True)
                 assert all(row["status"] == 200 for row in steps), brief(steps)
-                assert not json.loads(steps[0]["body"])["supportsWrite"] and json.loads(steps[2]["body"])["supportsWrite"]
-                assert json.loads(steps[3]["body"]) == {"count": 7}, brief(steps)
-                for index in (4, 5, 10): assert json.loads(steps[index]["body"])["values"] == {"count": 12, "secret": "__redacted__"}, brief(steps)
-                for index in (6, 8, 11): assert json.loads(steps[index]["body"]) == {"count": 12, "secret": "installation-setting-secret"}, brief(steps)
-                assert "installation-setting-secret" not in steps[4]["settingsStored"] and steps[4]["settingsStored"] == steps[10]["settingsStored"]
-                assert steps[4]["configKeyHash"] == steps[10]["configKeyHash"]
+                assert not json.loads(steps[0]["body"])["supportsWrite"] and json.loads(steps[3]["body"])["supportsWrite"]
+                assert json.loads(steps[4]["body"]) == {"count": 7}, brief(steps)
+                for index in (5, 6, 13): assert json.loads(steps[index]["body"])["values"] == {"count": 12, "secret": "__redacted__"}, brief(steps)
+                for index in (7, 10, 14): assert json.loads(steps[index]["body"]) == {"count": 12, "secret": "installation-setting-secret"}, brief(steps)
+                assert "installation-setting-secret" not in steps[5]["settingsStored"] and steps[5]["settingsStored"] == steps[13]["settingsStored"]
+                assert steps[5]["configKeyHash"] == steps[13]["configKeyHash"]
         check(label, "settings-activation-reconfigure-restart", settings_activation)
         def corrupt_settings():
             with peer() as control:
@@ -292,14 +295,14 @@ def run_installation(urls, labels):
                     assert [row["status"] for row in steps] == [503, 503] and steps[0]["snapshot"] is None, brief(steps)
                 check(label, "snapshot-" + name, bound_snapshot)
             for phase, path in [("jwks", "/.well-known/jwks.json"), ("redeem", redeem_path), ("sync", "/.well-known/bp/sync/poll")]:
-                for kind in ("cancel", "close-install"):
+                for kind in ("cancel", "close-install", "host-stop"):
                     def cancelled_transport():
                         counts.clear(); barriers.clear()
                         routes["/.well-known/jwks.json"] = [{"body": {"keys": signer_keys}}]
                         routes[redeem_path] = [{"type": "application/json", "body": credentials}]
                         routes["/.well-known/bp/sync/poll"] = [{"type": "application/json", "body": fixture()["snapshot"]}]
                         barriers[path] = (threading.Event(), threading.Event()); routes[path][0]["barrier"] = True
-                        steps = invoke(url, {"url": base}, [{"kind": kind, "barrier": base + path, "body": install["body"]}, {"kind": "state"}])
+                        steps = invoke(url, {"url": base}, [{"kind": kind, "path": "/.well-known/bp/install", "barrier": base + path, "body": install["body"]}, {"kind": "state"}])
                         assert steps[0].get("cancelled") and all(not step["ready"] for step in steps), brief(steps)
                         assert ("apiKey" in steps[0]["bootstrap"]) == (phase == "sync")
                         assert steps[0]["snapshot"] is None

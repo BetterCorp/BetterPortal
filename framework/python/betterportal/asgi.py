@@ -326,15 +326,16 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 try: value = loads(body.decode("utf-8"))
                 except (ValueError, UnicodeError): raise RequestError(400, "Invalid JSON body") from None
                 async def execute():
-                    status, result = await installation.install(value)
+                    status, result = await (installation.change_hostname(value) if request.url.path.endswith("/hostname-change") else installation.install(value))
                     return JSONResponse(result, status_code=status, headers=response_headers)
                 return await _connected(request, execute())
             except RequestError as error:
                 return JSONResponse({"error": str(error), "installed": installation.installed}, status_code=error.status, headers=response_headers)
             except Exception:
                 return JSONResponse({"error": "Installation failed", "installed": installation.installed}, status_code=500, headers=response_headers)
-        paths.append("/.well-known/bp/install")
-        routes.append(HttpRoute(paths[-1], install_endpoint, methods=["POST", "OPTIONS"]))
+        for path in ("/.well-known/bp/install", "/.well-known/bp/hostname-change"):
+            paths.append(path)
+            routes.append(HttpRoute(path, install_endpoint, methods=["POST", "OPTIONS"]))
     async def config_endpoint(request: Request) -> Response:
         response_headers = {"vary": "Origin", "cache-control": "no-store"}
         try:

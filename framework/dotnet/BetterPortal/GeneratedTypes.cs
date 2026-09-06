@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: ab878120e98aff2eb903f847990377d7876b114441b0b37793bb07a0d0af8645
+// Generated from AnyVali documents; do not edit. SHA256: 60eb51a1aebe270ed015663874c983f6e82f390684de73825f7a79c088dcc08e
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -10786,6 +10786,34 @@ public sealed record ServiceConfigWriteResponseInput
     public required JsonObjectInput Values { get; init; }
     [JsonPropertyName("ok")]
     public required bool Ok { get; init; }
+}
+
+public sealed record ServiceHostnameChangeRequest
+{
+    [JsonPropertyName("changeToken")]
+    public required string ChangeToken { get; init; }
+}
+
+public sealed record ServiceHostnameChangeRequestInput
+{
+    [JsonPropertyName("changeToken")]
+    public required string ChangeToken { get; init; }
+}
+
+public sealed record ServiceHostnameChangeResponse
+{
+    [JsonPropertyName("ok")]
+    public required bool Ok { get; init; }
+    [JsonPropertyName("serviceUrl")]
+    public required string ServiceUrl { get; init; }
+}
+
+public sealed record ServiceHostnameChangeResponseInput
+{
+    [JsonPropertyName("ok")]
+    public required bool Ok { get; init; }
+    [JsonPropertyName("serviceUrl")]
+    public required string ServiceUrl { get; init; }
 }
 
 public sealed record ServiceInstallRequest

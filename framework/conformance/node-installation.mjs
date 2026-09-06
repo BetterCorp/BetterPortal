@@ -47,7 +47,7 @@ export async function installationRequest(body) {
 async function run(body, directory) {
   clearJwksCache();
   const filePath = join(directory, "bootstrap.json");
-  const publicUrl = new URL(body.serviceUrl ?? "https://service.test");
+  let publicUrl = new URL(body.serviceUrl ?? "https://service.test");
   const obs = { log: Object.fromEntries(["info", "warn", "error", "debug"].map(level => [level, () => {}])) };
   let runtime;
   const stop = () => { runtime?.sseAbortController?.abort(); clearTimeout(runtime?.syncReconnectTimer); };
@@ -67,6 +67,7 @@ async function run(body, directory) {
     // This is the BSB configuration boundary read by BPService.service/bp getters.
     Object.defineProperty(runtime, "config", { value: { host: publicUrl.hostname, port: Number(publicUrl.port || 443), betterportal: { bootstrapStatePath: filePath } } });
     runtime.registerInstallEndpoint(obs);
+    runtime.registerHostnameChangeEndpoint(obs);
     runtime.app.get("/.well-known/bp/health", () => runtime.renderHealth(false));
     if (stored.apiKey) { runtime.initializeS2SIdentity(obs); await runtime.connectToControlPlane(obs); }
   }
@@ -77,7 +78,7 @@ async function run(body, directory) {
     const outcomes = [];
     for (const step of body.steps) {
       let result = { status: 200 };
-      if (step.kind === "restart") { stop(); await start(); }
+      if (step.kind === "restart") { stop(); if (step.serviceUrl) publicUrl = new URL(step.serviceUrl); await start(); }
       else if (step.kind !== "state") {
         const method = step.method ?? "GET";
         const response = await runtime.app.fetch(new Request(new URL(step.path ?? "/.well-known/bp/health", publicUrl), {

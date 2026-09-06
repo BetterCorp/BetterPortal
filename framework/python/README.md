@@ -707,6 +707,17 @@ provider metadata. Config descriptors require a settings store. `config_mode`,
 Shutdown cancels and drains installation/sync before closing the service. Keep one
 owner per state store; these file stores do not coordinate replicas.
 
+To change the public hostname, keep the same protected state, configure the new
+`service_url`, and restart. A stored-address mismatch leaves health 503 until
+POST `{"changeToken":"bp_hc_..."}` to `/.well-known/bp/hostname-change` confirms
+the CP-issued token. The runtime method is `await installation.change_hostname(body)`.
+The configured origin supplies the new address; forwarded headers cannot change
+it. Confirmation checks the CP's current instance/address projection before
+atomically updating the binding and restarting sync. Credentials, signing identity
+and tenant lock are preserved. If CP confirmation succeeds but local persistence
+fails, obtain a fresh token and retry; if local persistence succeeded, restart can
+resume sync. See [the hostname protocol](../../spec/config.md#23-standalone-hostname-changes).
+
 ```sh
 python -m pip install -r framework/conformance/requirements.txt
 python -m build framework/python
