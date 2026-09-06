@@ -15,7 +15,7 @@ export function registryRequest(body) {
         const metadata = declaration.sitemap;
         const sitemap = metadata?.kind === "exclude" ? false : metadata?.kind === "provider" ? () => []
           : metadata?.kind === "metadata" ? metadata : undefined;
-        return { ...declaration, sitemap, schemas, handler: () => null };
+        return { ...declaration, sitemap, schemas, handler: () => null, ...(operation.raw ? { raw: true } : {}) };
       });
       const primary = operations.find(operation => operation.method === "GET") ?? operations[0];
       return [...new Set([item.path, ...item.pathVariants ?? []])].map(path => ({ viewId: item.viewId, path,

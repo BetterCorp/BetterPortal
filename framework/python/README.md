@@ -1,7 +1,7 @@
 # BetterPortal Python port
 
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
-hosting for JSON operations. It is **not ready for production**: the AnyVali
+hosting for JSON and raw operations. It is **not ready for production**: the AnyVali
 snapshot gate below still fails. Control-plane synchronization, rendering, route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
@@ -22,7 +22,7 @@ close after parsing. Disconnects cancel handler waits.
 
 JSON and BP metadata negotiation are supported. Metadata requires the operation's
 authorization and does not execute its handler. Health, manifest and schema JSON
-discovery are public. HTML/raw/stream hosting remains pending. Configure trusted
+discovery are public. HTML and validated finite/SSE stream hosting remain pending. Configure trusted
 proxies in the ASGI server; raw forwarding and HTMX context headers confer no
 authority. Renderer selection will remain bound to the resolved app.
 
@@ -51,13 +51,40 @@ Absent input containers become `{}`; explicit null remains present. The
 `input_document` property exports the four parsed handler input fields for native
 type generation. Full handler/render context helpers remain delivery work.
 
-`Operation`, `Route` and `Registry` register JSON handlers and derive canonical
+`Operation`, `Route` and `Registry` register JSON/raw handlers and derive canonical
 manifests and discovery schemas from their AnyVali schemas. Every operation needs
 an explicit `auth` declaration and a unique stable ID. Methods share the view's
 params schema; their query, headers, body, response and policy remain separate.
 Dependency aliases resolve to plugin IDs, and local dependencies must exist with
 the declared method. Path variants belong to one view and publish API contracts
-once. Directory discovery and renderer/raw/stream registration remain pending.
+once. Directory discovery and renderer/finite-stream registration remain pending.
+
+`RawHandler[Params, Query, Headers, Body]` shares input validation and host
+authorization with JSON handlers. It must return `RawResponse`; JSON handlers
+reject and close raw results. Raw operations publish `raw: true` and bypass
+representation negotiation, including a metadata Accept header. Their metadata
+remains available through discovery. GET registrations also serve HEAD using the
+same policy; a raw HEAD closes the response without pulling its stream.
+
+```python
+from typing import Any
+from betterportal.response import RawHandler, RawResponse
+from betterportal.registry import Operation
+
+download = RawHandler[Any, Any, Any, Any](
+    lambda context: RawResponse.file(b"Hello BP\n", "report.txt", content_type="text/plain"))
+operation = Operation(download, {"operationId": "report.get", "method": "GET",
+    "title": "Report", "description": "Download a report", "auth": {"required": True}})
+assert operation.handler.is_raw
+```
+
+A raw body is bytes or an async iterator yielding bytes. The ASGI host awaits
+each send before requesting the next chunk and calls `aclose()` when available
+on completion, disconnect or failure. Stream failures after headers terminate the
+response. Supply file content, not a filesystem path, to `RawResponse.file`;
+it builds safe ASCII/UTF-8 download headers. Header pairs retain repeated cookies;
+the host owns CORS and transport headers, computes byte-body length, and rejects
+header injection. Status 204/205/304 forbids a body; 206 and redirects may carry one.
 
 ```python
 from betterportal.contracts import contract

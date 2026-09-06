@@ -4,14 +4,14 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from typing import Any, Coroutine
+from typing import Any, Coroutine, TypeVar
 from urllib.parse import parse_qsl
 
 from starlette.applications import Starlette
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route as HttpRoute
 
 from .contracts import parse
@@ -20,6 +20,7 @@ from .handler import HandlerInputError
 from .jsoncodec import loads
 from .media import NotAcceptable, negotiate
 from .registry import Route, _segments
+from .response import RawResponse
 from .service import RequestError, Service
 
 _SINGLE = {"host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"}
@@ -95,18 +96,60 @@ async def _decode(request: Request, body: bytes) -> tuple[Any, Any]:
     return values, parse("MultipartRequestSchema", {"fields": fields, "files": files})
 
 
-async def _connected(request: Request, work: Coroutine[Any, Any, Response]) -> Response:
+_Output = TypeVar("_Output")
+
+
+async def _connected(request: Request, work: Coroutine[Any, Any, _Output]) -> _Output:
     """The body is drained before watching receive, so the watcher cannot steal input."""
     async def disconnected():
         while (await request.receive())["type"] != "http.disconnect": pass
     task = asyncio.create_task(work); watcher = asyncio.create_task(disconnected())
     try:
-        done, _ = await asyncio.wait((task, watcher), return_when=asyncio.FIRST_COMPLETED)
-        if task in done: return await task
-        raise asyncio.CancelledError
-    finally:
-        task.cancel(); watcher.cancel()
-        await asyncio.gather(task, watcher, return_exceptions=True)
+        try:
+            done, _ = await asyncio.wait((task, watcher), return_when=asyncio.FIRST_COMPLETED)
+            if task not in done: raise asyncio.CancelledError
+        finally:
+            task.cancel(); watcher.cancel()
+            await asyncio.gather(task, watcher, return_exceptions=True)
+        return await task
+    except BaseException:
+        # A handler may catch cancellation and return an owned stream anyway.
+        if task.done() and not task.cancelled() and task.exception() is None:
+            result = task.result()
+            if isinstance(result, _RawReply): await result.raw.aclose()
+        raise
+
+
+class _RawReply(Response):
+    def __init__(self, raw: RawResponse, headers: dict[str, str], *, head: bool):
+        self.raw = raw
+        pairs = [(name.lower().encode("ascii"), value.encode("latin-1")) for name, value in raw.headers]
+        for name, value in headers.items():
+            if name.lower() == "vary":
+                value = ", ".join([*(item.decode("latin-1") for key, item in pairs if key == b"vary"), value])
+            pairs = [(key, item) for key, item in pairs if key != name.lower().encode("ascii")]
+            pairs.append((name.lower().encode("ascii"), value.encode("latin-1")))
+        if isinstance(raw.body, bytes) or head:
+            self.reply = Response(b"" if head else raw.body, status_code=raw.status)
+            if isinstance(raw.body, bytes) and raw.status not in (204, 304): pairs.append((b"content-length", str(len(raw.body)).encode("ascii")))
+        else:
+            async def chunks():
+                async for chunk in raw.body:
+                    if not isinstance(chunk, bytes): raise TypeError("Raw stream chunks must be bytes")
+                    yield chunk
+            self.reply = StreamingResponse(chunks(), status_code=raw.status)
+        self.reply.raw_headers = pairs
+
+    async def __call__(self, scope, receive, send):
+        try:
+            if isinstance(self.reply, StreamingResponse):
+                # Watch receive for every ASGI version, including while a producer waits.
+                await _connected(Request(scope, receive), self.reply.stream_response(send))
+            else: await self.reply(scope, receive, send)
+        finally:
+            close = getattr(getattr(self.reply, "body_iterator", None), "aclose", None)
+            if close is not None: await close()
+            await self.raw.aclose()
 
 
 def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str = "service") -> Starlette:
@@ -126,22 +169,23 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
             response_headers = {"vary": "Origin"}
             async def execute(headers, query, body):
                 nonlocal response_headers
-                context, response_headers = await service.prepare(route, request.method, request.url.path, headers, matched_path=matched,
+                context, response_headers = await service.prepare(route, requested, request.url.path, headers, matched_path=matched,
                     fragment=fragment, scheme=request.url.scheme, mode=mode)
-                operation = next(item for item in route.operations if item.method == request.method)
-                representation = negotiate(headers.get("accept"), ("json", "metadata"))
-                if representation.kind == "metadata":
+                operation = next(item for item in route.operations if item.method == requested)
+                representation = None if operation.handler.is_raw else negotiate(headers.get("accept"), ("json", "metadata"))
+                if representation is not None and representation.kind == "metadata":
                     return JSONResponse(service.metadata(route, operation, matched), headers=response_headers, media_type="application/vnd.betterportal.metadata+json")
                 value, multipart = await _decode(request, body)
                 context = replace(context, multipart=multipart)
                 params = {part[1:]: request.path_params[f"_bp{index}"] for index, part in enumerate(_segments(matched)) if part.startswith(":")}
                 output = await operation.invoke(context, {"params": params, "query": query, "headers": headers, "request": value})
+                if operation.handler.is_raw: return _RawReply(output, response_headers, head=request.method == "HEAD")
                 return JSONResponse(output, headers=response_headers)
             try:
                 headers = _headers(request); query = _query(request.scope["query_string"])
                 fragment = query.get("_f")
                 if fragment is not None and not isinstance(fragment, str): raise RequestError(400, "Invalid fragment selector")
-                requested = headers.get("access-control-request-method", "") if request.method == "OPTIONS" else request.method
+                requested = headers.get("access-control-request-method", "") if request.method == "OPTIONS" else "GET" if request.method == "HEAD" else request.method
                 if requested not in operations: raise RequestError(403 if request.method == "OPTIONS" else 405, "Method not allowed")
                 route, matched = operations[requested]
                 if request.method == "OPTIONS":

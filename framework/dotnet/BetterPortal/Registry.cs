@@ -25,7 +25,8 @@ public sealed class Operation
         var result = (Node)Json.Read(Json.Write(declaration))!;
         foreach (var (source, target) in new[] { ("query", "querySchema"), ("headers", "headersSchema"), ("request", "bodySchema") })
             result[target] = Handler.Schemas.TryGetValue(source, out var schema) ? Export(schema) : new Node();
-        result["jsonResponseSchema"] = Export(Handler.ResponseSchema); result["metadataResponseSchema"] = new Node();
+        result["jsonResponseSchema"] = Handler.ResponseSchema is { } response ? Export(response) : new Node(); result["metadataResponseSchema"] = new Node();
+        if (Handler.IsRaw) result["raw"] = true;
         result["renderable"] = false; result["html"] = new Node { ["renderers"] = new Node() };
         result.TryAdd("sitemap", new Node { ["kind"] = "default" });
         foreach (var dependency in ((List<object?>)result["dependencies"]!).Cast<Node>())

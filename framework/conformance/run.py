@@ -17,9 +17,10 @@ from handler_cases import run_handlers
 from registry_cases import run_registry
 from access_cases import run_access
 from hosting_cases import run_hosting
+from raw_cases import run_raw
 
 RUNNERS = {"security": run_security, "keys": run_keys, "encryption": run_encryption, "authorization": run_authorization,
-           "media": run_media, "streams": run_streams, "sse": run_sse, "context": run_context, "cors": run_cors, "handlers": run_handlers, "registry": run_registry, "access": run_access, "hosting": run_hosting}
+           "media": run_media, "streams": run_streams, "sse": run_sse, "context": run_context, "cors": run_cors, "handlers": run_handlers, "registry": run_registry, "access": run_access, "hosting": run_hosting, "raw": run_raw}
 SUITES = ["schema", *RUNNERS, "all"]
 
 

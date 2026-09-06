@@ -118,6 +118,23 @@ public static class Hosting
         await context.Response.WriteAsync(Json.Write(value), context.RequestAborted);
     }
     private static string[] Segments(string path) => path == "/" ? [] : path[1..].Split('/');
+    private static async Task ReplyRaw(HttpContext context, RawResponse raw, IReadOnlyDictionary<string, string> headers)
+    {
+        await using (raw)
+        {
+            context.Response.StatusCode = raw.Status;
+            // An intentional empty raw error must not become a framework JSON error.
+            if (context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages) statusPages.Enabled = false;
+            foreach (var (name, value) in raw.Headers) context.Response.Headers.Append(name, value);
+            foreach (var (name, value) in headers)
+                if (name.Equals("vary", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.Append(name, value);
+                else context.Response.Headers[name] = value;
+            if (raw.BodyStream is null && raw.Status is not (204 or 304)) context.Response.ContentLength = raw.Body.Length;
+            if (context.Request.Method == "HEAD" || raw.Status is 204 or 205 or 304) return;
+            if (raw.BodyStream is not null) await raw.BodyStream.CopyToAsync(context.Response.Body, context.RequestAborted);
+            else await context.Response.Body.WriteAsync(raw.Body, context.RequestAborted);
+        }
+    }
     public static WebApplication MapBetterPortal(this WebApplication endpoints, Service service, int maxBodyBytes = 1024 * 1024, string mode = "service")
     {
         if (maxBodyBytes < 1 || mode is not ("service" or "theme")) throw new ArgumentException("Invalid hosting options");
@@ -144,7 +161,7 @@ public static class Hosting
             if (!groups.TryGetValue(pattern, out var methods)) groups[pattern] = methods = new(StringComparer.Ordinal);
             foreach (var operation in route.Operations) methods.Add(operation.Method, (route, path));
         }
-        foreach (var (pattern, operations) in groups) endpoints.MapMethods(pattern, operations.Keys.Append("OPTIONS"), async (HttpContext context) =>
+        foreach (var (pattern, operations) in groups) endpoints.MapMethods(pattern, operations.Keys.Concat(operations.ContainsKey("GET") ? ["HEAD", "OPTIONS"] : new[] { "OPTIONS" }).Distinct(), async (HttpContext context) =>
         {
             IReadOnlyDictionary<string, string> responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin" };
             try
@@ -152,7 +169,7 @@ public static class Hosting
                 var headers = Headers(context.Request); var query = Pairs(context.Request.QueryString.Value ?? "");
                 if (query.GetValueOrDefault("_f") is { } selector && selector is not string) throw new RequestException(400, "Invalid fragment selector");
                 var fragment = (string?)query.GetValueOrDefault("_f");
-                var requested = context.Request.Method == "OPTIONS" ? headers.GetValueOrDefault("access-control-request-method", "") : context.Request.Method;
+                var requested = context.Request.Method == "OPTIONS" ? headers.GetValueOrDefault("access-control-request-method", "") : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;
                 if (!operations.TryGetValue(requested, out var binding)) throw new RequestException(context.Request.Method == "OPTIONS" ? 403 : 405, "Method not allowed");
                 if (context.Request.Method == "OPTIONS")
                 {
@@ -161,15 +178,16 @@ public static class Hosting
                 }
                 var prepared = await service.PrepareAsync(binding.Route, requested, context.Request.Path, headers, binding.Path, fragment, context.Request.Scheme, mode, cancellationToken: context.RequestAborted);
                 responseHeaders = prepared.Headers;
-                var representation = Media.Negotiate(headers.GetValueOrDefault("accept"), ["json", "metadata"]);
                 var operation = binding.Route.Operations.Single(item => item.Method == requested);
-                if (representation.Kind == "metadata") { await Reply(context, Service.Metadata(binding.Route, operation, binding.Path), 200, responseHeaders, "application/vnd.betterportal.metadata+json"); return; }
+                var representation = operation.Handler.IsRaw ? null : Media.Negotiate(headers.GetValueOrDefault("accept"), ["json", "metadata"]);
+                if (representation?.Kind == "metadata") { await Reply(context, Service.Metadata(binding.Route, operation, binding.Path), 200, responseHeaders, "application/vnd.betterportal.metadata+json"); return; }
                 var body = await ReadBody(context.Request, maxBodyBytes, context.RequestAborted);
                 var (value, multipart) = await Decode(context.Request, body, context.RequestAborted);
                 var parameters = Segments(binding.Path).Select((part, index) => (part, index)).Where(item => item.part.StartsWith(':'))
                     .ToDictionary(item => item.part[1..], item => context.Request.RouteValues["_bp" + item.index]);
                 var output = await operation.Invoke(prepared.Context with { Multipart = multipart }, new Node { ["params"] = parameters, ["query"] = query, ["headers"] = headers, ["request"] = value }, context.RequestAborted);
-                await Reply(context, output, 200, responseHeaders);
+                if (operation.Handler.IsRaw) await ReplyRaw(context, (RawResponse)output!, responseHeaders);
+                else await Reply(context, output, 200, responseHeaders);
             }
             catch (RequestException error) { await Reply(context, new { error = error.Message }, error.Status, responseHeaders.Concat(error.Headers).GroupBy(pair => pair.Key).ToDictionary(group => group.Key, group => group.Last().Value)); }
             catch (CorsDeniedException) { await Reply(context, new { error = "Origin or method is not allowed" }, 403, new Dictionary<string, string> { ["vary"] = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers" }); }
@@ -177,7 +195,11 @@ public static class Hosting
             catch (HandlerInputException error) { await Reply(context, new { error = "Invalid request " + error.Field }, 400, responseHeaders); }
             catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
             catch (BadHttpRequestException error) { await Reply(context, new { error = "Invalid request body" }, error.StatusCode, responseHeaders); }
-            catch (Exception) { await Reply(context, new { error = "Request failed" }, 500, responseHeaders); }
+            catch (Exception)
+            {
+                if (context.Response.HasStarted) context.Abort();
+                else { context.Response.Clear(); await Reply(context, new { error = "Request failed" }, 500, responseHeaders); }
+            }
         });
         return endpoints;
     }

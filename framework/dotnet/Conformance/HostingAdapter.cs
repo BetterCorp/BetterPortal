@@ -12,12 +12,16 @@ internal static class HostingAdapter
         var invoked = 0; var cancelled = false;
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stream = new Node { ["reads"] = 0, ["closed"] = false };
+        var hasStream = false;
+        var firstWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var registry = new Registry(((List<object?>)body["routes"]!).Cast<Node>().Select(item => new Route((string)item["viewId"]!, (string)item["path"]!,
             ((List<object?>)item["operations"]!).Cast<Node>().Select(spec =>
             {
                 var schemas = (Node)spec.GetValueOrDefault("schemas", new Node())!;
                 AnyVali.Schema? Schema(string name) => schemas.TryGetValue(name, out var value) ? Contracts.Import(Json.Write(value)) : null;
-                var handler = new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(spec["response"])), async context =>
+                async ValueTask<object?> Execute(HandlerContext<object?, object?, object?, object?> context)
                 {
                     Interlocked.Increment(ref invoked);
                     if (spec.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-password-must-not-leak");
@@ -25,13 +29,33 @@ internal static class HostingAdapter
                     {
                         started.TrySetResult();
                         try { await Task.Delay(30000, context.Cancellation); }
-                        finally { cancelled = true; finished.TrySetResult(); }
+                        catch (OperationCanceledException) when (spec.GetValueOrDefault("returnOnCancel") is true) { }
+                        finally { cancelled = true; if (spec.GetValueOrDefault("returnOnCancel") is not true) finished.TrySetResult(); }
                     }
                     if (spec.TryGetValue("result", out var result)) return result;
+                    if (spec.GetValueOrDefault("raw") is Node raw)
+                    {
+                        var status = Convert.ToInt32(raw.GetValueOrDefault("status", 200));
+                        var headers = ((List<object?>)raw.GetValueOrDefault("headers", new List<object?>())!).Cast<List<object?>>()
+                            .Select(pair => new KeyValuePair<string, string>((string)pair[0]!, (string)pair[1]!)).ToArray();
+                        var filename = (string?)raw.GetValueOrDefault("filename");
+                        var contentType = (string)raw.GetValueOrDefault("contentType", "application/octet-stream")!;
+                        if (raw.ContainsKey("chunks"))
+                        {
+                            hasStream = true;
+                            var producer = new RawBody(raw, stream, started, finished, () => cancelled = true);
+                            return filename is null ? new RawResponse(producer, status, headers) : RawResponse.File(producer, filename, contentType, raw.GetValueOrDefault("inline") is true);
+                        }
+                        var bytes = Convert.FromBase64String((string)raw.GetValueOrDefault("body", "")!);
+                        return filename is null ? new RawResponse(bytes, status, headers) : RawResponse.File(bytes, filename, contentType, raw.GetValueOrDefault("inline") is true);
+                    }
                     var request = context.RequestContext;
                     return new Node { ["params"] = context.Params, ["query"] = context.Query, ["request"] = context.Request, ["multipart"] = request.Multipart,
                         ["tenantId"] = request.Scope.TenantId, ["appId"] = request.Scope.AppId, ["caller"] = request.Caller.Mode, ["user"] = request.Caller.User?.GetValueOrDefault("sub") };
-                }, Schema("params"), Schema("query"), Schema("headers"), Schema("request"));
+                }
+                Handler handler = spec.ContainsKey("raw") && spec.GetValueOrDefault("jsonHandler") is not true
+                    ? new RawHandler<object?, object?, object?, object?>(async context => (RawResponse)(await Execute(context))!, Schema("params"), Schema("query"), Schema("headers"), Schema("request"))
+                    : new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(spec["response"])), Execute, Schema("params"), Schema("query"), Schema("headers"), Schema("request"));
                 return new Operation(handler, Contracts.Parse<BetterPortal.Generated.OperationDeclarationInput>("OperationDeclarationSchema", spec["declaration"]));
             }), ((List<object?>)item.GetValueOrDefault("pathVariants", new List<object?>())!).Cast<string>())));
         await using var service = new Service(registry, Contracts.Parse<BetterPortal.Generated.ManifestDeclarationInput>("ManifestDeclarationSchema", body["declaration"]),
@@ -39,6 +63,14 @@ internal static class HostingAdapter
         if (body.GetValueOrDefault("closed") is true) await service.DisposeAsync();
         var builder = WebApplication.CreateBuilder(); builder.Logging.ClearProviders(); builder.WebHost.UseUrls("http://127.0.0.1:0");
         await using var host = builder.Build();
+        if (body.GetValueOrDefault("rawOutputProbe") is "backpressure") host.Use(async (context, next) =>
+        {
+            var original = context.Response.Body;
+            await using var output = new GatedOutput(original, firstWrite, releaseWrite);
+            context.Response.Body = output;
+            try { await next(context); }
+            finally { context.Response.Body = original; }
+        });
         host.MapBetterPortal(service, Convert.ToInt32(body.GetValueOrDefault("maxBodyBytes", 1024 * 1024)));
         await host.StartAsync();
         try
@@ -55,21 +87,77 @@ internal static class HostingAdapter
             try
             {
                 var call = client.SendAsync(request, timeout.Token);
+                var observed = 0;
+                if (body.GetValueOrDefault("rawOutputProbe") is "backpressure")
+                {
+                    await firstWrite.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                    observed = Convert.ToInt32(stream["reads"]); releaseWrite.TrySetResult();
+                }
                 if (body.GetValueOrDefault("cancel") is true)
                 {
                     await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
                     await timeout.CancelAsync();
                 }
                 using var response = await call;
+                var content = await response.Content.ReadAsByteArrayAsync(timeout.Token);
+                if (hasStream) await finished.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                if (body.GetValueOrDefault("rawOutputProbe") is "backpressure") return new { observed, stream, invoked };
                 return new { status = (int)response.StatusCode, headers = response.Headers.Concat(response.Content.Headers).ToDictionary(pair => pair.Key.ToLowerInvariant(), pair => string.Join(", ", pair.Value)),
-                    body = await response.Content.ReadAsStringAsync(timeout.Token), invoked };
+                    body = System.Text.Encoding.UTF8.GetString(content), bodyBase64 = Convert.ToBase64String(content),
+                    cookies = response.Headers.TryGetValues("set-cookie", out var cookies) ? cookies.ToArray() : [], stream, invoked };
             }
             catch (OperationCanceledException) when (body.GetValueOrDefault("cancel") is true)
             {
                 await finished.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                if (body.GetValueOrDefault("rawProbe") is true) return new { cancelled, invoked, stream };
                 return new { cancelled, invoked };
             }
+            catch (HttpRequestException) when (body.GetValueOrDefault("rawProbe") is true)
+            {
+                if (hasStream) await finished.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                return new { transportError = true, stream, invoked };
+            }
         }
-        finally { await host.StopAsync(); }
+        finally { releaseWrite.TrySetResult(); await host.StopAsync(); }
+    }
+    private sealed class GatedOutput(Stream destination, TaskCompletionSource first, TaskCompletionSource release) : MemoryStream
+    {
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (first.TrySetResult()) await release.Task.WaitAsync(cancellationToken);
+            await destination.WriteAsync(buffer, cancellationToken);
+        }
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        public override Task FlushAsync(CancellationToken cancellationToken) => destination.FlushAsync(cancellationToken);
+    }
+    private sealed class RawBody(Node spec, Node state, TaskCompletionSource started, TaskCompletionSource finished, Action cancelled) : Stream
+    {
+        private int index;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var chunks = (List<object?>)spec["chunks"]!;
+            if (index >= chunks.Count) return 0;
+            state["reads"] = Convert.ToInt32(state["reads"]) + 1;
+            if (index == 1 && spec.GetValueOrDefault("wait") is true)
+            {
+                started.TrySetResult();
+                try { await Task.Delay(30000, cancellationToken); }
+                finally { cancelled(); }
+            }
+            if (index == 1 && spec.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-stream-secret");
+            var data = Convert.FromBase64String((string)chunks[index++]!);
+            data.CopyTo(buffer); return data.Length;
+        }
+        public override ValueTask DisposeAsync() { state["closed"] = true; finished.TrySetResult(); return ValueTask.CompletedTask; }
     }
 }

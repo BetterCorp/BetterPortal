@@ -39,6 +39,7 @@ from betterportal.context import ScopedConfig, http_origin
 from betterportal.context import OriginPolicy
 from betterportal.cors import Cors
 from betterportal.handler import Handler, RequestContext
+from betterportal.response import RawHandler, RawResponse
 from betterportal.registry import Operation, Route, Registry
 from betterportal.access import AppAccess
 from betterportal.service import Service
@@ -84,6 +85,10 @@ scope = ScopedConfig({"managementOrigins": [], "tenants": [{"id": tenant_id, "sl
 assert scope is not None
 handler = Handler(contract("JsonObjectSchema"), lambda context: context.query, query=contract("JsonObjectSchema"))
 assert asyncio.run(handler.invoke(RequestContext(scope, AuthorizedCaller(), "GET", "/"), {"query": {"nested": [None]}})) == {"nested": [None]}
+raw_handler = RawHandler(lambda context: RawResponse.file(b"hello", "report.txt"))
+raw_response = asyncio.run(raw_handler.invoke(RequestContext(scope, AuthorizedCaller(), "GET", "/"), {}))
+assert raw_response.body == b"hello" and raw_handler.is_raw
+asyncio.run(raw_response.aclose())
 registry = Registry([Route("hello.index", "/", [Operation(handler, {"operationId": "hello.get", "method": "GET", "title": "Hello", "description": "Hello operation", "auth": {}})])])
 manifest = registry.manifest({"pluginId": "com.example.hello", "title": "Hello", "description": "Example service", "version": "1.0.0"})
 assert manifest["views"][0]["operations"][0]["operationId"] == "hello.get"

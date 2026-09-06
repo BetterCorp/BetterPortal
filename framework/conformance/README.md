@@ -100,7 +100,7 @@ shared cases use its actual manifest and discovery builders. Native-only cases
 reject duplicate or ambiguous routes and unsafe paths, and publish API contracts
 once for optional path variants; Node currently duplicates those descriptors.
 Authoring declarations are portable projections of the canonical wire contracts,
-excluding derived fields. Renderer/raw/stream registration and route-directory
+excluding derived fields. Renderer/finite-stream registration and route-directory
 discovery remain delivery work.
 
 The [mount access suite](results-access.json) passes 130 checks. Shared scenarios
@@ -128,8 +128,17 @@ Native service/delegated checks also bind verified token audiences and permissio
 aliases to the local instance mounting the requested operation. Preflights run
 before bearer authentication, and authorization errors preserve trusted CORS
 headers. These are prototype JSON hosts with local snapshots: CP synchronization,
-authorized diagnostics, rendering, raw/stream hosting and full helper contexts
+authorized diagnostics, rendering, finite/SSE stream hosting and full helper contexts
 remain delivery work. The SDK null/default defect still blocks production use.
+
+The [raw-response suite](results-raw.json) passes 101 checks. Shared cases use the
+real Node `createRawHandler`/H3 adapter and both native hosts for binary data,
+status/body rules, downloads, cookies, discovery, input validation and operation
+denial. Native probes cover header injection, CORS ownership, HEAD stream disposal,
+incorrect JSON/raw returns, and streamed error/cancellation cleanup. Gated output
+checks backpressure without timing guesses; an ASGI 2.4 disconnect probe cancels
+a waiting producer. Raw operations intentionally bypass Accept negotiation.
+The [Python 3.13 raw gate](results-raw-python313.json) passes the same 101 checks.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -159,7 +168,7 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,019/3,028
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,120/3,129
 checks across fourteen suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.

@@ -49,16 +49,11 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     request: Body
 
 
-class Handler(Generic[Params, Query, Headers, Body, Result]):
-    def __init__(self, response: av.BaseSchema[Result],
-                 run: Callable[[HandlerContext[Params, Query, Headers, Body]], Result | Awaitable[Result]], *,
-                 params: av.BaseSchema[Params] | None = None, query: av.BaseSchema[Query] | None = None,
+class HandlerInputs(Generic[Params, Query, Headers, Body]):
+    def __init__(self, *, params: av.BaseSchema[Params] | None = None, query: av.BaseSchema[Query] | None = None,
                  headers: av.BaseSchema[Headers] | None = None, request: av.BaseSchema[Body] | None = None):
-        if not isinstance(response, av.BaseSchema) or not callable(run):
-            raise TypeError("An AnyVali response schema and handler function are required")
         if any(schema is not None and not isinstance(schema, av.BaseSchema) for schema in (params, query, headers, request)):
             raise TypeError("Handler inputs must use AnyVali schemas")
-        self.response_schema, self.run = response, run
         self.schemas: Mapping[str, av.BaseSchema[Any]] = MappingProxyType({name: schema for name, schema in
             (("params", params), ("query", query), ("headers", headers), ("request", request)) if schema is not None})
 
@@ -77,10 +72,26 @@ class Handler(Generic[Params, Query, Headers, Body, Result]):
                 raise HandlerInputError(name, error) from error
         return HandlerContext(context, parsed["params"], parsed["query"], parsed["headers"], parsed["request"])
 
+class Handler(HandlerInputs[Params, Query, Headers, Body], Generic[Params, Query, Headers, Body, Result]):
+    is_raw = False
+
+    def __init__(self, response: av.BaseSchema[Result],
+                 run: Callable[[HandlerContext[Params, Query, Headers, Body]], Result | Awaitable[Result]], *,
+                 params: av.BaseSchema[Params] | None = None, query: av.BaseSchema[Query] | None = None,
+                 headers: av.BaseSchema[Headers] | None = None, request: av.BaseSchema[Body] | None = None):
+        super().__init__(params=params, query=query, headers=headers, request=request)
+        if not isinstance(response, av.BaseSchema) or not callable(run):
+            raise TypeError("An AnyVali response schema and handler function are required")
+        self.response_schema, self.run = response, run
+
     async def invoke(self, context: RequestContext, values: Mapping[str, Any]) -> Result:
         result = self.run(self.prepare(context, values))
         if inspect.isawaitable(result):
             result = await result
+        from .response import RawResponse
+        if isinstance(result, RawResponse):
+            await result.aclose()
+            raise TypeError("Raw responses require a RawHandler")
         try:
             return self.response_schema.parse(cast(Result, result))
         except av.ValidationError as error:

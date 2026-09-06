@@ -9,10 +9,11 @@ from typing import Any, Iterable, Mapping, cast
 from .contracts import contract, export, parse
 from .generated_types import OperationDeclarationInput, OperationDeclaration, ManifestDeclarationInput, PluginManifest, BpSchemaOutput
 from .handler import Handler, RequestContext
+from .response import RawHandler
 
 
 class Operation:
-    def __init__(self, handler: Handler[Any, Any, Any, Any, Any], declaration: OperationDeclarationInput):
+    def __init__(self, handler: Handler[Any, Any, Any, Any, Any] | RawHandler[Any, Any, Any, Any], declaration: OperationDeclarationInput):
         self.handler = handler
         self._declaration = parse("OperationDeclarationSchema", declaration)
 
@@ -35,7 +36,8 @@ class Operation:
         result = deepcopy(self._declaration)
         result.update({target: export(self.handler.schemas[source]) if source in self.handler.schemas else {}
                        for source, target in (("query", "querySchema"), ("headers", "headersSchema"), ("request", "bodySchema"))})
-        result.update(jsonResponseSchema=export(self.handler.response_schema), metadataResponseSchema={}, renderable=False, html={"renderers": {}})
+        result.update(jsonResponseSchema=export(self.handler.response_schema) if self.handler.response_schema is not None else {}, metadataResponseSchema={}, renderable=False, html={"renderers": {}})
+        if self.handler.is_raw: result["raw"] = True
         result.setdefault("sitemap", {"kind": "default"})
         for dependency in result["dependencies"]:
             if "serviceId" in dependency:

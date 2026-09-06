@@ -1,7 +1,7 @@
 import * as av from "anyvali";
 import { createBetterPortalApp, handleCorsRequest, eventHeaders } from "../nodejs/lib/runtime/h3.js";
 import { createH3Router, registerBpWellKnownRoutes } from "../nodejs/lib/adapters/h3.js";
-import { createHandler } from "../nodejs/lib/runtime/handler.js";
+import { createHandler, createRawHandler } from "../nodejs/lib/runtime/handler.js";
 import { ScopedServiceConfigSchema } from "../nodejs/lib/contracts/scopedConfig.js";
 import { MultipartRequestSchema } from "../nodejs/lib/contracts/route.js";
 import { resolveRequestContextDetailed, buildOriginPolicy } from "../nodejs/lib/runtime/configProvider.js";
@@ -20,16 +20,23 @@ export async function hostingRequest(body) {
       const schemas = { response: av.importSchema(spec.response), multipart: MultipartRequestSchema,
         ...Object.fromEntries(Object.entries(spec.schemas ?? {}).map(([key, value]) => [key, av.importSchema(value)])) };
       const declaration = av.importSchema(JSON.parse(body.operationDocument)).parse(spec.declaration);
-      const handler = createHandler(schemas, context => {
+      const handler = (spec.raw && !spec.jsonHandler ? createRawHandler : createHandler)(schemas, context => {
         invoked++;
         if (spec.throw) throw new Error("private-password-must-not-leak");
         if (Object.hasOwn(spec, "result")) return spec.result;
+        if (spec.raw) {
+          const raw = spec.raw;
+          const bytes = value => Buffer.from(value, "base64");
+          const content = raw.chunks ? new ReadableStream({ start(controller) { for (const chunk of raw.chunks) controller.enqueue(bytes(chunk)); controller.close(); } }) : raw.body ? bytes(raw.body) : null;
+          if (raw.filename) return context.file(content, { filename: raw.filename, contentType: raw.contentType ?? "application/octet-stream", disposition: raw.inline ? "inline" : "attachment" });
+          return context.response(content, { status: raw.status ?? 200, headers: raw.headers });
+        }
         const form = /application\/x-www-form-urlencoded|multipart\/form-data/i.test(body.request.headers?.["content-type"] ?? "");
         const value = { params: context.params, query: context.query, request: context.request, multipart: form ? context.multipart ?? null : null,
           tenantId: context.tenant.id, appId: context.app.id, caller: context.callerMode ?? null, user: context.user?.sub ?? null };
         return JSON.parse(JSON.stringify(value, (_key, item) => item instanceof Uint8Array ? Array.from(item) : item));
       });
-      return [declaration.method, { ...declaration, schemas, handler }];
+      return [declaration.method, { ...declaration, schemas, handler, ...(spec.raw ? { raw: true } : {}) }];
     }));
     const primary = methodRoutes.GET ?? Object.values(methodRoutes)[0];
     return { viewId: item.viewId, path, paramNames: path.split("/").filter(part => part.startsWith(":")).map(part => part.slice(1)), methods: Object.keys(methodRoutes),
@@ -58,5 +65,6 @@ export async function hostingRequest(body) {
   const payload = request.bodyBase64 ? Buffer.from(request.bodyBase64, "base64") : request.body;
   const response = await app.fetch(new Request("http://service.test" + request.path, { method: request.method, headers: request.headers,
     ...(payload !== undefined && !["GET", "HEAD"].includes(request.method) ? { body: payload } : {}) }));
-  return { status: response.status, headers: Object.fromEntries(response.headers), body: await response.text(), invoked };
+  const content = Buffer.from(await response.arrayBuffer());
+  return { status: response.status, headers: Object.fromEntries(response.headers), body: content.toString(), bodyBase64: content.toString("base64"), cookies: response.headers.getSetCookie(), invoked };
 }

@@ -124,6 +124,23 @@ These selectors MUST be honored on **any** view route, not only the canonical vi
 
 When `_f` or `_c` is present, preserve the handler/error status and return only the selected fragment/component HTML (no document wrappers), with `Content-Type: text/html; mode=fragment`. Status renderers use the selected method, renderer, kind, and key. Selectors never bypass the operation allowlist or auth policy.
 
+### 3.5 Raw responses
+
+An operation declared `raw: true` returns its own status, headers and byte or
+stream body. It still enforces the operation's input schemas, scope, allowlist
+and caller policy. Raw output bypasses representation negotiation, including a
+metadata Accept header; discovery remains available for its operation metadata.
+JSON handlers must not use raw responses to evade output validation.
+
+The host owns transport and CORS headers and rejects response-header injection.
+Repeated `Set-Cookie` values remain separate. A HEAD response contains no body;
+the host closes an owned response stream without reading it. Final statuses are
+200–599. Status 204, 205 and 304 forbids a body; 206 and redirects may carry one.
+Stream producers advance only after the previous write completes. Completion,
+disconnect and failure close the owned stream, including a result returned after
+cancellation. A raw stream failure after headers aborts delivery; the host must
+not append a JSON error to arbitrary binary content.
+
 ## 4. Error shape
 
 JSON framework errors contain a human-readable `error` string, with optional `detail`, `status`, or validation `issues`. Existing Node endpoints do not expose one universal machine-code/message pair. Diagnostic codes belong to the observability outcome. Clients must use HTTP status and declared response contracts, not parse English error strings.

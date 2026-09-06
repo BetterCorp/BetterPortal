@@ -1,7 +1,7 @@
 # BetterPortal .NET port
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
-for JSON operations. Full control-plane synchronization, rendering, native route
+for JSON and raw operations. Full control-plane synchronization, rendering, native route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The cross-language snapshot gate is still blocked by the Python SDK defect below.
 
@@ -21,7 +21,7 @@ Client cancellation reaches input reads, authentication and handler waits.
 
 JSON and BP metadata negotiation are supported; metadata authorizes the operation
 without executing its handler. Health, manifest and schema JSON discovery are
-public. HTML/raw/stream hosting remains pending. Configure ASP.NET Core's trusted
+public. HTML and validated finite/SSE stream hosting remain pending. Configure ASP.NET Core's trusted
 proxy middleware before BP; forwarding headers alone confer no authority.
 
 ```csharp
@@ -54,13 +54,42 @@ exports the four parsed input fields for native type generation. The cancellatio
 token reaches the handler and cancels its wait. Full handler/render context
 helpers remain delivery work.
 
-`Operation`, `Route` and `Registry` register JSON handlers and derive canonical
+`Operation`, `Route` and `Registry` register JSON/raw handlers and derive canonical
 manifests and discovery schemas from their AnyVali schemas. Operations require
 explicit auth and unique stable IDs. Each view shares one params schema across
 methods; query, headers, body, response and policy are method-specific. Registry
 generation resolves dependency aliases and checks local operation/method targets.
 Path variants publish API contracts once per view. Directory discovery and
-renderer/raw/stream registration remain pending.
+renderer/finite-stream registration remain pending.
+
+`RawHandler<TParams, TQuery, THeaders, TBody>` shares input validation and host
+authorization with JSON handlers. It returns `ValueTask<RawResponse>`; JSON
+handlers reject and dispose raw results. Raw operations publish `raw: true` and
+bypass representation negotiation, including a metadata Accept header. Their
+metadata remains available through discovery. HEAD uses its GET registration and
+policy; the adapter disposes a raw HEAD body without reading it.
+
+```csharp
+using BetterPortal;
+using BetterPortal.Generated;
+
+var download = new RawHandler<object?, object?, object?, object?>(context =>
+    ValueTask.FromResult(RawResponse.File("Hello BP\n"u8.ToArray(), "report.txt", "text/plain")));
+var operation = new Operation(download, new OperationDeclarationInput {
+    OperationId = "report.get", Method = HttpMethodInput.GET, Title = "Report",
+    Description = "Download a report", Auth = new() { Required = true }
+});
+if (!operation.Handler.IsRaw) throw new Exception("Raw operation was not registered");
+```
+
+`RawResponse` accepts bytes or a readable `Stream`; ASP.NET Core owns the returned
+stream and asynchronously disposes it on completion, disconnect or failure. Reads
+wait for writes, and failures after headers abort delivery. Raw handlers must honor
+`context.Cancellation`; the runtime awaits ownership transfer so an abandoned
+result cannot leak an open file. `RawResponse.File` accepts content and creates
+safe ASCII/UTF-8 download headers. Header pairs preserve repeated cookies. The host
+owns CORS/transport headers, computes byte-body length and rejects header injection.
+Status 204/205/304 forbids a body; 206 and redirects may carry one.
 
 ```csharp
 using BetterPortal;

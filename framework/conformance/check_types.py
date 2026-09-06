@@ -52,6 +52,8 @@ from betterportal.contracts import contract
 def handle(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> TokenLifetimeConfig:
     return {"accessTokenSeconds": 900, "refreshTokenSeconds": 604800}
 handler = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, query=contract("ApiAuthRequirementSchema"))
+from betterportal.response import RawHandler, RawResponse
+download = RawHandler[Any, Any, Any, Any](lambda context: RawResponse.file(b"hello", "report.txt"))
 ''', encoding="utf-8")
 command = [python, "-m", "mypy", "--follow-imports=silent", "--follow-untyped-imports", "--cache-dir", str(root / ".tmp-run/mypy-ports")]
 subprocess.run([*command, str(positive)], env=environment, check=True)
@@ -65,9 +67,11 @@ from betterportal.handler import HandlerContext
 def bad(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> int:
     context.query["required"].upper()
     return "invalid response"
+from betterportal.response import RawHandler
+raw = RawHandler[Any, Any, Any, Any](lambda context: 42)
 ''', encoding="utf-8")
 result = subprocess.run([*command, str(negative)], env=environment, capture_output=True, text=True)
-assert result.returncode == 1 and result.stdout.count(": error:") == 5, result.stdout + result.stderr
+assert result.returncode == 1 and result.stdout.count(": error:") == 7, result.stdout + result.stderr
 
 tool = root / "framework/dotnet/BetterPortal.Tool/bin/Debug/net10.0/BetterPortal.Tool.dll"
 subprocess.run(["dotnet", str(tool), "types", "--platform", "--output", str(root / "framework/dotnet/BetterPortal/GeneratedTypes.cs"), "--check"], check=True)
