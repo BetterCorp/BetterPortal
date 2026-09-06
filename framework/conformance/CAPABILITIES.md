@@ -9,7 +9,9 @@ Current state: canonical documents, native schema adapters, token/service securi
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
 880/888 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
-finite streams 80/80 and SSE subscriptions 31/31. See
+finite streams 80/80 and SSE subscriptions 31/31.
+Context resolution passes 102/103; its Python null-active check is blocked by the
+same upstream null/default defect. The combined gate passes 2,380/2,389. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -27,7 +29,7 @@ future scenarios; they are not assertions that those tests already exist.
 | multipart/raw | contracts/route.ts, adapters/h3.ts | Pending bounded uploads, repeated fields, native raw/file responses | protocol.md | multipart-bounds, repeated-fields, raw-download, bodyless-status |
 | negotiation | runtime/media.ts, adapters/h3.ts | Python media.py/C# Media.cs: availability, quality, exclusions and modes; host/rendering integration pending | protocol.md §3; port READMEs | media_cases.py: 124 checks; exact-renderer and per-method-schema pending |
 | rendering | runtime/view.ts, element.ts, statusViews.ts | Pending HTML-returning functions, components, fragments, status renderers | fragment-html.md | fragment-selector, component-selector, themed-error, escape-html |
-| context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Pending tenant/app and trusted proxy resolution | config.md §1 | tenant-isolation, app-isolation, ambiguous-port, forged-proxy |
+| context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Python context.py/C# Context.cs prototype: canonical scoped parse, host/port lookup and origin policy; Python null-active security gate blocked by AnyVali #127; host proxy middleware/full policy references pending | config.md §1; port READMEs | context_cases.py: isolation, priority, forged hints, duplicate/orphan identities, origin restrictions, owned copies; null-active-rejected fails on Python |
 | cors | runtime/h3.ts; BSB service.ts | Pending trusted-origin policy and preflights | protocol.md §2 | allowed-preflight, denied-origin, vary, credential-headers |
 | allowlist | adapters/h3.ts resolveAppRouteAccess | Pending exact operation allowlists, GET fragment/slot mounts | config.md §1 | denied-operation, sibling-method, no-appRoutes-inbound |
 | URLs | runtime/configProvider.ts, adapters/h3.ts; BSB service.ts | Pending service aliases, routeUrl/uiRouteUrl, params/query/fragments/SSE | docs/building/shell-links.md | service-alias, cross-service-path, optional-param, shell-navigation |

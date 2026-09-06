@@ -4,6 +4,29 @@
 operation hosting, configuration, route tooling and generated clients remain in the
 [capability ledger](../conformance/CAPABILITIES.md).
 
+`ScopedConfig` imports the canonical scoped snapshot and checks tenant/app
+references, duplicate identities and ambiguous hostnames. Browser lookup compares
+scheme/host/port and returns owned tenant/app copies. `ById` resolves a claimed
+machine scope before authentication; lookup alone never authorizes a request.
+Config-management app indexes do not become runtime app lookups.
+
+Raw proxy and HTMX context headers are ignored. `Resolve(..., trustedAddresses: ...)`
+accepts addresses already verified by host proxy middleware; the host supplies
+the effective scheme. `OriginPolicy` normalizes HTTP origins and preserves exact
+path/query restrictions on referer overrides. CORS preflights, full policy
+reference validation and atomic persistent replacement remain pending. The shared
+context gate exposes Python's [AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127)
+null/default defect; .NET rejects the corresponding invalid snapshot.
+
+```csharp
+using BetterPortal;
+
+if (HttpAddress.Origin("HTTPS://Example.com:443") != "https://example.com") throw new Exception("Wrong origin");
+var snapshot = new ScopedConfig(new Dictionary<string, object?> { ["managementOrigins"] = Array.Empty<object>(),
+    ["tenants"] = Array.Empty<object>(), ["apps"] = Array.Empty<object>() });
+if (snapshot.Resolve(new Dictionary<string, string> { ["host"] = "unknown.example" }) is not null) throw new Exception("Unexpected scope");
+```
+
 `SseRoute<TInput, TEvent, TContext>` validates publication input and mapped events.
 `EventScope` comes from the trusted request context. Supply `IEventTransport`;
 the included `LocalEvents` provides thread-safe in-process fan-out, with no history

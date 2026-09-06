@@ -4,6 +4,32 @@ Python 3.10+. This is an in-progress port, **not yet a service runtime**.
 Starlette/ASGI hosting, configuration, route tooling and generated clients remain in
 the [capability ledger](../conformance/CAPABILITIES.md).
 
+`betterportal.context.ScopedConfig` imports a canonical scoped snapshot and checks
+tenant/app references, duplicate identities and ambiguous hostnames. Browser
+resolution distinguishes scheme/host/port and copies each request's tenant/app
+data. `by_id` supports looking up a claimed machine scope before authentication;
+lookup alone never authorizes a request. Configuration-management app indexes
+are separate from runtime app lookup.
+
+Raw proxy and HTMX context headers are ignored. `resolve(..., trusted_addresses=...)`
+accepts only addresses already verified by host proxy middleware; the host also
+supplies the effective scheme. `OriginPolicy` normalizes configured HTTP origins
+and preserves exact path/query restrictions on referer overrides. CORS preflights
+and atomic persistent replacement are not implemented yet.
+
+**Snapshot validation is blocked by [AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127):**
+Python 1.1.1 accepts `active: null` as the default `true`. The conformance test
+requires rejection and remains failing. Do not deploy this context prototype at
+a trust boundary until the SDK defect is fixed; BP adds no alternate validator.
+
+```python
+from betterportal.context import ScopedConfig, http_origin
+
+assert http_origin("HTTPS://Example.com:443") == "https://example.com"
+snapshot = ScopedConfig({"managementOrigins": [], "tenants": [], "apps": []})
+assert snapshot.resolve({"host": "unknown.example"}) is None
+```
+
 `betterportal.sse.SseRoute` validates publication input, maps it with subscriber
 context, and validates the resulting event. `EventScope` comes from the trusted
 request context. `EventTransport` is replaceable; the supplied `LocalEvents`

@@ -9,12 +9,18 @@ import { streaming, streamProbe } from "./node-stream.mjs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { sseProbe } from "./node-sse.mjs";
+import { contextRequest } from "./node-context.mjs";
 
 createServer(async (request, response) => {
   try {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action === "context") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(contextRequest(body)));
+      return;
+    }
     if (body.action === "sse-probe") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(await sseProbe()));

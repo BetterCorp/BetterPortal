@@ -63,6 +63,15 @@ and shutdown. The native transport interface is exercised by in-process delivery
 no external broker or cross-replica broadcast is supplied. HTTP SSE encoding and
 themed tick rendering remain pending.
 
+The [context suite](results-context.json) passes 102/103 checks for host/port isolation, service/theme
+address priority, forged hints, host-verified proxy addresses, duplicate/orphaned
+identities, configuration-only app separation, origin/referer restrictions and
+snapshot-copy ownership. Its Python `null-active-rejected` scenario remains
+failing: AnyVali #127 turns an explicit null tenant flag into `true`. This is the
+same upstream default defect at a security boundary; the prototype is not safe
+to deploy until it is fixed. CORS preflights, full policy reference validation,
+atomic storage and actual proxy middleware remain delivery work.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
@@ -90,9 +99,10 @@ to reproduce SDK defects or infer framework completeness from a package build.
 
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
-Windows. Both Python versions return the same eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,278/2,286
-checks across all eight suites, with only those original SDK probes failing.
+Windows. Both Python versions returned the original eight SDK failures. The latest
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,380/2,389
+checks across nine suites. Failures are those original SDK probes plus the
+context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.
 
 ```sh
@@ -111,6 +121,7 @@ python framework/conformance/verify.py --suite authorization
 python framework/conformance/verify.py --suite media
 python framework/conformance/verify.py --suite streams
 python framework/conformance/verify.py --suite sse
+python framework/conformance/verify.py --suite context
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -121,7 +132,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|all` (default: all).
 
 The HTTP runner can also target independently launched adapters:
 

@@ -35,6 +35,7 @@ from betterportal.authorization import AuthContext, authorize_request
 from betterportal.media import negotiate
 from betterportal.streaming import StreamHandler, Summary
 from betterportal.sse import LocalEvents, SseRoute, EventScope
+from betterportal.context import ScopedConfig, http_origin
 from betterportal.contracts import contract
 import asyncio
 assert str(wheel.resolve()) in betterportal.__file__
@@ -65,6 +66,8 @@ async def sse():
     finally:
         await transport.aclose()
 asyncio.run(sse())
+assert http_origin("HTTPS://Example.com:443") == "https://example.com"
+assert ScopedConfig({"managementOrigins": [], "tenants": [], "apps": []}).resolve({"host": "unknown.test"}) is None
 subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
     str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
     env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)
