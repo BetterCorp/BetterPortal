@@ -11,6 +11,7 @@ from typing import Any
 from .clientgen import generate_client
 from .contracts import parse
 from .jsoncodec import loads
+from .registry_client import RegistryClient
 
 
 def _read(path: Path) -> bytes:
@@ -109,6 +110,22 @@ class Project:
     def add_local(self, value: str, path: str | Path, alias: str | None = None) -> Any:
         selector = self.selector(value)
         source, reference, data, contract = self.local(selector, path)
+        return self._install(selector, source, reference, data, contract, alias)
+
+    async def add_registry(self, value: str, alias: str | None = None, url: str | None = None) -> Any:
+        selector = self.selector(value)
+        if alias is not None: self._aliases({**self.config.get("dependencies", {}), alias: value})
+        reference, data, contract = await RegistryClient(url).lookup(*selector)
+        return self._install(selector, None, reference, data, contract, alias)
+
+    async def publish(self, file: str | Path, url: str | None = None) -> Any:
+        reference = self.config.get("registryRef")
+        if reference is None: raise ValueError("betterportal.json must define registryRef before publishing")
+        token = os.environ.get("BP_REGISTRY_TOKEN")
+        if not token: raise ValueError("BP_REGISTRY_TOKEN is required")
+        return await RegistryClient(url).publish(reference, _json(_read(self.directory / file)), token)
+
+    def _install(self, selector: tuple[str, str, str | None], source: Path | None, reference: str, data: bytes, contract: Any, alias: str | None) -> Any:
         alias = alias or reference.split("/")[1]
         dependencies = {**self.config.get("dependencies", {}), alias: reference + "@" + (selector[2] or contract["manifest"]["version"])}
         self._aliases(dependencies)
@@ -127,7 +144,8 @@ class Project:
         _write(self._output(alias), generated)
         self.config["dependencies"] = dependencies
         self.lock["dependencies"][alias] = locked
-        locals[alias] = {**locked, "path": os.path.relpath(source, self.directory)}
+        if source is None: locals.pop(alias, None)
+        else: locals[alias] = {**locked, "path": os.path.relpath(source, self.directory)}
         _document(self.directory / ".betterportal/local-lock.json", locals)
         _document(self.directory / "betterportal.json", self.config)
         _document(self.directory / "betterportal.lock.json", self.lock)

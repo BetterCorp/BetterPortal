@@ -1332,5 +1332,59 @@
         "path": "../provider"
       }
     }
+  },
+  {
+    "id": "registry-catalog-empty",
+    "contract": "RegistryPackageListSchema",
+    "input": [],
+    "output": []
+  },
+  {
+    "id": "registry-catalog-null",
+    "contract": "RegistryPackageListSchema",
+    "input": null,
+    "valid": false
+  },
+  {
+    "id": "registry-publish-result",
+    "contract": "RegistryPublishResultSchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "unchanged": false
+    },
+    "output": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "unchanged": false
+    }
+  },
+  {
+    "id": "registry-publish-required",
+    "contract": "RegistryPublishResultSchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "valid": false
+  },
+  {
+    "id": "registry-publish-unknown",
+    "contract": "RegistryPublishResultSchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "unchanged": false,
+      "extra": true
+    },
+    "valid": false
   }
 ]

@@ -1,5 +1,6 @@
 """Native BP authoring commands; no Node or BSB build hooks."""
 import argparse
+import asyncio
 import json
 from pathlib import Path
 
@@ -24,11 +25,17 @@ def main() -> None:
     client.add_argument("--output", type=Path, required=True)
     client.add_argument("--class-name", default="DependencyClient")
     client.add_argument("--check", action="store_true", help="Fail if the generated client is stale")
-    dependencies = commands.add_parser("deps", help="Install local dependency contracts or verify a frozen build")
+    publish = commands.add_parser("publish", help="Publish an exported contract to the configured registry")
+    publish.add_argument("--contract", type=Path, required=True)
+    publish.add_argument("--project", type=Path, default=Path.cwd())
+    publish.add_argument("--registry", help="Registry URL (defaults to BP_REGISTRY_URL)")
+    dependencies = commands.add_parser("deps", help="Install dependency contracts or verify a frozen build")
     actions = dependencies.add_subparsers(dest="action", required=True)
     add = actions.add_parser("add")
     add.add_argument("selector")
-    add.add_argument("--path", type=Path, required=True, help="A local service project with an exported contract")
+    source = add.add_mutually_exclusive_group()
+    source.add_argument("--path", type=Path, help="A local service project with an exported contract")
+    source.add_argument("--registry", help="Registry URL (defaults to BP_REGISTRY_URL)")
     add.add_argument("--alias")
     add.add_argument("--project", type=Path, default=Path.cwd())
     sync = actions.add_parser("sync")
@@ -36,9 +43,14 @@ def main() -> None:
     sync.add_argument("--frozen", action="store_true", required=True)
     sync.add_argument("--check", action="store_true", help="Verify generated dependencies without writing files")
     args = parser.parse_args()
+    if args.command == "publish":
+        print(json.dumps(asyncio.run(Project(args.project).publish(args.contract, args.registry))))
+        return
     if args.command == "deps":
         project = Project(args.project)
-        if args.action == "add": print(json.dumps(project.add_local(args.selector, args.path, args.alias)))
+        if args.action == "add":
+            value = project.add_local(args.selector, args.path, args.alias) if args.path is not None else asyncio.run(project.add_registry(args.selector, args.alias, args.registry))
+            print(json.dumps(value))
         else:
             for generated_path in project.frozen(check=args.check): print(generated_path)
         return

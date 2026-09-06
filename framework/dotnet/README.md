@@ -839,7 +839,7 @@ Snapshot replacement invalidates captured request clients and pending responses;
 background clients resolve policy again on each call. Request cancellation and
 service shutdown stop pending HTTP work. `ClientException` exposes the upstream
 status with a generic message, without its error body. Raw/streaming dependency
-responses and registry-backed dependency installation remain delivery work.
+responses remain delivery work.
 
 Generate a typed JSON client from the dependency's exported BP schema:
 
@@ -883,5 +883,33 @@ Frozen builds use that cache, check the configured identity/version, and validat
 all dependencies before updating generated files. They perform no network lookup
 or local override discovery; `--check` performs no writes. Explicit installation
 can migrate a legacy Node lock. Native frozen builds reject legacy locale-dependent
-digests; Node's CLI supports both formats. Registry lookup/publishing, automatic
-local discovery and route scaffolding remain delivery work.
+digests; Node's CLI supports both formats. Automatic local discovery and route
+scaffolding remain delivery work.
+
+## Registry installation and publishing
+
+```sh
+bp-dotnet deps add example/service@1.0.0 --alias peer
+bp-dotnet deps add com.example.service@1.0.0 --alias peer
+bp-dotnet publish --contract bp-contract.json --project .
+```
+
+Without `--path`, installation uses `BP_REGISTRY_URL` (default
+`https://io.betterportal.org`); `--registry URL` overrides it. Short names use
+`defaultNamespace` or require a unique registry match. An explicit version is
+fetched after short-name resolution; omitted versions and `latest` resolve the
+registry's current version. Installation pins the exact response bytes and uses
+the same offline frozen-build commands above.
+
+Publishing requires the project's `registryRef` and a `BP_REGISTRY_TOKEN`
+environment variable. It submits an existing exported contract; the registry
+enforces publisher prefixes, permanent identity bindings and immutable versions.
+Identical retries return `unchanged: true`. Running `publish` writes to the
+selected registry. These tools do not build or export your service implicitly.
+
+Both commands require HTTPS with exact-loopback HTTP exceptions, reject
+redirects and compressed/non-JSON responses, and enforce 16 MiB payload limits
+and a 30-second total deadline per request. Ctrl+C cancels pending HTTP work.
+They send no environment proxy credentials or stored cookies; publisher
+credentials are never sent on lookups or included in upstream error messages.
+Contract export commands remain delivery work.

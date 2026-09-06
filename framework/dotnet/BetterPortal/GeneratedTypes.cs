@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 6a9978ac3fb1a6b8a35decefb19599c5f3eb1ab90e87df0d1b6f3bc12212946b
+// Generated from AnyVali documents; do not edit. SHA256: caa43f3cd980a22967d653668ea9f23e26577e640de04975244aa12ae301248c
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -6922,6 +6922,66 @@ public sealed record PublicJwksInput
 {
     [JsonPropertyName("keys")]
     public required IReadOnlyList<RsaPublicJwkInput> Keys { get; init; }
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct RegistryPackageList(IReadOnlyList<RegistryPackageListItem> Value) : IWireValue<RegistryPackageList, IReadOnlyList<RegistryPackageListItem>>
+{
+    public static RegistryPackageList FromValue(IReadOnlyList<RegistryPackageListItem> value) => new(value);
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct RegistryPackageListInput(IReadOnlyList<RegistryPackageListInputItem> Value) : IWireValue<RegistryPackageListInput, IReadOnlyList<RegistryPackageListInputItem>>
+{
+    public static RegistryPackageListInput FromValue(IReadOnlyList<RegistryPackageListInputItem> value) => new(value);
+}
+
+public sealed record RegistryPackageListInputItem
+{
+    [JsonPropertyName("registryRef")]
+    public required string RegistryRef { get; init; }
+    [JsonPropertyName("contract")]
+    public required BpSchemaOutputInput Contract { get; init; }
+    [JsonPropertyName("versions")]
+    public required IReadOnlyList<string> Versions { get; init; }
+}
+
+public sealed record RegistryPackageListItem
+{
+    [JsonPropertyName("registryRef")]
+    public required string RegistryRef { get; init; }
+    [JsonPropertyName("contract")]
+    public required BpSchemaOutput Contract { get; init; }
+    [JsonPropertyName("versions")]
+    public required IReadOnlyList<string> Versions { get; init; }
+}
+
+public sealed record RegistryPublishResult
+{
+    [JsonPropertyName("registryRef")]
+    public required string RegistryRef { get; init; }
+    [JsonPropertyName("pluginId")]
+    public required string PluginId { get; init; }
+    [JsonPropertyName("version")]
+    public required string Version { get; init; }
+    [JsonPropertyName("digest")]
+    public required string Digest { get; init; }
+    [JsonPropertyName("unchanged")]
+    public required bool Unchanged { get; init; }
+}
+
+public sealed record RegistryPublishResultInput
+{
+    [JsonPropertyName("registryRef")]
+    public required string RegistryRef { get; init; }
+    [JsonPropertyName("pluginId")]
+    public required string PluginId { get; init; }
+    [JsonPropertyName("version")]
+    public required string Version { get; init; }
+    [JsonPropertyName("digest")]
+    public required string Digest { get; init; }
+    [JsonPropertyName("unchanged")]
+    public required bool Unchanged { get; init; }
 }
 
 [JsonConverter(typeof(WireValueConverterFactory))]

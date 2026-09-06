@@ -8,8 +8,8 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,374/1,404 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 77 semantic cases and imports all 157 documents, then repeats
+Published AnyVali **1.1.1** passes [1,416/1,446 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 82 semantic cases and imports all 159 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -315,8 +315,19 @@ uses SHA-256 without locale-dependent serialization. Node accepts these pins and
 retains its legacy locks; native migration requires explicit installation and
 preserves aliases sharing the old cache. Corrupt caches, changed selectors,
 missing pins and colliding native filenames fail verification. Six canonical
-AnyVali documents define project/lock data. Registry installation, automatic local
-discovery and contract export/publishing commands remain delivery work.
+AnyVali documents define project/lock data. Automatic local discovery and contract
+export commands remain delivery work.
+
+`check_registry_tools.py` passes 122 CLI checks on Windows and Linux against the real Node
+registry handler and file store, plus explicitly separate hostile HTTP fixtures.
+Both native tools publish identical contracts idempotently, resolve full references,
+plugin IDs and short names, fetch requested versions, and pin exact response bytes.
+Checks cover immutable versions, permanent identity bindings, publisher prefixes,
+missing credentials, malformed/oversized responses, redirects, cookie/credential
+isolation and total deadlines against trickling responses. After the registry
+process stops, every installed client still verifies through an offline frozen build.
+Two shared AnyVali documents describe registry catalog and publication responses.
+No remote registry or package release is performed by these tests.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -383,6 +394,14 @@ client-generator checkpoint runs, not a merge with these later schema results.
 Project tooling, compiler checks, README examples and package builds also pass
 on Linux at this stage.
 
+The subsequent registry-tooling stage adds two documents and five schema cases.
+Its Windows and [Linux schema gates](results-registry-schema-linux.json) pass
+1,416/1,446 with exactly the preceding 30 failure identities; no new SDK failures
+were introduced. Native compiler, local-lock and generated-client regressions,
+README execution and unpublished package checks also pass on Linux. The earlier
+full runtime reports remain unchanged because this stage changes authoring
+commands and contracts.
+
 The conformance executable uses workstation GC for its small sequential probes.
 Diagnostics on Windows identified a 2.875-second server-GC pause during a
 two-second shutdown assertion. The fixture also reuses each host's bootstrap
@@ -409,6 +428,7 @@ been pushed.
 npm ci --workspaces --include-workspace-root
 npm run build --workspace @betterportal/plugin-bsb
 npm run build --workspace @betterportal/config-manager
+npm run build --workspace @betterportal/registry
 node framework/conformance/export-contracts.mjs --check
 node framework/conformance/export-fixtures.mjs --check
 node framework/conformance/export-encryption-fixtures.mjs --check
@@ -502,6 +522,7 @@ dotnet build framework/dotnet/BetterPortal.Tool --no-restore
 python framework/conformance/check_types.py
 python framework/conformance/check_clientgen.py
 python framework/conformance/check_projects.py
+python framework/conformance/check_registry_tools.py
 python framework/conformance/check_docs.py
 dotnet pack framework/dotnet/BetterPortal --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output .tmp-run/ports-packages

@@ -105,6 +105,24 @@ internal sealed class Project
     public Node AddLocal(string value, string path, string? alias)
     {
         var selector = Selector(value); var (source, reference, data, contract) = Local(selector, path);
+        return Install(selector, source, reference, data, contract, alias);
+    }
+    public async Task<Node> AddRegistry(string value, string? alias, string? url, CancellationToken cancellation)
+    {
+        var selector = Selector(value);
+        if (alias is not null) Aliases(new Node((Node)config.GetValueOrDefault("dependencies", new Node())!) { [alias] = value });
+        var (reference, data, contract) = await new RegistryClient(url).Lookup(selector.Kind, selector.Identity, selector.Version, cancellation);
+        return Install(selector, null, reference, data, contract, alias);
+    }
+    public Task<Node> Publish(string file, string? url, CancellationToken cancellation)
+    {
+        if (config.GetValueOrDefault("registryRef") is not string reference) throw new ArgumentException("betterportal.json must define registryRef before publishing");
+        var token = Environment.GetEnvironmentVariable("BP_REGISTRY_TOKEN");
+        if (string.IsNullOrEmpty(token)) throw new ArgumentException("BP_REGISTRY_TOKEN is required");
+        return new RegistryClient(url).Publish(reference, Json.Read(Utf8.GetString(Read(Path.GetFullPath(file, directory)))), token, cancellation);
+    }
+    private Node Install((string Kind, string Identity, string? Version) selector, string? source, string reference, byte[] data, Node contract, string? alias)
+    {
         alias ??= reference.Split('/')[^1]; var manifest = (Node)contract["manifest"]!;
         var dependencies = new Node((Node)config.GetValueOrDefault("dependencies", new Node())!) { [alias] = reference + "@" + (selector.Version ?? manifest["version"]) };
         Aliases(dependencies);
@@ -126,7 +144,8 @@ internal sealed class Project
         // Cache and generated code precede the lock update. Interrupted updates fail frozen verification.
         Write(Cache(entry), data); Write(Output(alias), generated);
         config["dependencies"] = dependencies; ((Node)locked["dependencies"]!)[alias] = entry;
-        locals[alias] = new Node(entry) { ["path"] = Path.GetRelativePath(directory, source) };
+        if (source is null) locals.Remove(alias);
+        else locals[alias] = new Node(entry) { ["path"] = Path.GetRelativePath(directory, source) };
         Document(".betterportal/local-lock.json", locals); Document("betterportal.json", config); Document("betterportal.lock.json", locked);
         return entry;
     }
@@ -152,24 +171,32 @@ internal sealed class Project
         return prepared.Select(value => value.Path).ToArray();
     }
 
-    public static int Command(string[] args)
+    public static async Task<int> Command(string[] args, CancellationToken cancellation)
     {
-        if (args.Length == 0 || args[0] is not ("add" or "sync")) throw new ArgumentException("Use deps add SELECTOR --path PROJECT or deps sync --frozen");
+        if (args.Length == 0 || args[0] is not ("add" or "sync" or "publish")) throw new ArgumentException("Use deps add SELECTOR, deps sync --frozen or publish --contract FILE");
         var add = args[0] == "add";
+        var publish = args[0] == "publish";
         if (add && (args.Length < 2 || args[1].StartsWith("--", StringComparison.Ordinal))) throw new ArgumentException("A dependency selector is required");
         var options = new Dictionary<string, string?>();
         for (var index = add ? 2 : 1; index < args.Length; index++)
         {
             var option = args[index];
-            if (!add && option is "--frozen" or "--check") options.Add(option, null);
-            else if ((option == "--project" || add && option is "--path" or "--alias") && index + 1 < args.Length) options.Add(option, args[++index]);
+            if (!add && !publish && option is "--frozen" or "--check") options.Add(option, null);
+            else if ((option == "--project" || (add || publish) && option == "--registry" || add && option is "--path" or "--alias" || publish && option == "--contract") && index + 1 < args.Length) options.Add(option, args[++index]);
             else throw new ArgumentException("Unknown or incomplete argument: " + option);
         }
         var project = new Project(options.GetValueOrDefault("--project") ?? Directory.GetCurrentDirectory());
-        if (add)
+        if (publish)
         {
-            if (options.GetValueOrDefault("--path") is not string path) throw new ArgumentException("A local --path is required");
-            Console.WriteLine(Json.Write(project.AddLocal(args[1], path, options.GetValueOrDefault("--alias"))));
+            if (options.GetValueOrDefault("--contract") is not string file) throw new ArgumentException("A --contract file is required");
+            Console.WriteLine(Json.Write(await project.Publish(file, options.GetValueOrDefault("--registry"), cancellation)));
+        }
+        else if (add)
+        {
+            if (options.ContainsKey("--path") && options.ContainsKey("--registry")) throw new ArgumentException("Select --path or --registry");
+            var result = options.GetValueOrDefault("--path") is string path ? project.AddLocal(args[1], path, options.GetValueOrDefault("--alias"))
+                : await project.AddRegistry(args[1], options.GetValueOrDefault("--alias"), options.GetValueOrDefault("--registry"), cancellation);
+            Console.WriteLine(Json.Write(result));
         }
         else
         {

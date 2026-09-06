@@ -7,7 +7,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-1,374/1,404 schema probes; token/service security passes 459/459 scenarios and JWKS
+1,416/1,446 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
@@ -29,6 +29,8 @@ the upstream failures. Hosted CI execution awaits a future push.
 The subsequent local project-tooling stage passes 130 CLI checks on Windows and
 Linux. Its separate schema runs add two failing defaulted-record probes for #127;
 the earlier combined reports have not been relabeled as new full runs.
+Registry installation/publishing adds 122 passing Windows/Linux CLI checks and two
+canonical response documents; its schema gate retains the same 30 SDK failures.
 Inbound operation mounts and local permission aliases pass 130/130 access checks.
 Context resolution passes 102/103; its Python null-active check is blocked by the
 same upstream null/default defect. See
@@ -41,7 +43,7 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 157 canonical documents embedded in both packages, including derived authoring declarations and project locks; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,374/1,404 including all-document round trips |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 159 canonical documents embedded in both packages, including derived authoring declarations, project locks and registry responses; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,416/1,446 including all-document round trips |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; typed subscriber-feed binding; full contexts pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors and renderer/streaming metadata | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
@@ -76,9 +78,9 @@ future scenarios; they are not assertions that those tests already exist.
 | observability | contracts/observability.ts, runtime/traceContext.ts, h3.ts | Pending replaceable logging/tracing/metrics and safe diagnostics | protocol.md §4 | trace-propagation, outcome-status, secret-redaction |
 | scaffold | codegen/init.ts, cli/bp.ts | Pending native commands with runnable examples | Port READMEs (pending) | scaffold-build-run, no-node-no-BSB |
 | discovery-tools | codegen/scanner.ts, emitter.ts, validate.ts | Pending compiler-supported C# and module-based Python discovery | docs/building/routes-and-views.md | route-dirs, optional-params, stable-ID, renderer-fragment-SSE-selection |
-| contract-tools | cli/project.ts, contract.ts, publish.ts | Native betterportal.json/lock parsing and explicit local contract resolution preserve registry identity and exact versions; registry installation, automatic discovery and export/publishing commands pending | docs/building/services.md; port READMEs | check_projects.py: native local resolution, identity/version checks and frozen cache verification; native-export and registry resolution pending |
-| dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Native runtime and generated JSON clients use AnyVali documents and scoped credentials; project commands install local contracts and verify shared byte locks before frozen generation; raw/streaming clients pending | auth.md §3; port READMEs | client_cases.py: 210 checks, including four generated cross-language host pairs in user/service/delegated modes; check_clientgen.py compiles all three registry exports; check_projects.py: 130 CLI checks for locks, tampering, migration, alias conflicts and frozen builds; two Node-generated outbound pairs pending |
-| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py, check_projects.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
+| contract-tools | cli/project.ts, contract.ts, publish.ts | Native project/lock parsing, explicit local and registry installation preserve identity/version; publishing submits validated exported contracts through bounded authenticated HTTP; automatic discovery and export commands pending | docs/building/services.md; port READMEs | check_projects.py: 130 CLI checks; check_registry_tools.py: 122 checks against the real Node registry, hostile responses and offline builds; native-export pending |
+| dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Native runtime and generated JSON clients use AnyVali documents and scoped credentials; project commands install local/registry contracts and verify shared byte locks before frozen generation; raw/streaming clients pending | auth.md §3; port READMEs | client_cases.py: 210 checks, including four generated cross-language host pairs in user/service/delegated modes; check_clientgen.py compiles all three registry exports; check_projects.py: 130 CLI checks for locks, tampering, migration, alias conflicts and frozen builds; two Node-generated outbound pairs pending |
+| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py, check_projects.py, check_registry_tools.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
 
 ## BP and BSB ownership
 

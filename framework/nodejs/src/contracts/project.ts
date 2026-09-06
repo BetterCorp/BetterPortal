@@ -1,6 +1,7 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import { PluginIdSchema, SemverSchema } from "./common.js";
+import { BpSchemaOutputSchema } from "./manifest.js";
 
 export const RegistryReferenceSchema = av.string().pattern("^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$");
 export const DependencyAliasSchema = av.string().pattern("^[A-Za-z][A-Za-z0-9_-]*$");
@@ -31,3 +32,17 @@ export type BetterPortalLock = Infer<typeof BetterPortalLockSchema>;
 export const LocalDependencyLockSchema = av.record(av.object({
   ...lockedFields, path: av.string().minLength(1)
 }, { unknownKeys: "reject" }));
+
+// Existing service-betterportal-registry responses, shared with native tooling.
+export const RegistryPackageListSchema = av.array(av.object({
+  registryRef: RegistryReferenceSchema,
+  contract: BpSchemaOutputSchema,
+  versions: av.array(SemverSchema)
+}, { unknownKeys: "reject" }));
+export const RegistryPublishResultSchema = av.object({
+  registryRef: RegistryReferenceSchema,
+  pluginId: PluginIdSchema,
+  version: SemverSchema,
+  digest: lockedFields.digest,
+  unchanged: av.bool()
+}, { unknownKeys: "reject" });

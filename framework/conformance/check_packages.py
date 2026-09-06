@@ -50,12 +50,18 @@ from betterportal.settings import SettingsSchema, ServiceSettings
 from betterportal.config_api import ConfigApi
 from betterportal.authorization import AuthorizedCaller
 from betterportal.contracts import contract
+from betterportal.project import Project
+from betterportal.registry_client import RegistryClient
 import asyncio
 assert str(wheel.resolve()) in betterportal.__file__
 assert parse("JsonObjectSchema", {"x": [None, {"y": True}]}) == {"x": [None, {"y": True}]}
 key = KeyPair.generate()
 assert public_keys({"keys": [key.public_jwk()]})[key.kid] == key.public_key_pem
 assert secure_endpoint("https://keys.example") == "https://keys.example"
+assert RegistryClient("http://127.0.0.1:1234").url == "http://127.0.0.1:1234"
+import tempfile
+with tempfile.TemporaryDirectory() as project_directory:
+    assert Project(project_directory).frozen(check=True) == []
 cipher = ConfigCipher(ConfigCipher.generate_key())
 assert cipher.decrypt(cipher.encrypt({"value": None})) == {"value": None}
 settings = SettingsSchema([])

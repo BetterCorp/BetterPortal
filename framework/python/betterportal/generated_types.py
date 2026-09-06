@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: d57532514396287116565fc9f9299f7d5de52d65a7ce88cc05f0cc23df9221a1
+# Generated from AnyVali documents; do not edit. SHA256: db76902f67175e63bcc433b0f120513db287d4481a47e99fa0786baa607dfe27
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -2725,6 +2725,38 @@ PublicJwks = TypedDict('PublicJwks', {
 
 PublicJwksInput = TypedDict('PublicJwksInput', {
     'keys': Required['list[RsaPublicJwkInput]'],
+})
+
+RegistryPackageList: TypeAlias = 'list[RegistryPackageListItem]'
+
+RegistryPackageListInput: TypeAlias = 'list[RegistryPackageListInputItem]'
+
+RegistryPackageListInputItem = TypedDict('RegistryPackageListInputItem', {
+    'registryRef': Required['str'],
+    'contract': Required['BpSchemaOutputInput'],
+    'versions': Required['list[str]'],
+})
+
+RegistryPackageListItem = TypedDict('RegistryPackageListItem', {
+    'registryRef': Required['str'],
+    'contract': Required['BpSchemaOutput'],
+    'versions': Required['list[str]'],
+})
+
+RegistryPublishResult = TypedDict('RegistryPublishResult', {
+    'registryRef': Required['str'],
+    'pluginId': Required['str'],
+    'version': Required['str'],
+    'digest': Required['str'],
+    'unchanged': Required['bool'],
+})
+
+RegistryPublishResultInput = TypedDict('RegistryPublishResultInput', {
+    'registryRef': Required['str'],
+    'pluginId': Required['str'],
+    'version': Required['str'],
+    'digest': Required['str'],
+    'unchanged': Required['bool'],
 })
 
 RegistryReference: TypeAlias = 'str'
