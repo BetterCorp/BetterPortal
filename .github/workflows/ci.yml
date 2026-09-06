@@ -30,3 +30,75 @@ jobs:
       - run: npm run lint
       - run: npx playwright install --with-deps chromium
       - run: npm test
+
+  ports:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.14']
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: framework/conformance/requirements*.txt
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+          cache: true
+          cache-dependency-path: framework/dotnet/**/packages.lock.json
+
+      - name: Install conformance dependencies and build Node peers
+        run: |
+          python -m pip install -r framework/conformance/requirements-ci.txt
+          npm ci --workspaces --include-workspace-root
+          npm run build --workspace @betterportal/plugin-bsb
+          npm run build --workspace @betterportal/config-manager
+
+      - name: Check canonical contracts
+        run: |
+          node framework/conformance/export-contracts.mjs --check
+          node framework/conformance/export-fixtures.mjs --check
+          node framework/conformance/export-encryption-fixtures.mjs --check
+
+      - name: Build native projects with locked dependencies
+        run: |
+          dotnet restore framework/dotnet/Conformance --locked-mode
+          dotnet restore framework/dotnet/BetterPortal.Tool --locked-mode
+          dotnet build framework/dotnet/Conformance --no-restore -m:1 -p:UseSharedCompilation=false
+          dotnet build framework/dotnet/BetterPortal.Tool --no-restore -m:1 -p:UseSharedCompilation=false
+
+      - name: Check generated types and executable documentation
+        run: |
+          python framework/conformance/check_types.py
+          python framework/conformance/check_docs.py
+
+      - name: Build and verify unpublished packages
+        run: |
+          dotnet pack framework/dotnet/BetterPortal --no-restore --output ports-artifacts/packages
+          dotnet pack framework/dotnet/BetterPortal.AspNetCore --no-restore --output ports-artifacts/packages
+          dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output ports-artifacts/packages
+          python -m build framework/python --no-isolation --outdir ports-artifacts/packages
+          python framework/conformance/check_packages.py ports-artifacts/packages
+
+      # Upstream AnyVali failures fail this gate until resolved.
+      - name: Run the full HTTP interoperability gate
+        run: python framework/conformance/verify.py --roundtrip-all --report ports-artifacts/conformance.json
+
+      - name: Preserve packages and conformance report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-ports-python-${{ matrix.python }}
+          path: ports-artifacts/
+          retention-days: 14

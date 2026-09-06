@@ -52,8 +52,8 @@ buffered JSON/NDJSON/SSE and lifecycle probes: ordered validated items, optional
 summary, one terminal, producer/validation errors, native frame/buffer limits,
 pull backpressure, wire disconnects, early close and cancellation. Native buffered cancellation
 propagates instead of returning partial success. Recursive response schema
-composition is also checked. Finite HTML rendering and operation hosting remain
-pending; these test adapters are not consumer hosts.
+composition is also checked. Finite HTML rendering and consumer operation hosting
+are covered by the finite-operation suite below.
 
 The [SSE subscription suite](results-sse.json) passes 71 checks: real Node/native
 subscription fan-out, view/tenant/app isolation, queue overflow, reconnect without
@@ -66,7 +66,7 @@ injection/byte bounds, ID reset, rendered tick failures followed by recovery,
 renderer cancellation and owned subscription cleanup. The .NET writer verifies
 flush backpressure and uses the platform formatter. H3 omits empty IDs; the ports
 preserve the standard reset behavior. Host authorization and renderer selection
-remain pending.
+are covered by the subscriber feed suite below.
 
 The [context suite](results-context.json) passes 102/103 checks for host/port isolation, service/theme
 address priority, forged hints, host-verified proxy addresses, duplicate/orphaned
@@ -316,14 +316,28 @@ context/config null-active regressions and eighteen sensitive-ref regressions.
 This combined report records one serialized run, including subscriber feeds,
 finite operations, installation and sync cancellation regressions. Its 28 failure
 identities exactly match the previous checkpoint; no new failures were introduced.
-Linux execution is still acceptance work.
+The [Linux Python 3.14.4 run](results-linux-anyvali-1.1.1.json), using Node 24.4.0
+and .NET SDK 10.0.400/runtime 10.0.11, passes the same 5,175/5,203 checks with
+exactly the same 28 failure identities. It ran from a clean archive of commit
+`6520ac9` on the native Linux filesystem; compiler, executable documentation and
+package checks also passed there.
+
+The [CI ports job](../../.github/workflows/ci.yml) runs Python 3.10 and 3.14 on
+Linux with .NET 10, checks canonical exports and native types, executes README
+examples, builds and checks unpublished packages, then runs the full HTTP gate.
+It retains packages and the JSON report even when conformance fails. The known
+AnyVali probes deliberately fail the job; they are not waived. The workflow has
+been validated locally but has not run on the hosted runner: this branch has not
+been pushed.
 
 ```sh
-npm run build --workspace @betterportal/framework
+npm ci --workspaces --include-workspace-root
+npm run build --workspace @betterportal/plugin-bsb
+npm run build --workspace @betterportal/config-manager
 node framework/conformance/export-contracts.mjs --check
 node framework/conformance/export-fixtures.mjs --check
 node framework/conformance/export-encryption-fixtures.mjs --check
-python -m pip install -r framework/conformance/requirements.txt
+python -m pip install -r framework/conformance/requirements-ci.txt
 dotnet restore framework/dotnet/Conformance --locked-mode
 dotnet build framework/dotnet/Conformance --no-restore
 python framework/conformance/verify.py --roundtrip-all --report results.json
@@ -405,22 +419,22 @@ byte-for-byte checks remain stable on Windows.
 ## Native package checks
 
 ```sh
-python -m pip install build setuptools wheel mypy
-python -m build framework/python --outdir .tmp-run/ports-packages
-python framework/conformance/check_packages.py .tmp-run/ports-packages
-python framework/conformance/check_docs.py
-dotnet build framework/dotnet/BetterPortal.Tool
+python -m pip install -r framework/conformance/requirements-ci.txt
+dotnet restore framework/dotnet/BetterPortal.Tool --locked-mode
+dotnet build framework/dotnet/BetterPortal.Tool --no-restore
 python framework/conformance/check_types.py
-python -m mypy framework/python/betterportal --follow-imports=silent --follow-untyped-imports
+python framework/conformance/check_docs.py
 dotnet pack framework/dotnet/BetterPortal --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.AspNetCore --no-restore --output .tmp-run/ports-packages
+python -m build framework/python --no-isolation --outdir .tmp-run/ports-packages
+python framework/conformance/check_packages.py .tmp-run/ports-packages
 ```
 
 The package check compares every wheel/sdist document byte for byte, then imports
 the wheel directly to exercise recursive parsing, RSA and ASGI health without Node
 or the source tree. `--follow-untyped-imports` lets mypy inspect AnyVali, whose
-wheel lacks py.typed. Linux execution remains a delivery check.
+wheel lacks py.typed. These checks passed on Windows and Linux.
 
 ## Remaining delivery
 
@@ -428,5 +442,6 @@ wheel lacks py.typed. Linux execution remains a delivery check.
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
 HTTP suite (global theme helpers, hostname changes,
-authorized diagnostics and generated clients), standalone examples and CI remains
-incomplete. Publishing and BSB plugins remain separate follow-ups.
+authorized diagnostics and generated clients) and standalone examples remain
+incomplete. CI is wired but awaits a hosted run and upstream AnyVali fixes.
+Publishing and BSB plugins remain separate follow-ups.

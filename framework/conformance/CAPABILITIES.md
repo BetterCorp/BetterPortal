@@ -20,7 +20,10 @@ Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane syn
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 138/139 and protected bootstrap storage 147/147, and installation 131/131. The full gate passes 5,175/5,203;
 the remaining probes expose SDK defects/limitations, including Python's explicit-null
-tenant flag affecting config authorization.
+tenant flag affecting config authorization. Windows Python 3.10 and Linux Python
+3.14 produce the same full-gate failure identities. Linux compiler, documentation
+and package checks pass; CI runs those gates on Python 3.10/3.14 without waiving
+the upstream failures. Hosted CI execution awaits a future push.
 Inbound operation mounts and local permission aliases pass 130/130 access checks.
 Context resolution passes 102/103; its Python null-active check is blocked by the
 same upstream null/default defect. See
@@ -70,7 +73,7 @@ future scenarios; they are not assertions that those tests already exist.
 | discovery-tools | codegen/scanner.ts, emitter.ts, validate.ts | Pending compiler-supported C# and module-based Python discovery | docs/building/routes-and-views.md | route-dirs, optional-params, stable-ID, renderer-fragment-SSE-selection |
 | contract-tools | cli/project.ts, contract.ts, publish.ts | Pending betterportal.json, registry identity, local exports/publishing | docs/building/services.md | registry-identity, native-export, local-contract-resolution |
 | dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Pending typed clients using runtime context and explicit caller mode | auth.md §3 | betterportal.lock.json, frozen-build, digest-mismatch, all-language-pairs |
-| delivery | .github/workflows/ci.yml | Partial: mypy/compiler checks, Python 3.10/3.13 HTTP gates, local wheel/sdist/NuGet builds, embedded-corpus package check and executed README examples; CI pending | Port READMEs | check_packages.py, check_docs.py, check_types.py; Linux, CM+Bootstrap and six client/server pairs pending |
+| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py; hosted CI, CM+Bootstrap and six client/server pairs pending |
 
 ## BP and BSB ownership
 
