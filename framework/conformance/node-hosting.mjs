@@ -11,15 +11,19 @@ import { getSigningKeyForKid, clearJwksCache } from "../nodejs/lib/runtime/auth/
 import { registryRequest, rendererSets } from "./node-registry.mjs";
 import { urlCalls } from "./node-urls.mjs";
 import { FeedProbe } from "./node-feeds.mjs";
+import { BPService } from "../../plugins/nodejs/betterportal-bsb/lib/service.js";
 
 export async function hostingRequest(body) {
   clearJwksCache();
   let invoked = 0;
   const feeds = new FeedProbe(body);
   const snapshot = ScopedServiceConfigSchema.parse(body.snapshot);
+  // Exercise the existing BP-owned machine envelope/context policy still hosted by BSB.
+  const machineHost = body.machineHost ? Object.assign(Object.create(BPService.prototype), { scopedConfig: snapshot }) : null;
   const config = { ...snapshot, platformServices: [], sharedServiceActivations: [], sharedServiceCatalog: [],
     manifestCache: snapshot.apps.filter(app => app.shell).map(app => ({ serviceId: app.shell.serviceId, shell: app.shell })) };
   const resolve = event => {
+    if (machineHost) return event.__bpTenant && event.__bpApp ? { tenant: event.__bpTenant, app: event.__bpApp } : null;
     const context = resolveRequestContextDetailed(config, eventHeaders(event), "service").context;
     // This trusted app attachment is BP orchestration currently performed by BSB.
     if (context) event.__bpApp = context.app;
@@ -70,6 +74,7 @@ export async function hostingRequest(body) {
       title: primary.title, description: primary.description, ...rendererSets(item), ...feeds.bind(item) };
   }));
   const app = createBetterPortalApp();
+  if (machineHost) app.use(event => machineHost.handleWithCors(event));
   app.use(event => {
     const context = resolve(event);
     return handleCorsRequest(event, { origin: context ? buildOriginPolicy(context).allowedOrigins : [],
@@ -80,6 +85,7 @@ export async function hostingRequest(body) {
     const context = resolve(event); const auth = context?.app.auth;
     if (!context || !auth) return undefined;
     return { tenantId: context.tenant.id, appId: context.app.id, appAuthConfig: auth,
+      ...(machineHost ? { serviceVerifier: machineHost.getServiceTokenVerifier() } : {}),
       serviceIdAliases: Object.fromEntries(context.tenant.services.filter(service => service.serviceId).map(service => [service.id, service.serviceId])),
       platformRoot: { tenantId: snapshot.configManagement?.adminTenantId, appId: snapshot.configManagement?.managementAppId },
       verifier: { verify: token => verifyJwt(token, { expectedIssuer: auth.expectedIssuer, expectedAudience: auth.expectedAudience, expectedTokenType: "access",

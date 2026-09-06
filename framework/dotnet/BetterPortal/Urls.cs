@@ -59,7 +59,7 @@ public sealed class Urls
         if (value.Split('?', '#')[0].Split('/').Any(part => Uri.UnescapeDataString(part) is "." or "..")) throw new ArgumentException("URL must not traverse path segments");
         return new Uri("http://betterportal.invalid" + value);
     }
-    private static string? Fill(string path, Node parameters)
+    internal static string? Fill(string path, Node parameters)
     {
         var parts = path.Split('?', 2); var segments = parts[0].Split('/');
         for (var i = 0; i < segments.Length; i++)

@@ -2,7 +2,7 @@
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
 for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers, native route
-tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
+tooling and generated clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The cross-language snapshot gate is still blocked by the Python SDK defect below.
 
 Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
@@ -790,3 +790,53 @@ The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The [schema gate](../conformance/README.md)
 retains failing AnyVali compatibility probes. Compilation or NuGet packaging is
 not evidence that the full framework plan is complete. Nothing is published.
+
+## Scoped dependency clients
+
+Load a dependency's exported `BpSchemaOutput` with `new ClientContract(document)`.
+Inside a handler, `context.RequestContext.Clients.User(contract, serviceId)` selects
+an enabled instance or registry alias and forwards the verified original user
+bearer. Its operation must be mounted in the current app; public operations can be
+called anonymously. Credentials are absent from render contexts. Invoke
+`await client.RequestAsync(operationId, values, cancellation)` with `params`, `query`,
+`headers` and `body` fields; unused keys can be omitted. AnyVali validates each
+method's inputs and JSON output. `RequestAsync<T>` decodes the validated result to
+a native generated type. Explicit body null remains JSON null when permitted.
+
+`context.RequestContext.Clients.M2m(requestId, contract)` uses the mode in a declared
+manifest request. Every call checks current bindings, grants, methods, permissions
+and capabilities, then mints a service token lasting at most 60 seconds. Delegated
+calls also retain the original user bearer. Background work uses
+`service.Clients.Scope(tenantId, appId)` and supports service mode only. Supply
+`signingKey` to a locally configured service; installation/control-plane sync
+supplies its persisted key automatically. The snapshot must confirm its public key
+and key ID before outbound tokens can be sent.
+
+```csharp
+using BetterPortal;
+using AnyVali;
+
+var declaration = new BetterPortal.Generated.ManifestDeclarationInput {
+    PluginId = "com.example.peer", Title = "Peer", Description = "Example", Version = "1.0.0"
+};
+var registry = new Registry([new Route("value", "/value", [new Operation(
+    new Handler<object?, object?, object?, object?, string>(V.String(), _ => ValueTask.FromResult("value")),
+    new() { OperationId = "value.get", Method = BetterPortal.Generated.HttpMethodInput.GET,
+        Title = "Value", Description = "Read value", Auth = new() })])]);
+var contract = new ClientContract(registry.Schema(declaration));
+await using var service = new Service(new Registry([]), declaration);
+var client = service.Clients.Scope("01952200-0000-7000-8000-000000000001",
+    "01952200-0000-7000-8000-000000000002").M2m("read", contract);
+try { await client.RequestAsync("value.get"); throw new Exception("An unready service made an outbound call"); }
+catch (ClientException error) when (error.Status == 503) { }
+```
+
+Destinations require HTTPS, with the same exact-loopback HTTP exceptions as sync.
+Clients reject redirects, cookie replay and caller overrides of BP routing/auth
+headers. JSON requests/responses are bounded to 16 MiB, URLs to 8,192 characters,
+and transport waits to 30 seconds; unsolicited compressed responses are rejected.
+Snapshot replacement invalidates captured request clients and pending responses;
+background clients resolve policy again on each call. Request cancellation and
+service shutdown stop pending HTTP work. `ClientException` exposes the upstream
+status with a generic message, without its error body. Raw/streaming dependency
+responses and native client generation/locking remain delivery work.

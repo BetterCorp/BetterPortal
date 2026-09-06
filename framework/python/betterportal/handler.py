@@ -14,6 +14,7 @@ from .generated_types import HttpMethod, MultipartRequest
 from .urls import Urls
 if TYPE_CHECKING:
     from .rendering import Renderer
+    from .clients import RequestClients
 
 Params = TypeVar("Params")
 Query = TypeVar("Query")
@@ -64,8 +65,13 @@ class RequestContext:
     multipart: MultipartRequest | None = None
     response: ResponseState = field(default_factory=ResponseState)
     url_context: Urls | None = None
+    client_context: RequestClients | None = field(default=None, repr=False, compare=False)
     @property
     def urls(self) -> Urls: return self.url_context or Urls(self.scope, None, None, self.path)
+    @property
+    def clients(self) -> RequestClients:
+        if self.client_context is None: raise RuntimeError("Clients require a service request context")
+        return self.client_context
 
 
 @dataclass(frozen=True)

@@ -64,10 +64,13 @@ def run_installation(urls, labels):
             def lifecycle():
                 with peer() as control:
                     install = issue(control, signer)
-                    steps = invoke(url, control, [{}, {"path": "/.well-known/jwks.json"}, install, {},
+                    steps = invoke(url, control, [{}, {"path": "/.well-known/jwks.json"}, install, {"kind": "wait", "updates": 2}, {},
                         {"path": "/check/item", "headers": {"origin": "https://app.test"}},
                         {"method": "POST", "path": "/check/item", "headers": {"origin": "https://app.test"}},
                         install, {"kind": "restart"}, {"kind": "state"}, {"kind": "close"}])
+                    # Assert readiness at install completion, then finish the initial SSE
+                    # replacement before testing unrelated operation/replay behavior.
+                    assert steps.pop(3)["ready"], brief(steps)
                     assert [row["status"] for row in steps] == [503, 200, 200, 200, 200, 404, 200, 200, 200, 200], brief(steps)
                     assert not steps[0]["ready"] and all(row["ready"] for row in steps[2:-1]) and not steps[-1]["ready"], brief(steps)
                     response = json.loads(steps[2]["body"])

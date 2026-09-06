@@ -36,9 +36,11 @@ public sealed class ControlPlaneSync : IAsyncDisposable
         this.apiKey = apiKey;
         this.retryDelay = retryDelay ?? TimeSpan.FromSeconds(5); this.requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(30);
         if (new[] { this.retryDelay, this.requestTimeout }.Any(value => value <= TimeSpan.Zero || value.TotalMilliseconds > uint.MaxValue - 1)) throw new ArgumentException("Invalid synchronization timing");
+        keyPair ??= service.SigningKey;
         payload = Utf8.GetBytes(Json.Write(BuildSubmission(service.Manifest, keyPair, authProvider)));
         if (payload.Length > Limit) throw new ArgumentException("Manifest submission exceeds 16 MiB");
         client = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = false }) { Timeout = Timeout.InfiniteTimeSpan };
+        service.SigningKey = keyPair;
     }
 
     public static Generated.ControlPlaneSubmission BuildSubmission(Generated.PluginManifest manifest, KeyPair? keyPair = null,

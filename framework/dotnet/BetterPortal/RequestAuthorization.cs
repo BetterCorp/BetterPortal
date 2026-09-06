@@ -36,7 +36,7 @@ public static class RequestAuthorization
         return claims;
     }
 
-    private static string? Bearer(string? value)
+    internal static string? Bearer(string? value)
     {
         if (value is null) return null;
         var separator = value.IndexOf(' ');

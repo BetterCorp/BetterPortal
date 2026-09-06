@@ -6,7 +6,7 @@ namespace BetterPortal;
 
 public sealed partial class Service
 {
-    private sealed class SnapshotState(ScopedConfig snapshot, Node config, Node preview, Node previewValues, (string, string)? previewScope,
+    internal sealed class SnapshotState(ScopedConfig snapshot, Node config, Node preview, Node previewValues, (string, string)? previewScope,
         FrozenDictionary<(string Issuer, string Uri), JwksClient> keys)
     {
         public ScopedConfig Snapshot { get; } = snapshot;

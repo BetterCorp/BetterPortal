@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 // Test-only actions; the real host must never expose signing endpoints.
 internal static class SecurityAdapter
 {
-    private static readonly KeyPair Key = KeyPair.Generate();
+    internal static readonly KeyPair Key = KeyPair.Generate();
     internal static async Task<object> Run(Dictionary<string, object?> body)
     {
         string Text(string name) => (string)body[name]!;

@@ -117,8 +117,16 @@ access = AppAccess(scope, [])
 assert not access.allows(registry.routes[0], "GET") and dict(access.permission_aliases()) == {}
 async def hosting():
     from betterportal.asgi import create_app
+    from betterportal.clients import ClientContract, ClientError
     import httpx
     async with Service(registry, {"pluginId": "com.example.hello", "title": "Hello", "description": "Example service", "version": "1.0.0"}) as service:
+        contract = ClientContract(service.schema())
+        assert contract.plugin_id == "com.example.hello"
+        try:
+            await service.clients.scope(tenant_id, app_id).m2m("read", contract).request("hello.get")
+            raise AssertionError("Unready packaged service made an outbound call")
+        except ClientError as error:
+            assert error.status == 503
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(service)), base_url="http://example.test") as client:
             response = await client.get("/.well-known/bp/health")
             assert response.status_code == 503 and response.json() == {"ok": False}

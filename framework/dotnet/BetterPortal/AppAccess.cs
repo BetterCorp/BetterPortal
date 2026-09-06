@@ -41,16 +41,20 @@ public sealed class AppAccess
         if (!route.Paths.Contains(path)) throw new ArgumentException("The matched path is not registered on this view");
         var operation = route.Operations.FirstOrDefault(item => item.Method == method);
         if (operation is null) return false;
+        return AllowsOperation(route.ViewId, operation.Id, method, path, fragment, serviceId);
+    }
+    public bool AllowsOperation(string viewId, string operationId, string method, string path, string? fragment = null, string? serviceId = null)
+    {
         // Discovery/control-plane routes still require their separately declared auth policy.
         if (path.StartsWith("/.well-known/", StringComparison.Ordinal)) return true;
-        var legacy = $"legacy:{route.ViewId}:{method}";
+        var legacy = $"legacy:{viewId}:{method}";
         bool Local(string identifier) => services.ContainsKey(identifier) && (serviceId is null || identifier == serviceId);
         foreach (var mount in Items(app, "routes"))
         {
             var target = (string?)mount.GetValueOrDefault("resolvedServicePath", mount.GetValueOrDefault("servicePathVariant", mount.GetValueOrDefault("targetPath")));
             var operations = (List<object?>)mount["operations"]!;
-            if (mount["enabled"] is true && Local((string)mount["serviceId"]!) && Equals(mount["viewId"], route.ViewId)
-                && (operations.Contains(operation.Id) || operations.Contains(legacy)) && (target is null || PathMatches(target, path))) return true;
+            if (mount["enabled"] is true && Local((string)mount["serviceId"]!) && Equals(mount["viewId"], viewId)
+                && (operations.Contains(operationId) || operations.Contains(legacy)) && (target is null || PathMatches(target, path))) return true;
         }
         if (method == "GET")
         {
@@ -60,7 +64,7 @@ public sealed class AppAccess
                 var candidates = location.Length > 0 ? ((List<object?>)((Node)app["fragments"]!).GetValueOrDefault(location, new List<object?>())!).Cast<Node>() : Fragments;
                 if (candidates.Any(item => Equals(item["fragmentId"], identifier) && FragmentAllowed(item, path, serviceId))) return true;
             }
-            if (Items(app, "slots").Any(item => item["enabled"] is true && Local((string)item["serviceId"]!) && Equals(item["viewId"], route.ViewId))) return true;
+            if (Items(app, "slots").Any(item => item["enabled"] is true && Local((string)item["serviceId"]!) && Equals(item["viewId"], viewId))) return true;
         }
         return false;
     }

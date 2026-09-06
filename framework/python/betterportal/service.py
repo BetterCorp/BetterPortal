@@ -4,10 +4,10 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 import json
-from typing import Any, Iterable, Mapping, cast
+from typing import Any, Iterable, Mapping, TYPE_CHECKING, cast
 
 from .access import AppAccess
-from .authorization import AuthContext, authorize_request, is_machine_request
+from .authorization import AuthContext, _bearer, authorize_request, is_machine_request
 from .context import ScopedConfig, ScopedContext, OriginPolicy, http_origin
 from .config_api import ConfigApi
 from .encryption import decrypt_preview, preview_schema
@@ -17,10 +17,12 @@ from .handler import RequestContext
 from .keys import JwksClient, secure_endpoint
 from .jsoncodec import loads
 from .registry import Operation, Registry, Route
-from .security import TokenError
+from .security import KeyPair, TokenError
 from .settings import SettingsSchema
 from .storage import StateStore
 from .urls import Urls
+if TYPE_CHECKING:
+    from .clients import ServiceClients
 
 
 class RequestError(Exception):
@@ -59,7 +61,8 @@ class _Snapshot:
 
 class Service:
     def __init__(self, registry: Registry, declaration: ManifestDeclarationInput, snapshot: ScopedConfig | None = None,
-                 *, state_store: StateStore | None = None, managed: bool = False, preview_key: str | None = None, config_api: ConfigApi | None = None):
+                 *, state_store: StateStore | None = None, managed: bool = False, preview_key: str | None = None, config_api: ConfigApi | None = None,
+                 signing_key: KeyPair | None = None):
         self.registry = registry
         self._schema = registry.schema(declaration)
         self._config_api = config_api or ConfigApi()
@@ -75,6 +78,14 @@ class Service:
         self._writers: set[asyncio.Task[Any]] = set()
         self._closed = False
         self._stopping = asyncio.Event()
+        self._signing_key = signing_key
+        self._clients: ServiceClients | None = None
+
+    @property
+    def clients(self) -> ServiceClients:
+        from .clients import ServiceClients
+        if self._clients is None: self._clients = ServiceClients(self)
+        return self._clients
 
     def _build(self, snapshot: ScopedConfig) -> _Snapshot:
         if self._instance_id is not None and snapshot.document().get("serviceIdentity", {}).get("id") != self._instance_id:
@@ -293,8 +304,11 @@ class Service:
             preview = state.preview_values if state.preview_scope == (scope.tenant_id, scope.app_id) else {"tenant": {}, "app": {}}
             try: values = settings.schema.effective({**stored["tenant"], **preview["tenant"]}, {**stored["app"].get(scope.app_id, {}), **preview["app"]})
             except Exception as error: raise RequestError(503, "Service settings are incomplete", response_headers, scope=scope) from error
+        from .clients import RequestClients
+        clients = RequestClients(self.clients, scope.tenant_id, scope.app_id, revision=state,
+                                 user_token=_bearer(normalized.get("authorization")) if caller.user is not None else None)
         return RequestContext(scope, caller, cast(HttpMethod, method), path, config=values,
-                              url_context=self.urls(scope, path, normalized, scheme)), response_headers
+                              url_context=self.urls(scope, path, normalized, scheme), client_context=clients), response_headers
 
     def urls(self, scope: ScopedContext, path: str, headers: Mapping[str, str] | None = None, scheme: str = "https") -> Urls:
         headers = headers or {}
@@ -313,6 +327,7 @@ class Service:
     async def aclose(self) -> None:
         self._closed = True
         self._stopping.set()
+        if self._clients is not None: await self._clients.aclose()
         writers = tuple(self._writers - {asyncio.current_task()})
         for task in writers: task.cancel()
         await asyncio.gather(*writers, return_exceptions=True)

@@ -80,6 +80,7 @@ class ControlPlaneSync:
         if any(not math.isfinite(value) or not 0 < value <= 4294967.294 for value in (retry_delay, request_timeout)):
             raise ValueError("Invalid synchronization timing")
         self._headers = {"authorization": "Bearer " + api_key}
+        key_pair = key_pair or service._signing_key
         self._submission = build_submission(service.manifest, key_pair=key_pair, auth_provider=auth_provider)
         self._payload = json.dumps(self._submission, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
         if len(self._payload) > _LIMIT: raise ValueError("Manifest submission exceeds 16 MiB")
@@ -92,6 +93,7 @@ class ControlPlaneSync:
         self._phase = "idle"
         self._error: str | None = None
         self._attempts = self._updates = 0
+        service._signing_key = key_pair
 
     @property
     def status(self) -> dict[str, Any]:

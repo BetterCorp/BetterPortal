@@ -3,7 +3,7 @@
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
 hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not ready for production**: the AnyVali
 snapshot gate below still fails. Full theme helpers, route
-tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
+tooling and generated clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
 Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
 in `betterportal.asgi` owns the `Service` lifespan. A service combines a registry,
@@ -777,5 +777,60 @@ defaults to rejecting queries for control-plane base URLs.
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The [schema gate](../conformance/README.md)
-still exposes two AnyVali 1.1.1 compatibility issues. Do not treat package builds
+still exposes AnyVali 1.1.1 compatibility issues. Do not treat package builds
 as evidence that the full framework plan is complete. Nothing is published.
+
+## Scoped dependency clients
+
+Load a dependency's exported `BpSchemaOutput` with `ClientContract(document)`.
+Inside a handler, `context.request_context.clients.user(contract, service_id)`
+selects an enabled instance or registry alias and forwards the verified original
+user bearer. Its selected operation must be mounted in the current app; public
+operations can be called anonymously. Credentials are absent from render contexts.
+Call `await client.request(operation_id, {"params": ..., "query": ..., "headers": ..., "body": ...})`.
+AnyVali validates each method's inputs and JSON output. Omit unused input keys;
+an explicit body null remains a JSON null when its schema permits it.
+
+Use `context.request_context.clients.m2m(request_id, contract)` for a declared
+service or delegated dependency. The manifest request selects the mode. Each call
+checks current bindings, grants, methods, permissions and capabilities, then mints
+a service token lasting at most 60 seconds. Delegated calls retain the original
+user bearer as well. Background work uses `service.clients.scope(tenant_id, app_id)`
+and supports service mode only. Supply `signing_key` to a locally configured service;
+installation/control-plane sync supplies its persisted key automatically. The
+scoped snapshot must confirm the public key and key ID before tokens can be sent.
+
+```python
+import asyncio
+import anyvali as av
+from betterportal.clients import ClientContract, ClientError
+from betterportal.handler import Handler
+from betterportal.registry import Operation, Route, Registry
+from betterportal.service import Service
+
+async def check():
+    declaration = {"pluginId": "com.example.peer", "title": "Peer", "description": "Example", "version": "1.0.0"}
+    registry = Registry([Route("value", "/value", [Operation(Handler(av.string(), lambda context: "value"),
+        {"operationId": "value.get", "method": "GET", "title": "Value", "description": "Read value", "auth": {}})])])
+    contract = ClientContract(registry.schema(declaration))
+    async with Service(Registry([]), declaration) as service:
+        client = service.clients.scope("01952200-0000-7000-8000-000000000001",
+                                       "01952200-0000-7000-8000-000000000002").m2m("read", contract)
+        try:
+            await client.request("value.get")
+            raise AssertionError("An unready service made an outbound call")
+        except ClientError as error:
+            assert error.status == 503
+
+asyncio.run(check())
+```
+
+Destinations require HTTPS, with the same exact-loopback HTTP exceptions as sync.
+Clients reject redirects, cookie replay and caller overrides of BP routing/auth
+headers. JSON requests/responses are bounded to 16 MiB, URLs to 8,192 characters,
+and transport waits to 30 seconds; unsolicited compressed responses are rejected.
+Snapshot replacement invalidates captured request clients and pending responses;
+background clients resolve policy again on each call. Cancellation and service
+shutdown stop pending HTTP work. `ClientError` exposes the upstream status with a
+generic message; upstream error bodies are never included. Raw/streaming dependency
+responses and native client generation/locking remain delivery work.

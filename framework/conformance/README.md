@@ -284,6 +284,17 @@ CP failures, redirects, stale credentials, wrong instances and forged forwarding
 headers cannot replace the local binding. Host shutdown cancels both confirmation
 and projection. A consumed CP token cannot undo a successful local change.
 
+The [scoped client suite](results-clients.json) passes 186 checks. Native clients
+import all three languages' exported contracts, validate method-specific inputs
+and outputs with AnyVali, and call each other language's host in user, service and
+delegated modes. The Node machine receiver uses the existing BSB-owned envelope
+and service-token policy. Checks cover aliases, current mounts/bindings/grants,
+registered keys, tenant/app isolation, optional paths, body presence/defaults,
+coercion, reserved headers, cookie isolation, redirects, response/request limits,
+compression rejection, snapshot retirement and cancellation/shutdown. These are
+runtime JSON clients; native generated clients, raw/streaming dependency calls
+and the two Node-generated outbound client pairs remain delivery work.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
@@ -322,14 +333,14 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 5,310/5,338
-checks across twenty-seven suites. Failures are the original SDK probes, the
+[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 5,496/5,524
+checks across twenty-eight suites. Failures are the original SDK probes, the
 context/config null-active regressions and eighteen sensitive-ref regressions.
 This combined report records one serialized run, including subscriber feeds,
-finite operations, hostname changes, installation and sync cancellation regressions. Its 28 failure
+finite operations, hostname changes, scoped clients, installation and sync cancellation regressions. Its 28 failure
 identities exactly match the previous checkpoint; no new failures were introduced.
 The [Linux Python 3.14.4 run](results-linux-anyvali-1.1.1.json), using Node 24.4.0
-and .NET SDK 10.0.400/runtime 10.0.11, passes the same 5,310/5,338 checks with
+and .NET SDK 10.0.400/runtime 10.0.11, passes the same 5,496/5,524 checks with
 exactly the same 28 failure identities. It ran from a separate copy of this
 checkpoint on the native Linux filesystem; compiler, executable documentation and
 package checks also passed there.
@@ -340,6 +351,13 @@ two-second shutdown assertion. The fixture also reuses each host's bootstrap
 store instead of deriving its encryption key again for every state inspection.
 The runtime checks pass with the original deadlines and no tracing enabled;
 consumer packages do not select a GC mode.
+
+Installation lifecycle probes check readiness immediately after the successful
+poll, then wait for the initial SSE snapshot before unrelated operation/replay
+assertions. The Linux client-stage run exposed that missing synchronization:
+an initial SSE replacement correctly retired an authenticating request with 503.
+The fixture now waits on the existing update counter; request revocation checks
+and runtime readiness rules are unchanged.
 
 The [CI ports job](../../.github/workflows/ci.yml) runs Python 3.10 and 3.14 on
 Linux with .NET 10, checks canonical exports and native types, executes README
@@ -384,6 +402,7 @@ python framework/conformance/verify.py --suite config-api
 python framework/conformance/verify.py --suite bootstrap
 python framework/conformance/verify.py --suite installation
 python framework/conformance/verify.py --suite hostname
+python framework/conformance/verify.py --suite clients
 python framework/conformance/verify.py --suite finite
 python framework/conformance/verify.py --suite feeds
 ```

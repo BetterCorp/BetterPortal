@@ -17,9 +17,10 @@ public sealed partial class Service : IAsyncDisposable
     private readonly Generated.BpSchemaOutput schema;
     private volatile bool closed;
     public Service(Registry registry, Generated.ManifestDeclarationInput declaration, ScopedConfig? snapshot = null,
-        IStateStore? stateStore = null, bool managed = false, string? previewKey = null, ConfigApi? configApi = null)
+        IStateStore? stateStore = null, bool managed = false, string? previewKey = null, ConfigApi? configApi = null, KeyPair? signingKey = null)
     {
         Registry = registry; schema = registry.Schema(declaration);
+        SigningKey = signingKey; clients = new(() => new ServiceClients(this));
         this.configApi = configApi ?? new ConfigApi(); configSchema = this.configApi.Schema(schema.Manifest.PluginId, schema.Manifest.ConfigSchemas);
         provisionable = managed && configApi is null && snapshot is null;
         store = stateStore; this.managed = managed; this.previewKey = previewKey;
@@ -95,7 +96,8 @@ public sealed partial class Service : IAsyncDisposable
                 try { values = settings.Schema.Effective(tenant, app); }
                 catch (Exception) { throw new RequestException(503, "Service settings are incomplete", responseHeaders, scope); }
             }
-            return new(new RequestContext(scope, caller, method, path, values) { Urls = BuildUrls(current, scope, path, normalized, scheme) }, responseHeaders);
+            return new(new RequestContext(scope, caller, method, path, values) { Urls = BuildUrls(current, scope, path, normalized, scheme),
+                ClientContext = new(Clients, scope.TenantId, scope.AppId, current, caller.User is not null ? RequestAuthorization.Bearer(normalized.GetValueOrDefault("authorization")) : null, cancellationToken) }, responseHeaders);
         }
         catch (Exception error) when ((error is not OperationCanceledException || !cancellationToken.IsCancellationRequested) && (!ReferenceEquals(state, current) || !Ready))
         { throw new RequestException(503, "Configuration changed during authentication"); }
@@ -125,6 +127,7 @@ public sealed partial class Service : IAsyncDisposable
     {
         closed = true;
         await shutdown.CancelAsync();
+        if (clients.IsValueCreated) await clients.Value.DisposeAsync();
         await updates.WaitAsync();
         try
         {

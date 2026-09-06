@@ -41,16 +41,20 @@ class AppAccess:
         operation = next((item for item in route.operations if item.method == method), None)
         if operation is None:
             return False
+        return self.allows_operation(route.view_id, operation.id, method, path, fragment=fragment, service_id=service_id)
+
+    def allows_operation(self, view_id: str, operation_id: str, method: str, path: str, *, fragment: str | None = None, service_id: str | None = None) -> bool:
+        """Apply mount policy to an operation from a validated local or dependency contract."""
         # Discovery and control-plane endpoints have their own declared auth policy.
         if path.startswith("/.well-known/"):
             return True
-        legacy = f"legacy:{route.view_id}:{method}"
+        legacy = f"legacy:{view_id}:{method}"
         def local(identifier: str) -> bool:
             return identifier in self._services and (service_id is None or identifier == service_id)
         for mount in self._app["routes"]:
             target = mount.get("resolvedServicePath", mount.get("servicePathVariant", mount.get("targetPath")))
-            if (mount["enabled"] and local(mount["serviceId"]) and mount["viewId"] == route.view_id
-                    and (operation.id in mount["operations"] or legacy in mount["operations"])
+            if (mount["enabled"] and local(mount["serviceId"]) and mount["viewId"] == view_id
+                    and (operation_id in mount["operations"] or legacy in mount["operations"])
                     and (target is None or _path_matches(target, path))):
                 return True
         if method == "GET":
@@ -60,7 +64,7 @@ class AppAccess:
                 identifier = identifier if dot and location else fragment
                 if any(item["fragmentId"] == identifier and self._fragment_allowed(item, path, service_id) for item in candidates):
                     return True
-            if any(item["enabled"] and local(item["serviceId"]) and item["viewId"] == route.view_id for item in self._app["slots"]):
+            if any(item["enabled"] and local(item["serviceId"]) and item["viewId"] == view_id for item in self._app["slots"]):
                 return True
         return False
 
