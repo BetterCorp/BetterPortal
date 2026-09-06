@@ -46,6 +46,7 @@ app.MapPost("/", async (HttpRequest request) =>
         if (body.GetValueOrDefault("action") is "snapshots") return Results.Json(await SnapshotAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "sync") return Results.Json(await SyncAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "settings-schema") return Results.Json(SettingsAdapter.Run(body));
+        if (body.GetValueOrDefault("action") is "settings-store") return Results.Json(await SettingsAdapter.Store(body));
         if (body.GetValueOrDefault("action") is "context" or "http-origin") return Results.Json(ContextAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "sse-probe") return Results.Json(await SseAdapter.Probe());
         if (body.GetValueOrDefault("action") is "sse-wire") return await SseAdapter.Wire(body);

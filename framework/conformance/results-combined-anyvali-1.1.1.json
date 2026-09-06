@@ -1,6 +1,6 @@
 {
-  "scenarios": 4027,
-  "passed": 4000,
+  "scenarios": 4121,
+  "passed": 4094,
   "results": [
     {
       "runtime": "node",
@@ -198,6 +198,21 @@
     },
     {
       "runtime": "node",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -589,6 +604,11 @@
     {
       "runtime": "node",
       "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PersistedServiceConfigStateSchema",
       "passed": true
     },
     {
@@ -1087,6 +1107,21 @@
     },
     {
       "runtime": "node",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1478,6 +1513,11 @@
     {
       "runtime": "node",
       "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
       "passed": true
     },
     {
@@ -1977,6 +2017,21 @@
     },
     {
       "runtime": "python",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -2368,6 +2423,11 @@
     {
       "runtime": "python",
       "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PersistedServiceConfigStateSchema",
       "passed": true
     },
     {
@@ -2867,6 +2927,21 @@
     },
     {
       "runtime": "python",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -3258,6 +3333,11 @@
     {
       "runtime": "python",
       "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
       "passed": true
     },
     {
@@ -3756,6 +3836,21 @@
     },
     {
       "runtime": "dotnet",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -4147,6 +4242,11 @@
     {
       "runtime": "dotnet",
       "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PersistedServiceConfigStateSchema",
       "passed": true
     },
     {
@@ -4645,6 +4745,21 @@
     },
     {
       "runtime": "dotnet",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -5036,6 +5151,11 @@
     {
       "runtime": "dotnet",
       "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
       "passed": true
     },
     {
@@ -20162,6 +20282,356 @@
     {
       "runtime": "dotnet",
       "id": "settings-read-existing-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "settings-store-encrypted-write",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-encrypted-write",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-encrypted-write",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "settings-store-read-node",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-read-node",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-read-node",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "settings-store-read-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-read-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-read-python",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "settings-store-read-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-read-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-read-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-lifecycle-and-owned-reads",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-stored-overrides-vs-effective",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-atomic-failure-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-atomic-failure-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-atomic-failure-invalid-value",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-atomic-failure-clear-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-atomic-failure-placeholder-missing",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-atomic-failure-persistence",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-atomic-clear-and-placeholder",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-cancel-write",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-close-write",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-cancel-initialize",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-serialized-concurrent-writes",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-bounded-file-preserves-state",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-memory-store",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-cache-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-cache-duplicate",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-cache-wrong-shape",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-cache-unknown-root",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-cache-plain-secret",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-cache-wrong-field-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-cache-empty-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-cache-empty-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-explicit-legacy-owner-bare",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-explicit-legacy-owner-wrapped",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-legacy-owner-conflict",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-legacy-failed-save",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-legacy-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-store-reject-tampered-app-cache",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-lifecycle-and-owned-reads",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-stored-overrides-vs-effective",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-atomic-failure-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-atomic-failure-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-atomic-failure-invalid-value",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-atomic-failure-clear-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-atomic-failure-placeholder-missing",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-atomic-failure-persistence",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-atomic-clear-and-placeholder",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-cancel-write",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-close-write",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-cancel-initialize",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-serialized-concurrent-writes",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-bounded-file-preserves-state",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-memory-store",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-cache-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-cache-duplicate",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-cache-wrong-shape",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-cache-unknown-root",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-cache-plain-secret",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-cache-wrong-field-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-cache-empty-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-cache-empty-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-explicit-legacy-owner-bare",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-explicit-legacy-owner-wrapped",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-legacy-owner-conflict",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-legacy-failed-save",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-legacy-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-store-reject-tampered-app-cache",
       "passed": true
     }
   ]

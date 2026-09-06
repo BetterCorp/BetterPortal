@@ -11,6 +11,7 @@ from betterportal.handler import Handler
 from betterportal.registry import Registry, Route, Operation
 from betterportal.service import Service, RequestError
 from betterportal.storage import FileStateStore
+from python_storage import FaultStore
 
 
 async def snapshots(body):
@@ -38,17 +39,7 @@ async def snapshots(body):
             try: await FileStateStore(target).save(b"new")
             except OSError: failed = True
             return {"failed": failed, "preserved": (target / "sentinel").read_bytes() == b"old", "temporaryFiles": len(list(Path(directory).glob("*.tmp")))}
-        class Store:
-            def __init__(self):
-                self.file = FileStateStore(Path(directory) / "state.json", max_bytes=body.get("maxBytes", 16 * 1024 * 1024))
-                self.mode = "ok"; self.started = asyncio.Event(); self.release = asyncio.Event(); self.saves = 0
-            async def load(self): return await self.file.load()
-            async def save(self, data):
-                self.saves += 1
-                if self.mode == "fail": raise OSError("Injected persistence failure")
-                if self.mode == "block": self.started.set(); await self.release.wait()
-                await self.file.save(data)
-        store = Store()
+        store = FaultStore(directory, body.get("maxBytes", 16 * 1024 * 1024))
         if "stored" in body:
             (Path(directory) / "state.json").write_bytes(body["stored"].encode())
         route = Route("check", "/check/:key", [Operation(Handler(contract("JsonObjectSchema"), lambda ctx: {}),

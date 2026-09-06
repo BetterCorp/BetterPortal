@@ -386,6 +386,11 @@ var redacted = policy.Redact("tenant", values);
 if (!Equals(redacted["secret"], "__redacted__")) throw new Exception("Secret was exposed");
 if (!Equals(policy.Merge("tenant", values, redacted)["secret"], "example")) throw new Exception("Secret was overwritten");
 if (policy.Values("tenant", new Dictionary<string, object?>()).Count != 0) throw new Exception("Overrides must retain omission");
+await using var settings = new ServiceSettings(policy, cipher);
+await settings.Initialize();
+await settings.Write("tenant", values);
+if (!Equals(settings.Values("tenant", redacted: true)["secret"], "__redacted__")) throw new Exception("Secret was exposed");
+if (!Equals(settings.Effective("tenant", "app")["secret"], "example")) throw new Exception("Wrong effective setting");
 ```
 
 Native sensitive APIs own transforms and redaction traversal. Top-level sensitive
@@ -397,7 +402,20 @@ missing secret or move it into a public union branch. Replacement values win ove
 Direct sensitive annotations on ref nodes are rejected because every SDK bypasses
 them ([AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128)). Use a native
 wrapper or sensitive definition; descriptor visibility uses a native wrapper.
-Persistent settings and the ticket-protected API remain pending.
+`ServiceSettings` serializes writes and owns encrypted tenant/app state. Supply a
+`FileStateStore(path)` as its third argument for persistence; omission uses memory.
+Call `Initialize()` before reads/writes and dispose with `await using`. Loading
+validates the entire cache before publication. Failure or cancellation before commit
+preserves disk and active state. Writes combine clears and replacements in one
+commit. `Values` returns stored overrides; `Effective` applies native defaults.
+Reads return owned copies. Disposal cancels pending writes and rejects further access.
+
+The portable cache reads Node's encrypted tenant/app files. Bare legacy buckets or
+the `legacy` envelope require `Initialize(legacyTenantId: ...)`; migration persists
+that explicit owner before readiness and rejects an existing owner bucket. Unmarked
+plaintext secrets and tampered ciphertext are rejected. Keep encryption keys in
+protected storage. One instance owns each file; shared replicas need a configured
+repository/transport. The ticket-protected HTTP API remains pending.
 
 `Service.ApplySnapshot` validates the complete scoped document and preview values,
 persists through `IStateStore`, then replaces active policy. Failure or cancellation

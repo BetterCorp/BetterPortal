@@ -127,6 +127,20 @@ followed by app overrides. Store operations and event delivery have small
 replaceable interfaces. In-process publication does not supply cross-replica
 delivery.
 
+Native `ServiceSettings` uses the portable `PersistedServiceConfigStateSchema`:
+`tenants` maps IDs to `{tenant, app}` override buckets. All buckets validate and
+decrypt before the cache becomes readable. Saves atomically persist encrypted
+values before publishing active state; clears and replacements share one commit.
+The replaceable `StateStore`/`IStateStore` supplies byte persistence, while
+`SettingsSchema` retains BP field and sensitive-value policy. The standalone file
+implementation has one writer and supplies no cross-replica invalidation.
+
+Legacy bare buckets and the optional `legacy` envelope need an explicitly supplied
+tenant owner. Migration fails if that tenant already has a bucket, and publishes
+only after persisting the assigned owner. Never assign legacy data to the first
+requesting tenant. Unmarked plaintext secrets and invalid ciphertext fail loading;
+there is no implicit plaintext fallback. Keep encryption keys separately protected.
+
 Custom configuration UI uses the same authorized API. Public field visibility
 is descriptor metadata, not a bypass for ticket-protected reads.
 

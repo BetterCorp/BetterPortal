@@ -85,6 +85,12 @@ function portable(name, root) {
 function objectNode(properties, unknownKeys = "strip") {
   return { kind: "object", properties, required: Object.entries(properties).filter(([, value]) => value.kind !== "optional").map(([key]) => key), unknownKeys };
 }
+// Node's persisted settings interface in runtime/configStore.ts, derived from
+// the canonical tenant/app bucket. Legacy data requires an explicit owner.
+portable("PersistedServiceConfigStateSchema", objectNode({
+  tenants: { kind: "record", valueSchema: sourceNode("ServiceConfigStateSchema"), default: {} },
+  legacy: { kind: "optional", inner: sourceNode("ServiceConfigStateSchema") }
+}, "reject"));
 // The sync POST is a projection of the CP's cached manifest plus the provisioned
 // public identity. metadataResponse is submitted by the existing BSB integration,
 // although the current CP cache schema does not retain it.

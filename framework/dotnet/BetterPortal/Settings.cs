@@ -194,3 +194,130 @@ public sealed class SettingsSchema
         else ((List<object?>)parent!)[Convert.ToInt32(path[^1])] = replacement;
     }
 }
+
+/// <summary>One writer's encrypted tenant/app state. Service owns credential/scope authorization.</summary>
+public sealed class ServiceSettings : IAsyncDisposable
+{
+    private static readonly System.Text.UTF8Encoding Utf8 = new(false, true);
+    public SettingsSchema Schema { get; }
+    private readonly ConfigCipher cipher;
+    private readonly IStateStore? store;
+    private readonly SemaphoreSlim gate = new(1);
+    private readonly CancellationTokenSource shutdown = new();
+    private volatile Node state = Empty();
+    private volatile bool loaded, closed;
+    public bool Ready => loaded && !closed;
+    private static Node Empty() => new() { ["tenants"] = new Node() };
+    public ServiceSettings(SettingsSchema schema, ConfigCipher cipher, IStateStore? store = null)
+    { Schema = schema; this.cipher = cipher; this.store = store; }
+    private void Open(bool requireLoaded = true)
+    {
+        if (closed || requireLoaded && !loaded) throw new InvalidOperationException("Settings are closed or not initialized");
+    }
+    private static void Identity(string tenantId, string? appId = null)
+    {
+        Contracts.Parse(Contracts.Get("ServiceConfigWriteRequestSchema", "tenantId"), tenantId);
+        if (appId is not null) Contracts.Parse(Contracts.Get("ServiceConfigWriteRequestSchema", "appId"), appId);
+    }
+    private Node Bucket(Node state, string tenantId)
+    {
+        var bucket = (Node)((Node)state["tenants"]!).GetValueOrDefault(tenantId, new Node { ["tenant"] = new Node(), ["app"] = new Node() })!;
+        return new()
+        {
+            ["tenant"] = Schema.Decode("tenant", bucket["tenant"], cipher),
+            ["app"] = ((Node)bucket["app"]!).ToDictionary(pair => pair.Key, pair => (object?)Schema.Decode("app", pair.Value, cipher))
+        };
+    }
+    /// <summary>Validate the entire encrypted cache before publication. Legacy ownership must be explicit.</summary>
+    public async Task<bool> Initialize(string? legacyTenantId = null, CancellationToken cancellation = default)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, shutdown.Token);
+        await gate.WaitAsync(linked.Token);
+        try
+        {
+            Open(requireLoaded: false);
+            if (loaded) return false;
+            var data = store is null ? null : await store.Load(linked.Token);
+            if (data?.Length > 16 * 1024 * 1024) throw new ArgumentException("Settings exceed 16 MiB");
+            var value = data is null ? Empty() : Json.Read(Utf8.GetString(data));
+            if (value is Node legacy && !legacy.ContainsKey("tenants") && legacy.Keys.Any(key => key is "tenant" or "app") && legacy.Keys.All(key => key is "tenant" or "app"))
+                value = new Node { ["tenants"] = new Node(), ["legacy"] = legacy };
+            var next = (Node)Contracts.Parse("PersistedServiceConfigStateSchema", value)!;
+            var tenants = (Node)next["tenants"]!;
+            var migrated = next.ContainsKey("legacy");
+            if (migrated)
+            {
+                if (legacyTenantId is null) throw new ArgumentException("Legacy settings require an explicit tenant owner");
+                Identity(legacyTenantId);
+                if (tenants.ContainsKey(legacyTenantId)) throw new ArgumentException("Legacy settings conflict with an existing tenant");
+                tenants[legacyTenantId] = next["legacy"]; next.Remove("legacy");
+            }
+            foreach (var (tenantId, item) in tenants)
+            {
+                Identity(tenantId);
+                foreach (var appId in ((Node)((Node)item!)["app"]!).Keys) Identity(tenantId, appId);
+                Bucket(next, tenantId);
+            }
+            if (migrated) await Save(next, linked.Token);
+            else { Open(requireLoaded: false); linked.Token.ThrowIfCancellationRequested(); }
+            state = next; loaded = true;
+            return data is not null;
+        }
+        finally { gate.Release(); }
+    }
+    private async ValueTask Save(Node next, CancellationToken cancellation)
+    {
+        var data = Utf8.GetBytes(Json.Write(next));
+        if (data.Length > 16 * 1024 * 1024) throw new ArgumentException("Settings exceed 16 MiB");
+        if (store is not null) await store.Save(data, cancellation);
+        else cancellation.ThrowIfCancellationRequested();
+    }
+    public Node Read(string tenantId) { Open(); Identity(tenantId); return Bucket(state, tenantId); }
+    public Node Values(string tenantId, string? appId = null, bool redacted = false)
+    {
+        Identity(tenantId, appId);
+        var bucket = Read(tenantId);
+        var values = appId is null ? (Node)bucket["tenant"]! : (Node)((Node)bucket["app"]!).GetValueOrDefault(appId, new Node())!;
+        return redacted ? Schema.Redact(appId is null ? "tenant" : "app", values) : values;
+    }
+    public Node Effective(string tenantId, string appId)
+    {
+        Identity(tenantId, appId);
+        var bucket = Read(tenantId);
+        return Schema.Effective(bucket["tenant"], ((Node)bucket["app"]!).GetValueOrDefault(appId, new Node()));
+    }
+    public async Task<Node> Write(string tenantId, object values, string? appId = null, IEnumerable<string>? clearKeys = null, CancellationToken cancellation = default)
+    {
+        var body = new Node { ["tenantId"] = tenantId, ["values"] = values, ["clearKeys"] = (clearKeys ?? []).ToArray() };
+        if (appId is not null) body["appId"] = appId;
+        var request = (Node)Contracts.Parse("ServiceConfigWriteRequestSchema", body)!;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, shutdown.Token);
+        await gate.WaitAsync(linked.Token);
+        try
+        {
+            Open();
+            var scope = appId is null ? "tenant" : "app";
+            var merged = Schema.Merge(scope, Values(tenantId, appId), request["values"], ((List<object?>)request["clearKeys"]!).Cast<string>());
+            var encrypted = Schema.Encode(scope, merged, cipher);
+            var next = (Node)Json.Read(Json.Write(state))!;
+            var tenants = (Node)next["tenants"]!;
+            if (!tenants.ContainsKey(tenantId)) tenants[tenantId] = new Node { ["tenant"] = new Node(), ["app"] = new Node() };
+            var bucket = (Node)tenants[tenantId]!;
+            if (appId is null) bucket["tenant"] = encrypted;
+            else ((Node)bucket["app"]!)[appId] = encrypted;
+            await Save(next, linked.Token);
+            // No suspension between durable commit and in-memory publication.
+            state = next;
+            return (Node)Json.Read(Json.Write(merged))!;
+        }
+        finally { gate.Release(); }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        closed = true;
+        await shutdown.CancelAsync();
+        await gate.WaitAsync();
+        try { state = Empty(); }
+        finally { gate.Release(); }
+    }
+}

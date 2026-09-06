@@ -827,5 +827,38 @@
       "secret": "plaintext"
     },
     "valid": false
+  },
+  {
+    "id": "persisted-settings-defaults",
+    "contract": "PersistedServiceConfigStateSchema",
+    "input": {},
+    "output": {
+      "tenants": {}
+    }
+  },
+  {
+    "id": "persisted-settings-bucket-defaults",
+    "contract": "PersistedServiceConfigStateSchema",
+    "input": {
+      "tenants": {
+        "tenant": {}
+      }
+    },
+    "output": {
+      "tenants": {
+        "tenant": {
+          "tenant": {},
+          "app": {}
+        }
+      }
+    }
+  },
+  {
+    "id": "persisted-settings-legacy-not-null",
+    "contract": "PersistedServiceConfigStateSchema",
+    "input": {
+      "legacy": null
+    },
+    "valid": false
   }
 ]

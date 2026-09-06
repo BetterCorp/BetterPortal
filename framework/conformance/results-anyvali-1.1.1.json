@@ -1,6 +1,6 @@
 {
-  "scenarios": 1062,
-  "passed": 1036,
+  "scenarios": 1086,
+  "passed": 1060,
   "results": [
     {
       "runtime": "node",
@@ -198,6 +198,21 @@
     },
     {
       "runtime": "node",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -589,6 +604,11 @@
     {
       "runtime": "node",
       "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PersistedServiceConfigStateSchema",
       "passed": true
     },
     {
@@ -1087,6 +1107,21 @@
     },
     {
       "runtime": "node",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1478,6 +1513,11 @@
     {
       "runtime": "node",
       "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
       "passed": true
     },
     {
@@ -1977,6 +2017,21 @@
     },
     {
       "runtime": "python",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -2368,6 +2423,11 @@
     {
       "runtime": "python",
       "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PersistedServiceConfigStateSchema",
       "passed": true
     },
     {
@@ -2867,6 +2927,21 @@
     },
     {
       "runtime": "python",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -3258,6 +3333,11 @@
     {
       "runtime": "python",
       "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
       "passed": true
     },
     {
@@ -3756,6 +3836,21 @@
     },
     {
       "runtime": "dotnet",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -4147,6 +4242,11 @@
     {
       "runtime": "dotnet",
       "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PersistedServiceConfigStateSchema",
       "passed": true
     },
     {
@@ -4645,6 +4745,21 @@
     },
     {
       "runtime": "dotnet",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -5036,6 +5151,11 @@
     {
       "runtime": "dotnet",
       "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
       "passed": true
     },
     {

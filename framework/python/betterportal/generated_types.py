@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 96ec90887c1de21411ff2fea32046b4bbf4fa5a1798801ec816fb48f53d8b1b0
+# Generated from AnyVali documents; do not edit. SHA256: 687aa18e730d7b3e44766dd051bbf5f5d8d39c3dbc02154eddf335f4a309c786
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -2395,6 +2395,16 @@ OperationDependencyInput = TypedDict('OperationDependencyInput', {
     'serviceId': NotRequired['str'],
     'operationId': Required['str'],
     'method': Required['HttpMethodInput'],
+})
+
+PersistedServiceConfigState = TypedDict('PersistedServiceConfigState', {
+    'tenants': Required['dict[str, ServiceConfigState]'],
+    'legacy': NotRequired['ServiceConfigState'],
+})
+
+PersistedServiceConfigStateInput = TypedDict('PersistedServiceConfigStateInput', {
+    'tenants': NotRequired['dict[str, ServiceConfigStateInput]'],
+    'legacy': NotRequired['ServiceConfigStateInput'],
 })
 
 PlatformService = TypedDict('PlatformService', {

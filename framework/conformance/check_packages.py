@@ -45,7 +45,7 @@ from betterportal.urls import Urls
 from betterportal.registry import Operation, Route, Registry
 from betterportal.access import AppAccess
 from betterportal.service import Service
-from betterportal.settings import SettingsSchema
+from betterportal.settings import SettingsSchema, ServiceSettings
 from betterportal.authorization import AuthorizedCaller
 from betterportal.contracts import contract
 import asyncio
@@ -58,6 +58,12 @@ cipher = ConfigCipher(ConfigCipher.generate_key())
 assert cipher.decrypt(cipher.encrypt({"value": None})) == {"value": None}
 settings = SettingsSchema([])
 assert settings.values("tenant", {}) == settings.effective({}, {}) == {}
+assert parse("PersistedServiceConfigStateSchema", {}) == {"tenants": {}}
+async def settings_state():
+    async with ServiceSettings(settings, cipher) as state:
+        await state.write("tenant", {})
+        assert state.values("tenant") == state.effective("tenant", "app") == {}
+asyncio.run(settings_state())
 preview_key = generate_preview_key()
 assert decrypt_preview_value(preview_key, "tenant", ["secret"], encrypt_preview_value(preview_key, "tenant", ["secret"], "")) == ""
 anonymous = asyncio.run(authorize_request({}, {}, AuthContext("unresolved", "unresolved"), view_id="hello", method="GET"))

@@ -369,7 +369,8 @@ that native field default. Partial stored overrides never materialize defaults;
 ```python
 import anyvali as av
 from betterportal.encryption import ConfigCipher
-from betterportal.settings import SettingsSchema
+from betterportal.settings import SettingsSchema, ServiceSettings
+import asyncio
 
 policy = SettingsSchema([{"id": "settings", "title": "Settings", "description": "Settings", "scope": "tenant",
     "jsonSchema": av.export_schema(av.object_({"secret": av.string()}, required=[])),
@@ -382,6 +383,14 @@ assert policy.decode("tenant", stored, cipher) == {"secret": "example"}
 assert policy.redact("tenant", {"secret": "example"}) == {"secret": "__redacted__"}
 assert policy.merge("tenant", {"secret": "example"}, {"secret": "__redacted__"}) == {"secret": "example"}
 assert policy.values("tenant", {}) == {}
+
+async def main():
+    async with ServiceSettings(policy, cipher) as settings:
+        await settings.write("tenant", {"secret": "example"})
+        assert settings.values("tenant", redacted=True) == {"secret": "__redacted__"}
+        assert settings.effective("tenant", "app") == {"secret": "example"}
+
+asyncio.run(main())
 ```
 
 Native AnyVali sensitive APIs perform encryption/decryption and redaction traversal.
@@ -394,7 +403,22 @@ over `clear_keys`; a cleared secret cannot simultaneously use a preserve placeho
 Direct sensitive annotations on ref nodes are rejected because all three SDKs bypass
 them ([AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128)). Put sensitive
 metadata on a native wrapper or referenced definition. BP's descriptor visibility
-uses a native wrapper. Persistent settings and the ticket-protected API remain pending.
+uses a native wrapper.
+
+`ServiceSettings` serializes writes and owns encrypted tenant/app state. Supply a
+`FileStateStore(path)` as its third argument for persistence; omission uses memory.
+Call `initialize()` before reads/writes, or use its async context manager. Loading
+validates the whole cache before publishing it. A failed save or cancellation before
+commit preserves both disk and active values. Writes combine clears and replacements
+in one commit. `values` returns stored overrides; `effective` adds native defaults.
+Reads return owned copies. Closing cancels pending writes and rejects further access.
+
+The portable cache reads Node's encrypted tenant/app files. Bare legacy buckets or
+the `legacy` envelope require `initialize(legacy_tenant_id=...)`; migration persists
+that explicit owner before becoming ready and rejects an existing owner bucket.
+Unmarked plaintext secrets and tampered ciphertext are rejected. Keep the encryption
+key in protected storage. One instance owns each file; shared replicas need a
+configured repository/transport. The ticket-protected HTTP API remains pending.
 
 `Service.apply_snapshot` validates a complete scoped document and preview values,
 persists it through the supplied `StateStore`, then replaces active policy. Failed

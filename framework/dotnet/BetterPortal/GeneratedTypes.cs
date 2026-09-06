@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: e2c25f8ae787b89785c3832df515957c4bd21b4308487d9e024c01ee3480a97f
+// Generated from AnyVali documents; do not edit. SHA256: 4beb308541bd4524a17ea306f671c0d254dd5736dc9c905c619d2e0250300244
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -6190,6 +6190,25 @@ public sealed record OperationDependencyInput
     public required string OperationId { get; init; }
     [JsonPropertyName("method")]
     public required HttpMethodInput Method { get; init; }
+}
+
+public sealed record PersistedServiceConfigState
+{
+    [JsonPropertyName("tenants")]
+    public required IReadOnlyDictionary<string, ServiceConfigState> Tenants { get; init; }
+    [JsonPropertyName("legacy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ServiceConfigState> Legacy { get; init; }
+}
+
+public sealed record PersistedServiceConfigStateInput
+{
+    [JsonPropertyName("tenants")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, ServiceConfigStateInput>> Tenants { get; init; }
+    [JsonPropertyName("legacy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ServiceConfigStateInput> Legacy { get; init; }
 }
 
 public sealed record PlatformService

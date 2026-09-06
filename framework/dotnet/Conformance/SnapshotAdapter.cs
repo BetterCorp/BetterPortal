@@ -5,22 +5,6 @@ using Node = System.Collections.Generic.Dictionary<string, object?>;
 
 internal static class SnapshotAdapter
 {
-    private sealed class Store(string directory, int limit) : IStateStore
-    {
-        private readonly FileStateStore file = new(Path.Combine(directory, "state.json"), limit);
-        internal string Mode = "ok";
-        internal int Saves;
-        internal TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public ValueTask<byte[]?> Load(CancellationToken cancellation = default) => file.Load(cancellation);
-        public async ValueTask Save(ReadOnlyMemory<byte> data, CancellationToken cancellation = default)
-        {
-            Saves++;
-            if (Mode == "fail") throw new IOException("Injected persistence failure");
-            if (Mode == "block") { Started.TrySetResult(); await Release.Task.WaitAsync(cancellation); }
-            await file.Save(data, cancellation);
-        }
-    }
     internal static async Task<object> Run(Node body)
     {
         var directory = Directory.CreateTempSubdirectory("bp-snapshots-");
@@ -36,7 +20,7 @@ internal static class SnapshotAdapter
                 catch (UnauthorizedAccessException) { failed = true; }
                 return new { failed, preserved = await File.ReadAllTextAsync(sentinel) == "old", temporaryFiles = directory.GetFiles("*.tmp").Length };
             }
-            var store = new Store(directory.FullName, Convert.ToInt32(body.GetValueOrDefault("maxBytes", 16 * 1024 * 1024)));
+            var store = new FaultStore(directory.FullName, Convert.ToInt32(body.GetValueOrDefault("maxBytes", 16 * 1024 * 1024)));
             if (body.GetValueOrDefault("stored") is string storedText) await File.WriteAllTextAsync(Path.Combine(directory.FullName, "state.json"), storedText);
             var route = new Route("check", "/check/:key", [new Operation(new Handler<object?, object?, object?, object?, object?>(Contracts.Get("JsonObjectSchema"), _ => ValueTask.FromResult<object?>(new Node())),
                 new OperationDeclarationInput { OperationId = "check.get", Method = HttpMethodInput.GET, Title = "Check", Description = "Check", Auth = Contracts.Parse<ApiAuthRequirementInput>("ApiAuthRequirementSchema", body.GetValueOrDefault("auth", new Node())) })]);

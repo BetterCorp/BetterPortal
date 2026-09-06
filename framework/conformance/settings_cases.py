@@ -15,10 +15,11 @@ def fixture():
         "nested": {"kind": "object", "properties": {"password": secret, "label": {"kind": "string"}}, "required": ["password", "label"], "unknownKeys": "allow"},
         "rows": {"kind": "array", "items": {"kind": "object", "properties": {"secret": {"kind": "int", "metadata": {"sensitive": True}}}, "required": ["secret"], "unknownKeys": "strip"}},
         "strict": {"kind": "object", "properties": {}, "required": [], "unknownKeys": "reject"},
+        "appSecret": document["root"],
     }
     document["root"] = {"kind": "object", "properties": properties, "required": ["count"], "unknownKeys": "reject"}
-    fields = [{"key": key, "title": key, "description": key, "scope": "app" if key in ("nested", "rows", "strict") else "tenant",
-               "visibility": "secret" if key == "secret" else "public", "ownership": "bp", "sourceOfTruth": "bp"} for key in properties]
+    fields = [{"key": key, "title": key, "description": key, "scope": "app" if key in ("nested", "rows", "strict", "appSecret") else "tenant",
+               "visibility": "secret" if key in ("secret", "appSecret") else "public", "ownership": "bp", "sourceOfTruth": "bp"} for key in properties]
     return {"action": "settings-schema", "command": "values", "scope": "tenant", "descriptors": [
         {"id": "settings", "title": "Settings", "description": "Settings", "scope": "tenant", "jsonSchema": document, "fields": fields}]}
 

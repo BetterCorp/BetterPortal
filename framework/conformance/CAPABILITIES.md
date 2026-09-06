@@ -7,7 +7,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-1,036/1,062 schema probes; token/service security passes 459/459 scenarios and JWKS
+1,060/1,086 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite streams 113/113, SSE subscriptions/wire 71/71 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
@@ -17,13 +17,12 @@ pass 101/101 checks including streamed delivery, ownership and backpressure.
 Typed HTML callbacks, presentation context, fragments/components and status/error
 rendering pass 163/163 checks.
 Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane sync
-130/130, and settings schema/encryption/redaction policy 122/122. The full gate
-passes 4,000/4,027; the remaining probes expose SDK defects/limitations.
-Scoped URL, navigation and element helpers pass 232/232 checks.
-Atomic snapshot persistence, preview application and live policy updates pass 125/125 checks.
+130/130, settings schema/encryption/redaction policy 122/122, and encrypted settings
+persistence 70/70. The full gate passes 4,094/4,121; the remaining probes expose
+SDK defects/limitations.
 Inbound operation mounts and local permission aliases pass 130/130 access checks.
 Context resolution passes 102/103; its Python null-active check is blocked by the
-same upstream null/default defect. The combined gate passes 3,724/3,733. See
+same upstream null/default defect. See
 [README](README.md). Neither language is a complete production runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -33,7 +32,7 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 138 canonical documents embedded in both packages, including derived authoring declarations; native imports, field selection and portable object composition; two expanded SDK probes fail | manifest.md §4 | schema-cases.json; 1,012/1,020 including all-document round trips |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 140 canonical documents embedded in both packages, including derived authoring declarations; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,060/1,086 including all-document round trips |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; full contexts and renderer/finite-stream registration pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors; rendering/streaming metadata pending | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
@@ -52,8 +51,8 @@ future scenarios; they are not assertions that those tests already exist.
 | config-ticket | runtime/configTicket.ts, serviceConfig.ts | Partial: CP-signed ticket and service/tenant/action checks; config routes/configApps policy pending | config.md §4 | security_cases.py cross-ticket, wrong-service, wrong-action; configApps-scope pending |
 | s2s | runtime/auth/serviceToken.ts; BSB service.ts | JSON hosts verify both delegated halves, partial/revoked envelopes and mounted machine audiences; outbound calls pending | auth.md §3; port READMEs | security_cases.py, authorization_cases.py and hosting_cases.py: wrong-peer, revoked binding/grant/user, method/mode/permission, scope and delegated-both |
 | local-config | runtime/configProvider.ts | Service accepts local ScopedConfig, validates atomic replacements and restores canonical snapshots through replaceable file storage; platform/environment authoring still pending | config.md §1; port READMEs | snapshot_cases.py: failed-save/cancellation/size/rename, concurrent updates, owned copies, cache interchange and live scope/auth/URL policy; hosting_cases.py: local scope |
-| settings | runtime/configStore.ts, serviceConfig.ts | SettingsSchema compiles AnyVali field contracts, validates scopes/defaults and partial overrides, merges tenant/app values and protects nested secret placeholders; persistent store and HTTP API pending | config.md §3; port READMEs | settings_cases.py: 122 checks for recursive/typed values, scopes, defaults, nested unknown keys, clears, placeholders and union declassification; atomic settings persistence pending |
-| encryption | runtime/configStore.ts | Python encryption.py/settings.py; C# Encryption.cs/Settings.cs: v1 read/v2-v3 write, native scrypt/AES-GCM and sensitive traversal, Node marker bridge, nested encryption/redaction; settings persistence pending | config.md §5; port READMEs | encryption_cases.py: 318 checks; settings_cases.py: all-language legacy envelope interchange, nested ciphertext, tampering, imported metadata and ordinary-prefix preservation |
+| settings | runtime/configStore.ts, serviceConfig.ts | SettingsSchema compiles AnyVali field contracts, validates scopes/defaults and partial overrides, merges tenant/app values and protects nested secret placeholders; ServiceSettings owns atomic encrypted persistence with explicit legacy ownership; HTTP API pending | config.md §3; port READMEs | settings_cases.py: 122 checks for recursive/typed values, scopes, defaults, nested unknown keys, clears, placeholders and union declassification; settings_store_cases.py: 70 checks for all-language files, atomic failure/cancellation, concurrency, migration and lifecycle |
+| encryption | runtime/configStore.ts | Python encryption.py/settings.py; C# Encryption.cs/Settings.cs: v1 read/v2-v3 write, native scrypt/AES-GCM and sensitive traversal, Node marker bridge, nested encryption/redaction and persisted encrypted caches | config.md §5; port READMEs | encryption_cases.py: 318 checks; settings_cases.py and settings_store_cases.py: all-language envelope/file interchange, nested ciphertext, tampering, imported metadata and ordinary-prefix preservation |
 | preview | runtime/previewConfig.ts; BSB service.ts applyPreviewConfig | Native sensitive schemas and authenticated preview decryption; validate both scopes and unambiguous active target before persisting encrypted snapshot and atomically activating request-config overlay | config.md §5.1; port READMEs | encryption_cases.py; snapshot_cases.py: cross-language encrypted cache, failed-revision retention, scope rejection, removal and no plaintext persistence |
 | sync | BSB service.ts connectToControlPlane; scopedConfigCache.ts | Native ControlPlaneSync: typed manifest projection, bounded/validated POST and SSE, atomic snapshots, reconnect/poll fallback, secure endpoints and shutdown | config.md §2; port READMEs | sync_cases.py: neutral HTTP peer plus actual Node config-manager/FileStorage; key registration, manifest commit, scopes, live policy, framing, bounds, redirects, cache/save failures and reconnect |
 | readiness | BSB service.ts renderHealth/canReadHealthDiagnostics | Managed health requires current manifest acknowledgment and a persisted valid snapshot; restored cache stays unready, explicit CP denial/shutdown suspends readiness, transient failures retain valid policy; authorized diagnostics pending | protocol.md §1.1; port READMEs | hosting_cases.py, snapshot_cases.py and sync_cases.py: bootstrap, cache, failed save, denial/recovery, real-CP credential revocation and public-minimal; diagnostic authorization pending |
@@ -91,7 +90,7 @@ JavaScript are not port deliverables. Existing Node services are integration pee
   expanded probes remain failing; BP portable composition passes its separate
   recursive and sensitive-field probes. Never accept dangling references or mask the
   presence defect with a second validator. Encryption primitives and preview
-  sensitive traversal pass; persistent encrypted settings remain a later gate.
+  sensitive traversal and encrypted persistence pass; ticket-protected hosting remains a later gate.
 - AnyVali 1.1.1 also bypasses sensitive metadata on ref nodes in all SDKs (#128).
   The eighteen direct/roundtrip probes remain failing. Settings declarations reject
   that unsafe form; BP field visibility annotates a native wrapper. Metadata on
