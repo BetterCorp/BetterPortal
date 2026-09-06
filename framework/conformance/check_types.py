@@ -54,6 +54,11 @@ def handle(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> TokenL
 handler = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, query=contract("ApiAuthRequirementSchema"))
 from betterportal.response import RawHandler, RawResponse
 download = RawHandler[Any, Any, Any, Any](lambda context: RawResponse.file(b"hello", "report.txt"))
+from betterportal.rendering import Renderer, RenderContext
+def render(value: TokenLifetimeConfig, context: RenderContext) -> str:
+    return str(value["accessTokenSeconds"]) + context.tenant["title"]
+renderer = Renderer[TokenLifetimeConfig]({"renderer": "bootstrap5"}, render)
+html = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, renderers=[renderer])
 ''', encoding="utf-8")
 command = [python, "-m", "mypy", "--follow-imports=silent", "--follow-untyped-imports", "--cache-dir", str(root / ".tmp-run/mypy-ports")]
 subprocess.run([*command, str(positive)], env=environment, check=True)
@@ -69,9 +74,13 @@ def bad(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> int:
     return "invalid response"
 from betterportal.response import RawHandler
 raw = RawHandler[Any, Any, Any, Any](lambda context: 42)
+from betterportal.rendering import Renderer, RenderContext
+def bad_render(value: ApiAuthRequirement, context: RenderContext) -> str:
+    return context.tenant["services"]
+renderer = Renderer[ApiAuthRequirement]({"renderer": "bootstrap5"}, lambda value, context: 42)
 ''', encoding="utf-8")
 result = subprocess.run([*command, str(negative)], env=environment, capture_output=True, text=True)
-assert result.returncode == 1 and result.stdout.count(": error:") == 7, result.stdout + result.stderr
+assert result.returncode == 1 and result.stdout.count(": error:") == 10, result.stdout + result.stderr
 
 tool = root / "framework/dotnet/BetterPortal.Tool/bin/Debug/net10.0/BetterPortal.Tool.dll"
 subprocess.run(["dotnet", str(tool), "types", "--platform", "--output", str(root / "framework/dotnet/BetterPortal/GeneratedTypes.cs"), "--check"], check=True)
@@ -143,6 +152,13 @@ var canonical = new EnvelopeInput { Method = MethodInput.GET };
 var text = Contracts.Parse<TextEnvelope>(Contracts.Import(System.IO.File.ReadAllText(System.IO.Path.Combine(args[1], "TextEnvelopeSchema.json"))), new { value = "retained" });
 var flag = Contracts.Parse<FlagEnvelope>(Contracts.Import(System.IO.File.ReadAllText(System.IO.Path.Combine(args[1], "FlagEnvelopeSchema.json"))), new { value = true });
 if ((string)text.Value != "retained" || !(bool)flag.Value) throw new System.Exception("Different reference bindings were merged");
+var renderer = new Renderer<BetterPortal.Generated.ApiAuthRequirement>(new() { Renderer = "bootstrap5" },
+    (value, context) => value.Required.ToString() + context.Tenant.Title);
+var handler = new Handler<object?, object?, object?, object?, BetterPortal.Generated.ApiAuthRequirement>(
+    Contracts.Get("ApiAuthRequirementSchema"), context => System.Threading.Tasks.ValueTask.FromResult(
+        Contracts.Parse<BetterPortal.Generated.ApiAuthRequirement>("ApiAuthRequirementSchema", new BetterPortal.Generated.ApiAuthRequirementInput())),
+    renderers: new[] { renderer });
+if (handler.Renderers.Count != 1) throw new System.Exception("Missing typed renderer");
 ''', encoding="utf-8")
 subprocess.run(["dotnet", "run", "--project", str(custom), "-p:UseSharedCompilation=false", "--", str(source), str(bindings)], check=True)
 
@@ -162,6 +178,8 @@ static int InvalidHandler(BetterPortal.HandlerContext<object, ApiAuthRequirement
     context.Query.Required.Trim();
     return "invalid response";
 }
+var renderer = new BetterPortal.Renderer<ApiAuthRequirement>(new() { Renderer = "bootstrap5" }, (value, context) => 42);
+static string PrivateContext(BetterPortal.RenderContext context) => context.Tenant.Services;
 ''', encoding="utf-8")
 result = subprocess.run(["dotnet", "build", str(negative_dotnet), "-m:1", "-p:UseSharedCompilation=false"], capture_output=True, text=True)
 assert result.returncode != 0 and "CS9035" in result.stdout and "CS0029" in result.stdout and "CS1061" in result.stdout, result.stdout + result.stderr

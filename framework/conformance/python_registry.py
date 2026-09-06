@@ -1,6 +1,7 @@
 import anyvali as av
 from betterportal.handler import Handler
 from betterportal.registry import Operation, Route, Registry
+from betterportal.rendering import Renderer
 
 
 def registry_request(body):
@@ -10,6 +11,7 @@ def registry_request(body):
             operations = []
             for operation in item["operations"]:
                 handler = Handler(av.import_schema(operation["response"]), lambda context: None,
+                                  renderers=[Renderer(item["declaration"], lambda data, context: "") for item in operation.get("renderers", [])],
                                   **{key: av.import_schema(value) for key, value in operation.get("schemas", {}).items()})
                 operations.append(Operation(handler, operation["declaration"]))
             routes.append(Route(item["viewId"], item["path"], operations, path_variants=item.get("pathVariants", [])))

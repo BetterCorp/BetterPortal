@@ -97,7 +97,8 @@ class Handler(BaseHTTPRequestHandler):
             if body.get("action") == "media":
                 try:
                     options = {"available": body["available"]} if "available" in body else {}
-                    payload = {"status": 200, "output": asdict(negotiate(body.get("accept"), **options))}
+                    representation = negotiate(body.get("accept"), **options)
+                    payload = {"status": 200, "output": {"kind": representation.kind, "mode": representation.mode}}
                 except NotAcceptable:
                     payload = {"status": 406}
                 self.send_response(200)

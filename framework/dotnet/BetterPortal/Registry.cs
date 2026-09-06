@@ -9,16 +9,37 @@ public sealed class Operation
 {
     private readonly Node declaration;
     public Handler Handler { get; }
+    public IReadOnlyList<Renderer<Generated.ViewRenderError>> ErrorRenderers { get; }
     public string Id => (string)declaration["operationId"]!;
     public string Method => (string)declaration["method"]!;
     public Generated.OperationDeclaration Declaration => Contracts.Parse<Generated.OperationDeclaration>("OperationDeclarationSchema", declaration);
-    public Operation(Handler handler, Generated.OperationDeclarationInput declaration)
-    { Handler = handler; this.declaration = (Node)Contracts.Parse("OperationDeclarationSchema", declaration)!; }
+    public Operation(Handler handler, Generated.OperationDeclarationInput declaration, IEnumerable<Renderer<Generated.ViewRenderError>>? errorRenderers = null)
+    {
+        Handler = handler; this.declaration = (Node)Contracts.Parse("OperationDeclarationSchema", declaration)!;
+        ErrorRenderers = Renderer.Unique(errorRenderers ?? []);
+        if (ErrorRenderers.Any(item => item.Identity.Status < 400)) throw new ArgumentException("Error renderers require an error status");
+    }
     public ValueTask<object?> Invoke(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation = default)
     {
         if (context.Method != Method) throw new ArgumentException("Operation method does not match the request context");
         return Handler.InvokeBoxed(context, values, cancellation);
     }
+    public ValueTask<Invocation> Execute(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation = default)
+    {
+        if (context.Method != Method) throw new ArgumentException("Operation method does not match the request context");
+        return Handler.ExecuteBoxed(context, values, cancellation);
+    }
+    public async ValueTask<RawResponse?> RenderError(RenderContext context, string message)
+    {
+        var route = context.Route; var kind = route.Kind.ToString().ToLowerInvariant();
+        var identity = (route.Renderer, kind, route.Key.HasValue ? route.Key.Value : null, (int)route.Status);
+        var renderer = ErrorRenderers.FirstOrDefault(item => item.Identity == identity);
+        if (renderer is null && !Handler.Renderers.Any(item => (item.Identity.Renderer, item.Identity.Kind, item.Identity.Key) == (identity.Renderer, kind, identity.Item3))) return null;
+        var html = renderer is null ? "" : await renderer.Render(Contracts.Parse<Generated.ViewRenderError>("ViewRenderErrorSchema", new { error = message, status = route.Status }), context);
+        var mode = kind == "page" ? route.Mode.ToString().ToLowerInvariant() : "fragment";
+        return new RawResponse(System.Text.Encoding.UTF8.GetBytes(html), (int)route.Status, new Dictionary<string, string> { ["content-type"] = HtmlContentType(mode) });
+    }
+    public string HtmlContentType(string mode) => Renderer.ContentType(mode, declaration.GetValueOrDefault("chrome"));
     internal static Node Export(Schema schema) => (Node)Json.Read(Json.Write(V.Export(schema)))!;
     internal Node Metadata(string viewId, IReadOnlyDictionary<string, string> aliases, string pluginId)
     {
@@ -27,7 +48,8 @@ public sealed class Operation
             result[target] = Handler.Schemas.TryGetValue(source, out var schema) ? Export(schema) : new Node();
         result["jsonResponseSchema"] = Handler.ResponseSchema is { } response ? Export(response) : new Node(); result["metadataResponseSchema"] = new Node();
         if (Handler.IsRaw) result["raw"] = true;
-        result["renderable"] = false; result["html"] = new Node { ["renderers"] = new Node() };
+        var html = Renderer.HtmlMetadata(Handler.Renderers);
+        result["renderable"] = ((Node)html["renderers"]!).Count > 0; result["html"] = html;
         result.TryAdd("sitemap", new Node { ["kind"] = "default" });
         foreach (var dependency in ((List<object?>)result["dependencies"]!).Cast<Node>())
         {
@@ -123,8 +145,17 @@ public sealed class Registry
                 ["paramsSchema"] = route.Operations[0].Handler.Schemas.TryGetValue("params", out var schema) ? Operation.Export(schema) : new Node() });
         }
         var capabilities = ((List<object?>)result["capabilities"]!).Cast<string>().Concat(["view.json", "view.metadata"]).ToList();
-        var renderers = new List<string>();
+        var renderers = new List<string>(); var modes = new List<string>();
         if (result.TryGetValue("shell", out var shell)) { renderers.Add((string)((Node)shell!)["renderer"]!); capabilities.Add("renderer." + renderers[0]); }
+        foreach (var renderer in Routes.SelectMany(route => route.Operations).SelectMany(operation => operation.Handler.Renderers))
+        {
+            var (theme, kind, _, status) = renderer.Identity;
+            if (status != 200) continue;
+            renderers.Add(theme); capabilities.Add("renderer." + theme);
+            if (kind == "page") modes.Add("page");
+            if (kind == "fragment") modes.Add("fragment");
+            if (kind is "page" or "component") capabilities.Add("view.html");
+        }
         if (((List<object?>)result["configSchemas"]!).Count > 0)
         {
             var apis = (List<object?>)result["adminApis"]!;
@@ -135,7 +166,7 @@ public sealed class Registry
                 if (!existing.Contains(id)) apis.Add(new Node { ["id"] = id, ["title"] = title, ["description"] = description, ["path"] = path, ["methods"] = methods, ["supportsCustomUi"] = false });
         }
         result["protocolVersion"] = 2; result["views"] = views; result["capabilities"] = capabilities.Distinct(StringComparer.Ordinal).ToArray();
-        result["supportedRenderers"] = renderers; result["supportedRenderModes"] = Array.Empty<string>(); result["apiContracts"] = contracts;
+        result["supportedRenderers"] = renderers.Distinct().ToArray(); result["supportedRenderModes"] = modes.Distinct().ToArray(); result["apiContracts"] = contracts;
         return (Node)Contracts.Parse("PluginManifestSchema", result)!;
     }
     public Generated.PluginManifest Manifest(Generated.ManifestDeclarationInput declaration) => Contracts.Parse<Generated.PluginManifest>("PluginManifestSchema", ManifestNode(declaration));
@@ -145,8 +176,15 @@ public sealed class Registry
         {
             ["viewId"] = route.ViewId, ["path"] = route.Paths[0], ["pathVariants"] = route.Paths.Count > 1 ? route.Paths : [],
             ["operations"] = route.Operations.Select(operation => new { operationId = operation.Id, method = operation.Method }).ToArray(),
-            ["paramNames"] = route.ParamNames, ["renderers"] = Array.Empty<string>(), ["hasFragments"] = false,
-            ["fragments"] = Array.Empty<object>(), ["components"] = Array.Empty<string>()
+            ["paramNames"] = route.ParamNames, ["renderers"] = RouteRenderers(route).Select(item => item.Renderer.Identity.Renderer).Distinct().ToArray(),
+            ["hasFragments"] = RouteRenderers(route).Any(item => item.Renderer.Identity.Kind == "fragment"),
+            ["fragments"] = RouteRenderers(route).Where(item => item.Renderer.Identity.Kind == "fragment")
+                .GroupBy(item => (item.Renderer.Identity.Key, item.Operation.Id, item.Operation.Method)).Select(group => new Node {
+                    ["fragmentLocation"] = group.Key.Key!.Split('.')[0], ["fragmentId"] = group.Key.Key!.Split('.')[1], ["operationId"] = group.Key.Id,
+                    ["method"] = group.Key.Method, ["renderers"] = group.Select(item => item.Renderer.Identity.Renderer).ToArray() }).ToArray(),
+            ["components"] = RouteRenderers(route).Where(item => item.Renderer.Identity.Kind == "component").Select(item => item.Renderer.Identity.Key).Distinct().ToArray()
         }).ToArray()
     });
+    private static IEnumerable<(Operation Operation, Renderer Renderer)> RouteRenderers(Route route) => route.Operations.SelectMany(operation =>
+        operation.Handler.Renderers.Where(renderer => renderer.Identity.Status == 200).Select(renderer => (operation, renderer)));
 }

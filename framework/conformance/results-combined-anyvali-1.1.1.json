@@ -1,6 +1,6 @@
 {
-  "scenarios": 3129,
-  "passed": 3120,
+  "scenarios": 3340,
+  "passed": 3331,
   "results": [
     {
       "runtime": "node",
@@ -140,6 +140,21 @@
     },
     {
       "runtime": "node",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -580,6 +595,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-RenderModeSchema",
       "passed": true
     },
@@ -730,6 +750,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ViewDemoScenarioMatchSchema",
       "passed": true
     },
@@ -755,6 +780,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ViewRendererSupportSchema",
       "passed": true
     },
@@ -771,6 +806,11 @@
     {
       "runtime": "node",
       "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewTenantContextSchema",
       "passed": true
     },
     {
@@ -917,6 +957,21 @@
     {
       "runtime": "node",
       "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-unknown-roundtrip",
       "passed": true
     },
     {
@@ -1361,6 +1416,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-RenderModeSchema-roundtrip",
       "passed": true
     },
@@ -1511,6 +1571,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
       "passed": true
     },
@@ -1536,6 +1601,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ViewRendererSupportSchema-roundtrip",
       "passed": true
     },
@@ -1552,6 +1627,11 @@
     {
       "runtime": "node",
       "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewTenantContextSchema-roundtrip",
       "passed": true
     },
     {
@@ -1703,6 +1783,21 @@
     },
     {
       "runtime": "python",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -2143,6 +2238,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-RenderModeSchema",
       "passed": true
     },
@@ -2293,6 +2393,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ViewDemoScenarioMatchSchema",
       "passed": true
     },
@@ -2318,6 +2423,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ViewRendererSupportSchema",
       "passed": true
     },
@@ -2334,6 +2449,11 @@
     {
       "runtime": "python",
       "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewTenantContextSchema",
       "passed": true
     },
     {
@@ -2485,6 +2605,21 @@
     },
     {
       "runtime": "python",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -2925,6 +3060,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-RenderModeSchema-roundtrip",
       "passed": true
     },
@@ -3075,6 +3215,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
       "passed": true
     },
@@ -3100,6 +3245,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ViewRendererSupportSchema-roundtrip",
       "passed": true
     },
@@ -3116,6 +3271,11 @@
     {
       "runtime": "python",
       "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewTenantContextSchema-roundtrip",
       "passed": true
     },
     {
@@ -3262,6 +3422,21 @@
     {
       "runtime": "dotnet",
       "id": "operation-declaration-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-unknown",
       "passed": true
     },
     {
@@ -3706,6 +3881,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-RenderModeSchema",
       "passed": true
     },
@@ -3856,6 +4036,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ViewDemoScenarioMatchSchema",
       "passed": true
     },
@@ -3881,6 +4066,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ViewRendererSupportSchema",
       "passed": true
     },
@@ -3897,6 +4092,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewTenantContextSchema",
       "passed": true
     },
     {
@@ -4043,6 +4243,21 @@
     {
       "runtime": "dotnet",
       "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-unknown-roundtrip",
       "passed": true
     },
     {
@@ -4487,6 +4702,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-RenderModeSchema-roundtrip",
       "passed": true
     },
@@ -4637,6 +4857,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
       "passed": true
     },
@@ -4662,6 +4887,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ViewRendererSupportSchema-roundtrip",
       "passed": true
     },
@@ -4678,6 +4913,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewTenantContextSchema-roundtrip",
       "passed": true
     },
     {
@@ -15654,6 +15894,821 @@
     {
       "runtime": "dotnet",
       "id": "raw-stream-throw",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-page",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-page",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-page",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-fragment-mode",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-fragment-mode",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-fragment-mode",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-embed-mode",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-embed-mode",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-embed-mode",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-fragment-query",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-fragment-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-fragment-query",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-component-query",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-component-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-component-query",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-fragment-accept",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-fragment-accept",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-fragment-accept",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-fragment-quoted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-fragment-quoted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-fragment-quoted",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-query-over-accept",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-query-over-accept",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-query-over-accept",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-forged-theme",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-forged-theme",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-forged-theme",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-parsed-context",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-parsed-context",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-parsed-context",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-missing-app-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-missing-app-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-missing-app-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-exact-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-exact-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-exact-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-missing-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-missing-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-missing-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-missing-component",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-missing-component",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-missing-component",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-method-specific",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-method-specific",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-method-specific",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-wrong-renderer-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-wrong-renderer-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-wrong-renderer-method",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-render-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-render-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-render-error",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-response-validation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-response-validation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-response-validation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-denied-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-denied-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-denied-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-duplicate-component",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-duplicate-component",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-ambiguous-selector",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-ambiguous-selector",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-fragment-suffix",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-fragment-suffix",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-fragment-only-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-fragment-only-mount",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-fragment-only-mount",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-fragment-mount-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-fragment-mount-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-fragment-mount-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-zero-quality-selector",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-zero-quality-selector",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-invalid-accept-auth-first",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-invalid-accept-auth-first",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-method-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-method-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-method-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-status-201-html",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-201-html",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-201-html",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-status-201-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-201-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-201-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-status-202-html",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-202-html",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-202-html",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-status-202-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-202-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-202-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-206-html",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-206-html",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-206-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-206-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-302-html",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-302-html",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-302-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-302-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-status-404-html",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-404-html",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-404-html",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-status-404-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-404-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-404-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-status-503-html",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-503-html",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-503-html",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-status-503-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-status-503-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-status-503-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-bodyless-204",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-bodyless-204",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-bodyless-204",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-bodyless-205",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-bodyless-205",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-bodyless-205",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-bodyless-304",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-bodyless-304",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-bodyless-304",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-head",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-chrome",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-explicit-status-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-response-headers",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "rendering-auth-error-page",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-head",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-chrome",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-explicit-status-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-response-headers",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-auth-error-page",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-auth-error-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-auth-error-component",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-renderer-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-error-renderer-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-accept-fragment-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-accept-fragment-preflight-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-throw",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-invalid-output",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-invalid-query",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-broken-error-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-head",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-chrome",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-explicit-status-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-response-headers",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-auth-error-page",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-auth-error-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-auth-error-component",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-renderer-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-error-renderer-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-accept-fragment-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-accept-fragment-preflight-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-throw",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-invalid-output",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-invalid-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-broken-error-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-duplicate-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-duplicate-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-page-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-page-key",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-fragment-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-fragment-key",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "rendering-component-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "rendering-component-key",
       "passed": true
     }
   ]

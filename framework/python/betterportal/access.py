@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Iterable, Mapping
+from typing import Any, Iterable, Mapping
 
 from .context import ScopedContext
 from .registry import Route, _segments
@@ -58,9 +58,18 @@ class AppAccess:
                 location, dot, identifier = fragment.partition(".")
                 candidates = self._app["fragments"].get(location, []) if dot and location else [item for items in self._app["fragments"].values() for item in items]
                 identifier = identifier if dot and location else fragment
-                if any(item["enabled"] and local(item["serviceId"]) and item["fragmentId"] == identifier
-                       and _path_matches(item["targetPath"], path) for item in candidates):
+                if any(item["fragmentId"] == identifier and self._fragment_allowed(item, path, service_id) for item in candidates):
                     return True
             if any(item["enabled"] and local(item["serviceId"]) and item["viewId"] == route.view_id for item in self._app["slots"]):
                 return True
         return False
+
+    def _fragment_allowed(self, item: Mapping[str, Any], path: str, service_id: str | None = None) -> bool:
+        return bool(item["enabled"] and item["serviceId"] in self._services and (service_id is None or item["serviceId"] == service_id)
+                    and _path_matches(item["targetPath"], path))
+
+    def allows_preflight(self, route: Route, method: str, *, path: str | None = None, fragment: str | None = None) -> bool:
+        if self.allows(route, method, path=path, fragment=fragment): return True
+        # OPTIONS does not carry the subsequent request's Accept fragment parameter.
+        return method == "GET" and fragment is None and any(item.method == method for item in route.operations) and any(
+            self._fragment_allowed(item, path or route.paths[0]) for items in self._app["fragments"].values() for item in items)

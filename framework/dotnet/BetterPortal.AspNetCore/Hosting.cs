@@ -164,41 +164,103 @@ public static class Hosting
         foreach (var (pattern, operations) in groups) endpoints.MapMethods(pattern, operations.Keys.Concat(operations.ContainsKey("GET") ? ["HEAD", "OPTIONS"] : new[] { "OPTIONS" }).Distinct(), async (HttpContext context) =>
         {
             IReadOnlyDictionary<string, string> responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin" };
+            ScopedContext? failureScope = null; Operation? operation = null; Route? route = null; Representation? representation = null;
+            var kind = "page"; string? key = null; var matched = ""; var requested = "GET";
+            var query = new Node(); var parameters = new Node();
+            async Task Failure(int status, string message, ScopedContext? scope = null)
+            {
+                scope ??= failureScope;
+                var theme = (scope?.App.GetValueOrDefault("shell") as Node)?.GetValueOrDefault("renderer") as string;
+                if (theme is not null && scope is not null && operation is not null && route is not null && representation?.Kind == "html")
+                {
+                    try
+                    {
+                        var renderContext = RenderContext.Create(new RequestContext(scope, new AuthorizedCaller(), requested, context.Request.Path),
+                            route.ViewId, matched, theme, representation.Mode ?? "page", kind, key, status, parameters, query, context.RequestAborted);
+                        var value = await operation.RenderError(renderContext, message);
+                        if (value is not null) { await ReplyRaw(context, value, responseHeaders); return; }
+                    }
+                    catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { throw; }
+                    catch (Exception) { status = 500; message = "Request failed"; }
+                }
+                await Reply(context, new { error = message }, status, responseHeaders);
+            }
             try
             {
-                var headers = Headers(context.Request); var query = Pairs(context.Request.QueryString.Value ?? "");
+                var headers = Headers(context.Request); query = Pairs(context.Request.QueryString.Value ?? "");
                 if (query.GetValueOrDefault("_f") is { } selector && selector is not string) throw new RequestException(400, "Invalid fragment selector");
                 var fragment = (string?)query.GetValueOrDefault("_f");
-                var requested = context.Request.Method == "OPTIONS" ? headers.GetValueOrDefault("access-control-request-method", "") : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;
+                requested = context.Request.Method == "OPTIONS" ? headers.GetValueOrDefault("access-control-request-method", "") : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;
                 if (!operations.TryGetValue(requested, out var binding)) throw new RequestException(context.Request.Method == "OPTIONS" ? 403 : 405, "Method not allowed");
+                route = binding.Route; matched = binding.Path;
+                parameters = Segments(binding.Path).Select((part, index) => (part, index)).Where(item => item.part.StartsWith(':'))
+                    .ToDictionary(item => item.part[1..], item => context.Request.RouteValues["_bp" + item.index]);
                 if (context.Request.Method == "OPTIONS")
                 {
                     responseHeaders = service.Preflight(binding.Route, headers, binding.Path, fragment, context.Request.Scheme, mode);
                     await Reply(context, null, 204, responseHeaders); return;
                 }
+                operation = binding.Route.Operations.Single(item => item.Method == requested);
+                NotAcceptableException? negotiationError = null;
+                try { if (!operation.Handler.IsRaw) representation = Media.Negotiate(headers.GetValueOrDefault("accept"), operation.Handler.Renderers.Count > 0 || operation.ErrorRenderers.Count > 0 ? ["json", "metadata", "html"] : ["json", "metadata"]); }
+                catch (NotAcceptableException error) { negotiationError = error; }
+                fragment ??= representation?.Fragment;
+                if (query.GetValueOrDefault("_c") is { } componentValue && componentValue is not string || fragment is not null && query.ContainsKey("_c"))
+                    throw new RequestException(400, "Invalid or ambiguous renderer selector");
+                var component = (string?)query.GetValueOrDefault("_c");
+                kind = fragment is not null ? "fragment" : component is not null ? "component" : "page";
+                key = fragment ?? component;
                 var prepared = await service.PrepareAsync(binding.Route, requested, context.Request.Path, headers, binding.Path, fragment, context.Request.Scheme, mode, cancellationToken: context.RequestAborted);
                 responseHeaders = prepared.Headers;
-                var operation = binding.Route.Operations.Single(item => item.Method == requested);
-                var representation = operation.Handler.IsRaw ? null : Media.Negotiate(headers.GetValueOrDefault("accept"), ["json", "metadata"]);
+                failureScope = prepared.Context.Scope;
+                if (negotiationError is not null) throw negotiationError;
                 if (representation?.Kind == "metadata") { await Reply(context, Service.Metadata(binding.Route, operation, binding.Path), 200, responseHeaders, "application/vnd.betterportal.metadata+json"); return; }
                 var body = await ReadBody(context.Request, maxBodyBytes, context.RequestAborted);
                 var (value, multipart) = await Decode(context.Request, body, context.RequestAborted);
-                var parameters = Segments(binding.Path).Select((part, index) => (part, index)).Where(item => item.part.StartsWith(':'))
-                    .ToDictionary(item => item.part[1..], item => context.Request.RouteValues["_bp" + item.index]);
-                var output = await operation.Invoke(prepared.Context with { Multipart = multipart }, new Node { ["params"] = parameters, ["query"] = query, ["headers"] = headers, ["request"] = value }, context.RequestAborted);
-                if (operation.Handler.IsRaw) await ReplyRaw(context, (RawResponse)output!, responseHeaders);
-                else await Reply(context, output, 200, responseHeaders);
+                string? theme = null;
+                if (representation?.Kind == "html")
+                {
+                    theme = (prepared.Context.Scope.App.GetValueOrDefault("shell") as Node)?.GetValueOrDefault("renderer") as string;
+                    if (!operation.Handler.Renderers.Any(item => (item.Identity.Renderer, item.Identity.Kind, item.Identity.Key) == (theme, kind, key)))
+                        throw new NotAcceptableException("Requested renderer is not available");
+                }
+                var requestContext = prepared.Context with { Multipart = multipart };
+                var output = await operation.Execute(requestContext, new Node { ["params"] = parameters, ["query"] = query, ["headers"] = headers, ["request"] = value }, context.RequestAborted);
+                if (operation.Handler.IsRaw) { await ReplyRaw(context, (RawResponse)output.Value!, responseHeaders); return; }
+                var status = requestContext.Response.Status;
+                var applicationHeaders = requestContext.Response.Headers.Where(pair => !pair.Key.Equals("content-type", StringComparison.OrdinalIgnoreCase)).ToList();
+                if (status is 204 or 205 or 304) { await ReplyRaw(context, new RawResponse(status: status, headers: applicationHeaders), responseHeaders); return; }
+                if (representation?.Kind == "html")
+                {
+                    Renderer renderer;
+                    try { renderer = Renderer.Select(operation.Handler.Renderers, theme, kind, key, status); }
+                    catch (NotAcceptableException) when (status != 200) { await ReplyRaw(context, new RawResponse(status: status, headers: applicationHeaders), responseHeaders); return; }
+                    var renderContext = RenderContext.Create(requestContext, binding.Route.ViewId, binding.Path, renderer.Identity.Renderer, representation.Mode ?? "page", kind, key, status, output.Params, output.Query, context.RequestAborted);
+                    var html = await renderer.RenderUntyped(output.Value, renderContext);
+                    var contentMode = kind == "page" ? representation.Mode ?? "page" : "fragment";
+                    applicationHeaders.Add(new("content-type", operation.HtmlContentType(contentMode)));
+                    await ReplyRaw(context, new RawResponse(Encoding.UTF8.GetBytes(html), status, applicationHeaders), responseHeaders);
+                }
+                else
+                {
+                    applicationHeaders.Add(new("content-type", "application/json; charset=utf-8"));
+                    await ReplyRaw(context, new RawResponse(Encoding.UTF8.GetBytes(Json.Write(output.Value)), status, applicationHeaders), responseHeaders);
+                }
             }
-            catch (RequestException error) { await Reply(context, new { error = error.Message }, error.Status, responseHeaders.Concat(error.Headers).GroupBy(pair => pair.Key).ToDictionary(group => group.Key, group => group.Last().Value)); }
+            catch (RequestException error)
+            {
+                responseHeaders = responseHeaders.Concat(error.Headers).GroupBy(pair => pair.Key).ToDictionary(group => group.Key, group => group.Last().Value);
+                await Failure(error.Status, error.Message, error.Scope);
+            }
             catch (CorsDeniedException) { await Reply(context, new { error = "Origin or method is not allowed" }, 403, new Dictionary<string, string> { ["vary"] = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers" }); }
-            catch (NotAcceptableException) { await Reply(context, new { error = "Representation not available" }, 406, responseHeaders); }
-            catch (HandlerInputException error) { await Reply(context, new { error = "Invalid request " + error.Field }, 400, responseHeaders); }
+            catch (NotAcceptableException) { await Failure(406, "Representation not available"); }
+            catch (HandlerInputException error) { await Failure(400, "Invalid request " + error.Field); }
             catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
-            catch (BadHttpRequestException error) { await Reply(context, new { error = "Invalid request body" }, error.StatusCode, responseHeaders); }
+            catch (BadHttpRequestException error) { await Failure(error.StatusCode, "Invalid request body"); }
             catch (Exception)
             {
                 if (context.Response.HasStarted) context.Abort();
-                else { context.Response.Clear(); await Reply(context, new { error = "Request failed" }, 500, responseHeaders); }
+                else { context.Response.Clear(); await Failure(500, "Request failed"); }
             }
         });
         return endpoints;

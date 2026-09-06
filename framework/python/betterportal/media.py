@@ -47,6 +47,7 @@ class NotAcceptable(ValueError):
 class Representation:
     kind: str
     mode: str | None = None
+    fragment: str | None = None
 
 
 def negotiate(accept: str | None, available: Iterable[str] = tuple(_MIME)) -> Representation:
@@ -67,23 +68,26 @@ def negotiate(accept: str | None, available: Iterable[str] = tuple(_MIME)) -> Re
             mode = re.sub(r"\\(.)", r"\1", mode[1:-1])
         if mode is not None and not contract("RenderModeSchema").safe_parse(mode).success:
             mode = "invalid"
-        entries.append((media, float(quality_text), mode, index))
+        fragment = params.get("fragment")
+        if fragment is not None and fragment.startswith('"'):
+            fragment = re.sub(r"\\(.)", r"\1", fragment[1:-1])
+        entries.append((media, float(quality_text), mode, index, fragment))
     candidates = []
     for kind, mime in _MIME.items():
         if kind not in supported:
             continue
         for mode in ("page", "fragment", "embed") if kind == "html" else (None,):
             matches = []
-            for media, quality, requested_mode, index in entries:
+            for media, quality, requested_mode, index, fragment in entries:
                 if kind == "html" and (requested_mode or "page") != mode:
                     continue
                 specificity = 2 if media == mime else 1 if media == mime.split("/")[0] + "/*" else 0 if media == "*/*" else -1
                 if specificity >= 0:
-                    matches.append((specificity + (1 if kind == "html" and requested_mode is not None else 0), quality, -index))
+                    matches.append((specificity + (1 if kind == "html" and requested_mode is not None else 0), quality, -index, fragment))
             if matches:
-                _, quality, order = max(matches)
+                _, quality, order, fragment = max(matches, key=lambda match: match[:3])
                 if quality > 0:
-                    candidates.append((quality, order, Representation(kind, mode)))
+                    candidates.append((quality, order, Representation(kind, mode, fragment if kind == "html" else None)))
     if not candidates:
         raise NotAcceptable("No acceptable representation")
     return max(candidates, key=lambda candidate: candidate[:2])[2]

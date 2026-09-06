@@ -56,13 +56,15 @@ public sealed class RawHandler<TParams, TQuery, THeaders, TBody> : Handler<TPara
     public RawHandler(Func<HandlerContext<TParams, TQuery, THeaders, TBody>, ValueTask<RawResponse>> run,
         Schema? @params = null, Schema? query = null, Schema? headers = null, Schema? request = null) : base(@params, query, headers, request)
     { ArgumentNullException.ThrowIfNull(run); this.run = run; }
-    public async ValueTask<RawResponse> Invoke(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation = default)
+    internal override async ValueTask<Invocation> ExecuteBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         // Await ownership transfer: abandoning a raw result can leak an open file.
-        var result = await run(Prepare(context, values, cancellation)) ?? throw new InvalidOperationException("Raw handlers must return RawResponse");
+        var prepared = Prepare(context, values, cancellation);
+        var result = await run(prepared) ?? throw new InvalidOperationException("Raw handlers must return RawResponse");
         if (cancellation.IsCancellationRequested) { await result.DisposeAsync(); cancellation.ThrowIfCancellationRequested(); }
-        return result;
+        return new(result, prepared.Params, prepared.Query);
     }
-    internal override async ValueTask<object?> InvokeBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation) => await Invoke(context, values, cancellation);
+    public async ValueTask<RawResponse> Invoke(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation = default) =>
+        (RawResponse)(await ExecuteBoxed(context, values, cancellation)).Value!;
 }

@@ -58,11 +58,19 @@ public sealed class AppAccess
             {
                 var dot = fragment.IndexOf('.'); var location = dot > 0 ? fragment[..dot] : ""; var identifier = dot > 0 ? fragment[(dot + 1)..] : fragment;
                 var candidates = location.Length > 0 ? ((List<object?>)((Node)app["fragments"]!).GetValueOrDefault(location, new List<object?>())!).Cast<Node>() : Fragments;
-                if (candidates.Any(item => item["enabled"] is true && Local((string)item["serviceId"]!) && Equals(item["fragmentId"], identifier)
-                    && PathMatches((string)item["targetPath"]!, path))) return true;
+                if (candidates.Any(item => Equals(item["fragmentId"], identifier) && FragmentAllowed(item, path, serviceId))) return true;
             }
             if (Items(app, "slots").Any(item => item["enabled"] is true && Local((string)item["serviceId"]!) && Equals(item["viewId"], route.ViewId))) return true;
         }
         return false;
+    }
+    private bool FragmentAllowed(Node item, string path, string? serviceId = null) => item["enabled"] is true && services.ContainsKey((string)item["serviceId"]!)
+        && (serviceId is null || Equals(item["serviceId"], serviceId)) && PathMatches((string)item["targetPath"]!, path);
+    public bool AllowsPreflight(Route route, string method, string? path = null, string? fragment = null)
+    {
+        if (Allows(route, method, path, fragment)) return true;
+        // OPTIONS does not carry the subsequent request's Accept fragment parameter.
+        return method == "GET" && fragment is null && route.Operations.Any(item => item.Method == method)
+            && Fragments.Any(item => FragmentAllowed(item, path ?? route.Paths[0]));
     }
 }

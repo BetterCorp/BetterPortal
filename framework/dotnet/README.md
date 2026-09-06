@@ -1,7 +1,7 @@
 # BetterPortal .NET port
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
-for JSON and raw operations. Full control-plane synchronization, rendering, native route
+for JSON, HTML and raw operations. Full control-plane synchronization, theme helpers, native route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The cross-language snapshot gate is still blocked by the Python SDK defect below.
 
@@ -21,7 +21,7 @@ Client cancellation reaches input reads, authentication and handler waits.
 
 JSON and BP metadata negotiation are supported; metadata authorizes the operation
 without executing its handler. Health, manifest and schema JSON discovery are
-public. HTML and validated finite/SSE stream hosting remain pending. Configure ASP.NET Core's trusted
+public. Validated finite/SSE stream hosting remains pending. Configure ASP.NET Core's trusted
 proxy middleware before BP; forwarding headers alone confer no authority.
 
 ```csharp
@@ -60,7 +60,50 @@ explicit auth and unique stable IDs. Each view shares one params schema across
 methods; query, headers, body, response and policy are method-specific. Registry
 generation resolves dependency aliases and checks local operation/method targets.
 Path variants publish API contracts once per view. Directory discovery and
-renderer/finite-stream registration remain pending.
+finite-stream registration remain pending.
+
+`Renderer<TResult>` accepts a function returning HTML as `string` or
+`ValueTask<string>`. Register it on the typed handler; ASP.NET Core selects the
+exact method, app shell renderer, kind/key and response status. Page is the
+default kind; fragments require a `location.id` key and components require an ID.
+`_f` overrides an Accept fragment parameter; `_c` selects a component. Ambiguous
+selectors fail. Modes are page, fragment and embed. Metadata and manifests derive
+from these registrations.
+
+```csharp
+using System.Net;
+using BetterPortal;
+using BetterPortal.Generated;
+
+var renderer = new Renderer<TokenLifetimeConfig>(new() { Renderer = "bootstrap5", Status = 201 },
+    (value, context) => $"<p>{WebUtility.HtmlEncode(context.Tenant.Title)}: {value.AccessTokenSeconds}</p>");
+var handler = new Handler<object?, object?, object?, object?, TokenLifetimeConfig>(
+    Contracts.Get("TokenLifetimeConfigSchema"), context => {
+        context.Response.Status = 201;
+        context.Response.SetHeader("HX-Trigger", "bp:created");
+        return ValueTask.FromResult(new TokenLifetimeConfig { AccessTokenSeconds = 900, RefreshTokenSeconds = 604800 });
+    }, renderers: [renderer]);
+var operation = new Operation(handler, new OperationDeclarationInput {
+    OperationId = "lifetimes.get", Method = HttpMethodInput.GET, Title = "Lifetimes",
+    Description = "Render token lifetimes", Auth = new()
+});
+if (operation.Handler.Renderers[0].Identity.Status != 201) throw new Exception("Missing renderer");
+```
+
+`RenderContext` exposes canonical tenant/app presentation fields, parsed
+params/query and route selection. Secrets, roles, auth settings and headers are
+excluded. Escape dynamic HTML with `WebUtility.HtmlEncode`; no template engine is
+required. `context.Response` controls status and application headers
+(`append: true` preserves multiple cookies). The adapter owns Content-Type/CORS/
+transport headers. Changed HTML statuses require an exact status renderer;
+otherwise the response is empty. 204/205/304 always have no body.
+
+`Operation(..., errorRenderers: [new Renderer<ViewRenderError>(...)])` registers
+error callbacks separately from successful handler results. Their canonical data
+contains only `Error` and `Status`; declarations require status 400–599. Errors
+preserve the selected fragment/component. Callback failures return a generic 500.
+`context.Cancellation` cancels callback waits; pass it to async I/O. URL/element
+helpers, theme resources and global status renderers remain pending.
 
 `RawHandler<TParams, TQuery, THeaders, TBody>` shares input validation and host
 authorization with JSON handlers. It returns `ValueTask<RawResponse>`; JSON

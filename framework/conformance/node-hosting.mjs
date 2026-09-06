@@ -7,14 +7,20 @@ import { MultipartRequestSchema } from "../nodejs/lib/contracts/route.js";
 import { resolveRequestContextDetailed, buildOriginPolicy } from "../nodejs/lib/runtime/configProvider.js";
 import { verifyJwt } from "../nodejs/lib/runtime/auth/tokens.js";
 import { getSigningKeyForKid, clearJwksCache } from "../nodejs/lib/runtime/auth/jwks.js";
-import { registryRequest } from "./node-registry.mjs";
+import { registryRequest, rendererSets } from "./node-registry.mjs";
 
 export async function hostingRequest(body) {
   clearJwksCache();
   let invoked = 0;
   const snapshot = ScopedServiceConfigSchema.parse(body.snapshot);
-  const config = { ...snapshot, platformServices: [], sharedServiceActivations: [], sharedServiceCatalog: [], manifestCache: [] };
-  const resolve = event => resolveRequestContextDetailed(config, eventHeaders(event), "service").context;
+  const config = { ...snapshot, platformServices: [], sharedServiceActivations: [], sharedServiceCatalog: [],
+    manifestCache: snapshot.apps.filter(app => app.shell).map(app => ({ serviceId: app.shell.serviceId, shell: app.shell })) };
+  const resolve = event => {
+    const context = resolveRequestContextDetailed(config, eventHeaders(event), "service").context;
+    // This trusted app attachment is BP orchestration currently performed by BSB.
+    if (context) event.__bpApp = context.app;
+    return context;
+  };
   const routes = body.routes.flatMap(item => [item.path, ...(item.pathVariants ?? [])].map(path => {
     const methodRoutes = Object.fromEntries(item.operations.map(spec => {
       const schemas = { response: av.importSchema(spec.response), multipart: MultipartRequestSchema,
@@ -22,6 +28,8 @@ export async function hostingRequest(body) {
       const declaration = av.importSchema(JSON.parse(body.operationDocument)).parse(spec.declaration);
       const handler = (spec.raw && !spec.jsonHandler ? createRawHandler : createHandler)(schemas, context => {
         invoked++;
+        if (spec.status !== undefined) context.setStatus(spec.status);
+        for (const [key, value] of spec.responseHeaders ?? []) context.responseHeaders.append(key, value);
         if (spec.throw) throw new Error("private-password-must-not-leak");
         if (Object.hasOwn(spec, "result")) return spec.result;
         if (spec.raw) {
@@ -41,7 +49,7 @@ export async function hostingRequest(body) {
     const primary = methodRoutes.GET ?? Object.values(methodRoutes)[0];
     return { viewId: item.viewId, path, paramNames: path.split("/").filter(part => part.startsWith(":")).map(part => part.slice(1)), methods: Object.keys(methodRoutes),
       schemas: primary.schemas, handlers: Object.fromEntries(Object.entries(methodRoutes).map(([method, spec]) => [method, spec.handler])), methodRoutes,
-      title: primary.title, description: primary.description, renderers: {} };
+      title: primary.title, description: primary.description, ...rendererSets(item) };
   }));
   const app = createBetterPortalApp();
   app.use(event => {

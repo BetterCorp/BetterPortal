@@ -7,7 +7,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Generic, Mapping, Se
 from urllib.parse import quote
 
 import anyvali as av
-from .handler import HandlerContext, HandlerInputs, RequestContext, Params, Query, Headers, Body
+from .handler import HandlerContext, HandlerInputs, RequestContext, Invocation, Params, Query, Headers, Body
 
 _TRANSPORT_HEADERS = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "content-length"}
 
@@ -54,6 +54,7 @@ class RawResponse:
 class RawHandler(HandlerInputs[Params, Query, Headers, Body], Generic[Params, Query, Headers, Body]):
     is_raw = True
     response_schema = None
+    renderers: tuple[()] = ()
 
     def __init__(self, run: Callable[[HandlerContext[Params, Query, Headers, Body]], RawResponse | Awaitable[RawResponse]], *,
                  params: av.BaseSchema[Params] | None = None, query: av.BaseSchema[Query] | None = None,
@@ -62,8 +63,12 @@ class RawHandler(HandlerInputs[Params, Query, Headers, Body], Generic[Params, Qu
         if not callable(run): raise TypeError("A raw handler function is required")
         self.run = run
 
-    async def invoke(self, context: RequestContext, values: Mapping[str, Any]) -> RawResponse:
-        result = self.run(self.prepare(context, values))
+    async def execute(self, context: RequestContext, values: Mapping[str, Any]) -> Invocation[RawResponse]:
+        prepared = self.prepare(context, values)
+        result = self.run(prepared)
         if inspect.isawaitable(result): result = await result
         if not isinstance(result, RawResponse): raise TypeError("Raw handlers must return RawResponse")
-        return result
+        return Invocation(result, prepared.params, prepared.query)
+
+    async def invoke(self, context: RequestContext, values: Mapping[str, Any]) -> RawResponse:
+        return (await self.execute(context, values)).value

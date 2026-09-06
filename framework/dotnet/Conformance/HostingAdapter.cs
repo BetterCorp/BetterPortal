@@ -24,6 +24,8 @@ internal static class HostingAdapter
                 async ValueTask<object?> Execute(HandlerContext<object?, object?, object?, object?> context)
                 {
                     Interlocked.Increment(ref invoked);
+                    if (spec.TryGetValue("status", out var statusCode)) context.Response.Status = Convert.ToInt32(statusCode);
+                    foreach (var header in ((List<object?>)spec.GetValueOrDefault("responseHeaders", new List<object?>())!).Cast<List<object?>>()) context.Response.SetHeader((string)header[0]!, (string)header[1]!, append: true);
                     if (spec.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-password-must-not-leak");
                     if (spec.GetValueOrDefault("wait") is true)
                     {
@@ -55,8 +57,34 @@ internal static class HostingAdapter
                 }
                 Handler handler = spec.ContainsKey("raw") && spec.GetValueOrDefault("jsonHandler") is not true
                     ? new RawHandler<object?, object?, object?, object?>(async context => (RawResponse)(await Execute(context))!, Schema("params"), Schema("query"), Schema("headers"), Schema("request"))
-                    : new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(spec["response"])), Execute, Schema("params"), Schema("query"), Schema("headers"), Schema("request"));
-                return new Operation(handler, Contracts.Parse<BetterPortal.Generated.OperationDeclarationInput>("OperationDeclarationSchema", spec["declaration"]));
+                    : new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(spec["response"])), Execute, Schema("params"), Schema("query"), Schema("headers"), Schema("request"),
+                        ((List<object?>)spec.GetValueOrDefault("renderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<object?>(
+                            Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), async (data, context) =>
+                            {
+                                if (item.GetValueOrDefault("wait") is true)
+                                {
+                                    started.TrySetResult();
+                                    try { await Task.Delay(30000, context.Cancellation); }
+                                    finally { cancelled = true; finished.TrySetResult(); }
+                                }
+                                if (item.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-render-secret");
+                                if (item.TryGetValue("text", out var text)) return (string)text!;
+                                return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(new { data, context = context.Data })) + "</pre>";
+                            })));
+                return new Operation(handler, Contracts.Parse<BetterPortal.Generated.OperationDeclarationInput>("OperationDeclarationSchema", spec["declaration"]),
+                    ((List<object?>)spec.GetValueOrDefault("errorRenderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<BetterPortal.Generated.ViewRenderError>(
+                        Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), async (data, context) =>
+                        {
+                            if (item.GetValueOrDefault("wait") is true)
+                            {
+                                started.TrySetResult();
+                                try { await Task.Delay(30000, context.Cancellation); }
+                                finally { cancelled = true; finished.TrySetResult(); }
+                            }
+                            if (item.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-render-secret");
+                            if (item.TryGetValue("text", out var text)) return (string)text!;
+                            return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(new { data, context = context.Data })) + "</pre>";
+                        })));
             }), ((List<object?>)item.GetValueOrDefault("pathVariants", new List<object?>())!).Cast<string>())));
         await using var service = new Service(registry, Contracts.Parse<BetterPortal.Generated.ManifestDeclarationInput>("ManifestDeclarationSchema", body["declaration"]),
             body.GetValueOrDefault("snapshot") is { } snapshot ? new ScopedConfig(snapshot) : null);

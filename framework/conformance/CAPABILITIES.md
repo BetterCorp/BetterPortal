@@ -7,16 +7,18 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-928/936 schema probes; token/service security passes 459/459 scenarios and JWKS
+976/984 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite streams 113/113, SSE subscriptions/wire 71/71 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
 input/output types. JSON operation registration and manifest generation pass 89/89
 registry checks. Prototype JSON hosts pass 222/222 HTTP/ASGI checks; raw responses
 pass 101/101 checks including streamed delivery, ownership and backpressure.
+Typed HTML callbacks, presentation context, fragments/components and status/error
+rendering pass 163/163 checks.
 Inbound operation mounts and local permission aliases pass 130/130 access checks.
 Context resolution passes 102/103; its Python null-active check is blocked by the
-same upstream null/default defect. The combined gate passes 3,120/3,129. See
+same upstream null/default defect. The combined gate passes 3,331/3,340. See
 [README](README.md). Neither language is a complete production runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -32,10 +34,10 @@ future scenarios; they are not assertions that those tests already exist.
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors; rendering/streaming metadata pending | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
 | validation | adapters/h3.ts, codegen/schemaPolicy.ts | Native typed handlers and JSON hosts validate per-field input/output, retain null/arrays and enforce body/query/header bounds; full authoring policy pending | protocol.md §4; port READMEs | handler_cases.py: 44 checks; hosting_cases.py adds decoding, errors, method dispatch and client cancellation |
 | multipart/raw | contracts/route.ts, adapters/h3.ts | Bounded native forms/uploads with canonical types; explicit raw byte/stream/file responses with header validation, CORS ownership, HEAD disposal and cancellation; JSON/raw registration stays explicit | protocol.md; port READMEs | hosting_cases.py: input bounds and multipart; raw_cases.py: 101 checks for downloads, statuses, cookies, header injection, stream order/backpressure and disposal |
-| negotiation | runtime/media.ts, adapters/h3.ts | Native media policy plus JSON/metadata hosts; authorized metadata avoids handler side effects; rendering/streaming integration pending | protocol.md §3; port READMEs | media_cases.py: 124 checks; hosting_cases.py: availability, 406 and metadata; exact-renderer pending |
-| rendering | runtime/view.ts, element.ts, statusViews.ts | Pending HTML-returning functions, components, fragments, status renderers | fragment-html.md | fragment-selector, component-selector, themed-error, escape-html |
+| negotiation | runtime/media.ts, adapters/h3.ts | Native media policy plus JSON/metadata/HTML hosts; authorized metadata avoids handler side effects; finite/SSE integration pending | protocol.md §3; port READMEs | media_cases.py: 124 checks; hosting_cases.py: availability, 406 and metadata; rendering_cases.py: exact renderer, mode and fragment Accept |
+| rendering | runtime/view.ts, element.ts, statusViews.ts | Typed sync/async HTML callbacks, safe canonical render data, page/fragment/component and method/status selection, response state and separate error renderers; URL/element helpers and global status renderers pending | fragment-html.md; port READMEs | rendering_cases.py: 163 checks for selectors, metadata, escaped HTML, parsed context, status/header/chrome, error projection, HEAD and cancellation; check_types.py and check_docs.py |
 | context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Python context.py/C# Context.cs prototype: canonical scoped parse, host/port lookup and origin policy; Python null-active security gate blocked by AnyVali #127; host proxy middleware/full policy references pending | config.md §1; port READMEs | context_cases.py: isolation, priority, forged hints, duplicate/orphan identities, origin restrictions, owned copies; null-active-rejected fails on Python |
-| cors | runtime/h3.ts; BSB service.ts | Native trusted-origin policy integrated into JSON/raw hosts, with per-mount preflights before authentication; HTML and finite/SSE response integration pending | protocol.md §2; port READMEs | cors_cases.py: 33 checks; hosting_cases.py and raw_cases.py: protected preflights, denied methods/origins, auth error headers and raw header ownership |
+| cors | runtime/h3.ts; BSB service.ts | Native trusted-origin policy integrated into JSON/raw/HTML hosts, with per-mount preflights before authentication; finite/SSE response integration pending | protocol.md §2; port READMEs | cors_cases.py: 33 checks; hosting_cases.py, raw_cases.py and rendering_cases.py: protected and fragment preflights, denied methods/origins, auth error headers and header ownership |
 | allowlist | adapters/h3.ts appAllowsRoute | Native exact IDs/legacy IDs, path variants, enabled local instances and GET fragment/slot mounts; JSON hosts enforce operation-specific aliases and verified machine audiences | config.md §1; port READMEs | access_cases.py: 130 checks; hosting_cases.py adds wrong-local-target, method dispatch and rejected aliases |
 | URLs | runtime/configProvider.ts, adapters/h3.ts; BSB service.ts | Pending service aliases, routeUrl/uiRouteUrl, params/query/fragments/SSE | docs/building/shell-links.md | service-alias, cross-service-path, optional-param, shell-navigation |
 | jwt | runtime/auth/tokens.ts, jwtCrypto.ts, verifier.ts | Python security.py; C# Security.cs: six purposes, RS256 issuance/verification, strict headers, time and trust checks | auth.md §1; port READMEs | security_cases.py: cross-signature, wrong-purpose, time, issuer-audience, jku-x5u |
@@ -97,6 +99,11 @@ JavaScript are not port deliverables. Existing Node services are integration pee
   ambiguous tenant/app authorization in the ports.
 - Node's buffered stream helper can return partial items on cancellation. Native
   helpers propagate cancellation; incomplete buffered data must not appear successful.
+- Node's structured status helper suppresses 206 and redirect bodies. Ports retain
+  these bodies and suppress only 204/205/304; explicit HTML status renderers still
+  have no success-renderer fallback.
+- Node's authentication error path selects only page status renderers. Ports
+  preserve an explicitly selected fragment/component and pass only safe error data.
 
 These observations do not authorize unrelated Node refactoring. The Node preview
 length fix is directly required by empty-secret interoperability; other Node work

@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 9bc3d73163be14e9d943f2d593f6fc8becf25ad0514a4b1a1e308bb06226cd83
+// Generated from AnyVali documents; do not edit. SHA256: d749edff33f493708e6f3475f9070eb0b6eb44d30ce3871e20398101a1e84549
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -6322,6 +6322,56 @@ public enum RenderModeInput
     Embed,
 }
 
+public sealed record RendererDeclaration
+{
+    [JsonPropertyName("renderer")]
+    public required string Renderer { get; init; }
+    [JsonPropertyName("kind")]
+    public required RendererDeclarationKind Kind { get; init; }
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+    [JsonPropertyName("status")]
+    public required long Status { get; init; }
+}
+
+public sealed record RendererDeclarationInput
+{
+    [JsonPropertyName("renderer")]
+    public required string Renderer { get; init; }
+    [JsonPropertyName("kind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<RendererDeclarationInputKind> Kind { get; init; }
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+    [JsonPropertyName("status")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> Status { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<RendererDeclarationInputKind>))]
+public enum RendererDeclarationInputKind
+{
+    [JsonStringEnumMemberName("page")]
+    Page,
+    [JsonStringEnumMemberName("fragment")]
+    Fragment,
+    [JsonStringEnumMemberName("component")]
+    Component,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<RendererDeclarationKind>))]
+public enum RendererDeclarationKind
+{
+    [JsonStringEnumMemberName("page")]
+    Page,
+    [JsonStringEnumMemberName("fragment")]
+    Fragment,
+    [JsonStringEnumMemberName("component")]
+    Component,
+}
+
 public sealed record RsaPublicJwk
 {
     [JsonPropertyName("kty")]
@@ -11054,6 +11104,71 @@ public readonly record struct UuidV7Input(string Value) : IWireValue<UuidV7Input
     public static implicit operator string(UuidV7Input value) => value.Value;
 }
 
+public sealed record ViewAppContext
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+    [JsonPropertyName("tenantId")]
+    public required string TenantId { get; init; }
+    [JsonPropertyName("slug")]
+    public required string Slug { get; init; }
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+    [JsonPropertyName("defaultRoute")]
+    public required string DefaultRoute { get; init; }
+    [JsonPropertyName("auth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ViewAppContextAuth> Auth { get; init; }
+    [JsonPropertyName("shell")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedAppShell> Shell { get; init; }
+}
+
+public sealed record ViewAppContextAuth
+{
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("loginViewId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> LoginViewId { get; init; }
+    [JsonPropertyName("logoutViewId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> LogoutViewId { get; init; }
+}
+
+public sealed record ViewAppContextInput
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+    [JsonPropertyName("tenantId")]
+    public required string TenantId { get; init; }
+    [JsonPropertyName("slug")]
+    public required string Slug { get; init; }
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+    [JsonPropertyName("defaultRoute")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> DefaultRoute { get; init; }
+    [JsonPropertyName("auth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ViewAppContextInputAuth> Auth { get; init; }
+    [JsonPropertyName("shell")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedAppInputShell> Shell { get; init; }
+}
+
+public sealed record ViewAppContextInputAuth
+{
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("loginViewId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> LoginViewId { get; init; }
+    [JsonPropertyName("logoutViewId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> LogoutViewId { get; init; }
+}
+
 public sealed record ViewDemoScenario
 {
     [JsonPropertyName("id")]
@@ -11291,6 +11406,130 @@ public sealed record ViewPermissionDefinitionInput
     public Optional<IReadOnlyList<string>> DefaultRoles { get; init; }
 }
 
+public sealed record ViewRenderData
+{
+    [JsonPropertyName("tenant")]
+    public required ViewTenantContext Tenant { get; init; }
+    [JsonPropertyName("app")]
+    public required ViewAppContext App { get; init; }
+    [JsonPropertyName("request")]
+    public required ViewRenderDataRequest Request { get; init; }
+    [JsonPropertyName("route")]
+    public required ViewRenderDataRoute Route { get; init; }
+}
+
+public sealed record ViewRenderDataInput
+{
+    [JsonPropertyName("tenant")]
+    public required ViewTenantContextInput Tenant { get; init; }
+    [JsonPropertyName("app")]
+    public required ViewAppContextInput App { get; init; }
+    [JsonPropertyName("request")]
+    public required ViewRenderDataInputRequest Request { get; init; }
+    [JsonPropertyName("route")]
+    public required ViewRenderDataInputRoute Route { get; init; }
+}
+
+public sealed record ViewRenderDataInputRequest
+{
+    [JsonPropertyName("method")]
+    public required HttpMethodInput Method { get; init; }
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+    [JsonPropertyName("params")]
+    public required JsonObjectInput Params { get; init; }
+    [JsonPropertyName("query")]
+    public required JsonObjectInput Query { get; init; }
+}
+
+public sealed record ViewRenderDataInputRoute
+{
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+    [JsonPropertyName("renderer")]
+    public required string Renderer { get; init; }
+    [JsonPropertyName("mode")]
+    public required RenderModeInput Mode { get; init; }
+    [JsonPropertyName("kind")]
+    public required ViewRenderDataInputRouteKind Kind { get; init; }
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+    [JsonPropertyName("status")]
+    public required long Status { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ViewRenderDataInputRouteKind>))]
+public enum ViewRenderDataInputRouteKind
+{
+    [JsonStringEnumMemberName("page")]
+    Page,
+    [JsonStringEnumMemberName("fragment")]
+    Fragment,
+    [JsonStringEnumMemberName("component")]
+    Component,
+}
+
+public sealed record ViewRenderDataRequest
+{
+    [JsonPropertyName("method")]
+    public required HttpMethod Method { get; init; }
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+    [JsonPropertyName("params")]
+    public required JsonObject Params { get; init; }
+    [JsonPropertyName("query")]
+    public required JsonObject Query { get; init; }
+}
+
+public sealed record ViewRenderDataRoute
+{
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+    [JsonPropertyName("renderer")]
+    public required string Renderer { get; init; }
+    [JsonPropertyName("mode")]
+    public required RenderMode Mode { get; init; }
+    [JsonPropertyName("kind")]
+    public required ViewRenderDataRouteKind Kind { get; init; }
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+    [JsonPropertyName("status")]
+    public required long Status { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ViewRenderDataRouteKind>))]
+public enum ViewRenderDataRouteKind
+{
+    [JsonStringEnumMemberName("page")]
+    Page,
+    [JsonStringEnumMemberName("fragment")]
+    Fragment,
+    [JsonStringEnumMemberName("component")]
+    Component,
+}
+
+public sealed record ViewRenderError
+{
+    [JsonPropertyName("error")]
+    public required string Error { get; init; }
+    [JsonPropertyName("status")]
+    public required long Status { get; init; }
+}
+
+public sealed record ViewRenderErrorInput
+{
+    [JsonPropertyName("error")]
+    public required string Error { get; init; }
+    [JsonPropertyName("status")]
+    public required long Status { get; init; }
+}
+
 public sealed record ViewRendererSupport
 {
     [JsonPropertyName("defaultRenderer")]
@@ -11376,6 +11615,31 @@ public sealed record ViewStreamingSupportInput
     [JsonPropertyName("summarySchema")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonObjectInput> SummarySchema { get; init; }
+}
+
+public sealed record ViewTenantContext
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+    [JsonPropertyName("slug")]
+    public required string Slug { get; init; }
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+    [JsonPropertyName("branding")]
+    public required ScopedTenantBranding Branding { get; init; }
+}
+
+public sealed record ViewTenantContextInput
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+    [JsonPropertyName("slug")]
+    public required string Slug { get; init; }
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+    [JsonPropertyName("branding")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ScopedTenantInputBranding> Branding { get; init; }
 }
 
 public sealed record WebhookEventDescriptor

@@ -6,7 +6,7 @@ public sealed class NotAcceptableException(string message) : Exception(message)
 {
     public int Status => 406;
 }
-public sealed record Representation(string Kind, string? Mode = null);
+public sealed record Representation(string Kind, string? Mode = null, string? Fragment = null);
 
 public static class Media
 {
@@ -40,7 +40,9 @@ public static class Media
             var mode = parameters.GetValueOrDefault("mode");
             if (mode is { Length: >= 2 } && mode[0] == '"' && mode[^1] == '"') mode = Regex.Replace(mode[1..^1], @"\\(.)", "$1");
             if (mode is not null && !Contracts.Get("RenderModeSchema").SafeParse(mode).Success) mode = "invalid";
-            return (Media: entry.MediaType!.ToLowerInvariant(), Quality: double.Parse(quality, System.Globalization.CultureInfo.InvariantCulture), Mode: mode, Index: index);
+            var fragment = parameters.GetValueOrDefault("fragment");
+            if (fragment is { Length: >= 2 } && fragment[0] == '"' && fragment[^1] == '"') fragment = Regex.Replace(fragment[1..^1], @"\\(.)", "$1");
+            return (Media: entry.MediaType!.ToLowerInvariant(), Quality: double.Parse(quality, System.Globalization.CultureInfo.InvariantCulture), Mode: mode, Fragment: fragment, Index: index);
         }).ToArray();
         var candidates = new List<(double Quality, int Order, Representation Value)>();
         foreach (var (kind, mime) in Mime)
@@ -54,7 +56,7 @@ public static class Media
                     .OrderByDescending(match => match.specificity + (kind == "html" && match.entry.Mode is not null ? 1 : 0))
                     .ThenByDescending(match => match.entry.Quality).ThenBy(match => match.entry.Index).ToArray();
                 if (matches.Length > 0 && matches[0].entry.Quality > 0)
-                    candidates.Add((matches[0].entry.Quality, matches[0].entry.Index, new(kind, mode)));
+                    candidates.Add((matches[0].entry.Quality, matches[0].entry.Index, new(kind, mode, kind == "html" ? matches[0].entry.Fragment : null)));
             }
         }
         return candidates.OrderByDescending(candidate => candidate.Quality).ThenBy(candidate => candidate.Order).FirstOrDefault().Value

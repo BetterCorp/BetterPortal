@@ -1,0 +1,43 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "renderer": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "kind": {
+        "kind": "enum",
+        "values": [
+          "page",
+          "fragment",
+          "component"
+        ],
+        "default": "page"
+      },
+      "key": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "status": {
+        "kind": "int",
+        "min": 200,
+        "max": 599,
+        "default": 200
+      }
+    },
+    "required": [
+      "renderer",
+      "kind",
+      "status"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

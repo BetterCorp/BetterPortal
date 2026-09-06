@@ -1,8 +1,8 @@
 # BetterPortal Python port
 
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
-hosting for JSON and raw operations. It is **not ready for production**: the AnyVali
-snapshot gate below still fails. Control-plane synchronization, rendering, route
+hosting for JSON, HTML and raw operations. It is **not ready for production**: the AnyVali
+snapshot gate below still fails. Control-plane synchronization, full theme helpers, route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
 Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
@@ -22,9 +22,9 @@ close after parsing. Disconnects cancel handler waits.
 
 JSON and BP metadata negotiation are supported. Metadata requires the operation's
 authorization and does not execute its handler. Health, manifest and schema JSON
-discovery are public. HTML and validated finite/SSE stream hosting remain pending. Configure trusted
+discovery are public. Validated finite/SSE stream hosting remains pending. Configure trusted
 proxies in the ASGI server; raw forwarding and HTMX context headers confer no
-authority. Renderer selection will remain bound to the resolved app.
+authority. Renderer selection is bound to the resolved app's shell renderer.
 
 ```python
 import asyncio
@@ -57,7 +57,54 @@ an explicit `auth` declaration and a unique stable ID. Methods share the view's
 params schema; their query, headers, body, response and policy remain separate.
 Dependency aliases resolve to plugin IDs, and local dependencies must exist with
 the declared method. Path variants belong to one view and publish API contracts
-once. Directory discovery and renderer/finite-stream registration remain pending.
+once. Directory discovery and finite-stream registration remain pending.
+
+`Renderer[Result]` accepts a sync/async function returning an HTML string. Register
+it on the typed handler; the adapter selects the exact method, app renderer,
+kind/key and response status. Page is the default kind; fragments require a
+`location.id` key and components require an ID. `_f` overrides an Accept fragment
+parameter; `_c` selects a component. Ambiguous selectors fail. Render modes are
+page, fragment and embed. Metadata and manifests derive from these registrations.
+
+```python
+from html import escape
+from typing import Any
+from betterportal.contracts import contract
+from betterportal.generated_types import TokenLifetimeConfig
+from betterportal.handler import Handler, HandlerContext
+from betterportal.rendering import Renderer, RenderContext
+from betterportal.registry import Operation
+
+def handle(context: HandlerContext[Any, Any, Any, Any]) -> TokenLifetimeConfig:
+    context.response.status = 201
+    context.response.set_header("HX-Trigger", "bp:created")
+    return {"accessTokenSeconds": 900, "refreshTokenSeconds": 604800}
+
+def render(value: TokenLifetimeConfig, context: RenderContext) -> str:
+    return f'<p>{escape(context.tenant["title"])}: {value["accessTokenSeconds"]}</p>'
+
+renderer = Renderer[TokenLifetimeConfig]({"renderer": "bootstrap5", "status": 201}, render)
+handler = Handler[Any, Any, Any, Any, TokenLifetimeConfig](
+    contract("TokenLifetimeConfigSchema"), handle, renderers=[renderer])
+operation = Operation(handler, {"operationId": "lifetimes.get", "method": "GET",
+    "title": "Lifetimes", "description": "Render token lifetimes", "auth": {}})
+assert operation.handler.renderers[0].identity == ("bootstrap5", "page", None, 201)
+```
+
+`RenderContext` exposes canonical presentation fields for tenant/app, parsed
+params/query and route selection. Secrets, roles, auth settings and headers are
+excluded. Escape dynamic HTML with `html.escape`; no template engine is required.
+`context.response` controls status and application headers (`append=True` preserves
+multiple cookies). The adapter owns Content-Type/CORS/transport headers. A changed
+HTML status needs an exact status renderer; otherwise the response is empty.
+204/205/304 always have no body.
+
+`Operation(..., error_renderers=[Renderer[ViewRenderError](...)])` registers
+callbacks for errors, separately from successful handler results. Their canonical
+data contains only `error` and `status`; declarations require status 400–599.
+The selected fragment/component is preserved on errors. Callback failures return
+a generic 500. Disconnects cancel async callbacks. URL/element helpers, theme
+resources and global status renderers remain pending.
 
 `RawHandler[Params, Query, Headers, Body]` shares input validation and host
 authorization with JSON handlers. It must return `RawResponse`; JSON handlers

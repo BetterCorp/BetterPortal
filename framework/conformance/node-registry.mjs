@@ -6,6 +6,27 @@ import { PluginManifestSchema, BpSchemaOutputSchema } from "../nodejs/lib/contra
 const operationSchema = importSchema(JSON.parse(await readFile(new URL("contracts/OperationDeclarationSchema.json", import.meta.url), "utf8")));
 const manifestSchema = importSchema(JSON.parse(await readFile(new URL("contracts/ManifestDeclarationSchema.json", import.meta.url), "utf8")));
 
+export function rendererSets(item) {
+  const sets = {}, statuses = {};
+  for (const operation of item.operations) for (const spec of [...operation.renderers ?? [], ...operation.errorRenderers ?? []]) {
+    const declaration = spec.declaration;
+    const kind = declaration.kind ?? "page";
+    const entry = { type: kind, method: operation.declaration.method, rendererId: kind === "page" ? "default" : declaration.key,
+      ...(kind === "fragment" ? { fragmentLocation: declaration.key.split(".")[0], fragmentId: declaration.key.split(".")[1] } : {}),
+      render(data, context) {
+        if (spec.throw) throw new Error("private-render-secret");
+        if (spec.text !== undefined) return spec.text;
+        const value = JSON.stringify({ data, context: { tenant: context.tenant, app: context.app, request: context.request, route: context.route } });
+        return "<pre>" + value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") + "</pre>";
+      } };
+    if ((declaration.status ?? 200) !== 200) {
+      const bucket = ((statuses[declaration.renderer] ??= {})[declaration.status] ??= { pages: [], fragments: {}, components: {} });
+      if (kind === "page") bucket.pages.push(entry); else bucket[kind + "s"][declaration.key] = entry;
+    } else (sets[declaration.renderer] ??= { pages: [], fragments: [], components: [] })[kind + "s"].push(entry);
+  }
+  return { renderers: sets, statusRenderers: statuses };
+}
+
 export function registryRequest(body) {
   try {
     const routes = body.routes.flatMap(item => {
@@ -21,7 +42,7 @@ export function registryRequest(body) {
       return [...new Set([item.path, ...item.pathVariants ?? []])].map(path => ({ viewId: item.viewId, path,
         paramNames: path.split("/").filter(part => part.startsWith(":")).map(part => part.slice(1)), schemas: operations[0].schemas,
         methods: operations.map(operation => operation.method), methodRoutes: Object.fromEntries(operations.map(operation => [operation.method, operation])),
-        handlers: Object.fromEntries(operations.map(operation => [operation.method, operation.handler])), title: primary.title, description: primary.description, renderers: {} }));
+        handlers: Object.fromEntries(operations.map(operation => [operation.method, operation.handler])), title: primary.title, description: primary.description, ...rendererSets(item) }));
     });
     const registry = { routes, dependencies: body.dependencies ?? {} };
     const declaration = manifestSchema.parse(body.declaration);

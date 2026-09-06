@@ -2,11 +2,14 @@ import asyncio
 import base64
 import httpx
 import anyvali as av
+import html
+import json
 from urllib.parse import urlsplit
 from betterportal.asgi import create_app
 from betterportal.context import ScopedConfig
 from betterportal.handler import Handler
 from betterportal.response import RawHandler, RawResponse
+from betterportal.rendering import Renderer
 from betterportal.registry import Operation, Route, Registry
 from betterportal.service import Service
 
@@ -34,6 +37,8 @@ async def hosting_request(body):
         async def run(context):
             nonlocal invoked, cancelled
             invoked += 1
+            if "status" in spec: context.response.status = spec["status"]
+            for name, value in spec.get("responseHeaders", []): context.response.set_header(name, value, append=True)
             if spec.get("throw"): raise ValueError("private-password-must-not-leak")
             if spec.get("wait"):
                 started.set()
@@ -52,10 +57,22 @@ async def hosting_request(body):
                     "tenantId": request.scope.tenant_id, "appId": request.scope.app_id,
                     "caller": request.caller.mode, "user": request.caller.user.get("sub") if request.caller.user else None}
         return run
+    def renderer(item):
+        async def render(data, context):
+            nonlocal cancelled
+            if item.get("wait"):
+                started.set()
+                try: await asyncio.sleep(30)
+                finally: cancelled = True
+            if item.get("throw"): raise ValueError("private-render-secret")
+            if "text" in item: return item["text"]
+            return "<pre>" + html.escape(json.dumps({"data": data, "context": context.data})) + "</pre>"
+        return Renderer(item["declaration"], render)
     def handler(spec):
         schemas = {key: av.import_schema(value) for key, value in spec.get("schemas", {}).items()}
-        return RawHandler(function(spec), **schemas) if "raw" in spec and not spec.get("jsonHandler") else Handler(av.import_schema(spec["response"]), function(spec), **schemas)
-    registry = Registry([Route(item["viewId"], item["path"], [Operation(handler(spec), spec["declaration"])
+        renderers = [renderer(item) for item in spec.get("renderers", [])]
+        return RawHandler(function(spec), **schemas) if "raw" in spec and not spec.get("jsonHandler") else Handler(av.import_schema(spec["response"]), function(spec), renderers=renderers, **schemas)
+    registry = Registry([Route(item["viewId"], item["path"], [Operation(handler(spec), spec["declaration"], error_renderers=[renderer(item) for item in spec.get("errorRenderers", [])])
         for spec in item["operations"]], path_variants=item.get("pathVariants", [])) for item in body["routes"]])
     async with Service(registry, body["declaration"], ScopedConfig(body["snapshot"]) if body.get("snapshot") is not None else None) as service:
         app = create_app(service, max_body_bytes=body.get("maxBodyBytes", 1024 * 1024))

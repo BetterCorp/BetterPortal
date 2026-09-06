@@ -14,22 +14,47 @@ public sealed class HandlerOutputException(ValidationError cause) : Exception("R
     public int Status => 500;
 }
 
+public sealed class ResponseState
+{
+    private int status = 200;
+    private readonly List<KeyValuePair<string, string>> headers = [];
+    public int Status { get => status; set { _ = new RawResponse(status: value); status = value; } }
+    public IReadOnlyList<KeyValuePair<string, string>> Headers => headers.AsReadOnly();
+    public void SetHeader(string name, string value, bool append = false)
+    {
+        _ = new RawResponse(headers: [new(name, value)]);
+        if (!append) RemoveHeader(name);
+        headers.Add(new(name, value));
+    }
+    public void RemoveHeader(string name) => headers.RemoveAll(pair => pair.Key.Equals(name, StringComparison.OrdinalIgnoreCase));
+}
+
 /// <summary>Hosting supplies an already resolved scope and verified caller.</summary>
 public sealed record RequestContext(ScopedContext Scope, AuthorizedCaller Caller, string Method, string Path,
-    IReadOnlyDictionary<string, object?>? Config = null, Generated.MultipartRequest? Multipart = null);
+    IReadOnlyDictionary<string, object?>? Config = null, Generated.MultipartRequest? Multipart = null)
+{
+    public ResponseState Response { get; init; } = new();
+}
 
 public sealed record HandlerContext<TParams, TQuery, THeaders, TBody>(RequestContext RequestContext,
-    TParams Params, TQuery Query, THeaders Headers, TBody Request, CancellationToken Cancellation);
+    TParams Params, TQuery Query, THeaders Headers, TBody Request, CancellationToken Cancellation)
+{
+    public ResponseState Response => RequestContext.Response;
+}
+public sealed record Invocation(object? Value, object? Params, object? Query);
 
 /// <summary>Common registration surface for handlers with different input/output types.</summary>
 public abstract class Handler
 {
     public abstract Schema? ResponseSchema { get; }
     public virtual bool IsRaw => false;
+    public virtual IReadOnlyList<Renderer> Renderers => [];
     public abstract IReadOnlyDictionary<string, Schema> Schemas { get; }
     public Dictionary<string, object?> InputDocument => Contracts.ObjectDocument(new[] { "params", "query", "headers", "request" }.ToDictionary(name => name,
         name => (Dictionary<string, object?>)Json.Read(Json.Write(V.Export(Schemas.GetValueOrDefault(name, Contracts.Get("JsonObjectSchema")))))!), "reject");
-    internal abstract ValueTask<object?> InvokeBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation);
+    internal abstract ValueTask<Invocation> ExecuteBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation);
+    internal async ValueTask<object?> InvokeBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation) =>
+        (await ExecuteBoxed(context, values, cancellation)).Value;
 }
 
 public abstract class Handler<TParams, TQuery, THeaders, TBody> : Handler
@@ -53,27 +78,36 @@ public abstract class Handler<TParams, TQuery, THeaders, TBody> : Handler
 public sealed class Handler<TParams, TQuery, THeaders, TBody, TResult> : Handler<TParams, TQuery, THeaders, TBody>
 {
     public override Schema ResponseSchema { get; }
+    public override IReadOnlyList<Renderer> Renderers { get; }
     private readonly Func<HandlerContext<TParams, TQuery, THeaders, TBody>, ValueTask<TResult>> run;
     public Handler(Schema response, Func<HandlerContext<TParams, TQuery, THeaders, TBody>, ValueTask<TResult>> run,
-        Schema? @params = null, Schema? query = null, Schema? headers = null, Schema? request = null) : base(@params, query, headers, request)
+        Schema? @params = null, Schema? query = null, Schema? headers = null, Schema? request = null,
+        IEnumerable<Renderer<TResult>>? renderers = null) : base(@params, query, headers, request)
     {
         ArgumentNullException.ThrowIfNull(response); ArgumentNullException.ThrowIfNull(run);
         ResponseSchema = response; this.run = run;
+        Renderers = Renderer.Unique(renderers ?? []);
     }
 
-    public async ValueTask<TResult> Invoke(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation = default)
+    private async ValueTask<(TResult Value, HandlerContext<TParams, TQuery, THeaders, TBody> Prepared)> Execute(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
-        var result = await run(Prepare(context, values, cancellation)).AsTask().WaitAsync(cancellation);
+        var prepared = Prepare(context, values, cancellation);
+        var result = await run(prepared).AsTask().WaitAsync(cancellation);
         if (result is RawResponse raw)
         {
             await raw.DisposeAsync();
             throw new InvalidOperationException("Raw responses require a RawHandler");
         }
         cancellation.ThrowIfCancellationRequested();
-        try { return Contracts.Parse<TResult>(ResponseSchema, result); }
+        try { return (Contracts.Parse<TResult>(ResponseSchema, result), prepared); }
         catch (ValidationError error) { throw new HandlerOutputException(error); }
     }
-    internal override async ValueTask<object?> InvokeBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation) =>
-        await Invoke(context, values, cancellation);
+    public async ValueTask<TResult> Invoke(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation = default) =>
+        (await Execute(context, values, cancellation)).Value;
+    internal override async ValueTask<Invocation> ExecuteBoxed(RequestContext context, IReadOnlyDictionary<string, object?> values, CancellationToken cancellation)
+    {
+        var result = await Execute(context, values, cancellation);
+        return new(result.Value, result.Prepared.Params, result.Prepared.Query);
+    }
 }

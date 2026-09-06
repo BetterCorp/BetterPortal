@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from typing import Any, Coroutine, TypeVar
+from typing import Any, Coroutine, TypeVar, cast
 from urllib.parse import parse_qsl
 
 from starlette.applications import Starlette
@@ -15,12 +15,15 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route as HttpRoute
 
 from .contracts import parse
+from .authorization import AuthorizedCaller
+from .generated_types import HttpMethod
 from .cors import CorsDenied
-from .handler import HandlerInputError
+from .handler import HandlerInputError, RequestContext
 from .jsoncodec import loads
 from .media import NotAcceptable, negotiate
 from .registry import Route, _segments
 from .response import RawResponse
+from .rendering import RenderContext, content_type as html_content_type, select as select_renderer
 from .service import RequestError, Service
 
 _SINGLE = {"host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"}
@@ -167,20 +170,57 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
     def endpoint(operations: dict[str, tuple[Route, str]]):
         async def handle(request: Request) -> Response:
             response_headers = {"vary": "Origin"}
+            failure_scope = None; operation = None; route = None; representation = None
+            kind, key, matched = "page", None, ""
+            query: dict[str, Any] = {}; params: dict[str, Any] = {}
+
+            async def failure(status, message, scope=None):
+                scope = scope or failure_scope
+                theme = scope.app.get("shell", {}).get("renderer") if scope is not None else None
+                if theme and operation is not None and route is not None and representation is not None and representation.kind == "html":
+                    async def render():
+                        context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), cast(HttpMethod, requested), request.url.path),
+                            route.view_id, matched, theme, representation.mode or "page", kind, key, status, params, query)
+                        value = await operation.render_error(context, message)
+                        return _RawReply(value, response_headers, head=request.method == "HEAD") if value is not None else None
+                    try:
+                        rendered = await _connected(request, render())
+                        if rendered is not None: return rendered
+                    except Exception:
+                        status, message = 500, "Request failed"
+                return JSONResponse({"error": message}, status_code=status, headers=response_headers)
+
             async def execute(headers, query, body):
-                nonlocal response_headers
+                nonlocal response_headers, failure_scope
+                assert operation is not None and route is not None
                 context, response_headers = await service.prepare(route, requested, request.url.path, headers, matched_path=matched,
                     fragment=fragment, scheme=request.url.scheme, mode=mode)
-                operation = next(item for item in route.operations if item.method == requested)
-                representation = None if operation.handler.is_raw else negotiate(headers.get("accept"), ("json", "metadata"))
+                failure_scope = context.scope
+                if negotiation_error is not None: raise negotiation_error
                 if representation is not None and representation.kind == "metadata":
                     return JSONResponse(service.metadata(route, operation, matched), headers=response_headers, media_type="application/vnd.betterportal.metadata+json")
                 value, multipart = await _decode(request, body)
                 context = replace(context, multipart=multipart)
-                params = {part[1:]: request.path_params[f"_bp{index}"] for index, part in enumerate(_segments(matched)) if part.startswith(":")}
-                output = await operation.invoke(context, {"params": params, "query": query, "headers": headers, "request": value})
-                if operation.handler.is_raw: return _RawReply(output, response_headers, head=request.method == "HEAD")
-                return JSONResponse(output, headers=response_headers)
+                if representation is not None and representation.kind == "html":
+                    theme = context.scope.app.get("shell", {}).get("renderer")
+                    if not any(item.identity[:3] == (theme, kind, key) for item in operation.handler.renderers):
+                        raise NotAcceptable("Requested renderer is not available")
+                output = await operation.execute(context, {"params": params, "query": query, "headers": headers, "request": value})
+                if operation.handler.is_raw: return _RawReply(output.value, response_headers, head=request.method == "HEAD")
+                status = context.response.status
+                application_headers = [(name, value) for name, value in context.response.headers if name.lower() != "content-type"]
+                if status in (204, 205, 304): return _RawReply(RawResponse(status=status, headers=application_headers), response_headers, head=request.method == "HEAD")
+                if representation is not None and representation.kind == "html":
+                    try: renderer = select_renderer(operation.handler.renderers, theme, kind, key, status)
+                    except NotAcceptable:
+                        if status == 200: raise
+                        return _RawReply(RawResponse(status=status, headers=application_headers), response_headers, head=request.method == "HEAD")
+                    render_context = RenderContext.create(context, route.view_id, matched, renderer.identity[0], representation.mode or "page", kind, key, status, output.params, output.query)
+                    html = await renderer.render(output.value, render_context)
+                    content_mode = "fragment" if kind != "page" else representation.mode or "page"
+                    return _RawReply(RawResponse(html.encode("utf-8"), status=status, headers=[*application_headers, ("content-type", html_content_type(content_mode, operation.declaration.get("chrome")))]), response_headers, head=request.method == "HEAD")
+                content = JSONResponse(output.value).body
+                return _RawReply(RawResponse(content, status=status, headers=[*application_headers, ("content-type", "application/json")]), response_headers, head=request.method == "HEAD")
             try:
                 headers = _headers(request); query = _query(request.scope["query_string"])
                 fragment = query.get("_f")
@@ -188,21 +228,33 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 requested = headers.get("access-control-request-method", "") if request.method == "OPTIONS" else "GET" if request.method == "HEAD" else request.method
                 if requested not in operations: raise RequestError(403 if request.method == "OPTIONS" else 405, "Method not allowed")
                 route, matched = operations[requested]
+                params = {part[1:]: request.path_params[f"_bp{index}"] for index, part in enumerate(_segments(matched)) if part.startswith(":")}
                 if request.method == "OPTIONS":
                     response_headers = service.preflight(route, headers, matched_path=matched, fragment=fragment, scheme=request.url.scheme, mode=mode)
                     return Response(status_code=204, headers=response_headers)
+                operation = next(item for item in route.operations if item.method == requested)
+                representation = None; negotiation_error = None
+                try:
+                    if not operation.handler.is_raw: representation = negotiate(headers.get("accept"), ("json", "metadata", "html") if operation.handler.renderers or operation.error_renderers else ("json", "metadata"))
+                except NotAcceptable as error: negotiation_error = error
+                fragment = fragment if fragment is not None else representation.fragment if representation is not None else None
+                component = query.get("_c")
+                if component is not None and not isinstance(component, str) or fragment is not None and component is not None:
+                    raise RequestError(400, "Invalid or ambiguous renderer selector")
+                kind, key = ("fragment", fragment) if fragment is not None else ("component", component) if component is not None else ("page", None)
                 body = await _body(request, max_body_bytes)
                 return await _connected(request, execute(headers, query, body))
             except RequestError as exception:
-                return JSONResponse({"error": str(exception)}, status_code=exception.status, headers={**response_headers, **exception.headers})
+                response_headers = {**response_headers, **exception.headers}
+                return await failure(exception.status, str(exception), exception.scope)
             except CorsDenied:
                 return JSONResponse({"error": "Origin or method is not allowed"}, status_code=403, headers={"vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"})
             except NotAcceptable:
-                return JSONResponse({"error": "Representation not available"}, status_code=406, headers=response_headers)
+                return await failure(406, "Representation not available")
             except HandlerInputError as exception:
-                return JSONResponse({"error": "Invalid request " + exception.field}, status_code=400, headers=response_headers)
+                return await failure(400, "Invalid request " + exception.field)
             except Exception:
-                return JSONResponse({"error": "Request failed"}, status_code=500, headers=response_headers)
+                return await failure(500, "Request failed")
         return handle
 
     async def discovery(request: Request) -> Response:

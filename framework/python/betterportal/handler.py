@@ -4,13 +4,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import inspect
 from types import MappingProxyType
-from typing import Any, Awaitable, Callable, Generic, Mapping, TypeVar, cast
+from typing import Any, Awaitable, Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, cast
 
 import anyvali as av
 from .authorization import AuthorizedCaller
 from .context import ScopedContext
 from .contracts import contract, export, object_document
 from .generated_types import HttpMethod, MultipartRequest
+if TYPE_CHECKING:
+    from .rendering import Renderer
 
 Params = TypeVar("Params")
 Query = TypeVar("Query")
@@ -30,6 +32,27 @@ class HandlerOutputError(ValueError):
     status = 500
 
 
+class ResponseState:
+    """Per-request status and application headers; transport/CORS stay host-owned."""
+    def __init__(self) -> None: self._status = 200; self._headers: list[tuple[str, str]] = []
+    @property
+    def status(self) -> int: return self._status
+    @status.setter
+    def status(self, value: int) -> None:
+        from .response import RawResponse
+        RawResponse(status=value)
+        self._status = value
+    @property
+    def headers(self) -> tuple[tuple[str, str], ...]: return tuple(self._headers)
+    def set_header(self, name: str, value: str, *, append: bool = False) -> None:
+        from .response import RawResponse
+        RawResponse(headers=[(name, value)])
+        if not append: self.remove_header(name)
+        self._headers.append((name, value))
+    def remove_header(self, name: str) -> None:
+        self._headers = [(key, value) for key, value in self._headers if key.lower() != name.lower()]
+
+
 @dataclass(frozen=True)
 class RequestContext:
     scope: ScopedContext
@@ -38,6 +61,7 @@ class RequestContext:
     path: str
     config: Mapping[str, Any] = field(default_factory=dict)
     multipart: MultipartRequest | None = None
+    response: ResponseState = field(default_factory=ResponseState)
 
 
 @dataclass(frozen=True)
@@ -47,6 +71,15 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     query: Query
     headers: Headers
     request: Body
+    @property
+    def response(self) -> ResponseState: return self.request_context.response
+
+
+@dataclass(frozen=True)
+class Invocation(Generic[Result]):
+    value: Result
+    params: Any
+    query: Any
 
 
 class HandlerInputs(Generic[Params, Query, Headers, Body]):
@@ -78,14 +111,18 @@ class Handler(HandlerInputs[Params, Query, Headers, Body], Generic[Params, Query
     def __init__(self, response: av.BaseSchema[Result],
                  run: Callable[[HandlerContext[Params, Query, Headers, Body]], Result | Awaitable[Result]], *,
                  params: av.BaseSchema[Params] | None = None, query: av.BaseSchema[Query] | None = None,
-                 headers: av.BaseSchema[Headers] | None = None, request: av.BaseSchema[Body] | None = None):
+                 headers: av.BaseSchema[Headers] | None = None, request: av.BaseSchema[Body] | None = None,
+                 renderers: Iterable[Renderer[Result]] = ()):
         super().__init__(params=params, query=query, headers=headers, request=request)
         if not isinstance(response, av.BaseSchema) or not callable(run):
             raise TypeError("An AnyVali response schema and handler function are required")
         self.response_schema, self.run = response, run
+        from .rendering import renderers as unique_renderers
+        self.renderers = unique_renderers(renderers)
 
-    async def invoke(self, context: RequestContext, values: Mapping[str, Any]) -> Result:
-        result = self.run(self.prepare(context, values))
+    async def execute(self, context: RequestContext, values: Mapping[str, Any]) -> Invocation[Result]:
+        prepared = self.prepare(context, values)
+        result = self.run(prepared)
         if inspect.isawaitable(result):
             result = await result
         from .response import RawResponse
@@ -93,6 +130,9 @@ class Handler(HandlerInputs[Params, Query, Headers, Body], Generic[Params, Query
             await result.aclose()
             raise TypeError("Raw responses require a RawHandler")
         try:
-            return self.response_schema.parse(cast(Result, result))
+            return Invocation(self.response_schema.parse(cast(Result, result)), prepared.params, prepared.query)
         except av.ValidationError as error:
             raise HandlerOutputError("Response validation failed") from error
+
+    async def invoke(self, context: RequestContext, values: Mapping[str, Any]) -> Result:
+        return (await self.execute(context, values)).value

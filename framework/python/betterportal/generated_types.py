@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 0efb2f109bceb736ea019e67c2d17cc24dc9e75a99aed42644b3600b2795ba42
+# Generated from AnyVali documents; do not edit. SHA256: d58b90799d6d77b1c9e2dcf6a788c9b5b7009d030bf51f3175d7b1613b1a7e07
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -2453,6 +2453,20 @@ RenderMode: TypeAlias = "Literal['page', 'fragment', 'embed']"
 
 RenderModeInput: TypeAlias = "Literal['page', 'fragment', 'embed']"
 
+RendererDeclaration = TypedDict('RendererDeclaration', {
+    'renderer': Required['str'],
+    'kind': Required["Literal['page', 'fragment', 'component']"],
+    'key': NotRequired['str'],
+    'status': Required['int'],
+})
+
+RendererDeclarationInput = TypedDict('RendererDeclarationInput', {
+    'renderer': Required['str'],
+    'kind': NotRequired["Literal['page', 'fragment', 'component']"],
+    'key': NotRequired['str'],
+    'status': NotRequired['int'],
+})
+
 RsaPublicJwk = TypedDict('RsaPublicJwk', {
     'kty': Required["Literal['RSA']"],
     'use': Required["Literal['sig']"],
@@ -4409,6 +4423,38 @@ UuidV7: TypeAlias = 'str'
 
 UuidV7Input: TypeAlias = 'str'
 
+ViewAppContext = TypedDict('ViewAppContext', {
+    'id': Required['str'],
+    'tenantId': Required['str'],
+    'slug': Required['str'],
+    'title': Required['str'],
+    'defaultRoute': Required['str'],
+    'auth': NotRequired['ViewAppContextAuth'],
+    'shell': NotRequired['ScopedAppShell'],
+})
+
+ViewAppContextAuth = TypedDict('ViewAppContextAuth', {
+    'serviceId': Required['str'],
+    'loginViewId': NotRequired['str'],
+    'logoutViewId': NotRequired['str'],
+})
+
+ViewAppContextInput = TypedDict('ViewAppContextInput', {
+    'id': Required['str'],
+    'tenantId': Required['str'],
+    'slug': Required['str'],
+    'title': Required['str'],
+    'defaultRoute': NotRequired['str'],
+    'auth': NotRequired['ViewAppContextInputAuth'],
+    'shell': NotRequired['ScopedAppInputShell'],
+})
+
+ViewAppContextInputAuth = TypedDict('ViewAppContextInputAuth', {
+    'serviceId': Required['str'],
+    'loginViewId': NotRequired['str'],
+    'logoutViewId': NotRequired['str'],
+})
+
 ViewDemoScenario = TypedDict('ViewDemoScenario', {
     'id': Required['str'],
     'title': Required['str'],
@@ -4523,6 +4569,64 @@ ViewPermissionDefinitionInput = TypedDict('ViewPermissionDefinitionInput', {
     'defaultRoles': NotRequired['list[str]'],
 })
 
+ViewRenderData = TypedDict('ViewRenderData', {
+    'tenant': Required['ViewTenantContext'],
+    'app': Required['ViewAppContext'],
+    'request': Required['ViewRenderDataRequest'],
+    'route': Required['ViewRenderDataRoute'],
+})
+
+ViewRenderDataInput = TypedDict('ViewRenderDataInput', {
+    'tenant': Required['ViewTenantContextInput'],
+    'app': Required['ViewAppContextInput'],
+    'request': Required['ViewRenderDataInputRequest'],
+    'route': Required['ViewRenderDataInputRoute'],
+})
+
+ViewRenderDataInputRequest = TypedDict('ViewRenderDataInputRequest', {
+    'method': Required['HttpMethodInput'],
+    'path': Required['str'],
+    'params': Required['JsonObjectInput'],
+    'query': Required['JsonObjectInput'],
+})
+
+ViewRenderDataInputRoute = TypedDict('ViewRenderDataInputRoute', {
+    'viewId': Required['str'],
+    'path': Required['str'],
+    'renderer': Required['str'],
+    'mode': Required['RenderModeInput'],
+    'kind': Required["Literal['page', 'fragment', 'component']"],
+    'key': NotRequired['str'],
+    'status': Required['int'],
+})
+
+ViewRenderDataRequest = TypedDict('ViewRenderDataRequest', {
+    'method': Required['HttpMethod'],
+    'path': Required['str'],
+    'params': Required['JsonObject'],
+    'query': Required['JsonObject'],
+})
+
+ViewRenderDataRoute = TypedDict('ViewRenderDataRoute', {
+    'viewId': Required['str'],
+    'path': Required['str'],
+    'renderer': Required['str'],
+    'mode': Required['RenderMode'],
+    'kind': Required["Literal['page', 'fragment', 'component']"],
+    'key': NotRequired['str'],
+    'status': Required['int'],
+})
+
+ViewRenderError = TypedDict('ViewRenderError', {
+    'error': Required['str'],
+    'status': Required['int'],
+})
+
+ViewRenderErrorInput = TypedDict('ViewRenderErrorInput', {
+    'error': Required['str'],
+    'status': Required['int'],
+})
+
 ViewRendererSupport = TypedDict('ViewRendererSupport', {
     'defaultRenderer': Required['str'],
     'renderModes': Required['list[RenderMode]'],
@@ -4563,6 +4667,20 @@ ViewStreamingSupport = TypedDict('ViewStreamingSupport', {
 ViewStreamingSupportInput = TypedDict('ViewStreamingSupportInput', {
     'itemSchema': Required['JsonObjectInput'],
     'summarySchema': NotRequired['JsonObjectInput'],
+})
+
+ViewTenantContext = TypedDict('ViewTenantContext', {
+    'id': Required['str'],
+    'slug': Required['str'],
+    'title': Required['str'],
+    'branding': Required['ScopedTenantBranding'],
+})
+
+ViewTenantContextInput = TypedDict('ViewTenantContextInput', {
+    'id': Required['str'],
+    'slug': Required['str'],
+    'title': Required['str'],
+    'branding': NotRequired['ScopedTenantInputBranding'],
 })
 
 WebhookEventDescriptor = TypedDict('WebhookEventDescriptor', {

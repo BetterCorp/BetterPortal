@@ -3,10 +3,11 @@ using Node = System.Collections.Generic.Dictionary<string, object?>;
 
 namespace BetterPortal;
 
-public sealed class RequestException(int status, string message, IReadOnlyDictionary<string, string>? headers = null) : Exception(message)
+public sealed class RequestException(int status, string message, IReadOnlyDictionary<string, string>? headers = null, ScopedContext? scope = null) : Exception(message)
 {
     public int Status { get; } = status;
     public IReadOnlyDictionary<string, string> Headers { get; } = headers ?? new Dictionary<string, string>();
+    public ScopedContext? Scope { get; } = scope;
 }
 public sealed record PreparedRequest(RequestContext Context, IReadOnlyDictionary<string, string> Headers);
 
@@ -49,7 +50,7 @@ public sealed class Service : IAsyncDisposable
     {
         var normalized = Headers(headers); var scope = Resolve(normalized, scheme, mode, trustedAddresses, preflight: true);
         var access = new AppAccess(scope, snapshot!.LocalServiceIds);
-        var methods = route.Operations.Where(operation => access.Allows(route, operation.Method, matchedPath, fragment)).Select(operation => operation.Method);
+        var methods = route.Operations.Where(operation => access.AllowsPreflight(route, operation.Method, matchedPath, fragment)).Select(operation => operation.Method);
         return new Cors(scope.OriginPolicy, methods).Preflight(normalized.GetValueOrDefault("origin"), normalized.GetValueOrDefault("access-control-request-method"), normalized.GetValueOrDefault("access-control-request-headers"));
     }
     public async Task<PreparedRequest> PrepareAsync(Route route, string method, string path, IReadOnlyDictionary<string, string> headers,
@@ -60,7 +61,7 @@ public sealed class Service : IAsyncDisposable
         var normalized = Headers(headers); var scope = Resolve(normalized, scheme, mode, trustedAddresses);
         var responseHeaders = new Cors(scope.OriginPolicy, route.Operations.Select(operation => operation.Method)).Headers(normalized.GetValueOrDefault("origin"));
         var access = new AppAccess(scope, snapshot!.LocalServiceIds);
-        if (!access.Allows(route, method, matchedPath, fragment)) throw new RequestException(404, "Route not found", responseHeaders);
+        if (!access.Allows(route, method, matchedPath, fragment)) throw new RequestException(404, "Route not found", responseHeaders, scope);
         var operation = route.Operations.Single(item => item.Method == method);
         var appAuth = (Node?)scope.App.GetValueOrDefault("auth");
         var client = appAuth is null ? null : keys.GetValueOrDefault(((string)appAuth["expectedIssuer"]!, TrustedKeys.SecureEndpoint((string)appAuth["jwksUri"]!, allowQuery: true).AbsoluteUri));
@@ -72,13 +73,13 @@ public sealed class Service : IAsyncDisposable
         try
         {
             var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken);
-            if (caller.Service is not null && !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!)) throw new RequestException(403, "Access denied", responseHeaders);
+            if (caller.Service is not null && !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!)) throw new RequestException(403, "Access denied", responseHeaders, scope);
             return new(new(scope, caller, method, path), responseHeaders);
         }
         catch (TokenException error)
         {
             var message = error.Status switch { 401 => "Authentication required or invalid", 403 => "Access denied", 503 => "Authentication unavailable", _ => "Authentication failed" };
-            throw new RequestException(error.Status, message, responseHeaders);
+            throw new RequestException(error.Status, message, responseHeaders, scope);
         }
     }
     public static Node Metadata(Route route, Operation operation, string matchedPath)

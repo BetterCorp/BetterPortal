@@ -1,6 +1,7 @@
 import { readdir, readFile, mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { BaseSchema, exportSchema, importSchema } from "anyvali";
+import * as av from "anyvali";
 import { JSON_VALUE_DEFINITION, JsonValueSchemaNode } from "../nodejs/lib/contracts/json.js";
 
 // Development-only: consumers embed these documents and never execute Node.
@@ -49,6 +50,53 @@ declaration("OperationDeclarationSchema", "ViewOperationMetadataSchema",
   { cacheHints: {} });
 declaration("ManifestDeclarationSchema", "PluginManifestSchema",
   ["protocolVersion", "supportedRenderers", "supportedRenderModes", "views"], { category: "service", deploymentModes: ["self-hosted"] });
+
+// The renderer's serializable data follows ViewRenderContext in contracts/registry.ts.
+// Project presentation fields from platform contracts so auth/config never reaches it.
+function unwrap(node) {
+  while (node.kind === "optional" || node.kind === "nullable") node = node.inner;
+  return node;
+}
+function pick(node, fields) {
+  node = unwrap(node);
+  omitFields(node, Object.keys(node.properties).filter(field => !fields.includes(field)));
+  node.unknownKeys = "strip";
+}
+function presentation(name, source, fields) {
+  const document = JSON.parse(names.get(source));
+  pick(document.root, fields);
+  names.set(name, JSON.stringify(document, null, 2) + "\n");
+  return document;
+}
+presentation("ViewTenantContextSchema", "ScopedTenantSchema", ["id", "slug", "title", "branding"]);
+const appPresentation = presentation("ViewAppContextSchema", "ScopedAppSchema", ["id", "tenantId", "slug", "title", "defaultRoute", "shell", "auth"]);
+pick(appPresentation.root.properties.shell, ["serviceId", "service", "renderer"]);
+pick(appPresentation.root.properties.auth, ["serviceId", "loginViewId", "logoutViewId"]);
+names.set("ViewAppContextSchema", JSON.stringify(appPresentation, null, 2) + "\n");
+
+const node = schema => exportSchema(schema).root;
+const sourceNode = name => JSON.parse(names.get(name)).root;
+function portable(name, root) {
+  const document = { anyvaliVersion: "1.0", schemaVersion: "1.1", root,
+    definitions: JSON.stringify(root).includes(`#/definitions/${JSON_VALUE_DEFINITION}`) ? { [JSON_VALUE_DEFINITION]: JsonValueSchemaNode } : {}, extensions: {} };
+  importSchema(document);
+  names.set(name, JSON.stringify(document, null, 2) + "\n");
+}
+function objectNode(properties, unknownKeys = "strip") {
+  return { kind: "object", properties, required: Object.entries(properties).filter(([, value]) => value.kind !== "optional").map(([key]) => key), unknownKeys };
+}
+const kind = node(av.enum_(["page", "fragment", "component"]));
+portable("RendererDeclarationSchema", objectNode({
+  renderer: node(av.string().minLength(1)), kind: { ...kind, default: "page" },
+  key: node(av.optional(av.string().minLength(1))), status: node(av.int().min(200).max(599).default(200))
+}, "reject"));
+portable("ViewRenderDataSchema", objectNode({
+  tenant: sourceNode("ViewTenantContextSchema"), app: sourceNode("ViewAppContextSchema"),
+  request: objectNode({ method: sourceNode("HttpMethodSchema"), path: node(av.string()), params: sourceNode("JsonObjectSchema"), query: sourceNode("JsonObjectSchema") }),
+  route: objectNode({ viewId: node(av.string().minLength(1)), path: node(av.string().minLength(1)), renderer: node(av.string().minLength(1)),
+    mode: sourceNode("RenderModeSchema"), kind, key: node(av.optional(av.string().minLength(1))), status: node(av.int().min(200).max(599)) })
+}));
+portable("ViewRenderErrorSchema", objectNode({ error: node(av.string()), status: node(av.int().min(400).max(599)) }));
 
 for (const [name, content] of [...names].sort(([a], [b]) => a.localeCompare(b))) {
   const target = new URL(`${name}.json`, output);

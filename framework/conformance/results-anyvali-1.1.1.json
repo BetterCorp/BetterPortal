@@ -1,6 +1,6 @@
 {
-  "scenarios": 936,
-  "passed": 928,
+  "scenarios": 984,
+  "passed": 976,
   "results": [
     {
       "runtime": "node",
@@ -140,6 +140,21 @@
     },
     {
       "runtime": "node",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -580,6 +595,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-RenderModeSchema",
       "passed": true
     },
@@ -730,6 +750,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ViewDemoScenarioMatchSchema",
       "passed": true
     },
@@ -755,6 +780,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ViewRendererSupportSchema",
       "passed": true
     },
@@ -771,6 +806,11 @@
     {
       "runtime": "node",
       "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewTenantContextSchema",
       "passed": true
     },
     {
@@ -917,6 +957,21 @@
     {
       "runtime": "node",
       "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-unknown-roundtrip",
       "passed": true
     },
     {
@@ -1361,6 +1416,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-RenderModeSchema-roundtrip",
       "passed": true
     },
@@ -1511,6 +1571,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
       "passed": true
     },
@@ -1536,6 +1601,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ViewRendererSupportSchema-roundtrip",
       "passed": true
     },
@@ -1552,6 +1627,11 @@
     {
       "runtime": "node",
       "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewTenantContextSchema-roundtrip",
       "passed": true
     },
     {
@@ -1703,6 +1783,21 @@
     },
     {
       "runtime": "python",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -2143,6 +2238,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-RenderModeSchema",
       "passed": true
     },
@@ -2293,6 +2393,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ViewDemoScenarioMatchSchema",
       "passed": true
     },
@@ -2318,6 +2423,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ViewRendererSupportSchema",
       "passed": true
     },
@@ -2334,6 +2449,11 @@
     {
       "runtime": "python",
       "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewTenantContextSchema",
       "passed": true
     },
     {
@@ -2485,6 +2605,21 @@
     },
     {
       "runtime": "python",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -2925,6 +3060,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-RenderModeSchema-roundtrip",
       "passed": true
     },
@@ -3075,6 +3215,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
       "passed": true
     },
@@ -3100,6 +3245,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ViewRendererSupportSchema-roundtrip",
       "passed": true
     },
@@ -3116,6 +3271,11 @@
     {
       "runtime": "python",
       "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewTenantContextSchema-roundtrip",
       "passed": true
     },
     {
@@ -3262,6 +3422,21 @@
     {
       "runtime": "dotnet",
       "id": "operation-declaration-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-unknown",
       "passed": true
     },
     {
@@ -3706,6 +3881,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-RenderModeSchema",
       "passed": true
     },
@@ -3856,6 +4036,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ViewDemoScenarioMatchSchema",
       "passed": true
     },
@@ -3881,6 +4066,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ViewRendererSupportSchema",
       "passed": true
     },
@@ -3897,6 +4092,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewTenantContextSchema",
       "passed": true
     },
     {
@@ -4043,6 +4243,21 @@
     {
       "runtime": "dotnet",
       "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-unknown-roundtrip",
       "passed": true
     },
     {
@@ -4487,6 +4702,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-RenderModeSchema-roundtrip",
       "passed": true
     },
@@ -4637,6 +4857,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
       "passed": true
     },
@@ -4662,6 +4887,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ViewRendererSupportSchema-roundtrip",
       "passed": true
     },
@@ -4678,6 +4913,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewTenantContextSchema-roundtrip",
       "passed": true
     },
     {

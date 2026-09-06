@@ -519,5 +519,142 @@
       "auth": {}
     },
     "valid": false
+  },
+  {
+    "id": "render-context-presentation",
+    "contract": "ViewRenderDataSchema",
+    "input": {
+      "tenant": {
+        "id": "01900000-0000-7000-8000-000000000001",
+        "slug": "tenant",
+        "title": "Tenant",
+        "branding": {},
+        "config": {
+          "secret": "tenant-secret"
+        },
+        "services": [
+          {
+            "secret": "service-secret"
+          }
+        ]
+      },
+      "app": {
+        "id": "01900000-0000-7000-8000-000000000002",
+        "tenantId": "01900000-0000-7000-8000-000000000001",
+        "slug": "app",
+        "title": "App",
+        "defaultRoute": "/",
+        "auth": {
+          "serviceId": "01900000-0000-7000-8000-000000000003",
+          "loginViewId": "login",
+          "expectedIssuer": "private-issuer",
+          "roles": [
+            {
+              "secret": "role-secret"
+            }
+          ],
+          "jwksUri": "https://keys.example"
+        },
+        "themeConfig": {
+          "secret": "theme-secret"
+        },
+        "routes": [
+          {
+            "secret": "route-secret"
+          }
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/items/1",
+        "params": {
+          "id": 1
+        },
+        "query": {
+          "nested": [
+            null,
+            true,
+            {
+              "value": 2
+            }
+          ]
+        },
+        "headers": {
+          "authorization": "private-token"
+        }
+      },
+      "route": {
+        "viewId": "items.index",
+        "path": "/items/:id",
+        "renderer": "bootstrap5",
+        "mode": "page",
+        "kind": "page",
+        "status": 200
+      }
+    },
+    "output": {
+      "tenant": {
+        "id": "01900000-0000-7000-8000-000000000001",
+        "slug": "tenant",
+        "title": "Tenant",
+        "branding": {}
+      },
+      "app": {
+        "id": "01900000-0000-7000-8000-000000000002",
+        "tenantId": "01900000-0000-7000-8000-000000000001",
+        "slug": "app",
+        "title": "App",
+        "defaultRoute": "/",
+        "auth": {
+          "serviceId": "01900000-0000-7000-8000-000000000003",
+          "loginViewId": "login"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/items/1",
+        "params": {
+          "id": 1
+        },
+        "query": {
+          "nested": [
+            null,
+            true,
+            {
+              "value": 2
+            }
+          ]
+        }
+      },
+      "route": {
+        "viewId": "items.index",
+        "path": "/items/:id",
+        "renderer": "bootstrap5",
+        "mode": "page",
+        "kind": "page",
+        "status": 200
+      }
+    }
+  },
+  {
+    "id": "renderer-declaration-defaults",
+    "contract": "RendererDeclarationSchema",
+    "input": {
+      "renderer": "bootstrap5"
+    },
+    "output": {
+      "renderer": "bootstrap5",
+      "kind": "page",
+      "status": 200
+    }
+  },
+  {
+    "id": "renderer-declaration-unknown",
+    "contract": "RendererDeclarationSchema",
+    "input": {
+      "renderer": "bootstrap5",
+      "unexpected": true
+    },
+    "valid": false
   }
 ]

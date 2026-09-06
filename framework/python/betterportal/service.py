@@ -17,10 +17,11 @@ from .security import TokenError
 
 
 class RequestError(Exception):
-    def __init__(self, status: int, message: str, headers: Mapping[str, str] | None = None):
+    def __init__(self, status: int, message: str, headers: Mapping[str, str] | None = None, *, scope: ScopedContext | None = None):
         super().__init__(message)
         self.status = status
         self.headers = dict(headers or {})
+        self.scope = scope
 
 
 class Service:
@@ -63,7 +64,7 @@ class Service:
         normalized = self._headers(headers)
         scope = self._resolve(normalized, scheme, mode, trusted_addresses, preflight=True)
         access = AppAccess(scope, self._snapshot.local_service_ids if self._snapshot else ())
-        methods = [operation.method for operation in route.operations if access.allows(route, operation.method, path=matched_path, fragment=fragment)]
+        methods = [operation.method for operation in route.operations if access.allows_preflight(route, operation.method, path=matched_path, fragment=fragment)]
         return Cors(scope.origin_policy, methods).preflight(normalized.get("origin"), normalized.get("access-control-request-method"), normalized.get("access-control-request-headers"))
 
     async def prepare(self, route: Route, method: str, path: str, headers: Mapping[str, str], *, matched_path: str | None = None,
@@ -73,7 +74,7 @@ class Service:
         response_headers = Cors(scope.origin_policy, [item.method for item in route.operations]).headers(normalized.get("origin"))
         access = AppAccess(scope, self._snapshot.local_service_ids if self._snapshot else ())
         if not access.allows(route, method, path=matched_path, fragment=fragment):
-            raise RequestError(404, "Route not found", response_headers)
+            raise RequestError(404, "Route not found", response_headers, scope=scope)
         operation = next(item for item in route.operations if item.method == method)
         app_auth = scope.app.get("auth")
         keys = self._keys.get((app_auth["expectedIssuer"], secure_endpoint(app_auth["jwksUri"], allow_query=True))) if app_auth else None
@@ -85,9 +86,9 @@ class Service:
             caller = await authorize_request(normalized, operation.declaration["auth"], auth, view_id=route.view_id, method=method)
         except TokenError as error:
             message = {401: "Authentication required or invalid", 403: "Access denied", 503: "Authentication unavailable"}.get(error.status, "Authentication failed")
-            raise RequestError(error.status, message, response_headers) from error
+            raise RequestError(error.status, message, response_headers, scope=scope) from error
         if caller.service is not None and not access.allows(route, method, path=matched_path, fragment=fragment, service_id=caller.service["aud"]):
-            raise RequestError(403, "Access denied", response_headers)
+            raise RequestError(403, "Access denied", response_headers, scope=scope)
         return RequestContext(scope, caller, cast(HttpMethod, method), path), response_headers
 
     @staticmethod

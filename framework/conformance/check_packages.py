@@ -40,6 +40,7 @@ from betterportal.context import OriginPolicy
 from betterportal.cors import Cors
 from betterportal.handler import Handler, RequestContext
 from betterportal.response import RawHandler, RawResponse
+from betterportal.rendering import Renderer, RenderContext
 from betterportal.registry import Operation, Route, Registry
 from betterportal.access import AppAccess
 from betterportal.service import Service
@@ -83,6 +84,10 @@ tenant_id, app_id = "01900000-0000-7000-8000-000000000001", "01900000-0000-7000-
 scope = ScopedConfig({"managementOrigins": [], "tenants": [{"id": tenant_id, "slug": "tenant", "title": "Tenant", "services": []}],
                       "apps": [{"id": app_id, "tenantId": tenant_id, "slug": "app", "title": "App", "hostnames": ["app.test"]}]}).by_id(tenant_id, app_id)
 assert scope is not None
+render_context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), "GET", "/"), "hello.index", "/", "bootstrap5", "page", "page", None, 200, {}, {})
+renderer = Renderer({"renderer": "bootstrap5"}, lambda value, context: "<p>" + context.tenant["title"] + "</p>")
+assert asyncio.run(renderer.render({}, render_context)) == "<p>Tenant</p>"
+assert "services" not in render_context.tenant
 handler = Handler(contract("JsonObjectSchema"), lambda context: context.query, query=contract("JsonObjectSchema"))
 assert asyncio.run(handler.invoke(RequestContext(scope, AuthorizedCaller(), "GET", "/"), {"query": {"nested": [None]}})) == {"nested": [None]}
 raw_handler = RawHandler(lambda context: RawResponse.file(b"hello", "report.txt"))

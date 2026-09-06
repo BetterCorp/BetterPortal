@@ -18,7 +18,9 @@ internal static class RegistryAdapter
                     var schemas = (Node?)operation.GetValueOrDefault("schemas") ?? [];
                     AnyVali.Schema? Schema(string name) => schemas.TryGetValue(name, out var schema) ? Contracts.Import(Json.Write(schema)) : null;
                     var handler = new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(operation["response"])), _ => ValueTask.FromResult<object?>(null),
-                        Schema("params"), Schema("query"), Schema("headers"), Schema("request"));
+                        Schema("params"), Schema("query"), Schema("headers"), Schema("request"),
+                        ((List<object?>)operation.GetValueOrDefault("renderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<object?>(
+                            Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), (data, context) => "")));
                     // Validate JSON before generated decoding so unknown declaration fields cannot disappear.
                     var declaration = Contracts.Parse<BetterPortal.Generated.OperationDeclarationInput>("OperationDeclarationSchema", operation["declaration"]);
                     operations.Add(new(handler, declaration));
