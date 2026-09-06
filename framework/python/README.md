@@ -44,6 +44,14 @@ data. `by_id` supports looking up a claimed machine scope before authentication;
 lookup alone never authorizes a request. Configuration-management app indexes
 are separate from runtime app lookup.
 
+`AppAccess(scope, snapshot.local_service_ids)` in `betterportal.access` checks
+the registered operation against enabled inbound app mounts. Pass the matched
+registered path to `allows` for a view with path variants. GET fragment selectors
+and slot mounts are supported; `appRoutes`/`appFragments` are catalogs, not inbound
+allowlists. `permission_aliases()` restricts role aliases to enabled local service
+instances referenced by this app. Hosts must still run caller authorization and
+representation selection. Well-known routes use their own declared auth policy.
+
 Raw proxy and HTMX context headers are ignored. `resolve(..., trusted_addresses=...)`
 accepts only addresses already verified by host proxy middleware; the host also
 supplies the effective scheme. `OriginPolicy` normalizes configured HTTP origins

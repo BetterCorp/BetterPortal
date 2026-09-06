@@ -46,6 +46,14 @@ scheme/host/port and returns owned tenant/app copies. `ById` resolves a claimed
 machine scope before authentication; lookup alone never authorizes a request.
 Config-management app indexes do not become runtime app lookups.
 
+`AppAccess(scope, snapshot.LocalServiceIds)` checks operation IDs against enabled
+inbound app mounts, with GET-only fragment and slot support. Pass the matched
+registered path to `Allows` when a view has path variants. `PermissionAliases()`
+includes only enabled local service instances referenced by this app. Cross-service
+`appRoutes`/`appFragments` catalogs confer no inbound access. Hosts still enforce
+caller authorization and representation selection; well-known routes use their
+own declared auth policy independently of app page mounts.
+
 Raw proxy and HTMX context headers are ignored. `Resolve(..., trustedAddresses: ...)`
 accepts addresses already verified by host proxy middleware; the host supplies
 the effective scheme. `OriginPolicy` normalizes HTTP origins and preserves exact

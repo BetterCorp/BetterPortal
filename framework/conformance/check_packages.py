@@ -40,6 +40,7 @@ from betterportal.context import OriginPolicy
 from betterportal.cors import Cors
 from betterportal.handler import Handler, RequestContext
 from betterportal.registry import Operation, Route, Registry
+from betterportal.access import AppAccess
 from betterportal.authorization import AuthorizedCaller
 from betterportal.contracts import contract
 import asyncio
@@ -85,6 +86,8 @@ assert asyncio.run(handler.invoke(RequestContext(scope, AuthorizedCaller(), "GET
 registry = Registry([Route("hello.index", "/", [Operation(handler, {"operationId": "hello.get", "method": "GET", "title": "Hello", "description": "Hello operation", "auth": {}})])])
 manifest = registry.manifest({"pluginId": "com.example.hello", "title": "Hello", "description": "Example service", "version": "1.0.0"})
 assert manifest["views"][0]["operations"][0]["operationId"] == "hello.get"
+access = AppAccess(scope, [])
+assert not access.allows(registry.routes[0], "GET") and dict(access.permission_aliases()) == {}
 subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
     str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
     env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)

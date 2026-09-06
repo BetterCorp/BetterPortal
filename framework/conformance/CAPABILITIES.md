@@ -13,6 +13,7 @@ finite streams 113/113, SSE subscriptions/wire 71/71 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
 input/output types. JSON operation registration and manifest generation pass 89/89
 registry checks. HTTP operation hosting remains pending.
+Inbound operation mounts and local permission aliases pass 130/130 access checks.
 Context resolution passes 102/103; its Python null-active check is blocked by the
 same upstream null/default defect. The combined gate passes 2,667/2,676. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
@@ -34,7 +35,7 @@ future scenarios; they are not assertions that those tests already exist.
 | rendering | runtime/view.ts, element.ts, statusViews.ts | Pending HTML-returning functions, components, fragments, status renderers | fragment-html.md | fragment-selector, component-selector, themed-error, escape-html |
 | context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Python context.py/C# Context.cs prototype: canonical scoped parse, host/port lookup and origin policy; Python null-active security gate blocked by AnyVali #127; host proxy middleware/full policy references pending | config.md §1; port READMEs | context_cases.py: isolation, priority, forged hints, duplicate/orphan identities, origin restrictions, owned copies; null-active-rejected fails on Python |
 | cors | runtime/h3.ts; BSB service.ts | Python cors.py/C# Cors.cs: trusted-origin response/preflight policy, route methods and custom headers; operation hosting integration pending | protocol.md §2; port READMEs | cors_cases.py: 33 real OPTIONS/GET checks, including denial, bounds, Vary and no-handler preflight |
-| allowlist | adapters/h3.ts resolveAppRouteAccess | Pending exact operation allowlists, GET fragment/slot mounts | config.md §1 | denied-operation, sibling-method, no-appRoutes-inbound |
+| allowlist | adapters/h3.ts appAllowsRoute | Python access.py/C# AppAccess.cs: exact operation IDs/legacy IDs, service path variants, enabled local instance checks and GET fragment/slot mounts; host integration pending | config.md §1; port READMEs | access_cases.py: 130 checks for denied-operation, sibling-method, no-appRoutes/appFragments-inbound, local instance/alias restrictions and well-known exemption |
 | URLs | runtime/configProvider.ts, adapters/h3.ts; BSB service.ts | Pending service aliases, routeUrl/uiRouteUrl, params/query/fragments/SSE | docs/building/shell-links.md | service-alias, cross-service-path, optional-param, shell-navigation |
 | jwt | runtime/auth/tokens.ts, jwtCrypto.ts, verifier.ts | Python security.py; C# Security.cs: six purposes, RS256 issuance/verification, strict headers, time and trust checks | auth.md §1; port READMEs | security_cases.py: cross-signature, wrong-purpose, time, issuer-audience, jku-x5u |
 | jwks | runtime/auth/jwks.ts, keypair.ts | Python keys.py/C# Keys.cs: static RSA JWKS, remote cache, rotation/invalidation, bounded HTTP and cancellation; key persistence pending | auth.md §1.1; port READMEs | key_cases.py: 80 checks, including native transport policy and cancellation |

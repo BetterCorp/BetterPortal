@@ -122,6 +122,14 @@ class ScopedConfig:
     def document(self) -> dict[str, Any]:
         return deepcopy(self._snapshot)
 
+    @property
+    def local_service_ids(self) -> frozenset[str]:
+        identifiers = set(self._snapshot.get("m2m", {}).get("localServiceIds", []))
+        identity = self._snapshot.get("serviceIdentity")
+        if identity is not None:
+            identifiers.add(identity["id"])
+        return frozenset(identifiers)
+
     def by_id(self, tenant_id: str, app_id: str) -> ScopedContext | None:
         app, tenant = self._apps.get(app_id), self._tenants.get(tenant_id)
         if app is None or tenant is None or not tenant["active"] or app["tenantId"] != tenant_id:

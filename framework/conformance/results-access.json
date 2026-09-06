@@ -1,0 +1,656 @@
+{
+  "scenarios": 130,
+  "passed": 130,
+  "results": [
+    {
+      "runtime": "node",
+      "id": "access-selected-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-selected-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-selected-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-unselected-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-unselected-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-unselected-method",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-selected-post",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-selected-post",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-selected-post",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-legacy-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-legacy-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-legacy-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-legacy-sibling-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-legacy-sibling-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-legacy-sibling-method",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-unknown-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-unknown-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-unknown-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-different-view",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-different-view",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-different-view",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-different-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-different-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-different-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-different-path-length",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-different-path-length",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-different-path-length",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-renamed-parameter",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-renamed-parameter",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-renamed-parameter",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-path-trailing-slash",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-path-trailing-slash",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-path-trailing-slash",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-path-variant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-path-variant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-path-variant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-legacy-target-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-legacy-target-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-legacy-target-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-resolved-path-priority",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-resolved-path-priority",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-resolved-path-priority",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-no-derived-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-no-derived-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-no-derived-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-catalog-is-not-allowlist",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-catalog-is-not-allowlist",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-catalog-is-not-allowlist",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-well-known-independent",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-well-known-independent",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-well-known-independent",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-well-known-prefix-lookalike",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-well-known-prefix-lookalike",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-well-known-prefix-lookalike",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-unqualified",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-unqualified",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-unqualified",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-wrong-location",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-wrong-location",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-wrong-location",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-wrong-id",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-wrong-id",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-wrong-id",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-no-selector",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-no-selector",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-no-selector",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-wrong-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-wrong-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-wrong-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-catalog-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-catalog-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-catalog-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-slot-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-slot-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-slot-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-slot-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-slot-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-slot-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-slot-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-slot-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-slot-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-slot-wrong-view",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-slot-wrong-view",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-slot-wrong-view",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-inactive-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-inactive-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-inactive-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-wrong-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-wrong-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-wrong-app",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-other-instance",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-other-instance",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-other-instance-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-other-instance-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-other-instance-slot",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-other-instance-slot",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-disabled-local-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-disabled-local-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-unregistered-local-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-unregistered-local-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-missing-local-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-missing-local-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-m2m-local-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-m2m-local-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-m2m-unmounted-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-m2m-unmounted-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-m2m-other-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-m2m-other-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-method-not-registered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-method-not-registered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-encoded-mount-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-encoded-mount-path",
+      "passed": true
+    }
+  ]
+}

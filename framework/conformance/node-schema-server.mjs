@@ -13,6 +13,7 @@ import { contextRequest } from "./node-context.mjs";
 import { corsRequest } from "./node-cors.mjs";
 import { handlerRequest } from "./node-handler.mjs";
 import { registryRequest } from "./node-registry.mjs";
+import { accessRequest } from "./node-access.mjs";
 
 createServer(async (request, response) => {
   try {
@@ -38,6 +39,11 @@ createServer(async (request, response) => {
     if (body.action === "registry") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(registryRequest(body)));
+      return;
+    }
+    if (body.action === "access") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await accessRequest(body)));
       return;
     }
     if (body.action === "context") {

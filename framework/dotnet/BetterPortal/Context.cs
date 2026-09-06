@@ -95,6 +95,16 @@ public sealed class ScopedConfig
     }
     private static Dictionary<string, object?> Copy(Dictionary<string, object?> value) => (Dictionary<string, object?>)Json.Read(Json.Write(value))!;
     public Dictionary<string, object?> Document() => Copy(snapshot);
+    public IReadOnlySet<string> LocalServiceIds
+    {
+        get
+        {
+            var identifiers = snapshot.GetValueOrDefault("m2m") is Dictionary<string, object?> machine
+                ? ((List<object?>)machine["localServiceIds"]!).Cast<string>().ToHashSet(StringComparer.Ordinal) : new HashSet<string>(StringComparer.Ordinal);
+            if (snapshot.GetValueOrDefault("serviceIdentity") is Dictionary<string, object?> identity) identifiers.Add((string)identity["id"]!);
+            return identifiers;
+        }
+    }
     public ScopedContext? ById(string tenantId, string appId)
     {
         if (!apps.TryGetValue(appId, out var app) || !tenants.TryGetValue(tenantId, out var tenant) || tenant["active"] is not true

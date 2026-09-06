@@ -103,6 +103,15 @@ Authoring declarations are portable projections of the canonical wire contracts,
 excluding derived fields. Renderer/raw/stream registration and route-directory
 discovery remain delivery work.
 
+The [mount access suite](results-access.json) passes 130 checks. Shared scenarios
+invoke Node's real H3 operation adapter for selected operation IDs, legacy IDs,
+path variants, disabled mounts, GET fragments/slots, tenant/app separation and
+well-known endpoints. Native checks additionally reject mounts belonging to
+another service instance, disabled/unregistered local services and malformed
+service paths. Permission aliases are limited to enabled local instances referenced
+by the current app. The catalog fields `appRoutes`/`appFragments` do not authorize
+inbound calls. Full host integration remains pending.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
@@ -156,6 +165,7 @@ python framework/conformance/verify.py --suite context
 python framework/conformance/verify.py --suite cors
 python framework/conformance/verify.py --suite handlers
 python framework/conformance/verify.py --suite registry
+python framework/conformance/verify.py --suite access
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -166,7 +176,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.
