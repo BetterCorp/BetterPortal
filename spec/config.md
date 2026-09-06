@@ -164,6 +164,11 @@ scopes before applying a revision. Keep the prior revision on failure.
 Empty strings are valid encrypted values where the schema permits them. A
 tag-only AES-GCM payload still requires successful authentication.
 Preview settings confer no management permissions.
+Because the preview payload has no explicit target IDs, the native runtimes
+require exactly one active tenant and one app belonging to that tenant before
+applying it. An ambiguous target is rejected instead of selecting by array order.
+Preview values are an in-memory overlay derived from the persisted encrypted
+snapshot; removal clears the overlay without rewriting ordinary settings.
 
 ## 6. Acceptance
 

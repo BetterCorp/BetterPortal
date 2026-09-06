@@ -359,8 +359,47 @@ assert decrypt_preview_value(key, "tenant", ["token"], encrypted) == ""
 
 Persist generated keys with the service's protected bootstrap state. The cipher
 holds only two derived keys per instance; it has no global cache of secrets.
-Persistent settings, legacy-marker adaptation, redaction and atomic preview
-snapshot application are the next configuration gate.
+Persistent settings, legacy-marker adaptation and redaction remain pending.
+
+`Service.apply_snapshot` validates a complete scoped document and preview values,
+persists it through the supplied `StateStore`, then replaces active policy. Failed
+validation, decryption, saving or cancellation before commit preserves the previous
+snapshot. Requests capture one snapshot; an update during authentication returns
+503. Successful updates retire old JWKS caches and rebuild URL and access policy.
+
+`FileStateStore` writes a sibling file, flushes it, then atomically replaces its
+target. The default limit is 16 MiB. Use one writer per file; replicated services
+need a configured transactional store. Files use POSIX mode 0600 or the directory's
+Windows ACL. The store does not supply key management or cross-replica delivery.
+
+```python
+import asyncio
+from pathlib import Path
+import tempfile
+from betterportal.registry import Registry
+from betterportal.service import Service
+from betterportal.storage import FileStateStore
+
+async def main():
+    declaration = {"pluginId": "com.example.service", "title": "Example", "description": "Example", "version": "1.0.0"}
+    with tempfile.TemporaryDirectory() as directory:
+        store = FileStateStore(Path(directory) / "snapshot.json")
+        async with Service(Registry([]), declaration, state_store=store, managed=True) as service:
+            await service.apply_snapshot({"managementOrigins": [], "tenants": [], "apps": []})
+            assert service.snapshot() is not None and not service.ready
+        async with Service(Registry([]), declaration, state_store=store, managed=True) as restored:
+            assert await restored.restore_snapshot()
+            assert not restored.ready
+
+asyncio.run(main())
+```
+
+Managed readiness additionally requires `manifest_submitted=True` on an update
+from an acknowledged manifest POST. Restoring a cache cannot supply that proof;
+the standalone CP transport is still pending. `preview_key` decrypts preview
+settings only for one unambiguous active tenant/app. Both scopes must validate
+before publication. Their merged values appear in `RequestContext.config`; only
+the encrypted snapshot is persisted. Removing preview config removes that overlay.
 
 ```sh
 python -m pip install -r framework/conformance/requirements.txt

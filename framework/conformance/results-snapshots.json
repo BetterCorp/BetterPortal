@@ -1,0 +1,631 @@
+{
+  "scenarios": 125,
+  "passed": 125,
+  "results": [
+    {
+      "runtime": "python",
+      "id": "snapshots-repeated-worker-cancellation-cleanup",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-file-rename-failure-cleanup",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-manifest-before-readiness",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-local-readiness",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-restored-cache-not-ready",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-restore-missing",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-restore-malformed",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-restore-duplicate-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-restore-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-restore-array",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-restore-cannot-replace-active",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-save-failure-preserves-active-and-disk",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-failed-first-save-not-ready",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-first-save-not-ready-until-commit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-serialized-concurrent-updates",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-persist-before-activate-commit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-persist-before-activate-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-persist-before-activate-shutdown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-closed-service-rejects-update",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-snapshot-owned-copy",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-reject-duplicate-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-reject-duplicate-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-reject-orphan-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-reject-invalid-origin",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-reject-insecure-verifier",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-live-revoked-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-live-inactive-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-live-changed-origin",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-url-cache-replaced",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "snapshots-file-size-limit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-file-rename-failure-cleanup",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-manifest-before-readiness",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-local-readiness",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-restored-cache-not-ready",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-restore-missing",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-restore-malformed",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-restore-duplicate-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-restore-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-restore-array",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-restore-cannot-replace-active",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-save-failure-preserves-active-and-disk",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-failed-first-save-not-ready",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-first-save-not-ready-until-commit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-serialized-concurrent-updates",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-persist-before-activate-commit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-persist-before-activate-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-persist-before-activate-shutdown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-closed-service-rejects-update",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-snapshot-owned-copy",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-reject-duplicate-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-reject-duplicate-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-reject-orphan-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-reject-invalid-origin",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-reject-insecure-verifier",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-live-revoked-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-live-inactive-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-live-changed-origin",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-url-cache-replaced",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "snapshots-file-size-limit",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "snapshots-cache-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-cache-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-cache-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "snapshots-cache-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-cache-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-cache-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-preview-atomic-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-preview-preserved-bad-app-cipher",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-preview-preserved-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-preview-preserved-missing-app",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-preview-preserved-ambiguous-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-preview-preserved-inactive-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-preview-atomic-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-preview-preserved-bad-app-cipher",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-preview-preserved-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-preview-preserved-missing-app",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-preview-preserved-ambiguous-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-preview-preserved-inactive-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-preview-atomic-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-preview-preserved-bad-app-cipher",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-preview-preserved-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-preview-preserved-missing-app",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-preview-preserved-ambiguous-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-preview-preserved-inactive-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-preview-atomic-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-preview-preserved-bad-app-cipher",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-preview-preserved-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-preview-preserved-missing-app",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-preview-preserved-ambiguous-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-preview-preserved-inactive-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-preview-atomic-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-preview-preserved-bad-app-cipher",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-preview-preserved-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-preview-preserved-missing-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-preview-preserved-ambiguous-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-preview-preserved-inactive-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-preview-atomic-interchange",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-preview-preserved-bad-app-cipher",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-preview-preserved-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-preview-preserved-missing-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-preview-preserved-ambiguous-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-preview-preserved-inactive-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-auth-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-auth-rotation",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-auth-race",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "snapshots-auth-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-auth-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-auth-rotation",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-auth-race",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "snapshots-auth-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-auth-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-auth-rotation",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-auth-race",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "snapshots-auth-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-auth-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-auth-rotation",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-auth-race",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "snapshots-auth-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-auth-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-auth-rotation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-auth-race",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "snapshots-auth-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-auth-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-auth-rotation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-auth-race",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "snapshots-auth-cancel",
+      "passed": true
+    }
+  ]
+}

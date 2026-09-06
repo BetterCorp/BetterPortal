@@ -33,6 +33,7 @@ def main() -> int:
         ["dotnet", str(dll)],
     ]
     processes = []
+    logs = []
     urls = []
     try:
         with ExitStack() as stack:
@@ -43,6 +44,7 @@ def main() -> int:
                 url = f"http://127.0.0.1:{port}"
                 command += [str(port)] if index < 2 else ["--urls", url, "--Logging:LogLevel:Default", "Warning"]
                 log = stack.enter_context(tempfile.TemporaryFile(mode="w+", encoding="utf-8"))
+                logs.append(log)
                 process = subprocess.Popen(command, stdout=log, stderr=log,
                                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 processes.append(process)
@@ -62,7 +64,12 @@ def main() -> int:
                 command.append("--roundtrip-all")
             if args.report:
                 command += ["--report", str(args.report)]
-            return subprocess.call(command)
+            code = subprocess.call(command)
+            for process, log in zip(processes, logs):
+                if process.poll() is not None:
+                    log.seek(0)
+                    print(f"Adapter exited ({process.returncode}):\n{log.read()[-12000:]}", file=sys.stderr)
+            return code
     finally:
         for process in processes:
             if process.poll() is None:

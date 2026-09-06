@@ -21,6 +21,7 @@ from python_handler import invoke as handler_request
 from python_registry import registry_request
 from python_access import access_request
 from python_hosting import hosting_request
+from python_snapshots import snapshots
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -62,6 +63,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if body.get("action") == "hosting":
                 payload = asyncio.run(hosting_request(body))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload).encode())
+                return
+            if body.get("action") == "snapshots":
+                payload = asyncio.run(snapshots(body))
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()

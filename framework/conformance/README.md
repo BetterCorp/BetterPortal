@@ -37,7 +37,8 @@ nonces, scope/path/key/tag tampering, imported sensitive fields, omitted optiona
 fields, malformed envelopes and native byte limits. Node calls its real persisted
 store and preview helpers. Its empty-preview-secret length check is fixed with a
 focused Node regression. This gate covers encryption primitives and preview
-schema traversal; it does not claim persistent settings or atomic snapshots.
+schema traversal; persistent settings remain pending. Snapshot persistence is
+covered separately below.
 .NET dependencies are locked in [packages.lock.json](../dotnet/BetterPortal/packages.lock.json);
 the Python probe dependencies are pinned in [requirements.txt](requirements.txt).
 
@@ -74,8 +75,7 @@ identities, configuration-only app separation, origin/referer restrictions and
 snapshot-copy ownership. Its Python `null-active-rejected` scenario remains
 failing: AnyVali #127 turns an explicit null tenant flag into `true`. This is the
 same upstream default defect at a security boundary; the prototype is not safe
-to deploy until it is fixed. Full policy reference validation,
-atomic storage and full policy reference validation remain delivery work.
+to deploy until it is fixed. Full policy reference validation remains delivery work.
 
 The [CORS suite](results-cors.json) passes 33 checks over actual OPTIONS/GET
 responses: preflight without bearer validation or handler execution, required and
@@ -127,7 +127,7 @@ Every signing language calls every host with user tokens and current role policy
 Native service/delegated checks also bind verified token audiences and permission
 aliases to the local instance mounting the requested operation. Preflights run
 before bearer authentication, and authorization errors preserve trusted CORS
-headers. These are prototype JSON hosts with local snapshots: CP synchronization,
+headers. These are prototype hosts with replaceable snapshots: CP synchronization,
 authorized diagnostics, full theme helpers, finite/SSE stream hosting and full helper contexts
 remain delivery work. The SDK null/default defect still blocks production use.
 
@@ -163,6 +163,17 @@ helper when the SDK accepts the address. Four portable contracts define the URL
 options and element interfaces. C# generation supports direct primitive values in
 union wrappers; AnyVali still performs all schema validation.
 
+The [snapshot suite](results-snapshots.json) passes 125 checks, also run on
+[Python 3.13](results-snapshots-python313.json). Native service probes exercise
+file persistence, rename failures, size limits, owned copies, serialized updates,
+cancelled/failed saves, shutdown, encrypted preview revisions and cache restoration
+without readiness. Node supplies real JWT and preview ciphertext interoperability;
+it also validates the native cache wire documents. These probes do not substitute
+a fake Node sync controller. Requests after updates see current mounts, origins,
+URLs and role/key policy; in-flight authentication rejects a retired snapshot while
+request cancellation remains cancellation. CP POST/SSE/poll integration and
+ordinary encrypted settings remain pending.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
@@ -191,8 +202,8 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,599/3,608
-checks across seventeen suites. Failures are those original SDK probes plus the
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,724/3,733
+checks across eighteen suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.
 
@@ -221,6 +232,7 @@ python framework/conformance/verify.py --suite hosting
 python framework/conformance/verify.py --suite raw
 python framework/conformance/verify.py --suite rendering
 python framework/conformance/verify.py --suite urls
+python framework/conformance/verify.py --suite snapshots
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -231,7 +243,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|snapshots|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.

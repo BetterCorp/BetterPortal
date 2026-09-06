@@ -43,6 +43,7 @@ app.MapPost("/", async (HttpRequest request) =>
         if (body.GetValueOrDefault("action") is "registry") return Results.Json(RegistryAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "access") return Results.Json(AccessAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "hosting") return Results.Json(await HostingAdapter.Run(body));
+        if (body.GetValueOrDefault("action") is "snapshots") return Results.Json(await SnapshotAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "context" or "http-origin") return Results.Json(ContextAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "sse-probe") return Results.Json(await SseAdapter.Probe());
         if (body.GetValueOrDefault("action") is "sse-wire") return await SseAdapter.Wire(body);

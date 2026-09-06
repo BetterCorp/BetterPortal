@@ -199,7 +199,7 @@ Raw proxy and HTMX context headers are ignored. `Resolve(..., trustedAddresses: 
 accepts addresses already verified by host proxy middleware; the host supplies
 the effective scheme. `OriginPolicy` normalizes HTTP origins and preserves exact
 path/query restrictions on referer overrides. Host proxy middleware, full policy
-reference validation and atomic persistent replacement remain pending. The shared
+reference validation remain pending. The shared
 context gate exposes Python's [AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127)
 null/default defect; .NET rejects the corresponding invalid snapshot.
 
@@ -356,7 +356,45 @@ if (PreviewConfig.DecryptValue(key, "tenant", ["token"], encrypted) != "") throw
 
 Persist generated keys with the service's protected bootstrap state. Each cipher
 holds two derived keys; there is no global secret cache. Persistent settings,
-legacy-marker adaptation, redaction and atomic preview application remain pending.
+legacy-marker adaptation and redaction remain pending.
+
+`Service.ApplySnapshot` validates the complete scoped document and preview values,
+persists through `IStateStore`, then replaces active policy. Failure or cancellation
+before commit preserves the previous snapshot. Requests capture one snapshot;
+updates during authentication return 503. Successful updates retire old JWKS
+caches and rebuild URL and access policy.
+
+`FileStateStore` flushes a sibling file before atomic replacement, with a default
+16 MiB limit. Use one writer per file; replicas need a configured transactional
+store. Files use POSIX mode 0600 or the directory's Windows ACL. Key management
+and cross-replica delivery are separate responsibilities.
+
+```csharp
+using BetterPortal;
+using BetterPortal.Generated;
+
+var declaration = new ManifestDeclarationInput { PluginId = "com.example.service", Title = "Example", Description = "Example", Version = "1.0.0" };
+var directory = Directory.CreateTempSubdirectory("bp-example-");
+try
+{
+    var store = new FileStateStore(Path.Combine(directory.FullName, "snapshot.json"));
+    await using (var service = new Service(new Registry([]), declaration, stateStore: store, managed: true))
+    {
+        await service.ApplySnapshot(Json.Read("{\"managementOrigins\":[],\"tenants\":[],\"apps\":[]}")!);
+        if (service.Snapshot() is null || service.Ready) throw new Exception("Unexpected readiness");
+    }
+    await using var restored = new Service(new Registry([]), declaration, stateStore: store, managed: true);
+    if (!await restored.RestoreSnapshot() || restored.Ready) throw new Exception("Cache must not establish readiness");
+}
+finally { directory.Delete(recursive: true); }
+```
+
+Managed readiness also requires `manifestSubmitted: true` on an update from an
+acknowledged manifest POST. Cache restoration cannot supply that proof; standalone
+CP transport remains pending. `previewKey` decrypts settings only for an
+unambiguous active tenant/app. Both scopes validate before publication; merged
+values appear in `RequestContext.Config`. Only encrypted snapshots are persisted.
+Removing preview config removes that overlay.
 
 ```sh
 dotnet restore framework/dotnet/Conformance --locked-mode
