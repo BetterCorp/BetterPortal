@@ -24,6 +24,8 @@ public sealed partial class Service : IAsyncDisposable
         state = snapshot is null ? null : Build(snapshot);
     }
     public bool Ready => state is not null && !closed && (!managed || submitted);
+    public bool Managed => managed;
+    internal void SuspendSync() => submitted = false;
     public Generated.PluginManifest Manifest => Contracts.Parse<Generated.PluginManifest>("PluginManifestSchema", schema.Manifest);
     public Generated.BpSchemaOutput Schema() => Contracts.Parse<Generated.BpSchemaOutput>("BpSchemaOutputSchema", schema);
     private static Dictionary<string, string> Headers(IReadOnlyDictionary<string, string> headers)
@@ -72,12 +74,12 @@ public sealed partial class Service : IAsyncDisposable
         try
         {
             var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken);
-            if (!ReferenceEquals(state, current) || closed) throw new RequestException(503, "Configuration changed during authentication");
+            if (!ReferenceEquals(state, current) || !Ready) throw new RequestException(503, "Configuration changed during authentication");
             if (caller.Service is not null && !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!)) throw new RequestException(403, "Access denied", responseHeaders, scope);
             var values = current.PreviewScope == (scope.TenantId, scope.AppId) ? (Node)Json.Read(Json.Write(current.Preview))! : new Node();
             return new(new RequestContext(scope, caller, method, path, values) { Urls = BuildUrls(current, scope, path, normalized, scheme) }, responseHeaders);
         }
-        catch (Exception error) when ((error is not OperationCanceledException || !cancellationToken.IsCancellationRequested) && (!ReferenceEquals(state, current) || closed))
+        catch (Exception error) when ((error is not OperationCanceledException || !cancellationToken.IsCancellationRequested) && (!ReferenceEquals(state, current) || !Ready))
         { throw new RequestException(503, "Configuration changed during authentication"); }
         catch (TokenException error)
         {

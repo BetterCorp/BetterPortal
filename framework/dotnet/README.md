@@ -1,7 +1,7 @@
 # BetterPortal .NET port
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
-for JSON, HTML and raw operations. Full control-plane synchronization, theme helpers, native route
+for JSON, HTML and raw operations. Full theme helpers, native route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The cross-language snapshot gate is still blocked by the Python SDK defect below.
 
@@ -9,8 +9,9 @@ Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
 extension. A `Service` combines the registry, manifest declaration and optional
 validated `ScopedConfig`; dispose it with `await using`. With no snapshot, public
 health returns only `{"ok": false}` and status 503. A local snapshot enables
-request handling. Automatic CP synchronization and authorized diagnostics remain
-pending; this prototype must not replace a deployed full BP runtime.
+request handling. `ControlPlaneSync` supplies automatic managed synchronization,
+described below. Authorized diagnostics remain pending; this prototype must not
+replace a deployed full BP runtime.
 
 The adapter enforces scope, local operation mounts, CORS and caller authentication,
 then decodes and validates handler inputs. Repeated query/form values and field-name
@@ -391,10 +392,50 @@ finally { directory.Delete(recursive: true); }
 
 Managed readiness also requires `manifestSubmitted: true` on an update from an
 acknowledged manifest POST. Cache restoration cannot supply that proof; standalone
-CP transport remains pending. `previewKey` decrypts settings only for an
+`ControlPlaneSync` supplies it after a successful POST and persisted snapshot. `previewKey` decrypts settings only for an
 unambiguous active tenant/app. Both scopes validate before publication; merged
 values appear in `RequestContext.Config`. Only encrypted snapshots are persisted.
 Removing preview config removes that overlay.
+
+`ControlPlaneSync` owns manifest submission, scoped SSE updates and reconnect/poll
+fallback. It requires a managed service and provisioned CP URL/API key. HTTPS is
+required; plain HTTP permits only exact `localhost`, `127.0.0.1` and `[::1]` hosts.
+Redirects are rejected. Every connection starts with a manifest POST. A failed
+first attempt leaves health at 503 and retries after five seconds. Poll requests
+and idle stream reads time out after 30 seconds. Snapshots and individual SSE frames
+are bounded to 16 MiB. Invalid updates preserve accepted state; 401/403/409/412 revoke
+readiness until a fresh manifest succeeds. Transient failures retain valid policy.
+
+```csharp
+using BetterPortal;
+using BetterPortal.AspNetCore;
+using BetterPortal.Generated;
+using Microsoft.AspNetCore.Builder;
+
+static WebApplication ManagedApp(string cpUrl, string apiKey, string cachePath)
+{
+    var service = new Service(new Registry([]), new ManifestDeclarationInput {
+        PluginId = "com.example.service", Title = "Example", Description = "Example", Version = "1.0.0"
+    }, managed: true, stateStore: new FileStateStore(cachePath));
+    var sync = new ControlPlaneSync(service, cpUrl, apiKey);
+    var builder = WebApplication.CreateBuilder();
+    builder.Services.AddBetterPortal(service, sync);
+    var app = builder.Build();
+    app.MapBetterPortal(service);
+    return app;
+}
+// Use your registry in the factory, then await the returned app's RunAsync().
+Func<string, string, string, WebApplication> factory = ManagedApp;
+```
+
+`AddBetterPortal` starts synchronization and closes it before the service at host
+shutdown. Without a host, dispose the sync before its service with `await using`.
+`StartAsync` returns the first bootstrap result; disposal cancels pending requests
+and retries and clears managed readiness. `Status` contains only safe counters and
+error codes; protect any endpoint exposing them. `Submission()` returns the portable
+typed manifest projection. Optional `keyPair` registers a previously persisted RSA
+public key; `authProvider` advertises issuer metadata. Provisioning/install tickets
+and protected key persistence remain separate work.
 
 ```sh
 dotnet restore framework/dotnet/Conformance --locked-mode

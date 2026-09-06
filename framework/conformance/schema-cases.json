@@ -669,6 +669,44 @@
     }
   },
   {
+    "id": "submission-defaults",
+    "contract": "ControlPlaneSubmissionSchema",
+    "input": {
+      "manifestVersion": "1",
+      "viewIndex": {}
+    },
+    "output": {
+      "manifestVersion": "1",
+      "capabilities": [],
+      "m2mRequests": [],
+      "apiContracts": [],
+      "developerResources": [],
+      "configSchemas": [],
+      "webhooks": [],
+      "viewIndex": {}
+    }
+  },
+  {
+    "id": "submission-reject-server-identity",
+    "contract": "ControlPlaneSubmissionSchema",
+    "input": {
+      "manifestVersion": "1",
+      "viewIndex": {},
+      "serviceId": "untrusted"
+    },
+    "valid": false
+  },
+  {
+    "id": "submission-key-omitted-not-null",
+    "contract": "ControlPlaneSubmissionSchema",
+    "input": {
+      "manifestVersion": "1",
+      "viewIndex": {},
+      "keyId": null
+    },
+    "valid": false
+  },
+  {
     "id": "element-args-defaults",
     "contract": "BPElementReferenceSchema",
     "input": {

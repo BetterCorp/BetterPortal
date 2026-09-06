@@ -109,6 +109,14 @@ async def hosting():
             response = await client.get("/.well-known/bp/health")
             assert response.status_code == 503 and response.json() == {"ok": False}
 asyncio.run(hosting())
+async def managed():
+    from betterportal.sync import ControlPlaneSync
+    async with Service(registry, {"pluginId": "com.example.hello", "title": "Hello", "description": "Example service", "version": "1.0.0"}, managed=True) as service:
+        sync = ControlPlaneSync(service, "https://config.example", "test-key")
+        assert not service.ready and sync.status["phase"] == "idle"
+        assert sync.submission()["viewIndex"]["hello.index"]["operations"][0]["operationId"] == "hello.get"
+        await sync.aclose()
+asyncio.run(managed())
 subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
     str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
     env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)

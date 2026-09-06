@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: c746e5bdeb585f71848180657eb60a65a9cc19f60ca3ddf190432b204d7f04c0
+// Generated from AnyVali documents; do not edit. SHA256: e2c25f8ae787b89785c3832df515957c4bd21b4308487d9e024c01ee3480a97f
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -4770,6 +4770,313 @@ public enum ConfigVisibilityInput
     Protected,
     [JsonStringEnumMemberName("secret")]
     Secret,
+}
+
+public sealed record ControlPlaneSubmission
+{
+    [JsonPropertyName("manifestVersion")]
+    public required string ManifestVersion { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("authProvider")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<AuthProviderRuntimeMetadata> AuthProvider { get; init; }
+    [JsonPropertyName("capabilities")]
+    public required IReadOnlyList<string> Capabilities { get; init; }
+    [JsonPropertyName("m2mRequests")]
+    public required IReadOnlyList<M2MRequestDescriptor> M2mRequests { get; init; }
+    [JsonPropertyName("apiContracts")]
+    public required IReadOnlyList<ApiContractDescriptor> ApiContracts { get; init; }
+    [JsonPropertyName("developerResources")]
+    public required IReadOnlyList<DeveloperResource> DeveloperResources { get; init; }
+    [JsonPropertyName("configSchemas")]
+    public required IReadOnlyList<ConfigSchemaDescriptor> ConfigSchemas { get; init; }
+    [JsonPropertyName("webhooks")]
+    public required IReadOnlyList<WebhookEventDescriptor> Webhooks { get; init; }
+    [JsonPropertyName("shell")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ShellManifest> Shell { get; init; }
+    [JsonPropertyName("viewIndex")]
+    public required IReadOnlyDictionary<string, ControlPlaneSubmissionViewIndexItem> ViewIndex { get; init; }
+    [JsonPropertyName("publicKeyPem")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> PublicKeyPem { get; init; }
+    [JsonPropertyName("keyId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> KeyId { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionInput
+{
+    [JsonPropertyName("manifestVersion")]
+    public required string ManifestVersion { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("authProvider")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<AuthProviderRuntimeMetadataInput> AuthProvider { get; init; }
+    [JsonPropertyName("capabilities")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Capabilities { get; init; }
+    [JsonPropertyName("m2mRequests")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<M2MRequestDescriptorInput>> M2mRequests { get; init; }
+    [JsonPropertyName("apiContracts")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ApiContractDescriptorInput>> ApiContracts { get; init; }
+    [JsonPropertyName("developerResources")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<DeveloperResourceInput>> DeveloperResources { get; init; }
+    [JsonPropertyName("configSchemas")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ConfigSchemaDescriptorInput>> ConfigSchemas { get; init; }
+    [JsonPropertyName("webhooks")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<WebhookEventDescriptorInput>> Webhooks { get; init; }
+    [JsonPropertyName("shell")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ShellManifestInput> Shell { get; init; }
+    [JsonPropertyName("viewIndex")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, ControlPlaneSubmissionInputViewIndexItem>> ViewIndex { get; init; }
+    [JsonPropertyName("publicKeyPem")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> PublicKeyPem { get; init; }
+    [JsonPropertyName("keyId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> KeyId { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionInputViewIndexItem
+{
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+    [JsonPropertyName("description")]
+    public required string Description { get; init; }
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+    [JsonPropertyName("pathVariants")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> PathVariants { get; init; }
+    [JsonPropertyName("paramsSchema")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObjectInput> ParamsSchema { get; init; }
+    [JsonPropertyName("operations")]
+    public required IReadOnlyList<ControlPlaneSubmissionInputViewIndexItemOperationsItem> Operations { get; init; }
+    [JsonPropertyName("fragments")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ControlPlaneSubmissionInputViewIndexItemFragmentsItem>> Fragments { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionInputViewIndexItemFragmentsItem
+{
+    [JsonPropertyName("fragmentId")]
+    public required string FragmentId { get; init; }
+    [JsonPropertyName("targetPath")]
+    public required string TargetPath { get; init; }
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("method")]
+    public required HttpMethodInput Method { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionInputViewIndexItemOperationsItem
+{
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("method")]
+    public required HttpMethodInput Method { get; init; }
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+    [JsonPropertyName("description")]
+    public required string Description { get; init; }
+    [JsonPropertyName("renderers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Renderers { get; init; }
+    [JsonPropertyName("renderModes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<RenderModeInput>> RenderModes { get; init; }
+    [JsonPropertyName("role")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Role { get; init; }
+    [JsonPropertyName("authRequired")]
+    public required bool AuthRequired { get; init; }
+    [JsonPropertyName("sitemap")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<BetterPortalRouteMountInputSitemap> Sitemap { get; init; }
+    [JsonPropertyName("robots")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<BetterPortalRouteMountInputRobotsItem>> Robots { get; init; }
+    [JsonPropertyName("chrome")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<BetterPortalRouteChromeInput> Chrome { get; init; }
+    [JsonPropertyName("dependencies")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<OperationDependencyInput>> Dependencies { get; init; }
+    [JsonPropertyName("permissions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ControlPlaneSubmissionInputViewIndexItemOperationsItemPermissionsItem>> Permissions { get; init; }
+    [JsonPropertyName("renderable")]
+    public required bool Renderable { get; init; }
+    [JsonPropertyName("schemas")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ControlPlaneSubmissionInputViewIndexItemOperationsItemSchemas> Schemas { get; init; }
+    [JsonPropertyName("raw")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Raw { get; init; }
+    [JsonPropertyName("apiContracts")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ApiContractDescriptorInput>> ApiContracts { get; init; }
+    [JsonPropertyName("demoScenarios")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<DemoScenarioInput>> DemoScenarios { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionInputViewIndexItemOperationsItemPermissionsItem
+{
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("permissions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Permissions { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionInputViewIndexItemOperationsItemSchemas
+{
+    [JsonPropertyName("query")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObjectInput> Query { get; init; }
+    [JsonPropertyName("headers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObjectInput> Headers { get; init; }
+    [JsonPropertyName("request")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObjectInput> Request { get; init; }
+    [JsonPropertyName("multipart")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObjectInput> Multipart { get; init; }
+    [JsonPropertyName("response")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObjectInput> Response { get; init; }
+    [JsonPropertyName("metadataResponse")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObjectInput> MetadataResponse { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionViewIndexItem
+{
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+    [JsonPropertyName("description")]
+    public required string Description { get; init; }
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+    [JsonPropertyName("pathVariants")]
+    public required IReadOnlyList<string> PathVariants { get; init; }
+    [JsonPropertyName("paramsSchema")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObject> ParamsSchema { get; init; }
+    [JsonPropertyName("operations")]
+    public required IReadOnlyList<ControlPlaneSubmissionViewIndexItemOperationsItem> Operations { get; init; }
+    [JsonPropertyName("fragments")]
+    public required IReadOnlyList<ControlPlaneSubmissionViewIndexItemFragmentsItem> Fragments { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionViewIndexItemFragmentsItem
+{
+    [JsonPropertyName("fragmentId")]
+    public required string FragmentId { get; init; }
+    [JsonPropertyName("targetPath")]
+    public required string TargetPath { get; init; }
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("method")]
+    public required HttpMethod Method { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionViewIndexItemOperationsItem
+{
+    [JsonPropertyName("operationId")]
+    public required string OperationId { get; init; }
+    [JsonPropertyName("method")]
+    public required HttpMethod Method { get; init; }
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+    [JsonPropertyName("description")]
+    public required string Description { get; init; }
+    [JsonPropertyName("renderers")]
+    public required IReadOnlyList<string> Renderers { get; init; }
+    [JsonPropertyName("renderModes")]
+    public required IReadOnlyList<RenderMode> RenderModes { get; init; }
+    [JsonPropertyName("role")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Role { get; init; }
+    [JsonPropertyName("authRequired")]
+    public required bool AuthRequired { get; init; }
+    [JsonPropertyName("sitemap")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<BetterPortalRouteMountSitemap> Sitemap { get; init; }
+    [JsonPropertyName("robots")]
+    public required IReadOnlyList<BetterPortalRouteMountRobotsItem> Robots { get; init; }
+    [JsonPropertyName("chrome")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<BetterPortalRouteChrome> Chrome { get; init; }
+    [JsonPropertyName("dependencies")]
+    public required IReadOnlyList<OperationDependency> Dependencies { get; init; }
+    [JsonPropertyName("permissions")]
+    public required IReadOnlyList<ControlPlaneSubmissionViewIndexItemOperationsItemPermissionsItem> Permissions { get; init; }
+    [JsonPropertyName("renderable")]
+    public required bool Renderable { get; init; }
+    [JsonPropertyName("schemas")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ControlPlaneSubmissionViewIndexItemOperationsItemSchemas> Schemas { get; init; }
+    [JsonPropertyName("raw")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Raw { get; init; }
+    [JsonPropertyName("apiContracts")]
+    public required IReadOnlyList<ApiContractDescriptor> ApiContracts { get; init; }
+    [JsonPropertyName("demoScenarios")]
+    public required IReadOnlyList<DemoScenario> DemoScenarios { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionViewIndexItemOperationsItemPermissionsItem
+{
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("permissions")]
+    public required IReadOnlyList<string> Permissions { get; init; }
+}
+
+public sealed record ControlPlaneSubmissionViewIndexItemOperationsItemSchemas
+{
+    [JsonPropertyName("query")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObject> Query { get; init; }
+    [JsonPropertyName("headers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObject> Headers { get; init; }
+    [JsonPropertyName("request")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObject> Request { get; init; }
+    [JsonPropertyName("multipart")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObject> Multipart { get; init; }
+    [JsonPropertyName("response")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObject> Response { get; init; }
+    [JsonPropertyName("metadataResponse")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonObject> MetadataResponse { get; init; }
 }
 
 public sealed record CpEnvelopeClaims
@@ -10435,19 +10742,7 @@ public sealed record ServiceManifestCacheEntryInputViewIndexItem
     public required IReadOnlyList<ServiceManifestCacheEntryInputViewIndexItemOperationsItem> Operations { get; init; }
     [JsonPropertyName("fragments")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<ServiceManifestCacheEntryInputViewIndexItemFragmentsItem>> Fragments { get; init; }
-}
-
-public sealed record ServiceManifestCacheEntryInputViewIndexItemFragmentsItem
-{
-    [JsonPropertyName("fragmentId")]
-    public required string FragmentId { get; init; }
-    [JsonPropertyName("targetPath")]
-    public required string TargetPath { get; init; }
-    [JsonPropertyName("operationId")]
-    public required string OperationId { get; init; }
-    [JsonPropertyName("method")]
-    public required HttpMethodInput Method { get; init; }
+    public Optional<IReadOnlyList<ControlPlaneSubmissionInputViewIndexItemFragmentsItem>> Fragments { get; init; }
 }
 
 public sealed record ServiceManifestCacheEntryInputViewIndexItemOperationsItem
@@ -10485,7 +10780,7 @@ public sealed record ServiceManifestCacheEntryInputViewIndexItemOperationsItem
     public Optional<IReadOnlyList<OperationDependencyInput>> Dependencies { get; init; }
     [JsonPropertyName("permissions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<ServiceManifestCacheEntryInputViewIndexItemOperationsItemPermissionsItem>> Permissions { get; init; }
+    public Optional<IReadOnlyList<ControlPlaneSubmissionInputViewIndexItemOperationsItemPermissionsItem>> Permissions { get; init; }
     [JsonPropertyName("renderable")]
     public required bool Renderable { get; init; }
     [JsonPropertyName("schemas")]
@@ -10500,17 +10795,6 @@ public sealed record ServiceManifestCacheEntryInputViewIndexItemOperationsItem
     [JsonPropertyName("demoScenarios")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<DemoScenarioInput>> DemoScenarios { get; init; }
-}
-
-public sealed record ServiceManifestCacheEntryInputViewIndexItemOperationsItemPermissionsItem
-{
-    [JsonPropertyName("serviceId")]
-    public required string ServiceId { get; init; }
-    [JsonPropertyName("viewId")]
-    public required string ViewId { get; init; }
-    [JsonPropertyName("permissions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> Permissions { get; init; }
 }
 
 public sealed record ServiceManifestCacheEntryInputViewIndexItemOperationsItemSchemas
@@ -10550,19 +10834,7 @@ public sealed record ServiceManifestCacheEntryViewIndexItem
     [JsonPropertyName("operations")]
     public required IReadOnlyList<ServiceManifestCacheEntryViewIndexItemOperationsItem> Operations { get; init; }
     [JsonPropertyName("fragments")]
-    public required IReadOnlyList<ServiceManifestCacheEntryViewIndexItemFragmentsItem> Fragments { get; init; }
-}
-
-public sealed record ServiceManifestCacheEntryViewIndexItemFragmentsItem
-{
-    [JsonPropertyName("fragmentId")]
-    public required string FragmentId { get; init; }
-    [JsonPropertyName("targetPath")]
-    public required string TargetPath { get; init; }
-    [JsonPropertyName("operationId")]
-    public required string OperationId { get; init; }
-    [JsonPropertyName("method")]
-    public required HttpMethod Method { get; init; }
+    public required IReadOnlyList<ControlPlaneSubmissionViewIndexItemFragmentsItem> Fragments { get; init; }
 }
 
 public sealed record ServiceManifestCacheEntryViewIndexItemOperationsItem
@@ -10595,7 +10867,7 @@ public sealed record ServiceManifestCacheEntryViewIndexItemOperationsItem
     [JsonPropertyName("dependencies")]
     public required IReadOnlyList<OperationDependency> Dependencies { get; init; }
     [JsonPropertyName("permissions")]
-    public required IReadOnlyList<ServiceManifestCacheEntryViewIndexItemOperationsItemPermissionsItem> Permissions { get; init; }
+    public required IReadOnlyList<ControlPlaneSubmissionViewIndexItemOperationsItemPermissionsItem> Permissions { get; init; }
     [JsonPropertyName("renderable")]
     public required bool Renderable { get; init; }
     [JsonPropertyName("schemas")]
@@ -10608,16 +10880,6 @@ public sealed record ServiceManifestCacheEntryViewIndexItemOperationsItem
     public required IReadOnlyList<ApiContractDescriptor> ApiContracts { get; init; }
     [JsonPropertyName("demoScenarios")]
     public required IReadOnlyList<DemoScenario> DemoScenarios { get; init; }
-}
-
-public sealed record ServiceManifestCacheEntryViewIndexItemOperationsItemPermissionsItem
-{
-    [JsonPropertyName("serviceId")]
-    public required string ServiceId { get; init; }
-    [JsonPropertyName("viewId")]
-    public required string ViewId { get; init; }
-    [JsonPropertyName("permissions")]
-    public required IReadOnlyList<string> Permissions { get; init; }
 }
 
 public sealed record ServiceManifestCacheEntryViewIndexItemOperationsItemSchemas

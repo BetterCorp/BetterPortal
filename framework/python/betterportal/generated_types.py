@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 3fa8d96916e8998620cae7c69d5a760712f63990890c25a8071448c882d846fb
+# Generated from AnyVali documents; do not edit. SHA256: 96ec90887c1de21411ff2fea32046b4bbf4fa5a1798801ec816fb48f53d8b1b0
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -1822,6 +1822,146 @@ ConfigScopeInput: TypeAlias = "Literal['tenant', 'app']"
 ConfigVisibility: TypeAlias = "Literal['public', 'protected', 'secret']"
 
 ConfigVisibilityInput: TypeAlias = "Literal['public', 'protected', 'secret']"
+
+ControlPlaneSubmission = TypedDict('ControlPlaneSubmission', {
+    'manifestVersion': Required['str'],
+    'title': NotRequired['str'],
+    'authProvider': NotRequired['AuthProviderRuntimeMetadata'],
+    'capabilities': Required['list[str]'],
+    'm2mRequests': Required['list[M2MRequestDescriptor]'],
+    'apiContracts': Required['list[ApiContractDescriptor]'],
+    'developerResources': Required['list[DeveloperResource]'],
+    'configSchemas': Required['list[ConfigSchemaDescriptor]'],
+    'webhooks': Required['list[WebhookEventDescriptor]'],
+    'shell': NotRequired['ShellManifest'],
+    'viewIndex': Required['dict[str, ControlPlaneSubmissionViewindexItem]'],
+    'publicKeyPem': NotRequired['str'],
+    'keyId': NotRequired['str'],
+})
+
+ControlPlaneSubmissionInput = TypedDict('ControlPlaneSubmissionInput', {
+    'manifestVersion': Required['str'],
+    'title': NotRequired['str'],
+    'authProvider': NotRequired['AuthProviderRuntimeMetadataInput'],
+    'capabilities': NotRequired['list[str]'],
+    'm2mRequests': NotRequired['list[M2MRequestDescriptorInput]'],
+    'apiContracts': NotRequired['list[ApiContractDescriptorInput]'],
+    'developerResources': NotRequired['list[DeveloperResourceInput]'],
+    'configSchemas': NotRequired['list[ConfigSchemaDescriptorInput]'],
+    'webhooks': NotRequired['list[WebhookEventDescriptorInput]'],
+    'shell': NotRequired['ShellManifestInput'],
+    'viewIndex': NotRequired['dict[str, ControlPlaneSubmissionInputViewindexItem]'],
+    'publicKeyPem': NotRequired['str'],
+    'keyId': NotRequired['str'],
+})
+
+ControlPlaneSubmissionInputViewindexItem = TypedDict('ControlPlaneSubmissionInputViewindexItem', {
+    'viewId': Required['str'],
+    'title': Required['str'],
+    'description': Required['str'],
+    'path': Required['str'],
+    'pathVariants': NotRequired['list[str]'],
+    'paramsSchema': NotRequired['JsonObjectInput'],
+    'operations': Required['list[ControlPlaneSubmissionInputViewindexItemOperationsItem]'],
+    'fragments': NotRequired['list[ControlPlaneSubmissionInputViewindexItemFragmentsItem]'],
+})
+
+ControlPlaneSubmissionInputViewindexItemFragmentsItem = TypedDict('ControlPlaneSubmissionInputViewindexItemFragmentsItem', {
+    'fragmentId': Required['str'],
+    'targetPath': Required['str'],
+    'operationId': Required['str'],
+    'method': Required['HttpMethodInput'],
+})
+
+ControlPlaneSubmissionInputViewindexItemOperationsItem = TypedDict('ControlPlaneSubmissionInputViewindexItemOperationsItem', {
+    'operationId': Required['str'],
+    'method': Required['HttpMethodInput'],
+    'title': Required['str'],
+    'description': Required['str'],
+    'renderers': NotRequired['list[str]'],
+    'renderModes': NotRequired['list[RenderModeInput]'],
+    'role': NotRequired['str'],
+    'authRequired': Required['bool'],
+    'sitemap': NotRequired['BetterPortalRouteMountInputSitemap'],
+    'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
+    'chrome': NotRequired['BetterPortalRouteChromeInput'],
+    'dependencies': NotRequired['list[OperationDependencyInput]'],
+    'permissions': NotRequired['list[ControlPlaneSubmissionInputViewindexItemOperationsItemPermissionsItem]'],
+    'renderable': Required['bool'],
+    'schemas': NotRequired['ControlPlaneSubmissionInputViewindexItemOperationsItemSchemas'],
+    'raw': NotRequired['bool'],
+    'apiContracts': NotRequired['list[ApiContractDescriptorInput]'],
+    'demoScenarios': NotRequired['list[DemoScenarioInput]'],
+})
+
+ControlPlaneSubmissionInputViewindexItemOperationsItemPermissionsItem = TypedDict('ControlPlaneSubmissionInputViewindexItemOperationsItemPermissionsItem', {
+    'serviceId': Required['str'],
+    'viewId': Required['str'],
+    'permissions': NotRequired['list[str]'],
+})
+
+ControlPlaneSubmissionInputViewindexItemOperationsItemSchemas = TypedDict('ControlPlaneSubmissionInputViewindexItemOperationsItemSchemas', {
+    'query': NotRequired['JsonObjectInput'],
+    'headers': NotRequired['JsonObjectInput'],
+    'request': NotRequired['JsonObjectInput'],
+    'multipart': NotRequired['JsonObjectInput'],
+    'response': NotRequired['JsonObjectInput'],
+    'metadataResponse': NotRequired['JsonObjectInput'],
+})
+
+ControlPlaneSubmissionViewindexItem = TypedDict('ControlPlaneSubmissionViewindexItem', {
+    'viewId': Required['str'],
+    'title': Required['str'],
+    'description': Required['str'],
+    'path': Required['str'],
+    'pathVariants': Required['list[str]'],
+    'paramsSchema': NotRequired['JsonObject'],
+    'operations': Required['list[ControlPlaneSubmissionViewindexItemOperationsItem]'],
+    'fragments': Required['list[ControlPlaneSubmissionViewindexItemFragmentsItem]'],
+})
+
+ControlPlaneSubmissionViewindexItemFragmentsItem = TypedDict('ControlPlaneSubmissionViewindexItemFragmentsItem', {
+    'fragmentId': Required['str'],
+    'targetPath': Required['str'],
+    'operationId': Required['str'],
+    'method': Required['HttpMethod'],
+})
+
+ControlPlaneSubmissionViewindexItemOperationsItem = TypedDict('ControlPlaneSubmissionViewindexItemOperationsItem', {
+    'operationId': Required['str'],
+    'method': Required['HttpMethod'],
+    'title': Required['str'],
+    'description': Required['str'],
+    'renderers': Required['list[str]'],
+    'renderModes': Required['list[RenderMode]'],
+    'role': NotRequired['str'],
+    'authRequired': Required['bool'],
+    'sitemap': NotRequired['BetterPortalRouteMountSitemap'],
+    'robots': Required['list[BetterPortalRouteMountRobotsItem]'],
+    'chrome': NotRequired['BetterPortalRouteChrome'],
+    'dependencies': Required['list[OperationDependency]'],
+    'permissions': Required['list[ControlPlaneSubmissionViewindexItemOperationsItemPermissionsItem]'],
+    'renderable': Required['bool'],
+    'schemas': NotRequired['ControlPlaneSubmissionViewindexItemOperationsItemSchemas'],
+    'raw': NotRequired['bool'],
+    'apiContracts': Required['list[ApiContractDescriptor]'],
+    'demoScenarios': Required['list[DemoScenario]'],
+})
+
+ControlPlaneSubmissionViewindexItemOperationsItemPermissionsItem = TypedDict('ControlPlaneSubmissionViewindexItemOperationsItemPermissionsItem', {
+    'serviceId': Required['str'],
+    'viewId': Required['str'],
+    'permissions': Required['list[str]'],
+})
+
+ControlPlaneSubmissionViewindexItemOperationsItemSchemas = TypedDict('ControlPlaneSubmissionViewindexItemOperationsItemSchemas', {
+    'query': NotRequired['JsonObject'],
+    'headers': NotRequired['JsonObject'],
+    'request': NotRequired['JsonObject'],
+    'multipart': NotRequired['JsonObject'],
+    'response': NotRequired['JsonObject'],
+    'metadataResponse': NotRequired['JsonObject'],
+})
 
 CpEnvelopeClaims = TypedDict('CpEnvelopeClaims', {
     'iss': Required['str'],
@@ -4131,14 +4271,7 @@ ServiceManifestCacheEntryInputViewindexItem = TypedDict('ServiceManifestCacheEnt
     'pathVariants': NotRequired['list[str]'],
     'paramsSchema': NotRequired['JsonObjectInput'],
     'operations': Required['list[ServiceManifestCacheEntryInputViewindexItemOperationsItem]'],
-    'fragments': NotRequired['list[ServiceManifestCacheEntryInputViewindexItemFragmentsItem]'],
-})
-
-ServiceManifestCacheEntryInputViewindexItemFragmentsItem = TypedDict('ServiceManifestCacheEntryInputViewindexItemFragmentsItem', {
-    'fragmentId': Required['str'],
-    'targetPath': Required['str'],
-    'operationId': Required['str'],
-    'method': Required['HttpMethodInput'],
+    'fragments': NotRequired['list[ControlPlaneSubmissionInputViewindexItemFragmentsItem]'],
 })
 
 ServiceManifestCacheEntryInputViewindexItemOperationsItem = TypedDict('ServiceManifestCacheEntryInputViewindexItemOperationsItem', {
@@ -4154,18 +4287,12 @@ ServiceManifestCacheEntryInputViewindexItemOperationsItem = TypedDict('ServiceMa
     'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
     'chrome': NotRequired['BetterPortalRouteChromeInput'],
     'dependencies': NotRequired['list[OperationDependencyInput]'],
-    'permissions': NotRequired['list[ServiceManifestCacheEntryInputViewindexItemOperationsItemPermissionsItem]'],
+    'permissions': NotRequired['list[ControlPlaneSubmissionInputViewindexItemOperationsItemPermissionsItem]'],
     'renderable': Required['bool'],
     'schemas': NotRequired['ServiceManifestCacheEntryInputViewindexItemOperationsItemSchemas'],
     'raw': NotRequired['bool'],
     'apiContracts': NotRequired['list[ApiContractDescriptorInput]'],
     'demoScenarios': NotRequired['list[DemoScenarioInput]'],
-})
-
-ServiceManifestCacheEntryInputViewindexItemOperationsItemPermissionsItem = TypedDict('ServiceManifestCacheEntryInputViewindexItemOperationsItemPermissionsItem', {
-    'serviceId': Required['str'],
-    'viewId': Required['str'],
-    'permissions': NotRequired['list[str]'],
 })
 
 ServiceManifestCacheEntryInputViewindexItemOperationsItemSchemas = TypedDict('ServiceManifestCacheEntryInputViewindexItemOperationsItemSchemas', {
@@ -4184,14 +4311,7 @@ ServiceManifestCacheEntryViewindexItem = TypedDict('ServiceManifestCacheEntryVie
     'pathVariants': Required['list[str]'],
     'paramsSchema': NotRequired['JsonObject'],
     'operations': Required['list[ServiceManifestCacheEntryViewindexItemOperationsItem]'],
-    'fragments': Required['list[ServiceManifestCacheEntryViewindexItemFragmentsItem]'],
-})
-
-ServiceManifestCacheEntryViewindexItemFragmentsItem = TypedDict('ServiceManifestCacheEntryViewindexItemFragmentsItem', {
-    'fragmentId': Required['str'],
-    'targetPath': Required['str'],
-    'operationId': Required['str'],
-    'method': Required['HttpMethod'],
+    'fragments': Required['list[ControlPlaneSubmissionViewindexItemFragmentsItem]'],
 })
 
 ServiceManifestCacheEntryViewindexItemOperationsItem = TypedDict('ServiceManifestCacheEntryViewindexItemOperationsItem', {
@@ -4207,18 +4327,12 @@ ServiceManifestCacheEntryViewindexItemOperationsItem = TypedDict('ServiceManifes
     'robots': Required['list[BetterPortalRouteMountRobotsItem]'],
     'chrome': NotRequired['BetterPortalRouteChrome'],
     'dependencies': Required['list[OperationDependency]'],
-    'permissions': Required['list[ServiceManifestCacheEntryViewindexItemOperationsItemPermissionsItem]'],
+    'permissions': Required['list[ControlPlaneSubmissionViewindexItemOperationsItemPermissionsItem]'],
     'renderable': Required['bool'],
     'schemas': NotRequired['ServiceManifestCacheEntryViewindexItemOperationsItemSchemas'],
     'raw': NotRequired['bool'],
     'apiContracts': Required['list[ApiContractDescriptor]'],
     'demoScenarios': Required['list[DemoScenario]'],
-})
-
-ServiceManifestCacheEntryViewindexItemOperationsItemPermissionsItem = TypedDict('ServiceManifestCacheEntryViewindexItemOperationsItemPermissionsItem', {
-    'serviceId': Required['str'],
-    'viewId': Required['str'],
-    'permissions': Required['list[str]'],
 })
 
 ServiceManifestCacheEntryViewindexItemOperationsItemSchemas = TypedDict('ServiceManifestCacheEntryViewindexItemOperationsItemSchemas', {

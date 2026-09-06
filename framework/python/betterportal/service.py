@@ -71,6 +71,12 @@ class Service:
     @property
     def ready(self) -> bool: return self._state is not None and not self._closed and (not self._managed or self._submitted)
 
+    @property
+    def managed(self) -> bool: return self._managed
+
+    def _suspend_sync(self) -> None:
+        self._submitted = False
+
     def snapshot(self) -> dict[str, Any] | None:
         return self._state.snapshot.document() if self._state else None
 
@@ -174,7 +180,7 @@ class Service:
         async def verify():
             try: return await authorize_request(normalized, operation.declaration["auth"], auth, view_id=route.view_id, method=method)
             except asyncio.CancelledError:
-                if self._state is not state or self._closed:
+                if self._state is not state or not self.ready:
                     raise TokenError("Configuration verifier was retired") from None
                 raise
         # Keep cancellation of a retired verifier distinct from cancellation of this request
@@ -187,15 +193,15 @@ class Service:
             await asyncio.gather(verification, return_exceptions=True)
             raise
         except TokenError as error:
-            if self._state is not state or self._closed:
+            if self._state is not state or not self.ready:
                 raise RequestError(503, "Configuration changed during authentication") from error
             message = {401: "Authentication required or invalid", 403: "Access denied", 503: "Authentication unavailable"}.get(error.status, "Authentication failed")
             raise RequestError(error.status, message, response_headers, scope=scope) from error
         except Exception as error:
-            if self._state is not state or self._closed:
+            if self._state is not state or not self.ready:
                 raise RequestError(503, "Configuration changed during authentication") from error
             raise
-        if self._state is not state or self._closed:
+        if self._state is not state or not self.ready:
             raise RequestError(503, "Configuration changed during authentication")
         if caller.service is not None and not access.allows(route, method, path=matched_path, fragment=fragment, service_id=caller.service["aud"]):
             raise RequestError(403, "Access denied", response_headers, scope=scope)

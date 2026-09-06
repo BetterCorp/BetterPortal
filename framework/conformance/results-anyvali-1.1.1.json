@@ -1,6 +1,6 @@
 {
-  "scenarios": 1020,
-  "passed": 1012,
+  "scenarios": 1044,
+  "passed": 1036,
   "results": [
     {
       "runtime": "node",
@@ -160,6 +160,21 @@
     },
     {
       "runtime": "node",
+      "id": "submission-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-reject-server-identity",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-key-omitted-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "element-args-defaults",
       "passed": true
     },
@@ -426,6 +441,11 @@
     {
       "runtime": "node",
       "id": "import-ConfigVisibilitySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ControlPlaneSubmissionSchema",
       "passed": true
     },
     {
@@ -1011,6 +1031,21 @@
     },
     {
       "runtime": "node",
+      "id": "submission-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-reject-server-identity-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-key-omitted-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "element-args-defaults-roundtrip",
       "passed": true
     },
@@ -1277,6 +1312,11 @@
     {
       "runtime": "node",
       "id": "import-ConfigVisibilitySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ControlPlaneSubmissionSchema-roundtrip",
       "passed": true
     },
     {
@@ -1863,6 +1903,21 @@
     },
     {
       "runtime": "python",
+      "id": "submission-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-reject-server-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-key-omitted-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "element-args-defaults",
       "passed": true
     },
@@ -2129,6 +2184,11 @@
     {
       "runtime": "python",
       "id": "import-ConfigVisibilitySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ControlPlaneSubmissionSchema",
       "passed": true
     },
     {
@@ -2715,6 +2775,21 @@
     },
     {
       "runtime": "python",
+      "id": "submission-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-reject-server-identity-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-key-omitted-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "element-args-defaults-roundtrip",
       "passed": true
     },
@@ -2981,6 +3056,11 @@
     {
       "runtime": "python",
       "id": "import-ConfigVisibilitySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ControlPlaneSubmissionSchema-roundtrip",
       "passed": true
     },
     {
@@ -3566,6 +3646,21 @@
     },
     {
       "runtime": "dotnet",
+      "id": "submission-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-reject-server-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-key-omitted-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "element-args-defaults",
       "passed": true
     },
@@ -3832,6 +3927,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ConfigVisibilitySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ControlPlaneSubmissionSchema",
       "passed": true
     },
     {
@@ -4417,6 +4517,21 @@
     },
     {
       "runtime": "dotnet",
+      "id": "submission-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-reject-server-identity-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-key-omitted-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "element-args-defaults-roundtrip",
       "passed": true
     },
@@ -4683,6 +4798,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ConfigVisibilitySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ControlPlaneSubmissionSchema-roundtrip",
       "passed": true
     },
     {

@@ -2,15 +2,15 @@
 
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
 hosting for JSON, HTML and raw operations. It is **not ready for production**: the AnyVali
-snapshot gate below still fails. Control-plane synchronization, full theme helpers, route
+snapshot gate below still fails. Full theme helpers, route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
 Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
 in `betterportal.asgi` owns the `Service` lifespan. A service combines a registry,
 manifest declaration and optional validated `ScopedConfig`. With no snapshot its
 public health endpoint returns only `{"ok": false}` with status 503; a local
-snapshot enables request handling. Automatic control-plane synchronization and
-authorized health diagnostics remain pending.
+snapshot enables request handling. `ControlPlaneSync` supplies automatic managed
+synchronization, described below. Authorized health diagnostics remain pending.
 
 The host resolves scope, checks local operation mounts and CORS, and verifies user
 or delegated/service credentials before invoking handlers. It preserves repeated
@@ -396,10 +396,43 @@ asyncio.run(main())
 
 Managed readiness additionally requires `manifest_submitted=True` on an update
 from an acknowledged manifest POST. Restoring a cache cannot supply that proof;
-the standalone CP transport is still pending. `preview_key` decrypts preview
+`ControlPlaneSync` supplies it after a successful POST and persisted snapshot. `preview_key` decrypts preview
 settings only for one unambiguous active tenant/app. Both scopes must validate
 before publication. Their merged values appear in `RequestContext.config`; only
 the encrypted snapshot is persisted. Removing preview config removes that overlay.
+
+`ControlPlaneSync` owns manifest submission, scoped SSE updates and reconnect/poll
+fallback. Pass a managed service and its provisioned CP URL/API key. HTTPS is required;
+plain HTTP permits only exact `localhost`, `127.0.0.1` and `[::1]` hosts. Redirects
+are rejected. Each connection starts with a manifest POST; a failed first attempt
+leaves health at 503 and retries after five seconds. Poll requests and idle stream
+reads time out after 30 seconds. Payloads and individual SSE frames are bounded to
+16 MiB. Invalid updates preserve the last accepted snapshot; 401/403/409/412 revoke
+readiness until a new manifest is accepted. Transient failures retain valid policy.
+
+```python
+from betterportal.asgi import create_app
+from betterportal.registry import Registry
+from betterportal.service import Service
+from betterportal.storage import FileStateStore
+from betterportal.sync import ControlPlaneSync
+
+def managed_app(cp_url: str, api_key: str, cache_path: str):
+    service = Service(Registry([]), {"pluginId": "com.example.service", "title": "Example",
+        "description": "Example", "version": "1.0.0"}, managed=True, state_store=FileStateStore(cache_path))
+    sync = ControlPlaneSync(service, cp_url, api_key)
+    return create_app(service, sync=sync)
+```
+
+Use your operation registry in this factory, and expose its returned app to your
+ASGI server. The host starts synchronization and closes it before the service at
+shutdown. Without a host, use `async with service` and `async with sync`, in that
+order. `await sync.start()` returns the first bootstrap result; `await sync.aclose()`
+cancels pending requests/retries and clears managed readiness. `sync.status` returns
+safe counters/error codes; protect any endpoint exposing them. `sync.submission()`
+returns the portable typed manifest projection. Optional `key_pair` registers a
+previously persisted RSA public key, and `auth_provider` advertises issuer metadata.
+Provisioning/install tickets and protected key persistence remain separate work.
 
 ```sh
 python -m pip install -r framework/conformance/requirements.txt

@@ -8,8 +8,8 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,012/1,020 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 32 semantic cases and imports all 138 documents, then repeats
+Published AnyVali **1.1.1** passes [1,036/1,044 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 35 semantic cases and imports all 139 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -127,7 +127,7 @@ Every signing language calls every host with user tokens and current role policy
 Native service/delegated checks also bind verified token audiences and permission
 aliases to the local instance mounting the requested operation. Preflights run
 before bearer authentication, and authorization errors preserve trusted CORS
-headers. These are prototype hosts with replaceable snapshots: CP synchronization,
+headers. These are prototype hosts with replaceable snapshots: full settings,
 authorized diagnostics, full theme helpers, finite/SSE stream hosting and full helper contexts
 remain delivery work. The SDK null/default defect still blocks production use.
 
@@ -171,8 +171,21 @@ without readiness. Node supplies real JWT and preview ciphertext interoperabilit
 it also validates the native cache wire documents. These probes do not substitute
 a fake Node sync controller. Requests after updates see current mounts, origins,
 URLs and role/key policy; in-flight authentication rejects a retired snapshot while
-request cancellation remains cancellation. CP POST/SSE/poll integration and
-ordinary encrypted settings remain pending.
+request cancellation remains cancellation. Ordinary encrypted settings remain pending.
+
+The [sync suite](results-sync.json) passes 130 checks for native manifest POST, SSE/poll
+fallback and hosting lifetime. The portable submission contract projects the
+existing CP cache fields and preserves method-specific schemas, fragments, keys
+and optional provider metadata. Checks cover failed startup, readiness after
+credential denial versus transient errors, reconnect submission, cache/save
+failures, live policy revocation, shutdown/startup cancellation, exact loopback
+policy, redirect refusal, strict UTF-8/JSON, bounded payloads and SSE framing.
+Both ports also connect to the existing Node config-manager's registered H3
+handlers and real file store: RSA registration, tenant-scoped projection,
+persisted manifest acceptance, live route changes and credential revocation.
+The test-only Node peer does not reimplement those policies. Bootstrap shell and
+provisioning/install integration remain delivery work.
+The same 130 checks also pass on [Python 3.13](results-sync-python313.json).
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -202,8 +215,8 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,724/3,733
-checks across eighteen suites. Failures are those original SDK probes plus the
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,878/3,887
+checks across nineteen suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.
 
@@ -233,6 +246,7 @@ python framework/conformance/verify.py --suite raw
 python framework/conformance/verify.py --suite rendering
 python framework/conformance/verify.py --suite urls
 python framework/conformance/verify.py --suite snapshots
+python framework/conformance/verify.py --suite sync
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -243,7 +257,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|snapshots|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|snapshots|sync|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.
@@ -258,6 +272,7 @@ python framework/conformance/run.py http://127.0.0.1:8310 http://127.0.0.1:8311 
 
 ```sh
 npm run build --workspace @betterportal/framework
+npm run build --workspace @betterportal/config-manager
 node framework/conformance/export-contracts.mjs
 node framework/conformance/export-fixtures.mjs
 node framework/conformance/export-encryption-fixtures.mjs
@@ -306,6 +321,6 @@ wheel lacks py.typed. Linux execution remains a delivery check.
 [CAPABILITIES.md](CAPABILITIES.md) maps the full requested scope to existing BP
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
-HTTP suite (persistent settings, full rendering/stream hosting, sync/readiness,
-rendering, streaming and generated clients), standalone examples and CI remains
+HTTP suite (persistent settings, full rendering/stream hosting, provisioning,
+authorized diagnostics and generated clients), standalone examples and CI remains
 incomplete. Publishing and BSB plugins remain separate follow-ups.

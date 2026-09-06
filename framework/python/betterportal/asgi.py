@@ -25,6 +25,7 @@ from .registry import Route, _segments
 from .response import RawResponse
 from .rendering import RenderContext, content_type as html_content_type, select as select_renderer
 from .service import RequestError, Service
+from .sync import ControlPlaneSync
 
 _SINGLE = {"host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"}
 
@@ -155,12 +156,16 @@ class _RawReply(Response):
             await self.raw.aclose()
 
 
-def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str = "service") -> Starlette:
+def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str = "service", sync: ControlPlaneSync | None = None) -> Starlette:
     """One owned service lifetime. Configure trusted proxies in the ASGI server."""
     if max_body_bytes < 1 or mode not in ("service", "theme"): raise ValueError("Invalid hosting options")
+    if sync is not None and sync.service is not service: raise ValueError("Sync belongs to a different service")
     @asynccontextmanager
     async def lifespan(app):
-        async with service: yield
+        async with service:
+            if sync is None: yield
+            else:
+                async with sync: yield
 
     async def error(request: Request, exception: Exception) -> Response:
         status = exception.status_code if isinstance(exception, HTTPException) else 500

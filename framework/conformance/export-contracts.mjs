@@ -85,6 +85,18 @@ function portable(name, root) {
 function objectNode(properties, unknownKeys = "strip") {
   return { kind: "object", properties, required: Object.entries(properties).filter(([, value]) => value.kind !== "optional").map(([key]) => key), unknownKeys };
 }
+// The sync POST is a projection of the CP's cached manifest plus the provisioned
+// public identity. metadataResponse is submitted by the existing BSB integration,
+// although the current CP cache schema does not retain it.
+const submission = JSON.parse(names.get("ServiceManifestCacheEntrySchema"));
+omitFields(submission.root, ["serviceId", "fetchedAt"]);
+submission.root.unknownKeys = "reject";
+const identityFields = unwrap(sourceNode("ScopedServiceConfigSchema").properties.serviceIdentity).properties;
+for (const field of ["publicKeyPem", "keyId"]) submission.root.properties[field] = identityFields[field];
+const operationSchemas = unwrap(submission.root.properties.viewIndex.valueSchema.properties.operations.items.properties.schemas);
+operationSchemas.properties.metadataResponse = { kind: "optional", inner: sourceNode("JsonObjectSchema") };
+importSchema(submission);
+names.set("ControlPlaneSubmissionSchema", JSON.stringify(submission, null, 2) + "\n");
 const kind = node(av.enum_(["page", "fragment", "component"]));
 portable("RendererDeclarationSchema", objectNode({
   renderer: node(av.string().minLength(1)), kind: { ...kind, default: "page" },

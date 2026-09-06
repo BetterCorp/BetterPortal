@@ -72,12 +72,19 @@ plugins/nodejs/betterportal-bsb/src/service.ts.
    not partially clear existing config.
 5. GET /.well-known/bp/sync with Accept: text/event-stream. Apply complete
    event: config JSON messages through the same replacement path. Support LF,
-   CRLF, multiline data, bounded input, reconnects, and polling fallback.
+   CRLF, CR, multiline data, bounded input, reconnects, and polling fallback.
    Re-submit the manifest on reconnect/bootstrap. Node retries after five seconds
    and uses a 30-second bootstrap request timeout.
 6. Readiness requires successful manifest submission and a valid snapshot.
    Restored cache is last-known-good data, not proof of current manifest sync.
    Cancel fetches, retry timers, streams, and subscribers on shutdown.
+
+The native transports retain accepted policy during transient outages. Explicit
+CP denial (401/403/409/412) suspends managed readiness until a new manifest POST
+succeeds. Closing synchronization also suspends readiness. Poll requests and idle
+stream reads have 30-second deadlines; snapshots and individual SSE frames are
+limited to 16 MiB. The .NET/Python `ControlPlaneSync` APIs implement this lifecycle
+independently of their HTTP hosts and are tested against the existing Node CP.
 
 Public health is only ok=true at 200 or ok=false at 503; authorized diagnostics
 are a separate representation. See [protocol.md](protocol.md).

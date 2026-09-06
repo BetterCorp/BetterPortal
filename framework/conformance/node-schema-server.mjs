@@ -27,6 +27,12 @@ createServer(async (request, response) => {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action === "sync-peer") {
+      const { syncPeer } = await import("./node-sync.mjs");
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await syncPeer(body)));
+      return;
+    }
     if (body.action === "runtime") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ runtime: "node" }));
