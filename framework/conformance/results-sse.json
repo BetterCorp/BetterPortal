@@ -1,6 +1,6 @@
 {
-  "scenarios": 31,
-  "passed": 31,
+  "scenarios": 71,
+  "passed": 71,
   "results": [
     {
       "runtime": "node",
@@ -38,6 +38,31 @@
       "passed": true
     },
     {
+      "runtime": "node",
+      "id": "sse-wire-named-unicode",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sse-wire-multiline",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sse-wire-empty-data",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sse-wire-id-retry",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sse-wire-data-fields",
+      "passed": true
+    },
+    {
       "runtime": "python",
       "id": "scope-route-fanout",
       "passed": true
@@ -98,6 +123,91 @@
       "passed": true
     },
     {
+      "runtime": "python",
+      "id": "wire-render-recovery",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "wire-render-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "wire-close",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-named-unicode",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-multiline",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-empty-data",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-id-retry",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-data-fields",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-id-reset",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-crlf",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-unicode-separators",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-id-injection",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-event-injection",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-null-id",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-metadata-bound",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-data-byte-bound",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sse-wire-negative-retry",
+      "passed": true
+    },
+    {
       "runtime": "dotnet",
       "id": "scope-route-fanout",
       "passed": true
@@ -155,6 +265,96 @@
     {
       "runtime": "dotnet",
       "id": "shutdown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "wire-render-recovery",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "wire-render-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "wire-close",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "wire-flush-backpressure",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-named-unicode",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-multiline",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-empty-data",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-id-retry",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-data-fields",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-id-reset",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-crlf",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-unicode-separators",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-id-injection",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-event-injection",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-null-id",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-metadata-bound",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-data-byte-bound",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sse-wire-negative-retry",
       "passed": true
     }
   ]

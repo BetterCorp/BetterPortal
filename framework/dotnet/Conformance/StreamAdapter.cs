@@ -109,6 +109,8 @@ internal static class StreamAdapter
             }
             catch (StreamException) { return Results.Json(new { error = "Stream failed" }, statusCode: 500); }
         }
+        if (body.GetValueOrDefault("format") is "sse") return Results.Stream(output => SseWire.Write(handler.Sse(null, cancellation), output,
+            Convert.ToInt32(body.GetValueOrDefault("maxFrameBytes", 1024 * 1024)), cancellation), "text/event-stream; charset=utf-8");
         return Results.Stream(async output =>
         {
             await foreach (var frame in handler.Ndjson(null, cancellation))

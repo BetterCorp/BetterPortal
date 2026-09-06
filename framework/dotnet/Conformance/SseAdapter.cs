@@ -1,8 +1,29 @@
 using AnyVali;
 using BetterPortal;
+using System.Net.ServerSentEvents;
+using System.Text;
+using System.Threading.Channels;
 
 internal static class SseAdapter
 {
+    public static async Task<IResult> Wire(Dictionary<string, object?> body)
+    {
+        async IAsyncEnumerable<SseItem<string>> Events()
+        {
+            await Task.CompletedTask;
+            foreach (var item in ((List<object?>)body["events"]!).Cast<Dictionary<string, object?>>())
+                yield return new((string)item["data"]!, (string?)item.GetValueOrDefault("event"))
+                { EventId = (string?)item.GetValueOrDefault("id"), ReconnectionInterval = item.TryGetValue("retry", out var retry) ? TimeSpan.FromMilliseconds(Convert.ToDouble(retry)) : null };
+        }
+        try
+        {
+            using var output = new MemoryStream();
+            await SseWire.Write(Events(), output, Convert.ToInt32(body.GetValueOrDefault("maxDataBytes", 1024 * 1024)));
+            return Results.Bytes(output.ToArray(), "text/event-stream; charset=utf-8");
+        }
+        catch (ArgumentException) { return Results.Json(new { error = "Invalid SSE event" }, statusCode: 400); }
+    }
+
     public static async Task<Dictionary<string, bool>> Probe()
     {
         var result = new Dictionary<string, bool>();
@@ -124,6 +145,99 @@ internal static class SseAdapter
         try { await route.Publish(scopes[0], "closed"); throw new Exception("Closed transport accepted publish"); }
         catch (ObjectDisposedException) { }
         result["shutdown"] = true;
+        foreach (var pair in await WireProbe()) result[pair.Key] = pair.Value;
         return result;
+    }
+
+    private sealed class Tracked(IEventTransport inner) : IEventTransport
+    {
+        internal readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal int Closed;
+        public ValueTask Publish(EventAddress address, ReadOnlyMemory<byte> data, CancellationToken cancellation = default) => inner.Publish(address, data, cancellation);
+        public async ValueTask<IEventSubscription> Subscribe(EventAddress address, CancellationToken cancellation = default)
+        { var subscription = await inner.Subscribe(address, cancellation); Started.TrySetResult(); return new Owned(this, subscription); }
+        private sealed class Owned(Tracked owner, IEventSubscription inner) : IEventSubscription
+        {
+            public IAsyncEnumerable<ReadOnlyMemory<byte>> Read(CancellationToken cancellation = default) => inner.Read(cancellation);
+            public async ValueTask DisposeAsync() { await inner.DisposeAsync(); owner.Closed++; }
+        }
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
+    private sealed class Capture : MemoryStream
+    {
+        internal readonly Channel<string> Flushed = Channel.CreateUnbounded<string>();
+        internal Task? HoldFlush;
+        private int offset;
+        public override async Task FlushAsync(CancellationToken cancellation)
+        {
+            var data = ToArray();
+            Flushed.Writer.TryWrite(Encoding.UTF8.GetString(data, offset, data.Length - offset));
+            offset = data.Length;
+            if (HoldFlush is not null) await HoldFlush.WaitAsync(cancellation);
+        }
+        internal Task<string> Next() => Flushed.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+    }
+    private static async Task<Dictionary<string, bool>> WireProbe()
+    {
+        await using var transport = new Tracked(new LocalEvents());
+        var route = new SseRoute<string, string, object?>("wire", V.String(), V.String(), (value, _, _) => ValueTask.FromResult(value), transport);
+        var scope = new EventScope("tenant", "app");
+        var rendering = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async ValueTask<string> Render(string value, CancellationToken signal)
+        {
+            if (value == "bad") throw new Exception("private renderer detail");
+            if (value == "oversize") return new string('x', 1024 * 1024 + 1);
+            if (value == "pending") { rendering.SetResult(); await Task.Delay(Timeout.Infinite, signal); }
+            return "<b>" + value + "</b>\n";
+        }
+        using var output = new Capture();
+        using var cancel = new CancellationTokenSource();
+        var work = route.WriteSse(scope, null, output, Render, cancellation: cancel.Token);
+        try
+        {
+            await transport.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await route.Publish(new("other", "app"), "leak");
+            await route.Publish(scope, "good");
+            if (await output.Next() != "data: <b>good</b>\ndata: \n\n") throw new Exception("Rendered SSE scope/data changed");
+            foreach (var value in new[] { "bad", "oversize" })
+            {
+                await route.Publish(scope, value);
+                if (await output.Next() != "event: error\ndata: {\"code\":\"render_failed\",\"message\":\"Event rendering failed\"}\n\n") throw new Exception("Unsafe renderer failure");
+            }
+            await route.Publish(scope, "after");
+            if (!(await output.Next()).Contains("<b>after</b>")) throw new Exception("Renderer failure closed stream");
+            await route.Publish(scope, "pending");
+            await rendering.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally { cancel.Cancel(); }
+        try { await work.WaitAsync(TimeSpan.FromSeconds(2)); throw new Exception("Renderer cancellation returned success"); }
+        catch (OperationCanceledException) { }
+        if (transport.Closed != 1) throw new Exception("Subscription leaked");
+
+        using var idle = new CancellationTokenSource();
+        var idleWork = route.WriteSse(scope, null, output, cancellation: idle.Token);
+        idle.Cancel();
+        try { await idleWork.WaitAsync(TimeSpan.FromSeconds(2)); throw new Exception("Idle cancellation returned success"); }
+        catch (OperationCanceledException) { }
+        if (transport.Closed != 2) throw new Exception("Idle subscription leaked");
+
+        var produced = 0; var closed = false;
+        async IAsyncEnumerable<SseItem<string>> Items()
+        {
+            await Task.CompletedTask;
+            try { for (var i = 0; i < 3; i++) { produced++; yield return new(i.ToString()); } }
+            finally { closed = true; }
+        }
+        var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var slow = new Capture { HoldFlush = hold.Task };
+        using var stop = new CancellationTokenSource();
+        var writing = SseWire.Write(Items(), slow, cancellation: stop.Token);
+        await slow.Next();
+        if (produced != 1) throw new Exception("SSE producer outran destination");
+        stop.Cancel();
+        try { await writing.WaitAsync(TimeSpan.FromSeconds(2)); throw new Exception("Cancelled write succeeded"); }
+        catch (OperationCanceledException) { }
+        if (!closed) throw new Exception("SSE producer leaked");
+        return new() { ["wire-render-recovery"] = true, ["wire-render-cancel"] = true, ["wire-close"] = true, ["wire-flush-backpressure"] = true };
     }
 }

@@ -68,12 +68,19 @@ await using var events = subscription.Read().GetAsyncEnumerator();
 if (!await events.MoveNextAsync() || events.Current != "tick") throw new Exception("Missing tick");
 ```
 
-HTTP SSE encoding, themed tick rendering and operation authorization integration
-remain host delivery work.
+`route.WriteSse(scope, context, destination, render: ...)` owns the subscription.
+The optional async renderer returns HTML; failures emit a generic `error` event
+and later events continue. Without a renderer, strings are sent as text and other
+values as JSON. Operation authorization and renderer selection remain host work.
+`SseWire.Write` uses .NET's `SseItem<string>` and `SseFormatter` for UTF-8 multiline
+messages, IDs and retry. It bounds data to 1 MiB before SSE line prefixes and names/IDs
+to 1 KiB, validates UTF-8 and flushes each event before requesting another. Hosts
+set `Content-Type: text/event-stream` and disable response caching; the codec does
+not schedule heartbeats or keep replay history.
 
 `StreamHandler<TItem, TSummary, TContext>` validates each `StreamValue.Item` or
 `StreamValue.Summary` before delivery and derives the buffered AnyVali schema.
-`Frames`/`Ndjson` use async enumeration for backpressure; `Buffered` defaults to
+`Frames`/`Ndjson`/`Sse` use async enumeration for backpressure; `Buffered` defaults to
 10,000 items and 8 MiB, and frames to 1 MiB. Limits are configurable. Cancellation
 never emits a terminal frame or returns partial buffered success. A pending
 producer releases the caller immediately and is disposed once its I/O settles;
@@ -92,6 +99,12 @@ async IAsyncEnumerable<StreamValue<int, int>> Produce(object? context, [System.R
 }
 var handler = new StreamHandler<int, int, object?>(Contracts.Get("JsonValueSchema"), Produce, Contracts.Get("JsonValueSchema"));
 if (Convert.ToInt32((await handler.Buffered(null))["summary"]) != 1) throw new Exception("Wrong summary");
+using var output = new MemoryStream();
+await SseWire.Write(handler.Sse(null), output);
+output.Position = 0;
+var kinds = new List<string>();
+await foreach (var item in System.Net.ServerSentEvents.SseParser.Create(output).EnumerateAsync()) kinds.Add(item.EventType);
+if (!kinds.SequenceEqual(new[] { "item", "summary", "end" })) throw new Exception("Wrong SSE events");
 ```
 
 These helpers do not yet supply operation hosting or themed stream renderers.

@@ -1,6 +1,7 @@
 using AnyVali;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Net.ServerSentEvents;
 
 namespace BetterPortal;
 
@@ -126,5 +127,10 @@ public sealed class StreamHandler<TItem, TSummary, TContext>
     public async IAsyncEnumerable<byte[]> Ndjson(TContext context, [EnumeratorCancellation] CancellationToken cancellation = default)
     {
         await foreach (var frame in Frames(context, cancellation)) yield return Encoding.UTF8.GetBytes(Json.Write(frame) + "\n");
+    }
+
+    public async IAsyncEnumerable<SseItem<string>> Sse(TContext context, [EnumeratorCancellation] CancellationToken cancellation = default)
+    {
+        await foreach (var frame in Frames(context, cancellation)) yield return new(Json.Write(frame), (string)frame["kind"]!);
     }
 }

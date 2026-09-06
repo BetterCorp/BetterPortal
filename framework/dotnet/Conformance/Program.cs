@@ -40,6 +40,7 @@ app.MapPost("/", async (HttpRequest request) =>
         if (body.GetValueOrDefault("action") is "runtime") return Results.Json(new { runtime = "dotnet" });
         if (body.GetValueOrDefault("action") is "context" or "http-origin") return Results.Json(ContextAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "sse-probe") return Results.Json(await SseAdapter.Probe());
+        if (body.GetValueOrDefault("action") is "sse-wire") return await SseAdapter.Wire(body);
         if (body.GetValueOrDefault("action") is "stream-probe") return Results.Json(await StreamAdapter.Probe());
         if (body.GetValueOrDefault("action") is "stream") return await StreamAdapter.Run(body, request.HttpContext.RequestAborted);
         if (body.GetValueOrDefault("action") is "media")

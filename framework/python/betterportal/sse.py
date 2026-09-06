@@ -125,6 +125,26 @@ Event = TypeVar("Event")
 Context = TypeVar("Context")
 
 
+def encode_event(data: str, *, event: str | None = None, event_id: str | None = None,
+                 retry: int | None = None, max_data_bytes: int = 1024 * 1024) -> bytes:
+    """Encode one UTF-8 SSE message. Hosts flush each yielded message."""
+    if max_data_bytes < 1 or len(data.encode("utf-8")) > max_data_bytes:
+        raise ValueError("SSE data byte limit exceeded")
+    for value in (event, event_id):
+        if value is not None and (any(c in value for c in "\r\n\0") or len(value.encode("utf-8")) > 1024):
+            raise ValueError("Invalid SSE event name or ID")
+    if retry is not None and (type(retry) is not int or retry < 0):
+        raise ValueError("SSE retry must be a nonnegative integer")
+    fields = [] if event is None else ["event: " + event]
+    # splitlines() also splits Unicode separators, which SSE treats as data.
+    fields.extend("data: " + line for line in data.replace("\r\n", "\n").replace("\r", "\n").split("\n"))
+    if event_id is not None:
+        fields.append("id: " + event_id)
+    if retry is not None:
+        fields.append("retry: " + str(retry))
+    return ("\n".join(fields) + "\n\n").encode("utf-8")
+
+
 class SseRoute(Generic[Input, Event, Context]):
     def __init__(self, view_id: str, input_schema: av.BaseSchema[Input], event_schema: av.BaseSchema[Event],
                  mapper: Callable[[Input, Context], Event | Awaitable[Event]], *, transport: EventTransport, max_payload_bytes: int = 1024 * 1024):
@@ -167,3 +187,18 @@ class SseRoute(Generic[Input, Event, Context]):
                 yield iterator
             finally:
                 await iterator.aclose()
+
+    async def wire(self, scope: EventScope, context: Context, *,
+                   render: Callable[[Event], str | Awaitable[str]] | None = None,
+                   event: str | None = None) -> AsyncGenerator[bytes, None]:
+        encode_event("", event=event, max_data_bytes=self.max_payload_bytes)
+        async with self.subscribe(scope, context) as subscription:
+            async for value in subscription:
+                try:
+                    data = render(value) if render else value if isinstance(value, str) else self._encode(value).decode("utf-8")
+                    if inspect.isawaitable(data):
+                        data = await data
+                    message = encode_event(cast(str, data), event=event, max_data_bytes=self.max_payload_bytes)
+                except Exception:
+                    message = encode_event('{"code":"render_failed","message":"Event rendering failed"}', event="error", max_data_bytes=self.max_payload_bytes)
+                yield message

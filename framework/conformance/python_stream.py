@@ -87,9 +87,10 @@ async def streaming(response, body):
         response.wfile.write(json.dumps(output).encode())
         return
     response.send_response(200)
-    response.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+    sse = body.get("format") == "sse"
+    response.send_header("Content-Type", ("text/event-stream" if sse else "application/x-ndjson") + "; charset=utf-8")
     response.end_headers()
-    async with aclosing(handler.ndjson(None)) as frames:
+    async with aclosing(handler.sse(None) if sse else handler.ndjson(None)) as frames:
         async for frame in frames:
             response.wfile.write(frame)
             response.wfile.flush()

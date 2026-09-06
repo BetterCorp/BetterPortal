@@ -2,12 +2,41 @@ using AnyVali;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
+using System.Net.ServerSentEvents;
 
 namespace BetterPortal;
 
 public readonly record struct EventScope(string TenantId, string AppId);
 public readonly record struct EventAddress(string ViewId, EventScope Scope);
 public sealed class SubscriptionOverflowException() : Exception("SSE subscriber exceeded its pending event limit");
+
+public static class SseWire
+{
+    private static readonly UTF8Encoding Utf8 = new(false, true);
+    internal static void CheckName(string? value)
+    {
+        if (value is not null && (value.IndexOfAny(['\0', '\r', '\n']) >= 0 || Utf8.GetByteCount(value) > 1024))
+            throw new ArgumentException("Invalid SSE event name or ID");
+    }
+    public static Task Write(IAsyncEnumerable<SseItem<string>> events, Stream destination, int maxDataBytes = 1024 * 1024,
+        CancellationToken cancellation = default)
+    {
+        if (maxDataBytes < 1) throw new ArgumentException("SSE data limit must be positive");
+        return SseFormatter.WriteAsync(Checked(cancellation), destination, cancellation);
+        async IAsyncEnumerable<SseItem<string>> Checked([EnumeratorCancellation] CancellationToken signal)
+        {
+            await foreach (var item in events.WithCancellation(signal))
+            {
+                signal.ThrowIfCancellationRequested();
+                if (Utf8.GetByteCount(item.Data) > maxDataBytes) throw new ArgumentException("SSE data byte limit exceeded");
+                CheckName(item.EventType); CheckName(item.EventId);
+                yield return item;
+                // .NET 10 formats complete events but does not flush between them.
+                await destination.FlushAsync(signal);
+            }
+        }
+    }
+}
 
 public interface IEventSubscription : IAsyncDisposable
 {
@@ -120,6 +149,30 @@ public sealed class SseRoute<TInput, TEvent, TContext>(string viewId, Schema inp
     }
     public async ValueTask<Subscription> Subscribe(EventScope scope, TContext context, CancellationToken cancellation = default) =>
         new(this, await transport.Subscribe(new(ViewId, scope), cancellation), context);
+
+    public async Task WriteSse(EventScope scope, TContext context, Stream destination,
+        Func<TEvent, CancellationToken, ValueTask<string>>? render = null, string? eventType = null, CancellationToken cancellation = default)
+    {
+        SseWire.CheckName(eventType);
+        await using var subscription = await Subscribe(scope, context, cancellation);
+        await SseWire.Write(Events(cancellation), destination, maxPayloadBytes, cancellation);
+        async IAsyncEnumerable<SseItem<string>> Events([EnumeratorCancellation] CancellationToken signal)
+        {
+            await foreach (var value in subscription.Read(signal))
+            {
+                SseItem<string> message;
+                try
+                {
+                    var data = render is null ? value is string text ? text : Json.Write(value) : await render(value, signal).AsTask().WaitAsync(signal);
+                    if (new UTF8Encoding(false, true).GetByteCount(data) > maxPayloadBytes) throw new ArgumentException("SSE data byte limit exceeded");
+                    message = new(data, eventType);
+                }
+                catch (OperationCanceledException) when (signal.IsCancellationRequested) { throw; }
+                catch (Exception) { message = new("{\"code\":\"render_failed\",\"message\":\"Event rendering failed\"}", "error"); }
+                yield return message;
+            }
+        }
+    }
 
     public sealed class Subscription(SseRoute<TInput, TEvent, TContext> route, IEventSubscription subscription, TContext context) : IAsyncDisposable
     {

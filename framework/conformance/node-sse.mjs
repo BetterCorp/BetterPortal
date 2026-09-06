@@ -1,6 +1,18 @@
 import { createSse } from "../nodejs/lib/runtime/sse.js";
 import { string } from "anyvali";
 import assert from "node:assert/strict";
+import { createEventStream } from "h3";
+import { createBetterPortalApp } from "../nodejs/lib/runtime/h3.js";
+
+export function sseResponse(produce, signal) {
+  const app = createBetterPortalApp();
+  app.get("/", event => {
+    const stream = createEventStream(event);
+    (async () => { try { await produce(stream); } finally { await stream.close(); } })().catch(() => {});
+    return stream.send();
+  });
+  return app.fetch(new Request("http://service.test/", { signal }));
+}
 
 export async function sseProbe() {
   const route = createSse({ input: string(), event: string() }, (value, context) => value + context.suffix);

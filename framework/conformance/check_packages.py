@@ -34,7 +34,7 @@ from betterportal.encryption import ConfigCipher, generate_preview_key, encrypt_
 from betterportal.authorization import AuthContext, authorize_request
 from betterportal.media import negotiate
 from betterportal.streaming import StreamHandler, Summary
-from betterportal.sse import LocalEvents, SseRoute, EventScope
+from betterportal.sse import LocalEvents, SseRoute, EventScope, encode_event
 from betterportal.context import ScopedConfig, http_origin
 from betterportal.context import OriginPolicy
 from betterportal.cors import Cors
@@ -68,6 +68,7 @@ async def sse():
     finally:
         await transport.aclose()
 asyncio.run(sse())
+assert encode_event("one\r\ntwo\n", event="tick") == b"event: tick\ndata: one\ndata: two\ndata: \n\n"
 assert http_origin("HTTPS://Example.com:443") == "https://example.com"
 assert ScopedConfig({"managementOrigins": [], "tenants": [], "apps": []}).resolve({"host": "unknown.test"}) is None
 policy = OriginPolicy(frozenset(["https://app.test"]), frozenset(["https://app.test"]))

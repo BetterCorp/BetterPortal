@@ -1,10 +1,15 @@
 {
-  "scenarios": 80,
-  "passed": 80,
+  "scenarios": 113,
+  "passed": 113,
   "results": [
     {
       "runtime": "node",
-      "id": "wire-disconnect",
+      "id": "wire-disconnect-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "wire-disconnect-sse",
       "passed": true
     },
     {
@@ -29,12 +34,22 @@
     },
     {
       "runtime": "node",
+      "id": "empty-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "order-buffered",
       "passed": true
     },
     {
       "runtime": "node",
       "id": "order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "order-sse",
       "passed": true
     },
     {
@@ -49,12 +64,22 @@
     },
     {
       "runtime": "node",
+      "id": "summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "null-summary-buffered",
       "passed": true
     },
     {
       "runtime": "node",
       "id": "null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "null-summary-sse",
       "passed": true
     },
     {
@@ -69,12 +94,22 @@
     },
     {
       "runtime": "node",
+      "id": "optional-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "invalid-item-buffered",
       "passed": true
     },
     {
       "runtime": "node",
       "id": "invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "invalid-item-sse",
       "passed": true
     },
     {
@@ -89,6 +124,11 @@
     },
     {
       "runtime": "node",
+      "id": "invalid-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "producer-error-buffered",
       "passed": true
     },
@@ -98,8 +138,18 @@
       "passed": true
     },
     {
+      "runtime": "node",
+      "id": "producer-error-sse",
+      "passed": true
+    },
+    {
       "runtime": "python",
-      "id": "wire-disconnect",
+      "id": "wire-disconnect-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "wire-disconnect-sse",
       "passed": true
     },
     {
@@ -134,12 +184,22 @@
     },
     {
       "runtime": "python",
+      "id": "empty-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "order-buffered",
       "passed": true
     },
     {
       "runtime": "python",
       "id": "order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "order-sse",
       "passed": true
     },
     {
@@ -154,12 +214,22 @@
     },
     {
       "runtime": "python",
+      "id": "summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "null-summary-buffered",
       "passed": true
     },
     {
       "runtime": "python",
       "id": "null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "null-summary-sse",
       "passed": true
     },
     {
@@ -174,12 +244,22 @@
     },
     {
       "runtime": "python",
+      "id": "optional-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "invalid-item-buffered",
       "passed": true
     },
     {
       "runtime": "python",
       "id": "invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "invalid-item-sse",
       "passed": true
     },
     {
@@ -194,12 +274,22 @@
     },
     {
       "runtime": "python",
+      "id": "invalid-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "producer-error-buffered",
       "passed": true
     },
     {
       "runtime": "python",
       "id": "producer-error-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "producer-error-sse",
       "passed": true
     },
     {
@@ -214,6 +304,11 @@
     },
     {
       "runtime": "python",
+      "id": "after-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "undeclared-summary-buffered",
       "passed": true
     },
@@ -224,12 +319,22 @@
     },
     {
       "runtime": "python",
+      "id": "undeclared-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "frame-bound-buffered",
       "passed": true
     },
     {
       "runtime": "python",
       "id": "frame-bound-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "frame-bound-sse",
       "passed": true
     },
     {
@@ -249,7 +354,12 @@
     },
     {
       "runtime": "dotnet",
-      "id": "wire-disconnect",
+      "id": "wire-disconnect-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "wire-disconnect-sse",
       "passed": true
     },
     {
@@ -289,12 +399,22 @@
     },
     {
       "runtime": "dotnet",
+      "id": "empty-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "order-buffered",
       "passed": true
     },
     {
       "runtime": "dotnet",
       "id": "order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "order-sse",
       "passed": true
     },
     {
@@ -309,12 +429,22 @@
     },
     {
       "runtime": "dotnet",
+      "id": "summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "null-summary-buffered",
       "passed": true
     },
     {
       "runtime": "dotnet",
       "id": "null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "null-summary-sse",
       "passed": true
     },
     {
@@ -329,12 +459,22 @@
     },
     {
       "runtime": "dotnet",
+      "id": "optional-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "invalid-item-buffered",
       "passed": true
     },
     {
       "runtime": "dotnet",
       "id": "invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "invalid-item-sse",
       "passed": true
     },
     {
@@ -349,12 +489,22 @@
     },
     {
       "runtime": "dotnet",
+      "id": "invalid-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "producer-error-buffered",
       "passed": true
     },
     {
       "runtime": "dotnet",
       "id": "producer-error-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "producer-error-sse",
       "passed": true
     },
     {
@@ -369,6 +519,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "after-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "undeclared-summary-buffered",
       "passed": true
     },
@@ -379,12 +534,22 @@
     },
     {
       "runtime": "dotnet",
+      "id": "undeclared-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "frame-bound-buffered",
       "passed": true
     },
     {
       "runtime": "dotnet",
       "id": "frame-bound-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "frame-bound-sse",
       "passed": true
     },
     {

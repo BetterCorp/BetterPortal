@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from security_cases import post
+from sse_cases import read_events
 
 
 def run_streams(urls, labels):
@@ -27,14 +28,20 @@ def run_streams(urls, labels):
     ]
     results = []
     for url, label in zip(urls, labels):
-        try:
-            request = {"action": "stream", "format": "ndjson", "itemSchema": item, "items": list(range(100)), "delay": 2}
-            with urlopen(Request(url, json.dumps(request).encode(), {"Content-Type": "application/json"}), timeout=10) as response:
-                assert json.loads(response.readline()) == {"kind": "item", "data": 0}
-            assert post(url, {"action": "media", "accept": "application/json"})["status"] == 200
-            results.append({"runtime": label, "id": "wire-disconnect", "passed": True})
-        except Exception as error:
-            results.append({"runtime": label, "id": "wire-disconnect", "passed": False, "error": str(error)})
+        for mode in ("ndjson", "sse"):
+            try:
+                request = {"action": "stream", "format": mode, "itemSchema": item, "items": list(range(100)), "delay": 2}
+                with urlopen(Request(url, json.dumps(request).encode(), {"Content-Type": "application/json"}), timeout=10) as response:
+                    if mode == "sse":
+                        events = read_events(response)
+                        assert json.loads(next(events)["data"]) == {"kind": "item", "data": 0}
+                        events.close()
+                    else:
+                        assert json.loads(response.readline()) == {"kind": "item", "data": 0}
+                assert post(url, {"action": "media", "accept": "application/json"})["status"] == 200
+                results.append({"runtime": label, "id": "wire-disconnect-" + mode, "passed": True})
+            except Exception as error:
+                results.append({"runtime": label, "id": "wire-disconnect-" + mode, "passed": False, "error": str(error)})
         probes = ["backpressure-close", "cancel-producer"]
         if label != "node":
             probes += ["cancel-buffered", "derived-recursive-schema"]
@@ -48,7 +55,7 @@ def run_streams(urls, labels):
         except Exception as error:
             results.append({"runtime": label, "id": "lifecycle-probes", "passed": False, "error": str(error)})
         for name, changes, failure in cases + (native if label != "node" else []):
-            for mode in ("buffered", "ndjson"):
+            for mode in ("buffered", "ndjson", "sse"):
                 request = {"action": "stream", "format": mode, "itemSchema": item, **changes}
                 expected_failure = isinstance(failure, str)
                 try:
@@ -68,11 +75,17 @@ def run_streams(urls, labels):
                                     expected["summary"] = changes["summary"]
                                 assert actual == expected, actual
                         else:
-                            assert response.headers["Content-Type"].startswith("application/x-ndjson"), response.headers
+                            assert response.headers["Content-Type"].startswith("text/event-stream" if mode == "sse" else "application/x-ndjson"), response.headers
                             frames = []
-                            for line in response:
-                                assert line.endswith(b"\n"), line
-                                frames.append(json.loads(line))
+                            if mode == "sse":
+                                for event in read_events(response):
+                                    frame = json.loads(event["data"])
+                                    assert event["event"] == frame["kind"], event
+                                    frames.append(frame)
+                            else:
+                                for line in response:
+                                    assert line.endswith(b"\n"), line
+                                    frames.append(json.loads(line))
                             assert frames, "No terminal frame"
                             terminal = frames[-1]
                             assert not any(frame["kind"] in ("end", "error") for frame in frames[:-1]), frames

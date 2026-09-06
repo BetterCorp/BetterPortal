@@ -1,8 +1,22 @@
 """Scoped subscription checks over the public native delivery APIs."""
 import asyncio
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 import anyvali as av
-from betterportal.sse import LocalEvents, SseRoute, EventScope, EventAddress, SubscriptionOverflow
+from betterportal.sse import LocalEvents, SseRoute, EventScope, EventAddress, SubscriptionOverflow, encode_event
+
+
+def wire(response, body):
+    try:
+        data = b"".join(encode_event(item["data"], event=item.get("event"), event_id=item.get("id"), retry=item.get("retry"),
+                                    max_data_bytes=body.get("maxDataBytes", 1024 * 1024)) for item in body["events"])
+        response.send_response(200)
+        response.send_header("Content-Type", "text/event-stream; charset=utf-8")
+    except (ValueError, TypeError):
+        data = b'{"error":"Invalid SSE event"}'
+        response.send_response(400)
+        response.send_header("Content-Type", "application/json")
+    response.end_headers()
+    response.wfile.write(data)
 
 
 async def probe():
@@ -134,4 +148,61 @@ async def probe():
         result["shutdown"] = True
     finally:
         await transport.aclose()
+    result.update(await wire_probe())
     return result
+
+
+async def wire_probe():
+    started, closed = asyncio.Event(), asyncio.Event()
+    class Tracked(LocalEvents):
+        @asynccontextmanager
+        async def subscribe(self, address):
+            async with super().subscribe(address) as subscription:
+                started.set()
+                try: yield subscription
+                finally: closed.set()
+    transport = Tracked()
+    scope = EventScope("tenant", "app")
+    route = SseRoute("wire", av.string(), av.string(), lambda value, context: value, transport=transport)
+    rendering = asyncio.Event()
+    async def render(value):
+        if value == "bad": raise ValueError("private renderer detail")
+        if value == "oversize": return "x" * (1024 * 1024 + 1)
+        if value == "pending":
+            rendering.set()
+            await asyncio.Event().wait()
+        return "<b>" + value + "</b>\n"
+    events = route.wire(scope, None, render=render)
+    try:
+        next_event = asyncio.create_task(events.__anext__())
+        await asyncio.wait_for(started.wait(), 1)
+        await route.publish(EventScope("other", "app"), "leak")
+        await route.publish(scope, "good")
+        assert await asyncio.wait_for(next_event, 1) == b"data: <b>good</b>\ndata: \n\n"
+        for value in ("bad", "oversize"):
+            await route.publish(scope, value)
+            assert await events.__anext__() == b'event: error\ndata: {"code":"render_failed","message":"Event rendering failed"}\n\n'
+        await route.publish(scope, "after")
+        assert b"<b>after</b>" in await events.__anext__()
+        await route.publish(scope, "pending")
+        next_event = asyncio.create_task(events.__anext__())
+        await asyncio.wait_for(rendering.wait(), 1)
+        next_event.cancel()
+        try:
+            await asyncio.wait_for(next_event, 1)
+            raise AssertionError("Renderer cancellation returned data")
+        except asyncio.CancelledError: pass
+        assert closed.is_set()
+        # A paused consumer owns its subscription until it closes the generator.
+        started.clear(); closed.clear()
+        events = route.wire(scope, None)
+        next_event = asyncio.create_task(events.__anext__())
+        await asyncio.wait_for(started.wait(), 1)
+        await route.publish(scope, "plain")
+        assert await next_event == b"data: plain\n\n"
+        await events.aclose()
+        assert closed.is_set()
+    finally:
+        await events.aclose()
+        await transport.aclose()
+    return {"wire-render-recovery": True, "wire-render-cancel": True, "wire-close": True}

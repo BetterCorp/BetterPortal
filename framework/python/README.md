@@ -76,12 +76,20 @@ async def example():
 asyncio.run(example())
 ```
 
-HTTP SSE encoding, themed tick rendering and operation authorization integration
-remain host delivery work.
+`route.wire(scope, context, render=...)` owns the subscription and yields UTF-8 SSE
+messages. The optional async or sync renderer returns HTML; failures emit a generic
+`error` event and later events continue. Without a renderer, strings are sent as
+text and other values as JSON. Close the generator with `contextlib.aclosing`
+when stopping early. Operation authorization and renderer selection remain host work.
+`encode_event` also supports bounded event names/IDs, retry, empty data and multiline
+text per [WHATWG SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream).
+The default data bound is 1 MiB before SSE line prefixes; names/IDs are limited to
+1 KiB. Hosts set `Content-Type: text/event-stream`, disable response caching and
+flush each message; the codec does not schedule heartbeats or keep replay history.
 
 `betterportal.streaming.StreamHandler` validates each item and optional `Summary`
 before delivery. Its response schema is derived from the item/summary AnyVali
-documents, preserving recursive definitions. `frames` and `ndjson` pull only as
+documents, preserving recursive definitions. `frames`, `ndjson` and `sse` pull only as
 the consumer advances; `buffered` defaults to 10,000 items and 8 MiB, and each
 frame defaults to 1 MiB. Limits are configurable. Cancellation propagates and
 closes the producer; buffered cancellation never returns partial success. Close
@@ -99,6 +107,11 @@ async def produce(context):
 
 handler = StreamHandler(contract("JsonValueSchema"), produce, contract("JsonValueSchema"))
 assert asyncio.run(handler.buffered(None))["summary"] == {"total": 1}
+
+async def wire():
+    return [message async for message in handler.sse(None)]
+messages = asyncio.run(wire())
+assert messages[-1] == b'event: end\ndata: {"kind":"end","count":1}\n\n'
 ```
 
 These helpers do not yet supply operation hosting or themed stream renderers.

@@ -4,6 +4,7 @@ import { driveStream, driveStreamBuffered, ndjsonStreamResponse } from "../nodej
 import { number } from "anyvali";
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
+import { sseResponse } from "./node-sse.mjs";
 
 export async function streamProbe() {
   const abort = new AbortController();
@@ -56,5 +57,11 @@ export async function streaming(body, signal) {
     try { return Response.json(await driveStreamBuffered(handler, { signal })); }
     catch { return Response.json({ error: "Stream failed" }, { status: 500 }); }
   }
+  if (body.format === "sse") return sseResponse(stream => driveStream(handler, { signal }, {
+    onItem: data => stream.push({ event: "item", data: JSON.stringify({ kind: "item", data }) }),
+    onSummary: data => stream.push({ event: "summary", data: JSON.stringify({ kind: "summary", data }) }),
+    onError: frame => stream.push({ event: "error", data: JSON.stringify(frame) }),
+    onEnd: count => stream.push({ event: "end", data: JSON.stringify({ kind: "end", count }) })
+  }), signal);
   return ndjsonStreamResponse(handler, { signal });
 }

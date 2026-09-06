@@ -47,21 +47,26 @@ q=0, specific exclusions, available offers, 406, quoted parameters and malformed
 headers. HTTP quality and precedence follow [RFC 9110 section 12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1).
 Rendering and host integration remain pending.
 
-The [finite stream suite](results-streams.json) passes 80 checks over real HTTP
-buffered JSON/NDJSON and lifecycle probes: ordered validated items, optional/null
+The [finite stream suite](results-streams.json) passes 113 checks over real HTTP
+buffered JSON/NDJSON/SSE and lifecycle probes: ordered validated items, optional/null
 summary, one terminal, producer/validation errors, native frame/buffer limits,
 pull backpressure, wire disconnects, early close and cancellation. Native buffered cancellation
 propagates instead of returning partial success. Recursive response schema
-composition is also checked. SSE/HTML transports and operation hosting remain
+composition is also checked. Finite HTML rendering and operation hosting remain
 pending; these test adapters are not consumer hosts.
 
-The [SSE subscription suite](results-sse.json) passes 31 checks: real Node/native
+The [SSE subscription suite](results-sse.json) passes 71 checks: real Node/native
 subscription fan-out, view/tenant/app isolation, queue overflow, reconnect without
 history, input/event validation and idle cancellation. Native probes add payload
 bounds, transport validation, immutable publication snapshots, mapper cancellation
 and shutdown. The native transport interface is exercised by in-process delivery;
-no external broker or cross-replica broadcast is supplied. HTTP SSE encoding and
-themed tick rendering remain pending.
+no external broker or cross-replica broadcast is supplied. Real HTTP SSE checks
+cover multiline/empty data, Unicode, names, IDs and retry. Native probes add
+injection/byte bounds, ID reset, rendered tick failures followed by recovery,
+renderer cancellation and owned subscription cleanup. The .NET writer verifies
+flush backpressure and uses the platform formatter. H3 omits empty IDs; the ports
+preserve the standard reset behavior. Host authorization and renderer selection
+remain pending.
 
 The [context suite](results-context.json) passes 102/103 checks for host/port isolation, service/theme
 address priority, forged hints, host-verified proxy addresses, duplicate/orphaned
@@ -107,7 +112,7 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,413/2,422
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,486/2,495
 checks across ten suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.

@@ -8,6 +8,7 @@ from typing import Any, AsyncGenerator, AsyncIterator, Callable, Generic, TypeVa
 
 import anyvali as av
 from .contracts import export, object_document, parse
+from .sse import encode_event
 
 Item = TypeVar("Item")
 SummaryValue = TypeVar("SummaryValue")
@@ -104,3 +105,8 @@ class StreamHandler(Generic[Item, SummaryValue, Context]):
         async with aclosing(self.frames(context)) as frames:
             async for frame in frames:
                 yield _json(frame) + b"\n"
+
+    async def sse(self, context: Context) -> AsyncGenerator[bytes, None]:
+        async with aclosing(self.frames(context)) as frames:
+            async for frame in frames:
+                yield encode_event(_json(frame).decode("utf-8"), event=frame["kind"], max_data_bytes=self.max_frame_bytes)

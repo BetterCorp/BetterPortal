@@ -8,7 +8,7 @@ import { resolveRequestedRepresentation } from "../nodejs/lib/runtime/media.js";
 import { streaming, streamProbe } from "./node-stream.mjs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { sseProbe } from "./node-sse.mjs";
+import { sseProbe, sseResponse } from "./node-sse.mjs";
 import { contextRequest } from "./node-context.mjs";
 import { corsRequest } from "./node-cors.mjs";
 
@@ -43,10 +43,12 @@ createServer(async (request, response) => {
       response.end(JSON.stringify(await streamProbe()));
       return;
     }
-    if (body.action === "stream") {
+    if (body.action === "stream" || body.action === "sse-wire") {
       const abort = new AbortController();
       response.once("close", () => abort.abort());
-      const result = await streaming(body, abort.signal);
+      const result = body.action === "sse-wire"
+        ? await sseResponse(async stream => { for (const event of body.events) await stream.push(event); }, abort.signal)
+        : await streaming(body, abort.signal);
       response.writeHead(result.status, Object.fromEntries(result.headers));
       await pipeline(Readable.fromWeb(result.body), response);
       return;

@@ -14,7 +14,7 @@ from betterportal.media import negotiate, NotAcceptable
 from dataclasses import asdict
 from python_stream import streaming, probe as stream_probe
 import asyncio
-from python_sse import probe as sse_probe
+from python_sse import probe as sse_probe, wire as sse_wire
 from python_context import context_request
 from python_cors import handle as cors_request
 
@@ -48,6 +48,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps(payload).encode())
+                return
+            if body.get("action") == "sse-wire":
+                sse_wire(self, body)
                 return
             if body.get("action") == "stream-probe":
                 payload = asyncio.run(stream_probe())
