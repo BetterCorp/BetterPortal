@@ -8,7 +8,8 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
 880/888 schema probes; token/service security passes 459/459 scenarios and JWKS
-checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124 and finite streams 80/80. See
+checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
+finite streams 80/80 and SSE subscriptions 31/31. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -44,7 +45,7 @@ future scenarios; they are not assertions that those tests already exist.
 | readiness | BSB service.ts renderHealth/canReadHealthDiagnostics | Pending public minimal health and authorized diagnostics | protocol.md §1.1 | public-minimal, admin-scoped, refresh-denied, cache-not-ready |
 | lifecycle | BSB service.ts, bootstrapState.ts | Pending install/redeem bootstrap, key persistence, shutdown cancellation | config.md §2 | exact-loopback, redirect-denied, pinned-key, shutdown-no-retry |
 | streaming | runtime/stream.ts, streamHandler.ts | Python streaming.py/C# Streaming.cs: validated finite frames, derived schema, bounded buffered/NDJSON output and cancellation; SSE/HTML transports and host integration pending | streaming.md; port READMEs | stream_cases.py: 80 checks for wire order, summary/null, validation, single terminal, limits, backpressure and cancellation |
-| subscribers | runtime/sse.ts | Pending bounded tenant/app subscriptions and replaceable transport | sse.md | tenant-only, overflow, disconnect-cleanup, no-unconfigured-broadcast |
+| subscribers | runtime/sse.ts | Python sse.py/C# Sse.cs: validated scoped routes, replaceable transport, bounded local delivery and shutdown; HTTP/themed SSE pending | sse.md; port READMEs | sse_cases.py: 31 shared/native checks for route/tenant/app isolation, overflow, validation, mutation, cancellation and shutdown |
 | events | BSB service.ts webhook | Pending declared webhook emission through CP | manifest.md | payload-contract, idempotency, scope, declared-event-only |
 | theme-helpers | BSB service.ts shell fragments; runtime/view.ts | Pending shell context/fragments/chrome helpers; reuse browser assets | docs/building/themes.md | shell-fragment-overrides, service-origin-map, Bootstrap-shell-example |
 | discovery | runtime/llms.ts; BSB seo.ts, service.ts | Pending developer resources, AI/LLM discovery and SEO hooks | ai.md; protocol.md | public-resource-bounds, app-discovery, sitemap-visibility, robots |

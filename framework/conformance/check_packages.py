@@ -34,6 +34,7 @@ from betterportal.encryption import ConfigCipher, generate_preview_key, encrypt_
 from betterportal.authorization import AuthContext, authorize_request
 from betterportal.media import negotiate
 from betterportal.streaming import StreamHandler, Summary
+from betterportal.sse import LocalEvents, SseRoute, EventScope
 from betterportal.contracts import contract
 import asyncio
 assert str(wheel.resolve()) in betterportal.__file__
@@ -53,6 +54,17 @@ async def produce(context):
     yield Summary(None)
 handler = StreamHandler(contract("JsonValueSchema"), produce, contract("JsonValueSchema"))
 assert asyncio.run(handler.buffered(None)) == {"items": [{"nested": [None, True]}], "summary": None}
+async def sse():
+    transport = LocalEvents()
+    try:
+        route = SseRoute("example", contract("JsonValueSchema"), contract("JsonValueSchema"), lambda value, context: value, transport=transport)
+        scope = EventScope("tenant", "app")
+        async with route.subscribe(scope, None) as events:
+            await route.publish(scope, {"nested": [None]})
+            assert await events.__anext__() == {"nested": [None]}
+    finally:
+        await transport.aclose()
+asyncio.run(sse())
 subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
     str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
     env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)

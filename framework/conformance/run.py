@@ -10,6 +10,7 @@ from encryption_cases import run_encryption
 from authorization_cases import run_authorization
 from media_cases import run_media
 from stream_cases import run_streams
+from sse_cases import run_sse
 
 
 def main():
@@ -19,7 +20,7 @@ def main():
     parser.add_argument("--labels", nargs="+")
     parser.add_argument("--all-contracts", action="store_true")
     parser.add_argument("--roundtrip-all", action="store_true")
-    parser.add_argument("--suite", choices=["schema", "security", "keys", "encryption", "authorization", "media", "streams", "all"], default="all")
+    parser.add_argument("--suite", choices=["schema", "security", "keys", "encryption", "authorization", "media", "streams", "sse", "all"], default="all")
     args = parser.parse_args()
     cases = json.loads(Path(__file__).with_name("schema-cases.json").read_text())
     if args.labels and len(args.labels) != len(args.urls):
@@ -76,6 +77,10 @@ def main():
         streams = run_streams(args.urls, args.labels or args.urls)
         results += streams
         failures += [f'{result["runtime"]} {result["id"]}: {result["error"]}' for result in streams if not result["passed"]]
+    if args.suite in ("sse", "all"):
+        sse = run_sse(args.urls, args.labels or args.urls)
+        results += sse
+        failures += [f'{result["runtime"]} {result["id"]}: {result["error"]}' for result in sse if not result["passed"]]
     print(f"{len(results) - len(failures)}/{len(results)} {args.suite} scenarios passed")
     for failure in failures:
         print(failure)

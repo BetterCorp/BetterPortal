@@ -1,5 +1,36 @@
 # BetterPortal .NET port
 
+.NET 10. This is an in-progress port, **not yet a service runtime**. ASP.NET Core
+operation hosting, configuration, route tooling and generated clients remain in the
+[capability ledger](../conformance/CAPABILITIES.md).
+
+`SseRoute<TInput, TEvent, TContext>` validates publication input and mapped events.
+`EventScope` comes from the trusted request context. Supply `IEventTransport`;
+the included `LocalEvents` provides thread-safe in-process fan-out, with no history
+or cross-replica delivery. It isolates view/tenant/app addresses and closes a
+subscriber after 256 pending events. Input/event byte limits default to 1 MiB;
+limits are configurable. Own subscriptions with `await using`, and close the
+transport at shutdown to release idle readers. Cancellation propagates to pending
+reads and mapper work; mappers must pass their token to I/O. Each subscriber
+decodes its own publication snapshot before mapping.
+
+```csharp
+using AnyVali;
+using BetterPortal;
+
+await using var transport = new LocalEvents();
+var route = new SseRoute<string, string, object?>("clock.index", V.String(), V.String(),
+    (value, context, cancellation) => ValueTask.FromResult(value), transport);
+var scope = new EventScope("tenant-from-context", "app-from-context");
+await using var subscription = await route.Subscribe(scope, null);
+await route.Publish(scope, "tick");
+await using var events = subscription.Read().GetAsyncEnumerator();
+if (!await events.MoveNextAsync() || events.Current != "tick") throw new Exception("Missing tick");
+```
+
+HTTP SSE encoding, themed tick rendering and operation authorization integration
+remain host delivery work.
+
 `StreamHandler<TItem, TSummary, TContext>` validates each `StreamValue.Item` or
 `StreamValue.Summary` before delivery and derives the buffered AnyVali schema.
 `Frames`/`Ndjson` use async enumeration for backpressure; `Buffered` defaults to
@@ -37,10 +68,6 @@ using BetterPortal;
 if (Media.Negotiate("text/html;mode=fragment").Mode != "fragment") throw new Exception("Wrong mode");
 if (Media.Negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).Kind != "json") throw new Exception("Wrong offer");
 ```
-
-.NET 10. This is an in-progress port, **not yet a service runtime**. ASP.NET Core
-operation hosting, configuration, route tooling and generated clients remain in the
-[capability ledger](../conformance/CAPABILITIES.md).
 
 Implemented: embedded canonical AnyVali 1.1.1 contracts, RSA keys, RS256 token
 purposes through IdentityModel, tenant/app-bound refresh pairs, config-ticket

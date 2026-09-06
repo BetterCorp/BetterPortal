@@ -1,5 +1,41 @@
 # BetterPortal Python port
 
+Python 3.10+. This is an in-progress port, **not yet a service runtime**.
+Starlette/ASGI hosting, configuration, route tooling and generated clients remain in
+the [capability ledger](../conformance/CAPABILITIES.md).
+
+`betterportal.sse.SseRoute` validates publication input, maps it with subscriber
+context, and validates the resulting event. `EventScope` comes from the trusted
+request context. `EventTransport` is replaceable; the supplied `LocalEvents`
+serves one event loop with no history or cross-replica delivery. It separates
+view/tenant/app addresses, bounds each queue to 256 pending events, and closes
+overflowing subscribers. Payloads default to 1 MiB; all limits are configurable.
+Subscriptions are async context managers. The application closes its transport
+at shutdown, releasing idle subscribers; request cancellation stops pending reads
+and mapper I/O. Publication bytes prevent mutable values leaking across subscribers.
+
+```python
+import asyncio
+import anyvali as av
+from betterportal.sse import LocalEvents, SseRoute, EventScope
+
+async def example():
+    transport = LocalEvents()
+    try:
+        route = SseRoute("clock.index", av.string(), av.string(), lambda value, context: value, transport=transport)
+        scope = EventScope("tenant-from-context", "app-from-context")
+        async with route.subscribe(scope, None) as events:
+            await route.publish(scope, "tick")
+            assert await events.__anext__() == "tick"
+    finally:
+        await transport.aclose()
+
+asyncio.run(example())
+```
+
+HTTP SSE encoding, themed tick rendering and operation authorization integration
+remain host delivery work.
+
 `betterportal.streaming.StreamHandler` validates each item and optional `Summary`
 before delivery. Its response schema is derived from the item/summary AnyVali
 documents, preserving recursive definitions. `frames` and `ndjson` pull only as
@@ -36,10 +72,6 @@ from betterportal.media import negotiate
 assert negotiate("text/html;mode=fragment").mode == "fragment"
 assert negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).kind == "json"
 ```
-
-Python 3.10+. This is an in-progress port, **not yet a service runtime**.
-Starlette/ASGI hosting, configuration, route tooling and generated clients remain in
-the [capability ledger](../conformance/CAPABILITIES.md).
 
 Implemented: embedded canonical AnyVali 1.1.1 contracts, RS256 keys and token
 purposes, tenant/app-bound refresh pairs, config-ticket scope/action checks, and

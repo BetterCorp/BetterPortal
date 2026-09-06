@@ -8,12 +8,18 @@ import { resolveRequestedRepresentation } from "../nodejs/lib/runtime/media.js";
 import { streaming, streamProbe } from "./node-stream.mjs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { sseProbe } from "./node-sse.mjs";
 
 createServer(async (request, response) => {
   try {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action === "sse-probe") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await sseProbe()));
+      return;
+    }
     if (body.action === "stream-probe") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(await streamProbe()));

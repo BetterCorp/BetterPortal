@@ -14,12 +14,20 @@ from betterportal.media import negotiate, NotAcceptable
 from dataclasses import asdict
 from python_stream import streaming, probe as stream_probe
 import asyncio
+from python_sse import probe as sse_probe
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if body.get("action") == "sse-probe":
+                payload = asyncio.run(sse_probe())
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload).encode())
+                return
             if body.get("action") == "stream-probe":
                 payload = asyncio.run(stream_probe())
                 self.send_response(200)
