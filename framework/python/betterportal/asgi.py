@@ -172,14 +172,15 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
             response_headers = {"vary": "Origin"}
             failure_scope = None; operation = None; route = None; representation = None
             kind, key, matched = "page", None, ""
-            query: dict[str, Any] = {}; params: dict[str, Any] = {}
+            query: dict[str, Any] = {}; params: dict[str, Any] = {}; headers: dict[str, str] = {}
 
             async def failure(status, message, scope=None):
                 scope = scope or failure_scope
                 theme = scope.app.get("shell", {}).get("renderer") if scope is not None else None
                 if theme and operation is not None and route is not None and representation is not None and representation.kind == "html":
                     async def render():
-                        context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), cast(HttpMethod, requested), request.url.path),
+                        context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), cast(HttpMethod, requested), request.url.path,
+                            url_context=service.urls(scope, request.url.path, headers, request.url.scheme)),
                             route.view_id, matched, theme, representation.mode or "page", kind, key, status, params, query)
                         value = await operation.render_error(context, message)
                         return _RawReply(value, response_headers, head=request.method == "HEAD") if value is not None else None

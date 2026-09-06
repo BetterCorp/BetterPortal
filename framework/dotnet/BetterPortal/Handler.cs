@@ -34,12 +34,14 @@ public sealed record RequestContext(ScopedContext Scope, AuthorizedCaller Caller
     IReadOnlyDictionary<string, object?>? Config = null, Generated.MultipartRequest? Multipart = null)
 {
     public ResponseState Response { get; init; } = new();
+    public Urls Urls { get; init; } = new(Scope, null, null, Path);
 }
 
 public sealed record HandlerContext<TParams, TQuery, THeaders, TBody>(RequestContext RequestContext,
     TParams Params, TQuery Query, THeaders Headers, TBody Request, CancellationToken Cancellation)
 {
     public ResponseState Response => RequestContext.Response;
+    public Urls Urls => RequestContext.Urls;
 }
 public sealed record Invocation(object? Value, object? Params, object? Query);
 

@@ -2,6 +2,7 @@ import { importSchema } from "anyvali";
 import { readFile } from "node:fs/promises";
 import { buildManifestFromRegistry, buildBpSchema } from "../nodejs/lib/runtime/registry.js";
 import { PluginManifestSchema, BpSchemaOutputSchema } from "../nodejs/lib/contracts/manifest.js";
+import { urlCalls } from "./node-urls.mjs";
 
 const operationSchema = importSchema(JSON.parse(await readFile(new URL("contracts/OperationDeclarationSchema.json", import.meta.url), "utf8")));
 const manifestSchema = importSchema(JSON.parse(await readFile(new URL("contracts/ManifestDeclarationSchema.json", import.meta.url), "utf8")));
@@ -16,7 +17,7 @@ export function rendererSets(item) {
       render(data, context) {
         if (spec.throw) throw new Error("private-render-secret");
         if (spec.text !== undefined) return spec.text;
-        const value = JSON.stringify({ data, context: { tenant: context.tenant, app: context.app, request: context.request, route: context.route } });
+        const value = JSON.stringify(spec.urlCalls ? urlCalls(context, spec.urlCalls) : { data, context: { tenant: context.tenant, app: context.app, request: context.request, route: context.route } });
         return "<pre>" + value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") + "</pre>";
       } };
     if ((declaration.status ?? 200) !== 200) {

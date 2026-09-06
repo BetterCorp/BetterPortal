@@ -1,0 +1,31 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "url": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "serviceId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "unavailable": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      }
+    },
+    "required": [],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

@@ -11,6 +11,7 @@ from .authorization import AuthorizedCaller
 from .context import ScopedContext
 from .contracts import contract, export, object_document
 from .generated_types import HttpMethod, MultipartRequest
+from .urls import Urls
 if TYPE_CHECKING:
     from .rendering import Renderer
 
@@ -62,6 +63,9 @@ class RequestContext:
     config: Mapping[str, Any] = field(default_factory=dict)
     multipart: MultipartRequest | None = None
     response: ResponseState = field(default_factory=ResponseState)
+    url_context: Urls | None = None
+    @property
+    def urls(self) -> Urls: return self.url_context or Urls(self.scope, None, None, self.path)
 
 
 @dataclass(frozen=True)
@@ -73,6 +77,8 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     request: Body
     @property
     def response(self) -> ResponseState: return self.request_context.response
+    @property
+    def urls(self) -> Urls: return self.request_context.urls
 
 
 @dataclass(frozen=True)

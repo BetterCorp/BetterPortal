@@ -1,0 +1,96 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "serviceId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "params": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "union",
+            "variants": [
+              {
+                "kind": "string"
+              },
+              {
+                "kind": "number"
+              },
+              {
+                "kind": "bool"
+              }
+            ]
+          }
+        },
+        "default": {}
+      },
+      "query": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "union",
+            "variants": [
+              {
+                "kind": "string"
+              },
+              {
+                "kind": "number"
+              },
+              {
+                "kind": "bool"
+              }
+            ]
+          }
+        },
+        "default": {}
+      },
+      "absolute": {
+        "kind": "bool",
+        "default": false
+      },
+      "origin": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "component": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "fragment": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "sse": {
+        "kind": "bool",
+        "default": false
+      }
+    },
+    "required": [
+      "params",
+      "query",
+      "absolute",
+      "sse"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

@@ -74,13 +74,19 @@ public sealed class Service : IAsyncDisposable
         {
             var caller = await RequestAuthorization.AuthorizeAsync(normalized, (Node)Contracts.Parse("ApiAuthRequirementSchema", operation.Declaration.Auth)!, auth, route.ViewId, method, cancellationToken);
             if (caller.Service is not null && !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!)) throw new RequestException(403, "Access denied", responseHeaders, scope);
-            return new(new(scope, caller, method, path), responseHeaders);
+            return new(new RequestContext(scope, caller, method, path) { Urls = Urls(scope, path, normalized, scheme) }, responseHeaders);
         }
         catch (TokenException error)
         {
             var message = error.Status switch { 401 => "Authentication required or invalid", 403 => "Access denied", 503 => "Authentication unavailable", _ => "Authentication failed" };
             throw new RequestException(error.Status, message, responseHeaders, scope);
         }
+    }
+    public Urls Urls(ScopedContext scope, string path, IReadOnlyDictionary<string, string>? headers = null, string scheme = "https")
+    {
+        headers ??= new Dictionary<string, string>();
+        var identifier = (string?)((Node)config.GetValueOrDefault("serviceIdentity", new Node())!).GetValueOrDefault("id") ?? schema.Manifest.PluginId;
+        return new(scope, Registry, identifier, path, [headers.GetValueOrDefault("origin", ""), headers.GetValueOrDefault("referer", ""), scheme + "://" + headers.GetValueOrDefault("host", "")]);
     }
     public static Node Metadata(Route route, Operation operation, string matchedPath)
     {

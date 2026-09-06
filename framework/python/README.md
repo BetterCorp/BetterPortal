@@ -103,8 +103,34 @@ HTML status needs an exact status renderer; otherwise the response is empty.
 callbacks for errors, separately from successful handler results. Their canonical
 data contains only `error` and `status`; declarations require status 400–599.
 The selected fragment/component is preserved on errors. Callback failures return
-a generic 500. Disconnects cancel async callbacks. URL/element helpers, theme
-resources and global status renderers remain pending.
+a generic 500. Disconnects cancel async callbacks. Theme resources and global
+status renderers remain pending.
+
+Handlers and renderers receive `context.urls`. `route(view_id, options)` builds
+service request URLs; `ui_route(...)` builds navigation links only for enabled
+mounted GET pages. Both resolve declared dependency aliases, plugin IDs and exact
+instance IDs. Missing params or ambiguous destinations return `None`. Local
+optional routes select the most specific satisfiable path. Cross-service requests
+merge fixed mount params with explicit params; navigation uses public path params.
+`absolute=True` resolves a trusted service/app origin. These helpers neither send
+requests nor attach credentials; every destination still authorizes its callers.
+
+```python
+from betterportal.urls import Urls
+
+url = Urls.path("/items", {"query": {"name": "Hi BP", "omit": None}, "fragment": "nav.profile"})
+assert url == "/items?name=Hi+BP&_f=nav.profile"
+assert Urls.form("/items", {"method": "POST", "target": "#items"})["hx-post"] == "/items"
+```
+
+`current`, `path`, `link`, `form` and `current_ui` support query encoding,
+components, fragments, SSE URLs and HTMX attribute maps. Escape attribute values
+when writing HTML. `element(reference)` resolves a single app-mounted service
+fragment or a shell fragment, returning `url`/`serviceId` or an `unavailable`
+reason. URL helpers retain only navigation data. They ignore credential-bearing
+or non-HTTP service origins and reject path traversal/network-path references.
+Rendered HTML rewrites quoted `{view.id}` tokens in supported request attributes;
+unresolved tokens remain unchanged. Use `ui_route` for internal page anchors.
 
 `RawHandler[Params, Query, Headers, Body]` shares input validation and host
 authorization with JSON handlers. It must return `RawResponse`; JSON handlers

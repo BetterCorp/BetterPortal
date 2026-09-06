@@ -1,0 +1,1166 @@
+{
+  "scenarios": 232,
+  "passed": 232,
+  "results": [
+    {
+      "runtime": "node",
+      "id": "urls-local-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-local-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-local-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-local-absolute-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-local-absolute-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-local-absolute-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-absolute-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-absolute-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-absolute-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-missing-params-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-missing-params-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-missing-params-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-missing-view-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-missing-view-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-missing-view-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-alias-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-alias-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-alias-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-cross-ui-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-cross-ui-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-cross-ui-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-cross-fixed-override-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-cross-fixed-override-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-cross-fixed-override-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-cross-ui-no-fixed-param-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-cross-ui-no-fixed-param-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-cross-ui-no-fixed-param-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-escaped-param-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-escaped-param-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-escaped-param-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-fragment-sse-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-fragment-sse-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-fragment-sse-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-component-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-component-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-component-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-no-service-selectors-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-no-service-selectors-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-no-service-selectors-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-query-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-query-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-query-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-origin-override-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-origin-override-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-origin-override-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-local-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-local-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-local-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-local-absolute-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-local-absolute-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-local-absolute-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-absolute-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-absolute-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-absolute-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-missing-params-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-missing-params-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-missing-params-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-missing-view-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-missing-view-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-missing-view-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-alias-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-alias-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-alias-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-cross-ui-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-cross-ui-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-cross-ui-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-cross-fixed-override-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-cross-fixed-override-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-cross-fixed-override-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-cross-ui-no-fixed-param-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-cross-ui-no-fixed-param-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-cross-ui-no-fixed-param-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-escaped-param-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-escaped-param-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-escaped-param-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-fragment-sse-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-fragment-sse-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-fragment-sse-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-component-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-component-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-component-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-no-service-selectors-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-no-service-selectors-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-no-service-selectors-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-query-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-query-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-query-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-origin-override-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-origin-override-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-origin-override-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-current",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-current",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-current",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-current-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-current-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-current-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-path-query",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-path-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-path-query",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-path-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-path-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-path-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-path-query-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-path-query-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-path-query-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-path-query-quotes",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-path-query-quotes",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-path-query-quotes",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-path-absolute-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-path-absolute-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-path-absolute-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-numeric-format",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-numeric-format",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-numeric-format",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-link",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-link",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-link",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-form",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-form",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-form",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-current-ui",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-current-ui",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-current-ui",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-args",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-args",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-args",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-shell",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-shell",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-shell",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-empty",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-no-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-no-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-no-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-missing",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-missing",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-missing",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-disabled-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-disabled-service",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-other-view",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-other-view",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-other-view",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ambiguous-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ambiguous-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ambiguous-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-empty-catalog",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-empty-catalog",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-empty-catalog",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-api",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-api",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-api",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-post",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-post",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-post",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-unknown-methods",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-unknown-methods",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-unknown-methods",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ui-ambiguous",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ui-ambiguous",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ui-ambiguous",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-optional-prefer-params",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-optional-prefer-params",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-optional-prefer-params",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-preferred-app-origin",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-preferred-app-origin",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-preferred-app-origin",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-same-plugin-instance",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-same-plugin-instance",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-credential-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-credential-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-non-http-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-non-http-service",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-ambiguous-provider",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ambiguous-provider",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ambiguous-provider",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-ambiguous-provider",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-ambiguous-provider",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-ambiguous-provider",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-params-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-params-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-params-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-element-shell-missing",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-element-shell-missing",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-element-shell-missing",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-network-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-network-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-absolute-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-absolute-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-backslash-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-backslash-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-dot-param",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-dot-param",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-encoded-dot-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-encoded-dot-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-invalid-escape",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-invalid-escape",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-script-link",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-script-link",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-credential-origin",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-credential-origin",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-invalid-query-shape",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-invalid-query-shape",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-ambiguous-selectors",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-ambiguous-selectors",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-sse-before-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-sse-before-query",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "urls-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-rewrite-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-rewrite-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "urls-error-app-origin",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "urls-error-app-origin",
+      "passed": true
+    }
+  ]
+}

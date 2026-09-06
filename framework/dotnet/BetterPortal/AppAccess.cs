@@ -25,7 +25,7 @@ public sealed class AppAccess
         return services.Where(pair => mounted.Contains(pair.Key) && pair.Value.ContainsKey("serviceId") && (route is null || Allows(route, method, path, fragment, pair.Key)))
             .ToFrozenDictionary(pair => pair.Key, pair => (string)pair.Value["serviceId"]!, StringComparer.Ordinal);
     }
-    private static bool PathMatches(string mounted, string registered)
+    internal static bool PathMatches(string mounted, string registered)
     {
         try
         {

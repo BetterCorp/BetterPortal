@@ -3,7 +3,7 @@ using Node = System.Collections.Generic.Dictionary<string, object?>;
 
 namespace BetterPortal;
 
-public sealed record RenderContext(Generated.ViewRenderData Data, CancellationToken Cancellation = default)
+public sealed record RenderContext(Generated.ViewRenderData Data, Urls Urls, CancellationToken Cancellation = default)
 {
     public Generated.ViewTenantContext Tenant => Data.Tenant;
     public Generated.ViewAppContext App => Data.App;
@@ -15,7 +15,7 @@ public sealed record RenderContext(Generated.ViewRenderData Data, CancellationTo
         var route = new Node { ["viewId"] = viewId, ["path"] = matchedPath, ["renderer"] = renderer, ["mode"] = mode, ["kind"] = kind, ["status"] = status };
         if (key is not null) route["key"] = key;
         return new(Contracts.Parse<Generated.ViewRenderData>("ViewRenderDataSchema", new Node { ["tenant"] = request.Scope.Tenant, ["app"] = request.Scope.App,
-            ["request"] = new Node { ["method"] = request.Method, ["path"] = request.Path, ["params"] = @params, ["query"] = query }, ["route"] = route }), cancellation);
+            ["request"] = new Node { ["method"] = request.Method, ["path"] = request.Path, ["params"] = @params, ["query"] = query }, ["route"] = route }), request.Urls, cancellation);
     }
 }
 
@@ -92,7 +92,8 @@ public sealed class Renderer<TResult> : Renderer
     public async ValueTask<string> Render(TResult data, RenderContext context)
     {
         context.Cancellation.ThrowIfCancellationRequested();
-        return await render(data, context).AsTask().WaitAsync(context.Cancellation) ?? throw new InvalidOperationException("Renderers must return HTML strings");
+        var html = await render(data, context).AsTask().WaitAsync(context.Cancellation) ?? throw new InvalidOperationException("Renderers must return HTML strings");
+        return context.Urls.Rewrite(html);
     }
     internal override ValueTask<string> RenderBoxed(object? data, RenderContext context) => Render((TResult)data!, context);
 }

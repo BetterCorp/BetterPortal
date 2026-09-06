@@ -14,6 +14,7 @@ from .handler import RequestContext
 from .keys import JwksClient, secure_endpoint
 from .registry import Operation, Registry, Route
 from .security import TokenError
+from .urls import Urls
 
 
 class RequestError(Exception):
@@ -89,7 +90,12 @@ class Service:
             raise RequestError(error.status, message, response_headers, scope=scope) from error
         if caller.service is not None and not access.allows(route, method, path=matched_path, fragment=fragment, service_id=caller.service["aud"]):
             raise RequestError(403, "Access denied", response_headers, scope=scope)
-        return RequestContext(scope, caller, cast(HttpMethod, method), path), response_headers
+        return RequestContext(scope, caller, cast(HttpMethod, method), path, url_context=self.urls(scope, path, normalized, scheme)), response_headers
+
+    def urls(self, scope: ScopedContext, path: str, headers: Mapping[str, str] | None = None, scheme: str = "https") -> Urls:
+        headers = headers or {}
+        return Urls(scope, self.registry, self._config.get("serviceIdentity", {}).get("id", self._schema["manifest"]["pluginId"]), path,
+                    app_origins=[headers.get("origin", ""), headers.get("referer", ""), scheme + "://" + headers.get("host", "")])
 
     @staticmethod
     def metadata(route: Route, operation: Operation, matched_path: str) -> dict[str, Any]:

@@ -102,8 +102,36 @@ otherwise the response is empty. 204/205/304 always have no body.
 error callbacks separately from successful handler results. Their canonical data
 contains only `Error` and `Status`; declarations require status 400–599. Errors
 preserve the selected fragment/component. Callback failures return a generic 500.
-`context.Cancellation` cancels callback waits; pass it to async I/O. URL/element
-helpers, theme resources and global status renderers remain pending.
+`context.Cancellation` cancels callback waits; pass it to async I/O. Theme resources
+and global status renderers remain pending.
+
+Handlers and renderers receive `context.Urls`. `Route(viewId, options)` builds
+service request URLs; `UiRoute(...)` builds navigation links only for enabled
+mounted GET pages. Both resolve dependency aliases, plugin IDs and exact instance
+IDs. Missing params and ambiguous destinations return `null`. Local optional
+routes select the most specific satisfiable path. Cross-service requests merge
+fixed mount params with explicit params; navigation uses public path params.
+`Absolute = true` resolves a trusted service/app origin. These helpers neither send
+requests nor attach credentials; destinations still authorize their callers.
+
+```csharp
+using BetterPortal;
+using BetterPortal.Generated;
+
+var url = Urls.Path("/items", new() { Fragment = "nav.profile",
+    Query = new Dictionary<string, BetterPortalRouteChromeValueInput?> { ["name"] = "Hi BP", ["omit"] = null } });
+if (url != "/items?name=Hi+BP&_f=nav.profile") throw new Exception("Query changed");
+if (Urls.Form("/items", new() { Method = RouteUiOptionsInputMethod.POST, Target = "#items" })["hx-post"] != "/items") throw new Exception("Form changed");
+```
+
+`Current`, `Path`, `Link`, `Form` and `CurrentUi` support query encoding,
+components, fragments, SSE URLs and HTMX attribute maps. Escape attribute values
+when writing HTML. `Element(reference)` resolves a single mounted service fragment
+or shell fragment, returning `Url`/`ServiceId` or an `Unavailable` reason. URL helpers
+retain only navigation data; credential-bearing/non-HTTP service origins and path
+traversal/network-path references are rejected. Rendered HTML rewrites quoted
+`{view.id}` tokens in supported request attributes; unresolved tokens remain.
+Use `UiRoute` for internal page anchors.
 
 `RawHandler<TParams, TQuery, THeaders, TBody>` shares input validation and host
 authorization with JSON handlers. It returns `ValueTask<RawResponse>`; JSON

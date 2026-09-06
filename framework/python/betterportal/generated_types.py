@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: d58b90799d6d77b1c9e2dcf6a788c9b5b7009d030bf51f3175d7b1613b1a7e07
+# Generated from AnyVali documents; do not edit. SHA256: 3fa8d96916e8998620cae7c69d5a760712f63990890c25a8071448c882d846fb
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -249,6 +249,30 @@ AuthressProviderConfigInput = TypedDict('AuthressProviderConfigInput', {
     'nameClaimPath': NotRequired['str'],
     'emailClaimPath': NotRequired['str'],
     'pictureClaimPath': NotRequired['str'],
+})
+
+BPElementReference = TypedDict('BPElementReference', {
+    'service': Required['str'],
+    'path': NotRequired['str'],
+    'fragment': Required['str'],
+    'args': Required['BPElementReferenceArgs'],
+})
+
+BPElementReferenceArgs = TypedDict('BPElementReferenceArgs', {
+    'params': Required['dict[str, BetterPortalRouteChromeValue]'],
+    'query': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
+})
+
+BPElementReferenceInput = TypedDict('BPElementReferenceInput', {
+    'service': Required['str'],
+    'path': NotRequired['str'],
+    'fragment': Required['str'],
+    'args': NotRequired['BPElementReferenceInputArgs'],
+})
+
+BPElementReferenceInputArgs = TypedDict('BPElementReferenceInputArgs', {
+    'params': NotRequired['dict[str, BetterPortalRouteChromeValueInput]'],
+    'query': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
 })
 
 BetterPortalApp = TypedDict('BetterPortalApp', {
@@ -2465,6 +2489,70 @@ RendererDeclarationInput = TypedDict('RendererDeclarationInput', {
     'kind': NotRequired["Literal['page', 'fragment', 'component']"],
     'key': NotRequired['str'],
     'status': NotRequired['int'],
+})
+
+ResolvedBPElementReference = TypedDict('ResolvedBPElementReference', {
+    'url': NotRequired['str'],
+    'serviceId': NotRequired['str'],
+    'unavailable': NotRequired['str'],
+})
+
+ResolvedBPElementReferenceInput = TypedDict('ResolvedBPElementReferenceInput', {
+    'url': NotRequired['str'],
+    'serviceId': NotRequired['str'],
+    'unavailable': NotRequired['str'],
+})
+
+RouteUiOptions = TypedDict('RouteUiOptions', {
+    'serviceId': NotRequired['str'],
+    'params': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
+    'query': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
+    'absolute': Required['bool'],
+    'origin': NotRequired['str'],
+    'component': NotRequired['str'],
+    'fragment': NotRequired['str'],
+    'sse': Required['bool'],
+    'method': Required["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
+    'target': NotRequired['str'],
+    'swap': NotRequired['str'],
+    'push': NotRequired['Union[str, bool]'],
+})
+
+RouteUiOptionsInput = TypedDict('RouteUiOptionsInput', {
+    'serviceId': NotRequired['str'],
+    'params': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
+    'query': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
+    'absolute': NotRequired['bool'],
+    'origin': NotRequired['str'],
+    'component': NotRequired['str'],
+    'fragment': NotRequired['str'],
+    'sse': NotRequired['bool'],
+    'method': NotRequired["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
+    'target': NotRequired['str'],
+    'swap': NotRequired['str'],
+    'push': NotRequired['Union[str, bool]'],
+})
+
+RouteUrlOptions = TypedDict('RouteUrlOptions', {
+    'serviceId': NotRequired['str'],
+    'params': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
+    'query': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
+    'absolute': Required['bool'],
+    'origin': NotRequired['str'],
+    'component': NotRequired['str'],
+    'fragment': NotRequired['str'],
+    'sse': Required['bool'],
+})
+
+RouteUrlOptionsInput = TypedDict('RouteUrlOptionsInput', {
+    'serviceId': NotRequired['str'],
+    'params': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
+    'query': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
+    'absolute': NotRequired['bool'],
+    'origin': NotRequired['str'],
+    'component': NotRequired['str'],
+    'fragment': NotRequired['str'],
+    'sse': NotRequired['bool'],
 })
 
 RsaPublicJwk = TypedDict('RsaPublicJwk', {

@@ -167,6 +167,7 @@ public static class Hosting
             ScopedContext? failureScope = null; Operation? operation = null; Route? route = null; Representation? representation = null;
             var kind = "page"; string? key = null; var matched = ""; var requested = "GET";
             var query = new Node(); var parameters = new Node();
+            var headers = new Dictionary<string, string>();
             async Task Failure(int status, string message, ScopedContext? scope = null)
             {
                 scope ??= failureScope;
@@ -175,7 +176,7 @@ public static class Hosting
                 {
                     try
                     {
-                        var renderContext = RenderContext.Create(new RequestContext(scope, new AuthorizedCaller(), requested, context.Request.Path),
+                        var renderContext = RenderContext.Create(new RequestContext(scope, new AuthorizedCaller(), requested, context.Request.Path) { Urls = service.Urls(scope, context.Request.Path, headers, context.Request.Scheme) },
                             route.ViewId, matched, theme, representation.Mode ?? "page", kind, key, status, parameters, query, context.RequestAborted);
                         var value = await operation.RenderError(renderContext, message);
                         if (value is not null) { await ReplyRaw(context, value, responseHeaders); return; }
@@ -187,7 +188,7 @@ public static class Hosting
             }
             try
             {
-                var headers = Headers(context.Request); query = Pairs(context.Request.QueryString.Value ?? "");
+                headers = Headers(context.Request); query = Pairs(context.Request.QueryString.Value ?? "");
                 if (query.GetValueOrDefault("_f") is { } selector && selector is not string) throw new RequestException(400, "Invalid fragment selector");
                 var fragment = (string?)query.GetValueOrDefault("_f");
                 requested = context.Request.Method == "OPTIONS" ? headers.GetValueOrDefault("access-control-request-method", "") : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;

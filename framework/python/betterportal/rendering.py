@@ -12,6 +12,7 @@ from .contracts import parse
 from .generated_types import RendererDeclaration, RendererDeclarationInput, ViewRenderData, ViewTenantContext, ViewAppContext, ViewRenderDataRequest, ViewRenderDataRoute
 from .handler import RequestContext
 from .media import NotAcceptable
+from .urls import Urls
 
 Result = TypeVar("Result")
 
@@ -19,6 +20,7 @@ Result = TypeVar("Result")
 @dataclass(frozen=True)
 class RenderContext:
     data: ViewRenderData
+    urls: Urls
 
     @property
     def tenant(self) -> ViewTenantContext: return self.data["tenant"]
@@ -35,7 +37,7 @@ class RenderContext:
         route = {"viewId": view_id, "path": matched_path, "renderer": renderer, "mode": mode, "kind": kind, "status": status}
         if key is not None: route["key"] = key
         return cls(parse("ViewRenderDataSchema", {"tenant": request.scope.tenant, "app": request.scope.app,
-            "request": {"method": request.method, "path": request.path, "params": params, "query": query}, "route": route}))
+            "request": {"method": request.method, "path": request.path, "params": params, "query": query}, "route": route}), request.urls)
 
 
 class Renderer(Generic[Result]):
@@ -60,7 +62,7 @@ class Renderer(Generic[Result]):
         value = self._render(data, context)
         if inspect.isawaitable(value): value = await value
         if not isinstance(value, str): raise TypeError("Renderers must return HTML strings")
-        return value
+        return context.urls.rewrite(value)
 
 
 def renderers(values: Iterable[Renderer[Result]]) -> tuple[Renderer[Result], ...]:

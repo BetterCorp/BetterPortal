@@ -41,6 +41,7 @@ from betterportal.cors import Cors
 from betterportal.handler import Handler, RequestContext
 from betterportal.response import RawHandler, RawResponse
 from betterportal.rendering import Renderer, RenderContext
+from betterportal.urls import Urls
 from betterportal.registry import Operation, Route, Registry
 from betterportal.access import AppAccess
 from betterportal.service import Service
@@ -88,6 +89,7 @@ render_context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), 
 renderer = Renderer({"renderer": "bootstrap5"}, lambda value, context: "<p>" + context.tenant["title"] + "</p>")
 assert asyncio.run(renderer.render({}, render_context)) == "<p>Tenant</p>"
 assert "services" not in render_context.tenant
+assert Urls.path("/hello", {"query": {"greet": "Hi BP"}}) == "/hello?greet=Hi+BP"
 handler = Handler(contract("JsonObjectSchema"), lambda context: context.query, query=contract("JsonObjectSchema"))
 assert asyncio.run(handler.invoke(RequestContext(scope, AuthorizedCaller(), "GET", "/"), {"query": {"nested": [None]}})) == {"nested": [None]}
 raw_handler = RawHandler(lambda context: RawResponse.file(b"hello", "report.txt"))

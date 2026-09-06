@@ -86,6 +86,11 @@ internal sealed class TypeGenerator
         return values.Length switch { 0 => "Never", 1 => values[0], _ => $"Variant<{values[0]}, {Union(values.Skip(1))}>" };
     }
 
+    private string[] UnionTypes(Node[] children, Node document, bool input, string hint) => children.SelectMany((child, index) =>
+        Kind(child) == "nullable"
+            ? new[] { TypeOf(Child(child, "inner", "schema"), document, input, hint + $"Variant{index + 1}"), "JsonNull" }
+            : new[] { TypeOf(child, document, input, hint + $"Variant{index + 1}") }).Where(type => type != "Never").Distinct(StringComparer.Ordinal).ToArray();
+
     private static bool IsRecursiveJson(Node node, Node document)
     {
         if (Kind(node) != "ref" || node["ref"] is not string reference || !reference.StartsWith("#/definitions/", StringComparison.Ordinal)) return false;
@@ -119,18 +124,8 @@ internal sealed class TypeGenerator
         if (kind is "union" or "tuple")
         {
             var children = Nodes(kind == "union" ? node["variants"] : node.GetValueOrDefault("items", node.GetValueOrDefault("elements", Array.Empty<object?>())));
-            var types = new List<string>();
-            foreach (var (child, index) in children.Select((value, index) => (value, index)))
-            {
-                // Explicit null branches avoid erased nullable-reference annotations in generic union converters.
-                if (Kind(child) == "nullable")
-                {
-                    types.Add(TypeOf(Child(child, "inner", "schema"), document, input, hint + $"Variant{index + 1}"));
-                    types.Add("JsonNull");
-                }
-                else types.Add(TypeOf(child, document, input, hint + $"Variant{index + 1}"));
-            }
-            var union = Union(types);
+            // Explicit null branches avoid erased nullable-reference annotations in generic union converters.
+            var union = Union(UnionTypes(children, document, input, hint));
             return kind == "tuple" ? $"IReadOnlyList<{union}>" : union;
         }
         if (kind == "literal" && node["value"] is not string)
@@ -220,6 +215,18 @@ internal sealed class TypeGenerator
             else Wrapper(name, "System.Text.Json.JsonElement", lines);
         }
         else Wrapper(name, TypeOf(node, document, input, name, expand: true), lines);
+        if (kind == "union")
+        {
+            var types = UnionTypes(Nodes(node["variants"]), document, input, name);
+            for (var index = 0; index < types.Length && types.Length > 1; index++)
+            {
+                // C# does not chain the primitive -> Variant -> generated wrapper conversions.
+                if (types[index] is not ("string" or "bool" or "double" or "long" or "byte" or "ushort" or "uint" or "ulong")) continue;
+                var value = index == types.Length - 1 ? "value" : $"new {Union(types.Skip(index))}(value)";
+                for (var parent = index - 1; parent >= 0; parent--) value = $"new {Union(types.Skip(parent))}({value})";
+                lines.Insert(lines.Count - 1, $"    public static implicit operator {name}({types[index]} value) => new({value});");
+            }
+        }
         _emitted[name] = string.Join("\n", lines);
     }
 

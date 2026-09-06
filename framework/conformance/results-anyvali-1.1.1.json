@@ -1,6 +1,6 @@
 {
-  "scenarios": 984,
-  "passed": 976,
+  "scenarios": 1020,
+  "passed": 1012,
   "results": [
     {
       "runtime": "node",
@@ -155,6 +155,16 @@
     },
     {
       "runtime": "node",
+      "id": "route-url-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "element-args-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -361,6 +371,11 @@
     {
       "runtime": "node",
       "id": "import-BindingTrustSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BPElementReferenceSchema",
       "passed": true
     },
     {
@@ -601,6 +616,21 @@
     {
       "runtime": "node",
       "id": "import-RenderModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ResolvedBPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RouteUiOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RouteUrlOptionsSchema",
       "passed": true
     },
     {
@@ -976,6 +1006,16 @@
     },
     {
       "runtime": "node",
+      "id": "route-url-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "element-args-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1182,6 +1222,11 @@
     {
       "runtime": "node",
       "id": "import-BindingTrustSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
     {
@@ -1422,6 +1467,21 @@
     {
       "runtime": "node",
       "id": "import-RenderModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ResolvedBPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RouteUiOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RouteUrlOptionsSchema-roundtrip",
       "passed": true
     },
     {
@@ -1798,6 +1858,16 @@
     },
     {
       "runtime": "python",
+      "id": "route-url-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "element-args-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -2004,6 +2074,11 @@
     {
       "runtime": "python",
       "id": "import-BindingTrustSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BPElementReferenceSchema",
       "passed": true
     },
     {
@@ -2244,6 +2319,21 @@
     {
       "runtime": "python",
       "id": "import-RenderModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ResolvedBPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RouteUiOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RouteUrlOptionsSchema",
       "passed": true
     },
     {
@@ -2620,6 +2710,16 @@
     },
     {
       "runtime": "python",
+      "id": "route-url-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "element-args-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -2826,6 +2926,11 @@
     {
       "runtime": "python",
       "id": "import-BindingTrustSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
     {
@@ -3066,6 +3171,21 @@
     {
       "runtime": "python",
       "id": "import-RenderModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ResolvedBPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RouteUiOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RouteUrlOptionsSchema-roundtrip",
       "passed": true
     },
     {
@@ -3441,6 +3561,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "route-url-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "element-args-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -3647,6 +3777,11 @@
     {
       "runtime": "dotnet",
       "id": "import-BindingTrustSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BPElementReferenceSchema",
       "passed": true
     },
     {
@@ -3887,6 +4022,21 @@
     {
       "runtime": "dotnet",
       "id": "import-RenderModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ResolvedBPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RouteUiOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RouteUrlOptionsSchema",
       "passed": true
     },
     {
@@ -4262,6 +4412,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "route-url-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "element-args-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -4468,6 +4628,11 @@
     {
       "runtime": "dotnet",
       "id": "import-BindingTrustSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
     {
@@ -4708,6 +4873,21 @@
     {
       "runtime": "dotnet",
       "id": "import-RenderModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ResolvedBPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RouteUiOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RouteUrlOptionsSchema-roundtrip",
       "passed": true
     },
     {

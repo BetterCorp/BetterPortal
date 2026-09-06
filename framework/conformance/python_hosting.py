@@ -14,6 +14,23 @@ from betterportal.registry import Operation, Route, Registry
 from betterportal.service import Service
 
 
+def url_calls(context, calls):
+    values = []
+    for call in calls:
+        try:
+            urls, options = context.urls, call.get("options", {})
+            if call["kind"] == "route": value = urls.route(call["viewId"], options)
+            elif call["kind"] == "uiRoute": value = urls.ui_route(call["viewId"], options)
+            elif call["kind"] == "path": value = urls.path(call["path"], options)
+            elif call["kind"] == "current": value = urls.current(options)
+            elif call["kind"] == "currentUi": value = urls.current_ui(options)
+            elif call["kind"] == "element": value = urls.element(call["reference"])
+            else: value = getattr(urls, call["kind"])(call["url"], options)
+            values.append(value)
+        except (ValueError, TypeError, av.ValidationError): values.append({"invalid": True})
+    return values
+
+
 async def hosting_request(body):
     invoked = 0; cancelled = False
     started = asyncio.Event()
@@ -40,6 +57,7 @@ async def hosting_request(body):
             if "status" in spec: context.response.status = spec["status"]
             for name, value in spec.get("responseHeaders", []): context.response.set_header(name, value, append=True)
             if spec.get("throw"): raise ValueError("private-password-must-not-leak")
+            if "urlCalls" in spec: return url_calls(context, spec["urlCalls"])
             if spec.get("wait"):
                 started.set()
                 try: await asyncio.sleep(30)
@@ -66,14 +84,15 @@ async def hosting_request(body):
                 finally: cancelled = True
             if item.get("throw"): raise ValueError("private-render-secret")
             if "text" in item: return item["text"]
-            return "<pre>" + html.escape(json.dumps({"data": data, "context": context.data})) + "</pre>"
+            value = url_calls(context, item["urlCalls"]) if "urlCalls" in item else {"data": data, "context": context.data}
+            return "<pre>" + html.escape(json.dumps(value)) + "</pre>"
         return Renderer(item["declaration"], render)
     def handler(spec):
         schemas = {key: av.import_schema(value) for key, value in spec.get("schemas", {}).items()}
         renderers = [renderer(item) for item in spec.get("renderers", [])]
         return RawHandler(function(spec), **schemas) if "raw" in spec and not spec.get("jsonHandler") else Handler(av.import_schema(spec["response"]), function(spec), renderers=renderers, **schemas)
     registry = Registry([Route(item["viewId"], item["path"], [Operation(handler(spec), spec["declaration"], error_renderers=[renderer(item) for item in spec.get("errorRenderers", [])])
-        for spec in item["operations"]], path_variants=item.get("pathVariants", [])) for item in body["routes"]])
+        for spec in item["operations"]], path_variants=item.get("pathVariants", [])) for item in body["routes"]], dependencies=body.get("dependencies"))
     async with Service(registry, body["declaration"], ScopedConfig(body["snapshot"]) if body.get("snapshot") is not None else None) as service:
         app = create_app(service, max_body_bytes=body.get("maxBodyBytes", 1024 * 1024))
         if body.get("closed"): await service.aclose()

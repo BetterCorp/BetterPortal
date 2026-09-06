@@ -59,6 +59,8 @@ def render(value: TokenLifetimeConfig, context: RenderContext) -> str:
     return str(value["accessTokenSeconds"]) + context.tenant["title"]
 renderer = Renderer[TokenLifetimeConfig]({"renderer": "bootstrap5"}, render)
 html = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, renderers=[renderer])
+from betterportal.urls import Urls
+url: str = Urls.path("/hello", {"query": {"count": 42, "missing": None}, "fragment": "nav.profile"})
 ''', encoding="utf-8")
 command = [python, "-m", "mypy", "--follow-imports=silent", "--follow-untyped-imports", "--cache-dir", str(root / ".tmp-run/mypy-ports")]
 subprocess.run([*command, str(positive)], env=environment, check=True)
@@ -78,9 +80,11 @@ from betterportal.rendering import Renderer, RenderContext
 def bad_render(value: ApiAuthRequirement, context: RenderContext) -> str:
     return context.tenant["services"]
 renderer = Renderer[ApiAuthRequirement]({"renderer": "bootstrap5"}, lambda value, context: 42)
+from betterportal.urls import Urls
+invalid_url = Urls.path("/hello", {"query": {"array": [1]}})
 ''', encoding="utf-8")
 result = subprocess.run([*command, str(negative)], env=environment, capture_output=True, text=True)
-assert result.returncode == 1 and result.stdout.count(": error:") == 10, result.stdout + result.stderr
+assert result.returncode == 1 and result.stdout.count(": error:") == 11, result.stdout + result.stderr
 
 tool = root / "framework/dotnet/BetterPortal.Tool/bin/Debug/net10.0/BetterPortal.Tool.dll"
 subprocess.run(["dotnet", str(tool), "types", "--platform", "--output", str(root / "framework/dotnet/BetterPortal/GeneratedTypes.cs"), "--check"], check=True)
@@ -159,6 +163,8 @@ var handler = new Handler<object?, object?, object?, object?, BetterPortal.Gener
         Contracts.Parse<BetterPortal.Generated.ApiAuthRequirement>("ApiAuthRequirementSchema", new BetterPortal.Generated.ApiAuthRequirementInput())),
     renderers: new[] { renderer });
 if (handler.Renderers.Count != 1) throw new System.Exception("Missing typed renderer");
+var url = Urls.Path("/hello", new() { Fragment = "nav.profile", Query = new System.Collections.Generic.Dictionary<string, BetterPortal.Generated.BetterPortalRouteChromeValueInput?> { ["count"] = 42, ["missing"] = null } });
+if (url != "/hello?count=42&_f=nav.profile") throw new System.Exception("Typed URL options changed");
 ''', encoding="utf-8")
 subprocess.run(["dotnet", "run", "--project", str(custom), "-p:UseSharedCompilation=false", "--", str(source), str(bindings)], check=True)
 
@@ -180,6 +186,7 @@ static int InvalidHandler(BetterPortal.HandlerContext<object, ApiAuthRequirement
 }
 var renderer = new BetterPortal.Renderer<ApiAuthRequirement>(new() { Renderer = "bootstrap5" }, (value, context) => 42);
 static string PrivateContext(BetterPortal.RenderContext context) => context.Tenant.Services;
+var urlOptions = new RouteUrlOptionsInput { Absolute = "true" };
 ''', encoding="utf-8")
 result = subprocess.run(["dotnet", "build", str(negative_dotnet), "-m:1", "-p:UseSharedCompilation=false"], capture_output=True, text=True)
 assert result.returncode != 0 and "CS9035" in result.stdout and "CS0029" in result.stdout and "CS1061" in result.stdout, result.stdout + result.stderr

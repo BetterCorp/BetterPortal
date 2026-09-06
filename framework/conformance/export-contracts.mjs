@@ -98,6 +98,22 @@ portable("ViewRenderDataSchema", objectNode({
 }));
 portable("ViewRenderErrorSchema", objectNode({ error: node(av.string()), status: node(av.int().min(400).max(599)) }));
 
+// Portable declarations for the URL/element interfaces in route.ts and registry.ts.
+const scalar = av.union([av.string(), av.number(), av.bool()]);
+const urlFields = {
+  serviceId: node(av.optional(av.string().minLength(1))),
+  params: node(av.record(av.nullable(scalar)).default({})), query: node(av.record(av.nullable(scalar)).default({})),
+  absolute: node(av.bool().default(false)), origin: node(av.optional(av.string().minLength(1))),
+  component: node(av.optional(av.string().minLength(1))), fragment: node(av.optional(av.string().minLength(1))),
+  sse: node(av.bool().default(false))
+};
+portable("RouteUrlOptionsSchema", objectNode(urlFields, "reject"));
+portable("RouteUiOptionsSchema", objectNode({ ...urlFields, method: { ...sourceNode("HttpMethodSchema"), default: "GET" },
+  target: node(av.optional(av.string())), swap: node(av.optional(av.string())), push: node(av.optional(av.union([av.string(), av.bool()]))) }, "reject"));
+portable("BPElementReferenceSchema", objectNode({ service: node(av.string().minLength(1)), path: node(av.optional(av.string())), fragment: node(av.string()),
+  args: node(av.object({ params: av.record(scalar).default({}), query: av.record(av.nullable(scalar)).default({}) }).default({})) }, "reject"));
+portable("ResolvedBPElementReferenceSchema", objectNode({ url: node(av.optional(av.string())), serviceId: node(av.optional(av.string())), unavailable: node(av.optional(av.string())) }, "reject"));
+
 for (const [name, content] of [...names].sort(([a], [b]) => a.localeCompare(b))) {
   const target = new URL(`${name}.json`, output);
   if (check) {

@@ -656,5 +656,32 @@
       "unexpected": true
     },
     "valid": false
+  },
+  {
+    "id": "route-url-defaults",
+    "contract": "RouteUrlOptionsSchema",
+    "input": {},
+    "output": {
+      "params": {},
+      "query": {},
+      "absolute": false,
+      "sse": false
+    }
+  },
+  {
+    "id": "element-args-defaults",
+    "contract": "BPElementReferenceSchema",
+    "input": {
+      "service": "shell",
+      "fragment": "branding"
+    },
+    "output": {
+      "service": "shell",
+      "fragment": "branding",
+      "args": {
+        "params": {},
+        "query": {}
+      }
+    }
   }
 ]

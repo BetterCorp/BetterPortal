@@ -8,6 +8,7 @@ import { resolveRequestContextDetailed, buildOriginPolicy } from "../nodejs/lib/
 import { verifyJwt } from "../nodejs/lib/runtime/auth/tokens.js";
 import { getSigningKeyForKid, clearJwksCache } from "../nodejs/lib/runtime/auth/jwks.js";
 import { registryRequest, rendererSets } from "./node-registry.mjs";
+import { urlCalls } from "./node-urls.mjs";
 
 export async function hostingRequest(body) {
   clearJwksCache();
@@ -31,6 +32,7 @@ export async function hostingRequest(body) {
         if (spec.status !== undefined) context.setStatus(spec.status);
         for (const [key, value] of spec.responseHeaders ?? []) context.responseHeaders.append(key, value);
         if (spec.throw) throw new Error("private-password-must-not-leak");
+        if (spec.urlCalls) return urlCalls(context, spec.urlCalls);
         if (Object.hasOwn(spec, "result")) return spec.result;
         if (spec.raw) {
           const raw = spec.raw;
@@ -58,7 +60,7 @@ export async function hostingRequest(body) {
       methods: [...new Set(routes.flatMap(route => route.methods)), "OPTIONS"], allowHeaders: ["Accept", "Content-Type", "Authorization"],
       preflight: { statusCode: 204 } }) || undefined;
   });
-  createH3Router({ routes }, app, { resolveContext: resolve, resolveAuth: event => {
+  createH3Router({ routes, dependencies: body.dependencies ?? {} }, app, { serviceId: snapshot.serviceIdentity?.id ?? body.declaration.pluginId, resolveContext: resolve, resolveAuth: event => {
     const context = resolve(event); const auth = context?.app.auth;
     if (!context || !auth) return undefined;
     return { tenantId: context.tenant.id, appId: context.app.id, appAuthConfig: auth,

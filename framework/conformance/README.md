@@ -8,8 +8,8 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [976/984 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 30 semantic cases and imports all 134 documents, then repeats
+Published AnyVali **1.1.1** passes [1,012/1,020 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 32 semantic cases and imports all 138 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -149,8 +149,19 @@ selected fragment/component, and async renderer cancellation. Five portable AnyV
 documents define author declarations and presentation/error data; native types
 derive from them. Compiler checks reject private context fields and non-HTML
 results. The [Python 3.13 rendering gate](results-rendering-python313.json) runs the
-same cases. URL/element helpers, browser resources, global status renderers and
+same cases. Browser resources, global status renderers and
 stream HTML remain delivery work.
+
+The [URL suite](results-urls.json) passes 232 checks, also exercised on
+[Python 3.13](results-urls-python313.json). Handler/renderer calls use real hosts
+for local/optional service routes, app GET-page navigation, aliases, exact service
+instances, fixed params, query/Unicode encoding, origin selection, HTMX attributes,
+shell/service elements and route-token rewriting. Native guards reject ambiguous
+or unsafe destinations and preserve the app origin in error callbacks. Invalid
+service URL cases verify rejection either by AnyVali at snapshot import or by the
+helper when the SDK accepts the address. Four portable contracts define the URL
+options and element interfaces. C# generation supports direct primitive values in
+union wrappers; AnyVali still performs all schema validation.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -180,8 +191,8 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,331/3,340
-checks across sixteen suites. Failures are those original SDK probes plus the
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,599/3,608
+checks across seventeen suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.
 
@@ -209,6 +220,7 @@ python framework/conformance/verify.py --suite access
 python framework/conformance/verify.py --suite hosting
 python framework/conformance/verify.py --suite raw
 python framework/conformance/verify.py --suite rendering
+python framework/conformance/verify.py --suite urls
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -219,7 +231,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.

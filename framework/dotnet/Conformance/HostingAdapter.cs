@@ -27,6 +27,7 @@ internal static class HostingAdapter
                     if (spec.TryGetValue("status", out var statusCode)) context.Response.Status = Convert.ToInt32(statusCode);
                     foreach (var header in ((List<object?>)spec.GetValueOrDefault("responseHeaders", new List<object?>())!).Cast<List<object?>>()) context.Response.SetHeader((string)header[0]!, (string)header[1]!, append: true);
                     if (spec.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-password-must-not-leak");
+                    if (spec.GetValueOrDefault("urlCalls") is List<object?> calls) return UrlCalls(context.Urls, calls);
                     if (spec.GetValueOrDefault("wait") is true)
                     {
                         started.TrySetResult();
@@ -69,7 +70,7 @@ internal static class HostingAdapter
                                 }
                                 if (item.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-render-secret");
                                 if (item.TryGetValue("text", out var text)) return (string)text!;
-                                return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(new { data, context = context.Data })) + "</pre>";
+                                return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(item.GetValueOrDefault("urlCalls") is List<object?> calls ? UrlCalls(context.Urls, calls) : new { data, context = context.Data })) + "</pre>";
                             })));
                 return new Operation(handler, Contracts.Parse<BetterPortal.Generated.OperationDeclarationInput>("OperationDeclarationSchema", spec["declaration"]),
                     ((List<object?>)spec.GetValueOrDefault("errorRenderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<BetterPortal.Generated.ViewRenderError>(
@@ -83,9 +84,10 @@ internal static class HostingAdapter
                             }
                             if (item.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-render-secret");
                             if (item.TryGetValue("text", out var text)) return (string)text!;
-                            return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(new { data, context = context.Data })) + "</pre>";
+                            return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(item.GetValueOrDefault("urlCalls") is List<object?> calls ? UrlCalls(context.Urls, calls) : new { data, context = context.Data })) + "</pre>";
                         })));
-            }), ((List<object?>)item.GetValueOrDefault("pathVariants", new List<object?>())!).Cast<string>())));
+            }), ((List<object?>)item.GetValueOrDefault("pathVariants", new List<object?>())!).Cast<string>())),
+            ((Node)body.GetValueOrDefault("dependencies", new Node())!).ToDictionary(pair => pair.Key, pair => (string)pair.Value!));
         await using var service = new Service(registry, Contracts.Parse<BetterPortal.Generated.ManifestDeclarationInput>("ManifestDeclarationSchema", body["declaration"]),
             body.GetValueOrDefault("snapshot") is { } snapshot ? new ScopedConfig(snapshot) : null);
         if (body.GetValueOrDefault("closed") is true) await service.DisposeAsync();
@@ -148,6 +150,28 @@ internal static class HostingAdapter
         }
         finally { releaseWrite.TrySetResult(); await host.StopAsync(); }
     }
+    private static object?[] UrlCalls(Urls urls, List<object?> calls) => calls.Cast<Node>().Select(call =>
+    {
+        try
+        {
+            var options = call.GetValueOrDefault("options", new Node());
+            BetterPortal.Generated.RouteUrlOptionsInput UrlOptions() => Contracts.Parse<BetterPortal.Generated.RouteUrlOptionsInput>("RouteUrlOptionsSchema", options);
+            BetterPortal.Generated.RouteUiOptionsInput UiOptions() => Contracts.Parse<BetterPortal.Generated.RouteUiOptionsInput>("RouteUiOptionsSchema", options);
+            return (string)call["kind"]! switch
+            {
+                "route" => urls.Route((string)call["viewId"]!, UrlOptions()),
+                "uiRoute" => urls.UiRoute((string)call["viewId"]!, UrlOptions()),
+                "path" => Urls.Path((string)call["path"]!, UrlOptions()),
+                "current" => urls.Current(UrlOptions()),
+                "currentUi" => (object)urls.CurrentUi(UiOptions()),
+                "link" => Urls.Link((string)call["url"]!, UiOptions()),
+                "form" => Urls.Form((string)call["url"]!, UiOptions()),
+                "element" => urls.Element(Contracts.Parse<BetterPortal.Generated.BPElementReferenceInput>("BPElementReferenceSchema", call["reference"])),
+                _ => throw new ArgumentException("Unknown URL fixture call")
+            };
+        }
+        catch (Exception error) when (error is ArgumentException or AnyVali.ValidationError) { return new { invalid = true }; }
+    }).ToArray();
     private sealed class GatedOutput(Stream destination, TaskCompletionSource first, TaskCompletionSource release) : MemoryStream
     {
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)

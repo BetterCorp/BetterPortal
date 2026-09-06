@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: d749edff33f493708e6f3475f9070eb0b6eb44d30ce3871e20398101a1e84549
+// Generated from AnyVali documents; do not edit. SHA256: c746e5bdeb585f71848180657eb60a65a9cc19f60ca3ddf190432b204d7f04c0
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -578,6 +578,51 @@ public enum AuthressProviderConfigKind
 {
     [JsonStringEnumMemberName("authress.io")]
     AuthressIo,
+}
+
+public sealed record BPElementReference
+{
+    [JsonPropertyName("service")]
+    public required string Service { get; init; }
+    [JsonPropertyName("path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Path { get; init; }
+    [JsonPropertyName("fragment")]
+    public required string Fragment { get; init; }
+    [JsonPropertyName("args")]
+    public required BPElementReferenceArgs Args { get; init; }
+}
+
+public sealed record BPElementReferenceArgs
+{
+    [JsonPropertyName("params")]
+    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue> Params { get; init; }
+    [JsonPropertyName("query")]
+    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Query { get; init; }
+}
+
+public sealed record BPElementReferenceInput
+{
+    [JsonPropertyName("service")]
+    public required string Service { get; init; }
+    [JsonPropertyName("path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Path { get; init; }
+    [JsonPropertyName("fragment")]
+    public required string Fragment { get; init; }
+    [JsonPropertyName("args")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<BPElementReferenceInputArgs> Args { get; init; }
+}
+
+public sealed record BPElementReferenceInputArgs
+{
+    [JsonPropertyName("params")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput>> Params { get; init; }
+    [JsonPropertyName("query")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Query { get; init; }
 }
 
 public sealed record BetterPortalApp
@@ -3281,6 +3326,9 @@ public readonly record struct BetterPortalRouteChromeValue(Variant<string, Varia
     public static BetterPortalRouteChromeValue FromValue(Variant<string, Variant<double, bool>> value) => new(value);
     public static implicit operator BetterPortalRouteChromeValue(Variant<string, Variant<double, bool>> value) => new(value);
     public static implicit operator Variant<string, Variant<double, bool>>(BetterPortalRouteChromeValue value) => value.Value;
+    public static implicit operator BetterPortalRouteChromeValue(string value) => new(new Variant<string, Variant<double, bool>>(value));
+    public static implicit operator BetterPortalRouteChromeValue(double value) => new(new Variant<string, Variant<double, bool>>(new Variant<double, bool>(value)));
+    public static implicit operator BetterPortalRouteChromeValue(bool value) => new(new Variant<string, Variant<double, bool>>(new Variant<double, bool>(value)));
 }
 
 [JsonConverter(typeof(WireValueConverterFactory))]
@@ -3289,6 +3337,9 @@ public readonly record struct BetterPortalRouteChromeValueInput(Variant<string, 
     public static BetterPortalRouteChromeValueInput FromValue(Variant<string, Variant<double, bool>> value) => new(value);
     public static implicit operator BetterPortalRouteChromeValueInput(Variant<string, Variant<double, bool>> value) => new(value);
     public static implicit operator Variant<string, Variant<double, bool>>(BetterPortalRouteChromeValueInput value) => value.Value;
+    public static implicit operator BetterPortalRouteChromeValueInput(string value) => new(new Variant<string, Variant<double, bool>>(value));
+    public static implicit operator BetterPortalRouteChromeValueInput(double value) => new(new Variant<string, Variant<double, bool>>(new Variant<double, bool>(value)));
+    public static implicit operator BetterPortalRouteChromeValueInput(bool value) => new(new Variant<string, Variant<double, bool>>(new Variant<double, bool>(value)));
 }
 
 public sealed record BetterPortalRouteMount
@@ -5666,6 +5717,9 @@ public readonly record struct ObservabilityValue(Variant<string, Variant<double,
     public static ObservabilityValue FromValue(Variant<string, Variant<double, bool>> value) => new(value);
     public static implicit operator ObservabilityValue(Variant<string, Variant<double, bool>> value) => new(value);
     public static implicit operator Variant<string, Variant<double, bool>>(ObservabilityValue value) => value.Value;
+    public static implicit operator ObservabilityValue(string value) => new(new Variant<string, Variant<double, bool>>(value));
+    public static implicit operator ObservabilityValue(double value) => new(new Variant<string, Variant<double, bool>>(new Variant<double, bool>(value)));
+    public static implicit operator ObservabilityValue(bool value) => new(new Variant<string, Variant<double, bool>>(new Variant<double, bool>(value)));
 }
 
 [JsonConverter(typeof(WireValueConverterFactory))]
@@ -5674,6 +5728,9 @@ public readonly record struct ObservabilityValueInput(Variant<string, Variant<do
     public static ObservabilityValueInput FromValue(Variant<string, Variant<double, bool>> value) => new(value);
     public static implicit operator ObservabilityValueInput(Variant<string, Variant<double, bool>> value) => new(value);
     public static implicit operator Variant<string, Variant<double, bool>>(ObservabilityValueInput value) => value.Value;
+    public static implicit operator ObservabilityValueInput(string value) => new(new Variant<string, Variant<double, bool>>(value));
+    public static implicit operator ObservabilityValueInput(double value) => new(new Variant<string, Variant<double, bool>>(new Variant<double, bool>(value)));
+    public static implicit operator ObservabilityValueInput(bool value) => new(new Variant<string, Variant<double, bool>>(new Variant<double, bool>(value)));
 }
 
 public sealed record OperationDeclaration
@@ -6370,6 +6427,193 @@ public enum RendererDeclarationKind
     Fragment,
     [JsonStringEnumMemberName("component")]
     Component,
+}
+
+public sealed record ResolvedBPElementReference
+{
+    [JsonPropertyName("url")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Url { get; init; }
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
+    [JsonPropertyName("unavailable")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Unavailable { get; init; }
+}
+
+public sealed record ResolvedBPElementReferenceInput
+{
+    [JsonPropertyName("url")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Url { get; init; }
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
+    [JsonPropertyName("unavailable")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Unavailable { get; init; }
+}
+
+public sealed record RouteUiOptions
+{
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
+    [JsonPropertyName("params")]
+    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Params { get; init; }
+    [JsonPropertyName("query")]
+    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Query { get; init; }
+    [JsonPropertyName("absolute")]
+    public required bool Absolute { get; init; }
+    [JsonPropertyName("origin")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Origin { get; init; }
+    [JsonPropertyName("component")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Component { get; init; }
+    [JsonPropertyName("fragment")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Fragment { get; init; }
+    [JsonPropertyName("sse")]
+    public required bool Sse { get; init; }
+    [JsonPropertyName("method")]
+    public required RouteUiOptionsMethod Method { get; init; }
+    [JsonPropertyName("target")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Target { get; init; }
+    [JsonPropertyName("swap")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Swap { get; init; }
+    [JsonPropertyName("push")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<Variant<string, bool>> Push { get; init; }
+}
+
+public sealed record RouteUiOptionsInput
+{
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
+    [JsonPropertyName("params")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Params { get; init; }
+    [JsonPropertyName("query")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Query { get; init; }
+    [JsonPropertyName("absolute")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Absolute { get; init; }
+    [JsonPropertyName("origin")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Origin { get; init; }
+    [JsonPropertyName("component")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Component { get; init; }
+    [JsonPropertyName("fragment")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Fragment { get; init; }
+    [JsonPropertyName("sse")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Sse { get; init; }
+    [JsonPropertyName("method")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<RouteUiOptionsInputMethod> Method { get; init; }
+    [JsonPropertyName("target")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Target { get; init; }
+    [JsonPropertyName("swap")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Swap { get; init; }
+    [JsonPropertyName("push")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<Variant<string, bool>> Push { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<RouteUiOptionsInputMethod>))]
+public enum RouteUiOptionsInputMethod
+{
+    [JsonStringEnumMemberName("GET")]
+    GET,
+    [JsonStringEnumMemberName("POST")]
+    POST,
+    [JsonStringEnumMemberName("PUT")]
+    PUT,
+    [JsonStringEnumMemberName("PATCH")]
+    PATCH,
+    [JsonStringEnumMemberName("DELETE")]
+    DELETE,
+    [JsonStringEnumMemberName("OPTIONS")]
+    OPTIONS,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<RouteUiOptionsMethod>))]
+public enum RouteUiOptionsMethod
+{
+    [JsonStringEnumMemberName("GET")]
+    GET,
+    [JsonStringEnumMemberName("POST")]
+    POST,
+    [JsonStringEnumMemberName("PUT")]
+    PUT,
+    [JsonStringEnumMemberName("PATCH")]
+    PATCH,
+    [JsonStringEnumMemberName("DELETE")]
+    DELETE,
+    [JsonStringEnumMemberName("OPTIONS")]
+    OPTIONS,
+}
+
+public sealed record RouteUrlOptions
+{
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
+    [JsonPropertyName("params")]
+    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Params { get; init; }
+    [JsonPropertyName("query")]
+    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Query { get; init; }
+    [JsonPropertyName("absolute")]
+    public required bool Absolute { get; init; }
+    [JsonPropertyName("origin")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Origin { get; init; }
+    [JsonPropertyName("component")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Component { get; init; }
+    [JsonPropertyName("fragment")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Fragment { get; init; }
+    [JsonPropertyName("sse")]
+    public required bool Sse { get; init; }
+}
+
+public sealed record RouteUrlOptionsInput
+{
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ServiceId { get; init; }
+    [JsonPropertyName("params")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Params { get; init; }
+    [JsonPropertyName("query")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Query { get; init; }
+    [JsonPropertyName("absolute")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Absolute { get; init; }
+    [JsonPropertyName("origin")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Origin { get; init; }
+    [JsonPropertyName("component")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Component { get; init; }
+    [JsonPropertyName("fragment")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Fragment { get; init; }
+    [JsonPropertyName("sse")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Sse { get; init; }
 }
 
 public sealed record RsaPublicJwk
