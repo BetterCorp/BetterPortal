@@ -27,10 +27,14 @@ internal static class KeyAdapter
                 {
                     using var cancellation = new CancellationTokenSource();
                     var task = client.ResolveAsync(kid, cancellation.Token);
-                    await Task.Delay(25);
+                    using var control = new HttpClient(new SocketsHttpHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(4) };
+                    using var started = await control.GetAsync((string)body["uri"]! + "/control/started");
+                    started.EnsureSuccessStatusCode();
                     if (step.GetValueOrDefault("cancel") is true) await cancellation.CancelAsync();
                     else if (step.GetValueOrDefault("close") is true) await client.DisposeAsync();
                     else client.Invalidate();
+                    using var released = await control.GetAsync((string)body["uri"]! + "/control/release");
+                    released.EnsureSuccessStatusCode();
                     pem = await task;
                 }
                 else

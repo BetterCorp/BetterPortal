@@ -14,8 +14,8 @@ are separate from runtime app lookup.
 Raw proxy and HTMX context headers are ignored. `resolve(..., trusted_addresses=...)`
 accepts only addresses already verified by host proxy middleware; the host also
 supplies the effective scheme. `OriginPolicy` normalizes configured HTTP origins
-and preserves exact path/query restrictions on referer overrides. CORS preflights
-and atomic persistent replacement are not implemented yet.
+and preserves exact path/query restrictions on referer overrides. Atomic
+persistent replacement and host proxy middleware remain pending.
 
 **Snapshot validation is blocked by [AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127):**
 Python 1.1.1 accepts `active: null` as the default `true`. The conformance test
@@ -28,6 +28,23 @@ from betterportal.context import ScopedConfig, http_origin
 assert http_origin("HTTPS://Example.com:443") == "https://example.com"
 snapshot = ScopedConfig({"managementOrigins": [], "tenants": [], "apps": []})
 assert snapshot.resolve({"host": "unknown.example"}) is None
+```
+
+`betterportal.cors.Cors` produces response/preflight headers from a trusted
+`OriginPolicy` and the route's allowed methods. Hosts call `preflight` before
+authentication/dispatch, returning empty 204 on success or 403 for `CorsDenied`.
+Allowed origins can request custom operation headers; their values still pass
+through operation schemas. The policy exposes BP/HTMX response headers, uses a
+600-second preflight cache and includes Vary fields. Hosts merge Vary with their
+existing Accept/cache policy. No credential-cookie CORS flag is emitted.
+
+```python
+from betterportal.context import OriginPolicy
+from betterportal.cors import Cors
+
+policy = OriginPolicy(frozenset(["https://app.example"]), frozenset(["https://app.example"]))
+headers = Cors(policy, ["GET"]).preflight("https://app.example", "GET", "Authorization, X-App-Filter")
+assert headers["access-control-allow-origin"] == "https://app.example"
 ```
 
 `betterportal.sse.SseRoute` validates publication input, maps it with subscriber

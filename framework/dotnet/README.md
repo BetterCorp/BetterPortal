@@ -13,7 +13,7 @@ Config-management app indexes do not become runtime app lookups.
 Raw proxy and HTMX context headers are ignored. `Resolve(..., trustedAddresses: ...)`
 accepts addresses already verified by host proxy middleware; the host supplies
 the effective scheme. `OriginPolicy` normalizes HTTP origins and preserves exact
-path/query restrictions on referer overrides. CORS preflights, full policy
+path/query restrictions on referer overrides. Host proxy middleware, full policy
 reference validation and atomic persistent replacement remain pending. The shared
 context gate exposes Python's [AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127)
 null/default defect; .NET rejects the corresponding invalid snapshot.
@@ -25,6 +25,23 @@ if (HttpAddress.Origin("HTTPS://Example.com:443") != "https://example.com") thro
 var snapshot = new ScopedConfig(new Dictionary<string, object?> { ["managementOrigins"] = Array.Empty<object>(),
     ["tenants"] = Array.Empty<object>(), ["apps"] = Array.Empty<object>() });
 if (snapshot.Resolve(new Dictionary<string, string> { ["host"] = "unknown.example" }) is not null) throw new Exception("Unexpected scope");
+```
+
+`Cors` builds response/preflight headers from a trusted `OriginPolicy` and the
+route's allowed methods. Hosts call `Preflight` before authentication/dispatch
+and return empty 204 on success or 403 for `CorsDeniedException`. Custom operation
+headers are allowed from trusted origins; operation schemas validate their
+values. BP/HTMX response headers are exposed, preflight caching lasts 600 seconds,
+and Vary includes the relevant request fields. Hosts merge Vary with existing
+Accept/cache policy. No credential-cookie CORS flag is emitted.
+
+```csharp
+using System.Collections.Frozen;
+using BetterPortal;
+
+var origins = new[] { "https://app.example" }.ToFrozenSet(StringComparer.Ordinal);
+var headers = new Cors(new OriginPolicy(origins, origins), ["GET"]).Preflight("https://app.example", "GET", "Authorization, X-App-Filter");
+if (headers["access-control-allow-origin"] != "https://app.example") throw new Exception("Wrong origin");
 ```
 
 `SseRoute<TInput, TEvent, TContext>` validates publication input and mapped events.

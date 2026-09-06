@@ -9,6 +9,26 @@ if (args.Contains("--types", StringComparer.Ordinal))
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
+var corsOrigins = System.Collections.Frozen.FrozenSet.ToFrozenSet(new[] { "https://app.test" }, StringComparer.Ordinal);
+var cors = new Cors(new OriginPolicy(corsOrigins, corsOrigins), ["GET"]);
+app.MapMethods("/cors", ["GET", "OPTIONS"], (HttpContext context) =>
+{
+    string? Header(string name) => context.Request.Headers.TryGetValue(name, out var value) ? value.ToString() : null;
+    var preflight = context.Request.Method == "OPTIONS";
+    try
+    {
+        var headers = preflight ? cors.Preflight(Header("origin"), Header("access-control-request-method"), Header("access-control-request-headers")) : cors.Headers(Header("origin"));
+        foreach (var (name, value) in headers) context.Response.Headers[name] = value;
+        if (preflight) return Results.StatusCode(204);
+        context.Response.Headers["x-test-handler"] = "ran";
+        return Results.Json(new { handled = true });
+    }
+    catch (CorsDeniedException)
+    {
+        context.Response.Headers.Vary = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers";
+        return Results.StatusCode(403);
+    }
+});
 app.MapPost("/", async (HttpRequest request) =>
 {
     if (request.HttpContext.Connection.RemoteIpAddress is not { } remote || !System.Net.IPAddress.IsLoopback(remote))
@@ -17,6 +37,7 @@ app.MapPost("/", async (HttpRequest request) =>
     {
         using var reader = new StreamReader(request.Body);
         var body = (Dictionary<string, object?>)Json.Read(await reader.ReadToEndAsync())!;
+        if (body.GetValueOrDefault("action") is "runtime") return Results.Json(new { runtime = "dotnet" });
         if (body.GetValueOrDefault("action") is "context" or "http-origin") return Results.Json(ContextAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "sse-probe") return Results.Json(await SseAdapter.Probe());
         if (body.GetValueOrDefault("action") is "stream-probe") return Results.Json(await StreamAdapter.Probe());

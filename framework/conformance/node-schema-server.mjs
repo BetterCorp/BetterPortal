@@ -10,12 +10,24 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { sseProbe } from "./node-sse.mjs";
 import { contextRequest } from "./node-context.mjs";
+import { corsRequest } from "./node-cors.mjs";
 
 createServer(async (request, response) => {
   try {
+    if (request.url === "/cors") {
+      const result = await corsRequest(new Request("http://service.test/cors", { method: request.method, headers: request.headers }));
+      response.writeHead(result.status, Object.fromEntries(result.headers));
+      response.end(await result.text());
+      return;
+    }
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action === "runtime") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ runtime: "node" }));
+      return;
+    }
     if (body.action === "context") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(contextRequest(body)));

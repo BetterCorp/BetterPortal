@@ -10,18 +10,31 @@ from security_cases import post, ISSUER
 
 @contextmanager
 def peer():
-    routes, counts = {}, {}
+    routes, counts, barriers = {}, {}, {}
     lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
+            path, _, command = self.path.partition("/control/")
+            if command:
+                started, release = barriers[path]
+                ready = started.wait(3) if command == "started" else True
+                if command == "release":
+                    release.set()
+                self.send_response(200 if ready else 504)
+                self.end_headers()
+                return
             with lock:
                 index = counts.get(self.path, 0)
                 counts[self.path] = index + 1
                 choices = routes.get(self.path, [{"status": 404}])
                 reply = choices[min(index, len(choices) - 1)]
             try:
-                time.sleep(reply.get("delay", 0))
+                if reply.get("barrier"):
+                    started, release = barriers[self.path]
+                    started.set()
+                    if not release.wait(3):
+                        raise TimeoutError("JWKS test barrier was not released")
                 self.send_response(reply.get("status", 200))
                 self.send_header("Content-Type", reply.get("type", "application/jwk-set+json"))
                 if "location" in reply:
@@ -44,7 +57,7 @@ def peer():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_port}", routes, counts
+        yield f"http://127.0.0.1:{server.server_port}", routes, counts, barriers
     finally:
         server.shutdown()
         server.server_close()
@@ -69,11 +82,13 @@ def run_keys(urls, labels):
     def pem(value):
         return "".join(value.split())
 
-    with peer() as (base, routes, counts):
+    with peer() as (base, routes, counts, barriers):
         for url, label in zip(urls, labels):
             def scenario(name, replies, steps, expected, request_count):
                 path = "/" + label + "/" + name
                 routes[path] = replies
+                if any(reply.get("barrier") for reply in replies):
+                    barriers[path] = (threading.Event(), threading.Event())
                 actual = post(url, {"action": "keys-probe", "issuer": ISSUER, "uri": base + path, "steps": steps})["results"]
                 assert len(actual) == len(expected), actual
                 for value, target in zip(actual, expected):
@@ -133,11 +148,11 @@ def run_keys(urls, labels):
             duplicate_json = json.dumps(good["body"])[:-1] + ',"keys":' + json.dumps([first["jwk"]]) + "}"
             check(label, "jwks-duplicate-json", lambda: scenario("duplicate-json", [{"raw": duplicate_json.encode()}],
                 [{"kid": first["kid"]}], [{"valid": False}], 1))
-            check(label, "jwks-waiter-cancellation", lambda: scenario("cancel", [{**good, "delay": 0.25}],
+            check(label, "jwks-waiter-cancellation", lambda: scenario("cancel", [{**good, "barrier": True}],
                 [{"kid": first["kid"], "cancel": True}, {"kid": first["kid"]}], [{"cancelled": True}, first["publicKeyPem"]], 1))
-            check(label, "jwks-shutdown-cancellation", lambda: scenario("close", [{**good, "delay": 0.25}],
+            check(label, "jwks-shutdown-cancellation", lambda: scenario("close", [{**good, "barrier": True}],
                 [{"kid": first["kid"], "close": True}], [{"cancelled": True}], 1))
-            check(label, "jwks-invalidate-inflight", lambda: scenario("inflight", [{**good, "delay": 0.25}, {"body": {"keys": [second["jwk"]]}}],
+            check(label, "jwks-invalidate-inflight", lambda: scenario("inflight", [{**good, "barrier": True}, {"body": {"keys": [second["jwk"]]}}],
                 [{"kid": first["kid"], "invalidateDuring": True}, {"kid": second["kid"]}], [{"valid": False}, second["publicKeyPem"]], 2))
             def deadline_case():
                 start = time.monotonic()

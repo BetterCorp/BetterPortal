@@ -69,8 +69,15 @@ identities, configuration-only app separation, origin/referer restrictions and
 snapshot-copy ownership. Its Python `null-active-rejected` scenario remains
 failing: AnyVali #127 turns an explicit null tenant flag into `true`. This is the
 same upstream default defect at a security boundary; the prototype is not safe
-to deploy until it is fixed. CORS preflights, full policy reference validation,
+to deploy until it is fixed. Full policy reference validation,
 atomic storage and actual proxy middleware remain delivery work.
+
+The [CORS suite](results-cors.json) passes 33 checks over actual OPTIONS/GET
+responses: preflight without bearer validation or handler execution, required and
+custom headers, origin reflection, native origin/method denial, malformed/bounded
+header lists and Vary. Node shared cases call the framework's existing H3 helper;
+native-only denial checks exercise policy currently owned by BSB. Full operation
+hosting and protected-route integration remain pending.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -100,8 +107,8 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,380/2,389
-checks across nine suites. Failures are those original SDK probes plus the
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,413/2,422
+checks across ten suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.
 
@@ -122,6 +129,7 @@ python framework/conformance/verify.py --suite media
 python framework/conformance/verify.py --suite streams
 python framework/conformance/verify.py --suite sse
 python framework/conformance/verify.py --suite context
+python framework/conformance/verify.py --suite cors
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -132,7 +140,10 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|all` (default: all).
+Runtime identities are discovered from the test adapters when `--labels` is
+omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
+unlabelled Node adapters from accidentally running native-only API checks.
 
 The HTTP runner can also target independently launched adapters:
 

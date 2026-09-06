@@ -16,12 +16,25 @@ from python_stream import streaming, probe as stream_probe
 import asyncio
 from python_sse import probe as sse_probe
 from python_context import context_request
+from python_cors import handle as cors_request
 
 
 class Handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        cors_request(self)
+
+    def do_GET(self):
+        cors_request(self)
+
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if body.get("action") == "runtime":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"runtime":"python"}')
+                return
             if body.get("action") in ("context", "http-origin"):
                 payload = context_request(body)
                 self.send_response(200)
