@@ -459,7 +459,7 @@ Handlers receive stored settings plus native defaults and preview overrides.
 Preview values validate before snapshot publication and never overwrite the settings
 file. Missing required effective values return 503 on operations while the config
 API remains available to supply them. Public health reflects initialized state and
-managed manifest acknowledgment. Provisioning and protected key storage remain work.
+managed manifest acknowledgment. HTTP provisioning remains work; protected key storage is described below.
 
 `dev_token` is accepted only when explicitly supplied and
 `BP_ALLOW_DEV_CONFIG_TOKEN=true` at construction. It requires an explicit tenant
@@ -537,7 +537,43 @@ cancels pending requests/retries and clears managed readiness. `sync.status` ret
 safe counters/error codes; protect any endpoint exposing them. `sync.submission()`
 returns the portable typed manifest projection. Optional `key_pair` registers a
 previously persisted RSA public key, and `auth_provider` advertises issuer metadata.
-Provisioning/install tickets and protected key persistence remain separate work.
+Provisioning/install ticket hosting remains separate work.
+
+`BootstrapStateStore` protects provisioned credentials and a persistent RSA signing
+identity with the Node-compatible authenticated bootstrap envelope. Supply its
+master key from a protected host secret. Generate that key once with
+`BootstrapCipher.generate_key()` and retain it separately; generating a new master
+key on every startup makes existing state unreadable.
+
+```python
+import asyncio
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from betterportal.bootstrap import BootstrapCipher, BootstrapStateStore
+from betterportal.storage import FileStateStore
+
+async def bootstrap_example():
+    with TemporaryDirectory() as directory:
+        master_key = BootstrapCipher.generate_key()  # Example only: retain securely in production.
+        file = FileStateStore(Path(directory) / "bootstrap.json")
+        state = BootstrapStateStore(file, master_key)
+        await state.write({"cpUrl": "https://cp.example", "apiKey": "bp_sk_t_example"})
+        identity = await state.identity()
+        restarted = BootstrapStateStore(file, master_key)
+        assert (await restarted.identity()).kid == identity.kid
+        assert (await restarted.read(redacted=True))["apiKey"] == "__redacted__"
+
+asyncio.run(bootstrap_example())
+```
+
+`write` atomically merges a validated patch; `read` returns owned state. `identity`
+loads or atomically creates one RSA key inside that encrypted state. `clear`
+explicitly removes both credentials and identity. Corrupt files, invalid master
+keys and mismatched public/private keys fail without replacement. Keep one owner
+per store; use a transactional implementation for shared storage. No plaintext
+cache or background tasks are retained. Caller cancellation propagates before
+commit. Pass the returned identity to `ControlPlaneSync(key_pair=...)` or
+`TokenIssuer`; HTTP installation binding remains pending.
 
 ```sh
 python -m pip install -r framework/conformance/requirements.txt
@@ -582,7 +618,7 @@ pair = issuer.issue_pair({
 ```
 
 Use persistent signing material for a real issuer; this example generates an
-ephemeral key. Key persistence is not provided yet.
+ephemeral key. Use `BootstrapStateStore.identity()` for persistent signing material.
 `verify_token` requires an explicit purpose, trusted key resolver, issuer and
 audience (setup tokens have no audience). Setup claims still need binding to the
 intended installation; accepting a valid signature alone is insufficient.

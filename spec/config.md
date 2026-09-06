@@ -89,6 +89,37 @@ independently of their HTTP hosts and are tested against the existing Node CP.
 Public health is only ok=true at 200 or ok=false at 503; authorized diagnostics
 are a separate representation. See [protocol.md](protocol.md).
 
+### 2.1 Protected bootstrap state and signing identity
+
+`BootstrapStateSchema` exports the BSB bootstrap file's `version: 1`, optional
+`apiKey`, `cpUrl`, `cpId`, `cpJwksUri`, `configEncryptionKey`, `tenantLock`, and
+`installedAt`. Native runtimes add optional `identity`, using the existing Node
+RSA key-pair fields `privateKeyPem`, `publicKeyPem`, and `kid`. This keeps private
+signing material inside the authenticated file. Existing Node bootstrap stores
+preserve that extension, but Node's S2S loader still uses its separate key file.
+
+The envelope remains `{v:1, iv, tag, ct}` with standard canonical Base64 fields,
+12-byte IV, 16-byte authentication tag, AES-256-GCM and no AAD. Derive the 32-byte
+key with scrypt over the complete UTF-8 master-key string, salt
+`bp-bootstrap-state-v1`, N=16384, r=8, p=1. Native master keys require `bp_bsk_`
+followed by unpadded Base64url encoding of 32 random bytes. The host supplies and
+protects this key separately from the encrypted state; native runtimes do not
+silently create or replace a lost master key.
+
+Native stores validate the complete state and matching RSA keys before use,
+reject plaintext fallbacks, duplicate JSON keys and noncanonical encodings,
+and bound plaintext/ciphertext to 1 MiB. Each operation reads the current file;
+patches and identity creation serialize through one owner and commit atomically
+through `StateStore`. Failed or cancelled saves preserve prior bytes. A successful
+commit wins over later cancellation. `clear` explicitly removes credentials and
+identity; ordinary startup must never clear invalid state or silently rotate keys.
+Redacted reads use native AnyVali sensitive traversal. Public diagnostics must
+never expose the unredacted state.
+
+These persistence APIs are independent of HTTP installation. Installation still
+needs pinned CP trust, signed target/service binding, redemption and manifest
+synchronization before readiness; persistence alone does not authorize setup.
+
 ## 3. Per-service settings API
 
 GET /.well-known/bp/config/schema is public and returns serviceId, configSchemas,

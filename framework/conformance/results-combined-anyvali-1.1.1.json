@@ -1,9 +1,34 @@
 {
-  "scenarios": 4286,
-  "passed": 4258,
+  "scenarios": 4481,
+  "passed": 4453,
   "results": [
     {
       "runtime": "node",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-sensitive-fields",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "auth-defaults",
       "passed": true
     },
@@ -433,6 +458,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-BPElementReferenceSchema",
       "passed": true
     },
@@ -808,6 +843,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-StreamEndFrameSchema",
       "passed": true
     },
@@ -924,6 +964,31 @@
     {
       "runtime": "node",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-sensitive-fields-roundtrip",
       "passed": true
     },
     {
@@ -1357,6 +1422,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
@@ -1732,6 +1807,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-SigningKeyPairSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-StreamEndFrameSchema-roundtrip",
       "passed": true
     },
@@ -1848,6 +1928,31 @@
     {
       "runtime": "node",
       "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-sensitive-fields",
       "passed": true
     },
     {
@@ -2282,6 +2387,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-BPElementReferenceSchema",
       "passed": true
     },
@@ -2657,6 +2772,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-StreamEndFrameSchema",
       "passed": true
     },
@@ -2773,6 +2893,31 @@
     {
       "runtime": "python",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-sensitive-fields-roundtrip",
       "passed": true
     },
     {
@@ -3207,6 +3352,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
@@ -3582,6 +3737,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-SigningKeyPairSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-StreamEndFrameSchema-roundtrip",
       "passed": true
     },
@@ -3698,6 +3858,31 @@
     {
       "runtime": "python",
       "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-sensitive-fields",
       "passed": true
     },
     {
@@ -4131,6 +4316,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-BPElementReferenceSchema",
       "passed": true
     },
@@ -4506,6 +4701,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-StreamEndFrameSchema",
       "passed": true
     },
@@ -4622,6 +4822,31 @@
     {
       "runtime": "dotnet",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-sensitive-fields-roundtrip",
       "passed": true
     },
     {
@@ -5055,6 +5280,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
@@ -5426,6 +5661,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ShellManifestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SigningKeyPairSchema-roundtrip",
       "passed": true
     },
     {
@@ -21459,6 +21699,752 @@
       "runtime": "dotnet",
       "id": "config-api-preview-overlay-from-dotnet",
       "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-unique-authenticated-envelopes",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-unique-authenticated-envelopes",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-unique-authenticated-envelopes",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-decrypt-node",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-node-iv",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-node-tag",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-node-ct",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-decrypt-node",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-node-iv",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-node-tag",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-node-ct",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-decrypt-node",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-node-iv",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-node-tag",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-node-ct",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-decrypt-python",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-python-iv",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-python-tag",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-python-ct",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-decrypt-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-python-iv",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-python-tag",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-python-ct",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-decrypt-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-python-iv",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-python-tag",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-python-ct",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-decrypt-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-dotnet-iv",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-dotnet-tag",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-tamper-dotnet-ct",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-decrypt-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-dotnet-iv",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-dotnet-tag",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-tamper-dotnet-ct",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-decrypt-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-dotnet-iv",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-dotnet-tag",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-tamper-dotnet-ct",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-durable-identity-redaction-and-clear",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'version': 2}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'apiKey': None}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'apiKey': ''}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'apiKey': 'secret\\nheader'}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'apiKey': 's\u00e9cret'}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'tenantLock': 'wrong'}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'unknown': 'no'}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'identity': {}}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'cpUrl': 'http://remote.test'}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'cpUrl': 'http://127.0.0.2'}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'cpUrl': 'https://cp.test?query'}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-patch-{'cpJwksUri': 'https://user:secret@cp.test'}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secure-endpoint-http://localhost:8080",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secure-endpoint-http://127.0.0.1:8080",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secure-endpoint-http://[::1]:8080",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secure-endpoint-https://cp.test/path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-atomic-save",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-atomic-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-atomic-clear",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-atomic-cancel-write",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-atomic-cancel-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-concurrent-patches-retained",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-file-limit-preserves-state",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-plaintext",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-malformed",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-oversize",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-envelope-v",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-envelope-iv",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-envelope-tag",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-envelope-ct",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-envelope-extra",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-reject-duplicate-version",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-master-key-prefix",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-master-key-short",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-master-key-padding",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-master-key-truncated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-master-key-alphabet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-wrong-master-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-durable-identity-redaction-and-clear",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'version': 2}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'apiKey': None}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'apiKey': ''}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'apiKey': 'secret\\nheader'}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'apiKey': 's\u00e9cret'}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'tenantLock': 'wrong'}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'unknown': 'no'}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'identity': {}}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'cpUrl': 'http://remote.test'}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'cpUrl': 'http://127.0.0.2'}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'cpUrl': 'https://cp.test?query'}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-patch-{'cpJwksUri': 'https://user:secret@cp.test'}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secure-endpoint-http://localhost:8080",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secure-endpoint-http://127.0.0.1:8080",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secure-endpoint-http://[::1]:8080",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secure-endpoint-https://cp.test/path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-atomic-save",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-atomic-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-atomic-clear",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-atomic-cancel-write",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-atomic-cancel-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-concurrent-patches-retained",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-file-limit-preserves-state",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-plaintext",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-malformed",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-oversize",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-envelope-v",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-envelope-iv",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-envelope-tag",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-envelope-ct",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-envelope-extra",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-reject-duplicate-version",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-master-key-prefix",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-master-key-short",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-master-key-padding",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-master-key-truncated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-master-key-alphabet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-wrong-master-key",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-identity-interchange-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-interchange-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-mismatched-public-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-public-only-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-invalid-kid-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-private-in-public-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-appended-private-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-interchange-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-mismatched-public-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-public-only-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-invalid-kid-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-private-in-public-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-appended-private-python",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-identity-interchange-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-interchange-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-mismatched-public-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-public-only-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-invalid-kid-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-private-in-public-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-identity-appended-private-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-interchange-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-mismatched-public-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-public-only-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-invalid-kid-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-private-in-public-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-identity-appended-private-dotnet",
+      "passed": true
     }
-  ]
+  ],
+  "verification": {
+    "kind": "aggregate",
+    "fullRun": {
+      "passed": 4445,
+      "scenarios": 4473
+    },
+    "recheckedSuites": [
+      "bootstrap"
+    ],
+    "reason": "Eight additional public/private PEM regressions, verified in the final bootstrap suite after the full run."
+  }
 }

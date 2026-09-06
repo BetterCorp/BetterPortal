@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: c25859cf304088624d38073c033156963944a4d84a57c7b1678d7da9721056f8
+// Generated from AnyVali documents; do not edit. SHA256: 9acf9dc11dcdc5c73382eb7ec06eb2fca07fe67ed83fdc6bb66e093a16bf24a4
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -4270,6 +4270,90 @@ public sealed record BindingTrustInput
     public Optional<IReadOnlyList<string>> Scopes { get; init; }
     [JsonPropertyName("rotationVersion")]
     public required string RotationVersion { get; init; }
+}
+
+public sealed record BootstrapState
+{
+    [JsonPropertyName("version")]
+    public required long Version { get; init; }
+    [JsonPropertyName("apiKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ApiKey { get; init; }
+    [JsonPropertyName("cpUrl")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> CpUrl { get; init; }
+    [JsonPropertyName("cpId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> CpId { get; init; }
+    [JsonPropertyName("cpJwksUri")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> CpJwksUri { get; init; }
+    [JsonPropertyName("configEncryptionKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ConfigEncryptionKey { get; init; }
+    [JsonPropertyName("tenantLock")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> TenantLock { get; init; }
+    [JsonPropertyName("installedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> InstalledAt { get; init; }
+    [JsonPropertyName("identity")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<SigningKeyPair> Identity { get; init; }
+}
+
+public sealed record BootstrapStateEnvelope
+{
+    [JsonPropertyName("v")]
+    public required long V { get; init; }
+    [JsonPropertyName("iv")]
+    public required string Iv { get; init; }
+    [JsonPropertyName("tag")]
+    public required string Tag { get; init; }
+    [JsonPropertyName("ct")]
+    public required string Ct { get; init; }
+}
+
+public sealed record BootstrapStateEnvelopeInput
+{
+    [JsonPropertyName("v")]
+    public required long V { get; init; }
+    [JsonPropertyName("iv")]
+    public required string Iv { get; init; }
+    [JsonPropertyName("tag")]
+    public required string Tag { get; init; }
+    [JsonPropertyName("ct")]
+    public required string Ct { get; init; }
+}
+
+public sealed record BootstrapStateInput
+{
+    [JsonPropertyName("version")]
+    public required long Version { get; init; }
+    [JsonPropertyName("apiKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ApiKey { get; init; }
+    [JsonPropertyName("cpUrl")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> CpUrl { get; init; }
+    [JsonPropertyName("cpId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> CpId { get; init; }
+    [JsonPropertyName("cpJwksUri")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> CpJwksUri { get; init; }
+    [JsonPropertyName("configEncryptionKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ConfigEncryptionKey { get; init; }
+    [JsonPropertyName("tenantLock")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> TenantLock { get; init; }
+    [JsonPropertyName("installedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> InstalledAt { get; init; }
+    [JsonPropertyName("identity")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<SigningKeyPairInput> Identity { get; init; }
 }
 
 public sealed record BpSchemaOutput
@@ -11297,6 +11381,26 @@ public sealed record ShellManifestInput
     [JsonPropertyName("fragments")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<ShellFragmentDescriptorInput>> Fragments { get; init; }
+}
+
+public sealed record SigningKeyPair
+{
+    [JsonPropertyName("privateKeyPem")]
+    public required string PrivateKeyPem { get; init; }
+    [JsonPropertyName("publicKeyPem")]
+    public required string PublicKeyPem { get; init; }
+    [JsonPropertyName("kid")]
+    public required string Kid { get; init; }
+}
+
+public sealed record SigningKeyPairInput
+{
+    [JsonPropertyName("privateKeyPem")]
+    public required string PrivateKeyPem { get; init; }
+    [JsonPropertyName("publicKeyPem")]
+    public required string PublicKeyPem { get; init; }
+    [JsonPropertyName("kid")]
+    public required string Kid { get; init; }
 }
 
 public sealed record StreamEndFrame

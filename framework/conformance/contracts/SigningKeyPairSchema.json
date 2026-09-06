@@ -1,0 +1,34 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "privateKeyPem": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 32768,
+        "metadata": {
+          "sensitive": true
+        }
+      },
+      "publicKeyPem": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 32768
+      },
+      "kid": {
+        "kind": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "privateKeyPem",
+      "publicKeyPem",
+      "kid"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

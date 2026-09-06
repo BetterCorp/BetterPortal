@@ -1,9 +1,34 @@
 {
-  "scenarios": 1104,
-  "passed": 1078,
+  "scenarios": 1152,
+  "passed": 1126,
   "results": [
     {
       "runtime": "node",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-sensitive-fields",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "auth-defaults",
       "passed": true
     },
@@ -433,6 +458,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-BPElementReferenceSchema",
       "passed": true
     },
@@ -808,6 +843,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-StreamEndFrameSchema",
       "passed": true
     },
@@ -924,6 +964,31 @@
     {
       "runtime": "node",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-sensitive-fields-roundtrip",
       "passed": true
     },
     {
@@ -1357,6 +1422,16 @@
     },
     {
       "runtime": "node",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
@@ -1732,6 +1807,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-SigningKeyPairSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-StreamEndFrameSchema-roundtrip",
       "passed": true
     },
@@ -1848,6 +1928,31 @@
     {
       "runtime": "node",
       "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-sensitive-fields",
       "passed": true
     },
     {
@@ -2282,6 +2387,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-BPElementReferenceSchema",
       "passed": true
     },
@@ -2657,6 +2772,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-StreamEndFrameSchema",
       "passed": true
     },
@@ -2773,6 +2893,31 @@
     {
       "runtime": "python",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-sensitive-fields-roundtrip",
       "passed": true
     },
     {
@@ -3207,6 +3352,16 @@
     },
     {
       "runtime": "python",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
@@ -3582,6 +3737,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-SigningKeyPairSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-StreamEndFrameSchema-roundtrip",
       "passed": true
     },
@@ -3698,6 +3858,31 @@
     {
       "runtime": "python",
       "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-sensitive-fields",
       "passed": true
     },
     {
@@ -4131,6 +4316,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-BPElementReferenceSchema",
       "passed": true
     },
@@ -4506,6 +4701,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-StreamEndFrameSchema",
       "passed": true
     },
@@ -4622,6 +4822,31 @@
     {
       "runtime": "dotnet",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-sensitive-fields-roundtrip",
       "passed": true
     },
     {
@@ -5055,6 +5280,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-BPElementReferenceSchema-roundtrip",
       "passed": true
     },
@@ -5426,6 +5661,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ShellManifestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SigningKeyPairSchema-roundtrip",
       "passed": true
     },
     {

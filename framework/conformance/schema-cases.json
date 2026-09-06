@@ -1,5 +1,64 @@
 [
   {
+    "id": "bootstrap-minimal",
+    "contract": "BootstrapStateSchema",
+    "input": {
+      "version": 1
+    },
+    "output": {
+      "version": 1
+    }
+  },
+  {
+    "id": "bootstrap-version-required",
+    "contract": "BootstrapStateSchema",
+    "input": {},
+    "valid": false
+  },
+  {
+    "id": "bootstrap-unknown-reject",
+    "contract": "BootstrapStateSchema",
+    "input": {
+      "version": 1,
+      "unknown": true
+    },
+    "valid": false
+  },
+  {
+    "id": "bootstrap-secret-not-null",
+    "contract": "BootstrapStateSchema",
+    "input": {
+      "version": 1,
+      "apiKey": null
+    },
+    "valid": false
+  },
+  {
+    "id": "bootstrap-sensitive-fields",
+    "contract": "BootstrapStateSchema",
+    "action": "encrypt",
+    "input": {
+      "version": 1,
+      "apiKey": "api",
+      "configEncryptionKey": "config",
+      "identity": {
+        "privateKeyPem": "private",
+        "publicKeyPem": "public",
+        "kid": "key"
+      }
+    },
+    "output": {
+      "version": 1,
+      "apiKey": "encrypted:\"api\"",
+      "configEncryptionKey": "encrypted:\"config\"",
+      "identity": {
+        "privateKeyPem": "encrypted:\"private\"",
+        "publicKeyPem": "public",
+        "kid": "key"
+      }
+    }
+  },
+  {
     "id": "auth-defaults",
     "contract": "ApiAuthRequirementSchema",
     "input": {},

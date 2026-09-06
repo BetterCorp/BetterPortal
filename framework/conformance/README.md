@@ -8,8 +8,8 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,078/1,104 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 43 semantic cases and imports all 141 documents, then repeats
+Published AnyVali **1.1.1** passes [1,126/1,152 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 48 semantic cases and imports all 144 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -220,6 +220,17 @@ The suite also exposed future-issued config tickets accepted by Node; its shared
 verifier now checks issuance/lifetime, with a focused Node regression test.
 The same gate runs on [Python 3.13](results-config-api-python313.json).
 
+The [bootstrap persistence suite](results-bootstrap.json) passes 147/147 checks of the actual Node
+BSB encrypted file format against both native stores. It covers unique nonces,
+every cross-language decrypt, tampering, native strict JSON/encoding/master-key
+validation, public/private identity matching, sensitive redaction, restart,
+concurrent patch preservation, size limits and failed/cancelled writes. Native
+identities live in the encrypted state's optional `identity` extension; Node
+preserves it but still loads its own S2S identity from a separate file. Private
+PEM data in a public field, including appended content, is rejected. The host
+supplies the protected master key. The same 147 checks pass on
+[Python 3.13](results-bootstrap-python313.json). HTTP installation binding remains pending.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
@@ -257,9 +268,11 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 4,258/4,286
-checks across twenty-two suites. Failures are the original SDK probes, the
+[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 4,453/4,481
+checks across twenty-three suites. Failures are the original SDK probes, the
 context/config null-active regressions and eighteen sensitive-ref regressions.
+The combined report retains the full 4,445/4,473 run and replaces its bootstrap
+section with the final 147-check rerun (eight additional PEM regressions).
 Linux execution is still acceptance work.
 
 ```sh

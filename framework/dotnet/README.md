@@ -459,7 +459,7 @@ Handlers receive effective settings with defaults and preview overrides. Preview
 values validate before snapshot publication and do not overwrite the settings file.
 Missing required values return 503 on operations while configuration remains
 available. Health reflects initialization and managed manifest acknowledgment.
-Provisioning and protected key persistence remain delivery work.
+HTTP provisioning remains delivery work; protected key persistence is described below.
 
 `devToken` requires both an explicitly supplied token and
 `BP_ALLOW_DEV_CONFIG_TOKEN=true` at construction. This local-development option
@@ -541,8 +541,44 @@ shutdown. Without a host, dispose the sync before its service with `await using`
 and retries and clears managed readiness. `Status` contains only safe counters and
 error codes; protect any endpoint exposing them. `Submission()` returns the portable
 typed manifest projection. Optional `keyPair` registers a previously persisted RSA
-public key; `authProvider` advertises issuer metadata. Provisioning/install tickets
-and protected key persistence remain separate work.
+public key; `authProvider` advertises issuer metadata. Provisioning/install ticket
+hosting remains separate work.
+
+`BootstrapStateStore` protects credentials and a persistent RSA signing identity
+inside the Node-compatible authenticated bootstrap envelope. Supply its master
+key from a protected host secret. Call `BootstrapCipher.GenerateKey()` once and
+retain the result separately; a different master key cannot read existing state.
+
+```csharp
+using BetterPortal;
+
+var directory = Path.Combine(Path.GetTempPath(), "bp-bootstrap-example-" + Guid.NewGuid().ToString("N"));
+try
+{
+    var masterKey = BootstrapCipher.GenerateKey(); // Example only: retain securely in production.
+    var file = new FileStateStore(Path.Combine(directory, "bootstrap.json"));
+    var state = new BootstrapStateStore(file, masterKey);
+    await state.Write(new Dictionary<string, object?> { ["cpUrl"] = "https://cp.example", ["apiKey"] = "bp_sk_t_example" });
+    var identity = await state.Identity();
+    var restarted = new BootstrapStateStore(file, masterKey);
+    if ((await restarted.Identity()).Kid != identity.Kid) throw new Exception("Identity changed");
+    if (!Equals((await restarted.Read(redacted: true))["apiKey"], "__redacted__")) throw new Exception("Secret leaked");
+}
+finally
+{
+    if (!Path.GetFullPath(directory).StartsWith(Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) throw new Exception("Invalid temporary directory");
+    if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+}
+```
+
+`Write` atomically merges a validated patch; `Read` returns owned state. `Identity`
+loads or atomically creates an RSA key inside that encrypted state. `Clear`
+explicitly removes credentials and identity. Corrupt files, invalid master keys
+and mismatched RSA keys fail without replacement. Keep one owner per store; use a
+transactional implementation for shared storage. There is no plaintext cache or
+background work. Calls accept cancellation before commit. Use the returned key
+with `ControlPlaneSync(keyPair: ...)` or `TokenIssuer`; HTTP installation binding
+remains pending.
 
 ```sh
 dotnet restore framework/dotnet/Conformance --locked-mode
@@ -597,7 +633,7 @@ var pair = issuer.IssuePair(new Dictionary<string, object?>
 });
 ```
 
-This example uses an ephemeral key. Key persistence is not implemented yet.
+This example uses an ephemeral key. Use `BootstrapStateStore.Identity()` for persistent keys.
 `Tokens.VerifyAsync` requires a trusted resolver, issuer,
 audience and explicit purpose. Setup tokens have no audience and must additionally
 be bound to the intended installation before use.

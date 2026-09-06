@@ -85,6 +85,35 @@ function portable(name, root) {
 function objectNode(properties, unknownKeys = "strip") {
   return { kind: "object", properties, required: Object.entries(properties).filter(([, value]) => value.kind !== "optional").map(([key]) => key), unknownKeys };
 }
+// BSB bootstrapState.ts and runtime/auth/keypair.ts own the existing wire fields.
+// Native runtimes keep the signing identity inside the authenticated state instead
+// of a second plaintext file. Older Node stores preserve this optional extension.
+const optionalNode = inner => ({ kind: "optional", inner });
+const secretString = { kind: "string", minLength: 1, maxLength: 32768, metadata: { sensitive: true } };
+const keyPair = objectNode({
+  privateKeyPem: secretString,
+  publicKeyPem: { kind: "string", minLength: 1, maxLength: 32768 },
+  kid: sourceNode("RsaPublicJwkSchema").properties.kid
+}, "reject");
+portable("SigningKeyPairSchema", keyPair);
+const setupFields = sourceNode("SetupTokenClaimsSchema").properties;
+portable("BootstrapStateSchema", objectNode({
+  version: { kind: "literal", value: 1 },
+  apiKey: optionalNode(secretString),
+  cpUrl: optionalNode(setupFields.cpUrl),
+  cpId: optionalNode({ kind: "string", minLength: 1 }),
+  cpJwksUri: optionalNode(setupFields.cpJwksUri),
+  configEncryptionKey: optionalNode(secretString),
+  tenantLock: optionalNode(unwrap(setupFields.scope).properties.tenantId),
+  installedAt: optionalNode({ kind: "string", minLength: 1 }),
+  identity: optionalNode(keyPair)
+}, "reject"));
+portable("BootstrapStateEnvelopeSchema", objectNode({
+  v: { kind: "literal", value: 1 },
+  iv: { kind: "string", minLength: 1, maxLength: 16 },
+  tag: { kind: "string", minLength: 1, maxLength: 24 },
+  ct: { kind: "string", minLength: 1, maxLength: 1398104 }
+}, "reject"));
 // Node's persisted settings interface in runtime/configStore.ts, derived from
 // the canonical tenant/app bucket. Legacy data requires an explicit owner.
 portable("PersistedServiceConfigStateSchema", objectNode({

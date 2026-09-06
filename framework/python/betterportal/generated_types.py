@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: d9ccbc5f88a99ed66f5db9d5c92d9e2e916e9f3e4c31b1e2decad291acf36583
+# Generated from AnyVali documents; do not edit. SHA256: dd6e1b1999f538c7069dc48b4d4ae64312eb394e6714d9682918954e1bdfd953
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -1641,6 +1641,44 @@ BindingTrustInput = TypedDict('BindingTrustInput', {
     'audience': Required['str'],
     'scopes': NotRequired['list[str]'],
     'rotationVersion': Required['str'],
+})
+
+BootstrapState = TypedDict('BootstrapState', {
+    'version': Required['Literal[1]'],
+    'apiKey': NotRequired['str'],
+    'cpUrl': NotRequired['str'],
+    'cpId': NotRequired['str'],
+    'cpJwksUri': NotRequired['str'],
+    'configEncryptionKey': NotRequired['str'],
+    'tenantLock': NotRequired['str'],
+    'installedAt': NotRequired['str'],
+    'identity': NotRequired['SigningKeyPair'],
+})
+
+BootstrapStateEnvelope = TypedDict('BootstrapStateEnvelope', {
+    'v': Required['Literal[1]'],
+    'iv': Required['str'],
+    'tag': Required['str'],
+    'ct': Required['str'],
+})
+
+BootstrapStateEnvelopeInput = TypedDict('BootstrapStateEnvelopeInput', {
+    'v': Required['Literal[1]'],
+    'iv': Required['str'],
+    'tag': Required['str'],
+    'ct': Required['str'],
+})
+
+BootstrapStateInput = TypedDict('BootstrapStateInput', {
+    'version': Required['Literal[1]'],
+    'apiKey': NotRequired['str'],
+    'cpUrl': NotRequired['str'],
+    'cpId': NotRequired['str'],
+    'cpJwksUri': NotRequired['str'],
+    'configEncryptionKey': NotRequired['str'],
+    'tenantLock': NotRequired['str'],
+    'installedAt': NotRequired['str'],
+    'identity': NotRequired['SigningKeyPairInput'],
 })
 
 BpSchemaOutput = TypedDict('BpSchemaOutput', {
@@ -4501,6 +4539,18 @@ ShellManifestInput = TypedDict('ShellManifestInput', {
     'service': Required['str'],
     'renderer': Required['str'],
     'fragments': NotRequired['list[ShellFragmentDescriptorInput]'],
+})
+
+SigningKeyPair = TypedDict('SigningKeyPair', {
+    'privateKeyPem': Required['str'],
+    'publicKeyPem': Required['str'],
+    'kid': Required['str'],
+})
+
+SigningKeyPairInput = TypedDict('SigningKeyPairInput', {
+    'privateKeyPem': Required['str'],
+    'publicKeyPem': Required['str'],
+    'kid': Required['str'],
 })
 
 StreamEndFrame = TypedDict('StreamEndFrame', {
