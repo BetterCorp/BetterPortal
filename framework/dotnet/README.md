@@ -577,8 +577,55 @@ explicitly removes credentials and identity. Corrupt files, invalid master keys
 and mismatched RSA keys fail without replacement. Keep one owner per store; use a
 transactional implementation for shared storage. There is no plaintext cache or
 background work. Calls accept cancellation before commit. Use the returned key
-with `ControlPlaneSync(keyPair: ...)` or `TokenIssuer`; HTTP installation binding
-remains pending.
+with `ControlPlaneSync(keyPair: ...)` or `TokenIssuer`, or let `ServiceInstallation`
+own it.
+
+`ServiceInstallation` supplies the setup-token installation endpoint and public
+JWKS, restores protected credentials, activates ticket-protected settings and owns
+manifest synchronization. CP trust and the public service origin come from host
+configuration. The installer requires a fresh managed `Service`.
+
+```csharp
+using BetterPortal;
+using BetterPortal.AspNetCore;
+using BetterPortal.Generated;
+using Microsoft.AspNetCore.Builder;
+
+static WebApplication InstallableApp(string cpUrl, string publicOrigin, string masterKey, string stateDirectory)
+{
+    var service = new Service(new Registry([]), new ManifestDeclarationInput {
+        PluginId = "com.example.service", Title = "Example", Description = "Example", Version = "1.0.0"
+    }, managed: true, stateStore: new FileStateStore(Path.Combine(stateDirectory, "snapshot.json")));
+    var installation = new ServiceInstallation(service,
+        new BootstrapStateStore(new FileStateStore(Path.Combine(stateDirectory, "bootstrap.json")), masterKey), cpUrl, publicOrigin,
+        settingsStore: new FileStateStore(Path.Combine(stateDirectory, "settings.json")));
+    var builder = WebApplication.CreateBuilder();
+    builder.Services.AddBetterPortal(service, installation: installation);
+    var app = builder.Build();
+    app.MapBetterPortal(service, installation: installation);
+    return app;
+}
+Func<string, string, string, string, WebApplication> factory = InstallableApp;
+```
+
+Supply your registry and separately protected master key, then run the returned
+app. Pass the same installer to both hosting helpers. Startup without credentials
+exposes public keys and health 503. POST `{"setupToken":"...","cpUrl":"https://cp.example"}`
+to `/.well-known/bp/install`. Success returns 200 only after manifest submission and
+scoped snapshot persistence. Failed first sync returns 503 with `installed: true`
+and retries using durable credentials. Native responses omit the API key.
+
+Same-JTI replay reuses committed credentials; a new signed token may rotate them
+for the same instance. Tenant-scoped setup stores its signed tenant as `tenantLock`:
+other-tenant operation requests return 426 and config tickets are denied. Platform
+installation without tenant scope can serve the CP's permitted tenants. Existing
+locks survive restart/reconfiguration. Existing Node bootstrap files can be loaded
+with their master key; reconfiguration requires a synchronized matching instance.
+`cpJwksUri` pins alternate JWKS, `authProvider` supplies provider metadata, and
+`configMode`, `customUiPath`, `writable` configure the existing config API. Config
+descriptors require a settings store. Disposal cancels and drains installation/sync
+before closing the service. Keep one owner per state store; file stores do not
+coordinate replicas.
 
 ```sh
 dotnet restore framework/dotnet/Conformance --locked-mode

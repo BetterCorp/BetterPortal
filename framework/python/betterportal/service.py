@@ -65,14 +65,19 @@ class Service:
         self._config_api = config_api or ConfigApi()
         self._config_schema = self._config_api.schema(self._schema["manifest"]["pluginId"], self._schema["manifest"]["configSchemas"])
         self._store, self._preview_key = state_store, preview_key
+        self._instance_id: str | None = None
+        self._tenant_lock: str | None = None
         self._state = self._build(snapshot) if snapshot is not None else None
         self._managed, self._submitted = managed, False
+        self._provisionable = managed and config_api is None and snapshot is None
         self._updates = asyncio.Lock()
         self._cleanup: set[asyncio.Task[None]] = set()
         self._writers: set[asyncio.Task[Any]] = set()
         self._closed = False
 
     def _build(self, snapshot: ScopedConfig) -> _Snapshot:
+        if self._instance_id is not None and snapshot.document().get("serviceIdentity", {}).get("id") != self._instance_id:
+            raise ValueError("Snapshot does not belong to the installed service instance")
         settings = self._config_api.settings
         return _Snapshot(snapshot, cast(Iterable[dict[str, Any]], self._schema["manifest"]["configSchemas"]), self._preview_key, settings.schema if settings is not None else None)
 
@@ -81,6 +86,34 @@ class Service:
 
     @property
     def managed(self) -> bool: return self._managed
+
+    async def _bind_installation(self, instance_id: str | None, tenant_lock: str | None) -> None:
+        async with self._updates:
+            if self._closed: raise RuntimeError("Service is closed")
+            if self._instance_id is not None and self._instance_id != instance_id: raise ValueError("Installed instance cannot change")
+            if self._tenant_lock is not None and self._tenant_lock != tenant_lock: raise ValueError("Installed tenant cannot change")
+            if instance_id is not None and self._state is not None and self._state.config.get("serviceIdentity", {}).get("id") != instance_id:
+                raise ValueError("Current snapshot does not belong to the installed instance")
+            self._instance_id, self._tenant_lock = instance_id, tenant_lock
+
+    async def _provision(self, config_api: ConfigApi) -> None:
+        """Installation-only transition, before sync/cache restoration can publish policy."""
+        task = asyncio.current_task(); assert task is not None
+        self._writers.add(task)
+        published = False
+        try:
+            schema = config_api.schema(self._schema["manifest"]["pluginId"], self._schema["manifest"]["configSchemas"])
+            await config_api.initialize()
+            async with self._updates:
+                if self._closed or not self._provisionable or self._state is not None or self._submitted:
+                    raise RuntimeError("Provisioning requires an empty managed service")
+                await self._config_api.aclose()
+                if self._closed: raise RuntimeError("Service is closed")
+                self._config_api, self._config_schema = config_api, schema
+                self._provisionable, published = False, True
+        finally:
+            self._writers.discard(task)
+            if not published: await config_api.aclose()
 
     def _suspend_sync(self) -> None:
         self._submitted = False
@@ -169,6 +202,8 @@ class Service:
             except TokenError as error: raise RequestError(401, "A valid config ticket is required", response_headers) from error
             async with self._updates:
                 if self._state is not state or not self.ready: raise RequestError(503, "Configuration changed during authentication", response_headers)
+                if self._tenant_lock is not None and claims["tenantId"] != self._tenant_lock:
+                    raise RequestError(403, "Config scope is not allowed", response_headers)
                 # Scope cannot be revoked between this check and the atomic settings commit.
                 return await self._config_api.apply(self._schema["manifest"]["pluginId"], state.config, claims, normalized, action, body)
         finally: self._writers.discard(task)
@@ -181,6 +216,8 @@ class Service:
                  else state.snapshot.resolve(headers, scheme=scheme, mode=mode, trusted_addresses=trusted_addresses))
         if scope is None:
             raise RequestError(401 if machine else 400, "BetterPortal tenant/app context required")
+        if self._tenant_lock is not None and scope.tenant_id != self._tenant_lock:
+            raise RequestError(426, "Service is locked to another tenant")
         return scope
 
     @staticmethod

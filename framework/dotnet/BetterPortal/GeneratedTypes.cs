@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 9acf9dc11dcdc5c73382eb7ec06eb2fca07fe67ed83fdc6bb66e093a16bf24a4
+// Generated from AnyVali documents; do not edit. SHA256: 5c52cf13a1b3d049577aa95c6db6faf925b4e81cbb8346b5287f2cc961e955ab
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -4300,6 +4300,9 @@ public sealed record BootstrapState
     [JsonPropertyName("identity")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SigningKeyPair> Identity { get; init; }
+    [JsonPropertyName("installation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ServiceInstallationBinding> Installation { get; init; }
 }
 
 public sealed record BootstrapStateEnvelope
@@ -4354,6 +4357,9 @@ public sealed record BootstrapStateInput
     [JsonPropertyName("identity")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SigningKeyPairInput> Identity { get; init; }
+    [JsonPropertyName("installation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ServiceInstallationBindingInput> Installation { get; init; }
 }
 
 public sealed record BpSchemaOutput
@@ -10782,6 +10788,104 @@ public sealed record ServiceConfigWriteResponseInput
     public required bool Ok { get; init; }
 }
 
+public sealed record ServiceInstallRequest
+{
+    [JsonPropertyName("setupToken")]
+    public required string SetupToken { get; init; }
+    [JsonPropertyName("cpUrl")]
+    public required string CpUrl { get; init; }
+}
+
+public sealed record ServiceInstallRequestInput
+{
+    [JsonPropertyName("setupToken")]
+    public required string SetupToken { get; init; }
+    [JsonPropertyName("cpUrl")]
+    public required string CpUrl { get; init; }
+}
+
+public sealed record ServiceInstallResponse
+{
+    [JsonPropertyName("ok")]
+    public required bool Ok { get; init; }
+    [JsonPropertyName("pluginId")]
+    public required string PluginId { get; init; }
+    [JsonPropertyName("cpUrl")]
+    public required string CpUrl { get; init; }
+    [JsonPropertyName("manifestVersion")]
+    public required string ManifestVersion { get; init; }
+    [JsonPropertyName("apiKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ApiKey { get; init; }
+}
+
+public sealed record ServiceInstallResponseInput
+{
+    [JsonPropertyName("ok")]
+    public required bool Ok { get; init; }
+    [JsonPropertyName("pluginId")]
+    public required string PluginId { get; init; }
+    [JsonPropertyName("cpUrl")]
+    public required string CpUrl { get; init; }
+    [JsonPropertyName("manifestVersion")]
+    public required string ManifestVersion { get; init; }
+    [JsonPropertyName("apiKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ApiKey { get; init; }
+}
+
+public sealed record ServiceInstallationBinding
+{
+    [JsonPropertyName("instanceId")]
+    public required string InstanceId { get; init; }
+    [JsonPropertyName("serviceUrl")]
+    public required string ServiceUrl { get; init; }
+    [JsonPropertyName("cpUrl")]
+    public required string CpUrl { get; init; }
+    [JsonPropertyName("cpJwksUri")]
+    public required string CpJwksUri { get; init; }
+    [JsonPropertyName("scope")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ServiceInstallationBindingScope> Scope { get; init; }
+    [JsonPropertyName("jti")]
+    public required string Jti { get; init; }
+}
+
+public sealed record ServiceInstallationBindingInput
+{
+    [JsonPropertyName("instanceId")]
+    public required string InstanceId { get; init; }
+    [JsonPropertyName("serviceUrl")]
+    public required string ServiceUrl { get; init; }
+    [JsonPropertyName("cpUrl")]
+    public required string CpUrl { get; init; }
+    [JsonPropertyName("cpJwksUri")]
+    public required string CpJwksUri { get; init; }
+    [JsonPropertyName("scope")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ServiceInstallationBindingInputScope> Scope { get; init; }
+    [JsonPropertyName("jti")]
+    public required string Jti { get; init; }
+}
+
+public sealed record ServiceInstallationBindingInputScope
+{
+    [JsonPropertyName("tenantId")]
+    public required string TenantId { get; init; }
+    [JsonPropertyName("appId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> AppId { get; init; }
+}
+
+public sealed record ServiceInstallationBindingScope
+{
+    [JsonPropertyName("tenantId")]
+    public required string TenantId { get; init; }
+    [JsonPropertyName("appId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> AppId { get; init; }
+}
+
 public sealed record ServiceManifestCacheEntry
 {
     [JsonPropertyName("serviceId")]
@@ -11034,6 +11138,26 @@ public sealed record ServiceManifestCacheEntryViewIndexItemOperationsItemSchemas
     public Optional<JsonObject> Response { get; init; }
 }
 
+public sealed record ServiceRedeemResponse
+{
+    [JsonPropertyName("apiKey")]
+    public required string ApiKey { get; init; }
+    [JsonPropertyName("cpId")]
+    public required string CpId { get; init; }
+    [JsonPropertyName("cpJwksUri")]
+    public required string CpJwksUri { get; init; }
+}
+
+public sealed record ServiceRedeemResponseInput
+{
+    [JsonPropertyName("apiKey")]
+    public required string ApiKey { get; init; }
+    [JsonPropertyName("cpId")]
+    public required string CpId { get; init; }
+    [JsonPropertyName("cpJwksUri")]
+    public required string CpJwksUri { get; init; }
+}
+
 public sealed record ServiceTokenClaims
 {
     [JsonPropertyName("iss")]
@@ -11110,7 +11234,7 @@ public sealed record SetupTokenClaims
     public required string CpJwksUri { get; init; }
     [JsonPropertyName("scope")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SetupTokenClaimsScope> Scope { get; init; }
+    public Optional<ServiceInstallationBindingScope> Scope { get; init; }
 }
 
 public sealed record SetupTokenClaimsInput
@@ -11135,16 +11259,7 @@ public sealed record SetupTokenClaimsInput
     public required string CpJwksUri { get; init; }
     [JsonPropertyName("scope")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SetupTokenClaimsInputScope> Scope { get; init; }
-}
-
-public sealed record SetupTokenClaimsInputScope
-{
-    [JsonPropertyName("tenantId")]
-    public required string TenantId { get; init; }
-    [JsonPropertyName("appId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> AppId { get; init; }
+    public Optional<ServiceInstallationBindingInputScope> Scope { get; init; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<SetupTokenClaimsInputTokenType>))]
@@ -11152,15 +11267,6 @@ public enum SetupTokenClaimsInputTokenType
 {
     [JsonStringEnumMemberName("setup")]
     Setup,
-}
-
-public sealed record SetupTokenClaimsScope
-{
-    [JsonPropertyName("tenantId")]
-    public required string TenantId { get; init; }
-    [JsonPropertyName("appId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> AppId { get; init; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<SetupTokenClaimsTokenType>))]

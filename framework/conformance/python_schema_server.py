@@ -26,6 +26,7 @@ from python_sync import sync_request
 from python_settings import settings_request, settings_store
 from python_config_api import config_api_request
 from python_bootstrap import bootstrap_request
+from python_installation import installation_request
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -38,6 +39,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if body.get("action") == "installation":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(asyncio.run(installation_request(body))).encode())
+                return
             if body.get("action") == "bootstrap":
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")

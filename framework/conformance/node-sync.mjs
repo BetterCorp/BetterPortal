@@ -10,6 +10,8 @@ import { BetterPortalConfigSchema } from "../nodejs/lib/contracts/platformConfig
 import { FileStorage } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/storage/file.js";
 import { hashApiKey } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/storage/core.js";
 import { registerSyncEndpoint } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/syncApi.js";
+import { registerSetupEndpoints } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/setupTokens.js";
+import { generateKeyPair, publicKeyToJwk } from "../nodejs/lib/runtime/auth/keypair.js";
 
 const peers = new Map();
 let sequence = 0;
@@ -30,9 +32,17 @@ export async function syncPeer(body) {
         handler(request, response);
       });
       await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+      const url = `http://127.0.0.1:${server.address().port}`;
+      if (body.setup) {
+        const keyPair = generateKeyPair();
+        const jwk = publicKeyToJwk(keyPair.publicKeyPem, keyPair.kid);
+        const cpState = { keyPair, jwk, issuer: url, audience: "betterportal-control-plane", cpId: "conformance-cp", jwksUri: url + "/.well-known/jwks.json" };
+        app.get("/.well-known/jwks.json", () => new Response(JSON.stringify({ keys: [jwk, ...(body.jwks ?? [])] }), { headers: { "content-type": "application/json" } }));
+        registerSetupEndpoints({ app, storage: store, cpState });
+      }
       const id = String(++sequence);
       peers.set(id, { server, store, directory, calls });
-      return { id, url: `http://127.0.0.1:${server.address().port}` };
+      return { id, url };
     } catch (error) { store.dispose(); await rm(directory, { recursive: true }); throw error; }
   }
   const peer = peers.get(body.id);

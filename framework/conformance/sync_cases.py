@@ -196,6 +196,12 @@ def run_sync(urls, labels):
                 body = fixture(); body.update(action="sync", baseUrl=base + path, cancelStartup=True)
                 assert post(url, body) == {"valid": True, "cancelled": True, "ready": False, "stored": None}
             check(label, "cancel-startup", cancel_startup)
+            def cancel_failed_save():
+                path = "/" + label + "/cancel-failed-save"
+                scenarios[path] = {"poll": [{"snapshot": initial}], "sse": []}
+                body = fixture(); body.update(action="sync", baseUrl=base + path, cancelFailedSave=True)
+                assert post(url, body) == {"valid": True, "cancelled": True, "ready": False, "stored": None}
+            check(label, "cancel-failed-save", cancel_failed_save)
             for name, options in [("local-service", {"managed": False}), ("empty-key", {"apiKey": ""}), ("header-injection", {"apiKey": "key\r\nx: injected"}),
                 ("large-key", {"apiKey": "x" * 4097}), ("zero-delay", {"retryDelay": 0}), ("negative-timeout", {"requestTimeout": -1}),
                 ("large-delay", {"retryDelay": 4294968}), ("large-timeout", {"requestTimeout": 4294968})]:

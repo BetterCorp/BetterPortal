@@ -1,0 +1,28 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "setupToken": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 32768,
+        "metadata": {
+          "sensitive": true
+        }
+      },
+      "cpUrl": {
+        "kind": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "setupToken",
+      "cpUrl"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

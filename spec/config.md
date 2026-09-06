@@ -93,7 +93,8 @@ are a separate representation. See [protocol.md](protocol.md).
 
 `BootstrapStateSchema` exports the BSB bootstrap file's `version: 1`, optional
 `apiKey`, `cpUrl`, `cpId`, `cpJwksUri`, `configEncryptionKey`, `tenantLock`, and
-`installedAt`. Native runtimes add optional `identity`, using the existing Node
+`installedAt`. Native runtimes add optional `installation` (signed setup binding)
+and `identity`, using the existing Node
 RSA key-pair fields `privateKeyPem`, `publicKeyPem`, and `kid`. This keeps private
 signing material inside the authenticated file. Existing Node bootstrap stores
 preserve that extension, but Node's S2S loader still uses its separate key file.
@@ -116,9 +117,40 @@ identity; ordinary startup must never clear invalid state or silently rotate key
 Redacted reads use native AnyVali sensitive traversal. Public diagnostics must
 never expose the unredacted state.
 
-These persistence APIs are independent of HTTP installation. Installation still
-needs pinned CP trust, signed target/service binding, redemption and manifest
-synchronization before readiness; persistence alone does not authorize setup.
+### 2.2 Standalone installation
+
+The native `ServiceInstallation` owner exposes POST `/.well-known/bp/install` and
+public GET/HEAD `/.well-known/jwks.json`. The host pins CP issuer/JWKS and the public
+service origin. It validates the AnyVali `ServiceInstallRequestSchema` body, the
+RS256 setup token's purpose/lifetime/issuer and signed CP/service URLs before
+redeeming with that CP. Neither request headers nor token-directed URLs establish
+trust. HTTPS and the exact loopback exceptions from section 2 apply; redirects are
+rejected and redemption has a 1 MiB response limit and a total request deadline.
+
+The existing CP redeem endpoint receives setupToken, pluginId, serviceUrl, public
+JWKS and optional auth-provider metadata. Its response is validated before API
+credentials, setup binding and config encryption key are committed atomically.
+Private keys never leave protected state. Native install responses contain ok,
+pluginId, cpUrl and manifestVersion, omitting the legacy Node response's API key.
+No installer should log that credential.
+
+Installation activates the normal ticket-protected settings API, then submits
+the manifest and validates/persists the first scoped snapshot. Health stays 503
+until both succeed. Failed first sync returns 503 with installed:true and retries
+without another redemption. Same-JTI replay reuses committed credentials; a new
+token can reconfigure the same instance. Snapshot serviceIdentity must match the
+stored instance. Existing Node credentials without a stored binding require a
+synchronized matching instance before reconfiguration; the new binding then pins
+future snapshots. Credential, identity, settings and snapshot files survive restart.
+
+Native tenant-scoped setup takes tenantLock from the signed tenant, before any
+request. Other-tenant operations/preflights return 426 and config tickets are
+denied. Existing locks are preserved; setup cannot change a lock to another
+tenant. Platform setup without tenant scope permits the CP's allowed tenants.
+This avoids Node's first-request tenant claim while retaining explicit locks.
+Cancellation before credential commit leaves prior state intact; cancellation
+after commit retains it for restart/retry. Shutdown drains work and clears readiness.
+File storage has one owner; shared persistence needs its own transactional store.
 
 ## 3. Per-service settings API
 

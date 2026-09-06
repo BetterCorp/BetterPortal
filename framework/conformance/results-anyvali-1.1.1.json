@@ -1,9 +1,39 @@
 {
-  "scenarios": 1152,
-  "passed": 1126,
+  "scenarios": 1212,
+  "passed": 1186,
   "results": [
     {
       "runtime": "node",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-redeem-strips-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "bootstrap-minimal",
       "passed": true
     },
@@ -813,7 +843,27 @@
     },
     {
       "runtime": "node",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceRedeemResponseSchema",
       "passed": true
     },
     {
@@ -964,6 +1014,36 @@
     {
       "runtime": "node",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-redeem-strips-unknown-roundtrip",
       "passed": true
     },
     {
@@ -1777,7 +1857,27 @@
     },
     {
       "runtime": "node",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
       "passed": true
     },
     {
@@ -1928,6 +2028,36 @@
     {
       "runtime": "node",
       "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-redeem-strips-unknown",
       "passed": true
     },
     {
@@ -2742,7 +2872,27 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceRedeemResponseSchema",
       "passed": true
     },
     {
@@ -2893,6 +3043,36 @@
     {
       "runtime": "python",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-redeem-strips-unknown-roundtrip",
       "passed": true
     },
     {
@@ -3707,7 +3887,27 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
       "passed": true
     },
     {
@@ -3858,6 +4058,36 @@
     {
       "runtime": "python",
       "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-redeem-strips-unknown",
       "passed": true
     },
     {
@@ -4671,7 +4901,27 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceRedeemResponseSchema",
       "passed": true
     },
     {
@@ -4822,6 +5072,36 @@
     {
       "runtime": "dotnet",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-redeem-strips-unknown-roundtrip",
       "passed": true
     },
     {
@@ -5635,7 +5915,27 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
       "passed": true
     },
     {

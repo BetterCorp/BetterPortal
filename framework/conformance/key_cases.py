@@ -12,8 +12,13 @@ from security_cases import post, ISSUER
 def peer():
     routes, counts, barriers = {}, {}, {}
     lock = threading.Lock()
+    stop = threading.Event()
 
     class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("content-length", "0")))
+            self.do_GET()
+
         def do_GET(self):
             path, _, command = self.path.partition("/control/")
             if command:
@@ -30,6 +35,7 @@ def peer():
                 choices = routes.get(self.path, [{"status": 404}])
                 reply = choices[min(index, len(choices) - 1)]
             try:
+                if reply.get("delay"): time.sleep(reply["delay"])
                 if reply.get("barrier"):
                     started, release = barriers[self.path]
                     started.set()
@@ -45,8 +51,10 @@ def peer():
                         self.wfile.write(b" ")
                         self.wfile.flush()
                         time.sleep(1)
-                data = reply.get("raw") or json.dumps(reply.get("body", {})).encode()
+                data = reply.get("raw", json.dumps(reply.get("body", {})).encode())
                 self.wfile.write(data)
+                self.wfile.flush()
+                if reply.get("hold"): stop.wait(5)
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 pass
 
@@ -59,6 +67,7 @@ def peer():
     try:
         yield f"http://127.0.0.1:{server.server_port}", routes, counts, barriers
     finally:
+        stop.set()
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)

@@ -2524,7 +2524,6 @@ export abstract class BPService<
         this.inSetupMode = false;
         this.initializeS2SIdentity(obs);
 
-        console.log(`\n*** BP install complete for ${this.manifest.pluginId} ***\n    apiKey: ${redeemBody.apiKey}\n    cpUrl:  ${normalizedCp}\n`);
         obs.log.info("Install complete for {pluginId}; apiKey persisted; starting CP sync", { pluginId: this.manifest.pluginId });
 
         // The install handshake is not complete until the CP has cached this

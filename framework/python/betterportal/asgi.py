@@ -26,6 +26,7 @@ from .response import RawResponse
 from .rendering import RenderContext, content_type as html_content_type, select as select_renderer
 from .service import RequestError, Service
 from .sync import ControlPlaneSync
+from .installation import ServiceInstallation
 
 _SINGLE = {"host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"}
 
@@ -156,16 +157,19 @@ class _RawReply(Response):
             await self.raw.aclose()
 
 
-def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str = "service", sync: ControlPlaneSync | None = None) -> Starlette:
+def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str = "service", sync: ControlPlaneSync | None = None,
+               installation: ServiceInstallation | None = None) -> Starlette:
     """One owned service lifetime. Configure trusted proxies in the ASGI server."""
     if max_body_bytes < 1 or mode not in ("service", "theme"): raise ValueError("Invalid hosting options")
     if sync is not None and sync.service is not service: raise ValueError("Sync belongs to a different service")
+    if installation is not None and (installation.service is not service or sync is not None): raise ValueError("Installation must own this service's synchronization")
+    control = installation or sync
     @asynccontextmanager
     async def lifespan(app):
         async with service:
-            if sync is None: yield
+            if control is None: yield
             else:
-                async with sync: yield
+                async with control: yield
 
     async def error(request: Request, exception: Exception) -> Response:
         status = exception.status_code if isinstance(exception, HTTPException) else 500
@@ -272,10 +276,37 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
             return Response(status_code=204, headers={**headers, "access-control-allow-methods": "GET, HEAD, OPTIONS", "access-control-allow-headers": "Accept"})
         if path == "/.well-known/bp/health": return JSONResponse({"ok": service.ready}, status_code=200 if service.ready else 503, headers=headers)
         if path == "/.well-known/bp/manifest": return JSONResponse(service.manifest, headers=headers)
+        if path == "/.well-known/jwks.json" and installation is not None:
+            try: return JSONResponse(installation.jwks(), headers=headers)
+            except RuntimeError: return JSONResponse({"error": "Signing identity is not available"}, status_code=503, headers=headers)
         return JSONResponse(service.config_schema() if path == "/.well-known/bp/config/schema" else service.schema(), headers=headers)
 
     paths = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"]
+    if installation is not None: paths.append("/.well-known/jwks.json")
     routes = [HttpRoute(path, discovery, methods=["GET", "OPTIONS"]) for path in paths]
+    if installation is not None:
+        async def install_endpoint(request: Request) -> Response:
+            response_headers = {"access-control-allow-origin": "*", "cache-control": "no-store"}
+            assert installation is not None
+            try:
+                headers = _headers(request)
+                if request.method == "OPTIONS":
+                    return Response(status_code=204, headers={**response_headers, "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "Content-Type, Accept"})
+                content_type = headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                if content_type != "application/json" and not content_type.endswith("+json"): raise RequestError(415, "Installation requires JSON")
+                body = await _body(request, max_body_bytes)
+                try: value = loads(body.decode("utf-8"))
+                except (ValueError, UnicodeError): raise RequestError(400, "Invalid JSON body") from None
+                async def execute():
+                    status, result = await installation.install(value)
+                    return JSONResponse(result, status_code=status, headers=response_headers)
+                return await _connected(request, execute())
+            except RequestError as error:
+                return JSONResponse({"error": str(error), "installed": installation.installed}, status_code=error.status, headers=response_headers)
+            except Exception:
+                return JSONResponse({"error": "Installation failed", "installed": installation.installed}, status_code=500, headers=response_headers)
+        paths.append("/.well-known/bp/install")
+        routes.append(HttpRoute(paths[-1], install_endpoint, methods=["POST", "OPTIONS"]))
     async def config_endpoint(request: Request) -> Response:
         response_headers = {"vary": "Origin", "cache-control": "no-store"}
         try:

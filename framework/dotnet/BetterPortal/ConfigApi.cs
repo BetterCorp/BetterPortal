@@ -94,8 +94,49 @@ public sealed class ConfigApi : IAsyncDisposable
 
 public sealed partial class Service
 {
-    private readonly ConfigApi configApi;
-    private readonly Node configSchema;
+    private ConfigApi configApi;
+    private Node configSchema;
+    private bool provisionable;
+    internal bool Provisionable => provisionable;
+    private string? installedInstanceId;
+    private string? installedTenantLock;
+    internal async Task BindInstallation(string? instanceId, string? tenantLock, CancellationToken cancellation)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, shutdown.Token);
+        await updates.WaitAsync(linked.Token);
+        try
+        {
+            ObjectDisposedException.ThrowIf(closed, this);
+            if (installedInstanceId is not null && installedInstanceId != instanceId) throw new ArgumentException("Installed instance cannot change");
+            if (installedTenantLock is not null && installedTenantLock != tenantLock) throw new ArgumentException("Installed tenant cannot change");
+            if (instanceId is not null && state is not null && (state.Config.GetValueOrDefault("serviceIdentity") is not Node identity || !Equals(identity.GetValueOrDefault("id"), instanceId)))
+                throw new ArgumentException("Current snapshot does not belong to the installed instance");
+            installedInstanceId = instanceId; installedTenantLock = tenantLock;
+        }
+        finally { updates.Release(); }
+    }
+    internal async Task Provision(ConfigApi candidate, CancellationToken cancellation)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, shutdown.Token);
+        var published = false;
+        try
+        {
+            var candidateSchema = candidate.Schema(schema.Manifest.PluginId, schema.Manifest.ConfigSchemas);
+            await candidate.Initialize(linked.Token);
+            await updates.WaitAsync(linked.Token);
+            try
+            {
+                if (closed || !provisionable || state is not null || submitted) throw new InvalidOperationException("Provisioning requires an empty managed service");
+                await configApi.DisposeAsync();
+                linked.Token.ThrowIfCancellationRequested();
+                ObjectDisposedException.ThrowIf(closed, this);
+                configApi = candidate; configSchema = candidateSchema;
+                provisionable = false; published = true;
+            }
+            finally { updates.Release(); }
+        }
+        finally { if (!published) await candidate.DisposeAsync(); }
+    }
     public Node ConfigSchema() => (Node)Json.Read(Json.Write(configSchema))!;
     public async Task Initialize(CancellationToken cancellation = default)
     {
@@ -130,6 +171,7 @@ public sealed partial class Service
         try
         {
             if (!ReferenceEquals(state, current) || !Ready) throw new RequestException(503, "Configuration changed during authentication", responseHeaders);
+            if (installedTenantLock is not null && !Equals(claims["tenantId"], installedTenantLock)) throw new RequestException(403, "Config scope is not allowed", responseHeaders);
             // Scope cannot be revoked between this check and the atomic settings commit.
             return await configApi.Apply(schema.Manifest.PluginId, current.Config, claims, normalized, action, body, linked.Token);
         }

@@ -164,6 +164,9 @@ public sealed class ControlPlaneSync : IAsyncDisposable
                 await Task.Delay(retryDelay, cancellation);
             }
         }
+        // Transport/storage can finish with a non-cancellation error as shutdown
+        // starts. Normalize that race at the owner's cancellation boundary.
+        catch (Exception) when (cancellation.IsCancellationRequested) { throw new OperationCanceledException(cancellation); }
         finally { first.TrySetCanceled(cancellation); status = status with { Phase = "closed" }; }
     }
     public async ValueTask DisposeAsync()

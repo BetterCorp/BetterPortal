@@ -1,9 +1,39 @@
 {
-  "scenarios": 4481,
-  "passed": 4453,
+  "scenarios": 4674,
+  "passed": 4646,
   "results": [
     {
       "runtime": "node",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-redeem-strips-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "bootstrap-minimal",
       "passed": true
     },
@@ -813,7 +843,27 @@
     },
     {
       "runtime": "node",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceRedeemResponseSchema",
       "passed": true
     },
     {
@@ -964,6 +1014,36 @@
     {
       "runtime": "node",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-redeem-strips-unknown-roundtrip",
       "passed": true
     },
     {
@@ -1777,7 +1857,27 @@
     },
     {
       "runtime": "node",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
       "passed": true
     },
     {
@@ -1928,6 +2028,36 @@
     {
       "runtime": "node",
       "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-redeem-strips-unknown",
       "passed": true
     },
     {
@@ -2742,7 +2872,27 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceRedeemResponseSchema",
       "passed": true
     },
     {
@@ -2893,6 +3043,36 @@
     {
       "runtime": "python",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-redeem-strips-unknown-roundtrip",
       "passed": true
     },
     {
@@ -3707,7 +3887,27 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
       "passed": true
     },
     {
@@ -3858,6 +4058,36 @@
     {
       "runtime": "python",
       "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-redeem-strips-unknown",
       "passed": true
     },
     {
@@ -4671,7 +4901,27 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceRedeemResponseSchema",
       "passed": true
     },
     {
@@ -4822,6 +5072,36 @@
     {
       "runtime": "dotnet",
       "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-redeem-strips-unknown-roundtrip",
       "passed": true
     },
     {
@@ -5635,7 +5915,27 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
       "passed": true
     },
     {
@@ -19561,6 +19861,11 @@
     },
     {
       "runtime": "python",
+      "id": "sync-cancel-failed-save",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "sync-options-local-service",
       "passed": true
     },
@@ -19862,6 +20167,11 @@
     {
       "runtime": "dotnet",
       "id": "sync-cancel-startup",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sync-cancel-failed-save",
       "passed": true
     },
     {
@@ -22434,17 +22744,661 @@
       "runtime": "dotnet",
       "id": "bootstrap-identity-appended-private-dotnet",
       "passed": true
-    }
-  ],
-  "verification": {
-    "kind": "aggregate",
-    "fullRun": {
-      "passed": 4445,
-      "scenarios": 4473
     },
-    "recheckedSuites": [
-      "bootstrap"
-    ],
-    "reason": "Eight additional public/private PEM regressions, verified in the final bootstrap suite after the full run."
-  }
+    {
+      "runtime": "node",
+      "id": "installation-install-restart-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "installation-install-restart-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "installation-install-restart-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-install-replay-restart-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-install-replay-restart-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-install-replay-restart-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-wrong-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-service-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-wrong-cp-claim",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-wrong-jwks",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-expired",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-future-issuance",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-atomic-credential-save-failure",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-persistence-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-persistence-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-persistence-cancel-after-save",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-persistence-parallel-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-same-instance-reconfiguration",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-cancel-committed-reconfiguration-and-replay",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-reject-replacement-instance",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-reject-replacement-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-legacy-credentials-bind-on-reconfiguration",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-unmanaged",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-bad-state",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-remote-http",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-abbreviated-loopback",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-cp-query",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-jwks-userinfo",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-service-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-zero-delay",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-startup-negative-timeout",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-settings-activation-reconfigure-restart",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-invalid-settings-cache-stays-unready",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-missing-fields",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-null-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-bad-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-large-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-malformed-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-duplicate-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-wrong-media",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-wrong-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-request-wrong-cp",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-public-preflight-and-jwks-head",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-body-bound-before-redemption",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-status",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-redirect",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-wrong-media",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-malformed",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-missing-key",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-wrong-jwks",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-header-injection",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-large-key",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-large-response",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-deadline",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-manifest-required-before-readiness",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-retry-sync-without-redeeming-again",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-tenant-lock-covers-operations-config-and-restart",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-snapshot-missing-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-snapshot-wrong-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-jwks-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-jwks-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-redeem-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-sync-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "installation-sync-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-install-replay-restart-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-install-replay-restart-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-install-replay-restart-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-wrong-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-service-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-wrong-cp-claim",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-wrong-jwks",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-expired",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-future-issuance",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-atomic-credential-save-failure",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-persistence-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-persistence-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-persistence-cancel-after-save",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-persistence-parallel-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-same-instance-reconfiguration",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-cancel-committed-reconfiguration-and-replay",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-reject-replacement-instance",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-reject-replacement-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-legacy-credentials-bind-on-reconfiguration",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-unmanaged",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-bad-state",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-remote-http",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-abbreviated-loopback",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-cp-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-jwks-userinfo",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-service-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-zero-delay",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-startup-negative-timeout",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-settings-activation-reconfigure-restart",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-invalid-settings-cache-stays-unready",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-missing-fields",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-null-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-bad-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-large-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-malformed-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-duplicate-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-wrong-media",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-wrong-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-request-wrong-cp",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-public-preflight-and-jwks-head",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-body-bound-before-redemption",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-status",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-redirect",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-wrong-media",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-malformed",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-missing-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-wrong-jwks",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-header-injection",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-large-key",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-large-response",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-deadline",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-manifest-required-before-readiness",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-retry-sync-without-redeeming-again",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-tenant-lock-covers-operations-config-and-restart",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-snapshot-missing-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-snapshot-wrong-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-jwks-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-jwks-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-redeem-close-install",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-sync-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "installation-sync-close-install",
+      "passed": true
+    }
+  ]
 }

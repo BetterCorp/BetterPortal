@@ -1,665 +1,660 @@
 {
-  "scenarios": 132,
-  "passed": 132,
+  "scenarios": 131,
+  "passed": 131,
   "results": [
     {
-      "runtime": "python",
-      "id": "sync-manifest-before-stream",
+      "runtime": "node",
+      "id": "installation-install-restart-from-node",
       "passed": true
     },
     {
-      "runtime": "python",
-      "id": "sync-stream-lf",
+      "runtime": "node",
+      "id": "installation-install-restart-from-python",
       "passed": true
     },
     {
-      "runtime": "python",
-      "id": "sync-stream-crlf",
+      "runtime": "node",
+      "id": "installation-install-restart-from-dotnet",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-stream-cr",
+      "id": "installation-install-replay-restart-from-node",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-stream-bom",
+      "id": "installation-install-replay-restart-from-python",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-stream-multiline",
+      "id": "installation-install-replay-restart-from-dotnet",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-stream-ignored-then-valid",
+      "id": "installation-wrong-service",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-split-crlf-chunks",
+      "id": "installation-service-path",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-unicode-chunks",
+      "id": "installation-wrong-cp-claim",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-invalid-event-preserves-and-recovers",
+      "id": "installation-wrong-jwks",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-incomplete-frame-not-applied",
+      "id": "installation-expired",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-failed-bootstrap-status",
+      "id": "installation-future-issuance",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-failed-bootstrap-type",
+      "id": "installation-atomic-credential-save-failure",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-failed-bootstrap-malformed",
+      "id": "installation-persistence-cancel",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-failed-bootstrap-scope",
+      "id": "installation-persistence-close-install",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-reconnect-resubmits-manifest",
+      "id": "installation-persistence-cancel-after-save",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-poll-fallback",
+      "id": "installation-persistence-parallel-install",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-failed-bootstrap-retries",
+      "id": "installation-same-instance-reconfiguration",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-authorization-or-transient-401",
+      "id": "installation-cancel-committed-reconfiguration-and-replay",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-authorization-or-transient-403",
+      "id": "installation-reject-replacement-instance",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-authorization-or-transient-409",
+      "id": "installation-reject-replacement-tenant",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-authorization-or-transient-412",
+      "id": "installation-legacy-credentials-bind-on-reconfiguration",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-authorization-or-transient-503",
+      "id": "installation-startup-unmanaged",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-authorization-recovery",
+      "id": "installation-startup-bad-state",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-live-policy-operation",
+      "id": "installation-startup-remote-http",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-live-policy-tenant",
+      "id": "installation-startup-abbreviated-loopback",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-live-policy-origin",
+      "id": "installation-startup-cp-query",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-reject-redirect-poll",
+      "id": "installation-startup-jwks-userinfo",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-reject-redirect-sse",
+      "id": "installation-startup-service-path",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-poll-duplicate-json",
+      "id": "installation-startup-zero-delay",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-poll-invalid-utf8",
+      "id": "installation-startup-negative-timeout",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-poll-too-large",
+      "id": "installation-settings-activation-reconfigure-restart",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-poll-deadline",
+      "id": "installation-invalid-settings-cache-stays-unready",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-stream-reject-utf8",
+      "id": "installation-request-missing-fields",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-stream-reject-too-large",
+      "id": "installation-request-null-token",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-valid-frame-before-invalid-encoding",
+      "id": "installation-request-unknown-field",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-failed-persistence-retries",
+      "id": "installation-request-bad-token",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-restore-906",
+      "id": "installation-request-large-token",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-restore-1",
+      "id": "installation-request-malformed-json",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-host-lifetime",
+      "id": "installation-request-duplicate-json",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-cancel-startup",
+      "id": "installation-request-wrong-media",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-cancel-failed-save",
+      "id": "installation-request-wrong-method",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-options-local-service",
+      "id": "installation-request-wrong-cp",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-options-empty-key",
+      "id": "installation-public-preflight-and-jwks-head",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-options-header-injection",
+      "id": "installation-body-bound-before-redemption",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-options-large-key",
+      "id": "installation-redeem-status",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-options-zero-delay",
+      "id": "installation-redeem-redirect",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-options-negative-timeout",
+      "id": "installation-redeem-wrong-media",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-options-large-delay",
+      "id": "installation-redeem-malformed",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-options-large-timeout",
+      "id": "installation-redeem-empty",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-full-manifest-payload",
+      "id": "installation-redeem-missing-key",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-http://remote.test",
+      "id": "installation-redeem-wrong-jwks",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-http://127.1",
+      "id": "installation-redeem-header-injection",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-http://2130706433",
+      "id": "installation-redeem-large-key",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-http://0x7f000001",
+      "id": "installation-redeem-large-response",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-http://127.0.0.2",
+      "id": "installation-redeem-deadline",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-http://localhost.",
+      "id": "installation-manifest-required-before-readiness",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-http://[0:0:0:0:0:0:0:1]",
+      "id": "installation-retry-sync-without-redeeming-again",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-https://user:secret@remote.test",
+      "id": "installation-tenant-lock-covers-operations-config-and-restart",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-https://remote.test?x=1",
+      "id": "installation-snapshot-missing-identity",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-https://remote.test#fragment",
+      "id": "installation-snapshot-wrong-identity",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "sync-endpoint-https://remote.test\\evil",
+      "id": "installation-jwks-cancel",
       "passed": true
     },
     {
-      "runtime": "dotnet",
-      "id": "sync-manifest-before-stream",
+      "runtime": "python",
+      "id": "installation-jwks-close-install",
       "passed": true
     },
     {
-      "runtime": "dotnet",
-      "id": "sync-stream-lf",
+      "runtime": "python",
+      "id": "installation-redeem-cancel",
       "passed": true
     },
     {
-      "runtime": "dotnet",
-      "id": "sync-stream-crlf",
+      "runtime": "python",
+      "id": "installation-redeem-close-install",
       "passed": true
     },
     {
-      "runtime": "dotnet",
-      "id": "sync-stream-cr",
+      "runtime": "python",
+      "id": "installation-sync-cancel",
       "passed": true
     },
     {
-      "runtime": "dotnet",
-      "id": "sync-stream-bom",
+      "runtime": "python",
+      "id": "installation-sync-close-install",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-stream-multiline",
+      "id": "installation-install-replay-restart-from-node",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-stream-ignored-then-valid",
+      "id": "installation-install-replay-restart-from-python",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-split-crlf-chunks",
+      "id": "installation-install-replay-restart-from-dotnet",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-unicode-chunks",
+      "id": "installation-wrong-service",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-invalid-event-preserves-and-recovers",
+      "id": "installation-service-path",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-incomplete-frame-not-applied",
+      "id": "installation-wrong-cp-claim",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-failed-bootstrap-status",
+      "id": "installation-wrong-jwks",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-failed-bootstrap-type",
+      "id": "installation-expired",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-failed-bootstrap-malformed",
+      "id": "installation-future-issuance",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-failed-bootstrap-scope",
+      "id": "installation-atomic-credential-save-failure",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-reconnect-resubmits-manifest",
+      "id": "installation-persistence-cancel",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-poll-fallback",
+      "id": "installation-persistence-close-install",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-failed-bootstrap-retries",
+      "id": "installation-persistence-cancel-after-save",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-authorization-or-transient-401",
+      "id": "installation-persistence-parallel-install",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-authorization-or-transient-403",
+      "id": "installation-same-instance-reconfiguration",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-authorization-or-transient-409",
+      "id": "installation-cancel-committed-reconfiguration-and-replay",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-authorization-or-transient-412",
+      "id": "installation-reject-replacement-instance",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-authorization-or-transient-503",
+      "id": "installation-reject-replacement-tenant",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-authorization-recovery",
+      "id": "installation-legacy-credentials-bind-on-reconfiguration",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-live-policy-operation",
+      "id": "installation-startup-unmanaged",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-live-policy-tenant",
+      "id": "installation-startup-bad-state",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-live-policy-origin",
+      "id": "installation-startup-remote-http",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-reject-redirect-poll",
+      "id": "installation-startup-abbreviated-loopback",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-reject-redirect-sse",
+      "id": "installation-startup-cp-query",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-poll-duplicate-json",
+      "id": "installation-startup-jwks-userinfo",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-poll-invalid-utf8",
+      "id": "installation-startup-service-path",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-poll-too-large",
+      "id": "installation-startup-zero-delay",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-poll-deadline",
+      "id": "installation-startup-negative-timeout",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-stream-reject-utf8",
+      "id": "installation-settings-activation-reconfigure-restart",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-stream-reject-too-large",
+      "id": "installation-invalid-settings-cache-stays-unready",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-valid-frame-before-invalid-encoding",
+      "id": "installation-request-missing-fields",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-failed-persistence-retries",
+      "id": "installation-request-null-token",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-restore-906",
+      "id": "installation-request-unknown-field",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-restore-1",
+      "id": "installation-request-bad-token",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-host-lifetime",
+      "id": "installation-request-large-token",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-cancel-startup",
+      "id": "installation-request-malformed-json",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-cancel-failed-save",
+      "id": "installation-request-duplicate-json",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-options-local-service",
+      "id": "installation-request-wrong-media",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-options-empty-key",
+      "id": "installation-request-wrong-method",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-options-header-injection",
+      "id": "installation-request-wrong-cp",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-options-large-key",
+      "id": "installation-public-preflight-and-jwks-head",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-options-zero-delay",
+      "id": "installation-body-bound-before-redemption",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-options-negative-timeout",
+      "id": "installation-redeem-status",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-options-large-delay",
+      "id": "installation-redeem-redirect",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-options-large-timeout",
+      "id": "installation-redeem-wrong-media",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-full-manifest-payload",
+      "id": "installation-redeem-malformed",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-http://remote.test",
+      "id": "installation-redeem-empty",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-http://127.1",
+      "id": "installation-redeem-missing-key",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-http://2130706433",
+      "id": "installation-redeem-wrong-jwks",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-http://0x7f000001",
+      "id": "installation-redeem-header-injection",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-http://127.0.0.2",
+      "id": "installation-redeem-large-key",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-http://localhost.",
+      "id": "installation-redeem-large-response",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-http://[0:0:0:0:0:0:0:1]",
+      "id": "installation-redeem-deadline",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-https://user:secret@remote.test",
+      "id": "installation-manifest-required-before-readiness",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-https://remote.test?x=1",
+      "id": "installation-retry-sync-without-redeeming-again",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-https://remote.test#fragment",
+      "id": "installation-tenant-lock-covers-operations-config-and-restart",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-endpoint-https://remote.test\\evil",
-      "passed": true
-    },
-    {
-      "runtime": "python",
-      "id": "sync-node-config-manager-bootstrap",
+      "id": "installation-snapshot-missing-identity",
       "passed": true
     },
     {
-      "runtime": "python",
-      "id": "sync-node-config-manager-invalid-key",
+      "runtime": "dotnet",
+      "id": "installation-snapshot-wrong-identity",
       "passed": true
     },
     {
-      "runtime": "python",
-      "id": "sync-node-config-manager-change",
+      "runtime": "dotnet",
+      "id": "installation-jwks-cancel",
       "passed": true
     },
     {
-      "runtime": "python",
-      "id": "sync-node-config-manager-revoke",
+      "runtime": "dotnet",
+      "id": "installation-jwks-close-install",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-node-config-manager-bootstrap",
+      "id": "installation-redeem-cancel",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-node-config-manager-invalid-key",
+      "id": "installation-redeem-close-install",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-node-config-manager-change",
+      "id": "installation-sync-cancel",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "sync-node-config-manager-revoke",
+      "id": "installation-sync-close-install",
       "passed": true
     }
   ]

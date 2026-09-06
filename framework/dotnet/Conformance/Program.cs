@@ -40,6 +40,7 @@ app.MapPost("/", async (HttpRequest request) =>
         var body = (Dictionary<string, object?>)Json.Read(await reader.ReadToEndAsync())!;
         if (body.GetValueOrDefault("action") is "runtime") return Results.Json(new { runtime = "dotnet" });
         if (body.GetValueOrDefault("action") is "bootstrap") return Results.Json(await BootstrapAdapter.Run(body));
+        if (body.GetValueOrDefault("action") is "installation") return Results.Json(await InstallationAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "config-api") return Results.Json(await ConfigApiAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "handler") return Results.Json(await HandlerAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "registry") return Results.Json(RegistryAdapter.Run(body));

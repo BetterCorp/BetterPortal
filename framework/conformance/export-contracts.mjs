@@ -97,6 +97,23 @@ const keyPair = objectNode({
 }, "reject");
 portable("SigningKeyPairSchema", keyPair);
 const setupFields = sourceNode("SetupTokenClaimsSchema").properties;
+const installationBinding = objectNode(Object.fromEntries(
+  ["instanceId", "serviceUrl", "cpUrl", "cpJwksUri", "scope", "jti"].map(field => [field, setupFields[field]])
+), "reject");
+portable("ServiceInstallationBindingSchema", installationBinding);
+portable("ServiceInstallRequestSchema", objectNode({
+  setupToken: { ...secretString, maxLength: 32768 }, cpUrl: setupFields.cpUrl
+}, "reject"));
+// Existing config-manager setupTokens.ts redemption and BSB install responses.
+// Native success deliberately omits the old response's unnecessary API key.
+portable("ServiceRedeemResponseSchema", objectNode({
+  apiKey: { ...secretString, maxLength: 4096 }, cpId: { kind: "string", minLength: 1 }, cpJwksUri: setupFields.cpJwksUri
+}));
+portable("ServiceInstallResponseSchema", objectNode({
+  ok: { kind: "literal", value: true }, pluginId: sourceNode("PluginManifestSchema").properties.pluginId,
+  cpUrl: setupFields.cpUrl, manifestVersion: sourceNode("PluginManifestSchema").properties.version,
+  apiKey: optionalNode({ ...secretString, maxLength: 4096 }) // Legacy Node response only; native hosts omit it.
+}, "reject"));
 portable("BootstrapStateSchema", objectNode({
   version: { kind: "literal", value: 1 },
   apiKey: optionalNode(secretString),
@@ -106,7 +123,7 @@ portable("BootstrapStateSchema", objectNode({
   configEncryptionKey: optionalNode(secretString),
   tenantLock: optionalNode(unwrap(setupFields.scope).properties.tenantId),
   installedAt: optionalNode({ kind: "string", minLength: 1 }),
-  identity: optionalNode(keyPair)
+  identity: optionalNode(keyPair), installation: optionalNode(installationBinding)
 }, "reject"));
 portable("BootstrapStateEnvelopeSchema", objectNode({
   v: { kind: "literal", value: 1 },

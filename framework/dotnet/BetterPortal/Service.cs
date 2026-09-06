@@ -21,6 +21,7 @@ public sealed partial class Service : IAsyncDisposable
     {
         Registry = registry; schema = registry.Schema(declaration);
         this.configApi = configApi ?? new ConfigApi(); configSchema = this.configApi.Schema(schema.Manifest.PluginId, schema.Manifest.ConfigSchemas);
+        provisionable = managed && configApi is null && snapshot is null;
         store = stateStore; this.managed = managed; this.previewKey = previewKey;
         state = snapshot is null ? null : Build(snapshot);
     }
@@ -42,7 +43,9 @@ public sealed partial class Service : IAsyncDisposable
         var snapshot = current.Snapshot;
         var scope = machine ? snapshot.ById(headers.GetValueOrDefault("x-bp-tenant-id", ""), headers.GetValueOrDefault("x-bp-app-id", ""))
             : snapshot.Resolve(headers, scheme, mode, trustedAddresses);
-        return scope ?? throw new RequestException(machine ? 401 : 400, "BetterPortal tenant/app context required");
+        if (scope is null) throw new RequestException(machine ? 401 : 400, "BetterPortal tenant/app context required");
+        if (installedTenantLock is not null && scope.TenantId != installedTenantLock) throw new RequestException(426, "Service is locked to another tenant");
+        return scope;
     }
     public IReadOnlyDictionary<string, string> Preflight(Route route, IReadOnlyDictionary<string, string> headers, string? matchedPath = null, string? fragment = null,
         string scheme = "https", string mode = "service", IEnumerable<string>? trustedAddresses = null)

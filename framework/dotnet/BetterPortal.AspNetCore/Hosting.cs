@@ -135,12 +135,14 @@ public static class Hosting
             else await context.Response.Body.WriteAsync(raw.Body, context.RequestAborted);
         }
     }
-    public static WebApplication MapBetterPortal(this WebApplication endpoints, Service service, int maxBodyBytes = 1024 * 1024, string mode = "service")
+    public static WebApplication MapBetterPortal(this WebApplication endpoints, Service service, int maxBodyBytes = 1024 * 1024, string mode = "service", ServiceInstallation? installation = null)
     {
         if (maxBodyBytes < 1 || mode is not ("service" or "theme")) throw new ArgumentException("Invalid hosting options");
+        if (installation is not null && !ReferenceEquals(installation.Service, service)) throw new ArgumentException("Installation belongs to a different service");
         endpoints.UseStatusCodePages(async status => await Reply(status.HttpContext,
             new { error = status.HttpContext.Response.StatusCode switch { 404 => "Route not found", 405 => "Method not allowed", _ => "Request failed" } }, status.HttpContext.Response.StatusCode));
         string[] discovery = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"];
+        if (installation is not null) discovery = [.. discovery, "/.well-known/jwks.json"];
         foreach (var path in discovery) endpoints.MapMethods(path, ["GET", "HEAD", "OPTIONS"], async (HttpContext context) =>
         {
             var headers = new Dictionary<string, string> { ["access-control-allow-origin"] = "*", ["cache-control"] = "no-store" };
@@ -151,7 +153,37 @@ public static class Hosting
                 await Reply(context, null, 204, headers); return;
             }
             if (path == discovery[0]) await Reply(context, new { ok = service.Ready }, service.Ready ? 200 : 503, headers);
+            else if (path == "/.well-known/jwks.json" && installation is not null)
+            {
+                try { await Reply(context, installation.Jwks(), 200, headers); }
+                catch (InvalidOperationException) { await Reply(context, new { error = "Signing identity is not available" }, 503, headers); }
+            }
             else await Reply(context, path == discovery[1] ? service.Manifest : path == discovery[3] ? service.ConfigSchema() : (object)service.Schema(), 200, headers);
+        });
+        const string installPath = "/.well-known/bp/install";
+        if (installation is not null) endpoints.MapMethods(installPath, ["POST", "OPTIONS"], async (HttpContext context) =>
+        {
+            var responseHeaders = new Dictionary<string, string> { ["access-control-allow-origin"] = "*", ["cache-control"] = "no-store" };
+            try
+            {
+                var headers = Headers(context.Request);
+                if (context.Request.Method == "OPTIONS")
+                {
+                    responseHeaders["access-control-allow-methods"] = "POST, OPTIONS"; responseHeaders["access-control-allow-headers"] = "Content-Type, Accept";
+                    await Reply(context, null, 204, responseHeaders); return;
+                }
+                var contentType = headers.GetValueOrDefault("content-type", "").Split(';')[0].Trim().ToLowerInvariant();
+                if (contentType != "application/json" && !contentType.EndsWith("+json", StringComparison.Ordinal)) throw new RequestException(415, "Installation requires JSON");
+                var body = await ReadBody(context.Request, maxBodyBytes, context.RequestAborted);
+                object? value;
+                try { value = Json.Read(Utf8.GetString(body)); }
+                catch (Exception error) when (error is System.Text.Json.JsonException or ArgumentException) { throw new RequestException(400, "Invalid JSON body"); }
+                var result = await installation.Install(value, context.RequestAborted);
+                await Reply(context, result.Body, result.Status, responseHeaders);
+            }
+            catch (RequestException error) { await Reply(context, new { error = error.Message, installed = installation.Installed }, error.Status, responseHeaders); }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
+            catch (Exception) { await Reply(context, new { error = "Installation failed", installed = installation.Installed }, 500, responseHeaders); }
         });
         const string configPath = "/.well-known/bp/config";
         endpoints.MapMethods(configPath, ["GET", "HEAD", "POST", "OPTIONS"], async (HttpContext context) =>
@@ -186,7 +218,7 @@ public static class Hosting
         var groups = new Dictionary<string, Dictionary<string, (Route Route, string Path)>>(StringComparer.Ordinal);
         foreach (var route in service.Registry.Routes) foreach (var path in route.Paths)
         {
-            if (discovery.Contains(path) || path == configPath) throw new ArgumentException("Route conflicts with BP discovery: " + path);
+            if (discovery.Contains(path) || path == configPath || installation is not null && path == installPath) throw new ArgumentException("Route conflicts with BP discovery: " + path);
             var pattern = "/" + string.Join('/', Segments(path).Select((part, index) => part.StartsWith(':') ? "{_bp" + index + "}" : part));
             if (!groups.TryGetValue(pattern, out var methods)) groups[pattern] = methods = new(StringComparer.Ordinal);
             foreach (var operation in route.Operations) methods.Add(operation.Method, (route, path));

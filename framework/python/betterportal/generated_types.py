@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: dd6e1b1999f538c7069dc48b4d4ae64312eb394e6714d9682918954e1bdfd953
+# Generated from AnyVali documents; do not edit. SHA256: b552dca6b833a77f1e4529d234af3465cc93c9dd03239beb33ebba50a14e2652
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -1653,6 +1653,7 @@ BootstrapState = TypedDict('BootstrapState', {
     'tenantLock': NotRequired['str'],
     'installedAt': NotRequired['str'],
     'identity': NotRequired['SigningKeyPair'],
+    'installation': NotRequired['ServiceInstallationBinding'],
 })
 
 BootstrapStateEnvelope = TypedDict('BootstrapStateEnvelope', {
@@ -1679,6 +1680,7 @@ BootstrapStateInput = TypedDict('BootstrapStateInput', {
     'tenantLock': NotRequired['str'],
     'installedAt': NotRequired['str'],
     'identity': NotRequired['SigningKeyPairInput'],
+    'installation': NotRequired['ServiceInstallationBindingInput'],
 })
 
 BpSchemaOutput = TypedDict('BpSchemaOutput', {
@@ -4295,6 +4297,60 @@ ServiceConfigWriteResponseInput = TypedDict('ServiceConfigWriteResponseInput', {
     'ok': Required['Literal[True]'],
 })
 
+ServiceInstallRequest = TypedDict('ServiceInstallRequest', {
+    'setupToken': Required['str'],
+    'cpUrl': Required['str'],
+})
+
+ServiceInstallRequestInput = TypedDict('ServiceInstallRequestInput', {
+    'setupToken': Required['str'],
+    'cpUrl': Required['str'],
+})
+
+ServiceInstallResponse = TypedDict('ServiceInstallResponse', {
+    'ok': Required['Literal[True]'],
+    'pluginId': Required['str'],
+    'cpUrl': Required['str'],
+    'manifestVersion': Required['str'],
+    'apiKey': NotRequired['str'],
+})
+
+ServiceInstallResponseInput = TypedDict('ServiceInstallResponseInput', {
+    'ok': Required['Literal[True]'],
+    'pluginId': Required['str'],
+    'cpUrl': Required['str'],
+    'manifestVersion': Required['str'],
+    'apiKey': NotRequired['str'],
+})
+
+ServiceInstallationBinding = TypedDict('ServiceInstallationBinding', {
+    'instanceId': Required['str'],
+    'serviceUrl': Required['str'],
+    'cpUrl': Required['str'],
+    'cpJwksUri': Required['str'],
+    'scope': NotRequired['ServiceInstallationBindingScope'],
+    'jti': Required['str'],
+})
+
+ServiceInstallationBindingInput = TypedDict('ServiceInstallationBindingInput', {
+    'instanceId': Required['str'],
+    'serviceUrl': Required['str'],
+    'cpUrl': Required['str'],
+    'cpJwksUri': Required['str'],
+    'scope': NotRequired['ServiceInstallationBindingInputScope'],
+    'jti': Required['str'],
+})
+
+ServiceInstallationBindingInputScope = TypedDict('ServiceInstallationBindingInputScope', {
+    'tenantId': Required['str'],
+    'appId': NotRequired['str'],
+})
+
+ServiceInstallationBindingScope = TypedDict('ServiceInstallationBindingScope', {
+    'tenantId': Required['str'],
+    'appId': NotRequired['str'],
+})
+
 ServiceManifestCacheEntry = TypedDict('ServiceManifestCacheEntry', {
     'serviceId': Required['str'],
     'manifestVersion': Required['str'],
@@ -4407,6 +4463,18 @@ ServiceManifestCacheEntryViewindexItemOperationsItemSchemas = TypedDict('Service
     'response': NotRequired['JsonObject'],
 })
 
+ServiceRedeemResponse = TypedDict('ServiceRedeemResponse', {
+    'apiKey': Required['str'],
+    'cpId': Required['str'],
+    'cpJwksUri': Required['str'],
+})
+
+ServiceRedeemResponseInput = TypedDict('ServiceRedeemResponseInput', {
+    'apiKey': Required['str'],
+    'cpId': Required['str'],
+    'cpJwksUri': Required['str'],
+})
+
 ServiceTokenClaims = TypedDict('ServiceTokenClaims', {
     'iss': Required['str'],
     'sub': Required['str'],
@@ -4445,7 +4513,7 @@ SetupTokenClaims = TypedDict('SetupTokenClaims', {
     'serviceUrl': Required['str'],
     'cpUrl': Required['str'],
     'cpJwksUri': Required['str'],
-    'scope': NotRequired['SetupTokenClaimsScope'],
+    'scope': NotRequired['ServiceInstallationBindingScope'],
 })
 
 SetupTokenClaimsInput = TypedDict('SetupTokenClaimsInput', {
@@ -4458,17 +4526,7 @@ SetupTokenClaimsInput = TypedDict('SetupTokenClaimsInput', {
     'serviceUrl': Required['str'],
     'cpUrl': Required['str'],
     'cpJwksUri': Required['str'],
-    'scope': NotRequired['SetupTokenClaimsInputScope'],
-})
-
-SetupTokenClaimsInputScope = TypedDict('SetupTokenClaimsInputScope', {
-    'tenantId': Required['str'],
-    'appId': NotRequired['str'],
-})
-
-SetupTokenClaimsScope = TypedDict('SetupTokenClaimsScope', {
-    'tenantId': Required['str'],
-    'appId': NotRequired['str'],
+    'scope': NotRequired['ServiceInstallationBindingInputScope'],
 })
 
 SharedServiceDefinition = TypedDict('SharedServiceDefinition', {

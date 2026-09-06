@@ -12,7 +12,7 @@ def build_registry(body):
         for operation in item["operations"]:
             schemas = {key: av.import_schema(value) for key, value in operation.get("schemas", {}).items()}
             handler = (RawHandler(lambda context: RawResponse(), **schemas) if operation.get("raw") else
-                Handler(av.import_schema(operation["response"]), lambda context: None,
+                Handler(av.import_schema(operation["response"]), lambda context: dict(context.request_context.config) if body.get("returnConfig") else None,
                     renderers=[Renderer(item["declaration"], lambda data, context: "") for item in operation.get("renderers", [])], **schemas))
             operations.append(Operation(handler, operation["declaration"]))
         routes.append(Route(item["viewId"], item["path"], operations, path_variants=item.get("pathVariants", [])))

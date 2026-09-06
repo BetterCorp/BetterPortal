@@ -573,7 +573,54 @@ keys and mismatched public/private keys fail without replacement. Keep one owner
 per store; use a transactional implementation for shared storage. No plaintext
 cache or background tasks are retained. Caller cancellation propagates before
 commit. Pass the returned identity to `ControlPlaneSync(key_pair=...)` or
-`TokenIssuer`; HTTP installation binding remains pending.
+`TokenIssuer`, or let `ServiceInstallation` own it.
+
+`ServiceInstallation` supplies the setup-token installation endpoint and public
+JWKS, restores protected credentials, activates ticket-protected settings and owns
+manifest synchronization. Configure CP trust and the public service origin in the
+host; forwarded headers and the setup body cannot select either. The installer
+requires a fresh managed `Service` and owns its sync lifecycle.
+
+```python
+from pathlib import Path
+from betterportal.asgi import create_app
+from betterportal.bootstrap import BootstrapStateStore
+from betterportal.installation import ServiceInstallation
+from betterportal.registry import Registry
+from betterportal.service import Service
+from betterportal.storage import FileStateStore
+
+def installable_app(cp_url: str, public_origin: str, master_key: str, state_directory: str):
+    directory = Path(state_directory)
+    service = Service(Registry([]), {"pluginId": "com.example.service", "title": "Example",
+        "description": "Example", "version": "1.0.0"}, managed=True,
+        state_store=FileStateStore(directory / "snapshot.json"))
+    installation = ServiceInstallation(service,
+        BootstrapStateStore(FileStateStore(directory / "bootstrap.json"), master_key), cp_url, public_origin,
+        settings_store=FileStateStore(directory / "settings.json"))
+    return create_app(service, installation=installation)
+```
+
+Use your operation registry and separately protected master key in this factory;
+serve its returned ASGI app. Startup without credentials exposes public keys and
+health 503. POST `{"setupToken":"...","cpUrl":"https://cp.example"}` to
+`/.well-known/bp/install`. A successful installation returns 200 after the manifest
+and scoped snapshot are accepted. Failed first sync returns 503 with `installed:
+true` and retries using durable credentials. Redemption/persistence failures never
+make the service ready. Native responses omit the API key.
+
+Replaying the same setup JTI reuses committed credentials; a new signed token may
+rotate credentials for the same instance. Tenant-scoped installation stores its
+signed tenant as `tenantLock`; operation requests for another tenant return 426,
+and config tickets for another tenant are denied. Platform installation without a
+tenant scope can serve the CP's permitted tenants. Existing tenant locks survive
+reconfiguration and restart. An existing Node bootstrap file can be loaded with
+its master key; reconfiguration requires a synchronized matching instance.
+Optional `cp_jwks_uri` pins an alternate JWKS endpoint; `auth_provider` advertises
+provider metadata. Config descriptors require a settings store. `config_mode`,
+`custom_ui_path`, and `writable` configure the existing `ConfigApi` policy.
+Shutdown cancels and drains installation/sync before closing the service. Keep one
+owner per state store; these file stores do not coordinate replicas.
 
 ```sh
 python -m pip install -r framework/conformance/requirements.txt

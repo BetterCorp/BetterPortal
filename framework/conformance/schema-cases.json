@@ -1,5 +1,85 @@
 [
   {
+    "id": "install-sensitive-token",
+    "contract": "ServiceInstallRequestSchema",
+    "action": "encrypt",
+    "input": {
+      "setupToken": "signed-token",
+      "cpUrl": "https://cp.test"
+    },
+    "output": {
+      "setupToken": "encrypted:\"signed-token\"",
+      "cpUrl": "https://cp.test"
+    }
+  },
+  {
+    "id": "install-token-required",
+    "contract": "ServiceInstallRequestSchema",
+    "input": {
+      "cpUrl": "https://cp.test"
+    },
+    "valid": false
+  },
+  {
+    "id": "install-unknown-reject",
+    "contract": "ServiceInstallRequestSchema",
+    "input": {
+      "setupToken": "signed-token",
+      "cpUrl": "https://cp.test",
+      "unknown": true
+    },
+    "valid": false
+  },
+  {
+    "id": "install-binding-optional-scope",
+    "contract": "ServiceInstallationBindingSchema",
+    "input": {
+      "instanceId": "01952200-0000-7000-8000-000000000004",
+      "serviceUrl": "https://service.test",
+      "cpUrl": "https://cp.test",
+      "cpJwksUri": "https://cp.test/keys",
+      "jti": "once"
+    },
+    "output": {
+      "instanceId": "01952200-0000-7000-8000-000000000004",
+      "serviceUrl": "https://service.test",
+      "cpUrl": "https://cp.test",
+      "cpJwksUri": "https://cp.test/keys",
+      "jti": "once"
+    }
+  },
+  {
+    "id": "install-response-omits-credentials",
+    "contract": "ServiceInstallResponseSchema",
+    "input": {
+      "ok": true,
+      "pluginId": "com.example.service",
+      "cpUrl": "https://cp.test",
+      "manifestVersion": "1.0.0"
+    },
+    "output": {
+      "ok": true,
+      "pluginId": "com.example.service",
+      "cpUrl": "https://cp.test",
+      "manifestVersion": "1.0.0"
+    }
+  },
+  {
+    "id": "install-redeem-strips-unknown",
+    "contract": "ServiceRedeemResponseSchema",
+    "input": {
+      "apiKey": "secret",
+      "cpId": "cp",
+      "cpJwksUri": "https://cp.test/keys",
+      "unknown": true
+    },
+    "output": {
+      "apiKey": "secret",
+      "cpId": "cp",
+      "cpJwksUri": "https://cp.test/keys"
+    }
+  },
+  {
     "id": "bootstrap-minimal",
     "contract": "BootstrapStateSchema",
     "input": {

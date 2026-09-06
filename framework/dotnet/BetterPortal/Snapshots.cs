@@ -28,6 +28,8 @@ public sealed partial class Service
     private SnapshotState Build(ScopedConfig snapshot)
     {
         var config = snapshot.Document(); var preview = new Node(); var previewValues = new Node { ["tenant"] = new Node(), ["app"] = new Node() }; (string, string)? previewScope = null;
+        if (installedInstanceId is not null && (config.GetValueOrDefault("serviceIdentity") is not Node identity || !Equals(identity.GetValueOrDefault("id"), installedInstanceId)))
+            throw new ArgumentException("Snapshot does not belong to the installed service instance");
         if (config.GetValueOrDefault("previewConfig") is Node encrypted)
         {
             if (previewKey is null) throw new ArgumentException("Preview configuration requires its decryption key");

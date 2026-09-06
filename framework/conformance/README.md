@@ -8,8 +8,8 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,126/1,152 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 48 semantic cases and imports all 144 documents, then repeats
+Published AnyVali **1.1.1** passes [1,186/1,212 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 54 semantic cases and imports all 148 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -18,8 +18,8 @@ The security suite passes [459/459 scenarios](results-security.json): every
 signing/verifying language pair, six token purposes, signature tampering,
 issuer/audience/key checks, malformed claims/headers, config-ticket scope/actions,
 refresh-role clearing, revoked service bindings/grants, caller mode, method,
-permissions and tenant/app isolation. Setup installation binding remains
-acceptance work.
+permissions and tenant/app isolation. Setup installation binding is covered by the
+installation suite below.
 The [authorization suite](results-authorization.json) adds 306 passing checks:
 current role and alias revocation, trusted management scope, caller modes, both
 delegated credentials, refresh-helper purpose/scope checks, and native fail-closed
@@ -37,8 +37,7 @@ nonces, scope/path/key/tag tampering, imported sensitive fields, omitted optiona
 fields, malformed envelopes and native byte limits. Node calls its real persisted
 store and preview helpers. Its empty-preview-secret length check is fixed with a
 focused Node regression. This gate covers encryption primitives and preview
-schema traversal; persistent settings remain pending. Snapshot persistence is
-covered separately below.
+schema traversal; persistent settings and snapshots are covered separately below.
 .NET dependencies are locked in [packages.lock.json](../dotnet/BetterPortal/packages.lock.json);
 the Python probe dependencies are pinned in [requirements.txt](requirements.txt).
 
@@ -173,7 +172,7 @@ a fake Node sync controller. Requests after updates see current mounts, origins,
 URLs and role/key policy; in-flight authentication rejects a retired snapshot while
 request cancellation remains cancellation.
 
-The [sync suite](results-sync.json) passes 130 checks for native manifest POST, SSE/poll
+The [sync suite](results-sync.json) passes 132 checks for native manifest POST, SSE/poll
 fallback and hosting lifetime. The portable submission contract projects the
 existing CP cache fields and preserves method-specific schemas, fragments, keys
 and optional provider metadata. Checks cover failed startup, readiness after
@@ -183,9 +182,10 @@ policy, redirect refusal, strict UTF-8/JSON, bounded payloads and SSE framing.
 Both ports also connect to the existing Node config-manager's registered H3
 handlers and real file store: RSA registration, tenant-scoped projection,
 persisted manifest acceptance, live route changes and credential revocation.
-The test-only Node peer does not reimplement those policies. Bootstrap shell and
-provisioning/install integration remain delivery work.
-The same 130 checks also pass on [Python 3.13](results-sync-python313.json).
+The test-only Node peer does not reimplement those policies. Bootstrap shell
+integration remains delivery work; installation is covered below.
+The earlier 130-check sync gate also passes on [Python 3.13](results-sync-python313.json);
+the two new shutdown/storage-error races are included in the full Python 3.10 run.
 
 The [settings suite](results-settings.json) passes 130 checks for scoped field declarations, native defaults/coercion,
 recursive values, nested unknown-key policies, Node-compatible top-level envelopes,
@@ -229,7 +229,21 @@ identities live in the encrypted state's optional `identity` extension; Node
 preserves it but still loads its own S2S identity from a separate file. Private
 PEM data in a public field, including appended content, is rejected. The host
 supplies the protected master key. The same 147 checks pass on
-[Python 3.13](results-bootstrap-python313.json). HTTP installation binding remains pending.
+[Python 3.13](results-bootstrap-python313.json).
+
+The [installation suite](results-installation.json) passes 131/131 checks. It uses the actual Node BSB
+installer and config-manager setup/redeem/sync routes, with setup signatures from
+all three languages. Native checks additionally cover pinned CP/service trust,
+malformed/oversized responses, redirects, deadlines, protected atomic credentials,
+replay, reconfiguration, settings activation, restart, failed startup/sync and
+snapshot instance binding. Signed tenant locks cover operations, preflights and
+config tickets. Cancellation checks block JWKS, redemption, credential persistence
+and initial sync; a committed rotation can resume without redeeming again.
+The Node fixture exposed an installer console message containing the CP API key;
+that redundant message is removed, and credential logging is a failing regression
+condition. Node's legacy API-key response and first-request tenant claim are not
+native compatibility requirements. The same 131 installation checks pass on
+[Python 3.13](results-installation-python313.json). Hostname-change confirmation remains pending.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -268,11 +282,11 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 4,453/4,481
-checks across twenty-three suites. Failures are the original SDK probes, the
+[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 4,646/4,674
+checks across twenty-four suites. Failures are the original SDK probes, the
 context/config null-active regressions and eighteen sensitive-ref regressions.
-The combined report retains the full 4,445/4,473 run and replaces its bootstrap
-section with the final 147-check rerun (eight additional PEM regressions).
+This combined report records one full run, including the final installation and
+sync cancellation regressions.
 Linux execution is still acceptance work.
 
 ```sh
@@ -380,6 +394,6 @@ wheel lacks py.typed. Linux execution remains a delivery check.
 [CAPABILITIES.md](CAPABILITIES.md) maps the full requested scope to existing BP
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
-HTTP suite (full rendering/stream hosting, provisioning,
+HTTP suite (full rendering/stream hosting, hostname changes,
 authorized diagnostics and generated clients), standalone examples and CI remains
 incomplete. Publishing and BSB plugins remain separate follow-ups.

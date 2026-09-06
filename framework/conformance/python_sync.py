@@ -17,11 +17,15 @@ from python_registry import build_registry
 async def sync_request(body):
     with tempfile.TemporaryDirectory() as directory:
         class Store:
-            def __init__(self): self.file = FileStateStore(Path(directory) / "snapshot.json"); self.failures = body.get("saveFailures", 0); self.saves = 0
+            def __init__(self): self.file = FileStateStore(Path(directory) / "snapshot.json"); self.failures = body.get("saveFailures", 0); self.saves = 0; self.saving = asyncio.Event()
             async def load(self): return await self.file.load()
             async def save(self, value):
                 self.saves += 1
                 if self.failures: self.failures -= 1; raise OSError("Injected save failure")
+                if body.get("cancelFailedSave"):
+                    self.saving.set()
+                    try: await asyncio.Future()
+                    except asyncio.CancelledError: raise ValueError("Storage failed during shutdown") from None
                 await self.file.save(value)
         store = Store()
         if "stored" in body: (Path(directory) / "snapshot.json").write_text(body["stored"], encoding="utf-8")
@@ -32,9 +36,11 @@ async def sync_request(body):
                 sync = ControlPlaneSync(service, body["baseUrl"], body.get("apiKey", "bp-test-key"), key_pair=key,
                     auth_provider=body.get("authProvider"), retry_delay=body.get("retryDelay", 0.05), request_timeout=body.get("requestTimeout", 1))
             except Exception: return {"valid": False}
-            if body.get("cancelStartup"):
+            if body.get("cancelStartup") or body.get("cancelFailedSave"):
                 starting = asyncio.create_task(sync.start())
-                while not sync.status["attempts"]: await asyncio.sleep(0)
+                if body.get("cancelFailedSave"): await asyncio.wait_for(store.saving.wait(), 3)
+                else:
+                    while not sync.status["attempts"]: await asyncio.sleep(0)
                 starting.cancel()
                 result = (await asyncio.gather(starting, return_exceptions=True))[0]
                 assert isinstance(result, asyncio.CancelledError)

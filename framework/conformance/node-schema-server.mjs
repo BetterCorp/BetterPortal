@@ -27,6 +27,12 @@ createServer(async (request, response) => {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action === "installation") {
+      const { installationRequest } = await import("./node-installation.mjs");
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await installationRequest(body)));
+      return;
+    }
     if (body.action === "bootstrap") {
       const { bootstrapRequest } = await import("./node-bootstrap.mjs");
       response.setHeader("Content-Type", "application/json");

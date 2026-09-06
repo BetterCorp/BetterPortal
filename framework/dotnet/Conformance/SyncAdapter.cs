@@ -5,15 +5,22 @@ using Node = System.Collections.Generic.Dictionary<string, object?>;
 
 internal static class SyncAdapter
 {
-    private sealed class Store(string directory, int failures) : IStateStore
+    private sealed class Store(string directory, int failures, bool failOnCancellation) : IStateStore
     {
         private readonly FileStateStore file = new(Path.Combine(directory, "snapshot.json"));
         internal int Saves;
+        internal TaskCompletionSource Saving = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ValueTask<byte[]?> Load(CancellationToken cancellation = default) => file.Load(cancellation);
         public async ValueTask Save(ReadOnlyMemory<byte> data, CancellationToken cancellation = default)
         {
             Saves++;
             if (failures > 0) { failures--; throw new IOException("Injected save failure"); }
+            if (failOnCancellation)
+            {
+                Saving.TrySetResult();
+                try { await Task.Delay(Timeout.Infinite, cancellation); }
+                catch (OperationCanceledException) { throw new InvalidDataException("Storage failed during shutdown"); }
+            }
             await file.Save(data, cancellation);
         }
     }
@@ -22,7 +29,7 @@ internal static class SyncAdapter
         var directory = Directory.CreateTempSubdirectory("bp-sync-");
         try
         {
-            var store = new Store(directory.FullName, Convert.ToInt32(body.GetValueOrDefault("saveFailures", 0)));
+            var store = new Store(directory.FullName, Convert.ToInt32(body.GetValueOrDefault("saveFailures", 0)), body.GetValueOrDefault("cancelFailedSave") is true);
             if (body.GetValueOrDefault("stored") is string cached) await File.WriteAllTextAsync(Path.Combine(directory.FullName, "snapshot.json"), cached);
             await using var service = new Service(RegistryAdapter.Build(body), Contracts.Parse<ManifestDeclarationInput>("ManifestDeclarationSchema", body["declaration"]),
                 stateStore: store, managed: body.GetValueOrDefault("managed", true) is true, previewKey: body.GetValueOrDefault("previewKey") as string);
@@ -37,11 +44,12 @@ internal static class SyncAdapter
             catch (Exception) { return new { valid = false }; }
             await using (sync)
             {
-                if (body.GetValueOrDefault("cancelStartup") is true)
+                if (body.GetValueOrDefault("cancelStartup") is true || body.GetValueOrDefault("cancelFailedSave") is true)
                 {
                     using var cancellation = new CancellationTokenSource();
                     var starting = sync.StartAsync(cancellation.Token);
-                    while (sync.Status.Attempts == 0) await Task.Yield();
+                    if (body.GetValueOrDefault("cancelFailedSave") is true) await store.Saving.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                    else while (sync.Status.Attempts == 0) await Task.Yield();
                     cancellation.Cancel();
                     try { await starting; throw new Exception("Startup should cancel"); }
                     catch (OperationCanceledException) { }

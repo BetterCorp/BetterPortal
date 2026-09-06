@@ -1,0 +1,33 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "apiKey": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "metadata": {
+          "sensitive": true
+        }
+      },
+      "cpId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "cpJwksUri": {
+        "kind": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "apiKey",
+      "cpId",
+      "cpJwksUri"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

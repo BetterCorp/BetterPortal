@@ -10,7 +10,7 @@ from typing import Any, Iterable, cast
 import anyvali as av
 from .contracts import contract, object_document, parse
 from .encryption import ConfigCipher, ConfigEncryptionError, Scope
-from .generated_types import ConfigSchemaDescriptorInput
+from .generated_types import ConfigSchemaDescriptorInput, ConfigSchemaDescriptor
 from .jsoncodec import loads
 from .storage import StateStore
 
@@ -58,7 +58,7 @@ class SettingsSchema:
     Field scopes control writes. Native schemas own values/defaults/recursion and
     nested unknown keys; descriptor visibility adds sensitive metadata.
     """
-    def __init__(self, descriptors: Iterable[ConfigSchemaDescriptorInput]):
+    def __init__(self, descriptors: Iterable[ConfigSchemaDescriptorInput | ConfigSchemaDescriptor]):
         self._descriptors = [parse("ConfigSchemaDescriptorSchema", item) for item in descriptors]
         documents: dict[Scope, dict[str, dict[str, Any]]] = {"tenant": {}, "app": {}}
         required: dict[Scope, list[str]] = {"tenant": [], "app": []}

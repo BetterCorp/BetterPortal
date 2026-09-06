@@ -27,7 +27,7 @@ internal static class RegistryAdapter
                 AnyVali.Schema? Schema(string name) => schemas.TryGetValue(name, out var schema) ? Contracts.Import(Json.Write(schema)) : null;
                 Handler handler = operation.GetValueOrDefault("raw") is true
                     ? new RawHandler<object?, object?, object?, object?>(_ => ValueTask.FromResult(new RawResponse()), Schema("params"), Schema("query"), Schema("headers"), Schema("request"))
-                    : new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(operation["response"])), _ => ValueTask.FromResult<object?>(null),
+                    : new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(operation["response"])), context => ValueTask.FromResult<object?>(body.GetValueOrDefault("returnConfig") is true ? context.RequestContext.Config : null),
                     Schema("params"), Schema("query"), Schema("headers"), Schema("request"),
                     ((List<object?>)operation.GetValueOrDefault("renderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<object?>(
                         Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), (data, context) => "")));

@@ -86,6 +86,7 @@ class ControlPlaneSync:
         self._delay, self._timeout = retry_delay, request_timeout
         self._client = httpx.AsyncClient(follow_redirects=False, trust_env=False, timeout=request_timeout)
         self._task: asyncio.Task[None] | None = None
+        self._closing: asyncio.Task[None] | None = None
         self._first: asyncio.Future[bool] | None = None
         self._closed = False
         self._phase = "idle"
@@ -172,6 +173,19 @@ class ControlPlaneSync:
             self._phase = "closed"
 
     async def aclose(self) -> None:
+        self._closed = True
+        if self._task is not None: self.service._suspend_sync()
+        if self._closing is None: self._closing = asyncio.create_task(self._close())
+        try: await asyncio.shield(self._closing)
+        except asyncio.CancelledError:
+            # A cancelled caller still owns cleanup until every writer is stopped.
+            while not self._closing.done():
+                try: await asyncio.shield(self._closing)
+                except asyncio.CancelledError: pass
+            self._closing.result()
+            raise
+
+    async def _close(self) -> None:
         self._closed = True
         if self._task is not None:
             self.service._suspend_sync()
