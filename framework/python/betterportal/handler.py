@@ -1,0 +1,82 @@
+"""Typed handlers; hosting supplies an already resolved and authorized context."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import inspect
+from types import MappingProxyType
+from typing import Any, Awaitable, Callable, Generic, Mapping, TypeVar, cast
+
+import anyvali as av
+from .authorization import AuthorizedCaller
+from .context import ScopedContext
+from .contracts import contract, export, object_document
+from .generated_types import HttpMethod
+
+Params = TypeVar("Params")
+Query = TypeVar("Query")
+Headers = TypeVar("Headers")
+Body = TypeVar("Body")
+Result = TypeVar("Result")
+
+
+class HandlerInputError(ValueError):
+    status = 400
+    def __init__(self, field: str, cause: av.ValidationError):
+        super().__init__("Invalid request " + field)
+        self.field, self.validation = field, cause
+
+
+class HandlerOutputError(ValueError):
+    status = 500
+
+
+@dataclass(frozen=True)
+class RequestContext:
+    scope: ScopedContext
+    caller: AuthorizedCaller
+    method: HttpMethod
+    path: str
+    config: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class HandlerContext(Generic[Params, Query, Headers, Body]):
+    request_context: RequestContext
+    params: Params
+    query: Query
+    headers: Headers
+    request: Body
+
+
+class Handler(Generic[Params, Query, Headers, Body, Result]):
+    def __init__(self, response: av.BaseSchema[Result],
+                 run: Callable[[HandlerContext[Params, Query, Headers, Body]], Result | Awaitable[Result]], *,
+                 params: av.BaseSchema[Params] | None = None, query: av.BaseSchema[Query] | None = None,
+                 headers: av.BaseSchema[Headers] | None = None, request: av.BaseSchema[Body] | None = None):
+        self.response_schema, self.run = response, run
+        self.schemas: Mapping[str, av.BaseSchema[Any]] = MappingProxyType({name: schema for name, schema in
+            (("params", params), ("query", query), ("headers", headers), ("request", request)) if schema is not None})
+
+    @property
+    def input_document(self) -> dict[str, Any]:
+        # The same documents feed native type generation and runtime validation.
+        return object_document({name: export(self.schemas.get(name, contract("JsonObjectSchema")))
+            for name in ("params", "query", "headers", "request")}, unknown_keys="reject")
+
+    def prepare(self, context: RequestContext, values: Mapping[str, Any]) -> HandlerContext[Params, Query, Headers, Body]:
+        parsed = {}
+        for name in ("params", "query", "headers", "request"):
+            try:
+                parsed[name] = self.schemas.get(name, contract("JsonObjectSchema")).parse(values.get(name, {}))
+            except av.ValidationError as error:
+                raise HandlerInputError(name, error) from error
+        return HandlerContext(context, parsed["params"], parsed["query"], parsed["headers"], parsed["request"])
+
+    async def invoke(self, context: RequestContext, values: Mapping[str, Any]) -> Result:
+        result = self.run(self.prepare(context, values))
+        if inspect.isawaitable(result):
+            result = await result
+        try:
+            return self.response_schema.parse(cast(Result, result))
+        except av.ValidationError as error:
+            raise HandlerOutputError("Response validation failed") from error

@@ -38,6 +38,8 @@ from betterportal.sse import LocalEvents, SseRoute, EventScope, encode_event
 from betterportal.context import ScopedConfig, http_origin
 from betterportal.context import OriginPolicy
 from betterportal.cors import Cors
+from betterportal.handler import Handler, RequestContext
+from betterportal.authorization import AuthorizedCaller
 from betterportal.contracts import contract
 import asyncio
 assert str(wheel.resolve()) in betterportal.__file__
@@ -73,6 +75,12 @@ assert http_origin("HTTPS://Example.com:443") == "https://example.com"
 assert ScopedConfig({"managementOrigins": [], "tenants": [], "apps": []}).resolve({"host": "unknown.test"}) is None
 policy = OriginPolicy(frozenset(["https://app.test"]), frozenset(["https://app.test"]))
 assert Cors(policy, ["GET"]).preflight("https://app.test", "GET")["access-control-allow-origin"] == "https://app.test"
+tenant_id, app_id = "01900000-0000-7000-8000-000000000001", "01900000-0000-7000-8000-000000000002"
+scope = ScopedConfig({"managementOrigins": [], "tenants": [{"id": tenant_id, "slug": "tenant", "title": "Tenant", "services": []}],
+                      "apps": [{"id": app_id, "tenantId": tenant_id, "slug": "app", "title": "App", "hostnames": ["app.test"]}]}).by_id(tenant_id, app_id)
+assert scope is not None
+handler = Handler(contract("JsonObjectSchema"), lambda context: context.query, query=contract("JsonObjectSchema"))
+assert asyncio.run(handler.invoke(RequestContext(scope, AuthorizedCaller(), "GET", "/"), {"query": {"nested": [None]}})) == {"nested": [None]}
 subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
     str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
     env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)

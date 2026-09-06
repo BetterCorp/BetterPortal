@@ -84,6 +84,14 @@ header lists and Vary. Node shared cases call the framework's existing H3 helper
 native-only denial checks exercise policy currently owned by BSB. Full operation
 hosting and protected-route integration remain pending.
 
+The [handler suite](results-handlers.json) passes 44 checks for per-field
+params/query/headers/body validation, defaults, coercion, recursive requests,
+unknown-key handling, invalid output and cancellation. Node shared cases invoke
+the real H3 operation adapter and `createHandler`. The ports preserve null/array
+bodies and repeated query values that Node's older parsing flattens; HTTP decoding
+and operation registration in the native hosts remain pending. Compiler checks
+reject mismatched handler input/output types and verify generated model parsing.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
@@ -112,8 +120,8 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,486/2,495
-checks across ten suites. Failures are those original SDK probes plus the
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,530/2,539
+checks across eleven suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.
 
@@ -135,6 +143,7 @@ python framework/conformance/verify.py --suite streams
 python framework/conformance/verify.py --suite sse
 python framework/conformance/verify.py --suite context
 python framework/conformance/verify.py --suite cors
+python framework/conformance/verify.py --suite handlers
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -145,7 +154,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.

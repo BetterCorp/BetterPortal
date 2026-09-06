@@ -4,6 +4,17 @@ Python 3.10+. This is an in-progress port, **not yet a service runtime**.
 Starlette/ASGI hosting, configuration, route tooling and generated clients remain in
 the [capability ledger](../conformance/CAPABILITIES.md).
 
+`Handler[Params, Query, Headers, Body, Result]` accepts native AnyVali schemas and
+a sync or async function receiving `HandlerContext`. `invoke` parses all four
+input fields before calling the function and validates its response. A host supplies
+`RequestContext` with the resolved scope, verified caller, method/path and config;
+this low-level helper does not authorize calls. `HandlerInputError` identifies the
+invalid field (400), while `HandlerOutputError` reports invalid output (500).
+Absent input containers become `{}`; explicit null remains present. The
+`input_document` property exports the four parsed handler input fields for native
+type generation. Registry registration and full handler/render context helpers
+remain delivery work.
+
 `betterportal.context.ScopedConfig` imports a canonical scoped snapshot and checks
 tenant/app references, duplicate identities and ambiguous hostnames. Browser
 resolution distinguishes scheme/host/port and copies each request's tenant/app

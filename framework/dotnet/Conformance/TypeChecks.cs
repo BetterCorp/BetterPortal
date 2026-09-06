@@ -46,6 +46,18 @@ internal static class TypeChecks
         catch (ArgumentException error) when (error.Message.StartsWith("Conflicting definitions", StringComparison.Ordinal)) { }
         ((Dictionary<string, object?>)composed["definitions"]!).Clear();
         Check(((Dictionary<string, object?>)child["definitions"]!).Count > 0, "Composition must not mutate its inputs");
+        var handler = new Handler<object?, ApiAuthRequirement, object?, object?, TokenLifetimeConfig>(Contracts.Get("TokenLifetimeConfigSchema"),
+            context => ValueTask.FromResult(new TokenLifetimeConfig { AccessTokenSeconds = context.Query.Required ? 300 : 900, RefreshTokenSeconds = 604800 }),
+            query: Contracts.Get("ApiAuthRequirementSchema"));
+        var tenantId = Guid.CreateVersion7().ToString(); var appId = Guid.CreateVersion7().ToString();
+        var config = new ScopedConfig(new { managementOrigins = Array.Empty<string>(), tenants = new[] { new { id = tenantId, slug = "tenant", title = "Tenant", services = Array.Empty<object>() } },
+            apps = new[] { new { id = appId, tenantId, slug = "app", title = "App", hostnames = new[] { "example.test" } } } });
+        var context = new RequestContext(config.ById(tenantId, appId)!, new(), "GET", "/");
+        var inputs = new Dictionary<string, object?>();
+        Check(handler.Invoke(context, inputs).AsTask().GetAwaiter().GetResult().AccessTokenSeconds == 900, "Typed handler input/output defaults changed");
+        var prepared = handler.Prepare(context, inputs);
+        var payload = new { @params = prepared.Params, query = prepared.Query, headers = prepared.Headers, request = prepared.Request };
+        Check(Json.Write(Contracts.Parse(Contracts.Import(handler.InputDocument), payload)) == Json.Write(payload), "Handler type document differs from parsed inputs");
         Console.WriteLine("Native C# generated types: defaults, presence, recursion, unions and open mappings passed");
     }
 }

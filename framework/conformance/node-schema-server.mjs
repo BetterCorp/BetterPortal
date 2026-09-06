@@ -11,6 +11,7 @@ import { pipeline } from "node:stream/promises";
 import { sseProbe, sseResponse } from "./node-sse.mjs";
 import { contextRequest } from "./node-context.mjs";
 import { corsRequest } from "./node-cors.mjs";
+import { handlerRequest } from "./node-handler.mjs";
 
 createServer(async (request, response) => {
   try {
@@ -26,6 +27,11 @@ createServer(async (request, response) => {
     if (body.action === "runtime") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ runtime: "node" }));
+      return;
+    }
+    if (body.action === "handler") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await handlerRequest(body)));
       return;
     }
     if (body.action === "context") {

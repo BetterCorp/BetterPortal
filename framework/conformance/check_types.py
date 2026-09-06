@@ -41,11 +41,17 @@ subprocess.run([python, "-m", "mypy", str(root / "framework/python/betterportal"
 directory = root / ".tmp-run/ports-types"
 directory.mkdir(parents=True, exist_ok=True)
 positive = directory / "positive.py"
-positive.write_text('''from betterportal.generated_types import ApiAuthRequirementInput, TokenLifetimeConfig, TokenType, JsonValue
+positive.write_text('''from betterportal.generated_types import ApiAuthRequirementInput, ApiAuthRequirement, TokenLifetimeConfig, TokenType, JsonValue
 request: ApiAuthRequirementInput = {}
 output: TokenLifetimeConfig = {"accessTokenSeconds": 900, "refreshTokenSeconds": 604800}
 purpose: TokenType = "access"
 value: JsonValue = {"nested": [None, True, 1.5, {"x": "value"}]}
+from typing import Any
+from betterportal.handler import Handler, HandlerContext
+from betterportal.contracts import contract
+def handle(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> TokenLifetimeConfig:
+    return {"accessTokenSeconds": 900, "refreshTokenSeconds": 604800}
+handler = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, query=contract("ApiAuthRequirementSchema"))
 ''', encoding="utf-8")
 command = [python, "-m", "mypy", "--follow-imports=silent", "--follow-untyped-imports", "--cache-dir", str(root / ".tmp-run/mypy-ports")]
 subprocess.run([*command, str(positive)], env=environment, check=True)
@@ -54,9 +60,14 @@ negative.write_text('''from betterportal.generated_types import ApiAuthRequireme
 missing: ApiAuthRequirement = {}
 purpose: TokenType = "not-a-token"
 value: TokenLifetimeConfigInput = {"accessTokenSeconds": None}
+from typing import Any
+from betterportal.handler import HandlerContext
+def bad(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> int:
+    context.query["required"].upper()
+    return "invalid response"
 ''', encoding="utf-8")
 result = subprocess.run([*command, str(negative)], env=environment, capture_output=True, text=True)
-assert result.returncode == 1 and result.stdout.count(": error:") == 3, result.stdout + result.stderr
+assert result.returncode == 1 and result.stdout.count(": error:") == 5, result.stdout + result.stderr
 
 tool = root / "framework/dotnet/BetterPortal.Tool/bin/Debug/net10.0/BetterPortal.Tool.dll"
 subprocess.run(["dotnet", str(tool), "types", "--platform", "--output", str(root / "framework/dotnet/BetterPortal/GeneratedTypes.cs"), "--check"], check=True)
@@ -119,7 +130,11 @@ ET.ElementTree(project).write(negative_dotnet / "Negative.csproj", encoding="uni
 (negative_dotnet / "Program.cs").write_text('''using BetterPortal.Generated;
 var missing = new ApiAuthRequirement();
 var invalid = new ApiAuthRequirementInput { Required = "yes" };
+static int InvalidHandler(BetterPortal.HandlerContext<object, ApiAuthRequirement, object, object> context) {
+    context.Query.Required.Trim();
+    return "invalid response";
+}
 ''', encoding="utf-8")
 result = subprocess.run(["dotnet", "build", str(negative_dotnet), "-m:1", "-p:UseSharedCompilation=false"], capture_output=True, text=True)
-assert result.returncode != 0 and "CS9035" in result.stdout and "CS0029" in result.stdout, result.stdout + result.stderr
+assert result.returncode != 0 and "CS9035" in result.stdout and "CS0029" in result.stdout and "CS1061" in result.stdout, result.stdout + result.stderr
 print("Native generators, positive/negative Python typing and C# wire checks passed")

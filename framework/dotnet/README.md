@@ -4,6 +4,17 @@
 operation hosting, configuration, route tooling and generated clients remain in the
 [capability ledger](../conformance/CAPABILITIES.md).
 
+`Handler<TParams, TQuery, THeaders, TBody, TResult>` accepts native AnyVali schemas
+and a function returning `ValueTask<TResult>`. `Invoke` parses all four inputs
+before calling the function and validates its response. The host supplies a
+`RequestContext` containing the resolved scope, verified caller, method/path and
+config; the helper does not authorize calls. `HandlerInputException` identifies
+the invalid field (400), and `HandlerOutputException` reports invalid output (500).
+Omitted input containers become `{}`; explicit null stays present. `InputDocument`
+exports the four parsed input fields for native type generation. The cancellation
+token reaches the handler and cancels its wait. Registry registration and full
+handler/render context helpers remain delivery work.
+
 `ScopedConfig` imports the canonical scoped snapshot and checks tenant/app
 references, duplicate identities and ambiguous hostnames. Browser lookup compares
 scheme/host/port and returns owned tenant/app copies. `ById` resolves a claimed

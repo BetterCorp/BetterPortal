@@ -17,6 +17,7 @@ import asyncio
 from python_sse import probe as sse_probe, wire as sse_wire
 from python_context import context_request
 from python_cors import handle as cors_request
+from python_handler import invoke as handler_request
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -34,6 +35,13 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(b'{"runtime":"python"}')
+                return
+            if body.get("action") == "handler":
+                payload = asyncio.run(handler_request(body))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload).encode())
                 return
             if body.get("action") in ("context", "http-origin"):
                 payload = context_request(body)
