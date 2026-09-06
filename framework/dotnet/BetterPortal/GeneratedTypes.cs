@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 60eb51a1aebe270ed015663874c983f6e82f390684de73825f7a79c088dcc08e
+// Generated from AnyVali documents; do not edit. SHA256: 6a9978ac3fb1a6b8a35decefb19599c5f3eb1ab90e87df0d1b6f3bc12212946b
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -952,6 +952,19 @@ public sealed record BetterPortalFragmentAssignmentInput
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Enabled { get; init; }
+}
+
+public sealed record BetterPortalLock
+{
+    [JsonPropertyName("dependencies")]
+    public required IReadOnlyDictionary<string, LockedDependency> Dependencies { get; init; }
+}
+
+public sealed record BetterPortalLockInput
+{
+    [JsonPropertyName("dependencies")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, LockedDependencyInput>> Dependencies { get; init; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<BetterPortalLogLevel>))]
@@ -3212,6 +3225,38 @@ public sealed record BetterPortalOriginPolicyInput
     public Optional<IReadOnlyList<string>> AllowedReferers { get; init; }
 }
 
+public sealed record BetterPortalProjectConfig
+{
+    [JsonPropertyName("$schema")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Schema { get; init; }
+    [JsonPropertyName("registryRef")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> RegistryRef { get; init; }
+    [JsonPropertyName("defaultNamespace")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> DefaultNamespace { get; init; }
+    [JsonPropertyName("dependencies")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, string>> Dependencies { get; init; }
+}
+
+public sealed record BetterPortalProjectConfigInput
+{
+    [JsonPropertyName("$schema")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Schema { get; init; }
+    [JsonPropertyName("registryRef")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> RegistryRef { get; init; }
+    [JsonPropertyName("defaultNamespace")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> DefaultNamespace { get; init; }
+    [JsonPropertyName("dependencies")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, string>> Dependencies { get; init; }
+}
+
 [JsonConverter(typeof(WireValueConverterFactory))]
 public readonly record struct BetterPortalResource(BetterPortalResourceFields Value) : IWireValue<BetterPortalResource, BetterPortalResourceFields>
 {
@@ -5327,6 +5372,22 @@ public sealed record DemoScenarioMatchInput
     public Optional<JsonObjectInput> Request { get; init; }
 }
 
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct DependencyAlias(string Value) : IWireValue<DependencyAlias, string>
+{
+    public static DependencyAlias FromValue(string value) => new(value);
+    public static implicit operator DependencyAlias(string value) => new(value);
+    public static implicit operator string(DependencyAlias value) => value.Value;
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct DependencyAliasInput(string Value) : IWireValue<DependencyAliasInput, string>
+{
+    public static DependencyAliasInput FromValue(string value) => new(value);
+    public static implicit operator DependencyAliasInput(string value) => new(value);
+    public static implicit operator string(DependencyAliasInput value) => value.Value;
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<DeploymentMode>))]
 public enum DeploymentMode
 {
@@ -5674,6 +5735,96 @@ public sealed record JwtClaimsProvider
     [JsonPropertyName("scope")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Scope { get; init; }
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct LocalDependencyLock(IReadOnlyDictionary<string, LocalDependencyLockItem> Value) : IWireValue<LocalDependencyLock, IReadOnlyDictionary<string, LocalDependencyLockItem>>
+{
+    public static LocalDependencyLock FromValue(IReadOnlyDictionary<string, LocalDependencyLockItem> value) => new(value);
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct LocalDependencyLockInput(IReadOnlyDictionary<string, LocalDependencyLockInputItem> Value) : IWireValue<LocalDependencyLockInput, IReadOnlyDictionary<string, LocalDependencyLockInputItem>>
+{
+    public static LocalDependencyLockInput FromValue(IReadOnlyDictionary<string, LocalDependencyLockInputItem> value) => new(value);
+}
+
+public sealed record LocalDependencyLockInputItem
+{
+    [JsonPropertyName("registryRef")]
+    public required string RegistryRef { get; init; }
+    [JsonPropertyName("pluginId")]
+    public required string PluginId { get; init; }
+    [JsonPropertyName("version")]
+    public required string Version { get; init; }
+    [JsonPropertyName("digest")]
+    public required string Digest { get; init; }
+    [JsonPropertyName("digestFormat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<LocalDependencyLockInputItemDigestFormat> DigestFormat { get; init; }
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<LocalDependencyLockInputItemDigestFormat>))]
+public enum LocalDependencyLockInputItemDigestFormat
+{
+    [JsonStringEnumMemberName("json-bytes")]
+    JsonBytes,
+}
+
+public sealed record LocalDependencyLockItem
+{
+    [JsonPropertyName("registryRef")]
+    public required string RegistryRef { get; init; }
+    [JsonPropertyName("pluginId")]
+    public required string PluginId { get; init; }
+    [JsonPropertyName("version")]
+    public required string Version { get; init; }
+    [JsonPropertyName("digest")]
+    public required string Digest { get; init; }
+    [JsonPropertyName("digestFormat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<LocalDependencyLockItemDigestFormat> DigestFormat { get; init; }
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<LocalDependencyLockItemDigestFormat>))]
+public enum LocalDependencyLockItemDigestFormat
+{
+    [JsonStringEnumMemberName("json-bytes")]
+    JsonBytes,
+}
+
+public sealed record LockedDependency
+{
+    [JsonPropertyName("registryRef")]
+    public required string RegistryRef { get; init; }
+    [JsonPropertyName("pluginId")]
+    public required string PluginId { get; init; }
+    [JsonPropertyName("version")]
+    public required string Version { get; init; }
+    [JsonPropertyName("digest")]
+    public required string Digest { get; init; }
+    [JsonPropertyName("digestFormat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<LocalDependencyLockItemDigestFormat> DigestFormat { get; init; }
+}
+
+public sealed record LockedDependencyInput
+{
+    [JsonPropertyName("registryRef")]
+    public required string RegistryRef { get; init; }
+    [JsonPropertyName("pluginId")]
+    public required string PluginId { get; init; }
+    [JsonPropertyName("version")]
+    public required string Version { get; init; }
+    [JsonPropertyName("digest")]
+    public required string Digest { get; init; }
+    [JsonPropertyName("digestFormat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<LocalDependencyLockInputItemDigestFormat> DigestFormat { get; init; }
 }
 
 public sealed record M2MBinding
@@ -6771,6 +6922,22 @@ public sealed record PublicJwksInput
 {
     [JsonPropertyName("keys")]
     public required IReadOnlyList<RsaPublicJwkInput> Keys { get; init; }
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct RegistryReference(string Value) : IWireValue<RegistryReference, string>
+{
+    public static RegistryReference FromValue(string value) => new(value);
+    public static implicit operator RegistryReference(string value) => new(value);
+    public static implicit operator string(RegistryReference value) => value.Value;
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct RegistryReferenceInput(string Value) : IWireValue<RegistryReferenceInput, string>
+{
+    public static RegistryReferenceInput FromValue(string value) => new(value);
+    public static implicit operator RegistryReferenceInput(string value) => new(value);
+    public static implicit operator string(RegistryReferenceInput value) => value.Value;
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<RenderMode>))]

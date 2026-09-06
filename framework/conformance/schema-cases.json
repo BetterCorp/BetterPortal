@@ -1167,5 +1167,170 @@
     },
     "input": "7",
     "output": 7
+  },
+  {
+    "id": "project-empty",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {},
+    "output": {}
+  },
+  {
+    "id": "project-fields",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "$schema": "https://io.betterportal.org/v1/project.schema.json",
+      "registryRef": "example/caller",
+      "defaultNamespace": "example",
+      "dependencies": {
+        "peer": "example/service@1.0.0"
+      }
+    },
+    "output": {
+      "$schema": "https://io.betterportal.org/v1/project.schema.json",
+      "registryRef": "example/caller",
+      "defaultNamespace": "example",
+      "dependencies": {
+        "peer": "example/service@1.0.0"
+      }
+    }
+  },
+  {
+    "id": "project-unknown",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "unknown": true
+    },
+    "valid": false
+  },
+  {
+    "id": "project-reference",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "registryRef": "../service"
+    },
+    "valid": false
+  },
+  {
+    "id": "project-null-dependencies",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "dependencies": null
+    },
+    "valid": false
+  },
+  {
+    "id": "project-null-namespace",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "defaultNamespace": null
+    },
+    "valid": false
+  },
+  {
+    "id": "lock-defaults",
+    "contract": "BetterPortalLockSchema",
+    "input": {},
+    "output": {
+      "dependencies": {}
+    }
+  },
+  {
+    "id": "lock-null-dependencies",
+    "contract": "BetterPortalLockSchema",
+    "input": {
+      "dependencies": null
+    },
+    "valid": false
+  },
+  {
+    "id": "locked-native",
+    "contract": "LockedDependencySchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "digestFormat": "json-bytes"
+    },
+    "output": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "digestFormat": "json-bytes"
+    }
+  },
+  {
+    "id": "locked-legacy",
+    "contract": "LockedDependencySchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "output": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "id": "locked-bad-digest",
+    "contract": "LockedDependencySchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:bad"
+    },
+    "valid": false
+  },
+  {
+    "id": "locked-unknown-format",
+    "contract": "LockedDependencySchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "digestFormat": "unknown"
+    },
+    "valid": false
+  },
+  {
+    "id": "dependency-alias",
+    "contract": "DependencyAliasSchema",
+    "input": "peer-name",
+    "output": "peer-name"
+  },
+  {
+    "id": "dependency-alias-traversal",
+    "contract": "DependencyAliasSchema",
+    "input": "../peer",
+    "valid": false
+  },
+  {
+    "id": "local-dependency-lock",
+    "contract": "LocalDependencyLockSchema",
+    "input": {
+      "peer": {
+        "registryRef": "example/service",
+        "pluginId": "com.example.service",
+        "version": "1.0.0",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "path": "../provider"
+      }
+    },
+    "output": {
+      "peer": {
+        "registryRef": "example/service",
+        "pluginId": "com.example.service",
+        "version": "1.0.0",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "path": "../provider"
+      }
+    }
   }
 ]

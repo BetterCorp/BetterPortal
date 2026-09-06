@@ -7,7 +7,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-1,250/1,278 schema probes; token/service security passes 459/459 scenarios and JWKS
+1,374/1,404 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
@@ -20,12 +20,15 @@ Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane syn
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 138/139, protected bootstrap storage 147/147,
 installation 137/137, hostname changes 99/99 and scoped dependency clients 210/210.
-The full gate passes 5,530/5,560;
+The client-generator checkpoint's full gate passes 5,530/5,560;
 the remaining probes expose SDK defects/limitations, including Python's explicit-null
 tenant flag affecting config authorization. Windows Python 3.10 and Linux Python
 3.14 produce the same full-gate failure identities. Linux compiler, documentation
 and package checks pass; CI runs those gates on Python 3.10/3.14 without waiving
 the upstream failures. Hosted CI execution awaits a future push.
+The subsequent local project-tooling stage passes 130 CLI checks on Windows and
+Linux. Its separate schema runs add two failing defaulted-record probes for #127;
+the earlier combined reports have not been relabeled as new full runs.
 Inbound operation mounts and local permission aliases pass 130/130 access checks.
 Context resolution passes 102/103; its Python null-active check is blocked by the
 same upstream null/default defect. See
@@ -38,7 +41,7 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 151 canonical documents embedded in both packages, including derived authoring declarations; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,240/1,266 including all-document round trips |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 157 canonical documents embedded in both packages, including derived authoring declarations and project locks; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,374/1,404 including all-document round trips |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; typed subscriber-feed binding; full contexts pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors and renderer/streaming metadata | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
@@ -73,9 +76,9 @@ future scenarios; they are not assertions that those tests already exist.
 | observability | contracts/observability.ts, runtime/traceContext.ts, h3.ts | Pending replaceable logging/tracing/metrics and safe diagnostics | protocol.md §4 | trace-propagation, outcome-status, secret-redaction |
 | scaffold | codegen/init.ts, cli/bp.ts | Pending native commands with runnable examples | Port READMEs (pending) | scaffold-build-run, no-node-no-BSB |
 | discovery-tools | codegen/scanner.ts, emitter.ts, validate.ts | Pending compiler-supported C# and module-based Python discovery | docs/building/routes-and-views.md | route-dirs, optional-params, stable-ID, renderer-fragment-SSE-selection |
-| contract-tools | cli/project.ts, contract.ts, publish.ts | Pending betterportal.json, registry identity, local exports/publishing | docs/building/services.md | registry-identity, native-export, local-contract-resolution |
-| dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Native runtime and generated JSON clients use AnyVali documents and scoped credentials; native client CLI preserves typed method inputs/outputs and delegates policy to the runtime; raw/streaming clients, project locking and frozen builds pending | auth.md §3; port READMEs | client_cases.py: 210 checks, including four generated cross-language host pairs in user/service/delegated modes; check_clientgen.py compiles all three registry exports and rejects invalid callers; locking, frozen-build, digest-mismatch and two Node-generated outbound pairs pending |
-| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
+| contract-tools | cli/project.ts, contract.ts, publish.ts | Native betterportal.json/lock parsing and explicit local contract resolution preserve registry identity and exact versions; registry installation, automatic discovery and export/publishing commands pending | docs/building/services.md; port READMEs | check_projects.py: native local resolution, identity/version checks and frozen cache verification; native-export and registry resolution pending |
+| dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Native runtime and generated JSON clients use AnyVali documents and scoped credentials; project commands install local contracts and verify shared byte locks before frozen generation; raw/streaming clients pending | auth.md §3; port READMEs | client_cases.py: 210 checks, including four generated cross-language host pairs in user/service/delegated modes; check_clientgen.py compiles all three registry exports; check_projects.py: 130 CLI checks for locks, tampering, migration, alias conflicts and frozen builds; two Node-generated outbound pairs pending |
+| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py, check_projects.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
 
 ## BP and BSB ownership
 
@@ -141,4 +144,6 @@ JavaScript are not port deliverables. Existing Node services are integration pee
 
 These observations do not authorize unrelated Node refactoring. The Node preview
 length fix is directly required by empty-secret interoperability; other Node work
-here is limited to schema projection and development conformance artifacts.
+here also includes shared token checks, schema projection, development conformance
+artifacts and frozen CLI support for the native byte-lock format. The registry's
+existing persisted digest algorithm is unchanged.

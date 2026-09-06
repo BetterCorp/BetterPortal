@@ -2,26 +2,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { BpSchemaOutputSchema, type BpSchemaOutput } from "../contracts/manifest.js";
 export { canonicalJson, contractDigest } from "../runtime/contract.js";
+import type { BetterPortalProjectConfig, BetterPortalLock } from "../contracts/project.js";
+import { RegistryReferenceSchema } from "../contracts/project.js";
+export type { BetterPortalProjectConfig, BetterPortalLock, LockedDependency } from "../contracts/project.js";
 
 export const DEFAULT_REGISTRY_URL = "https://io.betterportal.org";
-
-export interface BetterPortalProjectConfig {
-  $schema?: string;
-  registryRef?: string;
-  defaultNamespace?: string;
-  dependencies?: Record<string, string>;
-}
-
-export interface LockedDependency {
-  registryRef: string;
-  pluginId: string;
-  version: string;
-  digest: string;
-}
-
-export interface BetterPortalLock {
-  dependencies: Record<string, LockedDependency>;
-}
 
 export function findPackageJson(startDir = process.cwd()): string {
   let dir = path.resolve(startDir);
@@ -92,7 +77,7 @@ export function parseDependencySelector(rawInput: string, defaultNamespace?: str
 
 export function registryRefParts(registryRef: string): [string, string] {
   const parts = registryRef.split("/");
-  if (parts.length !== 2 || parts.some((part) => !/^[a-z0-9][a-z0-9-]*$/.test(part))) {
+  if (!RegistryReferenceSchema.safeParse(registryRef).success) {
     throw new Error(`Invalid BetterPortal registry reference: ${registryRef}`);
   }
   return [parts[0], parts[1]];

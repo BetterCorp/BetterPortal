@@ -1,5 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
+import { DependencyAliasSchema, LockedDependencySchema } from "../contracts/project.js";
 import type { BpSchemaOutput } from "../contracts/manifest.js";
 import {
   contractDigest,
@@ -324,7 +326,7 @@ function generatedClientDir(packageDir: string): string {
 }
 
 function assertAlias(alias: string): void {
-  if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(alias)) throw new Error(`Invalid BetterPortal dependency alias: ${alias}`);
+  if (!DependencyAliasSchema.safeParse(alias).success) throw new Error(`Invalid BetterPortal dependency alias: ${alias}`);
 }
 
 function writeClient(packageDir: string, alias: string, contract: BpSchemaOutput): string {
@@ -385,12 +387,29 @@ export async function syncClients(options: { registryOnly?: boolean; frozen?: bo
   const config = readProjectConfig(packageDir);
   const lock = readLock(packageDir);
   const localLockFile = path.join(packageDir, ".betterportal", "local-lock.json");
-  const localLock = fs.existsSync(localLockFile)
-    ? readJsonFile<Record<string, { path?: string }>>(localLockFile)
-    : {};
-  const outputs: string[] = [];
+  let localLock: Record<string, { path?: string }> | undefined;
+  const prepared: Array<{ alias: string; contract: BpSchemaOutput }> = [];
   for (const [alias, rawSelector] of Object.entries(config.dependencies ?? {})) {
+    assertAlias(alias);
     const selector = parseDependencySelector(rawSelector, config.defaultNamespace);
+    const entry = lock.dependencies[alias];
+    if (options.frozen && entry?.digestFormat !== undefined) {
+      // Native locks pin exact cached bytes and do not consult mutable local overrides.
+      const locked = LockedDependencySchema.parse(entry);
+      const cached = path.join(packageDir, ".betterportal", "contracts", locked.pluginId, `${locked.version}.json`);
+      if (!fs.existsSync(cached)) throw new Error(`Frozen dependency is not cached: ${alias}`);
+      const data = fs.readFileSync(cached);
+      if (`sha256:${createHash("sha256").update(data).digest("hex")}` !== locked.digest) throw new Error(`Frozen dependency changed: ${alias}`);
+      const contract = readContract(cached);
+      if (contract.manifest.pluginId !== locked.pluginId || contract.manifest.version !== locked.version
+        || !matches({ root: packageDir, registryRef: locked.registryRef, file: cached, contract }, selector)
+        || selector.version && selector.version !== "latest" && selector.version !== locked.version) {
+        throw new Error(`Frozen dependency identity or version changed: ${alias}`);
+      }
+      prepared.push({ alias, contract });
+      continue;
+    }
+    localLock ??= fs.existsSync(localLockFile) ? readJsonFile<Record<string, { path?: string }>>(localLockFile) : {};
     const preferredPath = localLock[alias]?.path;
     const local = options.registryOnly
       ? null
@@ -409,7 +428,7 @@ export async function syncClients(options: { registryOnly?: boolean; frozen?: bo
     }
     const digest = contractDigest(contract);
     if (options.frozen && lock.dependencies[alias]?.digest !== digest) throw new Error(`Frozen dependency changed: ${alias}`);
-    outputs.push(writeClient(packageDir, alias, contract));
+    prepared.push({ alias, contract });
   }
-  return outputs;
+  return prepared.map(({ alias, contract }) => writeClient(packageDir, alias, contract));
 }

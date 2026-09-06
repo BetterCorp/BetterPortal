@@ -1,11 +1,13 @@
 """Native BP authoring commands; no Node or BSB build hooks."""
 import argparse
+import json
 from pathlib import Path
 
 from .contracts import document, names
 from .jsoncodec import loads
 from .typegen import generate_types
 from .clientgen import generate_client
+from .project import Project
 
 
 def main() -> None:
@@ -22,7 +24,24 @@ def main() -> None:
     client.add_argument("--output", type=Path, required=True)
     client.add_argument("--class-name", default="DependencyClient")
     client.add_argument("--check", action="store_true", help="Fail if the generated client is stale")
+    dependencies = commands.add_parser("deps", help="Install local dependency contracts or verify a frozen build")
+    actions = dependencies.add_subparsers(dest="action", required=True)
+    add = actions.add_parser("add")
+    add.add_argument("selector")
+    add.add_argument("--path", type=Path, required=True, help="A local service project with an exported contract")
+    add.add_argument("--alias")
+    add.add_argument("--project", type=Path, default=Path.cwd())
+    sync = actions.add_parser("sync")
+    sync.add_argument("--project", type=Path, default=Path.cwd())
+    sync.add_argument("--frozen", action="store_true", required=True)
+    sync.add_argument("--check", action="store_true", help="Verify generated dependencies without writing files")
     args = parser.parse_args()
+    if args.command == "deps":
+        project = Project(args.project)
+        if args.action == "add": print(json.dumps(project.add_local(args.selector, args.path, args.alias)))
+        else:
+            for generated_path in project.frozen(check=args.check): print(generated_path)
+        return
     if args.command == "client":
         output = generate_client(loads(args.contract.read_text(encoding="utf-8")), args.class_name)
         description = "dependency client"

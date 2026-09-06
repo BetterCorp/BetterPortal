@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 45b015e0cce81e613f3427aff37bbda33fc8eba352036e3f7dbc3eea7f456846
+# Generated from AnyVali documents; do not edit. SHA256: d57532514396287116565fc9f9299f7d5de52d65a7ce88cc05f0cc23df9221a1
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -420,6 +420,14 @@ BetterPortalFragmentAssignmentInput = TypedDict('BetterPortalFragmentAssignmentI
 BetterPortalJsonValue: TypeAlias = 'Union[None, bool, str, float, list[JsonValue], JsonObject]'
 
 BetterPortalJsonValueInput: TypeAlias = 'Union[None, bool, str, float, list[JsonValueInput], JsonObjectInput]'
+
+BetterPortalLock = TypedDict('BetterPortalLock', {
+    'dependencies': Required['dict[str, LockedDependency]'],
+})
+
+BetterPortalLockInput = TypedDict('BetterPortalLockInput', {
+    'dependencies': NotRequired['dict[str, LockedDependencyInput]'],
+})
 
 BetterPortalLogLevel: TypeAlias = "Literal['debug', 'info', 'warn', 'error']"
 
@@ -1331,6 +1339,20 @@ BetterPortalOriginPolicyInput = TypedDict('BetterPortalOriginPolicyInput', {
     'allowedReferers': NotRequired['list[str]'],
 })
 
+BetterPortalProjectConfig = TypedDict('BetterPortalProjectConfig', {
+    '$schema': NotRequired['str'],
+    'registryRef': NotRequired['str'],
+    'defaultNamespace': NotRequired['str'],
+    'dependencies': NotRequired['dict[str, str]'],
+})
+
+BetterPortalProjectConfigInput = TypedDict('BetterPortalProjectConfigInput', {
+    '$schema': NotRequired['str'],
+    'registryRef': NotRequired['str'],
+    'defaultNamespace': NotRequired['str'],
+    'dependencies': NotRequired['dict[str, str]'],
+})
+
 BetterPortalResource: TypeAlias = 'dict[str, BetterPortalRouteChromeValue]'
 
 BetterPortalResourceInput: TypeAlias = 'dict[str, BetterPortalRouteChromeValueInput]'
@@ -2069,6 +2091,10 @@ DemoScenarioMatchInput = TypedDict('DemoScenarioMatchInput', {
     'request': NotRequired['JsonObjectInput'],
 })
 
+DependencyAlias: TypeAlias = 'str'
+
+DependencyAliasInput: TypeAlias = 'str'
+
 DeploymentMode: TypeAlias = "Literal['bp-hosted', 'customer-hosted', 'third-party-saas', 'self-hosted', 'saas-managed']"
 
 DeploymentModeInput: TypeAlias = "Literal['bp-hosted', 'customer-hosted', 'third-party-saas', 'self-hosted', 'saas-managed']"
@@ -2187,6 +2213,44 @@ JwtClaimsProvider = TypedDict('JwtClaimsProvider', {
     'accountId': NotRequired['Union[str, float]'],
     'nodeId': NotRequired['str'],
     'scope': NotRequired['str'],
+})
+
+LocalDependencyLock: TypeAlias = 'dict[str, LocalDependencyLockItem]'
+
+LocalDependencyLockInput: TypeAlias = 'dict[str, LocalDependencyLockInputItem]'
+
+LocalDependencyLockInputItem = TypedDict('LocalDependencyLockInputItem', {
+    'registryRef': Required['str'],
+    'pluginId': Required['str'],
+    'version': Required['str'],
+    'digest': Required['str'],
+    'digestFormat': NotRequired["Literal['json-bytes']"],
+    'path': Required['str'],
+})
+
+LocalDependencyLockItem = TypedDict('LocalDependencyLockItem', {
+    'registryRef': Required['str'],
+    'pluginId': Required['str'],
+    'version': Required['str'],
+    'digest': Required['str'],
+    'digestFormat': NotRequired["Literal['json-bytes']"],
+    'path': Required['str'],
+})
+
+LockedDependency = TypedDict('LockedDependency', {
+    'registryRef': Required['str'],
+    'pluginId': Required['str'],
+    'version': Required['str'],
+    'digest': Required['str'],
+    'digestFormat': NotRequired["Literal['json-bytes']"],
+})
+
+LockedDependencyInput = TypedDict('LockedDependencyInput', {
+    'registryRef': Required['str'],
+    'pluginId': Required['str'],
+    'version': Required['str'],
+    'digest': Required['str'],
+    'digestFormat': NotRequired["Literal['json-bytes']"],
 })
 
 M2MBinding = TypedDict('M2MBinding', {
@@ -2662,6 +2726,10 @@ PublicJwks = TypedDict('PublicJwks', {
 PublicJwksInput = TypedDict('PublicJwksInput', {
     'keys': Required['list[RsaPublicJwkInput]'],
 })
+
+RegistryReference: TypeAlias = 'str'
+
+RegistryReferenceInput: TypeAlias = 'str'
 
 RenderMode: TypeAlias = "Literal['page', 'fragment', 'embed']"
 

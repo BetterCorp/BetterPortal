@@ -839,7 +839,7 @@ Snapshot replacement invalidates captured request clients and pending responses;
 background clients resolve policy again on each call. Request cancellation and
 service shutdown stop pending HTTP work. `ClientException` exposes the upstream
 status with a generic message, without its error body. Raw/streaming dependency
-responses and dependency locking remain delivery work.
+responses and registry-backed dependency installation remain delivery work.
 
 Generate a typed JSON client from the dependency's exported BP schema:
 
@@ -857,3 +857,31 @@ generic JSON mappings. Each generated file embeds the contract and delegates
 policy, transport and cancellation to the runtime. `--check` detects stale output
 without writing files. Neither command requires Node or BSB. Cross-language
 coercion export remains gated by [AnyVali #134](https://github.com/BetterCorp/AnyVali/issues/134).
+
+## Local dependencies and frozen builds
+
+Keep registry identity and dependency selectors in `betterportal.json`. Install
+an exported service project without Node or BSB:
+
+```sh
+bp-dotnet deps add example/service@1.0.0 --path ../service --alias peer --project .
+bp-dotnet deps sync --frozen --project .
+bp-dotnet deps sync --frozen --check --project .
+```
+
+The provider directory contains `bp-contract.json` or `lib/bp-contracts/*.json`.
+Its `betterportal.json` supplies `registryRef`; a full reference in the selector
+can supply it when absent. Exact versions and identities must match, and ambiguous
+exports fail. The generated file is `BpDependencies/peer.cs`, with class
+`BetterPortal.Dependencies.peer.DependencyClient`. Its constructor and methods use
+the scoped client API above. Aliases that collide in native filenames are rejected
+before files change.
+
+The lock retains `registryRef`, `pluginId`, `version` and `digest`, adding
+`digestFormat: "json-bytes"`. SHA-256 covers the exact cached UTF-8 document.
+Frozen builds use that cache, check the configured identity/version, and validate
+all dependencies before updating generated files. They perform no network lookup
+or local override discovery; `--check` performs no writes. Explicit installation
+can migrate a legacy Node lock. Native frozen builds reject legacy locale-dependent
+digests; Node's CLI supports both formats. Registry lookup/publishing, automatic
+local discovery and route scaffolding remain delivery work.

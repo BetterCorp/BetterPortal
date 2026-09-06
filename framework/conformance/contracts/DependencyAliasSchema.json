@@ -1,0 +1,10 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "string",
+    "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+  },
+  "definitions": {},
+  "extensions": {}
+}

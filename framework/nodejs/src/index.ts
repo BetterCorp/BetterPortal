@@ -8,6 +8,7 @@ export * from "./contracts/manifest.js";
 export * from "./contracts/m2m.js";
 export * from "./contracts/observability.js";
 export * from "./contracts/platformConfig.js";
+export * from "./contracts/project.js";
 export * from "./contracts/registry.js";
 export * from "./contracts/route.js";
 export * from "./contracts/seo.js";

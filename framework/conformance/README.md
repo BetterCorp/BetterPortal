@@ -8,8 +8,8 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,250/1,278 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 62 semantic cases and imports all 151 documents, then repeats
+Published AnyVali **1.1.1** passes [1,374/1,404 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 77 semantic cases and imports all 157 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -306,9 +306,21 @@ normal verification detects drift. The same native CLI commands validate stale
 files and reject invalid contracts/names. No Node process is required by a
 consumer's native generation command.
 
+`check_projects.py` passes 130 native CLI and Node compatibility checks on
+Windows and Linux. Native local installation preserves `betterportal.json`
+identity, resolves exact contract identities/versions, caches original UTF-8 bytes,
+and generates typed clients. Frozen builds validate every pin before generating;
+`--check` rejects stale source without writing. The shared `json-bytes` lock format
+uses SHA-256 without locale-dependent serialization. Node accepts these pins and
+retains its legacy locks; native migration requires explicit installation and
+preserves aliases sharing the old cache. Corrupt caches, changed selectors,
+missing pins and colliding native filenames fail verification. Six canonical
+AnyVali documents define project/lock data. Registry installation, automatic local
+discovery and contract export/publishing commands remain delivery work.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
-| Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
+| Python replaces explicit null with a default | default-present-null, lock-null-dependencies and their round trips | Null is present and must fail when the schema is not nullable. |
 | A new native parent loses its imported child's recursive definitions (all SDKs) | recursive-composition and its round trip | Composed portable contracts must retain every referenced definition. |
 | Sensitive metadata directly on ref nodes is ignored (all SDKs) | sensitive-ref encrypt/decrypt/plaintext rejection, direct and roundtrip | Encryption callbacks are skipped and plaintext passes encrypted validation. |
 | Python drops empty/from-string coercion on export | coerce-int-empty and coerce-int-from-string round trips | Re-import rejects values accepted by the original schema and can narrow generated input types. |
@@ -348,7 +360,7 @@ to reproduce SDK defects or infer framework completeness from a package build.
 
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
-Windows. Both Python versions returned the original eight SDK failures. The latest
+Windows. Both Python versions returned the original eight SDK failures. The client-generator checkpoint's
 [combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 5,530/5,560
 checks across twenty-eight suites. Failures are the original SDK probes, the
 context/config null-active regressions, eighteen sensitive-ref regressions and
@@ -362,6 +374,14 @@ and .NET SDK 10.0.400/runtime 10.0.11, passes the same 5,530/5,560 checks with
 exactly the same 30 failure identities. It ran from a separate copy of this
 checkpoint on the native Linux filesystem; compiler, executable documentation and
 package checks also passed there.
+
+The later project-tooling stage adds six documents and fifteen schema cases.
+Its separate Windows and [Linux schema runs](results-project-schema-linux.json)
+pass 1,374/1,404 checks. The two additional failures reproduce #127 with a
+defaulted dependency record. The combined reports above remain the actual
+client-generator checkpoint runs, not a merge with these later schema results.
+Project tooling, compiler checks, README examples and package builds also pass
+on Linux at this stage.
 
 The conformance executable uses workstation GC for its small sequential probes.
 Diagnostics on Windows identified a 2.875-second server-GC pause during a
@@ -481,6 +501,7 @@ dotnet restore framework/dotnet/BetterPortal.Tool --locked-mode
 dotnet build framework/dotnet/BetterPortal.Tool --no-restore
 python framework/conformance/check_types.py
 python framework/conformance/check_clientgen.py
+python framework/conformance/check_projects.py
 python framework/conformance/check_docs.py
 dotnet pack framework/dotnet/BetterPortal --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output .tmp-run/ports-packages
