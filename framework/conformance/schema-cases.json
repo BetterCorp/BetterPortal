@@ -721,5 +721,111 @@
         "query": {}
       }
     }
+  },
+  {
+    "id": "sensitive-ref-encrypt",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "unknownKeys": "reject",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "kind": "ref",
+            "ref": "#/definitions/Secret",
+            "metadata": {
+              "sensitive": true
+            }
+          }
+        }
+      },
+      "definitions": {
+        "Secret": {
+          "kind": "string"
+        }
+      },
+      "extensions": {}
+    },
+    "action": "encrypt",
+    "input": {
+      "secret": "plaintext"
+    },
+    "output": {
+      "secret": "encrypted:\"plaintext\""
+    }
+  },
+  {
+    "id": "sensitive-ref-decrypt",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "unknownKeys": "reject",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "kind": "ref",
+            "ref": "#/definitions/Secret",
+            "metadata": {
+              "sensitive": true
+            }
+          }
+        }
+      },
+      "definitions": {
+        "Secret": {
+          "kind": "string"
+        }
+      },
+      "extensions": {}
+    },
+    "action": "decrypt",
+    "input": {
+      "secret": "encrypted:\"plaintext\""
+    },
+    "output": {
+      "secret": "plaintext"
+    }
+  },
+  {
+    "id": "sensitive-ref-reject-plaintext",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "unknownKeys": "reject",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "kind": "ref",
+            "ref": "#/definitions/Secret",
+            "metadata": {
+              "sensitive": true
+            }
+          }
+        }
+      },
+      "definitions": {
+        "Secret": {
+          "kind": "string"
+        }
+      },
+      "extensions": {}
+    },
+    "action": "encrypted",
+    "input": {
+      "secret": "plaintext"
+    },
+    "valid": false
   }
 ]

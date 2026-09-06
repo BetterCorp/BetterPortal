@@ -1,0 +1,616 @@
+{
+  "scenarios": 122,
+  "passed": 122,
+  "results": [
+    {
+      "runtime": "python",
+      "id": "settings-partial-omission",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-effective-default",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-coercion",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-wrong-type",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-recursive-secret",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-nullable-secret",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-nested-policy-allow",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-nested-policy-strip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-nested-policy-reject",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-invalid-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-duplicate-descriptor",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-missing-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-duplicate-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-legacy-shorthand",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-drifting-default",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-matching-default",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-optional-nullable-default-wrappers",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-reject-unsafe-sensitive-ref-root",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-reject-unsafe-sensitive-ref-nested",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-reject-unsafe-sensitive-ref-definition",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-sensitive-definition",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-placeholder-cannot-declassify",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-redact-0",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-redact-1",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-redact-2",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-redact-3",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-redact-4",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-redact-5",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-redact-6",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-redact-7",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-nested-redaction",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-nested-placeholder",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-placeholder",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-placeholder-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-placeholder-without-secret",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-placeholder-after-clear",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-clear",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-clear-and-write",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-clear-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-clear-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-omission-preserved",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-tenant-default-app-override",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-ciphertext-interchange-0",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-ciphertext-interchange-1",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-ciphertext-interchange-2",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-ciphertext-interchange-3",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-ciphertext-interchange-4",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-ciphertext-interchange-5",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-ciphertext-interchange-6",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-ciphertext-interchange-7",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-nested-ciphertext-and-tampering",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-reject-unauthenticated-plain secret",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-reject-unauthenticated-13",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-reject-unauthenticated-{}",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-reject-unauthenticated-encrypted:unrecognized",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-reject-unauthenticated-enc:unknown:payload",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-read-existing-node",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-read-existing-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-read-existing-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-partial-omission",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-effective-default",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-coercion",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-wrong-type",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-recursive-secret",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-nullable-secret",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-nested-policy-allow",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-nested-policy-strip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-nested-policy-reject",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-invalid-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-duplicate-descriptor",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-missing-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-duplicate-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-legacy-shorthand",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-drifting-default",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-matching-default",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-optional-nullable-default-wrappers",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-reject-unsafe-sensitive-ref-root",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-reject-unsafe-sensitive-ref-nested",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-reject-unsafe-sensitive-ref-definition",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-sensitive-definition",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-placeholder-cannot-declassify",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-redact-0",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-redact-1",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-redact-2",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-redact-3",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-redact-4",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-redact-5",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-redact-6",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-redact-7",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-nested-redaction",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-nested-placeholder",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-placeholder",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-placeholder-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-placeholder-without-secret",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-placeholder-after-clear",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-clear",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-clear-and-write",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-clear-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-clear-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-omission-preserved",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-tenant-default-app-override",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-ciphertext-interchange-0",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-ciphertext-interchange-1",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-ciphertext-interchange-2",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-ciphertext-interchange-3",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-ciphertext-interchange-4",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-ciphertext-interchange-5",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-ciphertext-interchange-6",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-ciphertext-interchange-7",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-nested-ciphertext-and-tampering",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-reject-unauthenticated-plain secret",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-reject-unauthenticated-13",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-reject-unauthenticated-{}",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-reject-unauthenticated-encrypted:unrecognized",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-reject-unauthenticated-enc:unknown:payload",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-read-existing-node",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-read-existing-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-read-existing-dotnet",
+      "passed": true
+    }
+  ]
+}

@@ -356,8 +356,48 @@ if (PreviewConfig.DecryptValue(key, "tenant", ["token"], encrypted) != "") throw
 ```
 
 Persist generated keys with the service's protected bootstrap state. Each cipher
-holds two derived keys; there is no global secret cache. Persistent settings,
-legacy-marker adaptation and redaction remain pending.
+holds two derived keys; there is no global secret cache.
+
+`SettingsSchema` compiles config descriptors whose `jsonSchema` is a portable
+AnyVali object document. Fields must match its properties; scopes control writes.
+Native schemas own defaults, coercion, required fields and nested unknown-key
+policy. A descriptor `defaultValue` must match the native field default. Partial
+overrides preserve omission; `Effective(tenant, app)` applies tenant defaults and
+app overrides.
+
+```csharp
+using AnyVali;
+using BetterPortal;
+using BetterPortal.Generated;
+
+var descriptor = Contracts.Parse<ConfigSchemaDescriptorInput>("ConfigSchemaDescriptorSchema", new {
+    id = "settings", title = "Settings", description = "Settings", scope = "tenant",
+    jsonSchema = V.Export(V.Object(new() { ["secret"] = V.String() })),
+    fields = new[] { new { key = "secret", title = "Secret", description = "Service credential",
+        scope = "tenant", visibility = "secret", ownership = "bp", sourceOfTruth = "bp" } }
+});
+var policy = new SettingsSchema([descriptor]);
+var cipher = new ConfigCipher(ConfigCipher.GenerateKey());
+var values = new Dictionary<string, object?> { ["secret"] = "example" };
+var stored = policy.Encode("tenant", values, cipher);
+if (!((string)stored["secret"]!).StartsWith("enc:aes256gcm2:")) throw new Exception("Expected ciphertext");
+if (!Equals(policy.Decode("tenant", stored, cipher)["secret"], "example")) throw new Exception("Wrong decrypted value");
+var redacted = policy.Redact("tenant", values);
+if (!Equals(redacted["secret"], "__redacted__")) throw new Exception("Secret was exposed");
+if (!Equals(policy.Merge("tenant", values, redacted)["secret"], "example")) throw new Exception("Secret was overwritten");
+if (policy.Values("tenant", new Dictionary<string, object?>()).Count != 0) throw new Exception("Overrides must retain omission");
+```
+
+Native sensitive APIs own transforms and redaction traversal. Top-level sensitive
+fields use Node's `enc:` envelopes; nested sensitive values retain `encrypted:`
+around a BP envelope. Ordinary strings stay unchanged. `Merge` validates scopes,
+clears and placeholders, including nested arrays. A placeholder cannot create a
+missing secret or move it into a public union branch. Replacement values win over
+`clearKeys`; a cleared secret cannot also use a preserve placeholder.
+Direct sensitive annotations on ref nodes are rejected because every SDK bypasses
+them ([AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128)). Use a native
+wrapper or sensitive definition; descriptor visibility uses a native wrapper.
+Persistent settings and the ticket-protected API remain pending.
 
 `Service.ApplySnapshot` validates the complete scoped document and preview values,
 persists through `IStateStore`, then replaces active policy. Failure or cancellation

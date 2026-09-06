@@ -359,7 +359,42 @@ assert decrypt_preview_value(key, "tenant", ["token"], encrypted) == ""
 
 Persist generated keys with the service's protected bootstrap state. The cipher
 holds only two derived keys per instance; it has no global cache of secrets.
-Persistent settings, legacy-marker adaptation and redaction remain pending.
+`SettingsSchema` compiles config descriptors whose `jsonSchema` contains an
+AnyVali object document. Descriptor fields must match its properties; field scopes
+control writes. The native document owns defaults, coercion, required fields and
+nested unknown-key behavior. A descriptor `defaultValue`, when present, must match
+that native field default. Partial stored overrides never materialize defaults;
+`effective(tenant, app)` applies tenant defaults followed by app overrides.
+
+```python
+import anyvali as av
+from betterportal.encryption import ConfigCipher
+from betterportal.settings import SettingsSchema
+
+policy = SettingsSchema([{"id": "settings", "title": "Settings", "description": "Settings", "scope": "tenant",
+    "jsonSchema": av.export_schema(av.object_({"secret": av.string()}, required=[])),
+    "fields": [{"key": "secret", "title": "Secret", "description": "Service credential", "scope": "tenant",
+        "visibility": "secret", "ownership": "bp", "sourceOfTruth": "bp"}]}])
+cipher = ConfigCipher(ConfigCipher.generate_key())
+stored = policy.encode("tenant", {"secret": "example"}, cipher)
+assert stored["secret"].startswith("enc:aes256gcm2:")
+assert policy.decode("tenant", stored, cipher) == {"secret": "example"}
+assert policy.redact("tenant", {"secret": "example"}) == {"secret": "__redacted__"}
+assert policy.merge("tenant", {"secret": "example"}, {"secret": "__redacted__"}) == {"secret": "example"}
+assert policy.values("tenant", {}) == {}
+```
+
+Native AnyVali sensitive APIs perform encryption/decryption and redaction traversal.
+Top-level sensitive fields preserve Node's `enc:` envelopes; nested sensitive fields
+retain the native `encrypted:` prefix around a BP envelope. Ordinary strings are
+never rewritten. `merge` validates field scopes, explicit clears and secret
+placeholders, including nested arrays. A placeholder cannot create a missing secret
+or move an existing secret into a public union branch. Real replacement values win
+over `clear_keys`; a cleared secret cannot simultaneously use a preserve placeholder.
+Direct sensitive annotations on ref nodes are rejected because all three SDKs bypass
+them ([AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128)). Put sensitive
+metadata on a native wrapper or referenced definition. BP's descriptor visibility
+uses a native wrapper. Persistent settings and the ticket-protected API remain pending.
 
 `Service.apply_snapshot` validates a complete scoped document and preview values,
 persists it through the supplied `StateStore`, then replaces active policy. Failed

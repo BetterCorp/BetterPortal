@@ -45,6 +45,7 @@ from betterportal.urls import Urls
 from betterportal.registry import Operation, Route, Registry
 from betterportal.access import AppAccess
 from betterportal.service import Service
+from betterportal.settings import SettingsSchema
 from betterportal.authorization import AuthorizedCaller
 from betterportal.contracts import contract
 import asyncio
@@ -55,6 +56,8 @@ assert public_keys({"keys": [key.public_jwk()]})[key.kid] == key.public_key_pem
 assert secure_endpoint("https://keys.example") == "https://keys.example"
 cipher = ConfigCipher(ConfigCipher.generate_key())
 assert cipher.decrypt(cipher.encrypt({"value": None})) == {"value": None}
+settings = SettingsSchema([])
+assert settings.values("tenant", {}) == settings.effective({}, {}) == {}
 preview_key = generate_preview_key()
 assert decrypt_preview_value(preview_key, "tenant", ["secret"], encrypt_preview_value(preview_key, "tenant", ["secret"], "")) == ""
 anonymous = asyncio.run(authorize_request({}, {}, AuthContext("unresolved", "unresolved"), view_id="hello", method="GET"))

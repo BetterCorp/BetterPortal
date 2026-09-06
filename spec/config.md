@@ -113,6 +113,14 @@ when redaction placeholders are resubmitted. The current low-level Node store
 does not implement all these field-policy checks; this is not permission to
 discard validation in a new SDK.
 
+Native settings descriptors contain an AnyVali object document in `jsonSchema`;
+their fields must match its properties. That document owns defaults and value
+validation. Stored partial overrides preserve omitted fields. Descriptor visibility
+adds sensitive metadata; native sensitive APIs also traverse nested secrets. A
+redaction placeholder preserves only an existing secret at that path and cannot
+move it into a public union branch. A cleared secret cannot also be preserved by a
+placeholder in the same write; real replacement values may follow a clear.
+
 Success returns ok=true, serviceId, tenantId, optional appId, and redacted values.
 HX-Trigger: bp:config-saved is optional. Runtime settings merge tenant defaults
 followed by app overrides. Store operations and event delivery have small
@@ -156,6 +164,14 @@ The native AnyVali encrypted-value marker is encrypted:. A storage adapter must
 explicitly bridge that marker to legacy BP envelopes when using native sensitive
 APIs; unrecognized envelopes are not authenticated ciphertext. Do not log
 plaintext or keys. Config API reads always redact secrets.
+
+The native settings compiler uses legacy BP envelopes for top-level sensitive
+fields. Nested sensitive values retain `encrypted:` around a BP envelope; ordinary
+strings resembling an envelope are unchanged. Nullable nulls follow native AnyVali
+storage semantics, while present top-level secret fields are always redacted in
+the config API. AnyVali 1.1.1 ignores sensitive annotations directly on ref nodes
+([#128](https://github.com/BetterCorp/AnyVali/issues/128)); settings compilation
+rejects that form. Use sensitive metadata on a native wrapper or definition.
 
 ### 5.1 Preview config
 

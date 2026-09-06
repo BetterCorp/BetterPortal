@@ -1,5 +1,5 @@
 {
-  "scenarios": 1044,
+  "scenarios": 1062,
   "passed": 1036,
   "results": [
     {
@@ -180,6 +180,24 @@
     },
     {
       "runtime": "node",
+      "id": "sensitive-ref-encrypt",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'secret': {'kind': 'ref', 'ref': '#/definitions/Secret', 'metadata': {'sensitive': True}}}, 'required': ['secret'], 'unknownKeys': 'reject'}, 'definitions': {'Secret': {'kind': 'string'}}, 'extensions': {}}}"
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-decrypt",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'encrypted:\"plaintext\"'}, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'secret': {'kind': 'ref', 'ref': '#/definitions/Secret', 'metadata': {'sensitive': True}}}, 'required': ['secret'], 'unknownKeys': 'reject'}, 'definitions': {'Secret': {'kind': 'string'}}, 'extensions': {}}}"
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-reject-plaintext",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'secret': {'kind': 'ref', 'ref': '#/definitions/Secret', 'metadata': {'sensitive': True}}}, 'required': ['secret'], 'unknownKeys': 'reject'}, 'definitions': {'Secret': {'kind': 'string'}}, 'extensions': {}}}"
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -1048,6 +1066,24 @@
       "runtime": "node",
       "id": "element-args-defaults-roundtrip",
       "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-encrypt-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'secret': {'kind': 'ref', 'ref': '#/definitions/Secret', 'metadata': {'sensitive': True}}}, 'required': ['secret'], 'unknownKeys': 'reject'}, 'definitions': {'Secret': {'kind': 'string'}}, 'extensions': {}}}"
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-decrypt-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'encrypted:\"plaintext\"'}, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'secret': {'kind': 'ref', 'ref': '#/definitions/Secret', 'metadata': {'sensitive': True}}}, 'required': ['secret'], 'unknownKeys': 'reject'}, 'definitions': {'Secret': {'kind': 'string'}}, 'extensions': {}}}"
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-reject-plaintext-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'secret': {'kind': 'ref', 'ref': '#/definitions/Secret', 'metadata': {'sensitive': True}}}, 'required': ['secret'], 'unknownKeys': 'reject'}, 'definitions': {'Secret': {'kind': 'string'}}, 'extensions': {}}}"
     },
     {
       "runtime": "node",
@@ -1923,6 +1959,24 @@
     },
     {
       "runtime": "python",
+      "id": "sensitive-ref-encrypt",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}}"
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-decrypt",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'encrypted:\"plaintext\"'}}"
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-reject-plaintext",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}}"
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -2792,6 +2846,24 @@
       "runtime": "python",
       "id": "element-args-defaults-roundtrip",
       "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-encrypt-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}}"
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-decrypt-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'encrypted:\"plaintext\"'}}"
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-reject-plaintext-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}}"
     },
     {
       "runtime": "python",
@@ -3666,6 +3738,24 @@
     },
     {
       "runtime": "dotnet",
+      "id": "sensitive-ref-encrypt",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-decrypt",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'encrypted:\"plaintext\"'}}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-reject-plaintext",
+      "passed": false,
+      "error": "{'valid': True, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'secret': {'kind': 'ref', 'ref': '#/definitions/Secret', 'metadata': {'sensitive': True}}}, 'required': ['secret'], 'unknownKeys': 'reject'}, 'definitions': {'Secret': {'kind': 'string'}}, 'extensions': {}}, 'output': {'secret': 'plaintext'}}"
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -4534,6 +4624,24 @@
       "runtime": "dotnet",
       "id": "element-args-defaults-roundtrip",
       "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-encrypt-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'plaintext'}}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-decrypt-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {'secret': 'encrypted:\"plaintext\"'}}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-reject-plaintext-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'object', 'properties': {'secret': {'kind': 'ref', 'ref': '#/definitions/Secret', 'metadata': {'sensitive': True}}}, 'required': ['secret'], 'unknownKeys': 'reject'}, 'definitions': {'Secret': {'kind': 'string'}}, 'extensions': {}}, 'output': {'secret': 'plaintext'}}"
     },
     {
       "runtime": "dotnet",
