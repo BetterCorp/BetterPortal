@@ -401,7 +401,8 @@ missing secret or move it into a public union branch. Replacement values win ove
 `clearKeys`; a cleared secret cannot also use a preserve placeholder.
 Direct sensitive annotations on ref nodes are rejected because every SDK bypasses
 them ([AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128)). Use a native
-wrapper or sensitive definition; descriptor visibility uses a native wrapper.
+wrapper or sensitive definition. Descriptor visibility annotates native fields and
+wraps bare refs without changing requiredness.
 `ServiceSettings` serializes writes and owns encrypted tenant/app state. Supply a
 `FileStateStore(path)` as its third argument for persistence; omission uses memory.
 Call `Initialize()` before reads/writes and dispose with `await using`. Loading
@@ -415,7 +416,55 @@ the `legacy` envelope require `Initialize(legacyTenantId: ...)`; migration persi
 that explicit owner before readiness and rejects an existing owner bucket. Unmarked
 plaintext secrets and tampered ciphertext are rejected. Keep encryption keys in
 protected storage. One instance owns each file; shared replicas need a configured
-repository/transport. The ticket-protected HTTP API remains pending.
+repository/transport.
+
+Pass `ConfigApi(settings, issuer: cpUrl, jwksUri: cpJwksUri)` through the service's
+`configApi` argument. Settings descriptors must match the manifest. `AddBetterPortal`
+initializes settings before hosting and owns shutdown; standalone callers invoke
+`Service.Initialize` and dispose the service. This factory returns a managed service
+to connect with `ControlPlaneSync`:
+
+```csharp
+using BetterPortal;
+using BetterPortal.Generated;
+
+static Service ConfiguredService(Registry registry, ManifestDeclarationInput declaration,
+    string cpUrl, string jwksUri, string key, string settingsPath)
+{
+    var manifest = registry.Manifest(declaration);
+    var descriptors = manifest.ConfigSchemas.Select(item =>
+        Contracts.Parse<ConfigSchemaDescriptorInput>("ConfigSchemaDescriptorSchema", item));
+    var settings = new ServiceSettings(new SettingsSchema(descriptors), new ConfigCipher(key), new FileStateStore(settingsPath));
+    return new Service(registry, declaration, managed: true,
+        configApi: new ConfigApi(settings, issuer: cpUrl, jwksUri: jwksUri));
+}
+Func<Registry, ManifestDeclarationInput, string, string, string, string, Service> factory = ConfiguredService;
+```
+
+GET `/.well-known/bp/config/schema` is public. GET/POST on `/.well-known/bp/config`
+require CP-signed `config.read`/`config.write` tickets for the manifest plugin ID.
+The ticket supplies the tenant. GET's optional `X-BP-App-Id` selects stored app
+overrides; POST accepts the canonical tenant/app/values/clearKeys body. Active tenants
+and `configApps` (or `apps` when absent) restrict access. Conflicting scope headers
+are rejected. Responses redact secrets and disable caching. Preflights check only
+management origins before ticket verification. HEAD follows GET policy.
+
+`mode`, `customUiPath` and `writable` describe capabilities; ownership mode grants
+no permission. Unsupported reads/writes return 501. Invalid field input returns 400;
+storage errors return 500 and retain previous values. Snapshot changes during ticket
+verification reject the request. A settings commit completes before a queued snapshot
+replacement, while shutdown cancels pending writes.
+
+Handlers receive effective settings with defaults and preview overrides. Preview
+values validate before snapshot publication and do not overwrite the settings file.
+Missing required values return 503 on operations while configuration remains
+available. Health reflects initialization and managed manifest acknowledgment.
+Provisioning and protected key persistence remain delivery work.
+
+`devToken` requires both an explicitly supplied token and
+`BP_ALLOW_DEV_CONFIG_TOKEN=true` at construction. This local-development option
+requires an explicit tenant header and normal scope checks. Without pinned CP trust
+or this opt-in, the API rejects every ticket.
 
 `Service.ApplySnapshot` validates the complete scoped document and preview values,
 persists through `IStateStore`, then replaces active policy. Failure or cancellation

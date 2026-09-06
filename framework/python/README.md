@@ -403,7 +403,7 @@ over `clear_keys`; a cleared secret cannot simultaneously use a preserve placeho
 Direct sensitive annotations on ref nodes are rejected because all three SDKs bypass
 them ([AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128)). Put sensitive
 metadata on a native wrapper or referenced definition. BP's descriptor visibility
-uses a native wrapper.
+annotates native fields and wraps bare refs without changing their requiredness.
 
 `ServiceSettings` serializes writes and owns encrypted tenant/app state. Supply a
 `FileStateStore(path)` as its third argument for persistence; omission uses memory.
@@ -418,7 +418,53 @@ the `legacy` envelope require `initialize(legacy_tenant_id=...)`; migration pers
 that explicit owner before becoming ready and rejects an existing owner bucket.
 Unmarked plaintext secrets and tampered ciphertext are rejected. Keep the encryption
 key in protected storage. One instance owns each file; shared replicas need a
-configured repository/transport. The ticket-protected HTTP API remains pending.
+configured repository/transport.
+
+Pass `ConfigApi(settings, issuer=cp_url, jwks_uri=cp_jwks_uri)` to the service's
+`config_api` argument. Its settings descriptors must match the manifest. The host
+initializes settings before serving and owns their shutdown. For example, this
+factory returns an unready managed service to connect with `ControlPlaneSync`:
+
+```python
+from betterportal.config_api import ConfigApi
+from betterportal.contracts import parse
+from betterportal.encryption import ConfigCipher
+from betterportal.registry import Registry
+from betterportal.service import Service
+from betterportal.settings import SettingsSchema, ServiceSettings
+from betterportal.storage import FileStateStore
+
+def configured_service(registry: Registry, declaration: dict, cp_url: str, jwks_uri: str, key: str, settings_path: str):
+    manifest = parse("ManifestDeclarationSchema", declaration)
+    settings = ServiceSettings(SettingsSchema(manifest["configSchemas"]), ConfigCipher(key), FileStateStore(settings_path))
+    return Service(registry, manifest, managed=True,
+        config_api=ConfigApi(settings, issuer=cp_url, jwks_uri=jwks_uri))
+```
+
+`GET /.well-known/bp/config/schema` is public. GET/POST on `/.well-known/bp/config`
+require CP-signed `config.read`/`config.write` tickets for the manifest plugin ID.
+The ticket supplies the tenant. GET's optional `X-BP-App-Id` selects stored app
+overrides; POST uses the canonical tenant/app/values/clearKeys body. Active tenants
+and `configApps` (or `apps` when absent) restrict access. Conflicting scope headers
+are rejected. Responses redact secrets and disable caching. Preflights authorize
+only management origins, before ticket verification. HEAD follows GET policy.
+
+`mode`, `custom_ui_path` and `writable` describe API capabilities; ownership mode
+does not grant access. Missing read/write support returns 501. Invalid field input
+returns 400; storage failures return 500 and preserve previous values. Shutdown
+cancels pending writes. A snapshot change during ticket verification rejects the
+request; a committed write finishes before a queued snapshot replacement.
+
+Handlers receive stored settings plus native defaults and preview overrides.
+Preview values validate before snapshot publication and never overwrite the settings
+file. Missing required effective values return 503 on operations while the config
+API remains available to supply them. Public health reflects initialized state and
+managed manifest acknowledgment. Provisioning and protected key storage remain work.
+
+`dev_token` is accepted only when explicitly supplied and
+`BP_ALLOW_DEV_CONFIG_TOKEN=true` at construction. It requires an explicit tenant
+header and the same scope checks; it is a local-development option. Without pinned
+CP trust or this explicit opt-in, the API rejects every ticket.
 
 `Service.apply_snapshot` validates a complete scoped document and preview values,
 persists it through the supplied `StateStore`, then replaces active policy. Failed

@@ -140,7 +140,7 @@ public static class Hosting
         if (maxBodyBytes < 1 || mode is not ("service" or "theme")) throw new ArgumentException("Invalid hosting options");
         endpoints.UseStatusCodePages(async status => await Reply(status.HttpContext,
             new { error = status.HttpContext.Response.StatusCode switch { 404 => "Route not found", 405 => "Method not allowed", _ => "Request failed" } }, status.HttpContext.Response.StatusCode));
-        string[] discovery = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json"];
+        string[] discovery = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"];
         foreach (var path in discovery) endpoints.MapMethods(path, ["GET", "HEAD", "OPTIONS"], async (HttpContext context) =>
         {
             var headers = new Dictionary<string, string> { ["access-control-allow-origin"] = "*", ["cache-control"] = "no-store" };
@@ -151,12 +151,42 @@ public static class Hosting
                 await Reply(context, null, 204, headers); return;
             }
             if (path == discovery[0]) await Reply(context, new { ok = service.Ready }, service.Ready ? 200 : 503, headers);
-            else await Reply(context, path == discovery[1] ? service.Manifest : (object)service.Schema(), 200, headers);
+            else await Reply(context, path == discovery[1] ? service.Manifest : path == discovery[3] ? service.ConfigSchema() : (object)service.Schema(), 200, headers);
+        });
+        const string configPath = "/.well-known/bp/config";
+        endpoints.MapMethods(configPath, ["GET", "HEAD", "POST", "OPTIONS"], async (HttpContext context) =>
+        {
+            var responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin", ["cache-control"] = "no-store" };
+            try
+            {
+                var headers = Headers(context.Request);
+                responseHeaders = service.ConfigHeaders(headers, preflight: context.Request.Method == "OPTIONS");
+                if (context.Request.Method == "OPTIONS") { await Reply(context, null, 204, responseHeaders); return; }
+                var body = await ReadBody(context.Request, maxBodyBytes, context.RequestAborted);
+                object? value = null;
+                if (context.Request.Method == "POST")
+                {
+                    var contentType = context.Request.ContentType?.Split(';')[0].Trim().ToLowerInvariant();
+                    if (contentType != "application/json" && contentType?.EndsWith("+json", StringComparison.Ordinal) is not true) throw new RequestException(415, "Config writes require JSON");
+                    try { value = Json.Read(Utf8.GetString(body)); }
+                    catch (Exception error) when (error is System.Text.Json.JsonException or ArgumentException) { throw new RequestException(400, "Invalid JSON body"); }
+                }
+                var result = await service.ConfigRequest(context.Request.Method == "POST" ? "config.write" : "config.read", headers, value, context.RequestAborted);
+                await Reply(context, result, 200, responseHeaders);
+            }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { throw; }
+            catch (RequestException error)
+            {
+                foreach (var (name, value) in error.Headers) responseHeaders[name] = value;
+                await Reply(context, new { error = error.Message }, error.Status, responseHeaders);
+            }
+            catch (CorsDeniedException) { await Reply(context, new { error = "Origin or preflight is not allowed" }, 403, responseHeaders); }
+            catch (Exception) { await Reply(context, new { error = "Request failed" }, 500, responseHeaders); }
         });
         var groups = new Dictionary<string, Dictionary<string, (Route Route, string Path)>>(StringComparer.Ordinal);
         foreach (var route in service.Registry.Routes) foreach (var path in route.Paths)
         {
-            if (discovery.Contains(path)) throw new ArgumentException("Route conflicts with BP discovery: " + path);
+            if (discovery.Contains(path) || path == configPath) throw new ArgumentException("Route conflicts with BP discovery: " + path);
             var pattern = "/" + string.Join('/', Segments(path).Select((part, index) => part.StartsWith(':') ? "{_bp" + index + "}" : part));
             if (!groups.TryGetValue(pattern, out var methods)) groups[pattern] = methods = new(StringComparer.Ordinal);
             foreach (var operation in route.Operations) methods.Add(operation.Method, (route, path));

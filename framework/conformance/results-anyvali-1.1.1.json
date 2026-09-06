@@ -1,6 +1,6 @@
 {
-  "scenarios": 1086,
-  "passed": 1060,
+  "scenarios": 1104,
+  "passed": 1078,
   "results": [
     {
       "runtime": "node",
@@ -213,6 +213,16 @@
     },
     {
       "runtime": "node",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-response-reject-false",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -759,6 +769,11 @@
     {
       "runtime": "node",
       "id": "import-ServiceConfigWriteRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigWriteResponseSchema",
       "passed": true
     },
     {
@@ -1122,6 +1137,16 @@
     },
     {
       "runtime": "node",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-response-reject-false-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1672,6 +1697,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
       "passed": true
     },
@@ -2028,6 +2058,16 @@
     {
       "runtime": "python",
       "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-reject-false",
       "passed": true
     },
     {
@@ -2582,6 +2622,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceManifestCacheEntrySchema",
       "passed": true
     },
@@ -2938,6 +2983,16 @@
     {
       "runtime": "python",
       "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-reject-false-roundtrip",
       "passed": true
     },
     {
@@ -3492,6 +3547,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
       "passed": true
     },
@@ -3847,6 +3907,16 @@
     {
       "runtime": "dotnet",
       "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-reject-false",
       "passed": true
     },
     {
@@ -4401,6 +4471,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ServiceManifestCacheEntrySchema",
       "passed": true
     },
@@ -4756,6 +4831,16 @@
     {
       "runtime": "dotnet",
       "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-reject-false-roundtrip",
       "passed": true
     },
     {
@@ -5306,6 +5391,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ServiceConfigWriteRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
       "passed": true
     },
     {

@@ -3,13 +3,13 @@
 **The full .NET/Python framework delivery is incomplete.** This directory supplies
 canonical AnyVali contracts, native adapters, HTTP schema/security fixtures, and a
 capability ledger. Token and service-envelope interoperability is verified;
-full rendering/stream hosting, route tooling, config HTTP hosting and Bootstrap integration
+full rendering/stream hosting, route tooling and Bootstrap integration
 remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,060/1,086 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 41 semantic cases and imports all 140 documents, then repeats
+Published AnyVali **1.1.1** passes [1,078/1,104 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 43 semantic cases and imports all 141 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -187,13 +187,14 @@ The test-only Node peer does not reimplement those policies. Bootstrap shell and
 provisioning/install integration remain delivery work.
 The same 130 checks also pass on [Python 3.13](results-sync-python313.json).
 
-The [settings suite](results-settings.json) passes 122 checks for scoped field declarations, native defaults/coercion,
+The [settings suite](results-settings.json) passes 130 checks for scoped field declarations, native defaults/coercion,
 recursive values, nested unknown-key policies, Node-compatible top-level envelopes,
 native nested encryption, redaction and secret-preserving merges. It rejects
 unauthenticated ciphertext, mismatched field declarations, secret placeholders
 without stored values, and attempts to move preserved secrets into a public union
-branch. Ticket-protected config hosting remains pending.
-The same 122 checks pass on [Python 3.13](results-settings-python313.json).
+branch. Required secret fields retain their requiredness, including recursive refs;
+partial overrides omit defaults while full effective values apply them.
+The same 130 checks run on [Python 3.13](results-settings-python313.json).
 
 The [settings persistence suite](results-settings-store.json) passes 70 checks:
 encrypted tenant/app files read across all nine language pairs, stored overrides
@@ -204,6 +205,20 @@ Legacy encrypted files require an explicit tenant owner; migration must persist
 before readiness and preserves old bytes on failure/cancellation. Node probes use
 its real file store. Native stores enforce the additional field/ownership policy.
 The same suite runs on [Python 3.13](results-settings-store-python313.json).
+
+The [config API suite](results-config-api.json) passes 138/139 checks through actual
+Node config routes, ASGI and ASP.NET hosts. Node probes invoke its BSB-owned ticket
+and scope methods; they do not substitute copied authorization policy. Tickets from
+all three issuers read/write scoped encrypted settings. Native checks add management
+CORS, HEAD, input/media bounds, atomic clear/save failure, cancellation, shutdown,
+explicit development-token opt-in, missing required settings, and effective handler
+config. Snapshot changes during authentication reject the request; updates during a
+settings write wait for its commit. Preview values from every language validate
+before publication, overlay only their target, and never overwrite stored settings.
+The known Python null/default defect remains a failing config-authorization probe.
+The suite also exposed future-issued config tickets accepted by Node; its shared
+verifier now checks issuance/lifetime, with a focused Node regression test.
+The same gate runs on [Python 3.13](results-config-api-python313.json).
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -221,7 +236,8 @@ has been removed.
 
 The newly isolated reference defect is [AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128).
 Its 18 failing SDK probes remain visible. Settings declarations reject that unsafe
-form; BP visibility is applied to a native wrapper. Metadata on ordinary schemas
+form; BP visibility annotates native fields and wraps bare refs without changing
+requiredness. Metadata on ordinary schemas
 and referenced definitions works. This does not patch the SDK or make its native
 ref behavior conformant.
 
@@ -241,9 +257,9 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 4,094/4,121
-checks across twenty-one suites. Failures are the original SDK probes, the
-context-level null-active regression and eighteen new sensitive-ref regressions.
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 4,258/4,286
+checks across twenty-two suites. Failures are the original SDK probes, the
+context/config null-active regressions and eighteen sensitive-ref regressions.
 Linux execution is still acceptance work.
 
 ```sh
@@ -275,6 +291,7 @@ python framework/conformance/verify.py --suite snapshots
 python framework/conformance/verify.py --suite sync
 python framework/conformance/verify.py --suite settings
 python framework/conformance/verify.py --suite settings-store
+python framework/conformance/verify.py --suite config-api
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -285,7 +302,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|snapshots|sync|settings|settings-store|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|snapshots|sync|settings|settings-store|config-api|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.
@@ -301,6 +318,7 @@ python framework/conformance/run.py http://127.0.0.1:8310 http://127.0.0.1:8311 
 ```sh
 npm run build --workspace @betterportal/framework
 npm run build --workspace @betterportal/config-manager
+npm run build --workspace @betterportal/plugin-bsb
 node framework/conformance/export-contracts.mjs
 node framework/conformance/export-fixtures.mjs
 node framework/conformance/export-encryption-fixtures.mjs
@@ -349,6 +367,6 @@ wheel lacks py.typed. Linux execution remains a delivery check.
 [CAPABILITIES.md](CAPABILITIES.md) maps the full requested scope to existing BP
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
-HTTP suite (config routes, full rendering/stream hosting, provisioning,
+HTTP suite (full rendering/stream hosting, provisioning,
 authorized diagnostics and generated clients), standalone examples and CI remains
 incomplete. Publishing and BSB plugins remain separate follow-ups.

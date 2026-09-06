@@ -272,10 +272,33 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
             return Response(status_code=204, headers={**headers, "access-control-allow-methods": "GET, HEAD, OPTIONS", "access-control-allow-headers": "Accept"})
         if path == "/.well-known/bp/health": return JSONResponse({"ok": service.ready}, status_code=200 if service.ready else 503, headers=headers)
         if path == "/.well-known/bp/manifest": return JSONResponse(service.manifest, headers=headers)
-        return JSONResponse(service.schema(), headers=headers)
+        return JSONResponse(service.config_schema() if path == "/.well-known/bp/config/schema" else service.schema(), headers=headers)
 
-    paths = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json"]
+    paths = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"]
     routes = [HttpRoute(path, discovery, methods=["GET", "OPTIONS"]) for path in paths]
+    async def config_endpoint(request: Request) -> Response:
+        response_headers = {"vary": "Origin", "cache-control": "no-store"}
+        try:
+            headers = _headers(request)
+            response_headers = service.config_headers(headers, preflight=request.method == "OPTIONS")
+            if request.method == "OPTIONS": return Response(status_code=204, headers=response_headers)
+            body = await _body(request, max_body_bytes)
+            async def execute():
+                value = None
+                if request.method == "POST":
+                    content_type = headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                    if content_type != "application/json" and not content_type.endswith("+json"):
+                        raise RequestError(415, "Config writes require JSON")
+                    try: value = loads(body.decode("utf-8"))
+                    except (ValueError, UnicodeError) as error: raise RequestError(400, "Invalid JSON body") from error
+                result = await service.config_request("config.write" if request.method == "POST" else "config.read", headers, value)
+                return JSONResponse(result, headers=response_headers)
+            return await _connected(request, execute())
+        except RequestError as error: return JSONResponse({"error": str(error)}, status_code=error.status, headers={**response_headers, **error.headers})
+        except CorsDenied: return JSONResponse({"error": "Origin or preflight is not allowed"}, status_code=403, headers=response_headers)
+        except Exception: return JSONResponse({"error": "Request failed"}, status_code=500, headers=response_headers)
+    paths.append("/.well-known/bp/config")
+    routes.append(HttpRoute(paths[-1], config_endpoint, methods=["GET", "POST", "OPTIONS"]))
     entries = [(route, path) for route in service.registry.routes for path in route.paths]
     # Starlette matches in declaration order. Static segments precede parameter segments.
     entries.sort(key=lambda entry: tuple(part.startswith(":") for part in _segments(entry[1])))

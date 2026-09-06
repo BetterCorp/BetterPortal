@@ -17,7 +17,12 @@ public static class ServiceLifetime
     {
         public async Task StartAsync(CancellationToken cancellation)
         {
-            if (sync is not null) await sync.StartAsync(cancellation);
+            try
+            {
+                await service.Initialize(cancellation);
+                if (sync is not null) await sync.StartAsync(cancellation);
+            }
+            catch { await DisposeAsync(); throw; }
         }
         public Task StopAsync(CancellationToken cancellation) => DisposeAsync().AsTask();
         public async ValueTask DisposeAsync()

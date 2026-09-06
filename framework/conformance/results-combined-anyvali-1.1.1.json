@@ -1,6 +1,6 @@
 {
-  "scenarios": 4121,
-  "passed": 4094,
+  "scenarios": 4286,
+  "passed": 4258,
   "results": [
     {
       "runtime": "node",
@@ -213,6 +213,16 @@
     },
     {
       "runtime": "node",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-response-reject-false",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -759,6 +769,11 @@
     {
       "runtime": "node",
       "id": "import-ServiceConfigWriteRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigWriteResponseSchema",
       "passed": true
     },
     {
@@ -1122,6 +1137,16 @@
     },
     {
       "runtime": "node",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-response-reject-false-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1672,6 +1697,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
       "passed": true
     },
@@ -2028,6 +2058,16 @@
     {
       "runtime": "python",
       "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-reject-false",
       "passed": true
     },
     {
@@ -2582,6 +2622,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceManifestCacheEntrySchema",
       "passed": true
     },
@@ -2938,6 +2983,16 @@
     {
       "runtime": "python",
       "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-reject-false-roundtrip",
       "passed": true
     },
     {
@@ -3492,6 +3547,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
       "passed": true
     },
@@ -3847,6 +3907,16 @@
     {
       "runtime": "dotnet",
       "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-reject-false",
       "passed": true
     },
     {
@@ -4401,6 +4471,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-ServiceManifestCacheEntrySchema",
       "passed": true
     },
@@ -4756,6 +4831,16 @@
     {
       "runtime": "dotnet",
       "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-reject-false-roundtrip",
       "passed": true
     },
     {
@@ -5306,6 +5391,11 @@
     {
       "runtime": "dotnet",
       "id": "import-ServiceConfigWriteRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
       "passed": true
     },
     {
@@ -19716,6 +19806,26 @@
     },
     {
       "runtime": "python",
+      "id": "settings-required-secret-string",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-default-secret-string",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-required-secret-ref",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-default-secret-ref",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "settings-nested-policy-allow",
       "passed": true
     },
@@ -20021,6 +20131,26 @@
     },
     {
       "runtime": "dotnet",
+      "id": "settings-required-secret-string",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-default-secret-string",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-required-secret-ref",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-default-secret-ref",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "settings-nested-policy-allow",
       "passed": true
     },
@@ -20632,6 +20762,702 @@
     {
       "runtime": "dotnet",
       "id": "settings-store-reject-tampered-app-cache",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-tickets-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-tickets-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-tickets-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-tickets-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-tickets-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-tickets-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-tickets-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-tickets-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-tickets-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-public-schema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-missing-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-service",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-realm",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-expired",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-future",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-kid",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-typ",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-wrong-write-action",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-unsupported",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-readonly",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-disabled-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-unknown-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-write-ticket-tenant-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-config-apps-replaces-runtime-apps",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-config-apps-empty-denies",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-api-live-tenant-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-public-schema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-missing-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-realm",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-expired",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-future",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-kid",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-typ",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-wrong-write-action",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-unsupported",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-readonly",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-disabled-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-unknown-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-write-ticket-tenant-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-config-apps-replaces-runtime-apps",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-config-apps-empty-denies",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-live-tenant-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-wrong-field-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-wrong-type",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-unknown-clear",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-missing-placeholder",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-null-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-empty-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-invalid-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-duplicate-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-unsupported-media",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-tenant-header",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-app-header",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-wrong-origin",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-atomic-clear-save-redaction",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-handler-effective-settings",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-management-cors-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-cancel-write-preserves-values",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-failed-settings-startup",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-managed-unready",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-closed-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-bounded-request",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-persistence-error-is-server-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-unprovisioned-fails-closed",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-head-and-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-dev-token-False-True",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-dev-token-True-False",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-dev-token-True-True",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-missing-settings-remain-configurable",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-revoked-during-authentication",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-snapshot-waits-for-atomic-commit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-shutdown-cancels-commit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-null-active-rejected",
+      "passed": false,
+      "error": "{'outcomes': [{'rejected': False}, {'status': 200, 'body': '{\"serviceId\":\"com.example.service\",\"tenantId\":\"01952200-0000-7000-8000-000000000001\",\"values\":{}}', 'headers': {'vary': 'Origin', 'cache-control': 'no-store', 'content-length': '97', 'content-type': 'application/json'}}], 'ready': False, 'stored': None}"
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-preview-overlay-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-preview-overlay-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-api-preview-overlay-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-public-schema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-missing-ticket",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-realm",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-expired",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-future",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-kid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-typ",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-ticket-action",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-wrong-write-action",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-unsupported",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-readonly",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-disabled-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-unknown-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-write-ticket-tenant-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-config-apps-replaces-runtime-apps",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-config-apps-empty-denies",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-live-tenant-revocation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-wrong-field-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-wrong-type",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-unknown-clear",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-missing-placeholder",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-null-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-empty-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-invalid-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-duplicate-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-unsupported-media",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-tenant-header",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-app-header",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-wrong-origin",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-atomic-clear-save-redaction",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-handler-effective-settings",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-management-cors-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-cancel-write-preserves-values",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-failed-settings-startup",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-managed-unready",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-closed-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-bounded-request",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-persistence-error-is-server-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-unprovisioned-fails-closed",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-head-and-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-dev-token-False-True",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-dev-token-True-False",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-dev-token-True-True",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-missing-settings-remain-configurable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-revoked-during-authentication",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-snapshot-waits-for-atomic-commit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-shutdown-cancels-commit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-null-active-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-preview-overlay-from-node",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-preview-overlay-from-python",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-api-preview-overlay-from-dotnet",
       "passed": true
     }
   ]

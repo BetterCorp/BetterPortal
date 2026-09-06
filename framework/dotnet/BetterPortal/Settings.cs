@@ -4,6 +4,9 @@ using Node = System.Collections.Generic.Dictionary<string, object?>;
 
 namespace BetterPortal;
 
+/// <summary>Invalid declared settings input, distinct from persistence/encryption failure.</summary>
+public sealed class SettingsInputException(string message, Exception cause) : ArgumentException(message, cause);
+
 /// <summary>Settings field policy; native AnyVali owns values, defaults and sensitive traversal.</summary>
 public sealed class SettingsSchema
 {
@@ -41,8 +44,15 @@ public sealed class SettingsSchema
                     JsonNode.Parse(Json.Write(value)), JsonNode.Parse(Json.Write(node["default"]))))) throw new ArgumentException("Descriptor defaultValue must match the AnyVali field default");
                 if (Equals(field["visibility"], "secret"))
                 {
-                    // BP visibility annotates a native wrapper, including recursive refs.
-                    child["root"] = node = new Node { ["kind"] = "optional", ["inner"] = node, ["metadata"] = new Node { ["sensitive"] = true } };
+                    // Give bare refs a native sensitive pipeline without changing
+                    // requiredness or widening the values the author declared.
+                    if (Equals(node["kind"], "ref"))
+                    {
+                        var wrapper = new Node { ["kind"] = "union", ["variants"] = new List<object?> { node } };
+                        if (node.TryGetValue("default", out var fallback)) wrapper["default"] = Copy(fallback);
+                        child["root"] = node = wrapper;
+                    }
+                    node["metadata"] = new Node((Node)node.GetValueOrDefault("metadata", new Node())!) { ["sensitive"] = true };
                 }
                 while (true)
                 {
@@ -290,14 +300,18 @@ public sealed class ServiceSettings : IAsyncDisposable
     {
         var body = new Node { ["tenantId"] = tenantId, ["values"] = values, ["clearKeys"] = (clearKeys ?? []).ToArray() };
         if (appId is not null) body["appId"] = appId;
-        var request = (Node)Contracts.Parse("ServiceConfigWriteRequestSchema", body)!;
+        Node request;
+        try { request = (Node)Contracts.Parse("ServiceConfigWriteRequestSchema", body)!; }
+        catch (Exception error) when (error is ValidationError or ArgumentException) { throw new SettingsInputException("Invalid settings request", error); }
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, shutdown.Token);
         await gate.WaitAsync(linked.Token);
         try
         {
             Open();
             var scope = appId is null ? "tenant" : "app";
-            var merged = Schema.Merge(scope, Values(tenantId, appId), request["values"], ((List<object?>)request["clearKeys"]!).Cast<string>());
+            var current = Values(tenantId, appId); Node merged;
+            try { merged = Schema.Merge(scope, current, request["values"], ((List<object?>)request["clearKeys"]!).Cast<string>()); }
+            catch (Exception error) when (error is ValidationError or ArgumentException) { throw new SettingsInputException("Invalid settings values", error); }
             var encrypted = Schema.Encode(scope, merged, cipher);
             var next = (Node)Json.Read(Json.Write(state))!;
             var tenants = (Node)next["tenants"]!;

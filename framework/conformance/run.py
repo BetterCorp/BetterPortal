@@ -24,10 +24,12 @@ from snapshot_cases import run_snapshots
 from sync_cases import run_sync
 from settings_cases import run_settings
 from settings_store_cases import run_settings_store
+from config_api_cases import run_config_api
 
 RUNNERS = {"security": run_security, "keys": run_keys, "encryption": run_encryption, "authorization": run_authorization,
            "media": run_media, "streams": run_streams, "sse": run_sse, "context": run_context, "cors": run_cors, "handlers": run_handlers, "registry": run_registry, "access": run_access, "hosting": run_hosting, "raw": run_raw, "rendering": run_rendering, "urls": run_urls, "snapshots": run_snapshots, "sync": run_sync, "settings": run_settings}
 RUNNERS["settings-store"] = run_settings_store
+RUNNERS["config-api"] = run_config_api
 SUITES = ["schema", *RUNNERS, "all"]
 
 

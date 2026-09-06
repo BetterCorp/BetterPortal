@@ -51,6 +51,22 @@ def run_settings(urls, labels):
         ]
         for name, values, partial, valid, expected in cases:
             check(label, name, lambda: request(url, values=values, partial=partial, valid=valid, expected=expected))
+        for kind in ("string", "ref"):
+            def required_secret():
+                source = fixture(); root = source["descriptors"][0]["jsonSchema"]["root"]
+                root["required"].append("secret")
+                if kind == "string": root["properties"]["secret"] = {"kind": "string"}
+                request(url, source=source, values={}, partial=False, valid=False)
+                request(url, source=source, values={}, expected={})
+                request(url, source=source, values={"secret": "present"}, partial=False, expected={"count": 7, "secret": "present"})
+            check(label, "required-secret-" + kind, required_secret)
+            def default_secret():
+                source = fixture(); root = source["descriptors"][0]["jsonSchema"]["root"]
+                if kind == "string": root["properties"]["secret"] = {"kind": "string"}
+                root["properties"]["secret"]["default"] = "default-secret"
+                request(url, source=source, values={}, expected={})
+                request(url, source=source, values={}, partial=False, expected={"count": 7, "secret": "default-secret"})
+            check(label, "default-secret-" + kind, default_secret)
         check(label, "nested-policy-allow", lambda: request(url, scope="app", values={"nested": {"password": "s", "label": "L", "extra": [None]}}, expected={"nested": {"password": "s", "label": "L", "extra": [None]}}))
         check(label, "nested-policy-strip", lambda: request(url, scope="app", values={"rows": [{"secret": 1, "extra": 2}]}, expected={"rows": [{"secret": 1}]}))
         check(label, "nested-policy-reject", lambda: request(url, scope="app", values={"strict": {"extra": 2}}, valid=False))

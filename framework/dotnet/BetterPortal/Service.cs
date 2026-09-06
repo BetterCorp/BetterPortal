@@ -17,13 +17,14 @@ public sealed partial class Service : IAsyncDisposable
     private readonly Generated.BpSchemaOutput schema;
     private volatile bool closed;
     public Service(Registry registry, Generated.ManifestDeclarationInput declaration, ScopedConfig? snapshot = null,
-        IStateStore? stateStore = null, bool managed = false, string? previewKey = null)
+        IStateStore? stateStore = null, bool managed = false, string? previewKey = null, ConfigApi? configApi = null)
     {
         Registry = registry; schema = registry.Schema(declaration);
+        this.configApi = configApi ?? new ConfigApi(); configSchema = this.configApi.Schema(schema.Manifest.PluginId, schema.Manifest.ConfigSchemas);
         store = stateStore; this.managed = managed; this.previewKey = previewKey;
         state = snapshot is null ? null : Build(snapshot);
     }
-    public bool Ready => state is not null && !closed && (!managed || submitted);
+    public bool Ready => state is not null && !closed && configApi.Ready && (!managed || submitted);
     public bool Managed => managed;
     internal void SuspendSync() => submitted = false;
     public Generated.PluginManifest Manifest => Contracts.Parse<Generated.PluginManifest>("PluginManifestSchema", schema.Manifest);
@@ -77,6 +78,18 @@ public sealed partial class Service : IAsyncDisposable
             if (!ReferenceEquals(state, current) || !Ready) throw new RequestException(503, "Configuration changed during authentication");
             if (caller.Service is not null && !access.Allows(route, method, matchedPath, fragment, (string)caller.Service["aud"]!)) throw new RequestException(403, "Access denied", responseHeaders, scope);
             var values = current.PreviewScope == (scope.TenantId, scope.AppId) ? (Node)Json.Read(Json.Write(current.Preview))! : new Node();
+            if (configApi.Settings is { } settings)
+            {
+                var stored = settings.Read(scope.TenantId);
+                var tenant = (Node)stored["tenant"]!; var app = (Node)((Node)stored["app"]!).GetValueOrDefault(scope.AppId, new Node())!;
+                if (current.PreviewScope == (scope.TenantId, scope.AppId))
+                {
+                    foreach (var (key, value) in (Node)current.PreviewValues["tenant"]!) tenant[key] = value;
+                    foreach (var (key, value) in (Node)current.PreviewValues["app"]!) app[key] = value;
+                }
+                try { values = settings.Schema.Effective(tenant, app); }
+                catch (Exception) { throw new RequestException(503, "Service settings are incomplete", responseHeaders, scope); }
+            }
             return new(new RequestContext(scope, caller, method, path, values) { Urls = BuildUrls(current, scope, path, normalized, scheme) }, responseHeaders);
         }
         catch (Exception error) when ((error is not OperationCanceledException || !cancellationToken.IsCancellationRequested) && (!ReferenceEquals(state, current) || !Ready))
@@ -113,6 +126,7 @@ public sealed partial class Service : IAsyncDisposable
             if (state is not null) await state.Close();
             Task[] pending; lock (cleanup) pending = cleanup.ToArray();
             await Task.WhenAll(pending);
+            await configApi.DisposeAsync();
         }
         finally { updates.Release(); }
     }

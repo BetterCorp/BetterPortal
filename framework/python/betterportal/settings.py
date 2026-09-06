@@ -20,6 +20,10 @@ _BP = ("enc:aes256gcm:", "enc:aes256gcm2:", "enc:aes256gcm3:")
 _MISSING = object()
 
 
+class SettingsInputError(ValueError):
+    """Invalid declared settings input, distinct from persistence/encryption failure."""
+
+
 def _supported(document: dict[str, Any]) -> None:
     # AnyVali #128: refs bypass their own sensitive pipeline in all three SDKs.
     # Reject the unsafe declaration, including unused definitions; no data validator.
@@ -81,9 +85,11 @@ class SettingsSchema:
                     if "default" not in node or field["defaultValue"] != node["default"]:
                         raise ValueError("Descriptor defaultValue must match the AnyVali field default")
                 if field["visibility"] == "secret":
-                    # BP visibility annotates a native wrapper, including when the
-                    # authored field is a recursive reference. Value types stay native.
-                    child["root"] = node = {"kind": "optional", "inner": node, "metadata": {"sensitive": True}}
+                    # A one-branch union gives bare refs a native sensitive pipeline
+                    # without making required fields optional or widening their values.
+                    if node["kind"] == "ref":
+                        child["root"] = node = {"kind": "union", "variants": [node], **({"default": deepcopy(node["default"])} if "default" in node else {})}
+                    node["metadata"] = {**node.get("metadata", {}), "sensitive": True}
                 while True:
                     if node.get("metadata", {}).get("sensitive"): self._secrets[scope].add(key)
                     if node["kind"] not in ("optional", "nullable"): break
@@ -270,15 +276,19 @@ class ServiceSettings:
         return self.schema.effective(bucket["tenant"], bucket["app"].get(app_id, {}))
 
     async def write(self, tenant_id: str, values: dict[str, Any], *, app_id: str | None = None, clear_keys: Iterable[str] = ()) -> dict[str, Any]:
-        request = parse("ServiceConfigWriteRequestSchema", {"tenantId": tenant_id, "values": values,
-            "clearKeys": list(clear_keys), **({"appId": app_id} if app_id is not None else {})})
+        try:
+            request = parse("ServiceConfigWriteRequestSchema", {"tenantId": tenant_id, "values": values,
+                "clearKeys": list(clear_keys), **({"appId": app_id} if app_id is not None else {})})
+        except (av.ValidationError, ValueError, TypeError) as error: raise SettingsInputError("Invalid settings request") from error
         task = asyncio.current_task(); assert task is not None
         self._writers.add(task)
         try:
             async with self._lock:
                 self._open()
                 scope: Scope = "tenant" if app_id is None else "app"
-                merged = self.schema.merge(scope, self.values(tenant_id, app_id), request["values"], request["clearKeys"])
+                current = self.values(tenant_id, app_id)
+                try: merged = self.schema.merge(scope, current, request["values"], request["clearKeys"])
+                except (av.ValidationError, ValueError, TypeError) as error: raise SettingsInputError("Invalid settings values") from error
                 encrypted = self.schema.encode(scope, merged, self._cipher)
                 state = deepcopy(self._state)
                 bucket = state["tenants"].setdefault(tenant_id, {"tenant": {}, "app": {}})

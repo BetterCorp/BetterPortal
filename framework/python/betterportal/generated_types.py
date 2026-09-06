@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 687aa18e730d7b3e44766dd051bbf5f5d8d39c3dbc02154eddf335f4a309c786
+# Generated from AnyVali documents; do not edit. SHA256: d9ccbc5f88a99ed66f5db9d5c92d9e2e916e9f3e4c31b1e2decad291acf36583
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -4239,6 +4239,22 @@ ServiceConfigWriteRequestInput = TypedDict('ServiceConfigWriteRequestInput', {
     'appId': NotRequired['str'],
     'values': Required['JsonObjectInput'],
     'clearKeys': NotRequired['list[str]'],
+})
+
+ServiceConfigWriteResponse = TypedDict('ServiceConfigWriteResponse', {
+    'serviceId': Required['str'],
+    'tenantId': Required['str'],
+    'appId': NotRequired['str'],
+    'values': Required['JsonObject'],
+    'ok': Required['Literal[True]'],
+})
+
+ServiceConfigWriteResponseInput = TypedDict('ServiceConfigWriteResponseInput', {
+    'serviceId': Required['str'],
+    'tenantId': Required['str'],
+    'appId': NotRequired['str'],
+    'values': Required['JsonObjectInput'],
+    'ok': Required['Literal[True]'],
 })
 
 ServiceManifestCacheEntry = TypedDict('ServiceManifestCacheEntry', {

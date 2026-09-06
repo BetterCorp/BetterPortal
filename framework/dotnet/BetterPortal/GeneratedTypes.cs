@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 4beb308541bd4524a17ea306f671c0d254dd5736dc9c905c619d2e0250300244
+// Generated from AnyVali documents; do not edit. SHA256: c25859cf304088624d38073c033156963944a4d84a57c7b1678d7da9721056f8
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -10666,6 +10666,36 @@ public sealed record ServiceConfigWriteRequestInput
     [JsonPropertyName("clearKeys")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>> ClearKeys { get; init; }
+}
+
+public sealed record ServiceConfigWriteResponse
+{
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("tenantId")]
+    public required string TenantId { get; init; }
+    [JsonPropertyName("appId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> AppId { get; init; }
+    [JsonPropertyName("values")]
+    public required JsonObject Values { get; init; }
+    [JsonPropertyName("ok")]
+    public required bool Ok { get; init; }
+}
+
+public sealed record ServiceConfigWriteResponseInput
+{
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("tenantId")]
+    public required string TenantId { get; init; }
+    [JsonPropertyName("appId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> AppId { get; init; }
+    [JsonPropertyName("values")]
+    public required JsonObjectInput Values { get; init; }
+    [JsonPropertyName("ok")]
+    public required bool Ok { get; init; }
 }
 
 public sealed record ServiceManifestCacheEntry

@@ -24,6 +24,7 @@ from python_hosting import hosting_request
 from python_snapshots import snapshots
 from python_sync import sync_request
 from python_settings import settings_request, settings_store
+from python_config_api import config_api_request
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -36,6 +37,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if body.get("action") == "config-api":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(asyncio.run(config_api_request(body))).encode())
+                return
             if body.get("action") == "settings-store":
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")

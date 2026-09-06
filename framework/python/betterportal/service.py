@@ -8,7 +8,8 @@ from typing import Any, Iterable, Mapping, cast
 
 from .access import AppAccess
 from .authorization import AuthContext, authorize_request, is_machine_request
-from .context import ScopedConfig, ScopedContext
+from .context import ScopedConfig, ScopedContext, OriginPolicy, http_origin
+from .config_api import ConfigApi
 from .encryption import decrypt_preview, preview_schema
 from .cors import Cors
 from .generated_types import HttpMethod, ManifestDeclarationInput, PluginManifest
@@ -17,6 +18,7 @@ from .keys import JwksClient, secure_endpoint
 from .jsoncodec import loads
 from .registry import Operation, Registry, Route
 from .security import TokenError
+from .settings import SettingsSchema
 from .storage import StateStore
 from .urls import Urls
 
@@ -30,9 +32,10 @@ class RequestError(Exception):
 
 
 class _Snapshot:
-    def __init__(self, snapshot: ScopedConfig, descriptors: Iterable[dict[str, Any]], preview_key: str | None):
+    def __init__(self, snapshot: ScopedConfig, descriptors: Iterable[dict[str, Any]], preview_key: str | None, settings_schema: SettingsSchema | None = None):
         self.snapshot, self.config = snapshot, snapshot.document()
         self.preview: dict[str, Any] = {}
+        self.preview_values: dict[str, Any] = {"tenant": {}, "app": {}}
         self.preview_scope: tuple[str, str] | None = None
         preview = self.config.get("previewConfig")
         if preview is not None:
@@ -41,8 +44,10 @@ class _Snapshot:
             if len(tenants) != 1 or len(apps) != 1 or not tenants[0]["active"] or apps[0]["tenantId"] != tenants[0]["id"]:
                 raise ValueError("Preview configuration requires an unambiguous active tenant/app scope")
             self.preview_scope = tenants[0]["id"], apps[0]["id"]
-            self.preview = {**decrypt_preview(preview_schema(descriptors, "tenant"), preview_key, "tenant", preview["tenant"]),
-                            **decrypt_preview(preview_schema(descriptors, "app"), preview_key, "app", preview["app"])}
+            self.preview_values = {scope: decrypt_preview(preview_schema(descriptors, scope), preview_key, scope, preview[scope]) for scope in ("tenant", "app")}
+            if settings_schema is not None:
+                self.preview_values = {scope: settings_schema.values(scope, self.preview_values[scope]) for scope in ("tenant", "app")}
+            self.preview = {**self.preview_values["tenant"], **self.preview_values["app"]}
         # Validate every endpoint before allocating clients or publishing any policy.
         addresses = {(app["auth"]["expectedIssuer"], secure_endpoint(app["auth"]["jwksUri"], allow_query=True))
                      for app in self.config.get("apps", []) if "auth" in app}
@@ -54,9 +59,11 @@ class _Snapshot:
 
 class Service:
     def __init__(self, registry: Registry, declaration: ManifestDeclarationInput, snapshot: ScopedConfig | None = None,
-                 *, state_store: StateStore | None = None, managed: bool = False, preview_key: str | None = None):
+                 *, state_store: StateStore | None = None, managed: bool = False, preview_key: str | None = None, config_api: ConfigApi | None = None):
         self.registry = registry
         self._schema = registry.schema(declaration)
+        self._config_api = config_api or ConfigApi()
+        self._config_schema = self._config_api.schema(self._schema["manifest"]["pluginId"], self._schema["manifest"]["configSchemas"])
         self._store, self._preview_key = state_store, preview_key
         self._state = self._build(snapshot) if snapshot is not None else None
         self._managed, self._submitted = managed, False
@@ -66,10 +73,11 @@ class Service:
         self._closed = False
 
     def _build(self, snapshot: ScopedConfig) -> _Snapshot:
-        return _Snapshot(snapshot, cast(Iterable[dict[str, Any]], self._schema["manifest"]["configSchemas"]), self._preview_key)
+        settings = self._config_api.settings
+        return _Snapshot(snapshot, cast(Iterable[dict[str, Any]], self._schema["manifest"]["configSchemas"]), self._preview_key, settings.schema if settings is not None else None)
 
     @property
-    def ready(self) -> bool: return self._state is not None and not self._closed and (not self._managed or self._submitted)
+    def ready(self) -> bool: return self._state is not None and not self._closed and self._config_api.ready and (not self._managed or self._submitted)
 
     @property
     def managed(self) -> bool: return self._managed
@@ -133,6 +141,37 @@ class Service:
     def manifest(self) -> PluginManifest: return deepcopy(self._schema["manifest"])
 
     def schema(self) -> dict[str, Any]: return cast(dict[str, Any], deepcopy(self._schema))
+
+    def config_schema(self) -> dict[str, Any]: return deepcopy(self._config_schema)
+
+    def config_headers(self, headers: Mapping[str, str], *, preflight: bool = False) -> dict[str, str]:
+        normalized = self._headers(headers)
+        state = self._state
+        origins = frozenset(http_origin(origin) for origin in state.config["managementOrigins"]) if state is not None else frozenset()
+        cors = Cors(OriginPolicy(origins, origins), ["GET", "POST"])
+        requested = normalized.get("access-control-request-method")
+        result = (cors.preflight(normalized.get("origin"), "GET" if requested == "HEAD" else requested, normalized.get("access-control-request-headers"))
+                  if preflight else cors.headers(normalized.get("origin")))
+        if preflight: result["access-control-allow-methods"] = "GET, HEAD, POST, OPTIONS"
+        if "access-control-allow-origin" in result: result["access-control-allow-credentials"] = "true"
+        return {**result, "cache-control": "no-store"}
+
+    async def config_request(self, action: str, headers: Mapping[str, str], body: Any = None) -> dict[str, Any]:
+        if action not in ("config.read", "config.write"): raise ValueError("Unknown config action")
+        normalized = self._headers(headers)
+        state = self._state
+        response_headers = self.config_headers(normalized)
+        if not self.ready or state is None: raise RequestError(503, "Service is not ready", response_headers)
+        task = asyncio.current_task(); assert task is not None
+        self._writers.add(task)
+        try:
+            try: claims = await self._config_api.authorize(self._schema["manifest"]["pluginId"], normalized, action)
+            except TokenError as error: raise RequestError(401, "A valid config ticket is required", response_headers) from error
+            async with self._updates:
+                if self._state is not state or not self.ready: raise RequestError(503, "Configuration changed during authentication", response_headers)
+                # Scope cannot be revoked between this check and the atomic settings commit.
+                return await self._config_api.apply(self._schema["manifest"]["pluginId"], state.config, claims, normalized, action, body)
+        finally: self._writers.discard(task)
 
     def _resolve(self, state: _Snapshot | None, headers: Mapping[str, str], scheme: str, mode: str, trusted_addresses: Iterable[str], *, preflight: bool = False) -> ScopedContext:
         if not self.ready or state is None:
@@ -206,6 +245,12 @@ class Service:
         if caller.service is not None and not access.allows(route, method, path=matched_path, fragment=fragment, service_id=caller.service["aud"]):
             raise RequestError(403, "Access denied", response_headers, scope=scope)
         values = deepcopy(state.preview) if state.preview_scope == (scope.tenant_id, scope.app_id) else {}
+        settings = self._config_api.settings
+        if settings is not None:
+            stored = settings.read(scope.tenant_id)
+            preview = state.preview_values if state.preview_scope == (scope.tenant_id, scope.app_id) else {"tenant": {}, "app": {}}
+            try: values = settings.schema.effective({**stored["tenant"], **preview["tenant"]}, {**stored["app"].get(scope.app_id, {}), **preview["app"]})
+            except Exception as error: raise RequestError(503, "Service settings are incomplete", response_headers, scope=scope) from error
         return RequestContext(scope, caller, cast(HttpMethod, method), path, config=values,
                               url_context=self.urls(scope, path, normalized, scheme)), response_headers
 
@@ -231,7 +276,17 @@ class Service:
         async with self._updates:
             if self._state is not None: await self._state.close()
             await asyncio.gather(*tuple(self._cleanup))
+            await self._config_api.aclose()
 
-    async def __aenter__(self) -> Service: return self
+    async def initialize(self) -> None:
+        if self._closed: raise RuntimeError("Service is closed")
+        await self._config_api.initialize()
+
+    async def __aenter__(self) -> Service:
+        try: await self.initialize()
+        except BaseException:
+            await self.aclose()
+            raise
+        return self
 
     async def __aexit__(self, *args: Any) -> None: await self.aclose()

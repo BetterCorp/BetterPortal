@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync } from "node:crypto";
+import { signRs256Jwt } from "../src/runtime/auth/jwtCrypto.js";
 import {
   CONFIG_TICKET_AUDIENCE,
   signServiceConfigTicket,
@@ -64,6 +65,15 @@ test("rejects an expired ticket", async () => {
     verifyServiceConfigTicket(sign({ expiresInSeconds: -10 }), { keyResolver, issuer: ISSUER, serviceId: SERVICE_ID }),
     /expired|jwt expired/i
   );
+});
+
+test("rejects future issuance and nonpositive ticket lifetimes", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const claims = JSON.parse(Buffer.from(sign().split(".")[1], "base64url").toString());
+  for (const times of [{ iat: now + 600, exp: now + 900 }, { iat: now + 10, exp: now + 10 }]) {
+    const ticket = signRs256Jwt({ ...claims, ...times }, privateKey, { alg: "RS256", typ: "JWT", kid: KID });
+    await assert.rejects(verifyServiceConfigTicket(ticket, { keyResolver, issuer: ISSUER, serviceId: SERVICE_ID, clockToleranceSeconds: 30 }), /issuance time or lifetime/);
+  }
 });
 
 test("rejects a ticket signed by an untrusted key", async () => {

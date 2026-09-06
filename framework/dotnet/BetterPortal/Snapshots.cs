@@ -6,12 +6,13 @@ namespace BetterPortal;
 
 public sealed partial class Service
 {
-    private sealed class SnapshotState(ScopedConfig snapshot, Node config, Node preview, (string, string)? previewScope,
+    private sealed class SnapshotState(ScopedConfig snapshot, Node config, Node preview, Node previewValues, (string, string)? previewScope,
         FrozenDictionary<(string Issuer, string Uri), JwksClient> keys)
     {
         public ScopedConfig Snapshot { get; } = snapshot;
         public Node Config { get; } = config;
         public Node Preview { get; } = preview;
+        public Node PreviewValues { get; } = previewValues;
         public (string, string)? PreviewScope { get; } = previewScope;
         public FrozenDictionary<(string Issuer, string Uri), JwksClient> Keys { get; } = keys;
         public Task Close() => Task.WhenAll(Keys.Values.Select(client => client.DisposeAsync().AsTask()));
@@ -26,7 +27,7 @@ public sealed partial class Service
     private readonly HashSet<Task> cleanup = [];
     private SnapshotState Build(ScopedConfig snapshot)
     {
-        var config = snapshot.Document(); var preview = new Node(); (string, string)? previewScope = null;
+        var config = snapshot.Document(); var preview = new Node(); var previewValues = new Node { ["tenant"] = new Node(), ["app"] = new Node() }; (string, string)? previewScope = null;
         if (config.GetValueOrDefault("previewConfig") is Node encrypted)
         {
             if (previewKey is null) throw new ArgumentException("Preview configuration requires its decryption key");
@@ -37,13 +38,17 @@ public sealed partial class Service
             previewScope = ((string)tenants[0]["id"]!, (string)apps[0]["id"]!);
             var descriptors = schema.Manifest.ConfigSchemas.Select(item => (Node)Contracts.Parse("ConfigSchemaDescriptorSchema", item)!);
             foreach (var scope in new[] { "tenant", "app" })
-                foreach (var (key, value) in (Node)PreviewConfig.Decrypt(PreviewConfig.Schema(descriptors, scope), previewKey, scope, encrypted[scope])!)
+            {
+                previewValues[scope] = PreviewConfig.Decrypt(PreviewConfig.Schema(descriptors, scope), previewKey, scope, encrypted[scope]);
+                if (configApi.Settings is { } settings) previewValues[scope] = settings.Schema.Values(scope, previewValues[scope]);
+                foreach (var (key, value) in (Node)previewValues[scope]!)
                     preview[key] = value;
+            }
         }
         // Validate every endpoint before allocating clients or publishing any policy.
         var addresses = ((List<object?>)config["apps"]!).Cast<Node>().Where(app => app.ContainsKey("auth")).Select(app => (Node)app["auth"]!)
             .Select(auth => (Issuer: (string)auth["expectedIssuer"]!, Uri: TrustedKeys.SecureEndpoint((string)auth["jwksUri"]!, allowQuery: true).AbsoluteUri)).Distinct().ToArray();
-        return new(snapshot, config, preview, previewScope, addresses.ToFrozenDictionary(address => address, address => new JwksClient(address.Issuer, address.Uri)));
+        return new(snapshot, config, preview, previewValues, previewScope, addresses.ToFrozenDictionary(address => address, address => new JwksClient(address.Issuer, address.Uri)));
     }
     public Node? Snapshot() => state?.Snapshot.Document();
 

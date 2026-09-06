@@ -27,6 +27,12 @@ createServer(async (request, response) => {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action === "config-api") {
+      const { configApiRequest } = await import("./node-config-api.mjs");
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await configApiRequest(body)));
+      return;
+    }
     if (body.action === "settings-store") {
       const { settingsStore } = await import("./node-settings.mjs");
       response.setHeader("Content-Type", "application/json");

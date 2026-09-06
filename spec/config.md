@@ -144,6 +144,21 @@ there is no implicit plaintext fallback. Keep encryption keys separately protect
 Custom configuration UI uses the same authorized API. Public field visibility
 is descriptor metadata, not a bypass for ticket-protected reads.
 
+Native hosts expose these routes through `ConfigApi` attached to `Service`. Its
+settings descriptors must match the manifest. Service initialization loads settings
+before serving; shutdown cancels pending writes and closes key caches. Required
+effective values may still be absent: operations return 503 while the config API
+remains available to supply them. Public readiness requires an initialized cache,
+valid snapshot and (when managed) an acknowledged manifest.
+
+Config preflights authorize `managementOrigins`, without a bearer token or runtime
+app mount. GET/HEAD/POST responses disable caching and redact sensitive values.
+HEAD follows GET authorization. A tenant header, if present, must match the ticket;
+an app header on POST must match the body. A snapshot replacement during ticket
+verification rejects that request. Accepted writes serialize with snapshot commits
+so scope cannot be revoked between its check and the settings commit. Invalid field
+input returns 400; persistence failures return 500 without changing stored values.
+
 ## 4. Config tickets
 
 Tickets are CP-signed RS256 JWTs. Verify configured issuer/key, typ=JWT, safe kid,
@@ -155,9 +170,11 @@ appId. Authorize app scope from the snapshot. Actions are schema.read,
 config.read, and config.write. Invalid tickets return 401; an authorized
 credential with denied tenant/app scope returns 403.
 
-Node's development static-token path requires explicit BP_ALLOW_DEV_CONFIG_TOKEN=true
-and a configured token. No known default token grants access. Production services
-fail closed before provisioning.
+The development static-token path requires explicit BP_ALLOW_DEV_CONFIG_TOKEN=true
+and a configured token. Native runtimes capture that opt-in at construction and
+require an explicit tenant header. No known default token grants access. Production
+services fail closed before provisioning. Config tickets reject future issuance and
+nonpositive lifetimes, including through Node's shared verifier.
 
 ## 5. Encryption and redaction
 

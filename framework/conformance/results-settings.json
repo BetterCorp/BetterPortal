@@ -1,6 +1,6 @@
 {
-  "scenarios": 122,
-  "passed": 122,
+  "scenarios": 130,
+  "passed": 130,
   "results": [
     {
       "runtime": "python",
@@ -40,6 +40,26 @@
     {
       "runtime": "python",
       "id": "settings-nullable-secret",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-required-secret-string",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-default-secret-string",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-required-secret-ref",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "settings-default-secret-ref",
       "passed": true
     },
     {
@@ -345,6 +365,26 @@
     {
       "runtime": "dotnet",
       "id": "settings-nullable-secret",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-required-secret-string",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-default-secret-string",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-required-secret-ref",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "settings-default-secret-ref",
       "passed": true
     },
     {

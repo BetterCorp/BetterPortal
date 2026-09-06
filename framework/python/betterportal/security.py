@@ -172,10 +172,10 @@ async def verify_token(token: str, resolver: KeyResolver, *, issuer: str, audien
 
 
 async def verify_config_ticket(token: str, resolver: KeyResolver, *, issuer: str, service_id: str,
-                               tenant_id: str, action: str) -> dict[str, Any]:
+                               action: str, tenant_id: str | None = None) -> dict[str, Any]:
     claims = await verify_token(token, resolver, issuer=issuer, audience=CONFIG_TICKET_AUDIENCE,
                                 purpose=TokenPurpose.CONFIG_TICKET)
-    if claims["serviceId"] != service_id or claims["tenantId"] != tenant_id or action not in claims["actions"]:
+    if claims["serviceId"] != service_id or (tenant_id is not None and claims["tenantId"] != tenant_id) or action not in claims["actions"]:
         raise TokenError("Config ticket scope or action mismatch")
     return claims
 

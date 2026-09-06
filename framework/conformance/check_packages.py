@@ -46,6 +46,7 @@ from betterportal.registry import Operation, Route, Registry
 from betterportal.access import AppAccess
 from betterportal.service import Service
 from betterportal.settings import SettingsSchema, ServiceSettings
+from betterportal.config_api import ConfigApi
 from betterportal.authorization import AuthorizedCaller
 from betterportal.contracts import contract
 import asyncio
@@ -64,6 +65,7 @@ async def settings_state():
         await state.write("tenant", {})
         assert state.values("tenant") == state.effective("tenant", "app") == {}
 asyncio.run(settings_state())
+assert ConfigApi().schema("com.example.service", [])["mode"] == "static"
 preview_key = generate_preview_key()
 assert decrypt_preview_value(preview_key, "tenant", ["secret"], encrypt_preview_value(preview_key, "tenant", ["secret"], "")) == ""
 anonymous = asyncio.run(authorize_request({}, {}, AuthContext("unresolved", "unresolved"), view_id="hello", method="GET"))

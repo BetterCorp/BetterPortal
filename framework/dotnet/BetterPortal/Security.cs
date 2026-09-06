@@ -181,11 +181,11 @@ public static class Tokens
     }
 
     public static async Task<Dictionary<string, object?>> VerifyConfigTicketAsync(string token,
-        Func<string, CancellationToken, Task<string>> resolver, string issuer, string serviceId, string tenantId,
+        Func<string, CancellationToken, Task<string>> resolver, string issuer, string serviceId, string? tenantId,
         string action, CancellationToken cancellationToken = default)
     {
         var claims = await VerifyAsync(token, resolver, issuer, ConfigTicketAudience, TokenPurpose.ConfigTicket, cancellationToken: cancellationToken);
-        if (!Equals(claims["serviceId"], serviceId) || !Equals(claims["tenantId"], tenantId)
+        if (!Equals(claims["serviceId"], serviceId) || tenantId is not null && !Equals(claims["tenantId"], tenantId)
             || !((IEnumerable<object?>)claims["actions"]!).Contains(action))
             throw new TokenException("Config ticket scope or action mismatch");
         return claims;

@@ -39,6 +39,7 @@ app.MapPost("/", async (HttpRequest request) =>
         using var reader = new StreamReader(request.Body);
         var body = (Dictionary<string, object?>)Json.Read(await reader.ReadToEndAsync())!;
         if (body.GetValueOrDefault("action") is "runtime") return Results.Json(new { runtime = "dotnet" });
+        if (body.GetValueOrDefault("action") is "config-api") return Results.Json(await ConfigApiAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "handler") return Results.Json(await HandlerAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "registry") return Results.Json(RegistryAdapter.Run(body));
         if (body.GetValueOrDefault("action") is "access") return Results.Json(AccessAdapter.Run(body));

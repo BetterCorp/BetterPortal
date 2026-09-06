@@ -860,5 +860,47 @@
       "legacy": null
     },
     "valid": false
+  },
+  {
+    "id": "config-write-response",
+    "contract": "ServiceConfigWriteResponseSchema",
+    "input": {
+      "serviceId": "com.example.service",
+      "tenantId": "tenant",
+      "values": {
+        "nested": [
+          null,
+          true
+        ]
+      },
+      "ok": true
+    },
+    "output": {
+      "serviceId": "com.example.service",
+      "tenantId": "tenant",
+      "values": {
+        "nested": [
+          null,
+          true
+        ]
+      },
+      "ok": true
+    }
+  },
+  {
+    "id": "config-write-response-reject-false",
+    "contract": "ServiceConfigWriteResponseSchema",
+    "input": {
+      "serviceId": "com.example.service",
+      "tenantId": "tenant",
+      "values": {
+        "nested": [
+          null,
+          true
+        ]
+      },
+      "ok": false
+    },
+    "valid": false
   }
 ]

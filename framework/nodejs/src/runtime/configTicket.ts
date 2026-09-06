@@ -136,6 +136,9 @@ export async function verifyServiceConfigTicket(
   if (claims.exp <= now - tolerance) {
     throw new Error("Config ticket expired (manual re-check)");
   }
+  if (claims.iat > now + tolerance || claims.exp <= claims.iat) {
+    throw new Error("Config ticket has invalid issuance time or lifetime");
+  }
   if (claims.iss !== options.issuer) {
     throw new Error(`Config ticket issuer mismatch (manual re-check) (${claims.iss} != ${options.issuer}`);
   }

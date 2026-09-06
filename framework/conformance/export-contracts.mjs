@@ -91,6 +91,9 @@ portable("PersistedServiceConfigStateSchema", objectNode({
   tenants: { kind: "record", valueSchema: sourceNode("ServiceConfigStateSchema"), default: {} },
   legacy: { kind: "optional", inner: sourceNode("ServiceConfigStateSchema") }
 }, "reject"));
+portable("ServiceConfigWriteResponseSchema", objectNode({
+  ...sourceNode("ServiceConfigReadResponseSchema").properties, ok: { kind: "literal", value: true }
+}));
 // The sync POST is a projection of the CP's cached manifest plus the provisioned
 // public identity. metadataResponse is submitted by the existing BSB integration,
 // although the current CP cache schema does not retain it.
