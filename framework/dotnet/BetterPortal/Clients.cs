@@ -10,6 +10,8 @@ public sealed class ClientException(int status, string message) : Exception(mess
     public int Status { get; } = status;
 }
 
+public sealed record ClientOperationSchemas(IReadOnlyDictionary<string, Node> Inputs, IReadOnlySet<string> RequiredInputs, Node Output);
+
 /// <summary>A dependency's exported BP contract. Inputs and outputs use its AnyVali documents.</summary>
 public sealed class ClientContract
 {
@@ -51,6 +53,25 @@ public sealed class ClientContract
         }
     }
     internal static IEnumerable<Node> Items(Node node, string key) => ((List<object?>)node.GetValueOrDefault(key, new List<object?>())!).Cast<Node>();
+    public Generated.BpSchemaOutput Schema() => Contracts.Parse<Generated.BpSchemaOutput>("BpSchemaOutputSchema", Document);
+    /// <summary>Owned documents for native authoring. AnyVali determines input presence.</summary>
+    public IReadOnlyDictionary<string, ClientOperationSchemas> JsonOperations()
+    {
+        var result = new Dictionary<string, ClientOperationSchemas>(StringComparer.Ordinal);
+        foreach (var (identifier, entry) in operations)
+        {
+            if (entry.Output is null) continue;
+            var inputs = new Dictionary<string, Node>();
+            foreach (var (name, field) in entry.Fields)
+            {
+                var document = (Node)Json.Read(Json.Write(V.Export(field)))!;
+                document["root"] = ((Node)((Node)document["root"]!)["properties"]!)[name]; inputs[name] = document;
+            }
+            result[identifier] = new(inputs, entry.Fields.Where(pair => !pair.Value.SafeParse(new Node()).Success).Select(pair => pair.Key).ToHashSet(StringComparer.Ordinal),
+                (Node)Json.Read(Json.Write(V.Export(entry.Output)))!);
+        }
+        return result;
+    }
     internal (Node View, Node Operation, Node Values, string Path, string Variant, Schema Output) Prepare(string identifier, object? values)
     {
         if (!operations.TryGetValue(identifier, out var entry)) throw new ArgumentException("Unknown dependency operation");

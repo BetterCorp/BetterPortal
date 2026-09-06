@@ -118,10 +118,14 @@ assert not access.allows(registry.routes[0], "GET") and dict(access.permission_a
 async def hosting():
     from betterportal.asgi import create_app
     from betterportal.clients import ClientContract, ClientError
+    from betterportal.clientgen import generate_client
     import httpx
     async with Service(registry, {"pluginId": "com.example.hello", "title": "Hello", "description": "Example service", "version": "1.0.0"}) as service:
         contract = ClientContract(service.schema())
         assert contract.plugin_id == "com.example.hello"
+        source = generate_client(service.schema(), "PackagedClient")
+        namespace = {}; exec(source, namespace)
+        assert callable(namespace["PackagedClient"].hello_get)
         try:
             await service.clients.scope(tenant_id, app_id).m2m("read", contract).request("hello.get")
             raise AssertionError("Unready packaged service made an outbound call")

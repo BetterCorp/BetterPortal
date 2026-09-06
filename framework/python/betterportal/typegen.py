@@ -5,7 +5,7 @@ import hashlib
 import json
 import keyword
 import re
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 import anyvali as av
 
@@ -19,10 +19,12 @@ def _identifier(value: str) -> str:
 
 class TypeGenerator:
     """Typing describes wire values; AnyVali alone applies constraints and defaults."""
-    def __init__(self, documents: Mapping[str, dict[str, Any]]):
+    reserved_names = frozenset({"Any", "Literal", "NoReturn", "TypeAlias", "Union", "NotRequired", "Required", "TypedDict", "str", "int", "bool", "float", "list", "dict"})
+    def __init__(self, documents: Mapping[str, dict[str, Any]], *, reserved_names: Iterable[str] = ()):
         self.documents = dict(sorted(documents.items()))
         self.names: dict[tuple[str, bool], str] = {}
-        self.reserved: set[str] = {"Any", "Literal", "NoReturn", "TypeAlias", "Union", "NotRequired", "Required", "TypedDict", "str", "int", "bool", "float", "list", "dict"}
+        self.reserved = set(self.reserved_names)
+        self.reserved.update(reserved_names)
         self.emitted: dict[str, str] = {}
         self.definitions: dict[tuple[str, str, bool], str] = {}
         for document in self.documents.values():
@@ -75,7 +77,7 @@ class TypeGenerator:
         identity = (self.fingerprint(node, document), input_type)
         if not expand and node["kind"] in ("object", "enum", "union", "intersection", "record", "ref") and identity in self.names:
             return self.names[identity]
-        if input_type and node.get("coerce"):
+        if input_type and node.get("coerce") is not None:
             return "Any"  # Coercion accepts source types beyond the output wire type; AnyVali decides validity.
         kind = node["kind"]
         if kind in ("optional", "nullable"):

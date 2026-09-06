@@ -7,6 +7,7 @@ from betterportal.context import ScopedConfig
 from betterportal.service import Service, RequestError
 from python_registry import build_registry
 from python_security import KEY
+from generated_peer import PeerClient
 
 
 async def clients_request(body):
@@ -24,11 +25,13 @@ async def clients_request(body):
                 prepared = await service.prepare(route, "GET", "/check/item", body.get("headers", {"origin": "https://app.test"}))
                 scope = prepared[0].clients
             client = scope.m2m(body["requestId"], contract) if "requestId" in body else scope.user(contract, body.get("serviceId"))
+            generated = PeerClient(scope, request_id=body["requestId"]) if "requestId" in body else PeerClient(scope, service_id=body.get("serviceId"))
             for step in body.get("steps", [{}]):
                 try:
                     if "snapshot" in step: await service.apply_snapshot(step["snapshot"])
                     if step.get("close"): await service.aclose()
-                    pending = asyncio.create_task(client.request(step.get("operation", "check.get"), step.get("values", {"params": {"key": "item"}})))
+                    values = step.get("values", {"params": {"key": "item"}})
+                    pending = asyncio.create_task(generated.check_get(values) if body.get("generated") else client.request(step.get("operation", "check.get"), values))
                     if "during" in step:
                         control = step["during"]
                         async with httpx.AsyncClient(trust_env=False) as http:

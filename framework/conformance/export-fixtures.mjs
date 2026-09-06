@@ -11,6 +11,8 @@ const fixtures = {
   "default-null": av.object({ value: av.nullable(av.string()).default(null) }, { unknownKeys: "reject" }),
   "default-present-null": av.object({ value: av.string().default("fallback") }, { unknownKeys: "reject" }),
   "coerce-int": av.int().coerce({ toInt: true }),
+  "coerce-int-empty": av.int().coerce({}),
+  "coerce-int-from-string": av.int().coerce({ from: "string" }),
   "unknown-reject": av.object({}, { unknownKeys: "reject" })
 };
 for (const scenario of cases) {

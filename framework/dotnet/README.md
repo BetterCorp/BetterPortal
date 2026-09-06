@@ -839,4 +839,21 @@ Snapshot replacement invalidates captured request clients and pending responses;
 background clients resolve policy again on each call. Request cancellation and
 service shutdown stop pending HTTP work. `ClientException` exposes the upstream
 status with a generic message, without its error body. Raw/streaming dependency
-responses and native client generation/locking remain delivery work.
+responses and dependency locking remain delivery work.
+
+Generate a typed JSON client from the dependency's exported BP schema:
+
+```sh
+bp-dotnet client --contract contracts/peer.json --output Dependencies/Peer.cs --class-name PeerClient --namespace MyService.Dependencies
+bp-dotnet client --contract contracts/peer.json --output Dependencies/Peer.cs --class-name PeerClient --namespace MyService.Dependencies --check
+```
+
+Construct `new PeerClient(context.RequestContext.Clients, serviceId: "peer")`
+for user calls, or pass `requestId: "read-item"` for a declared service/delegated
+request. An operation `check.get` becomes `CheckGetAsync(inputs, cancellation)`.
+Generated records preserve required fields, omission through `Optional<T>` and
+nullable values; return records decode validated JSON. Undeclared schemas remain
+generic JSON mappings. Each generated file embeds the contract and delegates
+policy, transport and cancellation to the runtime. `--check` detects stale output
+without writing files. Neither command requires Node or BSB. Cross-language
+coercion export remains gated by [AnyVali #134](https://github.com/BetterCorp/AnyVali/issues/134).

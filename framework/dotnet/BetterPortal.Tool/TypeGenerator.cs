@@ -11,17 +11,18 @@ internal sealed class TypeGenerator
     private readonly SortedDictionary<string, Node> _documents;
     private readonly Dictionary<(string Identity, bool Input), string> _names = [];
     private readonly Dictionary<(string Scope, string Key, bool Input), string> _definitions = [];
-    private readonly HashSet<string> _reserved = ["Optional", "Variant", "JsonNull", "Never", "IWireValue", "WireValueConverterFactory",
+    internal static readonly IReadOnlySet<string> ReservedNames = new HashSet<string> { "Optional", "Variant", "JsonNull", "Never", "IWireValue", "WireValueConverterFactory",
         "System", "BetterPortal", "IReadOnlyList", "IReadOnlyDictionary", "Dictionary", "JsonConverter", "JsonPropertyName",
-        "JsonIgnore", "JsonIgnoreCondition", "JsonExtensionData", "JsonStringEnumMemberName", "JsonStringEnumConverter"];
+        "JsonIgnore", "JsonIgnoreCondition", "JsonExtensionData", "JsonStringEnumMemberName", "JsonStringEnumConverter" };
+    private readonly HashSet<string> _reserved = new(ReservedNames, StringComparer.Ordinal);
     private readonly SortedDictionary<string, string> _emitted = new(StringComparer.Ordinal);
-    private static string Identifier(string value)
+    internal static string Identifier(string value)
     {
         var result = string.Concat(Regex.Split(value, "[^A-Za-z0-9_]+").Where(part => part.Length > 0)
             .Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
         return result.Length == 0 ? "Value" : char.IsDigit(result[0]) ? "T" + result : result;
     }
-    private static string RootName(string contract, bool input) => Identifier(contract.EndsWith("Schema", StringComparison.Ordinal) ? contract[..^6] : contract) + (input ? "Input" : "");
+    internal static string RootName(string contract, bool input) => Identifier(contract.EndsWith("Schema", StringComparison.Ordinal) ? contract[..^6] : contract) + (input ? "Input" : "");
     private static string Quote(string value) => Json.Write(value);
     private static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     private static object? Ordered(object? value) => value switch
@@ -42,8 +43,9 @@ internal sealed class TypeGenerator
     private static Node Child(Node node, string key, string alias) => (Node)(node.TryGetValue(key, out var value) ? value! : node[alias]!);
     private static Node[] Nodes(object? value) => ((IEnumerable<object?>)value!).Cast<Node>().ToArray();
 
-    public TypeGenerator(IDictionary<string, Node> documents)
+    public TypeGenerator(IDictionary<string, Node> documents, IEnumerable<string>? reservedNames = null)
     {
+        _reserved.UnionWith(reservedNames ?? []);
         _documents = new(documents, StringComparer.Ordinal);
         foreach (var document in _documents.Values) Contracts.Import(document);
         foreach (var (contract, document) in _documents)
@@ -107,7 +109,7 @@ internal sealed class TypeGenerator
         var identity = (Fingerprint(node, document), input);
         if (IsRecursiveJson(node, document)) return "System.Text.Json.Nodes.JsonNode?";
         if (!expand && Kind(node) is ("object" or "enum" or "union" or "intersection" or "record" or "ref") && _names.TryGetValue(identity, out var known)) return known;
-        if (input && node.GetValueOrDefault("coerce") is Node { Count: > 0 }) return "System.Text.Json.JsonElement";
+        if (input && node.GetValueOrDefault("coerce") is not null) return "System.Text.Json.JsonElement";
         var kind = Kind(node);
         if (kind == "ref") return Reference((string)node["ref"]!, document, input);
         if (kind is "optional" or "nullable")

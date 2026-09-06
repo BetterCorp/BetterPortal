@@ -1,6 +1,6 @@
 {
-  "scenarios": 5524,
-  "passed": 5496,
+  "scenarios": 5560,
+  "passed": 5530,
   "results": [
     {
       "runtime": "node",
@@ -308,6 +308,16 @@
     },
     {
       "runtime": "node",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-from-string",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -1367,6 +1377,16 @@
     },
     {
       "runtime": "node",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-from-string-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -2423,6 +2443,16 @@
     {
       "runtime": "python",
       "id": "hostname-token-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-from-string",
       "passed": true
     },
     {
@@ -3487,6 +3517,18 @@
     },
     {
       "runtime": "python",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": false,
+      "error": "{'valid': False, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'int'}}}"
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-from-string-roundtrip",
+      "passed": false,
+      "error": "{'valid': False, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'int'}}}"
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -4546,6 +4588,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-from-string",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -5601,6 +5653,16 @@
     {
       "runtime": "dotnet",
       "id": "hostname-token-unknown-field-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-from-string-roundtrip",
       "passed": true
     },
     {
@@ -26982,7 +27044,7 @@
     },
     {
       "runtime": "python",
-      "id": "clients-unsafe-origin-http://127.0.0.1:38003/prefix",
+      "id": "clients-unsafe-origin-http://127.0.0.1:41643/prefix",
       "passed": true
     },
     {
@@ -27157,7 +27219,42 @@
     },
     {
       "runtime": "python",
+      "id": "clients-generated-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-operation-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-background-rechecks-grants",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-during-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-during-close",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-during-snapshot",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "clients-host-node-user",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-host-node-user",
       "passed": true
     },
     {
@@ -27167,7 +27264,17 @@
     },
     {
       "runtime": "python",
+      "id": "clients-generated-host-node-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "clients-host-node-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-host-node-delegated",
       "passed": true
     },
     {
@@ -27177,12 +27284,27 @@
     },
     {
       "runtime": "python",
+      "id": "clients-generated-host-dotnet-user",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "clients-host-dotnet-service",
       "passed": true
     },
     {
       "runtime": "python",
+      "id": "clients-generated-host-dotnet-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "clients-host-dotnet-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-host-dotnet-delegated",
       "passed": true
     },
     {
@@ -27447,7 +27569,7 @@
     },
     {
       "runtime": "dotnet",
-      "id": "clients-unsafe-origin-http://127.0.0.1:38003/prefix",
+      "id": "clients-unsafe-origin-http://127.0.0.1:41643/prefix",
       "passed": true
     },
     {
@@ -27622,7 +27744,42 @@
     },
     {
       "runtime": "dotnet",
+      "id": "clients-generated-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-operation-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-background-rechecks-grants",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-during-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-during-close",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-during-snapshot",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "clients-host-node-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-host-node-user",
       "passed": true
     },
     {
@@ -27632,7 +27789,17 @@
     },
     {
       "runtime": "dotnet",
+      "id": "clients-generated-host-node-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "clients-host-node-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-host-node-delegated",
       "passed": true
     },
     {
@@ -27642,12 +27809,27 @@
     },
     {
       "runtime": "dotnet",
+      "id": "clients-generated-host-python-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "clients-host-python-service",
       "passed": true
     },
     {
       "runtime": "dotnet",
+      "id": "clients-generated-host-python-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "clients-host-python-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-host-python-delegated",
       "passed": true
     }
   ]

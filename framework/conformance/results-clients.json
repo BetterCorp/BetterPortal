@@ -1,6 +1,6 @@
 {
-  "scenarios": 186,
-  "passed": 186,
+  "scenarios": 210,
+  "passed": 210,
   "results": [
     {
       "runtime": "python",
@@ -264,7 +264,7 @@
     },
     {
       "runtime": "python",
-      "id": "clients-unsafe-origin-http://127.0.0.1:59046/prefix",
+      "id": "clients-unsafe-origin-http://127.0.0.1:64091/prefix",
       "passed": true
     },
     {
@@ -439,7 +439,42 @@
     },
     {
       "runtime": "python",
+      "id": "clients-generated-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-operation-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-background-rechecks-grants",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-during-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-during-close",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-during-snapshot",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "clients-host-node-user",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-host-node-user",
       "passed": true
     },
     {
@@ -449,7 +484,17 @@
     },
     {
       "runtime": "python",
+      "id": "clients-generated-host-node-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "clients-host-node-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-host-node-delegated",
       "passed": true
     },
     {
@@ -459,12 +504,27 @@
     },
     {
       "runtime": "python",
+      "id": "clients-generated-host-dotnet-user",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "clients-host-dotnet-service",
       "passed": true
     },
     {
       "runtime": "python",
+      "id": "clients-generated-host-dotnet-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "clients-host-dotnet-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "clients-generated-host-dotnet-delegated",
       "passed": true
     },
     {
@@ -729,7 +789,7 @@
     },
     {
       "runtime": "dotnet",
-      "id": "clients-unsafe-origin-http://127.0.0.1:59046/prefix",
+      "id": "clients-unsafe-origin-http://127.0.0.1:64091/prefix",
       "passed": true
     },
     {
@@ -904,7 +964,42 @@
     },
     {
       "runtime": "dotnet",
+      "id": "clients-generated-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-operation-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-background-rechecks-grants",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-during-cancel",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-during-close",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-during-snapshot",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "clients-host-node-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-host-node-user",
       "passed": true
     },
     {
@@ -914,7 +1009,17 @@
     },
     {
       "runtime": "dotnet",
+      "id": "clients-generated-host-node-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "clients-host-node-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-host-node-delegated",
       "passed": true
     },
     {
@@ -924,12 +1029,27 @@
     },
     {
       "runtime": "dotnet",
+      "id": "clients-generated-host-python-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "clients-host-python-service",
       "passed": true
     },
     {
       "runtime": "dotnet",
+      "id": "clients-generated-host-python-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "clients-host-python-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "clients-generated-host-python-delegated",
       "passed": true
     }
   ]

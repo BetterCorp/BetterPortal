@@ -7,7 +7,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-1,240/1,266 schema probes; token/service security passes 459/459 scenarios and JWKS
+1,250/1,278 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
@@ -19,8 +19,8 @@ rendering pass 163/163 checks.
 Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 138/139, protected bootstrap storage 147/147,
-installation 137/137, hostname changes 99/99 and scoped dependency clients 186/186.
-The full gate passes 5,496/5,524;
+installation 137/137, hostname changes 99/99 and scoped dependency clients 210/210.
+The full gate passes 5,530/5,560;
 the remaining probes expose SDK defects/limitations, including Python's explicit-null
 tenant flag affecting config authorization. Windows Python 3.10 and Linux Python
 3.14 produce the same full-gate failure identities. Linux compiler, documentation
@@ -74,8 +74,8 @@ future scenarios; they are not assertions that those tests already exist.
 | scaffold | codegen/init.ts, cli/bp.ts | Pending native commands with runnable examples | Port READMEs (pending) | scaffold-build-run, no-node-no-BSB |
 | discovery-tools | codegen/scanner.ts, emitter.ts, validate.ts | Pending compiler-supported C# and module-based Python discovery | docs/building/routes-and-views.md | route-dirs, optional-params, stable-ID, renderer-fragment-SSE-selection |
 | contract-tools | cli/project.ts, contract.ts, publish.ts | Pending betterportal.json, registry identity, local exports/publishing | docs/building/services.md | registry-identity, native-export, local-contract-resolution |
-| dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Native ClientContract/ServiceClients foundation uses AnyVali documents and request-bound credentials; typed generation, raw/streaming clients, project locking and frozen builds pending | auth.md §3; port READMEs | client_cases.py: 186 checks, including all-language contract imports and native calls into each other language's host; betterportal.lock.json, frozen-build, digest-mismatch and generated all-language-pairs pending |
-| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py; hosted CI, CM+Bootstrap and six generated client/server pairs pending |
+| dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Native runtime and generated JSON clients use AnyVali documents and scoped credentials; native client CLI preserves typed method inputs/outputs and delegates policy to the runtime; raw/streaming clients, project locking and frozen builds pending | auth.md §3; port READMEs | client_cases.py: 210 checks, including four generated cross-language host pairs in user/service/delegated modes; check_clientgen.py compiles all three registry exports and rejects invalid callers; locking, frozen-build, digest-mismatch and two Node-generated outbound pairs pending |
+| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
 
 ## BP and BSB ownership
 
@@ -105,6 +105,10 @@ JavaScript are not port deliverables. Existing Node services are integration pee
   that unsafe form; BP field visibility annotates a native wrapper. Metadata on
   referenced definitions is exercised separately. No SDK patch or second data
   validator is introduced.
+- Python AnyVali 1.1.1 drops empty/from-string coercion on export (#134).
+  Native direct parsing accepts the input; export/re-import rejects it. Both
+  regressions remain in the strict shared gate, including their impact on
+  typing derived from exported contracts.
 - Node's platform menu schema is bounded but its exported document can exceed
   application JSON's depth limit. The development exporter uses native AnyVali
   export and supplies BP's existing recursive JSON definition without parsing

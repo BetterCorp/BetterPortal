@@ -1,6 +1,6 @@
 {
-  "scenarios": 1266,
-  "passed": 1240,
+  "scenarios": 1278,
+  "passed": 1250,
   "results": [
     {
       "runtime": "node",
@@ -308,6 +308,16 @@
     },
     {
       "runtime": "node",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-from-string",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -1367,6 +1377,16 @@
     },
     {
       "runtime": "node",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-from-string-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -2423,6 +2443,16 @@
     {
       "runtime": "python",
       "id": "hostname-token-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-from-string",
       "passed": true
     },
     {
@@ -3487,6 +3517,18 @@
     },
     {
       "runtime": "python",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": false,
+      "error": "{'valid': False, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'int'}}}"
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-from-string-roundtrip",
+      "passed": false,
+      "error": "{'valid': False, 'document': {'anyvaliVersion': '1.0', 'schemaVersion': '1.1', 'root': {'kind': 'int'}}}"
+    },
+    {
+      "runtime": "python",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -4546,6 +4588,16 @@
     },
     {
       "runtime": "dotnet",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-from-string",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -5601,6 +5653,16 @@
     {
       "runtime": "dotnet",
       "id": "hostname-token-unknown-field-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-from-string-roundtrip",
       "passed": true
     },
     {

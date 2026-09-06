@@ -1135,5 +1135,37 @@
       "serviceUrl": "https://renamed.test"
     },
     "valid": false
+  },
+  {
+    "id": "coerce-int-empty",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int",
+        "coerce": {}
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "7",
+    "output": 7
+  },
+  {
+    "id": "coerce-int-from-string",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int",
+        "coerce": {
+          "from": "string"
+        }
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "7",
+    "output": 7
   }
 ]

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+from dataclasses import dataclass
 from http.cookiejar import CookieJar, DefaultCookiePolicy
 import json
 import time
@@ -35,6 +36,13 @@ class ClientError(Exception):
         self.status = status
 
 
+@dataclass(frozen=True)
+class ClientOperationSchemas:
+    inputs: dict[str, dict[str, Any]]
+    required_inputs: frozenset[str]
+    output: dict[str, Any]
+
+
 class ClientContract:
     """A dependency's exported BP contract; each field retains its own definitions."""
     def __init__(self, value: Any):
@@ -65,6 +73,21 @@ class ClientContract:
 
     @property
     def plugin_id(self) -> str: return self._schema["manifest"]["pluginId"]
+
+    def schema(self) -> dict[str, Any]: return deepcopy(self._schema)
+
+    def json_operations(self) -> dict[str, ClientOperationSchemas]:
+        """Owned documents for native authoring; AnyVali determines input presence."""
+        result = {}
+        for identifier, (_, _, _, fields, output) in self._operations.items():
+            if output is None: continue
+            inputs = {}
+            for name, field in fields.items():
+                exported = deepcopy(av.export_schema(field))
+                exported["root"] = exported["root"]["properties"][name]
+                inputs[name] = exported
+            result[identifier] = ClientOperationSchemas(inputs, frozenset(name for name, field in fields.items() if not field.safe_parse({}).success), deepcopy(av.export_schema(output)))
+        return result
 
     def _prepare(self, identifier: str, values: Any) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str, str, Any]:
         if identifier not in self._operations: raise ValueError("Unknown dependency operation")

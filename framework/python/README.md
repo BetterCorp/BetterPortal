@@ -833,4 +833,24 @@ Snapshot replacement invalidates captured request clients and pending responses;
 background clients resolve policy again on each call. Cancellation and service
 shutdown stop pending HTTP work. `ClientError` exposes the upstream status with a
 generic message; upstream error bodies are never included. Raw/streaming dependency
-responses and native client generation/locking remain delivery work.
+responses and dependency locking remain delivery work.
+
+Generate a typed JSON client from the dependency's exported BP schema:
+
+```sh
+bp-python client --contract contracts/peer.json --output dependencies/peer.py --class-name PeerClient
+bp-python client --contract contracts/peer.json --output dependencies/peer.py --class-name PeerClient --check
+```
+
+Import `PeerClient` from that generated module and construct it with
+`PeerClient(context.request_context.clients, service_id="peer")` for user calls,
+or `PeerClient(context.request_context.clients, request_id="read-item")` for a
+declared service/delegated request. An operation `check.get` becomes
+`await client.check_get({"params": {"key": "item"}})`. Input TypedDicts preserve
+required fields, defaults and nullable values; return types describe validated
+JSON. Undeclared schemas remain generic JSON mappings. Each generated module embeds
+the contract and uses the runtime's policy, transport and shutdown handling.
+`--check` detects stale generated code without writing files. Neither command
+requires Node or BSB. Python's coercion-export defect is tracked in
+[AnyVali #134](https://github.com/BetterCorp/AnyVali/issues/134); the strict
+conformance gate retains its failure.

@@ -221,6 +221,12 @@ def run_clients(urls, labels):
             for action, status in (("cancel", 499), ("close", 499), ("snapshot", 503)):
                 case("during-" + action, lambda item, action=action: item.update(steps=[{"during": {"url": base, action: deepcopy(item["snapshot"]) if action == "snapshot" else True}}]),
                      reply={"barrier": True}, expected=status, count=1)
+            case("generated-alias", lambda item: item.update(generated=True, dependencies={"peer": "com.example.service"}, serviceId="peer"), count=1)
+            case("generated-operation-unmounted", lambda item: (item.update(generated=True), item["snapshot"]["apps"][0]["routes"][0].update(operations=["other.get"])), expected=403, count=0)
+            case("generated-background-rechecks-grants", lambda item: (item.update(generated=True), revoke(item)), expected=[200, 403], count=1)
+            for action, status in (("cancel", 499), ("close", 499), ("snapshot", 503)):
+                case("generated-during-" + action, lambda item, action=action: item.update(generated=True, steps=[{"during": {"url": base, action: deepcopy(item["snapshot"]) if action == "snapshot" else True}}]),
+                     reply={"barrier": True}, expected=status, count=1)
             for other_url, other in zip(urls, labels):
                 if other == label: continue
                 for mode in ("user", "service", "delegated"):
@@ -235,6 +241,7 @@ def run_clients(urls, labels):
                         assert output["tenantId"] == TENANT and output["appId"] == APP and output["caller"] == mode, output
                         assert output["user"] == (None if mode == "service" else "user-1"), output
                     case("host-" + other + "-" + mode, change, reply={"upstream": other_url, "host": target}, validate=validate, count=1)
+                    case("generated-host-" + other + "-" + mode, lambda item: (change(item), item.update(generated=True)), reply={"upstream": other_url, "host": target}, validate=validate, count=1)
     return results
 
 
