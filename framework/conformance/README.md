@@ -18,8 +18,14 @@ The security suite passes [459/459 scenarios](results-security.json): every
 signing/verifying language pair, six token purposes, signature tampering,
 issuer/audience/key checks, malformed claims/headers, config-ticket scope/actions,
 refresh-role clearing, revoked service bindings/grants, caller mode, method,
-permissions and tenant/app isolation. Full delegated user authorization, scoped
-role revocation and setup installation binding remain acceptance work.
+permissions and tenant/app isolation. Setup installation binding remains
+acceptance work.
+The [authorization suite](results-authorization.json) adds 306 passing checks:
+current role and alias revocation, trusted management scope, caller modes, both
+delegated credentials, refresh-helper purpose/scope checks, and native fail-closed
+machine envelopes. Shared requests exercise Node's real H3 operation adapter.
+Native-only cases cover standalone policies currently owned by BSB or stricter
+port behavior; the fixture does not copy Node's private role-check implementation.
 The [JWKS suite](results-keys.json) adds 80 passing checks: shared Node/port
 key loading, cache/rotation and query compatibility, plus native endpoint policy,
 redirect rejection, response bounds, total deadlines, cancellation and cache
@@ -43,7 +49,8 @@ the Python probe dependencies are pinned in [requirements.txt](requirements.txt)
 AnyVali documents the native-parent composition limitation. BP now provides
 portable document composition before native import; recursive and sensitive
 composition probes pass in all three languages. The original native-parent probe
-remains visible. The explicit-null defect needs an AnyVali fix. BP packages
+remains visible. The explicit-null defect is tracked in
+[AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127). BP packages
 contain no alternate validator or monkeypatch. The obsolete pre-1.1.1 SDK patch
 has been removed.
 
@@ -77,6 +84,7 @@ python framework/conformance/verify.py --roundtrip-all --report results.json
 python framework/conformance/verify.py --suite security
 python framework/conformance/verify.py --suite keys
 python framework/conformance/verify.py --suite encryption
+python framework/conformance/verify.py --suite authorization
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -87,7 +95,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|all` (default: all).
 
 The HTTP runner can also target independently launched adapters:
 
@@ -146,6 +154,6 @@ wheel lacks py.typed. Linux execution remains a delivery check.
 [CAPABILITIES.md](CAPABILITIES.md) maps the full requested scope to existing BP
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
-HTTP suite (persistent settings, scoped roles, request hosting, sync/readiness,
+HTTP suite (persistent settings, request hosting, sync/readiness,
 rendering, streaming and generated clients), standalone examples and CI remains
 incomplete. Publishing and BSB plugins remain separate follow-ups.

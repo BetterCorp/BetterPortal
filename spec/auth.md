@@ -121,6 +121,9 @@ Both machine modes require X-BP-Service-Id, X-BP-Tenant-Id, and X-BP-App-Id:
 The operation must explicitly allow the selected mode. A complete service
 envelope takes precedence over browser origin resolution. Partial, malformed,
 or mismatched envelopes fail without browser fallback.
+An envelope is identified by a service bearer, X-BP-Service-Id, or
+X-BP-Service-Authorization. Tenant/app hints alone do not establish machine mode
+or override trusted browser scope resolution.
 
 Verify the source key from the current snapshot, source header, local target
 instance, tenant/app, enabled binding, binding mode and target view, enabled

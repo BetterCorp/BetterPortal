@@ -15,7 +15,7 @@ public static class Authorization
         IReadOnlyList<string>? requiredPermissions = null, CancellationToken cancellationToken = default)
     {
         if (mode is not ("service" or "delegated")) throw new ArgumentException("Invalid service caller mode");
-        var current = (Dictionary<string, object?>)Contracts.Get("ScopedServiceConfigSchema", "m2m").Parse(new Dictionary<string, object?>(policy))!;
+        var current = (Dictionary<string, object?>)Contracts.Parse(Contracts.Get("ScopedServiceConfigSchema", "m2m"), policy)!;
         var audience = Tokens.UnverifiedClaims(token).GetValueOrDefault("aud") as string;
         if (audience is null || !Strings(current, "localServiceIds").Contains(audience))
             throw new TokenException("Service token targets another service");

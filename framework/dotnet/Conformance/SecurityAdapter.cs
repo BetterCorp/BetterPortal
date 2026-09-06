@@ -15,6 +15,15 @@ internal static class SecurityAdapter
         if (action == "jwt-key") return new { publicKeyPem = Key.PublicKeyPem, kid = Key.Kid, jwk = Key.PublicJwk() };
         if (action == "jwt-pair") return new TokenIssuer(Key, Text("issuer"), Text("audience"))
             .IssuePair((Dictionary<string, object?>)body["user"]!);
+        if (action == "jwt-refresh-verify")
+        {
+            try
+            {
+                var claims = await new TokenIssuer(Key, Text("issuer"), Text("audience")).VerifyRefreshAsync(Text("token"), Text("tenantId"), Text("appId"));
+                return new { valid = true, output = claims["sub"] };
+            }
+            catch (TokenException) { return new { valid = false }; }
+        }
         var purpose = Enum.GetValues<TokenPurpose>().Single(p => Tokens.PurposeName(p) == Text("purpose"));
         if (action == "jwt-sign") return new { token = Tokens.Sign(Key, (Dictionary<string, object?>)body["claims"]!, purpose) };
         if (action == "jwt-raw")

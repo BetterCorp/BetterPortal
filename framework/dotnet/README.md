@@ -7,9 +7,32 @@ operation hosting, configuration, route tooling and generated clients remain in 
 Implemented: embedded canonical AnyVali 1.1.1 contracts, RSA keys, RS256 token
 purposes through IdentityModel, tenant/app-bound refresh pairs, config-ticket
 scope/action checks, and service authorization against current scoped bindings
-and grants, static JWKS imports and a cancellable remote JWKS cache. Delegated
-mode validates only the service envelope; a host must also
-authorize its user token. Signature verification alone does not authorize a call.
+and grants, static JWKS imports and a cancellable remote JWKS cache.
+
+`RequestAuthorization.AuthorizeAsync` enforces complete user/service/delegated
+policy using a trusted `AuthContext` from one scoped snapshot. It expands user role
+IDs through current app grants and trusted aliases; root elevation requires the
+configured management tenant/app. Delegated calls must satisfy both user and
+service policy. The lower-level `Authorization.AuthorizeServiceAsync` checks only
+the machine half. Optional invalid user auth yields an anonymous result;
+malformed/revoked machine envelopes fail closed. Tenant/app hints do not establish
+scope. Cancellation propagates to key lookup and token verification.
+
+```csharp
+using BetterPortal;
+
+var key = KeyPair.Generate();
+var tenant = Guid.CreateVersion7().ToString();
+var app = Guid.CreateVersion7().ToString();
+var pair = new TokenIssuer(key, "https://auth.example", "app").IssuePair(new Dictionary<string, object?>()
+    { ["sub"] = "user-1", ["tenantId"] = tenant, ["appId"] = app, ["roles"] = Array.Empty<object>() }, includeRefresh: false);
+var context = new AuthContext(tenant, app, new() { ["serviceId"] = Guid.CreateVersion7().ToString(),
+    ["expectedIssuer"] = "https://auth.example", ["expectedAudience"] = "app", ["jwksUri"] = "https://auth.example/jwks" },
+    (kid, _) => Task.FromResult(kid == key.Kid ? key.PublicKeyPem : throw new TokenException("Unknown key")));
+var caller = await RequestAuthorization.AuthorizeAsync(new Dictionary<string, string> { ["authorization"] = "Bearer " + pair["accessToken"] },
+    new() { ["required"] = true }, context, "hello", "GET");
+if (caller.User?["sub"] is not "user-1") throw new Exception("Expected an authenticated user");
+```
 
 `ConfigCipher` reads legacy BP v1 envelopes and writes v2 strings/v3 typed JSON.
 `PreviewConfig` implements authenticated preview envelopes and builds scoped

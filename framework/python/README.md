@@ -8,9 +8,34 @@ Implemented: embedded canonical AnyVali 1.1.1 contracts, RS256 keys and token
 purposes, tenant/app-bound refresh pairs, config-ticket scope/action checks, and
 service authorization against current scoped bindings and grants, static JWKS
 imports and a cancellable remote JWKS cache. Cryptography
-uses PyJWT/OpenSSL; validation uses AnyVali exclusively. Service authorization in
-delegated mode validates only the service envelope; a host must separately
-authorize the user token before allowing the request.
+uses PyJWT/OpenSSL; validation uses AnyVali exclusively.
+
+`betterportal.authorization.authorize_request` accepts a trusted `AuthContext`
+from one scoped snapshot and enforces user/service/delegated caller policy.
+User role IDs expand through current app grants, with trusted service aliases.
+Root elevation requires the configured management tenant/app. Delegated requests
+must satisfy both user permissions and the current delegated service grant.
+The lower-level `security.authorize_service` checks only the machine half.
+Optional invalid user auth yields an anonymous result; malformed/revoked machine
+envelopes fail closed. Tenant/app hints never establish request scope.
+
+```python
+import asyncio
+from betterportal.authorization import AuthContext, authorize_request
+from betterportal.security import KeyPair, TokenIssuer, uuid7
+
+async def example():
+    key, tenant, app = KeyPair.generate(), uuid7(), uuid7()
+    trusted_keys = {key.kid: key.public_key_pem}
+    pair = TokenIssuer(key, "https://auth.example", "app").issue_pair(
+        {"sub": "user-1", "tenantId": tenant, "appId": app, "roles": []}, include_refresh=False)
+    context = AuthContext(tenant, app, {"serviceId": uuid7(), "expectedIssuer": "https://auth.example",
+        "expectedAudience": "app", "jwksUri": "https://auth.example/jwks", "roles": []}, trusted_keys.__getitem__)
+    caller = await authorize_request({"authorization": "Bearer " + pair["accessToken"]}, {"required": True},
+        context, view_id="hello", method="GET")
+    assert caller.user is not None and caller.user["sub"] == "user-1"
+asyncio.run(example())
+```
 
 Configuration encryption supports existing BP v1 reads, v2 strings, v3 typed JSON,
 and authenticated preview envelopes. `preview_schema` builds scoped field schemas

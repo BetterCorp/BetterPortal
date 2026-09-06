@@ -128,6 +128,12 @@ public static class Tokens
         catch (Exception) { throw new TokenException("Invalid service envelope"); }
     }
 
+    internal static bool IsServiceToken(string token)
+    {
+        try { return token.Length <= 32768 && Equals(ReadPart(token.Split('.')[0]).GetValueOrDefault("typ"), "BP-S2S-JWT"); }
+        catch { return false; }
+    }
+
     public static async Task<Dictionary<string, object?>> VerifyAsync(string token,
         Func<string, CancellationToken, Task<string>> resolver, string issuer, string? audience,
         TokenPurpose purpose, int clockTolerance = 0, CancellationToken cancellationToken = default)

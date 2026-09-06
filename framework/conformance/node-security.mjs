@@ -17,6 +17,13 @@ export async function security(body) {
   if (action === "jwt-raw") return { token: signRs256Jwt(claims, key.privateKeyPem, { alg: "RS256", typ, kid: key.kid, ...body.header }) };
   if (action === "jwt-pair") return createBpTokenIssuer({ keyPair: key, issuer: body.issuer, audience: body.audience,
     accessTokenSeconds: 900, refreshTokenSeconds: 604800 }).issueTokenPair(body.user);
+  if (action === "jwt-refresh-verify") {
+    try {
+      const claims = await createBpTokenIssuer({ keyPair: key, issuer: body.issuer, audience: body.audience,
+        accessTokenSeconds: 900, refreshTokenSeconds: 604800 }).verifyRefreshToken({ refreshToken: body.token, tenantId: body.tenantId, appId: body.appId });
+      return { valid: true, output: claims.sub };
+    } catch { return { valid: false }; }
+  }
   if (action === "jwt-sign") {
     const seconds = claims.exp - claims.iat;
     const common = { privateKeyPem: key.privateKeyPem, kid: key.kid, claims: { ...claims, expiresInSeconds: seconds } };

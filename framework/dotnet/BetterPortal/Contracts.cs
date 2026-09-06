@@ -44,11 +44,12 @@ public static class Contracts
         });
     }
 
-    public static object? Parse(string name, object? value) => Get(name).Parse(value);
+    public static object? Parse(string name, object? value) => Parse(Get(name), value);
+    public static object? Parse(Schema schema, object? value) => schema.Parse(Json.Read(Json.Write(value)));
 
     public static T Parse<T>(string name, object? value) => Parse<T>(Get(name), value);
     public static T Parse<T>(Schema schema, object? value) => JsonSerializer.Deserialize<T>(
-        Json.Write(schema.Parse(Json.Read(Json.Write(value)))), Json.Options)!;
+        Json.Write(Parse(schema, value)), Json.Options)!;
 
     /// <summary>Compose portable roots before importing, preserving definitions and rejecting name conflicts.</summary>
     public static Dictionary<string, object?> ObjectDocument(IDictionary<string, Dictionary<string, object?>> properties, string unknownKeys = "strip")

@@ -1,0 +1,1536 @@
+{
+  "scenarios": 306,
+  "passed": 306,
+  "results": [
+    {
+      "runtime": "node",
+      "id": "refresh-helper-valid",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "refresh-helper-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "refresh-helper-app",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "refresh-helper-access",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "refresh-helper-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "refresh-helper-audience",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "native-partial-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "native-delegated-without-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "native-machine-without-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "native-malformed-secondary",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "native-optional-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "native-ambiguous-roles",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "native-partial-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "native-delegated-without-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "native-machine-without-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "native-malformed-secondary",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "native-optional-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "native-ambiguous-roles",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "refresh-helper-valid",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "refresh-helper-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "refresh-helper-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "refresh-helper-access",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "refresh-helper-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "refresh-helper-audience",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "native-partial-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "native-delegated-without-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "native-machine-without-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "native-malformed-secondary",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "native-optional-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "native-ambiguous-roles",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "native-partial-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "native-delegated-without-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "native-machine-without-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "native-malformed-secondary",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "native-optional-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "native-ambiguous-roles",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "refresh-helper-valid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "refresh-helper-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "refresh-helper-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "refresh-helper-access",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "refresh-helper-issuer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "refresh-helper-audience",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "native-partial-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "native-delegated-without-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "native-machine-without-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "native-malformed-secondary",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "native-optional-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "native-ambiguous-roles",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "current-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "role-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "role-permissions-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "alias-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "user-scope-hints-not-authority",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "wrong-view-grant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "every-action-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "user-caller-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "no-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "verifier-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "auth-context-unavailable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "wrong-token-tenantId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "wrong-token-appId",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "root-outside-management",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "root-wrong-management-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "root-management",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "optional-anonymous",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "optional-invalid-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "optional-insufficient-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-current-grant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-context-mismatch",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "service-method-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "delegated-both",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "delegated-binding-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "delegated-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "delegated-mode-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "native-partial-envelope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "native-delegated-without-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "native-machine-without-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "native-malformed-secondary",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "native-optional-delegated-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "native-ambiguous-roles",
+      "passed": true
+    }
+  ]
+}

@@ -7,6 +7,7 @@ from urllib.error import HTTPError
 from security_cases import run_security
 from key_cases import run_keys
 from encryption_cases import run_encryption
+from authorization_cases import run_authorization
 
 
 def main():
@@ -16,7 +17,7 @@ def main():
     parser.add_argument("--labels", nargs="+")
     parser.add_argument("--all-contracts", action="store_true")
     parser.add_argument("--roundtrip-all", action="store_true")
-    parser.add_argument("--suite", choices=["schema", "security", "keys", "encryption", "all"], default="all")
+    parser.add_argument("--suite", choices=["schema", "security", "keys", "encryption", "authorization", "all"], default="all")
     args = parser.parse_args()
     cases = json.loads(Path(__file__).with_name("schema-cases.json").read_text())
     if args.labels and len(args.labels) != len(args.urls):
@@ -61,6 +62,10 @@ def main():
         encryption = run_encryption(args.urls, args.labels or args.urls)
         results += encryption
         failures += [f'{result["runtime"]} {result["id"]}: {result["error"]}' for result in encryption if not result["passed"]]
+    if args.suite in ("authorization", "all"):
+        authorization = run_authorization(args.urls, args.labels or args.urls)
+        results += authorization
+        failures += [f'{result["runtime"]} {result["id"]}: {result["error"]}' for result in authorization if not result["passed"]]
     print(f"{len(results) - len(failures)}/{len(results)} {args.suite} scenarios passed")
     for failure in failures:
         print(failure)

@@ -8,7 +8,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
 880/888 schema probes; token/service security passes 459/459 scenarios and JWKS
-checks pass 80/80; encryption passes 318/318. See
+checks pass 80/80; encryption passes 318/318 and authorization 306/306. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -32,10 +32,10 @@ future scenarios; they are not assertions that those tests already exist.
 | URLs | runtime/configProvider.ts, adapters/h3.ts; BSB service.ts | Pending service aliases, routeUrl/uiRouteUrl, params/query/fragments/SSE | docs/building/shell-links.md | service-alias, cross-service-path, optional-param, shell-navigation |
 | jwt | runtime/auth/tokens.ts, jwtCrypto.ts, verifier.ts | Python security.py; C# Security.cs: six purposes, RS256 issuance/verification, strict headers, time and trust checks | auth.md §1; port READMEs | security_cases.py: cross-signature, wrong-purpose, time, issuer-audience, jku-x5u |
 | jwks | runtime/auth/jwks.ts, keypair.ts | Python keys.py/C# Keys.cs: static RSA JWKS, remote cache, rotation/invalidation, bounded HTTP and cancellation; key persistence pending | auth.md §1.1; port READMEs | key_cases.py: 80 checks, including native transport policy and cancellation |
-| roles | adapters/h3.ts resolveUserRequestAuth | Pending scoped role expansion and management-only elevation | auth.md §1.2 | revoked-role, instance-alias, forged-root, preview-elevation |
-| auth-helpers | runtime/auth/issuer.ts, externalOidc.ts, redirect.ts, envelope.ts | Partial: refresh pairs/scope binding and CP/setup purposes; external bridge, redirects/cookies and installation binding pending | auth.md; port READMEs | security_cases.py refresh-pair, envelope-purpose; refresh-scope negative tests pending |
+| roles | adapters/h3.ts resolveUserRequestAuth | Python authorization.py/C# RequestAuthorization.cs: current role grants, trusted aliases and management-only elevation; host scope integration pending | auth.md §1.2; port READMEs | authorization_cases.py: revoked-role/grant/alias, root scope and caller modes |
+| auth-helpers | runtime/auth/issuer.ts, externalOidc.ts, redirect.ts, envelope.ts | Partial: refresh pairs/scope binding and CP/setup purposes; external bridge, redirects/cookies and installation binding pending | auth.md; port READMEs | security_cases.py refresh-pair, envelope-purpose; authorization_cases.py refresh-helper purpose/issuer/audience/tenant/app |
 | config-ticket | runtime/configTicket.ts, serviceConfig.ts | Partial: CP-signed ticket and service/tenant/action checks; config routes/configApps policy pending | config.md §4 | security_cases.py cross-ticket, wrong-service, wrong-action; configApps-scope pending |
-| s2s | runtime/auth/serviceToken.ts; BSB service.ts | Partial: service tokens and current binding/grant policy including mode; delegated user half and outbound calls pending | auth.md §3 | security_cases.py wrong-peer, revoked binding/grant, method/mode/permission and scope; delegated-both pending |
+| s2s | runtime/auth/serviceToken.ts; BSB service.ts | Native request authorization checks both delegated halves and rejects partial/revoked machine envelopes; outbound calls and host integration pending | auth.md §3; port READMEs | security_cases.py plus authorization_cases.py: wrong-peer, revoked binding/grant/user, method/mode/permission, scope and delegated-both |
 | local-config | runtime/configProvider.ts | Pending native local configuration provider | config.md §1 | local-valid, local-invalid, no-shared-CM-file |
 | settings | runtime/configStore.ts, serviceConfig.ts | Pending replaceable persistent store, scope overlays and write validation | config.md §3 | tenant-overlay, scope-key, redaction-placeholder, atomic-write-failure |
 | encryption | runtime/configStore.ts | Python encryption.py/C# Encryption.cs: v1 read/v2-v3 write, native scrypt/AES-GCM; legacy sensitive-marker adapter/persistence pending | config.md §5; port READMEs | encryption_cases.py: 318 shared/native checks; typed-secret, legacy-read, tamper, bounds |

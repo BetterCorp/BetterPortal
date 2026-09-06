@@ -15,6 +15,12 @@ def security(body):
         return {"publicKeyPem": KEY.public_key_pem, "kid": KEY.kid, "jwk": KEY.public_jwk()}
     if action == "jwt-pair":
         return TokenIssuer(KEY, body["issuer"], body["audience"]).issue_pair(body["user"])
+    if action == "jwt-refresh-verify":
+        try:
+            claims = asyncio.run(TokenIssuer(KEY, body["issuer"], body["audience"]).verify_refresh(body["token"], tenant_id=body["tenantId"], app_id=body["appId"]))
+            return {"valid": True, "output": claims["sub"]}
+        except TokenError:
+            return {"valid": False}
     purpose = TokenPurpose(body["purpose"])
     if action == "jwt-sign":
         return {"token": sign_token(KEY, body["claims"], purpose)}

@@ -9,14 +9,15 @@ from betterportal.contracts import contract, export, object_document
 import anyvali as av
 from python_security import security
 from python_encryption import encryption
+from python_authorization import authorization
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            if body.get("action", "").startswith(("jwt-", "keys-", "crypto-")):
-                payload = encryption(body) if body["action"].startswith("crypto-") else security(body)
+            if body.get("action", "").startswith(("jwt-", "keys-", "crypto-", "auth-")):
+                payload = authorization(body) if body["action"] == "auth-request" else encryption(body) if body["action"].startswith("crypto-") else security(body)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
