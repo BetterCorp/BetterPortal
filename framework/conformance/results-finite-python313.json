@@ -1,0 +1,1726 @@
+{
+  "scenarios": 344,
+  "passed": 344,
+  "results": [
+    {
+      "runtime": "node",
+      "id": "finite-order-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-empty-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-null-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-omitted-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-denied-operation-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-disabled-mount-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-query-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-producer-error-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-item-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-empty-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-omitted-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-denied-operation-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-disabled-mount-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-query-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-producer-error-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-order-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-empty-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-null-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-omitted-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-denied-operation-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-disabled-mount-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-query-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-producer-error-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-item-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-invalid-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-method-specific-handler",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-optional-route-/check/item/__sse?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-optional-route-/check/__sse?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-themed-html",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-themed-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-metadata-/.well-known/bp/manifest",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-metadata-/.well-known/bp/schema.json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-metadata-/check/item?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-buffered-page",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-buffered-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-buffered-component",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-fragment-shell",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-exact-theme",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-sse-json-fallback",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-ndjson-ignores-theme",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-shell-query",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-shell-percent",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-shell-input",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-shell-error",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-summary-omitted",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-error-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-shell-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-item-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-fragment-only-denied-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-fragment-only-denied-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-order-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-empty-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-null-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-omitted-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-denied-operation-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-disabled-mount-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-required-auth-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-query-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-header-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-wrong-origin-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-producer-error-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-item-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-after-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-item-limit-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-frame-limit-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-cancel-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-empty-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-omitted-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-denied-operation-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-disabled-mount-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-required-auth-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-query-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-header-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-wrong-origin-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-producer-error-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-after-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-frame-limit-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-head-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-selector-rejected-_f=nav.profile-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-selector-rejected-_c=card-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-backpressure-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-cancel-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-order-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-empty-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-null-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-omitted-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-denied-operation-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-disabled-mount-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-required-auth-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-query-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-header-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-wrong-origin-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-producer-error-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-item-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-invalid-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-after-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-frame-limit-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-head-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-selector-rejected-_f=nav.profile-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-selector-rejected-_c=card-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-backpressure-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-cancel-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-method-specific-handler",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-method-absent-schema-not-inherited",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-reject-non-get-POST",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-reject-non-get-PUT",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-reject-non-get-PATCH",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-reject-non-get-DELETE",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-optional-route-/check/item/__sse?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-optional-route-/check/__sse?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-themed-html",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-themed-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-metadata-/.well-known/bp/manifest",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-metadata-/.well-known/bp/schema.json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-metadata-/check/item?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-buffered-page",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-buffered-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-buffered-component",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-fragment-shell",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-exact-theme",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-sse-json-fallback",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-ndjson-ignores-theme",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-shell-query",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-shell-percent",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-shell-input",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-shell-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-item-render-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-summary-omitted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-error-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-error-renderer-fails",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-render-bound",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-shell-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-item-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-safe-context",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-fragment-only-denied-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-fragment-only-selector-denied-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-fragment-only-denied-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-fragment-only-selector-denied-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-sse-preflight-GET",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-sse-preflight-POST",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-order-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-empty-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-null-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-omitted-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-denied-operation-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-disabled-mount-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-required-auth-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-query-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-header-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-wrong-origin-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-producer-error-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-item-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-after-summary-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-item-limit-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-frame-limit-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-cancel-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-order-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-empty-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-null-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-omitted-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-denied-operation-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-disabled-mount-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-required-auth-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-query-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-header-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-wrong-origin-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-producer-error-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-item-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-after-summary-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-frame-limit-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-head-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-selector-rejected-_f=nav.profile-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-selector-rejected-_c=card-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-backpressure-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-cancel-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-order-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-empty-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-null-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-omitted-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-denied-operation-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-disabled-mount-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-required-auth-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-query-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-header-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-wrong-origin-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-producer-error-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-item-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-invalid-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-after-summary-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-frame-limit-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-head-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-selector-rejected-_f=nav.profile-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-selector-rejected-_c=card-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-backpressure-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-cancel-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-method-specific-handler",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-method-absent-schema-not-inherited",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-reject-non-get-POST",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-reject-non-get-PUT",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-reject-non-get-PATCH",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-reject-non-get-DELETE",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-optional-route-/check/item/__sse?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-optional-route-/check/__sse?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-themed-html",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-themed-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-metadata-/.well-known/bp/manifest",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-metadata-/.well-known/bp/schema.json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-metadata-/check/item?hello=world",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-buffered-page",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-buffered-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-buffered-component",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-fragment-shell",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-exact-theme",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-sse-json-fallback",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-ndjson-ignores-theme",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-shell-query",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-shell-percent",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-shell-input",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-shell-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-item-render-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-summary-omitted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-error-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-error-renderer-fails",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-render-bound",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-shell-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-item-rewrite",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-safe-context",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-fragment-only-denied-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-fragment-only-selector-denied-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-fragment-only-denied-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-fragment-only-selector-denied-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-sse-preflight-GET",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-sse-preflight-POST",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-node-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-node-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-node-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-delegated-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-delegated-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-delegated-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-delegated-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-machine-grant-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-machine-grant-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-node-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-node-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-node-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-delegated-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-delegated-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-delegated-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-delegated-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-node-auth-machine-grant-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-node-auth-machine-grant-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-python-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-python-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-python-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-delegated-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-delegated-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-delegated-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-delegated-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-machine-grant-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-machine-grant-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-python-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-python-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-python-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-delegated-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-delegated-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-delegated-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-delegated-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-python-auth-machine-grant-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-python-auth-machine-grant-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-dotnet-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-user-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-dotnet-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-wrong-tenant-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-dotnet-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-revoked-role-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-delegated-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-delegated-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-delegated-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-delegated-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-machine-grant-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-machine-grant-revoked-ndjson",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-dotnet-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-user-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-dotnet-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-wrong-tenant-sse",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "finite-dotnet-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-revoked-role-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-delegated-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-delegated-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-delegated-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-delegated-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "finite-dotnet-auth-machine-grant-revoked-sse",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "finite-dotnet-auth-machine-grant-revoked-sse",
+      "passed": true
+    }
+  ]
+}

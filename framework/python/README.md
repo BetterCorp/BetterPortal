@@ -1,7 +1,7 @@
 # BetterPortal Python port
 
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
-hosting for JSON, HTML and raw operations. It is **not ready for production**: the AnyVali
+hosting for JSON, HTML, raw and finite-stream operations. It is **not ready for production**: the AnyVali
 snapshot gate below still fails. Full theme helpers, route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
@@ -22,7 +22,7 @@ close after parsing. Disconnects cancel handler waits.
 
 JSON and BP metadata negotiation are supported. Metadata requires the operation's
 authorization and does not execute its handler. Health, manifest and schema JSON
-discovery are public. Validated finite/SSE stream hosting remains pending. Configure trusted
+discovery are public. Finite handlers also support NDJSON and SSE, described below. Configure trusted
 proxies in the ASGI server; raw forwarding and HTMX context headers confer no
 authority. Renderer selection is bound to the resolved app's shell renderer.
 
@@ -51,13 +51,13 @@ Absent input containers become `{}`; explicit null remains present. The
 `input_document` property exports the four parsed handler input fields for native
 type generation. Full handler/render context helpers remain delivery work.
 
-`Operation`, `Route` and `Registry` register JSON/raw handlers and derive canonical
+`Operation`, `Route` and `Registry` register JSON/raw/finite handlers and derive canonical
 manifests and discovery schemas from their AnyVali schemas. Every operation needs
 an explicit `auth` declaration and a unique stable ID. Methods share the view's
 params schema; their query, headers, body, response and policy remain separate.
 Dependency aliases resolve to plugin IDs, and local dependencies must exist with
 the declared method. Path variants belong to one view and publish API contracts
-once. Directory discovery and finite-stream registration remain pending.
+once. Directory discovery remains pending.
 
 `Renderer[Result]` accepts a sync/async function returning an HTML string. Register
 it on the typed handler; the adapter selects the exact method, app renderer,
@@ -293,7 +293,44 @@ messages = asyncio.run(wire())
 assert messages[-1] == b'event: end\ndata: {"kind":"end","count":1}\n\n'
 ```
 
-These helpers do not yet supply operation hosting or themed stream renderers.
+`FiniteHandler` registers the same producer as a GET `Operation`. JSON and
+page/fragment/component renderers consume its bounded buffered result. NDJSON
+streams validated JSON frames; a GET operation also owns `/<path>/__sse`, with the
+same tenant/app, origin, operation and authentication checks. Stream connections
+reject fragment/component selectors. Metadata and streamed HEAD requests never
+start the producer. Hosts pull one chunk at a time and close it on disconnect.
+
+`StreamRenderers` selects the exact app shell renderer. Its shell receives the
+canonical `StreamShellContext` and returns HTML with a connection URL; it never
+runs the producer. SSE item/summary/error callbacks receive validated values and
+the safe `RenderContext`. Callbacks return HTML strings and URL tokens are
+rewritten through the existing helpers. A matching page renderer buffers full
+page requests; fragment mode selects the stream shell. Without a matching stream
+renderer SSE carries JSON frames. Each consuming request creates its own stream.
+
+```python
+from html import escape
+from betterportal.contracts import contract
+from betterportal.finite import FiniteHandler, StreamRenderers
+from betterportal.registry import Operation, Route, Registry
+from betterportal.streaming import Summary
+
+async def rows(context):
+    yield "First row"
+    yield Summary(1)
+
+handler = FiniteHandler(contract("JsonValueSchema"), rows,
+    summary=contract("JsonValueSchema"), stream_renderers=[StreamRenderers("bootstrap5",
+        shell=lambda data, context: '<div hx-ext="sse" hx-sse:connect="' + escape(data["sseConnectPath"], quote=True) + '"><div sse-swap="item" hx-swap="beforeend"></div></div>',
+        item=lambda value, context: "<p>" + escape(value) + "</p>")])
+registry = Registry([Route("rows", "/rows", [Operation(handler, {
+    "operationId": "rows.get", "method": "GET", "title": "Rows", "description": "Stream rows", "auth": {}})])])
+assert registry.routes[0].operations[0].handler is handler
+```
+
+Mount this registry with `Service` and `create_app` as above. The consuming shell
+loads BP's existing HTMX/SSE browser assets; the runtime does not add a template
+engine. Native subscriber feeds and global theme helpers remain pending.
 
 `betterportal.media.negotiate` selects JSON, HTML (page/fragment/embed), metadata,
 or NDJSON from Accept and the operation's available representations. It honors

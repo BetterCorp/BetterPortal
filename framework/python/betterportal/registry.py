@@ -9,6 +9,7 @@ from typing import Any, Iterable, Mapping, cast
 from .contracts import contract, export, parse
 from .generated_types import OperationDeclarationInput, OperationDeclaration, ManifestDeclarationInput, PluginManifest, BpSchemaOutput, ViewRenderError
 from .handler import Handler, RequestContext, Invocation
+from .finite import FiniteHandler
 from .response import RawHandler, RawResponse
 from .rendering import Renderer, RenderContext, html_metadata, content_type, renderers as unique_renderers
 
@@ -17,6 +18,8 @@ class Operation:
     def __init__(self, handler: Handler[Any, Any, Any, Any, Any] | RawHandler[Any, Any, Any, Any], declaration: OperationDeclarationInput, *, error_renderers: Iterable[Renderer[ViewRenderError]] = ()):
         self.handler = handler
         self._declaration = parse("OperationDeclarationSchema", declaration)
+        if isinstance(handler, FiniteHandler) and self.method != "GET":
+            raise ValueError("Finite streams require a GET operation")
         self.error_renderers = unique_renderers(error_renderers)
         if any(item.identity[3] < 400 for item in self.error_renderers): raise ValueError("Error renderers require an error status")
 
@@ -51,9 +54,10 @@ class Operation:
         result = deepcopy(self._declaration)
         result.update({target: export(self.handler.schemas[source]) if source in self.handler.schemas else {}
                        for source, target in (("query", "querySchema"), ("headers", "headersSchema"), ("request", "bodySchema"))})
-        html = html_metadata(self.handler.renderers)
+        html = html_metadata(self.handler.renderers, self.handler.stream_renderers if isinstance(self.handler, FiniteHandler) else ())
         result.update(jsonResponseSchema=export(self.handler.response_schema) if self.handler.response_schema is not None else {}, metadataResponseSchema={}, renderable=bool(html["renderers"]), html=html)
         if self.handler.is_raw: result["raw"] = True
+        if isinstance(self.handler, FiniteHandler): result["streaming"] = self.handler.streaming_metadata()
         result.setdefault("sitemap", {"kind": "default"})
         for dependency in result["dependencies"]:
             if "serviceId" in dependency:
@@ -141,6 +145,11 @@ class Registry:
             capabilities.append("renderer." + renderers[0])
         for route in self.routes:
             for registered in route.operations:
+                if isinstance(registered.handler, FiniteHandler):
+                    capabilities.append("stream.ndjson")
+                    for theme in registered.handler.stream_renderers:
+                        renderers.append(theme); modes.append("fragment")
+                        capabilities.extend(["renderer." + theme, "view.sse-render", "view.html"])
                 for renderer in registered.handler.renderers:
                     theme, kind, _, status = renderer.identity
                     if status != 200: continue
@@ -167,9 +176,11 @@ class Registry:
 
     @staticmethod
     def _rendering(route: Route) -> dict[str, Any]:
-        themes, components = [], []
+        themes: list[str] = []
+        components = []
         fragments: dict[tuple[str, str, str, str], dict[str, Any]] = {}
         for operation in route.operations:
+            if isinstance(operation.handler, FiniteHandler): themes.extend(operation.handler.stream_renderers)
             for renderer in operation.handler.renderers:
                 theme, kind, key, status = renderer.identity
                 if status != 200: continue

@@ -1,7 +1,7 @@
 # BetterPortal .NET port
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
-for JSON, HTML and raw operations. Full theme helpers, native route
+for JSON, HTML, raw and finite-stream operations. Full theme helpers, native route
 tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The cross-language snapshot gate is still blocked by the Python SDK defect below.
 
@@ -22,7 +22,7 @@ Client cancellation reaches input reads, authentication and handler waits.
 
 JSON and BP metadata negotiation are supported; metadata authorizes the operation
 without executing its handler. Health, manifest and schema JSON discovery are
-public. Validated finite/SSE stream hosting remains pending. Configure ASP.NET Core's trusted
+public. Finite handlers also support NDJSON and SSE, described below. Configure ASP.NET Core's trusted
 proxy middleware before BP; forwarding headers alone confer no authority.
 
 ```csharp
@@ -55,13 +55,12 @@ exports the four parsed input fields for native type generation. The cancellatio
 token reaches the handler and cancels its wait. Full handler/render context
 helpers remain delivery work.
 
-`Operation`, `Route` and `Registry` register JSON/raw handlers and derive canonical
+`Operation`, `Route` and `Registry` register JSON/raw/finite handlers and derive canonical
 manifests and discovery schemas from their AnyVali schemas. Operations require
 explicit auth and unique stable IDs. Each view shares one params schema across
 methods; query, headers, body, response and policy are method-specific. Registry
 generation resolves dependency aliases and checks local operation/method targets.
-Path variants publish API contracts once per view. Directory discovery and
-finite-stream registration remain pending.
+Path variants publish API contracts once per view. Directory discovery remains pending.
 
 `Renderer<TResult>` accepts a function returning HTML as `string` or
 `ValueTask<string>`. Register it on the typed handler; ASP.NET Core selects the
@@ -293,7 +292,49 @@ await foreach (var item in System.Net.ServerSentEvents.SseParser.Create(output).
 if (!kinds.SequenceEqual(new[] { "item", "summary", "end" })) throw new Exception("Wrong SSE events");
 ```
 
-These helpers do not yet supply operation hosting or themed stream renderers.
+`FiniteHandler` registers this producer as a GET `Operation`. JSON and
+page/fragment/component renderers consume its bounded buffered result. NDJSON
+streams validated JSON frames; a GET operation also owns `/<path>/__sse`, with the
+same tenant/app, origin, operation and authentication checks. Stream connections
+reject fragment/component selectors. Metadata and streamed HEAD requests never
+start the producer. Hosts pull one chunk at a time and dispose the enumerator on
+disconnect; producer I/O must observe its cancellation token.
+
+`StreamRenderers<TItem, TSummary>` selects the exact app shell renderer. Its shell
+receives the generated `StreamShellContext` and returns HTML with a connection
+URL; it never runs the producer. SSE item/summary/error callbacks receive validated
+typed values and the safe `RenderContext`. Callbacks return HTML strings and URL
+tokens are rewritten through the existing helpers. A matching page renderer
+buffers full page requests; fragment mode selects the stream shell. Without a
+matching stream renderer SSE carries JSON frames. Each consuming request creates
+its own stream.
+
+```csharp
+using BetterPortal;
+using System.Net;
+
+async IAsyncEnumerable<StreamValue<string, int>> Rows(HandlerContext<object?, object?, object?, object?> context,
+    [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation)
+{
+    await Task.CompletedTask;
+    cancellation.ThrowIfCancellationRequested();
+    yield return StreamValue<string, int>.Item("First row");
+    yield return StreamValue<string, int>.Summary(1);
+}
+var handler = new FiniteHandler<object?, object?, object?, object?, string, int>(Contracts.Get("JsonValueSchema"), Rows,
+    summary: Contracts.Get("JsonValueSchema"), streamRenderers: [new("bootstrap5",
+        (data, context) => ValueTask.FromResult("<div hx-ext=\"sse\" hx-sse:connect=\"" + WebUtility.HtmlEncode(data.SseConnectPath)
+            + "\"><div sse-swap=\"item\" hx-swap=\"beforeend\"></div></div>"),
+        (value, context) => ValueTask.FromResult("<p>" + WebUtility.HtmlEncode(value) + "</p>"))]);
+var registry = new Registry([new BetterPortal.Route("rows", "/rows", [new Operation(handler, new() {
+    OperationId = "rows.get", Method = BetterPortal.Generated.HttpMethodInput.GET,
+    Title = "Rows", Description = "Stream rows", Auth = new() })])]);
+if (registry.Routes[0].Operations[0].Handler != handler) throw new Exception("Missing stream operation");
+```
+
+Mount this registry with `Service` and `MapBetterPortal` as above. The consuming
+shell loads BP's existing HTMX/SSE browser assets; the runtime does not add a
+template engine. Native subscriber feeds and global theme helpers remain pending.
 
 `Media.Negotiate` selects JSON, HTML (page/fragment/embed), metadata, or NDJSON
 from Accept and the operation's available representations. Specific exclusions,

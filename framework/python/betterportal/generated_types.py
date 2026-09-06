@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: b552dca6b833a77f1e4529d234af3465cc93c9dd03239beb33ebba50a14e2652
+# Generated from AnyVali documents; do not edit. SHA256: 6dc6b0f2af46c87c88f184c155385a00ee1a9d7bdff4de4de645874769b56804
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -4645,6 +4645,18 @@ StreamErrorFrameIssuesItem = TypedDict('StreamErrorFrameIssuesItem', {
     'code': Required['str'],
     'path': NotRequired['str'],
     'message': Required['str'],
+})
+
+StreamShellContext = TypedDict('StreamShellContext', {
+    'sseConnectPath': Required['str'],
+    'params': Required['JsonObject'],
+    'query': Required['JsonObject'],
+})
+
+StreamShellContextInput = TypedDict('StreamShellContextInput', {
+    'sseConnectPath': Required['str'],
+    'params': Required['JsonObjectInput'],
+    'query': Required['JsonObjectInput'],
 })
 
 Tenant = TypedDict('Tenant', {

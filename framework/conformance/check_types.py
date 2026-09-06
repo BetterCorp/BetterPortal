@@ -61,6 +61,18 @@ renderer = Renderer[TokenLifetimeConfig]({"renderer": "bootstrap5"}, render)
 html = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, renderers=[renderer])
 from betterportal.urls import Urls
 url: str = Urls.path("/hello", {"query": {"count": 42, "missing": None}, "fragment": "nav.profile"})
+from typing import AsyncIterator
+from betterportal.finite import FiniteHandler, StreamRenderers
+from betterportal.streaming import Summary
+async def produce(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> AsyncIterator[TokenLifetimeConfig | Summary[TokenLifetimeConfig]]:
+    yield output
+    yield Summary(output)
+stream_renderers = StreamRenderers[TokenLifetimeConfig, TokenLifetimeConfig]("bootstrap5",
+    lambda data, context: data["sseConnectPath"], lambda data, context: str(data["accessTokenSeconds"]),
+    summary=lambda data, context: str(data["refreshTokenSeconds"]))
+finite = FiniteHandler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig, TokenLifetimeConfig](
+    contract("TokenLifetimeConfigSchema"), produce, summary=contract("TokenLifetimeConfigSchema"),
+    query=contract("ApiAuthRequirementSchema"), stream_renderers=[stream_renderers])
 ''', encoding="utf-8")
 command = [python, "-m", "mypy", "--follow-imports=silent", "--follow-untyped-imports", "--cache-dir", str(root / ".tmp-run/mypy-ports")]
 subprocess.run([*command, str(positive)], env=environment, check=True)
@@ -82,9 +94,11 @@ def bad_render(value: ApiAuthRequirement, context: RenderContext) -> str:
 renderer = Renderer[ApiAuthRequirement]({"renderer": "bootstrap5"}, lambda value, context: 42)
 from betterportal.urls import Urls
 invalid_url = Urls.path("/hello", {"query": {"array": [1]}})
+from betterportal.finite import StreamRenderers
+bad_stream = StreamRenderers[ApiAuthRequirement, ApiAuthRequirement]("bootstrap5", lambda data, context: data["missing"], lambda data, context: 42)
 ''', encoding="utf-8")
 result = subprocess.run([*command, str(negative)], env=environment, capture_output=True, text=True)
-assert result.returncode == 1 and result.stdout.count(": error:") == 11, result.stdout + result.stderr
+assert result.returncode == 1 and result.stdout.count(": error:") == 14, result.stdout + result.stderr
 
 tool = root / "framework/dotnet/BetterPortal.Tool/bin/Debug/net10.0/BetterPortal.Tool.dll"
 subprocess.run(["dotnet", str(tool), "types", "--platform", "--output", str(root / "framework/dotnet/BetterPortal/GeneratedTypes.cs"), "--check"], check=True)
@@ -165,6 +179,19 @@ var handler = new Handler<object?, object?, object?, object?, BetterPortal.Gener
 if (handler.Renderers.Count != 1) throw new System.Exception("Missing typed renderer");
 var url = Urls.Path("/hello", new() { Fragment = "nav.profile", Query = new System.Collections.Generic.Dictionary<string, BetterPortal.Generated.BetterPortalRouteChromeValueInput?> { ["count"] = 42, ["missing"] = null } });
 if (url != "/hello?count=42&_f=nav.profile") throw new System.Exception("Typed URL options changed");
+static async System.Collections.Generic.IAsyncEnumerable<StreamValue<BetterPortal.Generated.ApiAuthRequirement, BetterPortal.Generated.ApiAuthRequirement>> Produce(
+    HandlerContext<object?, object?, object?, object?> context, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellation)
+{
+    await System.Threading.Tasks.Task.CompletedTask;
+    yield return StreamValue<BetterPortal.Generated.ApiAuthRequirement, BetterPortal.Generated.ApiAuthRequirement>.Item(
+        Contracts.Parse<BetterPortal.Generated.ApiAuthRequirement>("ApiAuthRequirementSchema", new BetterPortal.Generated.ApiAuthRequirementInput()));
+}
+var streamed = new FiniteHandler<object?, object?, object?, object?, BetterPortal.Generated.ApiAuthRequirement, BetterPortal.Generated.ApiAuthRequirement>(
+    Contracts.Get("ApiAuthRequirementSchema"), Produce, streamRenderers: new[] {
+        new StreamRenderers<BetterPortal.Generated.ApiAuthRequirement, BetterPortal.Generated.ApiAuthRequirement>("bootstrap5",
+            (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.SseConnectPath),
+            (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.Required.ToString())) });
+if (!streamed.IsStreaming || streamed.StreamRendererKeys.Count != 1) throw new System.Exception("Missing typed stream renderers");
 ''', encoding="utf-8")
 subprocess.run(["dotnet", "run", "--project", str(custom), "-p:UseSharedCompilation=false", "--", str(source), str(bindings)], check=True)
 
@@ -187,6 +214,9 @@ static int InvalidHandler(BetterPortal.HandlerContext<object, ApiAuthRequirement
 var renderer = new BetterPortal.Renderer<ApiAuthRequirement>(new() { Renderer = "bootstrap5" }, (value, context) => 42);
 static string PrivateContext(BetterPortal.RenderContext context) => context.Tenant.Services;
 var urlOptions = new RouteUrlOptionsInput { Absolute = "true" };
+var stream = new BetterPortal.StreamRenderers<ApiAuthRequirement, ApiAuthRequirement>("bootstrap5",
+    (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.Missing),
+    (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.Required.Trim()));
 ''', encoding="utf-8")
 result = subprocess.run(["dotnet", "build", str(negative_dotnet), "-m:1", "-p:UseSharedCompilation=false"], capture_output=True, text=True)
 assert result.returncode != 0 and "CS9035" in result.stdout and "CS0029" in result.stdout and "CS1061" in result.stdout, result.stdout + result.stderr

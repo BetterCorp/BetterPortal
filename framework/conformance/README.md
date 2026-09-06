@@ -3,13 +3,13 @@
 **The full .NET/Python framework delivery is incomplete.** This directory supplies
 canonical AnyVali contracts, native adapters, HTTP schema/security fixtures, and a
 capability ledger. Token and service-envelope interoperability is verified;
-full rendering/stream hosting, route tooling and Bootstrap integration
+subscriber-feed hosting, full theme helpers, route tooling and Bootstrap integration
 remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,186/1,212 schema scenarios](results-anyvali-1.1.1.json).
-Each language runs 54 semantic cases and imports all 148 documents, then repeats
+Published AnyVali **1.1.1** passes [1,210/1,236 schema scenarios](results-anyvali-1.1.1.json).
+Each language runs 57 semantic cases and imports all 149 documents, then repeats
 every case after native export/reimport. It fixes every failure in the original
 1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
 Python wire field names, .NET null defaults and recursive root round trips.
@@ -99,8 +99,8 @@ shared cases use its actual manifest and discovery builders. Native-only cases
 reject duplicate or ambiguous routes and unsafe paths, and publish API contracts
 once for optional path variants; Node currently duplicates those descriptors.
 Authoring declarations are portable projections of the canonical wire contracts,
-excluding derived fields. Finite-stream registration and route-directory
-discovery remain delivery work.
+excluding derived fields. Finite registration is covered below; route-directory
+discovery remains delivery work.
 
 The [mount access suite](results-access.json) passes 130 checks. Shared scenarios
 invoke Node's real H3 operation adapter for selected operation IDs, legacy IDs,
@@ -126,8 +126,8 @@ Every signing language calls every host with user tokens and current role policy
 Native service/delegated checks also bind verified token audiences and permission
 aliases to the local instance mounting the requested operation. Preflights run
 before bearer authentication, and authorization errors preserve trusted CORS
-headers. These are prototype hosts with replaceable snapshots: full settings,
-authorized diagnostics, full theme helpers, finite/SSE stream hosting and full helper contexts
+headers. These are prototype hosts with replaceable snapshots: authorized diagnostics,
+full theme helpers, subscriber-feed hosting and full helper contexts
 remain delivery work. The SDK null/default defect still blocks production use.
 
 The [raw-response suite](results-raw.json) passes 101 checks. Shared cases use the
@@ -148,8 +148,23 @@ selected fragment/component, and async renderer cancellation. Five portable AnyV
 documents define author declarations and presentation/error data; native types
 derive from them. Compiler checks reject private context fields and non-HTML
 results. The [Python 3.13 rendering gate](results-rendering-python313.json) runs the
-same cases. Browser resources, global status renderers and
-stream HTML remain delivery work.
+same cases. Browser resource integration and global status renderers remain
+delivery work. Finite stream HTML is covered below.
+
+The [finite-operation suite](results-finite.json) passes 344 checks through real
+H3, Starlette and ASP.NET registrations. One validated producer supplies bounded
+buffered JSON/HTML, NDJSON and the owning GET operation's SSE endpoint. Shared
+cases cover ordered frames, nullable/omitted summaries, errors, input rejection,
+optional paths, exact themes, stream shells, buffered fragments/components,
+manifest schemas, URL rewriting and all-language JWT verification. Native cases
+also cover HEAD without starting producers, backpressure, cancellation, safe
+render failures, fragment-only mount denial and revoked delegated grants. The
+same [Python 3.13 gate](results-finite-python313.json) runs 344 checks. The canonical
+stream-shell document generates typed callback contexts. Request metadata remains
+lightweight; full streaming schemas are published in the manifest. Existing Node
+query parsing retains the last repeated value and encoded path parameters; ports
+preserve repeated values and decode parameters while all hosts preserve the SSE
+connection URL. Standalone subscriber feeds remain a separate hosting capability.
 
 The [URL suite](results-urls.json) passes 232 checks, also exercised on
 [Python 3.13](results-urls-python313.json). Handler/renderer calls use real hosts
@@ -282,11 +297,12 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 4,646/4,674
-checks across twenty-four suites. Failures are the original SDK probes, the
+[combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 5,014/5,042
+checks across twenty-five suites. Failures are the original SDK probes, the
 context/config null-active regressions and eighteen sensitive-ref regressions.
-This combined report records one full run, including the final installation and
-sync cancellation regressions.
+This combined report records one full run, including the final finite-operation,
+installation and sync cancellation regressions. An earlier run during concurrent
+compiler work hit two installation timeouts; the final serialized run passes both.
 Linux execution is still acceptance work.
 
 ```sh
@@ -319,6 +335,9 @@ python framework/conformance/verify.py --suite sync
 python framework/conformance/verify.py --suite settings
 python framework/conformance/verify.py --suite settings-store
 python framework/conformance/verify.py --suite config-api
+python framework/conformance/verify.py --suite bootstrap
+python framework/conformance/verify.py --suite installation
+python framework/conformance/verify.py --suite finite
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -329,7 +348,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|snapshots|sync|settings|settings-store|config-api|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|raw|rendering|urls|snapshots|sync|settings|settings-store|config-api|bootstrap|installation|finite|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.
@@ -394,6 +413,6 @@ wheel lacks py.typed. Linux execution remains a delivery check.
 [CAPABILITIES.md](CAPABILITIES.md) maps the full requested scope to existing BP
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
-HTTP suite (full rendering/stream hosting, hostname changes,
+HTTP suite (subscriber-feed hosting, global theme helpers, hostname changes,
 authorized diagnostics and generated clients), standalone examples and CI remains
 incomplete. Publishing and BSB plugins remain separate follow-ups.

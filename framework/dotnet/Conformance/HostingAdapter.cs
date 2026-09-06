@@ -56,36 +56,70 @@ internal static class HostingAdapter
                     return new Node { ["params"] = context.Params, ["query"] = context.Query, ["request"] = context.Request, ["multipart"] = request.Multipart,
                         ["tenantId"] = request.Scope.TenantId, ["appId"] = request.Scope.AppId, ["caller"] = request.Caller.Mode, ["user"] = request.Caller.User?.GetValueOrDefault("sub") };
                 }
-                Handler handler = spec.ContainsKey("raw") && spec.GetValueOrDefault("jsonHandler") is not true
-                    ? new RawHandler<object?, object?, object?, object?>(async context => (RawResponse)(await Execute(context))!, Schema("params"), Schema("query"), Schema("headers"), Schema("request"))
-                    : new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(spec["response"])), Execute, Schema("params"), Schema("query"), Schema("headers"), Schema("request"),
-                        ((List<object?>)spec.GetValueOrDefault("renderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<object?>(
-                            Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), async (data, context) =>
+                async ValueTask<string> Render(Node item, object? data, RenderContext context)
+                {
+                    if (item.GetValueOrDefault("wait") is true)
+                    {
+                        started.TrySetResult();
+                        try { await Task.Delay(30000, context.Cancellation); }
+                        finally { cancelled = true; finished.TrySetResult(); }
+                    }
+                    if (item.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-render-secret");
+                    if (item.TryGetValue("text", out var text)) return (string)text!;
+                    return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(item.GetValueOrDefault("urlCalls") is List<object?> calls
+                        ? UrlCalls(context.Urls, calls) : item.GetValueOrDefault("dataOnly") is true ? data : new { data, context = context.Data })) + "</pre>";
+                }
+                var renderers = ((List<object?>)spec.GetValueOrDefault("renderers", new List<object?>())!).Cast<Node>().ToArray();
+                Handler handler;
+                if (spec.GetValueOrDefault("finite") is Node finite)
+                {
+                    async IAsyncEnumerable<StreamValue<object?, object?>> Produce(HandlerContext<object?, object?, object?, object?> context,
+                        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation)
+                    {
+                        Interlocked.Increment(ref invoked); hasStream = true;
+                        try
+                        {
+                            foreach (var value in (List<object?>)finite.GetValueOrDefault("items", new List<object?>())!)
                             {
-                                if (item.GetValueOrDefault("wait") is true)
+                                stream["reads"] = Convert.ToInt32(stream["reads"]) + 1;
+                                if (finite.GetValueOrDefault("wait") is true && Convert.ToInt32(stream["reads"]) == 2)
                                 {
                                     started.TrySetResult();
-                                    try { await Task.Delay(30000, context.Cancellation); }
-                                    finally { cancelled = true; finished.TrySetResult(); }
+                                    try { await Task.Delay(30000, cancellation); }
+                                    finally { cancelled = true; }
                                 }
-                                if (item.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-render-secret");
-                                if (item.TryGetValue("text", out var text)) return (string)text!;
-                                return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(item.GetValueOrDefault("urlCalls") is List<object?> calls ? UrlCalls(context.Urls, calls) : new { data, context = context.Data })) + "</pre>";
-                            })));
+                                yield return StreamValue<object?, object?>.Item(value);
+                            }
+                            if (finite.GetValueOrDefault("contextItem") is true)
+                            {
+                                Interlocked.Decrement(ref invoked); yield return StreamValue<object?, object?>.Item(await Execute(context));
+                            }
+                            if (finite.GetValueOrDefault("fail") is true) throw new InvalidOperationException("private-stream-secret");
+                            if (finite.TryGetValue("summary", out var summary)) yield return StreamValue<object?, object?>.Summary(summary);
+                            foreach (var value in (List<object?>)finite.GetValueOrDefault("afterSummary", new List<object?>())!)
+                                yield return StreamValue<object?, object?>.Item(value);
+                        }
+                        finally { stream["closed"] = true; finished.TrySetResult(); }
+                    }
+                    handler = new FiniteHandler<object?, object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(finite["itemSchema"])), Produce,
+                        finite.TryGetValue("summarySchema", out var summary) ? Contracts.Import(Json.Write(summary)) : null,
+                        Schema("params"), Schema("query"), Schema("headers"), Schema("request"),
+                        renderers.Select(item => new Renderer<Node>(Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]),
+                            (data, context) => Render(item, data, context))),
+                        ((List<object?>)spec.GetValueOrDefault("streamRenderers", new List<object?>())!).Cast<Node>().Select(item => new StreamRenderers<object?, object?>(
+                            (string)item["renderer"]!, (data, context) => Render((Node)item["shell"]!, data, context), (data, context) => Render((Node)item["item"]!, data, context),
+                            item.TryGetValue("summary", out var renderSummary) ? (data, context) => Render((Node)renderSummary!, data, context) : null,
+                            item.TryGetValue("error", out var renderError) ? (data, context) => Render((Node)renderError!, data, context) : null)),
+                        Convert.ToInt32(finite.GetValueOrDefault("maxFrameBytes", 1024 * 1024)), Convert.ToInt32(finite.GetValueOrDefault("maxItems", 10000)), Convert.ToInt32(finite.GetValueOrDefault("maxBytes", 8 * 1024 * 1024)));
+                }
+                else handler = spec.ContainsKey("raw") && spec.GetValueOrDefault("jsonHandler") is not true
+                    ? new RawHandler<object?, object?, object?, object?>(async context => (RawResponse)(await Execute(context))!, Schema("params"), Schema("query"), Schema("headers"), Schema("request"))
+                    : new Handler<object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(spec["response"])), Execute, Schema("params"), Schema("query"), Schema("headers"), Schema("request"),
+                        renderers.Select(item => new Renderer<object?>(Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]),
+                            (data, context) => Render(item, data, context))));
                 return new Operation(handler, Contracts.Parse<BetterPortal.Generated.OperationDeclarationInput>("OperationDeclarationSchema", spec["declaration"]),
                     ((List<object?>)spec.GetValueOrDefault("errorRenderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<BetterPortal.Generated.ViewRenderError>(
-                        Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), async (data, context) =>
-                        {
-                            if (item.GetValueOrDefault("wait") is true)
-                            {
-                                started.TrySetResult();
-                                try { await Task.Delay(30000, context.Cancellation); }
-                                finally { cancelled = true; finished.TrySetResult(); }
-                            }
-                            if (item.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-render-secret");
-                            if (item.TryGetValue("text", out var text)) return (string)text!;
-                            return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(item.GetValueOrDefault("urlCalls") is List<object?> calls ? UrlCalls(context.Urls, calls) : new { data, context = context.Data })) + "</pre>";
-                        })));
+                        Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), (data, context) => Render(item, data, context))));
             }), ((List<object?>)item.GetValueOrDefault("pathVariants", new List<object?>())!).Cast<string>())),
             ((Node)body.GetValueOrDefault("dependencies", new Node())!).ToDictionary(pair => pair.Key, pair => (string)pair.Value!));
         await using var service = new Service(registry, Contracts.Parse<BetterPortal.Generated.ManifestDeclarationInput>("ManifestDeclarationSchema", body["declaration"]),

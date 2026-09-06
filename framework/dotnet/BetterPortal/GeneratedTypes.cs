@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 5c52cf13a1b3d049577aa95c6db6faf925b4e81cbb8346b5287f2cc961e955ab
+// Generated from AnyVali documents; do not edit. SHA256: ab878120e98aff2eb903f847990377d7876b114441b0b37793bb07a0d0af8645
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -11599,6 +11599,26 @@ public enum StreamErrorFrameKind
 {
     [JsonStringEnumMemberName("error")]
     Error,
+}
+
+public sealed record StreamShellContext
+{
+    [JsonPropertyName("sseConnectPath")]
+    public required string SseConnectPath { get; init; }
+    [JsonPropertyName("params")]
+    public required JsonObject Params { get; init; }
+    [JsonPropertyName("query")]
+    public required JsonObject Query { get; init; }
+}
+
+public sealed record StreamShellContextInput
+{
+    [JsonPropertyName("sseConnectPath")]
+    public required string SseConnectPath { get; init; }
+    [JsonPropertyName("params")]
+    public required JsonObjectInput Params { get; init; }
+    [JsonPropertyName("query")]
+    public required JsonObjectInput Query { get; init; }
 }
 
 public sealed record Tenant

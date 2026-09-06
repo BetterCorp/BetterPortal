@@ -50,6 +50,14 @@ public abstract class Handler
 {
     public abstract Schema? ResponseSchema { get; }
     public virtual bool IsRaw => false;
+    public virtual bool IsStreaming => false;
+    public virtual IReadOnlyCollection<string> StreamRendererKeys => [];
+    public virtual Dictionary<string, object?>? StreamingMetadata => null;
+    public virtual RawResponse OpenStream(RequestContext context, IReadOnlyDictionary<string, object?> values, bool sse = false,
+        Func<string, object?, object?, RenderContext>? renderContext = null, CancellationToken cancellation = default)
+        => throw new InvalidOperationException("Handler does not stream");
+    public virtual ValueTask<string?> StreamShell(RequestContext context, IReadOnlyDictionary<string, object?> values, string connectionPath, string mode,
+        Func<string, object?, object?, RenderContext> renderContext, CancellationToken cancellation = default) => ValueTask.FromResult<string?>(null);
     public virtual IReadOnlyList<Renderer> Renderers => [];
     public abstract IReadOnlyDictionary<string, Schema> Schemas { get; }
     public Dictionary<string, object?> InputDocument => Contracts.ObjectDocument(new[] { "params", "query", "headers", "request" }.ToDictionary(name => name,

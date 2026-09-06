@@ -2,6 +2,7 @@ import * as av from "anyvali";
 import { createBetterPortalApp, handleCorsRequest, eventHeaders } from "../nodejs/lib/runtime/h3.js";
 import { createH3Router, registerBpWellKnownRoutes } from "../nodejs/lib/adapters/h3.js";
 import { createHandler, createRawHandler } from "../nodejs/lib/runtime/handler.js";
+import { createStreamHandler } from "../nodejs/lib/runtime/streamHandler.js";
 import { ScopedServiceConfigSchema } from "../nodejs/lib/contracts/scopedConfig.js";
 import { MultipartRequestSchema } from "../nodejs/lib/contracts/route.js";
 import { resolveRequestContextDetailed, buildOriginPolicy } from "../nodejs/lib/runtime/configProvider.js";
@@ -27,7 +28,7 @@ export async function hostingRequest(body) {
       const schemas = { response: av.importSchema(spec.response), multipart: MultipartRequestSchema,
         ...Object.fromEntries(Object.entries(spec.schemas ?? {}).map(([key, value]) => [key, av.importSchema(value)])) };
       const declaration = av.importSchema(JSON.parse(body.operationDocument)).parse(spec.declaration);
-      const handler = (spec.raw && !spec.jsonHandler ? createRawHandler : createHandler)(schemas, context => {
+      const run = context => {
         invoked++;
         if (spec.status !== undefined) context.setStatus(spec.status);
         for (const [key, value] of spec.responseHeaders ?? []) context.responseHeaders.append(key, value);
@@ -45,7 +46,20 @@ export async function hostingRequest(body) {
         const value = { params: context.params, query: context.query, request: context.request, multipart: form ? context.multipart ?? null : null,
           tenantId: context.tenant.id, appId: context.app.id, caller: context.callerMode ?? null, user: context.user?.sub ?? null };
         return JSON.parse(JSON.stringify(value, (_key, item) => item instanceof Uint8Array ? Array.from(item) : item));
-      });
+      };
+      let handler;
+      if (spec.finite) {
+        schemas.item = av.importSchema(spec.finite.itemSchema);
+        if (spec.finite.summarySchema) schemas.summary = av.importSchema(spec.finite.summarySchema);
+        handler = createStreamHandler(schemas, async function* (context) {
+          invoked++;
+          for (const item of spec.finite.items ?? []) yield item;
+          if (spec.finite.contextItem) { invoked--; yield run(context); }
+          if (spec.finite.fail) throw new Error("private-stream-secret");
+          return spec.finite.summary;
+        });
+        schemas.response = handler.responseSchema;
+      } else handler = (spec.raw && !spec.jsonHandler ? createRawHandler : createHandler)(schemas, run);
       return [declaration.method, { ...declaration, schemas, handler, ...(spec.raw ? { raw: true } : {}) }];
     }));
     const primary = methodRoutes.GET ?? Object.values(methodRoutes)[0];

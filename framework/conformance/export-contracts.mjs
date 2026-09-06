@@ -164,6 +164,9 @@ portable("ViewRenderDataSchema", objectNode({
     mode: sourceNode("RenderModeSchema"), kind, key: node(av.optional(av.string().minLength(1))), status: node(av.int().min(200).max(599)) })
 }));
 portable("ViewRenderErrorSchema", objectNode({ error: node(av.string()), status: node(av.int().min(400).max(599)) }));
+// contracts/streaming.ts StreamShellContext; render callbacks remain native functions.
+portable("StreamShellContextSchema", objectNode({ sseConnectPath: node(av.string().minLength(1)),
+  params: sourceNode("JsonObjectSchema"), query: sourceNode("JsonObjectSchema") }, "reject"));
 
 // Portable declarations for the URL/element interfaces in route.ts and registry.ts.
 const scalar = av.union([av.string(), av.number(), av.bool()]);

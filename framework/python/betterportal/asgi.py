@@ -5,7 +5,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from typing import Any, Coroutine, TypeVar, cast
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, quote
 
 from starlette.applications import Starlette
 from starlette.datastructures import UploadFile
@@ -27,6 +27,7 @@ from .rendering import RenderContext, content_type as html_content_type, select 
 from .service import RequestError, Service
 from .sync import ControlPlaneSync
 from .installation import ServiceInstallation
+from .finite import FiniteHandler
 
 _SINGLE = {"host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"}
 
@@ -176,7 +177,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
         return JSONResponse({"error": "Route not found" if status == 404 else "Method not allowed" if status == 405 else "Request failed"}, status_code=status,
                             headers=exception.headers if isinstance(exception, HTTPException) else None)
 
-    def endpoint(operations: dict[str, tuple[Route, str]]):
+    def endpoint(operations: dict[str, tuple[Route, str]], *, sse: bool = False):
         async def handle(request: Request) -> Response:
             response_headers = {"vary": "Origin"}
             failure_scope = None; operation = None; route = None; representation = None
@@ -211,11 +212,22 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                     return JSONResponse(service.metadata(route, operation, matched), headers=response_headers, media_type="application/vnd.betterportal.metadata+json")
                 value, multipart = await _decode(request, body)
                 context = replace(context, multipart=multipart)
+                values = {"params": params, "query": query, "headers": headers, "request": value}
+                def stream_context(theme, parsed_params, parsed_query):
+                    return RenderContext.create(context, route.view_id, matched, theme, "fragment", "page", None, 200, parsed_params, parsed_query)
+                if isinstance(operation.handler, FiniteHandler) and (sse or representation is not None and representation.kind == "ndjson"):
+                    return _RawReply(operation.handler.open_stream(context, values, sse=sse, render_context=stream_context), response_headers, head=request.method == "HEAD")
+                if isinstance(operation.handler, FiniteHandler) and requested == "GET" and kind == "page" and representation is not None and representation.kind == "html":
+                    connection = quote(request.url.path.rstrip("/"), safe="/:@!$&'()*+,;=-._~") + "/__sse"
+                    if request.scope["query_string"]: connection += "?" + quote(request.scope["query_string"].decode("utf-8"), safe="!$&'()*+,-./:;=?@_~%")
+                    shell = await operation.handler.shell(context, values, connection, representation.mode or "page", stream_context)
+                    if shell is not None:
+                        return _RawReply(RawResponse(shell.encode("utf-8"), headers={"content-type": html_content_type("fragment", operation.declaration.get("chrome")), "cache-control": "no-store"}), response_headers, head=request.method == "HEAD")
                 if representation is not None and representation.kind == "html":
                     theme = context.scope.app.get("shell", {}).get("renderer")
                     if not any(item.identity[:3] == (theme, kind, key) for item in operation.handler.renderers):
                         raise NotAcceptable("Requested renderer is not available")
-                output = await operation.execute(context, {"params": params, "query": query, "headers": headers, "request": value})
+                output = await operation.execute(context, values)
                 if operation.handler.is_raw: return _RawReply(output.value, response_headers, head=request.method == "HEAD")
                 status = context.response.status
                 application_headers = [(name, value) for name, value in context.response.headers if name.lower() != "content-type"]
@@ -233,6 +245,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 return _RawReply(RawResponse(content, status=status, headers=[*application_headers, ("content-type", "application/json")]), response_headers, head=request.method == "HEAD")
             try:
                 headers = _headers(request); query = _query(request.scope["query_string"])
+                if sse and ("_f" in query or "_c" in query): raise RequestError(400, "Stream connections do not accept renderer selectors")
                 fragment = query.get("_f")
                 if fragment is not None and not isinstance(fragment, str): raise RequestError(400, "Invalid fragment selector")
                 requested = headers.get("access-control-request-method", "") if request.method == "OPTIONS" else "GET" if request.method == "HEAD" else request.method
@@ -245,8 +258,14 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 operation = next(item for item in route.operations if item.method == requested)
                 representation = None; negotiation_error = None
                 try:
-                    if not operation.handler.is_raw: representation = negotiate(headers.get("accept"), ("json", "metadata", "html") if operation.handler.renderers or operation.error_renderers else ("json", "metadata"))
+                    if not operation.handler.is_raw and not sse:
+                        offers = ["json", "metadata"]
+                        if operation.handler.renderers or operation.error_renderers or isinstance(operation.handler, FiniteHandler) and operation.handler.stream_renderers: offers.append("html")
+                        if isinstance(operation.handler, FiniteHandler): offers.append("ndjson")
+                        representation = negotiate(headers.get("accept"), offers)
                 except NotAcceptable as error: negotiation_error = error
+                if representation is not None and representation.kind == "ndjson" and ("_f" in query or "_c" in query or representation.fragment is not None):
+                    raise RequestError(400, "Stream connections do not accept renderer selectors")
                 fragment = fragment if fragment is not None else representation.fragment if representation is not None else None
                 component = query.get("_c")
                 if component is not None and not isinstance(component, str) or fragment is not None and component is not None:
@@ -331,8 +350,6 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
     paths.append("/.well-known/bp/config")
     routes.append(HttpRoute(paths[-1], config_endpoint, methods=["GET", "POST", "OPTIONS"]))
     entries = [(route, path) for route in service.registry.routes for path in route.paths]
-    # Starlette matches in declaration order. Static segments precede parameter segments.
-    entries.sort(key=lambda entry: tuple(part.startswith(":") for part in _segments(entry[1])))
     groups: dict[str, dict[str, tuple[Route, str]]] = {}
     for route, path in entries:
         if path in paths: raise ValueError("Route conflicts with BP discovery: " + path)
@@ -340,6 +357,13 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
         groups.setdefault(pattern, {}).update({item.method: (route, path) for item in route.operations})
     for pattern, operations in groups.items():
         routes.append(HttpRoute(pattern, endpoint(operations), methods=[*operations, "OPTIONS"]))
+    for pattern, operations in groups.items():
+        if "GET" in operations and isinstance(next(item for item in operations["GET"][0].operations if item.method == "GET").handler, FiniteHandler):
+            stream_path = pattern.rstrip("/") + "/__sse"
+            if stream_path in groups: raise ValueError("Route conflicts with finite SSE: " + stream_path)
+            routes.append(HttpRoute(stream_path, endpoint({"GET": operations["GET"]}, sse=True), methods=["GET", "OPTIONS"]))
+    # Include generated SSE paths in Starlette's static-before-parameter ordering.
+    routes.sort(key=lambda route: tuple(part.startswith("{") for part in route.path.split("/")))
     app = Starlette(routes=routes, lifespan=lifespan, exception_handlers={HTTPException: error, Exception: error})
     app.router.redirect_slashes = False
     return app

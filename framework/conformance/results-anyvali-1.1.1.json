@@ -1,6 +1,6 @@
 {
-  "scenarios": 1212,
-  "passed": 1186,
+  "scenarios": 1236,
+  "passed": 1210,
   "results": [
     {
       "runtime": "node",
@@ -278,6 +278,21 @@
     },
     {
       "runtime": "node",
+      "id": "stream-shell-recursive",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-required-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-unknown-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema",
       "passed": true
     },
@@ -904,6 +919,11 @@
     {
       "runtime": "node",
       "id": "import-StreamErrorFrameSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-StreamShellContextSchema",
       "passed": true
     },
     {
@@ -1292,6 +1312,21 @@
     },
     {
       "runtime": "node",
+      "id": "stream-shell-recursive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-required-path-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-unknown-rejected-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-AdminApiDescriptorSchema-roundtrip",
       "passed": true
     },
@@ -1922,6 +1957,11 @@
     },
     {
       "runtime": "node",
+      "id": "import-StreamShellContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
       "id": "import-TenantAppValidationSchema-roundtrip",
       "passed": true
     },
@@ -2303,6 +2343,21 @@
     {
       "runtime": "python",
       "id": "config-write-response-reject-false",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-recursive",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-required-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-unknown-rejected",
       "passed": true
     },
     {
@@ -2937,6 +2992,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-StreamShellContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-TenantAppValidationSchema",
       "passed": true
     },
@@ -3318,6 +3378,21 @@
     {
       "runtime": "python",
       "id": "config-write-response-reject-false-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-recursive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-required-path-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-unknown-rejected-roundtrip",
       "passed": true
     },
     {
@@ -3952,6 +4027,11 @@
     },
     {
       "runtime": "python",
+      "id": "import-StreamShellContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
       "id": "import-TenantAppValidationSchema-roundtrip",
       "passed": true
     },
@@ -4332,6 +4412,21 @@
     {
       "runtime": "dotnet",
       "id": "config-write-response-reject-false",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-recursive",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-required-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-unknown-rejected",
       "passed": true
     },
     {
@@ -4966,6 +5061,11 @@
     },
     {
       "runtime": "dotnet",
+      "id": "import-StreamShellContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
       "id": "import-TenantAppValidationSchema",
       "passed": true
     },
@@ -5346,6 +5446,21 @@
     {
       "runtime": "dotnet",
       "id": "config-write-response-reject-false-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-recursive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-required-path-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-unknown-rejected-roundtrip",
       "passed": true
     },
     {
@@ -5976,6 +6091,11 @@
     {
       "runtime": "dotnet",
       "id": "import-StreamErrorFrameSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-StreamShellContextSchema-roundtrip",
       "passed": true
     },
     {

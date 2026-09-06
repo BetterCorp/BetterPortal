@@ -12,6 +12,13 @@ public sealed class SubscriptionOverflowException() : Exception("SSE subscriber 
 
 public static class SseWire
 {
+    public static async ValueTask<byte[]> Encode(SseItem<string> item, int maxDataBytes = 1024 * 1024, CancellationToken cancellation = default)
+    {
+        using var output = new MemoryStream();
+        await Write(One(), output, maxDataBytes, cancellation);
+        return output.ToArray();
+        async IAsyncEnumerable<SseItem<string>> One() { await Task.CompletedTask; yield return item; }
+    }
     private static readonly UTF8Encoding Utf8 = new(false, true);
     internal static void CheckName(string? value)
     {

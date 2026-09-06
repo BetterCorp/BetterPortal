@@ -32,6 +32,19 @@ internal static class RegistryAdapter
                     ((List<object?>)operation.GetValueOrDefault("renderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<object?>(
                         Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), (data, context) => "")));
                 // Validate JSON before generated decoding so unknown declaration fields cannot disappear.
+                if (operation.GetValueOrDefault("finite") is Node finite)
+                {
+                    async IAsyncEnumerable<StreamValue<object?, object?>> Empty(HandlerContext<object?, object?, object?, object?> context,
+                        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation)
+                    { await Task.CompletedTask; yield break; }
+                    handler = new FiniteHandler<object?, object?, object?, object?, object?, object?>(Contracts.Import(Json.Write(finite["itemSchema"])), Empty,
+                        finite.TryGetValue("summarySchema", out var summary) ? Contracts.Import(Json.Write(summary)) : null,
+                        Schema("params"), Schema("query"), Schema("headers"), Schema("request"),
+                        ((List<object?>)operation.GetValueOrDefault("renderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<Node>(
+                            Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), (data, context) => "")),
+                        ((List<object?>)operation.GetValueOrDefault("streamRenderers", new List<object?>())!).Cast<Node>().Select(item => new StreamRenderers<object?, object?>(
+                            (string)item["renderer"]!, (data, context) => ValueTask.FromResult(""), (data, context) => ValueTask.FromResult(""))));
+                }
                 var declaration = Contracts.Parse<BetterPortal.Generated.OperationDeclarationInput>("OperationDeclarationSchema", operation["declaration"]);
                 operations.Add(new(handler, declaration));
             }

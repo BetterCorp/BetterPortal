@@ -9,18 +9,21 @@ public sealed class RawResponse : IAsyncDisposable
     private static readonly HashSet<string> TransportHeaders = new(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "content-length"], StringComparer.OrdinalIgnoreCase);
     public ReadOnlyMemory<byte> Body { get; }
     public Stream? BodyStream { get; }
+    public IAsyncEnumerable<byte[]>? BodyChunks { get; }
     public int Status { get; }
     public IReadOnlyList<KeyValuePair<string, string>> Headers { get; }
     private bool closed;
 
     public RawResponse(ReadOnlyMemory<byte> body = default, int status = 200, IEnumerable<KeyValuePair<string, string>>? headers = null)
-        : this(body, null, status, headers) { }
+        : this(body, null, null, status, headers) { }
     public RawResponse(Stream body, int status = 200, IEnumerable<KeyValuePair<string, string>>? headers = null)
-        : this(default, body ?? throw new ArgumentNullException(nameof(body)), status, headers) { }
-    private RawResponse(ReadOnlyMemory<byte> body, Stream? stream, int status, IEnumerable<KeyValuePair<string, string>>? headers)
+        : this(default, body ?? throw new ArgumentNullException(nameof(body)), null, status, headers) { }
+    public RawResponse(IAsyncEnumerable<byte[]> body, int status = 200, IEnumerable<KeyValuePair<string, string>>? headers = null)
+        : this(default, null, body ?? throw new ArgumentNullException(nameof(body)), status, headers) { }
+    private RawResponse(ReadOnlyMemory<byte> body, Stream? stream, IAsyncEnumerable<byte[]>? chunks, int status, IEnumerable<KeyValuePair<string, string>>? headers)
     {
         if (status is < 200 or > 599) throw new ArgumentException("Invalid final response status");
-        if (status is 204 or 205 or 304 && (!body.IsEmpty || stream is not null)) throw new ArgumentException("Response status forbids a body");
+        if (status is 204 or 205 or 304 && (!body.IsEmpty || stream is not null || chunks is not null)) throw new ArgumentException("Response status forbids a body");
         if (stream is not null && !stream.CanRead) throw new ArgumentException("Raw response stream must be readable");
         var pairs = (headers ?? []).ToArray();
         if (pairs.Sum(pair => (long)pair.Key.Length + pair.Value.Length) > 65536) throw new ArgumentException("Response headers are too large");
@@ -31,7 +34,7 @@ public sealed class RawResponse : IAsyncDisposable
             if (TransportHeaders.Contains(name) || name.StartsWith("access-control-", StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("Response header is owned by the host");
         }
-        Body = body.ToArray(); BodyStream = stream; Status = status; Headers = Array.AsReadOnly(pairs);
+        Body = body.ToArray(); BodyStream = stream; BodyChunks = chunks; Status = status; Headers = Array.AsReadOnly(pairs);
     }
     private static Dictionary<string, string> FileHeaders(string filename, string contentType, bool inline)
     {

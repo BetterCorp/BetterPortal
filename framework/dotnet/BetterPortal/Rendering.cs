@@ -56,13 +56,15 @@ public abstract class Renderer
         }
         return result + "; charset=utf-8";
     }
-    internal static Node HtmlMetadata(IEnumerable<Renderer> values)
+    internal static Node HtmlMetadata(IEnumerable<Renderer> values, IEnumerable<string>? streams = null)
     {
         var result = new Node();
-        foreach (var group in values.Where(item => item.Identity.Status == 200).GroupBy(item => item.Identity.Renderer))
+        var groups = values.Where(item => item.Identity.Status == 200).ToLookup(item => item.Identity.Renderer);
+        var streamKeys = (streams ?? []).ToHashSet(StringComparer.Ordinal);
+        foreach (var theme in groups.Select(group => group.Key).Concat(streamKeys).Distinct(StringComparer.Ordinal))
         {
             var modes = new List<string>(); var variants = new List<Node>();
-            foreach (var entry in group)
+            foreach (var entry in groups[theme])
             {
                 if (entry.Identity.Kind == "page")
                 {
@@ -75,7 +77,8 @@ public abstract class Renderer
                     variants.Add(new() { ["id"] = entry.Identity.Key, ["title"] = entry.Identity.Key, ["slotId"] = entry.Identity.Key, ["renderModes"] = new[] { "fragment" } });
                 }
             }
-            result[group.Key] = new Node { ["defaultRenderer"] = "default", ["renderModes"] = modes.Distinct().ToArray(),
+            if (streamKeys.Contains(theme)) modes.Add("fragment");
+            result[theme] = new Node { ["defaultRenderer"] = "default", ["renderModes"] = modes.Distinct().ToArray(),
                 ["slots"] = variants.Select(item => item["slotId"]).Distinct().ToArray(), ["renderers"] = variants };
         }
         return (Node)Contracts.Parse("HtmlRepresentationSupportSchema", new Node { ["renderers"] = result })!;

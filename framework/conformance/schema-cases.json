@@ -1041,5 +1041,69 @@
       "ok": false
     },
     "valid": false
+  },
+  {
+    "id": "stream-shell-recursive",
+    "contract": "StreamShellContextSchema",
+    "input": {
+      "sseConnectPath": "/rows/__sse?x=1",
+      "params": {
+        "id": null
+      },
+      "query": {
+        "nested": [
+          null,
+          true,
+          {
+            "x": 1
+          }
+        ]
+      }
+    },
+    "output": {
+      "sseConnectPath": "/rows/__sse?x=1",
+      "params": {
+        "id": null
+      },
+      "query": {
+        "nested": [
+          null,
+          true,
+          {
+            "x": 1
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "stream-shell-required-path",
+    "contract": "StreamShellContextSchema",
+    "input": {
+      "params": {},
+      "query": {}
+    },
+    "valid": false
+  },
+  {
+    "id": "stream-shell-unknown-rejected",
+    "contract": "StreamShellContextSchema",
+    "input": {
+      "sseConnectPath": "/rows/__sse?x=1",
+      "params": {
+        "id": null
+      },
+      "query": {
+        "nested": [
+          null,
+          true,
+          {
+            "x": 1
+          }
+        ]
+      },
+      "private": "hidden"
+    },
+    "valid": false
   }
 ]

@@ -16,6 +16,7 @@ public sealed class Operation
     public Operation(Handler handler, Generated.OperationDeclarationInput declaration, IEnumerable<Renderer<Generated.ViewRenderError>>? errorRenderers = null)
     {
         Handler = handler; this.declaration = (Node)Contracts.Parse("OperationDeclarationSchema", declaration)!;
+        if (handler.IsStreaming && Method != "GET") throw new ArgumentException("Finite streams require a GET operation");
         ErrorRenderers = Renderer.Unique(errorRenderers ?? []);
         if (ErrorRenderers.Any(item => item.Identity.Status < 400)) throw new ArgumentException("Error renderers require an error status");
     }
@@ -48,7 +49,8 @@ public sealed class Operation
             result[target] = Handler.Schemas.TryGetValue(source, out var schema) ? Export(schema) : new Node();
         result["jsonResponseSchema"] = Handler.ResponseSchema is { } response ? Export(response) : new Node(); result["metadataResponseSchema"] = new Node();
         if (Handler.IsRaw) result["raw"] = true;
-        var html = Renderer.HtmlMetadata(Handler.Renderers);
+        if (Handler.StreamingMetadata is { } streaming) result["streaming"] = streaming;
+        var html = Renderer.HtmlMetadata(Handler.Renderers, Handler.StreamRendererKeys);
         result["renderable"] = ((Node)html["renderers"]!).Count > 0; result["html"] = html;
         result.TryAdd("sitemap", new Node { ["kind"] = "default" });
         foreach (var dependency in ((List<object?>)result["dependencies"]!).Cast<Node>())
@@ -147,6 +149,14 @@ public sealed class Registry
         var capabilities = ((List<object?>)result["capabilities"]!).Cast<string>().Concat(["view.json", "view.metadata"]).ToList();
         var renderers = new List<string>(); var modes = new List<string>();
         if (result.TryGetValue("shell", out var shell)) { renderers.Add((string)((Node)shell!)["renderer"]!); capabilities.Add("renderer." + renderers[0]); }
+        foreach (var handler in Routes.SelectMany(route => route.Operations).Select(operation => operation.Handler).Where(handler => handler.IsStreaming))
+        {
+            capabilities.Add("stream.ndjson");
+            foreach (var theme in handler.StreamRendererKeys)
+            {
+                renderers.Add(theme); modes.Add("fragment"); capabilities.AddRange(["renderer." + theme, "view.sse-render", "view.html"]);
+            }
+        }
         foreach (var renderer in Routes.SelectMany(route => route.Operations).SelectMany(operation => operation.Handler.Renderers))
         {
             var (theme, kind, _, status) = renderer.Identity;
@@ -176,7 +186,8 @@ public sealed class Registry
         {
             ["viewId"] = route.ViewId, ["path"] = route.Paths[0], ["pathVariants"] = route.Paths.Count > 1 ? route.Paths : [],
             ["operations"] = route.Operations.Select(operation => new { operationId = operation.Id, method = operation.Method }).ToArray(),
-            ["paramNames"] = route.ParamNames, ["renderers"] = RouteRenderers(route).Select(item => item.Renderer.Identity.Renderer).Distinct().ToArray(),
+            ["paramNames"] = route.ParamNames, ["renderers"] = RouteRenderers(route).Select(item => item.Renderer.Identity.Renderer)
+                .Concat(route.Operations.SelectMany(operation => operation.Handler.StreamRendererKeys)).Distinct().ToArray(),
             ["hasFragments"] = RouteRenderers(route).Any(item => item.Renderer.Identity.Kind == "fragment"),
             ["fragments"] = RouteRenderers(route).Where(item => item.Renderer.Identity.Kind == "fragment")
                 .GroupBy(item => (item.Renderer.Identity.Key, item.Operation.Id, item.Operation.Method)).Select(group => new Node {

@@ -129,9 +129,17 @@ public static class Hosting
             foreach (var (name, value) in headers)
                 if (name.Equals("vary", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.Append(name, value);
                 else context.Response.Headers[name] = value;
-            if (raw.BodyStream is null && raw.Status is not (204 or 304)) context.Response.ContentLength = raw.Body.Length;
+            if (raw.BodyStream is null && raw.BodyChunks is null && raw.Status is not (204 or 304)) context.Response.ContentLength = raw.Body.Length;
             if (context.Request.Method == "HEAD" || raw.Status is 204 or 205 or 304) return;
-            if (raw.BodyStream is not null) await raw.BodyStream.CopyToAsync(context.Response.Body, context.RequestAborted);
+            if (raw.BodyChunks is not null)
+            {
+                await foreach (var chunk in raw.BodyChunks.WithCancellation(context.RequestAborted))
+                {
+                    await context.Response.Body.WriteAsync(chunk, context.RequestAborted);
+                    await context.Response.Body.FlushAsync(context.RequestAborted);
+                }
+            }
+            else if (raw.BodyStream is not null) await raw.BodyStream.CopyToAsync(context.Response.Body, context.RequestAborted);
             else await context.Response.Body.WriteAsync(raw.Body, context.RequestAborted);
         }
     }
@@ -223,7 +231,15 @@ public static class Hosting
             if (!groups.TryGetValue(pattern, out var methods)) groups[pattern] = methods = new(StringComparer.Ordinal);
             foreach (var operation in route.Operations) methods.Add(operation.Method, (route, path));
         }
-        foreach (var (pattern, operations) in groups) endpoints.MapMethods(pattern, operations.Keys.Concat(operations.ContainsKey("GET") ? ["HEAD", "OPTIONS"] : new[] { "OPTIONS" }).Distinct(), async (HttpContext context) =>
+        var bindings = groups.Select(pair => (Pattern: pair.Key, Operations: pair.Value, Sse: false)).ToList();
+        foreach (var (pattern, operations) in groups)
+            if (operations.TryGetValue("GET", out var get) && get.Route.Operations.Single(item => item.Method == "GET").Handler.IsStreaming)
+            {
+                var path = pattern.TrimEnd('/') + "/__sse";
+                if (groups.ContainsKey(path)) throw new ArgumentException("Route conflicts with finite SSE: " + path);
+                bindings.Add((path, new() { ["GET"] = get }, true));
+            }
+        foreach (var (pattern, operations, sse) in bindings) endpoints.MapMethods(pattern, operations.Keys.Concat(operations.ContainsKey("GET") ? ["HEAD", "OPTIONS"] : new[] { "OPTIONS" }).Distinct(), async (HttpContext context) =>
         {
             IReadOnlyDictionary<string, string> responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin" };
             ScopedContext? failureScope = null; Operation? operation = null; Route? route = null; Representation? representation = null;
@@ -251,6 +267,7 @@ public static class Hosting
             try
             {
                 headers = Headers(context.Request); query = Pairs(context.Request.QueryString.Value ?? "");
+                if (sse && (query.ContainsKey("_f") || query.ContainsKey("_c"))) throw new RequestException(400, "Stream connections do not accept renderer selectors");
                 if (query.GetValueOrDefault("_f") is { } selector && selector is not string) throw new RequestException(400, "Invalid fragment selector");
                 var fragment = (string?)query.GetValueOrDefault("_f");
                 requested = context.Request.Method == "OPTIONS" ? headers.GetValueOrDefault("access-control-request-method", "") : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;
@@ -265,8 +282,19 @@ public static class Hosting
                 }
                 operation = binding.Route.Operations.Single(item => item.Method == requested);
                 NotAcceptableException? negotiationError = null;
-                try { if (!operation.Handler.IsRaw) representation = Media.Negotiate(headers.GetValueOrDefault("accept"), operation.Handler.Renderers.Count > 0 || operation.ErrorRenderers.Count > 0 ? ["json", "metadata", "html"] : ["json", "metadata"]); }
+                try
+                {
+                    if (!operation.Handler.IsRaw && !sse)
+                    {
+                        var offers = new List<string> { "json", "metadata" };
+                        if (operation.Handler.Renderers.Count > 0 || operation.ErrorRenderers.Count > 0 || operation.Handler.StreamRendererKeys.Count > 0) offers.Add("html");
+                        if (operation.Handler.IsStreaming) offers.Add("ndjson");
+                        representation = Media.Negotiate(headers.GetValueOrDefault("accept"), offers);
+                    }
+                }
                 catch (NotAcceptableException error) { negotiationError = error; }
+                if (representation?.Kind == "ndjson" && (query.ContainsKey("_f") || query.ContainsKey("_c") || representation.Fragment is not null))
+                    throw new RequestException(400, "Stream connections do not accept renderer selectors");
                 fragment ??= representation?.Fragment;
                 if (query.GetValueOrDefault("_c") is { } componentValue && componentValue is not string || fragment is not null && query.ContainsKey("_c"))
                     throw new RequestException(400, "Invalid or ambiguous renderer selector");
@@ -280,6 +308,24 @@ public static class Hosting
                 if (representation?.Kind == "metadata") { await Reply(context, Service.Metadata(binding.Route, operation, binding.Path), 200, responseHeaders, "application/vnd.betterportal.metadata+json"); return; }
                 var body = await ReadBody(context.Request, maxBodyBytes, context.RequestAborted);
                 var (value, multipart) = await Decode(context.Request, body, context.RequestAborted);
+                var requestContext = prepared.Context with { Multipart = multipart };
+                var values = new Node { ["params"] = parameters, ["query"] = query, ["headers"] = headers, ["request"] = value };
+                RenderContext StreamContext(string renderer, object? parsedParams, object? parsedQuery) => RenderContext.Create(requestContext, binding.Route.ViewId, binding.Path,
+                    renderer, "fragment", "page", null, 200, parsedParams, parsedQuery, context.RequestAborted);
+                if (operation.Handler.IsStreaming && (sse || representation?.Kind == "ndjson"))
+                {
+                    await ReplyRaw(context, operation.Handler.OpenStream(requestContext, values, sse, StreamContext, context.RequestAborted), responseHeaders); return;
+                }
+                if (operation.Handler.IsStreaming && requested == "GET" && kind == "page" && representation?.Kind == "html")
+                {
+                    var connection = context.Request.Path.ToUriComponent().TrimEnd('/') + "/__sse" + context.Request.QueryString.ToUriComponent();
+                    var shell = await operation.Handler.StreamShell(requestContext, values, connection, representation.Mode ?? "page", StreamContext, context.RequestAborted);
+                    if (shell is not null)
+                    {
+                        await ReplyRaw(context, new RawResponse(Encoding.UTF8.GetBytes(shell), headers: new Dictionary<string, string>
+                            { ["content-type"] = operation.HtmlContentType("fragment"), ["cache-control"] = "no-store" }), responseHeaders); return;
+                    }
+                }
                 string? theme = null;
                 if (representation?.Kind == "html")
                 {
@@ -287,8 +333,7 @@ public static class Hosting
                     if (!operation.Handler.Renderers.Any(item => (item.Identity.Renderer, item.Identity.Kind, item.Identity.Key) == (theme, kind, key)))
                         throw new NotAcceptableException("Requested renderer is not available");
                 }
-                var requestContext = prepared.Context with { Multipart = multipart };
-                var output = await operation.Execute(requestContext, new Node { ["params"] = parameters, ["query"] = query, ["headers"] = headers, ["request"] = value }, context.RequestAborted);
+                var output = await operation.Execute(requestContext, values, context.RequestAborted);
                 if (operation.Handler.IsRaw) { await ReplyRaw(context, (RawResponse)output.Value!, responseHeaders); return; }
                 var status = requestContext.Response.Status;
                 var applicationHeaders = requestContext.Response.Headers.Where(pair => !pair.Key.Equals("content-type", StringComparison.OrdinalIgnoreCase)).ToList();

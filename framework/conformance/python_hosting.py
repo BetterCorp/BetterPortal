@@ -8,6 +8,8 @@ from urllib.parse import urlsplit
 from betterportal.asgi import create_app
 from betterportal.context import ScopedConfig
 from betterportal.handler import Handler
+from betterportal.finite import FiniteHandler, StreamRenderers
+from betterportal.streaming import Summary
 from betterportal.response import RawHandler, RawResponse
 from betterportal.rendering import Renderer
 from betterportal.registry import Operation, Route, Registry
@@ -75,7 +77,7 @@ async def hosting_request(body):
                     "tenantId": request.scope.tenant_id, "appId": request.scope.app_id,
                     "caller": request.caller.mode, "user": request.caller.user.get("sub") if request.caller.user else None}
         return run
-    def renderer(item):
+    def render_function(item):
         async def render(data, context):
             nonlocal cancelled
             if item.get("wait"):
@@ -84,12 +86,39 @@ async def hosting_request(body):
                 finally: cancelled = True
             if item.get("throw"): raise ValueError("private-render-secret")
             if "text" in item: return item["text"]
-            value = url_calls(context, item["urlCalls"]) if "urlCalls" in item else {"data": data, "context": context.data}
+            value = url_calls(context, item["urlCalls"]) if "urlCalls" in item else data if item.get("dataOnly") else {"data": data, "context": context.data}
             return "<pre>" + html.escape(json.dumps(value)) + "</pre>"
-        return Renderer(item["declaration"], render)
+        return render
+    def renderer(item): return Renderer(item["declaration"], render_function(item))
     def handler(spec):
         schemas = {key: av.import_schema(value) for key, value in spec.get("schemas", {}).items()}
         renderers = [renderer(item) for item in spec.get("renderers", [])]
+        if "finite" in spec:
+            finite = spec["finite"]
+            async def produce(context):
+                nonlocal invoked, cancelled
+                invoked += 1
+                try:
+                    for index, value in enumerate(finite.get("items", [])):
+                        stream["reads"] += 1
+                        if finite.get("wait") and index == 1:
+                            started.set()
+                            try: await asyncio.sleep(30)
+                            finally: cancelled = True
+                        yield value
+                    if finite.get("contextItem"):
+                        # Reuse the ordinary author callback, counting this as one producer.
+                        invoked -= 1; yield await function(spec)(context)
+                    if finite.get("fail"): raise ValueError("private-stream-secret")
+                    if "summary" in finite: yield Summary(finite["summary"])
+                    for value in finite.get("afterSummary", []): yield value
+                finally: stream["closed"] = True
+            return FiniteHandler(av.import_schema(finite["itemSchema"]), produce,
+                summary=av.import_schema(finite["summarySchema"]) if "summarySchema" in finite else None,
+                renderers=renderers, stream_renderers=[StreamRenderers(item["renderer"], render_function(item["shell"]), render_function(item["item"]),
+                    summary=render_function(item["summary"]) if "summary" in item else None, error=render_function(item["error"]) if "error" in item else None)
+                    for item in spec.get("streamRenderers", [])], **schemas,
+                **{target: finite[source] for source, target in (("maxFrameBytes", "max_frame_bytes"), ("maxItems", "max_items"), ("maxBytes", "max_bytes")) if source in finite})
         return RawHandler(function(spec), **schemas) if "raw" in spec and not spec.get("jsonHandler") else Handler(av.import_schema(spec["response"]), function(spec), renderers=renderers, **schemas)
     registry = Registry([Route(item["viewId"], item["path"], [Operation(handler(spec), spec["declaration"], error_renderers=[renderer(item) for item in spec.get("errorRenderers", [])])
         for spec in item["operations"]], path_variants=item.get("pathVariants", [])) for item in body["routes"]], dependencies=body.get("dependencies"))

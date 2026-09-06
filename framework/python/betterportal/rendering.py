@@ -77,10 +77,12 @@ def select(values: Iterable[Renderer[Result]], renderer: str | None, kind: str, 
     return match
 
 
-def html_metadata(values: Iterable[Renderer[Any]]) -> dict[str, Any]:
+def html_metadata(values: Iterable[Renderer[Any]], streams: Iterable[str] = ()) -> dict[str, Any]:
     groups: dict[str, list[Renderer[Any]]] = {}
     for item in values:
         if item.identity[3] == 200: groups.setdefault(item.identity[0], []).append(item)
+    streams = tuple(dict.fromkeys(streams))
+    for theme in streams: groups.setdefault(theme, [])
     result = {}
     for renderer, entries in groups.items():
         variants: list[dict[str, Any]] = []
@@ -93,6 +95,7 @@ def html_metadata(values: Iterable[Renderer[Any]]) -> dict[str, Any]:
             elif kind == "fragment":
                 if "fragment" not in modes: modes.append("fragment")
                 variants.append({"id": key, "title": key, "slotId": key, "renderModes": ["fragment"]})
+        if renderer in streams and "fragment" not in modes: modes.append("fragment")
         result[renderer] = {"defaultRenderer": "default", "renderModes": modes, "slots": list(dict.fromkeys(item["slotId"] for item in variants)), "renderers": variants}
     return parse("HtmlRepresentationSupportSchema", {"renderers": result})
 
