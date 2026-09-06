@@ -8,7 +8,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
 880/888 schema probes; token/service security passes 459/459 scenarios and JWKS
-checks pass 80/80; encryption passes 318/318 and authorization 306/306. See
+checks pass 80/80; encryption passes 318/318, authorization 306/306 and media 124/124. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -24,7 +24,7 @@ future scenarios; they are not assertions that those tests already exist.
 | manifest | runtime/manifest.ts, registry.ts | Pending manifest/schema generation | manifest.md; schema-json.md | manifest-defaults, operation-identity, discovery-schema |
 | validation | adapters/h3.ts, codegen/schemaPolicy.ts | Pending input/output AnyVali validation | protocol.md §4 | params-query-headers-body, invalid-output, unknown-keys |
 | multipart/raw | contracts/route.ts, adapters/h3.ts | Pending bounded uploads, repeated fields, native raw/file responses | protocol.md | multipart-bounds, repeated-fields, raw-download, bodyless-status |
-| negotiation | runtime/media.ts, adapters/h3.ts | Pending HTML/JSON/metadata/NDJSON | protocol.md §3 | accept-q-zero, unsupported-406, exact-renderer, per-method-schema |
+| negotiation | runtime/media.ts, adapters/h3.ts | Python media.py/C# Media.cs: availability, quality, exclusions and modes; host/rendering integration pending | protocol.md §3; port READMEs | media_cases.py: 124 checks; exact-renderer and per-method-schema pending |
 | rendering | runtime/view.ts, element.ts, statusViews.ts | Pending HTML-returning functions, components, fragments, status renderers | fragment-html.md | fragment-selector, component-selector, themed-error, escape-html |
 | context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Pending tenant/app and trusted proxy resolution | config.md §1 | tenant-isolation, app-isolation, ambiguous-port, forged-proxy |
 | cors | runtime/h3.ts; BSB service.ts | Pending trusted-origin policy and preflights | protocol.md §2 | allowed-preflight, denied-origin, vary, credential-headers |

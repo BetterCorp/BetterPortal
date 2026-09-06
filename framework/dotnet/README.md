@@ -1,5 +1,18 @@
 # BetterPortal .NET port
 
+`Media.Negotiate` selects JSON, HTML (page/fragment/embed), metadata, or NDJSON
+from Accept and the operation's available representations. Specific exclusions,
+q=0 and request-order ties are honored; no acceptable representation raises
+`NotAcceptableException` (406). Theme parameters never select a renderer.
+The host supplies availability after resolving the exact app shell renderer.
+
+```csharp
+using BetterPortal;
+
+if (Media.Negotiate("text/html;mode=fragment").Mode != "fragment") throw new Exception("Wrong mode");
+if (Media.Negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).Kind != "json") throw new Exception("Wrong offer");
+```
+
 .NET 10. This is an in-progress port, **not yet a service runtime**. ASP.NET Core
 operation hosting, configuration, route tooling and generated clients remain in the
 [capability ledger](../conformance/CAPABILITIES.md).

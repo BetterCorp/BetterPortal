@@ -10,12 +10,25 @@ import anyvali as av
 from python_security import security
 from python_encryption import encryption
 from python_authorization import authorization
+from betterportal.media import negotiate, NotAcceptable
+from dataclasses import asdict
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if body.get("action") == "media":
+                try:
+                    options = {"available": body["available"]} if "available" in body else {}
+                    payload = {"status": 200, "output": asdict(negotiate(body.get("accept"), **options))}
+                except NotAcceptable:
+                    payload = {"status": 406}
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload).encode())
+                return
             if body.get("action", "").startswith(("jwt-", "keys-", "crypto-", "auth-")):
                 payload = authorization(body) if body["action"] == "auth-request" else encryption(body) if body["action"].startswith("crypto-") else security(body)
                 self.send_response(200)

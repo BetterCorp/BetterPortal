@@ -4,12 +4,19 @@ import { importSchema, exportSchema, encrypt, decrypt, safeParseEncrypted, objec
 import { security } from "./node-security.mjs";
 import { encryption } from "./node-encryption.mjs";
 import { authorization } from "./node-authorization.mjs";
+import { resolveRequestedRepresentation } from "../nodejs/lib/runtime/media.js";
 
 createServer(async (request, response) => {
   try {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.action === "media") {
+      const value = resolveRequestedRepresentation(body.accept);
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ status: 200, output: { kind: value.kind, mode: value.kind === "html" ? value.mode ?? "page" : null } }));
+      return;
+    }
     if (body.action === "auth-request") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(await authorization(body)));

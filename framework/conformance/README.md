@@ -41,6 +41,12 @@ schema traversal; it does not claim persistent settings or atomic snapshots.
 .NET dependencies are locked in [packages.lock.json](../dotnet/BetterPortal/packages.lock.json);
 the Python probe dependencies are pinned in [requirements.txt](requirements.txt).
 
+The [media suite](results-media.json) passes 124 checks: 16 shared scenarios per
+language through the real Node helper, plus 38 native checks per port covering
+q=0, specific exclusions, available offers, 406, quoted parameters and malformed
+headers. HTTP quality and precedence follow [RFC 9110 section 12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1).
+Rendering and host integration remain pending.
+
 | Failure | Evidence | Consequence |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null and its round trip | Null is present and must fail when the schema is not nullable. |
@@ -85,6 +91,7 @@ python framework/conformance/verify.py --suite security
 python framework/conformance/verify.py --suite keys
 python framework/conformance/verify.py --suite encryption
 python framework/conformance/verify.py --suite authorization
+python framework/conformance/verify.py --suite media
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -95,7 +102,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|all` (default: all).
 
 The HTTP runner can also target independently launched adapters:
 

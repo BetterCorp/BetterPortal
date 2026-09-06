@@ -164,7 +164,10 @@ The admin service (or any service acting as a control plane) pushes scoped confi
 GET <control-plane-origin>/.well-known/bp/sync
 ```
 
-Auth: `Authorization: Bearer <service-api-key>` (the calling service's `apiKeyHash` round-tripped through a token exchange; the simplest impl uses the raw API key as the bearer).
+Auth: `Authorization: Bearer <service-api-key>`. The provisioned raw key is the
+credential; the CP stores its hash. The hash is never a bearer credential.
+Validate the CP URL before attaching credentials and reject redirects, as
+specified in [config.md section 2](config.md#2-standalone-control-plane-synchronization).
 
 Node BSB services should place sync credentials under their nested BetterPortal config block:
 
@@ -186,32 +189,14 @@ data: {<ScopedServiceConfig JSON>}
 
 ```
 
-`ScopedServiceConfig` shape:
-
-```jsonc
-{
-  "tenants": [
-    {
-      "tenantId": "betterportal",
-      "appIds": ["betterportal-web"],
-      "allowedOrigins": ["http://localhost:3100"],
-      "config": { ... }                    // values for this service, this tenant
-    }
-  ],
-  "apps": [
-    {
-      "appId": "betterportal-web",
-      "tenantId": "betterportal",
-      "shell": {
-        "serviceId": "019f0000-0000-7000-8000-000000000001",
-        "service": "bootstrap1",
-        "renderer": "bootstrap5"
-      },
-      "config": { ... }                    // values for this service, this app
-    }
-  ]
-}
-```
+The data is the bare
+[ScopedServiceConfigSchema](../framework/conformance/contracts/ScopedServiceConfigSchema.json)
+document described in [config.md section 1](config.md#1-platform-and-scoped-configuration).
+Its required fields are `managementOrigins`, `tenants`, and `apps`. Tenant records
+use `id`; app records use `id` and `tenantId`, all UUIDv7. Per-service settings are
+not nested `config` properties in these records. Optional `previewConfig` carries
+the revision and encrypted tenant/app preview values. Validate the complete
+snapshot and decrypt both preview scopes before atomically replacing state.
 
 Only tenants/apps that bind this service (per `bp-config.yaml`) are included. The service uses this to resolve incoming requests without reading the full `bp-config.yaml`.
 
@@ -221,11 +206,14 @@ Each scoped app keeps service-owned `routes` and `fragments` as the inbound allo
 
 The connecting service is responsible for reconnecting on close (with a 5-second delay or backoff). The control plane MAY close idle connections after a long timeout.
 
-Startup readiness is tied to the first scoped config snapshot. A service in control-plane sync mode SHOULD return `503` for view routes and tenant/app config endpoints until one of these is true:
-
-- a scoped config snapshot has been applied from bootstrap poll or SSE
-- a local file config provider is explicitly configured
-- the service is in setup mode and is only serving bootstrap/install endpoints
+In control-plane mode, readiness requires successful manifest submission through
+`POST /.well-known/bp/sync/poll` and an applied, validated scoped snapshot.
+Re-submit the manifest on reconnect and support polling fallback. A restored
+cache alone never establishes readiness. View routes and tenant/app config
+endpoints return `503` until ready. An explicitly configured local provider is a
+separate runtime mode. Setup mode serves only its bootstrap/install surface;
+normal views remain unavailable. Public health responses stay minimal, as
+specified in [protocol.md](protocol.md#11-health).
 
 The long-lived SSE log should make the state obvious. Log the bootstrap poll result, log when config is applied, and log the SSE connection as an update stream that is connected and awaiting changes. A final "connecting" line without a later "connected/awaiting updates" line is ambiguous and should be avoided.
 

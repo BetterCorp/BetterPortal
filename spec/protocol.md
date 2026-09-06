@@ -82,7 +82,7 @@ HTMX read `HX-Trigger`, `HX-Location`, etc. from response headers. Browsers stri
 
 ### 3.1 Accept header
 
-A view route inspects the `Accept` header (RFC 7231 section 5.3.2):
+A view route inspects the `Accept` header ([RFC 9110 section 12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1)):
 
 - `application/json` -> JSON response per the view's `ResponseSchema`.
 - `text/html` -> HTML response (themed; see section 3.3).

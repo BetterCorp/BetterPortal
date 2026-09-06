@@ -1,5 +1,18 @@
 # BetterPortal Python port
 
+`betterportal.media.negotiate` selects JSON, HTML (page/fragment/embed), metadata,
+or NDJSON from Accept and the operation's available representations. It honors
+specific exclusions, q=0 and request-order ties, and raises `NotAcceptable` (406)
+when no representation is acceptable. Theme parameters never select a renderer.
+The host must supply availability after resolving the exact app shell renderer.
+
+```python
+from betterportal.media import negotiate
+
+assert negotiate("text/html;mode=fragment").mode == "fragment"
+assert negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).kind == "json"
+```
+
 Python 3.10+. This is an in-progress port, **not yet a service runtime**.
 Starlette/ASGI hosting, configuration, route tooling and generated clients remain in
 the [capability ledger](../conformance/CAPABILITIES.md).
