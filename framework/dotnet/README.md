@@ -1,8 +1,47 @@
 # BetterPortal .NET port
 
-.NET 10. This is an in-progress port, **not yet a service runtime**. ASP.NET Core
-operation hosting, configuration, route tooling and generated clients remain in the
-[capability ledger](../conformance/CAPABILITIES.md).
+.NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
+for JSON operations. Full control-plane synchronization, rendering, native route
+tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
+The cross-language snapshot gate is still blocked by the Python SDK defect below.
+
+Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
+extension. A `Service` combines the registry, manifest declaration and optional
+validated `ScopedConfig`; dispose it with `await using`. With no snapshot, public
+health returns only `{"ok": false}` and status 503. A local snapshot enables
+request handling. Automatic CP synchronization and authorized diagnostics remain
+pending; this prototype must not replace a deployed full BP runtime.
+
+The adapter enforces scope, local operation mounts, CORS and caller authentication,
+then decodes and validates handler inputs. Repeated query/form values and field-name
+case survive. `RequestContext.Multipart` is generated from the canonical multipart
+contract, including file byte arrays. Body buffering defaults to 1 MiB through
+`maxBodyBytes`; form limits are 1,000 fields, 100 files and 1 MiB per text field.
+Client cancellation reaches input reads, authentication and handler waits.
+
+JSON and BP metadata negotiation are supported; metadata authorizes the operation
+without executing its handler. Health, manifest and schema JSON discovery are
+public. HTML/raw/stream hosting remains pending. Configure ASP.NET Core's trusted
+proxy middleware before BP; forwarding headers alone confer no authority.
+
+```csharp
+using BetterPortal;
+using BetterPortal.AspNetCore;
+using Microsoft.AspNetCore.Builder;
+
+await using var service = new Service(new Registry([]), new() {
+    PluginId = "com.example.hello", Title = "Hello", Description = "Example service", Version = "1.0.0"
+});
+var builder = WebApplication.CreateBuilder();
+await using var app = builder.Build();
+app.MapBetterPortal(service);
+if (service.Ready) throw new Exception("A snapshot is required before readiness");
+```
+
+After supplying local configuration, start the mapped application with
+`await app.RunAsync()`. Build/package the adapter with
+`dotnet build framework/dotnet/BetterPortal.AspNetCore` and `dotnet pack` on that
+project. No Node or BSB runtime/build hook is required.
 
 `Handler<TParams, TQuery, THeaders, TBody, TResult>` accepts native AnyVali schemas
 and a function returning `ValueTask<TResult>`. `Invoke` parses all four inputs
@@ -49,7 +88,9 @@ Config-management app indexes do not become runtime app lookups.
 `AppAccess(scope, snapshot.LocalServiceIds)` checks operation IDs against enabled
 inbound app mounts, with GET-only fragment and slot support. Pass the matched
 registered path to `Allows` when a view has path variants. `PermissionAliases()`
-includes only enabled local service instances referenced by this app. Cross-service
+includes only enabled local service instances referenced by this app; pass the
+route and method to restrict aliases to its mounted operation. `Service` always
+applies this restriction. Cross-service
 `appRoutes`/`appFragments` catalogs confer no inbound access. Hosts still enforce
 caller authorization and representation selection; well-known routes use their
 own declared auth policy independently of app page mounts.

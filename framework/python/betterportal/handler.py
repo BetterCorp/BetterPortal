@@ -10,7 +10,7 @@ import anyvali as av
 from .authorization import AuthorizedCaller
 from .context import ScopedContext
 from .contracts import contract, export, object_document
-from .generated_types import HttpMethod
+from .generated_types import HttpMethod, MultipartRequest
 
 Params = TypeVar("Params")
 Query = TypeVar("Query")
@@ -37,6 +37,7 @@ class RequestContext:
     method: HttpMethod
     path: str
     config: Mapping[str, Any] = field(default_factory=dict)
+    multipart: MultipartRequest | None = None
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,45 @@
 # BetterPortal Python port
 
-Python 3.10+. This is an in-progress port, **not yet a service runtime**.
-Starlette/ASGI hosting, configuration, route tooling and generated clients remain in
-the [capability ledger](../conformance/CAPABILITIES.md).
+Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
+hosting for JSON operations. It is **not ready for production**: the AnyVali
+snapshot gate below still fails. Control-plane synchronization, rendering, route
+tooling and clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
+
+Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
+in `betterportal.asgi` owns the `Service` lifespan. A service combines a registry,
+manifest declaration and optional validated `ScopedConfig`. With no snapshot its
+public health endpoint returns only `{"ok": false}` with status 503; a local
+snapshot enables request handling. Automatic control-plane synchronization and
+authorized health diagnostics remain pending.
+
+The host resolves scope, checks local operation mounts and CORS, and verifies user
+or delegated/service credentials before invoking handlers. It preserves repeated
+query/form values and field-name case. `RequestContext.multipart` contains the
+canonical parsed form fields and uploads (file data is an array of byte values).
+Body buffering defaults to 1 MiB, configurable through `max_body_bytes`; forms
+permit at most 1,000 fields and 100 files, with 1 MiB per text field. File resources
+close after parsing. Disconnects cancel handler waits.
+
+JSON and BP metadata negotiation are supported. Metadata requires the operation's
+authorization and does not execute its handler. Health, manifest and schema JSON
+discovery are public. HTML/raw/stream hosting remains pending. Configure trusted
+proxies in the ASGI server; raw forwarding and HTMX context headers confer no
+authority. Renderer selection will remain bound to the resolved app.
+
+```python
+import asyncio
+from betterportal.asgi import create_app
+from betterportal.registry import Registry
+from betterportal.service import Service
+
+async def check():
+    async with Service(Registry([]), {"pluginId": "com.example.hello", "title": "Hello",
+                                     "description": "Example service", "version": "1.0.0"}) as service:
+        app = create_app(service)
+        assert not service.ready  # Supply a validated local snapshot to enable operations.
+
+asyncio.run(check())
+```
 
 `Handler[Params, Query, Headers, Body, Result]` accepts native AnyVali schemas and
 a sync or async function receiving `HandlerContext`. `invoke` parses all four
@@ -49,7 +86,8 @@ the registered operation against enabled inbound app mounts. Pass the matched
 registered path to `allows` for a view with path variants. GET fragment selectors
 and slot mounts are supported; `appRoutes`/`appFragments` are catalogs, not inbound
 allowlists. `permission_aliases()` restricts role aliases to enabled local service
-instances referenced by this app. Hosts must still run caller authorization and
+instances referenced by this app; pass the route and method to restrict aliases
+to its mounted operation. `Service` always applies this restriction. Hosts must still run caller authorization and
 representation selection. Well-known routes use their own declared auth policy.
 
 Raw proxy and HTMX context headers are ignored. `resolve(..., trusted_addresses=...)`

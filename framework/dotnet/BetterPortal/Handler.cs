@@ -16,7 +16,7 @@ public sealed class HandlerOutputException(ValidationError cause) : Exception("R
 
 /// <summary>Hosting supplies an already resolved scope and verified caller.</summary>
 public sealed record RequestContext(ScopedContext Scope, AuthorizedCaller Caller, string Method, string Path,
-    IReadOnlyDictionary<string, object?>? Config = null);
+    IReadOnlyDictionary<string, object?>? Config = null, Generated.MultipartRequest? Multipart = null);
 
 public sealed record HandlerContext<TParams, TQuery, THeaders, TBody>(RequestContext RequestContext,
     TParams Params, TQuery Query, THeaders Headers, TBody Request, CancellationToken Cancellation);

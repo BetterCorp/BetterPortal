@@ -45,6 +45,16 @@ public static class RequestAuthorization
         return token.Length is > 0 and <= 32768 && !token.Any(char.IsWhiteSpace) ? token : throw new TokenException("Invalid bearer credential");
     }
 
+    /// <summary>Scope classification only; never credential verification or authorization.</summary>
+    public static bool IsMachineRequest(IReadOnlyDictionary<string, string> headers)
+    {
+        var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, value) in headers) if (!normalized.TryAdd(name, value)) throw new TokenException("Duplicate request headers");
+        if (normalized.ContainsKey("x-bp-service-id") || normalized.ContainsKey("x-bp-service-authorization")) return true;
+        try { return Bearer(normalized.GetValueOrDefault("authorization")) is { } token && Tokens.IsServiceToken(token); }
+        catch (TokenException) { return false; }
+    }
+
     /// <summary>Complete request policy. Machine envelopes fail closed even when user auth is optional.</summary>
     public static async Task<AuthorizedCaller> AuthorizeAsync(IReadOnlyDictionary<string, string> headers, Node requirement,
         AuthContext context, string viewId, string method, CancellationToken cancellationToken = default)
@@ -54,7 +64,7 @@ public static class RequestAuthorization
         foreach (var (name, value) in headers)
             if (!normalized.TryAdd(name, value)) throw new TokenException("Duplicate request headers");
         string[] scopeHeaders = ["x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id"];
-        var machine = normalized.ContainsKey("x-bp-service-id") || normalized.ContainsKey("x-bp-service-authorization");
+        var machine = IsMachineRequest(normalized);
         try
         {
             var primary = Bearer(normalized.GetValueOrDefault("authorization"));

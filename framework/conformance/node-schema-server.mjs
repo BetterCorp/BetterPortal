@@ -14,6 +14,7 @@ import { corsRequest } from "./node-cors.mjs";
 import { handlerRequest } from "./node-handler.mjs";
 import { registryRequest } from "./node-registry.mjs";
 import { accessRequest } from "./node-access.mjs";
+import { hostingRequest } from "./node-hosting.mjs";
 
 createServer(async (request, response) => {
   try {
@@ -44,6 +45,11 @@ createServer(async (request, response) => {
     if (body.action === "access") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(await accessRequest(body)));
+      return;
+    }
+    if (body.action === "hosting") {
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await hostingRequest(body)));
       return;
     }
     if (body.action === "context") {

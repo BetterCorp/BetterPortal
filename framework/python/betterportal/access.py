@@ -23,16 +23,17 @@ class AppAccess:
         self._services = {service["id"]: service for service in scope.tenant["services"]
                           if scope.tenant["active"] and service["enabled"] and service["id"] in local}
 
-    def permission_aliases(self) -> Mapping[str, str]:
+    def permission_aliases(self, route: Route | None = None, method: str = "GET", *, path: str | None = None, fragment: str | None = None) -> Mapping[str, str]:
         """Only enabled local instances referenced by this app can alias a plugin ID."""
         app = self._app
         references = [*app["routes"], *app["slots"], *(item for items in app["fragments"].values() for item in items)]
         references.extend(app[key] for key in ("shell", "auth") if key in app)
         mounted = {item["serviceId"] for item in references if item.get("enabled", True)}
         return MappingProxyType({identifier: service["serviceId"] for identifier, service in self._services.items()
-                                 if identifier in mounted and "serviceId" in service})
+                                 if identifier in mounted and "serviceId" in service
+                                 and (route is None or self.allows(route, method, path=path, fragment=fragment, service_id=identifier))})
 
-    def allows(self, route: Route, method: str, *, path: str | None = None, fragment: str | None = None) -> bool:
+    def allows(self, route: Route, method: str, *, path: str | None = None, fragment: str | None = None, service_id: str | None = None) -> bool:
         """The host supplies the matched registered path, before handler execution."""
         path = route.paths[0] if path is None else path
         if path not in route.paths:
@@ -44,9 +45,11 @@ class AppAccess:
         if path.startswith("/.well-known/"):
             return True
         legacy = f"legacy:{route.view_id}:{method}"
+        def local(identifier: str) -> bool:
+            return identifier in self._services and (service_id is None or identifier == service_id)
         for mount in self._app["routes"]:
             target = mount.get("resolvedServicePath", mount.get("servicePathVariant", mount.get("targetPath")))
-            if (mount["enabled"] and mount["serviceId"] in self._services and mount["viewId"] == route.view_id
+            if (mount["enabled"] and local(mount["serviceId"]) and mount["viewId"] == route.view_id
                     and (operation.id in mount["operations"] or legacy in mount["operations"])
                     and (target is None or _path_matches(target, path))):
                 return True
@@ -55,9 +58,9 @@ class AppAccess:
                 location, dot, identifier = fragment.partition(".")
                 candidates = self._app["fragments"].get(location, []) if dot and location else [item for items in self._app["fragments"].values() for item in items]
                 identifier = identifier if dot and location else fragment
-                if any(item["enabled"] and item["serviceId"] in self._services and item["fragmentId"] == identifier
+                if any(item["enabled"] and local(item["serviceId"]) and item["fragmentId"] == identifier
                        and _path_matches(item["targetPath"], path) for item in candidates):
                     return True
-            if any(item["enabled"] and item["serviceId"] in self._services and item["viewId"] == route.view_id for item in self._app["slots"]):
+            if any(item["enabled"] and local(item["serviceId"]) and item["viewId"] == route.view_id for item in self._app["slots"]):
                 return True
         return False

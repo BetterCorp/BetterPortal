@@ -5,16 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Version>10.6.15-dev.1</Version>
-    <Description>BetterPortal native runtime and security policy.</Description>
+    <Description>ASP.NET Core hosting for BetterPortal.</Description>
     <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
     <None Include="../README.md" Pack="true" PackagePath="/" />
-    <PackageReference Include="AnyVali" Version="[1.1.1]" />
-    <PackageReference Include="BouncyCastle.Cryptography" Version="[2.7.0]" />
-    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="[8.22.0]" />
-    <EmbeddedResource Include="../../conformance/contracts/*.json" Link="Contracts/%(Filename)%(Extension)" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../BetterPortal/BetterPortal.csproj" />
   </ItemGroup>
 </Project>

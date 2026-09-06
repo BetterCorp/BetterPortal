@@ -3,7 +3,7 @@
 **The full .NET/Python framework delivery is incomplete.** This directory supplies
 canonical AnyVali contracts, native adapters, HTTP schema/security fixtures, and a
 capability ledger. Token and service-envelope interoperability is verified;
-request hosting, route tooling, persistent configuration and Bootstrap integration
+full rendering/stream hosting, route tooling, persistent configuration and Bootstrap integration
 remain delivery work. No packages are published.
 
 ## Recorded result
@@ -45,7 +45,7 @@ The [media suite](results-media.json) passes 124 checks: 16 shared scenarios per
 language through the real Node helper, plus 38 native checks per port covering
 q=0, specific exclusions, available offers, 406, quoted parameters and malformed
 headers. HTTP quality and precedence follow [RFC 9110 section 12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1).
-Rendering and host integration remain pending.
+JSON/metadata host integration is checked below; rendering remains pending.
 
 The [finite stream suite](results-streams.json) passes 113 checks over real HTTP
 buffered JSON/NDJSON/SSE and lifecycle probes: ordered validated items, optional/null
@@ -75,21 +75,21 @@ snapshot-copy ownership. Its Python `null-active-rejected` scenario remains
 failing: AnyVali #127 turns an explicit null tenant flag into `true`. This is the
 same upstream default defect at a security boundary; the prototype is not safe
 to deploy until it is fixed. Full policy reference validation,
-atomic storage and actual proxy middleware remain delivery work.
+atomic storage and full policy reference validation remain delivery work.
 
 The [CORS suite](results-cors.json) passes 33 checks over actual OPTIONS/GET
 responses: preflight without bearer validation or handler execution, required and
 custom headers, origin reflection, native origin/method denial, malformed/bounded
 header lists and Vary. Node shared cases call the framework's existing H3 helper;
-native-only denial checks exercise policy currently owned by BSB. Full operation
-hosting and protected-route integration remain pending.
+native-only denial checks exercise policy currently owned by BSB. JSON hosting
+and protected-route integration are checked in the hosting suite below.
 
 The [handler suite](results-handlers.json) passes 44 checks for per-field
 params/query/headers/body validation, defaults, coercion, recursive requests,
 unknown-key handling, invalid output and cancellation. Node shared cases invoke
 the real H3 operation adapter and `createHandler`. The ports preserve null/array
-bodies and repeated query values that Node's older parsing flattens; HTTP decoding
-in the native hosts remains pending. Compiler checks
+bodies and repeated query values that Node's older parsing flattens; the native
+hosts exercise this decoding in the hosting suite. Compiler checks
 reject mismatched handler input/output types and verify generated model parsing.
 
 The [registry suite](results-registry.json) passes 89 checks for native operation,
@@ -110,7 +110,26 @@ well-known endpoints. Native checks additionally reject mounts belonging to
 another service instance, disabled/unregistered local services and malformed
 service paths. Permission aliases are limited to enabled local instances referenced
 by the current app. The catalog fields `appRoutes`/`appFragments` do not authorize
-inbound calls. Full host integration remains pending.
+inbound calls. JSON host integration is checked below.
+
+The [hosting suite](results-hosting.json) passes 222 checks through the public
+Starlette ASGI and ASP.NET Core adapters, with shared Node cases using its H3
+router, manifest builder, context/origin helpers and JWT/JWKS verifier. It covers
+JSON/metadata, method-specific routes, optional paths, static precedence,
+bounded bodies, UTF-8, repeated/case-sensitive query and form fields, multipart
+uploads, minimal health, discovery, error representations and cancellation.
+The native hosts authorize metadata without executing handlers; Node currently
+executes the handler before metadata negotiation. Cancellation probes use a
+handler-start handshake instead of a timing race.
+The same 222 checks pass with [Python 3.13](results-hosting-python313.json).
+
+Every signing language calls every host with user tokens and current role policy.
+Native service/delegated checks also bind verified token audiences and permission
+aliases to the local instance mounting the requested operation. Preflights run
+before bearer authentication, and authorization errors preserve trusted CORS
+headers. These are prototype JSON hosts with local snapshots: CP synchronization,
+authorized diagnostics, rendering, raw/stream hosting and full helper contexts
+remain delivery work. The SDK null/default defect still blocks production use.
 
 | Failure | Evidence | Consequence |
 |---|---|---|
@@ -140,8 +159,8 @@ to reproduce SDK defects or infer framework completeness from a package build.
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
 Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The latest
-[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 2,667/2,676
-checks across twelve suites. Failures are those original SDK probes plus the
+[combined Python 3.10 run](results-combined-anyvali-1.1.1.json) passes 3,019/3,028
+checks across fourteen suites. Failures are those original SDK probes plus the
 context-level null-active regression for the same Python default defect.
 Linux execution is still acceptance work.
 
@@ -166,6 +185,7 @@ python framework/conformance/verify.py --suite cors
 python framework/conformance/verify.py --suite handlers
 python framework/conformance/verify.py --suite registry
 python framework/conformance/verify.py --suite access
+python framework/conformance/verify.py --suite hosting
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -176,7 +196,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|authorization|media|streams|sse|context|cors|handlers|registry|access|hosting|all` (default: all).
 Runtime identities are discovered from the test adapters when `--labels` is
 omitted; explicit labels must be `node`, `python` or `dotnet`. This prevents
 unlabelled Node adapters from accidentally running native-only API checks.
@@ -226,10 +246,11 @@ python framework/conformance/check_types.py
 python -m mypy framework/python/betterportal --follow-imports=silent --follow-untyped-imports
 dotnet pack framework/dotnet/BetterPortal --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output .tmp-run/ports-packages
+dotnet pack framework/dotnet/BetterPortal.AspNetCore --no-restore --output .tmp-run/ports-packages
 ```
 
 The package check compares every wheel/sdist document byte for byte, then imports
-the wheel directly to exercise recursive parsing and RSA generation without Node
+the wheel directly to exercise recursive parsing, RSA and ASGI health without Node
 or the source tree. `--follow-untyped-imports` lets mypy inspect AnyVali, whose
 wheel lacks py.typed. Linux execution remains a delivery check.
 
@@ -238,6 +259,6 @@ wheel lacks py.typed. Linux execution remains a delivery check.
 [CAPABILITIES.md](CAPABILITIES.md) maps the full requested scope to existing BP
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
-HTTP suite (persistent settings, request hosting, sync/readiness,
+HTTP suite (persistent settings, full rendering/stream hosting, sync/readiness,
 rendering, streaming and generated clients), standalone examples and CI remains
 incomplete. Publishing and BSB plugins remain separate follow-ups.

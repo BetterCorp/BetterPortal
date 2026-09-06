@@ -1,6 +1,6 @@
 {
-  "scenarios": 2676,
-  "passed": 2667,
+  "scenarios": 3028,
+  "passed": 3019,
   "results": [
     {
       "runtime": "node",
@@ -13389,6 +13389,1766 @@
     {
       "runtime": "dotnet",
       "id": "registry-response-schema-from-dotnet",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-selected-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-selected-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-selected-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-unselected-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-unselected-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-unselected-method",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-selected-post",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-selected-post",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-selected-post",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-legacy-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-legacy-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-legacy-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-legacy-sibling-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-legacy-sibling-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-legacy-sibling-method",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-unknown-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-unknown-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-unknown-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-different-view",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-different-view",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-different-view",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-different-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-different-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-different-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-different-path-length",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-different-path-length",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-different-path-length",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-renamed-parameter",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-renamed-parameter",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-renamed-parameter",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-path-trailing-slash",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-path-trailing-slash",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-path-trailing-slash",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-path-variant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-path-variant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-path-variant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-legacy-target-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-legacy-target-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-legacy-target-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-resolved-path-priority",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-resolved-path-priority",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-resolved-path-priority",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-no-derived-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-no-derived-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-no-derived-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-catalog-is-not-allowlist",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-catalog-is-not-allowlist",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-catalog-is-not-allowlist",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-well-known-independent",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-well-known-independent",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-well-known-independent",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-well-known-prefix-lookalike",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-well-known-prefix-lookalike",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-well-known-prefix-lookalike",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-unqualified",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-unqualified",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-unqualified",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-wrong-location",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-wrong-location",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-wrong-location",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-wrong-id",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-wrong-id",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-wrong-id",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-no-selector",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-no-selector",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-no-selector",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-wrong-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-wrong-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-wrong-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-fragment-catalog-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-fragment-catalog-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-fragment-catalog-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-slot-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-slot-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-slot-mounted",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-slot-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-slot-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-slot-post-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-slot-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-slot-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-slot-disabled",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-slot-wrong-view",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-slot-wrong-view",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-slot-wrong-view",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-unmounted",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-inactive-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-inactive-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-inactive-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-wrong-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-wrong-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-wrong-app",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "access-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-wrong-tenant",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-other-instance",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-other-instance",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-other-instance-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-other-instance-fragment",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-other-instance-slot",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-other-instance-slot",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-disabled-local-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-disabled-local-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-unregistered-local-service",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-unregistered-local-service",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-missing-local-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-missing-local-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-m2m-local-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-m2m-local-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-m2m-unmounted-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-m2m-unmounted-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-m2m-other-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-m2m-other-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-method-not-registered",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-method-not-registered",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "access-encoded-mount-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "access-encoded-mount-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-json-get",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-json-get",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-json-get",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-json-post",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-json-post",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-json-post",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-wrong-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-wrong-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-wrong-operation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-disabled-mount",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-metadata",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-urlencoded",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-urlencoded",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-urlencoded",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-multipart",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-multipart",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-multipart",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-health",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-health",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-health",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-manifest",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-manifest",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-manifest",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-schema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-schema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-schema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-json-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-json-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-json-array",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-json-array",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-malformed-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-malformed-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-duplicate-json-member",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-duplicate-json-member",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-nonfinite-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-nonfinite-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-unsupported-body",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-unsupported-body",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-body-limit",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-body-limit",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-unacceptable",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-unacceptable",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-no-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-no-renderer",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-query-repeated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-query-repeated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-query-case",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-query-case",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-form-repeated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-form-repeated",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-form-case",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-form-case",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-malformed-form",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-malformed-form",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-not-ready-health",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-not-ready-health",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-not-ready-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-not-ready-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-closed-operation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-closed-operation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-other-instance-mount",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-other-instance-mount",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-wrong-origin",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-wrong-origin",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-preflight-denied-method",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-preflight-denied-method",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-handler-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-handler-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-invalid-response",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-invalid-response",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-same-path-different-methods",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-same-path-different-methods",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-same-path-different-methods",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-same-path-method-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-same-path-method-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-same-path-method-preflight",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-static-route-priority",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-static-route-priority",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-static-route-priority",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hosting-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-optional-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-mixed-field-file",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-mixed-field-file",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-unknown-path-json-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-unknown-path-json-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-unknown-method-json-error",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-unknown-method-json-error",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-query-invalid-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-query-invalid-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-form-invalid-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-form-invalid-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-form-invalid-raw-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-form-invalid-raw-utf8",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-duplicate-preflight-selector",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-duplicate-preflight-selector",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "node->node",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-other-instance-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-other-instance-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-machine",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-machine",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-machine-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-machine-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-partial-machine-optional-auth",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-partial-machine-optional-auth",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-local-unmounted-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-local-unmounted-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "node->python",
+      "id": "hosting-wrong-local-machine-target",
+      "passed": true
+    },
+    {
+      "runtime": "node->dotnet",
+      "id": "hosting-wrong-local-machine-target",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "python->node",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-other-instance-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-other-instance-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-machine",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-machine",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-machine-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-machine-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-partial-machine-optional-auth",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-partial-machine-optional-auth",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-local-unmounted-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-local-unmounted-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python->python",
+      "id": "hosting-wrong-local-machine-target",
+      "passed": true
+    },
+    {
+      "runtime": "python->dotnet",
+      "id": "hosting-wrong-local-machine-target",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-user",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-user-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-user-forged-scope-hints",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-revoked-role",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-refresh-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-missing-credential",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->node",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-preflight-before-auth",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-other-instance-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-other-instance-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-machine",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-machine",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-delegated",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-delegated-user-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-machine-grant-revoked",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-machine-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-machine-wrong-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-partial-machine-optional-auth",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-partial-machine-optional-auth",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-local-unmounted-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-local-unmounted-role-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->python",
+      "id": "hosting-wrong-local-machine-target",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet->dotnet",
+      "id": "hosting-wrong-local-machine-target",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hosting-cancellation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hosting-cancellation",
       "passed": true
     }
   ]

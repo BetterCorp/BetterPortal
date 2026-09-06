@@ -72,6 +72,20 @@ def _service_token(token: str) -> bool:
         return False
 
 
+def is_machine_request(headers: Mapping[str, str]) -> bool:
+    """Classify scope hints only; this never verifies or authorizes a credential."""
+    normalized = {name.lower(): value for name, value in headers.items()}
+    if len(normalized) != len(headers):
+        raise TokenError("Duplicate request headers")
+    if any(name in normalized for name in ("x-bp-service-id", "x-bp-service-authorization")):
+        return True
+    try:
+        token = _bearer(normalized.get("authorization"))
+        return token is not None and _service_token(token)
+    except TokenError:
+        return False
+
+
 async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str, Any], context: AuthContext,
                             *, view_id: str, method: str) -> AuthorizedCaller:
     """Complete caller policy. Machine envelopes always fail closed, even on optional-auth operations."""
@@ -79,7 +93,7 @@ async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str
     normalized = {name.lower(): value for name, value in headers.items()}
     if len(normalized) != len(headers):
         raise TokenError("Duplicate request headers")
-    machine = any(name in normalized for name in ("x-bp-service-id", "x-bp-service-authorization"))
+    machine = is_machine_request(normalized)
     try:
         primary = _bearer(normalized.get("authorization"))
         delegated = "x-bp-service-authorization" in normalized

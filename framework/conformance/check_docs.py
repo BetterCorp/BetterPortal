@@ -18,8 +18,11 @@ properties = ET.SubElement(project, "PropertyGroup")
 for name, value in {"TargetFramework": "net10.0", "OutputType": "Exe", "Nullable": "enable", "ImplicitUsings": "enable"}.items():
     ET.SubElement(properties, name).text = value
 ET.SubElement(ET.SubElement(project, "ItemGroup"), "ProjectReference", Include=str(root / "framework/dotnet/BetterPortal/BetterPortal.csproj"))
+ET.SubElement(ET.SubElement(project, "ItemGroup"), "ProjectReference", Include=str(root / "framework/dotnet/BetterPortal.AspNetCore/BetterPortal.AspNetCore.csproj"))
+ET.SubElement(ET.SubElement(project, "ItemGroup"), "FrameworkReference", Include="Microsoft.AspNetCore.App")
 ET.ElementTree(project).write(directory / "Examples.csproj", encoding="unicode")
+subprocess.run(["dotnet", "restore", str(directory)], check=True)
 for snippet in re.findall(r"```csharp\n(.*?)```", (root / "framework/dotnet/README.md").read_text(), re.S):
     (directory / "Program.cs").write_text(snippet, encoding="utf-8")
-    subprocess.run(["dotnet", "run", "--project", str(directory), "--no-launch-profile", "-p:UseSharedCompilation=false"], check=True)
+    subprocess.run(["dotnet", "run", "--project", str(directory), "--no-restore", "--no-launch-profile", "-p:UseSharedCompilation=false"], check=True)
 print("Python and C# README examples compiled and executed")

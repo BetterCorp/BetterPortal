@@ -41,6 +41,7 @@ from betterportal.cors import Cors
 from betterportal.handler import Handler, RequestContext
 from betterportal.registry import Operation, Route, Registry
 from betterportal.access import AppAccess
+from betterportal.service import Service
 from betterportal.authorization import AuthorizedCaller
 from betterportal.contracts import contract
 import asyncio
@@ -88,6 +89,14 @@ manifest = registry.manifest({"pluginId": "com.example.hello", "title": "Hello",
 assert manifest["views"][0]["operations"][0]["operationId"] == "hello.get"
 access = AppAccess(scope, [])
 assert not access.allows(registry.routes[0], "GET") and dict(access.permission_aliases()) == {}
+async def hosting():
+    from betterportal.asgi import create_app
+    import httpx
+    async with Service(registry, {"pluginId": "com.example.hello", "title": "Hello", "description": "Example service", "version": "1.0.0"}) as service:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(service)), base_url="http://example.test") as client:
+            response = await client.get("/.well-known/bp/health")
+            assert response.status_code == 503 and response.json() == {"ok": False}
+asyncio.run(hosting())
 subprocess.run([sys.executable, "-m", "betterportal", "types", "--platform", "--output",
     str(canonical.parents[1] / "python/betterportal/generated_types.py"), "--check"],
     env={**os.environ, "PYTHONPATH": str(wheel.resolve())}, cwd=args.directory.resolve(), check=True)

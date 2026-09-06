@@ -5,5 +5,5 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="../BetterPortal/BetterPortal.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../BetterPortal/BetterPortal.csproj" /><ProjectReference Include="../BetterPortal.AspNetCore/BetterPortal.AspNetCore.csproj" /></ItemGroup>
 </Project>
