@@ -161,8 +161,8 @@ dot-joined field path.
 
 Scope/path/key tampering must fail authentication. Decrypt and validate both
 scopes before applying a revision. Keep the prior revision on failure.
-Empty strings are valid encrypted values where the schema permits them, even
-though the current Node decrypt helper rejects tag-only payloads.
+Empty strings are valid encrypted values where the schema permits them. A
+tag-only AES-GCM payload still requires successful authentication.
 Preview settings confer no management permissions.
 
 ## 6. Acceptance

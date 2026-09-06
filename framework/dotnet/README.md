@@ -11,6 +11,27 @@ and grants, static JWKS imports and a cancellable remote JWKS cache. Delegated
 mode validates only the service envelope; a host must also
 authorize its user token. Signature verification alone does not authorize a call.
 
+`ConfigCipher` reads legacy BP v1 envelopes and writes v2 strings/v3 typed JSON.
+`PreviewConfig` implements authenticated preview envelopes and builds scoped
+schemas from canonical field descriptors; its `Encrypt`/`Decrypt` methods use
+AnyVali's native sensitive APIs. Values have a 1 MiB UTF-8 byte limit. Bounded key
+derivation and legacy 16-byte IV support use the official
+[Bouncy Castle package](https://www.nuget.org/packages/BouncyCastle.Cryptography/2.7.0).
+
+```csharp
+using BetterPortal;
+
+var cipher = new ConfigCipher(ConfigCipher.GenerateKey());
+if (cipher.Decrypt(cipher.Encrypt("")) is not "") throw new Exception("Empty secret changed");
+var key = PreviewConfig.GenerateKey();
+var encrypted = PreviewConfig.EncryptValue(key, "tenant", ["token"], "");
+if (PreviewConfig.DecryptValue(key, "tenant", ["token"], encrypted) != "") throw new Exception("Preview changed");
+```
+
+Persist generated keys with the service's protected bootstrap state. Each cipher
+holds two derived keys; there is no global secret cache. Persistent settings,
+legacy-marker adaptation, redaction and atomic preview application remain pending.
+
 ```sh
 dotnet restore framework/dotnet/Conformance --locked-mode
 dotnet build framework/dotnet/Conformance --no-restore

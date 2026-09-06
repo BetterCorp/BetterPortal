@@ -8,7 +8,7 @@ later gates. Publishing and BSB plugins are separate follow-ups.
 Current state: canonical documents, native schema adapters, token/service security,
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
 880/888 schema probes; token/service security passes 459/459 scenarios and JWKS
-checks pass 80/80. See
+checks pass 80/80; encryption passes 318/318. See
 [README](README.md). Neither language is yet a service runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -38,8 +38,8 @@ future scenarios; they are not assertions that those tests already exist.
 | s2s | runtime/auth/serviceToken.ts; BSB service.ts | Partial: service tokens and current binding/grant policy including mode; delegated user half and outbound calls pending | auth.md §3 | security_cases.py wrong-peer, revoked binding/grant, method/mode/permission and scope; delegated-both pending |
 | local-config | runtime/configProvider.ts | Pending native local configuration provider | config.md §1 | local-valid, local-invalid, no-shared-CM-file |
 | settings | runtime/configStore.ts, serviceConfig.ts | Pending replaceable persistent store, scope overlays and write validation | config.md §3 | tenant-overlay, scope-key, redaction-placeholder, atomic-write-failure |
-| encryption | runtime/configStore.ts | Pending native sensitive APIs with v1/v2/v3 BP envelope compatibility | config.md §5 | cross-encrypt, typed-secret, legacy-read, tamper, no-plaintext |
-| preview | runtime/previewConfig.ts; BSB service.ts applyPreviewConfig | Pending authenticated preview decryption and atomic revision application | config.md §5.1 | path-scope-AAD, empty-secret, wrong-key, failed-revision-retained |
+| encryption | runtime/configStore.ts | Python encryption.py/C# Encryption.cs: v1 read/v2-v3 write, native scrypt/AES-GCM; legacy sensitive-marker adapter/persistence pending | config.md §5; port READMEs | encryption_cases.py: 318 shared/native checks; typed-secret, legacy-read, tamper, bounds |
+| preview | runtime/previewConfig.ts; BSB service.ts applyPreviewConfig | Native authenticated encryption/decryption and descriptor-to-AnyVali sensitive schemas; atomic revision application pending | config.md §5.1; port READMEs | encryption_cases.py: path-scope-AAD, empty-secret, wrong-key, imported-sensitive; failed-revision-retained pending |
 | sync | BSB service.ts connectToControlPlane; scopedConfigCache.ts | Pending standalone manifest POST, SSE/poll, restart cache | config.md §2 | submission-before-ready, failed-bootstrap, reconnect, invalid-snapshot |
 | readiness | BSB service.ts renderHealth/canReadHealthDiagnostics | Pending public minimal health and authorized diagnostics | protocol.md §1.1 | public-minimal, admin-scoped, refresh-denied, cache-not-ready |
 | lifecycle | BSB service.ts, bootstrapState.ts | Pending install/redeem bootstrap, key persistence, shutdown cancellation | config.md §2 | exact-loopback, redirect-denied, pinned-key, shutdown-no-retry |
@@ -75,7 +75,8 @@ JavaScript are not port deliverables. Existing Node services are integration pee
   a default; all SDKs document a native-parent composition limitation. Both
   expanded probes remain failing; BP portable composition passes its separate
   recursive and sensitive-field probes. Never accept dangling references or mask the
-  presence defect with a second validator. Real encrypted storage is a later gate.
+  presence defect with a second validator. Encryption primitives and preview
+  sensitive traversal pass; persistent encrypted settings remain a later gate.
 - Node's platform menu schema is bounded but its exported document can exceed
   application JSON's depth limit. The development exporter uses native AnyVali
   export and supplies BP's existing recursive JSON definition without parsing
@@ -87,6 +88,6 @@ JavaScript are not port deliverables. Existing Node services are integration pee
 - The historical host matcher may ignore a mismatched port. Never turn that into
   ambiguous tenant/app authorization in the ports.
 
-These observations do not authorize unrelated Node refactoring. The schema
-projection and development conformance artifacts are the only Node code changes
-needed for this initial gate.
+These observations do not authorize unrelated Node refactoring. The Node preview
+length fix is directly required by empty-secret interoperability; other Node work
+here is limited to schema projection and development conformance artifacts.

@@ -55,7 +55,7 @@ export function decryptPreviewConfigValue(
   if (!ivValue || !ciphertextValue || extra.length > 0) throw new Error("Preview config encrypted envelope is invalid");
   const iv = Buffer.from(ivValue, "base64url");
   const payload = Buffer.from(ciphertextValue, "base64url");
-  if (iv.length !== IV_BYTES || payload.length <= TAG_BYTES) throw new Error("Preview config encrypted envelope is invalid");
+  if (iv.length !== IV_BYTES || payload.length < TAG_BYTES) throw new Error("Preview config encrypted envelope is invalid");
   const decipher = createDecipheriv("aes-256-gcm", previewConfigKeyBytes(key), iv);
   decipher.setAAD(previewConfigAad(scope, path));
   decipher.setAuthTag(payload.subarray(payload.length - TAG_BYTES));

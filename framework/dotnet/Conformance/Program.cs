@@ -17,6 +17,8 @@ app.MapPost("/", async (HttpRequest request) =>
     {
         using var reader = new StreamReader(request.Body);
         var body = (Dictionary<string, object?>)Json.Read(await reader.ReadToEndAsync())!;
+        if (body.GetValueOrDefault("action") is string cryptoAction && cryptoAction.StartsWith("crypto-", StringComparison.Ordinal))
+            return Results.Text(Json.Write(EncryptionAdapter.Run(body)), "application/json");
         if (body.GetValueOrDefault("action") is string securityAction && (securityAction.StartsWith("jwt-", StringComparison.Ordinal) || securityAction.StartsWith("keys-", StringComparison.Ordinal)))
             return Results.Text(Json.Write(await SecurityAdapter.Run(body)), "application/json");
         var schema = body.TryGetValue("document", out var document) ? Contracts.Import(Json.Write(document)) : Contracts.Get((string)body["contract"]!);

@@ -12,6 +12,27 @@ uses PyJWT/OpenSSL; validation uses AnyVali exclusively. Service authorization i
 delegated mode validates only the service envelope; a host must separately
 authorize the user token before allowing the request.
 
+Configuration encryption supports existing BP v1 reads, v2 strings, v3 typed JSON,
+and authenticated preview envelopes. `preview_schema` builds scoped field schemas
+from canonical descriptors; `encrypt_preview`/`decrypt_preview` use AnyVali's native
+sensitive traversal. Optional fields remain omitted; public/protected fields are
+unchanged. Values have a 1 MiB UTF-8 byte limit, and malformed encodings fail closed.
+
+```python
+from betterportal.encryption import ConfigCipher, generate_preview_key, encrypt_preview_value, decrypt_preview_value
+
+cipher = ConfigCipher(ConfigCipher.generate_key())
+assert cipher.decrypt(cipher.encrypt({"enabled": True, "value": None})) == {"enabled": True, "value": None}
+key = generate_preview_key()
+encrypted = encrypt_preview_value(key, "tenant", ["token"], "")
+assert decrypt_preview_value(key, "tenant", ["token"], encrypted) == ""
+```
+
+Persist generated keys with the service's protected bootstrap state. The cipher
+holds only two derived keys per instance; it has no global cache of secrets.
+Persistent settings, legacy-marker adaptation, redaction and atomic preview
+snapshot application are the next configuration gate.
+
 ```sh
 python -m pip install -r framework/conformance/requirements.txt
 python -m build framework/python

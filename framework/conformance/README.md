@@ -3,7 +3,7 @@
 **The full .NET/Python framework delivery is incomplete.** This directory supplies
 canonical AnyVali contracts, native adapters, HTTP schema/security fixtures, and a
 capability ledger. Token and service-envelope interoperability is verified;
-request hosting, route tooling, encrypted configuration and Bootstrap integration
+request hosting, route tooling, persistent configuration and Bootstrap integration
 remain delivery work. No packages are published.
 
 ## Recorded result
@@ -25,6 +25,13 @@ key loading, cache/rotation and query compatibility, plus native endpoint policy
 redirect rejection, response bounds, total deadlines, cancellation and cache
 invalidation. Native-only checks exercise APIs absent from Node's existing helper;
 the suite does not replace Node policy with a test implementation.
+The [encryption suite](results-encryption.json) passes 318 checks on Python 3.10:
+all-language v2/v3 round trips, v1 legacy vectors, typed and empty secrets, unique
+nonces, scope/path/key/tag tampering, imported sensitive fields, omitted optional
+fields, malformed envelopes and native byte limits. Node calls its real persisted
+store and preview helpers. Its empty-preview-secret length check is fixed with a
+focused Node regression. This gate covers encryption primitives and preview
+schema traversal; it does not claim persistent settings or atomic snapshots.
 .NET dependencies are locked in [packages.lock.json](../dotnet/BetterPortal/packages.lock.json);
 the Python probe dependencies are pinned in [requirements.txt](requirements.txt).
 
@@ -62,12 +69,14 @@ is still acceptance work.
 npm run build --workspace @betterportal/framework
 node framework/conformance/export-contracts.mjs --check
 node framework/conformance/export-fixtures.mjs --check
+node framework/conformance/export-encryption-fixtures.mjs --check
 python -m pip install -r framework/conformance/requirements.txt
 dotnet restore framework/dotnet/Conformance --locked-mode
 dotnet build framework/dotnet/Conformance --no-restore
 python framework/conformance/verify.py --roundtrip-all --report results.json
 python framework/conformance/verify.py --suite security
 python framework/conformance/verify.py --suite keys
+python framework/conformance/verify.py --suite encryption
 ```
 
 If AnyVali is installed in a separate virtual environment, pass its interpreter
@@ -78,7 +87,7 @@ The adapters accept arbitrary schemas and supply test signing actions; never
 mount them on a consumer application's public surface. Raw test signatures
 intentionally bypass claims validation to exercise verification of authentic
 signatures over invalid claims. They are not runtime signing APIs.
-Both runners accept `--suite schema|security|keys|all` (default: all).
+Both runners accept `--suite schema|security|keys|encryption|all` (default: all).
 
 The HTTP runner can also target independently launched adapters:
 
@@ -92,6 +101,7 @@ python framework/conformance/run.py http://127.0.0.1:8310 http://127.0.0.1:8311 
 npm run build --workspace @betterportal/framework
 node framework/conformance/export-contracts.mjs
 node framework/conformance/export-fixtures.mjs
+node framework/conformance/export-encryption-fixtures.mjs
 ```
 
 The exporter reads all canonical BP schemas from the compiled Node framework.
@@ -136,6 +146,6 @@ wheel lacks py.typed. Linux execution remains a delivery check.
 [CAPABILITIES.md](CAPABILITIES.md) maps the full requested scope to existing BP
 code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
-HTTP suite (ciphertext exchange, scoped roles, request hosting, sync/readiness,
+HTTP suite (persistent settings, scoped roles, request hosting, sync/readiness,
 rendering, streaming and generated clients), standalone examples and CI remains
 incomplete. Publishing and BSB plugins remain separate follow-ups.

@@ -1,0 +1,27 @@
+[
+  {
+    "id": "storage-v1",
+    "key": "bp-conformance-only-key-not-for-service-use",
+    "value": "legacy secret 🔐",
+    "envelope": "enc:aes256gcm:AQEBAQEBAQEBAQEBAQEBAU3d8EBtkjJ1EUOvz50vHQ9/kG0AlgoEjGl6IuLgyJbHp/Q="
+  },
+  {
+    "id": "storage-v2",
+    "key": "bp-conformance-only-key-not-for-service-use",
+    "value": "legacy secret 🔐",
+    "envelope": "enc:aes256gcm2:AgICAgICAgICAgICFAda2T+aq5ajMjxs4CVCH3P8oX9KUKuFEVGtsaF8Te0baQ=="
+  },
+  {
+    "id": "storage-v3",
+    "key": "bp-conformance-only-key-not-for-service-use",
+    "value": {
+      "number": 42,
+      "nested": [
+        null,
+        true,
+        "secret 🔐"
+      ]
+    },
+    "envelope": "enc:aes256gcm3:AwMDAwMDAwMDAwMDPR7bbzg94hmRS0OY3NvgcVJmzGKepLKkpke6v6cSM+1sPMTa7BIQ3vJQE44bwNb3TqOLDOmUVpHlYZ0XCVoKfg=="
+  }
+]

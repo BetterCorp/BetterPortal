@@ -7,6 +7,11 @@
         "resolved": "1.1.1",
         "contentHash": "4EwXOEP+n0wc8o0ZOQvclTHhl8HS0ejkm4NOswXhYgJh3RNy8nYvTkENm8+praHbxi+3ZE4k1sN7kAQAW0YLBw=="
       },
+      "BouncyCastle.Cryptography": {
+        "type": "Transitive",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
+      },
       "Microsoft.Bcl.Cryptography": {
         "type": "Transitive",
         "resolved": "10.0.2",
@@ -60,6 +65,7 @@
         "type": "Project",
         "dependencies": {
           "AnyVali": "[1.1.1, 1.1.1]",
+          "BouncyCastle.Cryptography": "[2.7.0, 2.7.0]",
           "Microsoft.IdentityModel.JsonWebTokens": "[8.22.0, 8.22.0]"
         }
       }

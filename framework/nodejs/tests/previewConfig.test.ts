@@ -36,3 +36,15 @@ test("preview config validates opaque secrets and decrypts only with the matchin
     decryptPreviewConfigValue(key, "app", path, value)
   ));
 });
+
+test("empty preview secrets retain authentication", () => {
+  const key = generatePreviewConfigKey();
+  const encrypted = encryptPreviewConfigValue(key, "tenant", ["token"], "");
+  assert.equal(decryptPreviewConfigValue(key, "tenant", ["token"], encrypted), "");
+  assert.throws(() => decryptPreviewConfigValue(key, "app", ["token"], encrypted));
+  assert.throws(() => decryptPreviewConfigValue(key, "tenant", ["other"], encrypted));
+  const [prefix, iv, payload] = encrypted.slice("encrypted:".length).split(":");
+  const tag = Buffer.from(payload!, "base64url");
+  tag[0] = tag[0]! ^ 1;
+  assert.throws(() => decryptPreviewConfigValue(key, "tenant", ["token"], `encrypted:${prefix}:${iv}:${tag.toString("base64url")}`));
+});

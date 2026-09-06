@@ -13,6 +13,7 @@
   <ItemGroup>
     <None Include="../README.md" Pack="true" PackagePath="/" />
     <PackageReference Include="AnyVali" Version="[1.1.1]" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="[2.7.0]" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="[8.22.0]" />
     <EmbeddedResource Include="../../conformance/contracts/*.json" Link="Contracts/%(Filename)%(Extension)" />
   </ItemGroup>
