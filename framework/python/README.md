@@ -1,9 +1,9 @@
 # BetterPortal Python port
 
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
-hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not ready for production**: the AnyVali
-snapshot gate below still fails. Full theme helpers, route
-tooling and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
+hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not ready for production**:
+full theme helpers, route tooling and streaming dependency clients
+remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
 Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
 in `betterportal.asgi` owns the `Service` lifespan. A service combines a registry,
@@ -196,10 +196,9 @@ supplies the effective scheme. `OriginPolicy` normalizes configured HTTP origins
 and preserves exact path/query restrictions on referer overrides. Atomic
 persistent replacement and host proxy middleware remain pending.
 
-**Snapshot validation is blocked by [AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127):**
-Python 1.1.1 accepts `active: null` as the default `true`. The conformance test
-requires rejection and remains failing. Do not deploy this context prototype at
-a trust boundary until the SDK defect is fixed; BP adds no alternate validator.
+AnyVali 1.1.2 treats explicit null as present and applies defaults only to omitted
+input. Snapshot validation therefore rejects `active: null`; BP still uses AnyVali
+as its only validator.
 
 ```python
 from betterportal.context import ScopedConfig, http_origin
@@ -393,7 +392,7 @@ assert negotiate("text/html;mode=fragment").mode == "fragment"
 assert negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).kind == "json"
 ```
 
-Implemented: embedded canonical AnyVali 1.1.1 contracts, RS256 keys and token
+Implemented: embedded canonical contracts validated with AnyVali 1.1.2, RS256 keys and token
 purposes, tenant/app-bound refresh pairs, config-ticket scope/action checks, and
 service authorization against current scoped bindings and grants, static JWKS
 imports and a cancellable remote JWKS cache. Cryptography
@@ -485,10 +484,9 @@ never rewritten. `merge` validates field scopes, explicit clears and secret
 placeholders, including nested arrays. A placeholder cannot create a missing secret
 or move an existing secret into a public union branch. Real replacement values win
 over `clear_keys`; a cleared secret cannot simultaneously use a preserve placeholder.
-Direct sensitive annotations on ref nodes are rejected because all three SDKs bypass
-them ([AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128)). Put sensitive
-metadata on a native wrapper or referenced definition. BP's descriptor visibility
-annotates native fields and wraps bare refs without changing their requiredness.
+AnyVali 1.1.2 applies native transforms, redaction and encrypted-storage validation
+to direct sensitive ref nodes at the ref's value path. BP's descriptor visibility
+annotates native fields directly without changing their requiredness.
 
 `ServiceSettings` serializes writes and owns encrypted tenant/app state. Supply a
 `FileStateStore(path)` as its third argument for persistence; omission uses memory.
@@ -730,7 +728,9 @@ The repository build copies those documents; there is no independently maintaine
 Python schema definition. `betterportal.contracts.document` returns a portable
 document; `contract` imports it natively, including when selecting a named field.
 `object_document` composes portable roots before importing, retaining recursive
-definitions and rejecting conflicting definition names.
+definitions and extensions and rejecting conflicting names or document versions.
+AnyVali 1.1.2 native-parent export also preserves recursive definitions; the helper
+remains useful for portable extension and version checks.
 
 Native input/output typing is generated from those documents:
 
@@ -776,9 +776,11 @@ Redirects are rejected; complete responses have a five-second deadline and
 defaults to rejecting queries for control-plane base URLs.
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
-scenarios across Node, Python and .NET. The [schema gate](../conformance/README.md)
-still exposes AnyVali 1.1.1 compatibility issues. Do not treat package builds
-as evidence that the full framework plan is complete. Nothing is published.
+scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
+passes 1,446/1,446 scenarios with AnyVali 1.1.2, including all 30 former SDK
+compatibility failures. See the conformance ledger for runtime results and remaining
+capabilities. Do not treat package builds as evidence that the full framework plan
+is complete. Nothing is published.
 
 ## Scoped dependency clients
 
@@ -851,9 +853,8 @@ required fields, defaults and nullable values; return types describe validated
 JSON. Undeclared schemas remain generic JSON mappings. Each generated module embeds
 the contract and uses the runtime's policy, transport and shutdown handling.
 `--check` detects stale generated code without writing files. Neither command
-requires Node or BSB. Python's coercion-export defect is tracked in
-[AnyVali #134](https://github.com/BetterCorp/AnyVali/issues/134); the strict
-conformance gate retains its failure.
+requires Node or BSB. AnyVali 1.1.2 preserves Python's empty and from-string
+coercion configurations through export and reimport.
 
 ## Local dependencies and frozen builds
 

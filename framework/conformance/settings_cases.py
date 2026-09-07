@@ -99,11 +99,26 @@ def run_settings(urls, labels):
                 source = fixture(); document = source["descriptors"][0]["jsonSchema"]
                 document["definitions"]["Secret"] = {"kind": "string"}
                 ref = {"kind": "ref", "ref": "#/definitions/Secret", "metadata": {"sensitive": True}}
+                if place == "definition":
+                    document["definitions"]["Unused"] = ref
+                    request(url, source=source, values={}, expected={})
+                    return
+                scope = "tenant" if place == "root" else "app"
+                plain = {"secret": "plaintext"} if place == "root" else {"nested": {"password": "plaintext", "label": "L"}}
                 if place == "root": document["root"]["properties"]["secret"] = ref
-                elif place == "nested": document["root"]["properties"]["nested"]["properties"]["password"] = ref
-                else: document["definitions"]["Unused"] = ref
-                request(url, source=source, values={}, valid=False)
-            check(label, "reject-unsafe-sensitive-ref-" + place, sensitive_ref)
+                else: document["root"]["properties"]["nested"]["properties"]["password"] = ref
+                stored = request(url, "encode", source=source, scope=scope, values=plain, key=key)
+                ciphertext = stored["secret"] if place == "root" else stored["nested"]["password"]
+                assert ciphertext.startswith("enc:aes256gcm2:" if place == "root" else "encrypted:enc:aes256gcm2:"), stored
+                request(url, "decode", source=source, scope=scope, values=stored, key=key, expected=plain)
+                redacted = {"secret": "__redacted__"} if place == "root" else {"nested": {"password": "__redacted__", "label": "L"}}
+                request(url, "redact", source=source, scope=scope, values=plain, expected=redacted)
+                request(url, "decode", source=source, scope=scope, values=plain, key=key, valid=False)
+                damaged = deepcopy(stored)
+                if place == "root": damaged["secret"] += "tampered"
+                else: damaged["nested"]["password"] += "tampered"
+                request(url, "decode", source=source, scope=scope, values=damaged, key=key, valid=False)
+            check(label, "sensitive-ref-" + place, sensitive_ref)
         def definition_sensitive():
             source = fixture(); document = source["descriptors"][0]["jsonSchema"]
             document["definitions"]["Secret"] = {"kind": "string", "metadata": {"sensitive": True}}

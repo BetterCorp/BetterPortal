@@ -3,7 +3,7 @@
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
 for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers, native route
 tooling and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
-The cross-language snapshot gate is still blocked by the Python SDK defect below.
+The portable schema gate passes with AnyVali 1.1.2; see the ledger for runtime results.
 
 Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
 extension. A `Service` combines the registry, manifest declaration and optional
@@ -198,10 +198,9 @@ own declared auth policy independently of app page mounts.
 Raw proxy and HTMX context headers are ignored. `Resolve(..., trustedAddresses: ...)`
 accepts addresses already verified by host proxy middleware; the host supplies
 the effective scheme. `OriginPolicy` normalizes HTTP origins and preserves exact
-path/query restrictions on referer overrides. Host proxy middleware, full policy
-reference validation remain pending. The shared
-context gate exposes Python's [AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127)
-null/default defect; .NET rejects the corresponding invalid snapshot.
+path/query restrictions on referer overrides. Host proxy middleware and full policy
+reference validation remain pending. AnyVali 1.1.2 aligns Python and .NET
+missing/null behavior; both reject an invalid `active: null` snapshot.
 
 ```csharp
 using BetterPortal;
@@ -390,7 +389,7 @@ if (Media.Negotiate("text/html;mode=fragment").Mode != "fragment") throw new Exc
 if (Media.Negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).Kind != "json") throw new Exception("Wrong offer");
 ```
 
-Implemented: embedded canonical AnyVali 1.1.1 contracts, RSA keys, RS256 token
+Implemented: embedded canonical contracts validated with AnyVali 1.1.2, RSA keys, RS256 token
 purposes through IdentityModel, tenant/app-bound refresh pairs, config-ticket
 scope/action checks, and service authorization against current scoped bindings
 and grants, static JWKS imports and a cancellable remote JWKS cache.
@@ -481,10 +480,9 @@ around a BP envelope. Ordinary strings stay unchanged. `Merge` validates scopes,
 clears and placeholders, including nested arrays. A placeholder cannot create a
 missing secret or move it into a public union branch. Replacement values win over
 `clearKeys`; a cleared secret cannot also use a preserve placeholder.
-Direct sensitive annotations on ref nodes are rejected because every SDK bypasses
-them ([AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128)). Use a native
-wrapper or sensitive definition. Descriptor visibility annotates native fields and
-wraps bare refs without changing requiredness.
+AnyVali 1.1.2 applies native transforms, redaction and encrypted-storage validation
+to direct sensitive ref nodes at the ref's value path. Descriptor visibility
+annotates native fields directly without changing requiredness.
 `ServiceSettings` serializes writes and owns encrypted tenant/app state. Supply a
 `FileStateStore(path)` as its third argument for persistence; omission uses memory.
 Call `Initialize()` before reads/writes and dispose with `await using`. Loading
@@ -732,7 +730,9 @@ neither Node nor BSB. `Contracts.Document` returns a portable document;
 the original recursive definitions. JSON conversion retains missing dictionary
 keys versus null. AnyVali remains the only schema validator.
 `Contracts.ObjectDocument` composes portable roots while retaining definitions and
-rejecting conflicting names. The core package has no ASP.NET hosting dependency.
+extensions and rejecting conflicting names or document versions. AnyVali 1.1.2
+native-parent export also preserves recursive definitions; the helper remains useful
+for portable extension and version checks. The core package has no ASP.NET hosting dependency.
 
 The native .NET tool generates types for application contracts:
 
@@ -787,9 +787,11 @@ responses have a five-second deadline and 1 MiB limit. Configured JWKS queries a
 allowed; `TrustedKeys.SecureEndpoint` rejects queries by default for CP base URLs.
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
-scenarios across Node, Python and .NET. The [schema gate](../conformance/README.md)
-retains failing AnyVali compatibility probes. Compilation or NuGet packaging is
-not evidence that the full framework plan is complete. Nothing is published.
+scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
+passes 1,446/1,446 scenarios with AnyVali 1.1.2, including all 30 former SDK
+compatibility failures. See the conformance ledger for runtime results and remaining
+capabilities. Compilation or NuGet packaging is not evidence that the full framework
+plan is complete. Nothing is published.
 
 ## Scoped dependency clients
 
@@ -855,8 +857,9 @@ Generated records preserve required fields, omission through `Optional<T>` and
 nullable values; return records decode validated JSON. Undeclared schemas remain
 generic JSON mappings. Each generated file embeds the contract and delegates
 policy, transport and cancellation to the runtime. `--check` detects stale output
-without writing files. Neither command requires Node or BSB. Cross-language
-coercion export remains gated by [AnyVali #134](https://github.com/BetterCorp/AnyVali/issues/134).
+without writing files. Neither command requires Node or BSB. AnyVali 1.1.2 resolves
+Python's coercion-export gap, so empty and from-string configurations survive export
+and reimport.
 
 ## Local dependencies and frozen builds
 

@@ -8,11 +8,26 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.1** passes [1,416/1,446 schema scenarios](results-anyvali-1.1.1.json).
+Published AnyVali **1.1.2** passes [1,446/1,446 schema scenarios](results-anyvali-1.1.2.json).
 Each language runs 82 semantic cases and imports all 159 documents, then repeats
-every case after native export/reimport. It fixes every failure in the original
-1.1.0 gate ([337/432](results-anyvali-1.1.0.json)), including sensitive metadata,
-Python wire field names, .NET null defaults and recursive root round trips.
+every case after native export/reimport. The release fixes all 30 failures in the
+[1.1.1 schema gate](results-anyvali-1.1.1.json): explicit null/default behavior,
+sensitive references, recursive native-parent composition and Python coercion
+export. The original [1.1.0 result](results-anyvali-1.1.0.json) remains historical evidence.
+
+The current 28-suite [Windows full run](results-combined-anyvali-1.1.2.json) passes
+**5,728/5,728** with Node 24.4.0, Python 3.10.19 and .NET SDK 10.0.201/runtime
+10.0.5. It includes the later project/registry contracts and the settings checks
+that replace obsolete sensitive-ref rejection. Both null-active security regressions
+pass without changing their expectations. Windows and Linux compiler, CLI, executable
+README and unpublished package checks also pass with 1.1.2.
+
+The independent [Linux full run](results-linux-anyvali-1.1.2.json) also passes
+**5,728/5,728**, with matching case outcomes, using Python 3.14.4, Node 24.4.0
+and .NET SDK 10.0.400/runtime 10.0.11. Both full runs were serialized without
+concurrent compilers or other HTTP suites. Report ordering and two assigned
+loopback-port IDs differ between platforms. The SDK-only extension limitation
+described below is outside this corpus; full framework delivery remains incomplete.
 
 The security suite passes [459/459 scenarios](results-security.json): every
 signing/verifying language pair, six token purposes, signature tampering,
@@ -68,13 +83,12 @@ flush backpressure and uses the platform formatter. H3 omits empty IDs; the port
 preserve the standard reset behavior. Host authorization and renderer selection
 are covered by the subscriber feed suite below.
 
-The [context suite](results-context.json) passes 102/103 checks for host/port isolation, service/theme
+The [context suite in the 1.1.2 full run](results-combined-anyvali-1.1.2.json) passes 103/103 checks for host/port isolation, service/theme
 address priority, forged hints, host-verified proxy addresses, duplicate/orphaned
 identities, configuration-only app separation, origin/referer restrictions and
-snapshot-copy ownership. Its Python `null-active-rejected` scenario remains
-failing: AnyVali #127 turns an explicit null tenant flag into `true`. This is the
-same upstream default defect at a security boundary; the prototype is not safe
-to deploy until it is fixed. Full policy reference validation remains delivery work.
+snapshot-copy ownership. Python now rejects an explicit null tenant flag, with
+the original `null-active-rejected` expectation unchanged. Full policy reference
+validation remains delivery work.
 
 The [CORS suite](results-cors.json) passes 33 checks over actual OPTIONS/GET
 responses: preflight without bearer validation or handler execution, required and
@@ -128,7 +142,7 @@ aliases to the local instance mounting the requested operation. Preflights run
 before bearer authentication, and authorization errors preserve trusted CORS
 headers. These are prototype hosts with replaceable snapshots: authorized diagnostics,
 full theme helpers and full helper contexts
-remain delivery work. The SDK null/default defect still blocks production use.
+remain delivery work.
 
 The [raw-response suite](results-raw.json) passes 101 checks. Shared cases use the
 real Node `createRawHandler`/H3 adapter and both native hosts for binary data,
@@ -222,7 +236,8 @@ unauthenticated ciphertext, mismatched field declarations, secret placeholders
 without stored values, and attempts to move preserved secrets into a public union
 branch. Required secret fields retain their requiredness, including recursive refs;
 partial overrides omit defaults while full effective values apply them.
-The same 130 checks run on [Python 3.13](results-settings-python313.json).
+The earlier [Python 3.13 result](results-settings-python313.json) records the
+1.1.1 settings checks before native sensitive-ref support replaced its rejection probes.
 
 The [settings persistence suite](results-settings-store.json) passes 70 checks:
 encrypted tenant/app files read across all nine language pairs, stored overrides
@@ -234,7 +249,7 @@ before readiness and preserves old bytes on failure/cancellation. Node probes us
 its real file store. Native stores enforce the additional field/ownership policy.
 The same suite runs on [Python 3.13](results-settings-store-python313.json).
 
-The [config API suite](results-config-api.json) passes 138/139 checks through actual
+The [config API suite in the 1.1.2 full run](results-combined-anyvali-1.1.2.json) passes 139/139 checks through actual
 Node config routes, ASGI and ASP.NET hosts. Node probes invoke its BSB-owned ticket
 and scope methods; they do not substitute copied authorization policy. Tickets from
 all three issuers read/write scoped encrypted settings. Native checks add management
@@ -243,10 +258,11 @@ explicit development-token opt-in, missing required settings, and effective hand
 config. Snapshot changes during authentication reject the request; updates during a
 settings write wait for its commit. Preview values from every language validate
 before publication, overlay only their target, and never overwrite stored settings.
-The known Python null/default defect remains a failing config-authorization probe.
+The Python null-active config-authorization regression now passes with AnyVali 1.1.2.
 The suite also exposed future-issued config tickets accepted by Node; its shared
 verifier now checks issuance/lifetime, with a focused Node regression test.
-The same gate runs on [Python 3.13](results-config-api-python313.json).
+The earlier [Python 3.13 result](results-config-api-python313.json) retains the
+1.1.1 null-active failure.
 
 The [bootstrap persistence suite](results-bootstrap.json) passes 147/147 checks of the actual Node
 BSB encrypted file format against both native stores. It covers unique nonces,
@@ -340,32 +356,32 @@ factory commands are separate from the still-pending route-directory discovery t
 C# README examples compile and run under the Web SDK so its implicit imports are
 included; route construction explicitly names `BetterPortal.Route`.
 
-| Failure | Evidence | Consequence |
+The following upstream regressions are fixed in AnyVali 1.1.2. Their original
+expectations remain in the shared gate.
+
+| Fixed regression | Evidence | Required behavior |
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null, lock-null-dependencies and their round trips | Null is present and must fail when the schema is not nullable. |
 | A new native parent loses its imported child's recursive definitions (all SDKs) | recursive-composition and its round trip | Composed portable contracts must retain every referenced definition. |
 | Sensitive metadata directly on ref nodes is ignored (all SDKs) | sensitive-ref encrypt/decrypt/plaintext rejection, direct and roundtrip | Encryption callbacks are skipped and plaintext passes encrypted validation. |
 | Python drops empty/from-string coercion on export | coerce-int-empty and coerce-int-from-string round trips | Re-import rejects values accepted by the original schema and can narrow generated input types. |
 
-AnyVali documents the native-parent composition limitation, now tracked in
-[AnyVali #133](https://github.com/BetterCorp/AnyVali/issues/133). BP provides
-portable document composition before native import; recursive and sensitive
-composition probes pass in all three languages. The original native-parent probe
-remains visible. The explicit-null defect is tracked in
-[AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127). BP packages
-contain no alternate validator or monkeypatch. The obsolete pre-1.1.1 SDK patch
-has been removed.
+[AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127),
+[#128](https://github.com/BetterCorp/AnyVali/issues/128),
+[#133](https://github.com/BetterCorp/AnyVali/issues/133) and
+[#134](https://github.com/BetterCorp/AnyVali/issues/134) are resolved. Direct and
+native export/reimport probes pass in every language. Settings use native
+sensitive-reference transforms without the previous rejection or union wrapper.
+BP retains portable document composition to preserve extension metadata, check
+document versions and copy inputs; it is not an SDK validation replacement.
+Packages contain no alternate validator or monkeypatch.
 
-The newly isolated reference defect is [AnyVali #128](https://github.com/BetterCorp/AnyVali/issues/128).
-Its 18 failing SDK probes remain visible. Settings declarations reject that unsafe
-form; BP visibility annotates native fields and wraps bare refs without changing
-requiredness. Metadata on ordinary schemas
-and referenced definitions works. This does not patch the SDK or make its native
-ref behavior conformant.
-
-The coercion-export defect is tracked in
-[AnyVali #134](https://github.com/BetterCorp/AnyVali/issues/134). Its direct
-parsing probes pass; Python's export/re-import probes remain failing.
+A separate SDK-only audit found [AnyVali #139](https://github.com/BetterCorp/AnyVali/issues/139):
+JavaScript/Python accept unsupported semantic extensions, and extended export loses
+imported extension metadata. Clearing extensions in portable export is intentional.
+All 159 canonical BP documents have empty extensions, so the HTTP results here do
+not cover that defect. The upstream issue contains standalone 1.1.2 reproductions;
+BP's document-composition helper does not implement extension semantics.
 
 Supplemental positive documents are generated by native Node schema authoring.
 [export-fixtures.mjs](export-fixtures.mjs) first verifies the expected behavior
@@ -374,14 +390,14 @@ corpus when the SDK itself fails their expected semantics. Encryption callbacks 
 markers to observe sensitive traversal; these are **not cryptographic fixtures**
 and never ship as encryption implementations.
 
-The full gate intentionally returns nonzero while those probes fail. The
-independent security suite can run separately. Never change failing expectations
+The full gate returns nonzero for any failed probe. The independent security
+suite can run separately. Never change failing expectations
 to reproduce SDK defects or infer framework completeness from a package build.
 
 ## Run from the repository root
 
 Use Node with the workspace dependencies installed, .NET 10, and Python 3.10+.
-Recorded runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
+Earlier 1.1.1 runs used Node 24.4.0, .NET SDK 10.0.201, and Python 3.13.5 and 3.10.19 on
 Windows. Both Python versions returned the original eight SDK failures. The client-generator checkpoint's
 [combined Python 3.10 results](results-combined-anyvali-1.1.1.json) passes 5,530/5,560
 checks across twenty-eight suites. Failures are the original SDK probes, the
@@ -430,8 +446,8 @@ and runtime readiness rules are unchanged.
 The [CI ports job](../../.github/workflows/ci.yml) runs Python 3.10 and 3.14 on
 Linux with .NET 10, checks canonical exports and native types, executes README
 examples, builds and checks unpublished packages, then runs the full HTTP gate.
-It retains packages and the JSON report even when conformance fails. The known
-AnyVali probes deliberately fail the job; they are not waived. The workflow has
+It retains packages and the JSON report even when conformance fails. Any SDK or
+framework regression fails the job; no probes are waived. The workflow has
 been validated locally but has not run on the hosted runner: this branch has not
 been pushed.
 
@@ -555,5 +571,5 @@ code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
 HTTP suite (global theme helpers,
 authorized diagnostics and streaming/generated Node clients) and standalone examples remain
-incomplete. CI is wired but awaits a hosted run and upstream AnyVali fixes.
+incomplete. CI is wired but awaits a hosted run.
 Publishing and BSB plugins remain separate follow-ups.

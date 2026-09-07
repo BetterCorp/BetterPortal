@@ -24,21 +24,6 @@ class SettingsInputError(ValueError):
     """Invalid declared settings input, distinct from persistence/encryption failure."""
 
 
-def _supported(document: dict[str, Any]) -> None:
-    # AnyVali #128: refs bypass their own sensitive pipeline in all three SDKs.
-    # Reject the unsafe declaration, including unused definitions; no data validator.
-    pending = [document["root"], *document.get("definitions", {}).values()]
-    while pending:
-        node = pending.pop()
-        if node["kind"] == "ref" and node.get("metadata", {}).get("sensitive"):
-            raise ValueError("AnyVali #128: sensitive metadata requires a wrapper or definition, not a ref node")
-        pending.extend(node.get("properties", {}).values())
-        for key in ("items", "values", "valueSchema", "inner", "schema", "schemas", "variants", "allOf"):
-            child = node.get(key)
-            if isinstance(child, dict): pending.append(child)
-            elif isinstance(child, list): pending.extend(child)
-
-
 def _at(value: Any, path: tuple[str | int, ...]) -> Any:
     for part in path:
         if isinstance(value, dict) and part in value: value = value[part]
@@ -68,7 +53,6 @@ class SettingsSchema:
             if descriptor["id"] in seen: raise ValueError("Duplicate settings descriptor")
             seen.add(descriptor["id"])
             document = av.export_schema(av.import_schema(descriptor["jsonSchema"]))
-            _supported(document)
             root = document["root"]
             if root["kind"] != "object" or root.get("metadata", {}).get("sensitive"):
                 raise ValueError("Settings descriptors require an AnyVali object with individual fields")
@@ -85,10 +69,6 @@ class SettingsSchema:
                     if "default" not in node or field["defaultValue"] != node["default"]:
                         raise ValueError("Descriptor defaultValue must match the AnyVali field default")
                 if field["visibility"] == "secret":
-                    # A one-branch union gives bare refs a native sensitive pipeline
-                    # without making required fields optional or widening their values.
-                    if node["kind"] == "ref":
-                        child["root"] = node = {"kind": "union", "variants": [node], **({"default": deepcopy(node["default"])} if "default" in node else {})}
                     node["metadata"] = {**node.get("metadata", {}), "sensitive": True}
                 while True:
                     if node.get("metadata", {}).get("sensitive"): self._secrets[scope].add(key)

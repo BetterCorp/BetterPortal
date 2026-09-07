@@ -4,9 +4,9 @@
     "net10.0": {
       "AnyVali": {
         "type": "Direct",
-        "requested": "[1.1.1, 1.1.1]",
-        "resolved": "1.1.1",
-        "contentHash": "4EwXOEP+n0wc8o0ZOQvclTHhl8HS0ejkm4NOswXhYgJh3RNy8nYvTkENm8+praHbxi+3ZE4k1sN7kAQAW0YLBw=="
+        "requested": "[1.1.2, 1.1.2]",
+        "resolved": "1.1.2",
+        "contentHash": "BJPEo6V0bGscrTNEatnMD2P11QCmgRVi1g3CNDEHkt2gQ+vTyAU1SVIbOMNcL8AWlGuA8k0q1vvHZhFSbBd2dw=="
       },
       "BouncyCastle.Cryptography": {
         "type": "Direct",

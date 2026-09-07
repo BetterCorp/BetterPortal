@@ -254,6 +254,38 @@
     ],
     "unknownKeys": "strip"
   },
-  "definitions": {},
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
   "extensions": {}
 }

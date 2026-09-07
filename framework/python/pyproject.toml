@@ -9,7 +9,7 @@ description = "BetterPortal native runtime and security policy"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "AGPL-3.0-only"
-dependencies = ["anyvali==1.1.1", "PyJWT[crypto]>=2.13.0,<3", "cryptography>=50.0.1,<51", "httpx>=0.28.1,<1", "typing_extensions>=4.4,<5"]
+dependencies = ["anyvali==1.1.2", "PyJWT[crypto]>=2.13.0,<3", "cryptography>=50.0.1,<51", "httpx>=0.28.1,<1", "typing_extensions>=4.4,<5"]
 
 [project.optional-dependencies]
 asgi = ["starlette>=1.6.0,<2", "python-multipart>=0.0.32,<0.1"]

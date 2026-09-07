@@ -6,8 +6,8 @@ delivery order is specification/fixtures → contracts/security → runtime/host
 later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
-native packages and runnable HTTP gates exist. Published AnyVali 1.1.1 passes
-1,416/1,446 schema probes; token/service security passes 459/459 scenarios and JWKS
+native packages and runnable HTTP gates exist. Published AnyVali 1.1.2 passes
+1,446/1,446 schema probes; token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
@@ -18,24 +18,21 @@ Typed HTML callbacks, presentation context, fragments/components and status/erro
 rendering pass 163/163 checks.
 Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
-persistence 70/70, config HTTP hosting 138/139, protected bootstrap storage 147/147,
+persistence 70/70, config HTTP hosting 139/139, protected bootstrap storage 147/147,
 installation 137/137, hostname changes 99/99 and scoped dependency clients 210/210.
-The client-generator checkpoint's full gate passes 5,530/5,560;
-the remaining probes expose SDK defects/limitations, including Python's explicit-null
-tenant flag affecting config authorization. Windows Python 3.10 and Linux Python
-3.14 produce the same full-gate failure identities. Linux compiler, documentation
-and package checks pass; CI runs those gates on Python 3.10/3.14 without waiving
-the upstream failures. Hosted CI execution awaits a future push.
-The subsequent local project-tooling stage passes 130 CLI checks on Windows and
-Linux. Its separate schema runs add two failing defaulted-record probes for #127;
-the earlier combined reports have not been relabeled as new full runs.
-Registry installation/publishing adds 122 passing Windows/Linux CLI checks and two
-canonical response documents; its schema gate retains the same 30 SDK failures.
+The AnyVali 1.1.2 [Windows full gate](results-combined-anyvali-1.1.2.json) and
+[Linux full gate](results-linux-anyvali-1.1.2.json) each pass 5,728/5,728 with
+matching case outcomes on Python 3.10 and 3.14 respectively, including the
+former null-active security failures. Compiler, documentation and package checks
+also pass on both platforms; CI runs its gates without waiving regressions. Hosted CI
+execution awaits a future push. Earlier versioned reports remain historical evidence.
+Local project tooling passes 130 CLI checks on Windows and Linux, including
+dependency locks and frozen builds. Registry installation/publishing adds 122
+passing CLI checks and two canonical response documents.
 Native factory export passes 27 Windows/Linux checks, including compiled assembly
 dependencies, Python packages, failed/stale outputs and cross-language consumers.
 Inbound operation mounts and local permission aliases pass 130/130 access checks.
-Context resolution passes 102/103; its Python null-active check is blocked by the
-same upstream null/default defect. See
+Context resolution passes 103/103, including rejection of explicit null tenant flags. See
 [README](README.md). Neither language is a complete production runtime. Entries remain
 pending except the specifically marked partial work.
 
@@ -45,7 +42,7 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 159 canonical documents embedded in both packages, including derived authoring declarations, project locks and registry responses; native imports, field selection and portable object composition; SDK defects remain visible | manifest.md §4 | schema-cases.json; 1,416/1,446 including all-document round trips |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 159 canonical documents embedded in both packages, including derived authoring declarations, project locks and registry responses; native imports, field selection and portable object composition | manifest.md §4 | schema-cases.json; 1,446/1,446 including all-document round trips |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; typed subscriber-feed binding; full contexts pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors and renderer/streaming metadata | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
@@ -53,7 +50,7 @@ future scenarios; they are not assertions that those tests already exist.
 | multipart/raw | contracts/route.ts, adapters/h3.ts | Bounded native forms/uploads with canonical types; explicit raw byte/stream/file responses with header validation, CORS ownership, HEAD disposal and cancellation; JSON/raw registration stays explicit | protocol.md; port READMEs | hosting_cases.py: input bounds and multipart; raw_cases.py: 101 checks for downloads, statuses, cookies, header injection, stream order/backpressure and disposal |
 | negotiation | runtime/media.ts, adapters/h3.ts | Native media policy plus JSON/metadata/HTML/NDJSON hosts and finite SSE; authorized metadata avoids handler side effects | protocol.md §3; port READMEs | media_cases.py: 124 checks; hosting_cases.py: availability, 406 and metadata; rendering_cases.py: exact renderer, mode and fragment Accept |
 | rendering | runtime/view.ts, element.ts, statusViews.ts | Typed sync/async HTML callbacks, safe canonical render data, page/fragment/component and method/status selection, response state, URL/element helpers and separate error renderers; global status renderers pending | fragment-html.md; port READMEs | rendering_cases.py: 163 checks for selectors, metadata, escaped HTML, parsed context, status/header/chrome, error projection, HEAD and cancellation; url_cases.py, check_types.py and check_docs.py |
-| context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Python context.py/C# Context.cs prototype: canonical scoped parse, host/port lookup and origin policy; Python null-active security gate blocked by AnyVali #127; host proxy middleware/full policy references pending | config.md §1; port READMEs | context_cases.py: isolation, priority, forged hints, duplicate/orphan identities, origin restrictions, owned copies; null-active-rejected fails on Python |
+| context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Python context.py/C# Context.cs prototype: canonical scoped parse, host/port lookup and origin policy; host proxy middleware/full policy references pending | config.md §1; port READMEs | context_cases.py: 103 checks for isolation, priority, forged hints, duplicate/orphan identities, origin restrictions, owned copies and null-active rejection |
 | cors | runtime/h3.ts; BSB service.ts | Native trusted-origin policy integrated into JSON/raw/HTML/finite hosts, with per-mount preflights before authentication | protocol.md §2; port READMEs | cors_cases.py: 33 checks; hosting_cases.py, raw_cases.py and rendering_cases.py: protected and fragment preflights, denied methods/origins, auth error headers and header ownership |
 | allowlist | adapters/h3.ts appAllowsRoute | Native exact IDs/legacy IDs, path variants, enabled local instances and GET fragment/slot mounts; JSON hosts enforce operation-specific aliases and verified machine audiences | config.md §1; port READMEs | access_cases.py: 130 checks; hosting_cases.py adds wrong-local-target, method dispatch and rejected aliases |
 | URLs | runtime/configProvider.ts, adapters/h3.ts; BSB service.ts | Native Urls on handler/render contexts: service aliases and exact instances, local/optional paths, app-mounted GET navigation, origin/param/query encoding, fragment/component/SSE selection, HTMX attributes, shell/service elements and route-token rewriting | docs/building/shell-links.md; port READMEs | url_cases.py: 232 shared/native checks; generated option compiler checks and executed documentation |
@@ -61,7 +58,7 @@ future scenarios; they are not assertions that those tests already exist.
 | jwks | runtime/auth/jwks.ts, keypair.ts | Python keys.py/C# Keys.cs: static RSA JWKS, remote cache, rotation/invalidation, bounded HTTP and cancellation; protected identity persistence in bootstrap.py/Bootstrap.cs | auth.md §1.1; port READMEs | key_cases.py: 80 checks, including native transport policy and cancellation |
 | roles | adapters/h3.ts resolveUserRequestAuth | Native current role grants, trusted aliases and management-only elevation; JSON hosts bind aliases to the mounted operation; cross-service permission-target helpers pending | auth.md §1.2; port READMEs | authorization_cases.py and hosting_cases.py: revoked-role/grant/alias, root scope, caller modes and real JWKS requests |
 | auth-helpers | runtime/auth/issuer.ts, externalOidc.ts, redirect.ts, envelope.ts | Partial: refresh pairs/scope binding and CP/setup purposes; installation binding is covered below; external bridge and redirects/cookies pending | auth.md; port READMEs | security_cases.py refresh-pair, envelope-purpose; authorization_cases.py refresh-helper purpose/issuer/audience/tenant/app |
-| config-ticket | runtime/configTicket.ts, serviceConfig.ts | CP-signed ticket routes enforce issuer/service/actions, active tenant and configApps scope; management CORS, redaction, atomic writes and lifecycle integrated; Python null-active probe blocked by AnyVali #127 | config.md §4; port READMEs | security_cases.py and config_api_cases.py: 138/139 config HTTP checks, all-language issuers, scope revocation/races, dev opt-in and Node shared issuance-time regression |
+| config-ticket | runtime/configTicket.ts, serviceConfig.ts | CP-signed ticket routes enforce issuer/service/actions, active tenant and configApps scope; management CORS, redaction, atomic writes and lifecycle integrated | config.md §4; port READMEs | security_cases.py and config_api_cases.py: 139/139 config HTTP checks, all-language issuers, null-active rejection, scope revocation/races, dev opt-in and Node shared issuance-time regression |
 | s2s | runtime/auth/serviceToken.ts; BSB service.ts | JSON hosts verify both delegated halves, partial/revoked envelopes and mounted machine audiences; native JSON clients bind user/service/delegated calls to current scope, mounts, contracts, requests, bindings, grants and registered signing identity | auth.md §3; port READMEs | security_cases.py, authorization_cases.py, hosting_cases.py and client_cases.py: wrong-peer, revocation, method/mode/permission/capability, scope, redirects, cookie isolation, transport bounds, cancellation and all receiver languages |
 | local-config | runtime/configProvider.ts | Service accepts local ScopedConfig, validates atomic replacements and restores canonical snapshots through replaceable file storage; platform/environment authoring still pending | config.md §1; port READMEs | snapshot_cases.py: failed-save/cancellation/size/rename, concurrent updates, owned copies, cache interchange and live scope/auth/URL policy; hosting_cases.py: local scope |
 | settings | runtime/configStore.ts, serviceConfig.ts | SettingsSchema compiles AnyVali contracts and preserves scopes/defaults/requiredness; ServiceSettings owns encrypted persistence with explicit legacy ownership; ConfigApi integrates authorized HTTP writes and effective handler/preview values | config.md §3; port READMEs | settings_cases.py: 130 checks for values, defaults, requiredness and sensitive policy; settings_store_cases.py: 70 for files, atomic failure, cancellation, migration and lifecycle; config_api_cases.py: API authorization, config/default/preview application and continued configuration with missing required values |
@@ -99,23 +96,20 @@ JavaScript are not port deliverables. Existing Node services are integration pee
 
 ## Known defects must not become compatibility requirements
 
-- AnyVali 1.1.1 fixes the original 1.1.0 metadata, wire-name, null-default and
-  recursive root interchange failures. Python still replaces explicit null with
-  a default; all SDKs document a native-parent composition limitation (#133). Both
-  expanded probes remain failing; BP portable composition passes its separate
-  recursive and sensitive-field probes. Never accept dangling references or mask the
-  presence defect with a second validator. Encryption primitives and preview
-  sensitive traversal and encrypted persistence pass. Ticket-protected hosting passes
-  except its Python null-active regression caused by AnyVali #127.
-- AnyVali 1.1.1 also bypasses sensitive metadata on ref nodes in all SDKs (#128).
-  The eighteen direct/roundtrip probes remain failing. Settings declarations reject
-  that unsafe form; BP field visibility annotates a native wrapper. Metadata on
-  referenced definitions is exercised separately. No SDK patch or second data
-  validator is introduced.
-- Python AnyVali 1.1.1 drops empty/from-string coercion on export (#134).
-  Native direct parsing accepts the input; export/re-import rejects it. Both
-  regressions remain in the strict shared gate, including their impact on
-  typing derived from exported contracts.
+- AnyVali 1.1.2 fixes all 30 schema failures recorded against 1.1.1: Python
+  explicit-null/default behavior (#127), sensitive references in every SDK (#128),
+  recursive native-parent export (#133) and Python coercion export (#134).
+  Original expectations remain in the strict gate. Settings now annotate refs
+  directly and exercise native encryption, redaction and tampering rejection;
+  the obsolete rejection and union wrapper are removed. BP keeps portable
+  composition for extension metadata, document-version checks and input ownership.
+  No SDK patch or second validator is introduced.
+- [AnyVali #139](https://github.com/BetterCorp/AnyVali/issues/139) remains open:
+  JavaScript/Python accept unsupported semantic extensions and lose imported
+  metadata in extended export. Portable export intentionally clears extensions.
+  The current 159-document BP corpus has empty extensions; its passing HTTP gate
+  does not establish support for extension semantics. SDK-only reproductions are
+  attached to the upstream issue.
 - Node's platform menu schema is bounded but its exported document can exceed
   application JSON's depth limit. The development exporter uses native AnyVali
   export and supplies BP's existing recursive JSON definition without parsing

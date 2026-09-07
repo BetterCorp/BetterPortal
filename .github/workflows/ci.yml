@@ -96,7 +96,7 @@ jobs:
           python -m build framework/python --no-isolation --outdir ports-artifacts/packages
           python framework/conformance/check_packages.py ports-artifacts/packages
 
-      # Upstream AnyVali failures fail this gate until resolved.
+      # SDK and BP regressions fail this gate without exemptions.
       - name: Run the full HTTP interoperability gate
         run: python framework/conformance/verify.py --roundtrip-all --report ports-artifacts/conformance.json
 

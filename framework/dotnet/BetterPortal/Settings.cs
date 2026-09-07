@@ -27,7 +27,6 @@ public sealed class SettingsSchema
         {
             if (!seen.Add((string)descriptor["id"]!)) throw new ArgumentException("Duplicate settings descriptor");
             var document = Operation.Export(Contracts.Import(Json.Write(descriptor["jsonSchema"])));
-            Supported(document);
             var root = (Node)document["root"]!;
             if (!Equals(root["kind"], "object") || Sensitive(root)) throw new ArgumentException("Settings descriptors require an AnyVali object with individual fields");
             var properties = (Node)root["properties"]!;
@@ -43,17 +42,7 @@ public sealed class SettingsSchema
                 if (field.TryGetValue("defaultValue", out var value) && (!node.ContainsKey("default") || !JsonNode.DeepEquals(
                     JsonNode.Parse(Json.Write(value)), JsonNode.Parse(Json.Write(node["default"]))))) throw new ArgumentException("Descriptor defaultValue must match the AnyVali field default");
                 if (Equals(field["visibility"], "secret"))
-                {
-                    // Give bare refs a native sensitive pipeline without changing
-                    // requiredness or widening the values the author declared.
-                    if (Equals(node["kind"], "ref"))
-                    {
-                        var wrapper = new Node { ["kind"] = "union", ["variants"] = new List<object?> { node } };
-                        if (node.TryGetValue("default", out var fallback)) wrapper["default"] = Copy(fallback);
-                        child["root"] = node = wrapper;
-                    }
                     node["metadata"] = new Node((Node)node.GetValueOrDefault("metadata", new Node())!) { ["sensitive"] = true };
-                }
                 while (true)
                 {
                     if (Sensitive(node)) secrets[scope].Add(key);
@@ -89,21 +78,6 @@ public sealed class SettingsSchema
         }
     }
     private static bool Sensitive(Node node) => node.GetValueOrDefault("metadata") is Node meta && meta.GetValueOrDefault("sensitive") is true;
-    private static void Supported(Node document)
-    {
-        // AnyVali #128: refs bypass their own sensitive pipeline. Reject unsafe
-        // declarations (including unused definitions); this does not validate data.
-        var pending = new Stack<Node>(((Node)document.GetValueOrDefault("definitions", new Node())!).Values.Cast<Node>());
-        pending.Push((Node)document["root"]!);
-        while (pending.TryPop(out var node))
-        {
-            if (Equals(node["kind"], "ref") && Sensitive(node)) throw new ArgumentException("AnyVali #128: sensitive metadata requires a wrapper or definition, not a ref node");
-            foreach (var child in ((Node)node.GetValueOrDefault("properties", new Node())!).Values.Cast<Node>()) pending.Push(child);
-            foreach (var key in new[] { "items", "values", "valueSchema", "inner", "schema", "schemas", "variants", "allOf" })
-                if (node.GetValueOrDefault(key) is Node child) pending.Push(child);
-                else if (node.GetValueOrDefault(key) is List<object?> children) foreach (var item in children.Cast<Node>()) pending.Push(item);
-        }
-    }
     private static object? Copy(object? value) => Json.Read(Json.Write(value));
     public IReadOnlyList<Generated.ConfigSchemaDescriptor> Descriptors() => descriptors.Select(value => Contracts.Parse<Generated.ConfigSchemaDescriptor>("ConfigSchemaDescriptorSchema", value)).ToArray();
     private Node Check(string scope, object? values)

@@ -119,17 +119,17 @@
     },
     {
       "runtime": "python",
-      "id": "settings-reject-unsafe-sensitive-ref-root",
+      "id": "settings-sensitive-ref-root",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "settings-reject-unsafe-sensitive-ref-nested",
+      "id": "settings-sensitive-ref-nested",
       "passed": true
     },
     {
       "runtime": "python",
-      "id": "settings-reject-unsafe-sensitive-ref-definition",
+      "id": "settings-sensitive-ref-definition",
       "passed": true
     },
     {
@@ -444,17 +444,17 @@
     },
     {
       "runtime": "dotnet",
-      "id": "settings-reject-unsafe-sensitive-ref-root",
+      "id": "settings-sensitive-ref-root",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "settings-reject-unsafe-sensitive-ref-nested",
+      "id": "settings-sensitive-ref-nested",
       "passed": true
     },
     {
       "runtime": "dotnet",
-      "id": "settings-reject-unsafe-sensitive-ref-definition",
+      "id": "settings-sensitive-ref-definition",
       "passed": true
     },
     {

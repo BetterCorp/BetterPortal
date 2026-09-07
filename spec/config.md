@@ -297,9 +297,9 @@ The native settings compiler uses legacy BP envelopes for top-level sensitive
 fields. Nested sensitive values retain `encrypted:` around a BP envelope; ordinary
 strings resembling an envelope are unchanged. Nullable nulls follow native AnyVali
 storage semantics, while present top-level secret fields are always redacted in
-the config API. AnyVali 1.1.1 ignores sensitive annotations directly on ref nodes
-([#128](https://github.com/BetterCorp/AnyVali/issues/128)); settings compilation
-rejects that form. Use sensitive metadata on a native wrapper or definition.
+the config API. AnyVali 1.1.2 supports sensitive annotations directly on ref nodes;
+native transforms, redaction and encrypted-storage validation run at the ref's
+value path.
 
 ### 5.1 Preview config
 
