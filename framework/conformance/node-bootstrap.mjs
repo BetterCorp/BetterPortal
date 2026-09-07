@@ -6,6 +6,7 @@ import { BootstrapStateStore } from "../../plugins/nodejs/betterportal-bsb/lib/b
 
 export async function bootstrapRequest(body) {
   const directory = await mkdtemp(join(tmpdir(), "bp-bootstrap-"));
+  if (!resolve(directory).startsWith(resolve(tmpdir()) + sep)) throw new Error("Invalid temporary directory");
   const filePath = join(directory, "state.json");
   try {
     await writeFile(filePath + ".key", body.key, { mode: 0o600 });
@@ -18,7 +19,6 @@ export async function bootstrapRequest(body) {
     return { valid: true, state: store.read() };
   } catch (error) { return { valid: false, error: error.message }; }
   finally {
-    if (!resolve(directory).startsWith(resolve(tmpdir()) + sep)) throw new Error("Invalid temporary directory");
     await rm(directory, { recursive: true });
   }
 }

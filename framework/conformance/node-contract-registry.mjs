@@ -14,7 +14,10 @@ Object.defineProperty(plugin, "config", { value: {
 plugin.store = new ContractRegistryStore(directory);
 const requests = [];
 const server = createServer((request, response) => {
-  if (request.url === "/__requests") { response.end(JSON.stringify(requests)); return; }
+  if (request.url === "/__requests") {
+    response.writeHead(200, { "content-type": "application/json", "x-content-type-options": "nosniff" });
+    response.end(JSON.stringify(requests)); return;
+  }
   requests.push({ method: request.method, url: request.url, authorization: !!request.headers.authorization, cookie: !!request.headers.cookie });
   if (!request.url.startsWith("/fault/")) { void plugin.handle(request, response); return; }
   const kind = request.url.split("/")[2];

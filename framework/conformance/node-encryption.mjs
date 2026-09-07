@@ -22,6 +22,7 @@ export async function encryption(body) {
     }
     if (action !== "crypto-store-encrypt" && action !== "crypto-store-decrypt") throw new Error("Unknown encryption action");
     const temporary = await mkdtemp(join(tmpdir(), "bp-crypto-"));
+    if (dirname(temporary) !== tmpdir()) throw new Error("Unexpected temporary directory");
     try {
       const filePath = join(temporary, "config.json");
       if (action.endsWith("-decrypt")) await writeFile(filePath, JSON.stringify({ tenants: { test: { tenant: { secret: value }, app: {} } } }));
@@ -30,7 +31,6 @@ export async function encryption(body) {
       store.write("test", undefined, { secret: value }, { tenantId: "test" });
       return { valid: true, output: JSON.parse(await readFile(filePath, "utf8")).tenants.test.tenant.secret };
     } finally {
-      if (dirname(temporary) !== tmpdir()) throw new Error("Unexpected temporary directory");
       await rm(temporary, { recursive: true, force: true });
     }
   } catch (error) { return { valid: false, errorType: error.name }; }

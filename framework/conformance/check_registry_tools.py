@@ -61,6 +61,14 @@ with tempfile.TemporaryDirectory(prefix="bp-registry-tools-", dir=root / ".tmp-r
             else:
                 log.seek(0); raise AssertionError(log.read())
 
+            # Recorded URLs are untrusted text even on this disposable loopback peer.
+            trace_path = "/fault/trace?value=<script>alert(1)</script>"
+            with http.open(url + trace_path) as response: assert response.status == 200
+            with http.open(url + "/__requests") as response:
+                assert response.headers.get_content_type() == "application/json"
+                assert response.headers["X-Content-Type-Options"] == "nosniff"
+                assert json.load(response)[0]["url"] == trace_path
+
             for index, (language, command) in enumerate(native.items()):
                 print("Checking registry tooling from " + language, flush=True)
                 result = json.loads(run([*command, "publish", "--contract", "bp-contract.json", "--project", str(provider)], provider))

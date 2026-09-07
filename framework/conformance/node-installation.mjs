@@ -16,6 +16,7 @@ import { ScopedConfigCache } from "../../plugins/nodejs/betterportal-bsb/lib/sco
 
 export async function installationRequest(body) {
   const directory = await mkdtemp(join(tmpdir(), "bp-node-install-"));
+  if (!resolve(directory).startsWith(resolve(tmpdir()) + sep)) throw new Error("Invalid temporary directory");
   try {
     // The existing Node sync API does not expose its stream task. A process owner
     // guarantees every legacy writer has stopped before the fixture removes files.
@@ -39,7 +40,6 @@ export async function installationRequest(body) {
     });
     return result;
   } finally {
-    if (!resolve(directory).startsWith(resolve(tmpdir()) + sep)) throw new Error("Invalid temporary directory");
     await rm(directory, { recursive: true });
   }
 }
