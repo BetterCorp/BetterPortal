@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import replace
+import re
 from typing import Any, Coroutine, TypeVar, cast
 from urllib.parse import parse_qsl, quote
 
@@ -50,10 +51,15 @@ def _append(values: dict[str, Any], key: str, value: Any) -> None:
     else: values[key] = [values[key], value]
 
 
+def _pairs(raw: bytes) -> list[tuple[str, str]]:
+    if re.search(rb"%(?![0-9A-Fa-f]{2})", raw): raise ValueError("Invalid percent escape")
+    return parse_qsl(raw.decode("utf-8"), keep_blank_values=True, max_num_fields=1000, encoding="utf-8", errors="strict")
+
+
 def _query(raw: bytes) -> dict[str, Any]:
     if len(raw) > 8192: raise RequestError(414, "Query string is too large")
     try:
-        pairs = parse_qsl(raw.decode("utf-8"), keep_blank_values=True, max_num_fields=1000, encoding="utf-8", errors="strict")
+        pairs = _pairs(raw)
     except ValueError as error:
         raise RequestError(400, "Invalid query string") from error
     values: dict[str, Any] = {}
@@ -81,7 +87,7 @@ async def _decode(request: Request, body: bytes) -> tuple[Any, Any]:
     if media == "application/x-www-form-urlencoded":
         fields: dict[str, Any] = {}
         try:
-            for name, value in parse_qsl(body.decode("utf-8"), keep_blank_values=True, max_num_fields=1000, encoding="utf-8", errors="strict"):
+            for name, value in _pairs(body):
                 _append(fields, name, value)
         except (ValueError, UnicodeError) as error: raise RequestError(400, "Invalid form body") from error
         return fields, parse("MultipartRequestSchema", {"fields": fields, "files": {}})

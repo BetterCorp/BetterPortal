@@ -10,6 +10,8 @@ import anyvali as av
 from .handler import HandlerContext, HandlerInputs, RequestContext, Invocation, Params, Query, Headers, Body
 
 _TRANSPORT_HEADERS = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "content-length"}
+# Standard singleton response fields; list fields and Set-Cookie may repeat.
+_SINGLETON_HEADERS = {"content-type", "content-disposition", "content-location", "content-range", "date", "etag", "last-modified", "location", "retry-after", "server", "age", "expires"}
 
 
 class RawResponse:
@@ -21,11 +23,15 @@ class RawResponse:
         if status in (204, 205, 304) and body != b"": raise ValueError("Response status forbids a body")
         pairs = tuple((name, value) for name, value in (headers.items() if isinstance(headers, Mapping) else headers))
         if sum(len(name) + len(value) for name, value in pairs) > 65536: raise ValueError("Response headers are too large")
+        seen: set[str] = set()
         for name, value in pairs:
             if not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name) or any(ord(char) < 32 and char != "\t" or ord(char) > 255 or ord(char) == 127 for char in value):
                 raise ValueError("Invalid response header")
             if name.lower() in _TRANSPORT_HEADERS or name.lower().startswith("access-control-"):
                 raise ValueError("Response header is owned by the host")
+            if name.lower() in _SINGLETON_HEADERS:
+                if name.lower() in seen: raise ValueError("Duplicate singleton response header")
+                seen.add(name.lower())
         self._body, self._status, self._headers = body, status, pairs
         self._closed = False
 

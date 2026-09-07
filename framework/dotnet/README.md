@@ -15,7 +15,9 @@ replace a deployed full BP runtime.
 
 The adapter enforces scope, local operation mounts, CORS and caller authentication,
 then decodes and validates handler inputs. Repeated query/form values and field-name
-case survive. `RequestContext.Multipart` is generated from the canonical multipart
+case survive. Malformed percent escapes and invalid UTF-8 in query strings or
+URL-encoded forms return 400 before handler invocation. `RequestContext.Multipart`
+is generated from the canonical multipart
 contract, including file byte arrays. Body buffering defaults to 1 MiB through
 `maxBodyBytes`; form limits are 1,000 fields, 100 files and 1 MiB per text field.
 Client cancellation reaches input reads, authentication and handler waits.
@@ -153,12 +155,16 @@ var operation = new Operation(download, new OperationDeclarationInput {
 if (!operation.Handler.IsRaw) throw new Exception("Raw operation was not registered");
 ```
 
-`RawResponse` accepts bytes or a readable `Stream`; ASP.NET Core owns the returned
-stream and asynchronously disposes it on completion, disconnect or failure. Reads
+`RawResponse` accepts bytes, a readable `Stream` or `IAsyncEnumerable<byte[]>`.
+ASP.NET Core owns the body: it disposes streams and chunk sources implementing
+`IAsyncDisposable` on completion, disconnect or failure, including HEAD and
+cancelled handler results that never enumerate the source. Reads
 wait for writes, and failures after headers abort delivery. Raw handlers must honor
 `context.Cancellation`; the runtime awaits ownership transfer so an abandoned
 result cannot leak an open file. `RawResponse.File` accepts content and creates
-safe ASCII/UTF-8 download headers. Header pairs preserve repeated cookies. The host
+safe ASCII/UTF-8 download headers. Header pairs preserve repeated cookies and list
+fields such as `Vary`; duplicate standard singleton fields such as `Content-Type`
+and `Content-Disposition` are rejected regardless of case. The host
 owns CORS/transport headers, computes byte-body length and rejects header injection.
 Status 204/205/304 forbids a body; 206 and redirects may carry one.
 

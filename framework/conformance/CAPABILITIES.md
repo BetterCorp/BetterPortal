@@ -14,14 +14,17 @@ checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/1
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
 input/output types. JSON operation registration and manifest generation pass 89/89
-registry checks. Prototype JSON hosts pass 222/222 HTTP/ASGI checks; raw responses
-pass 101/101 checks including streamed delivery, ownership and backpressure.
+registry checks. Prototype JSON hosts pass 277/277 HTTP/ASGI checks; raw responses
+pass 137/137 checks including streamed delivery, ownership and backpressure.
 Typed HTML callbacks, presentation context, fragments/components and status/error
 rendering pass 163/163 checks.
 Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 139/139, protected bootstrap storage 147/147,
 installation 137/137, hostname changes 99/99 and scoped dependency clients 210/210.
+The transport regression [Windows full gate](results-full-transport.json) and
+[Linux full gate](results-full-transport-linux.json) each pass **5,861/5,861**
+scenarios: 1,488 schema and 4,373 runtime checks, with matching case outcomes.
 The AnyVali 1.1.4 [Windows full gate](results-combined-anyvali-1.1.4.json) and
 [Linux full gate](results-linux-anyvali-1.1.4.json) each pass **5,770/5,770** existing
 scenarios, with matching case outcomes and no waivers or changed expectations.
@@ -62,12 +65,12 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 161 canonical documents embedded in both packages, including derived authoring declarations, project locks, workspace/route metadata and registry responses; native imports, field selection and portable object composition | manifest.md §4 | schema-cases.json; 1,480/1,488 including all-document round trips; eight C# extension failures block the gate |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 161 canonical documents embedded in both packages, including derived authoring declarations, project locks, workspace/route metadata and registry responses; native imports, field selection and portable object composition | manifest.md §4 | schema-cases.json; 1,488/1,488 including all-document round trips with AnyVali 1.1.4 |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; typed subscriber-feed binding; full contexts pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors and renderer/streaming metadata | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
 | validation | adapters/h3.ts, codegen/schemaPolicy.ts | Native typed handlers and JSON hosts validate per-field input/output, retain null/arrays and enforce body/query/header bounds; full authoring policy pending | protocol.md §4; port READMEs | handler_cases.py: 44 checks; hosting_cases.py adds decoding, errors, method dispatch and client cancellation |
-| multipart/raw | contracts/route.ts, adapters/h3.ts | Bounded native forms/uploads with canonical types; explicit raw byte/stream/file responses with header validation, CORS ownership, HEAD disposal and cancellation; JSON/raw registration stays explicit | protocol.md; port READMEs | hosting_cases.py: input bounds and multipart; raw_cases.py: 101 checks for downloads, statuses, cookies, header injection, stream order/backpressure and disposal |
+| multipart/raw | contracts/route.ts, adapters/h3.ts | Bounded native forms/uploads with canonical types; explicit raw byte/stream/file responses with header validation, CORS ownership, HEAD disposal and cancellation; JSON/raw registration stays explicit | protocol.md; port READMEs | hosting_cases.py: input bounds and multipart; raw_cases.py: 137 checks for downloads, statuses, cookies, header injection, stream order/backpressure and disposal |
 | negotiation | runtime/media.ts, adapters/h3.ts | Native media policy plus JSON/metadata/HTML/NDJSON hosts and finite SSE; authorized metadata avoids handler side effects | protocol.md §3; port READMEs | media_cases.py: 124 checks; hosting_cases.py: availability, 406 and metadata; rendering_cases.py: exact renderer, mode and fragment Accept |
 | rendering | runtime/view.ts, element.ts, statusViews.ts | Typed sync/async HTML callbacks, safe canonical render data, page/fragment/component and method/status selection, response state, URL/element helpers and separate error renderers; global status renderers pending | fragment-html.md; port READMEs | rendering_cases.py: 163 checks for selectors, metadata, escaped HTML, parsed context, status/header/chrome, error projection, HEAD and cancellation; url_cases.py, check_types.py and check_docs.py |
 | context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Python context.py/C# Context.cs prototype: canonical scoped parse, host/port lookup and origin policy; host proxy middleware/full policy references pending | config.md §1; port READMEs | context_cases.py: 103 checks for isolation, priority, forged hints, duplicate/orphan identities, origin restrictions, owned copies and null-active rejection |
@@ -116,9 +119,15 @@ JavaScript are not port deliverables. Existing Node services are integration pee
 
 ## Known defects must not become compatibility requirements
 
-- PR #54 review identified malformed percent escapes, duplicate singleton raw
-  response headers and undisposed .NET asynchronous chunk sources. Regression work
-  is underway; the 1.1.4 upgrade reports above precede those additional cases.
+- PR #54 transport findings are reproduced and fixed: malformed percent escapes
+  in query names/values and URL-encoded forms return 400, duplicate standard
+  singleton raw headers are rejected case-insensitively, and .NET raw responses
+  dispose asynchronous chunk sources even without enumeration. Repeated cookies
+  and list headers remain valid. The new probes exposed 24 encoding failures,
+  26 header failures and four .NET disposal failures before the shared fixes.
+  Both native hosts now pass those cases. The gate also retains 27 passing
+  cross-language auth cases for BP service-specific well-known APIs, which the
+  protocol intentionally permits independently of app page mounts.
 
 - AnyVali 1.1.2 fixes all 30 schema failures recorded against 1.1.1: Python
   explicit-null/default behavior (#127), sensitive references in every SDK (#128),

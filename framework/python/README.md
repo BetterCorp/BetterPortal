@@ -14,7 +14,9 @@ synchronization, described below. Authorized health diagnostics remain pending.
 
 The host resolves scope, checks local operation mounts and CORS, and verifies user
 or delegated/service credentials before invoking handlers. It preserves repeated
-query/form values and field-name case. `RequestContext.multipart` contains the
+query/form values and field-name case. Malformed percent escapes and invalid UTF-8
+in query strings or URL-encoded forms return 400 before handler invocation.
+`RequestContext.multipart` contains the
 canonical parsed form fields and uploads (file data is an array of byte values).
 Body buffering defaults to 1 MiB, configurable through `max_body_bytes`; forms
 permit at most 1,000 fields and 100 files, with 1 MiB per text field. File resources
@@ -155,8 +157,10 @@ A raw body is bytes or an async iterator yielding bytes. The ASGI host awaits
 each send before requesting the next chunk and calls `aclose()` when available
 on completion, disconnect or failure. Stream failures after headers terminate the
 response. Supply file content, not a filesystem path, to `RawResponse.file`;
-it builds safe ASCII/UTF-8 download headers. Header pairs retain repeated cookies;
-the host owns CORS and transport headers, computes byte-body length, and rejects
+it builds safe ASCII/UTF-8 download headers. Header pairs retain repeated cookies
+and list fields such as `Vary`; duplicate standard singleton fields such as
+`Content-Type` and `Content-Disposition` are rejected regardless of case.
+The host owns CORS and transport headers, computes byte-body length, and rejects
 header injection. Status 204/205/304 forbids a body; 206 and redirects may carry one.
 
 ```python

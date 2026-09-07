@@ -7,6 +7,8 @@ namespace BetterPortal;
 public sealed class RawResponse : IAsyncDisposable
 {
     private static readonly HashSet<string> TransportHeaders = new(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "content-length"], StringComparer.OrdinalIgnoreCase);
+    // Standard singleton response fields; list fields and Set-Cookie may repeat.
+    private static readonly HashSet<string> SingletonHeaders = new(["content-type", "content-disposition", "content-location", "content-range", "date", "etag", "last-modified", "location", "retry-after", "server", "age", "expires"], StringComparer.OrdinalIgnoreCase);
     public ReadOnlyMemory<byte> Body { get; }
     public Stream? BodyStream { get; }
     public IAsyncEnumerable<byte[]>? BodyChunks { get; }
@@ -27,12 +29,14 @@ public sealed class RawResponse : IAsyncDisposable
         if (stream is not null && !stream.CanRead) throw new ArgumentException("Raw response stream must be readable");
         var pairs = (headers ?? []).ToArray();
         if (pairs.Sum(pair => (long)pair.Key.Length + pair.Value.Length) > 65536) throw new ArgumentException("Response headers are too large");
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, value) in pairs)
         {
             if (!Regex.IsMatch(name, @"\A[!#$%&'*+.^_`|~0-9A-Za-z-]+\z") || value.Any(c => c < 32 && c != '\t' || c > 255 || c == 127))
                 throw new ArgumentException("Invalid response header");
             if (TransportHeaders.Contains(name) || name.StartsWith("access-control-", StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("Response header is owned by the host");
+            if (SingletonHeaders.Contains(name) && !seen.Add(name)) throw new ArgumentException("Duplicate singleton response header");
         }
         Body = body.ToArray(); BodyStream = stream; BodyChunks = chunks; Status = status; Headers = Array.AsReadOnly(pairs);
     }
@@ -48,6 +52,7 @@ public sealed class RawResponse : IAsyncDisposable
         if (closed) return;
         closed = true;
         if (BodyStream is not null) await BodyStream.DisposeAsync();
+        if (BodyChunks is IAsyncDisposable chunks) await chunks.DisposeAsync();
     }
 }
 

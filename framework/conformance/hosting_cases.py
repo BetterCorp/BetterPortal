@@ -100,6 +100,13 @@ def run_hosting(urls, labels):
     case("query-invalid-utf8", lambda body: body["request"].update(path="/check/item?hello=%FF"), 400, 0, native=True)
     case("form-invalid-utf8", lambda body: write(body, "hello=%FF", "application/x-www-form-urlencoded"), 400, 0, native=True)
     case("form-invalid-raw-utf8", lambda body: (write(body, "", "application/x-www-form-urlencoded"), body["request"].update(bodyBase64="eD3/")), 400, 0, native=True)
+    for encoded in ("%", "%2", "%ZZ"):
+        for field in ("name", "value"):
+            pairs = encoded + "=value" if field == "name" else "hello=" + encoded
+            case("query-percent-" + field + "-" + encoded, lambda body, pairs=pairs: (body.update(rawTarget=True), body["request"].update(path="/check/item?" + pairs)), 400, 0, native=True)
+            case("form-percent-" + field + "-" + encoded, lambda body, pairs=pairs: write(body, pairs, "application/x-www-form-urlencoded"), 400, 0, native=True)
+    case("query-encoded-percent", lambda body: body["request"].update(path="/check/item?hello=%25ZZ"), expected={**baseline, "query": {"hello": "%ZZ"}}, native=True)
+    case("form-encoded-percent", lambda body: write(body, "hello=%25ZZ", "application/x-www-form-urlencoded"), expected={**baseline, "request": {"hello": "%ZZ"}, "multipart": {"fields": {"hello": "%ZZ"}, "files": {}}}, native=True)
     case("duplicate-preflight-selector", lambda body: (body["request"].update(method="OPTIONS", path="/check/item?_f=a&_f=b"), body["request"]["headers"].update({"access-control-request-method": "GET"})), 400, 0, native=True)
     for name, body, status, invoked, expected, native in cases:
         for url, label in zip(urls, labels):
@@ -138,6 +145,15 @@ def run_hosting(urls, labels):
             auth_case("revoked-role", lambda body: app(body)["auth"].update(roles=[]), 403)
             auth_case("refresh-denied", lambda body: body["request"]["headers"].update(authorization="Bearer " + refresh), 401)
             auth_case("missing-credential", lambda body: body["request"]["headers"].pop("authorization"), 401)
+            def service_api(value):
+                value["routes"][0]["path"] = "/.well-known/bp/custom/:key"
+                value["request"]["path"] = "/.well-known/bp/custom/item?hello=world"
+                app(value)["routes"] = []
+                value["routes"][0]["operations"][0]["declaration"]["auth"]["permissions"] = []
+            # Protocol service APIs use operation auth independently of page mounts.
+            auth_case("well-known-user", service_api)
+            auth_case("well-known-missing-credential", lambda value: (service_api(value), value["request"]["headers"].pop("authorization")), 401)
+            auth_case("well-known-wrong-scope", lambda value: (service_api(value), value["request"]["headers"].update(authorization="Bearer " + wrong_scope)), 401)
             auth_case("preflight-before-auth", lambda body: (body["request"].update(method="OPTIONS"), body["request"]["headers"].update({"authorization": "invalid", "access-control-request-method": "GET"})), 204)
             auth_case("other-instance-role-alias", lambda body: app(body)["auth"]["roles"][0]["permissions"][0].update(serviceId=SOURCE), 403, native=True)
             def service(body, delegated=False):

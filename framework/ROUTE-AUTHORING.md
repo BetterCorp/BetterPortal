@@ -28,6 +28,11 @@ and append `.index`; use an explicit ID to keep identity when moving a view.
 Operation IDs are always explicit. Duplicate IDs, ambiguous paths and inconsistent
 method params schemas fail through the ordinary registry checks.
 
+Service APIs under `/.well-known/bp/` are independent of app page mounts, as in
+[the BP protocol](../spec/protocol.md). Their operation auth still applies: declare
+required auth and permissions for protected APIs. An empty app route list does
+not disable these APIs, and placing a route here does not authenticate its caller.
+
 Schemas use AnyVali. Discovery rejects `any`, `unknown` and objects with
 `unknownKeys: allow`, including nested and referenced schemas. Use the platform's
 recursive `JsonValueSchema`/`JsonObjectSchema` for arbitrary JSON values.

@@ -8,6 +8,14 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
+The review-fix [Windows gate](results-full-transport.json) and
+[Linux gate](results-full-transport-linux.json) each pass **5,861/5,861** scenarios:
+**1,488 schema checks** and **4,373 BP runtime checks**, with matching outcomes.
+The added cases cover query/form percent escapes, singleton raw headers, .NET
+chunk-source disposal and authenticated service APIs independent of page mounts.
+The former three defects were reproduced before fixing their shared boundaries.
+Windows native compiler/type checks also pass; no existing expectation was relaxed.
+
 AnyVali **1.1.4** passes **5,770/5,770** existing scenarios in both the
 [Windows full gate](results-combined-anyvali-1.1.4.json) and
 [Linux full gate](results-linux-anyvali-1.1.4.json): **1,488 schema scenarios** and
@@ -28,8 +36,8 @@ package checks pass on both platforms. Full HTTP runs were serialized without co
 HTTP suites. The gate covers the implemented capabilities, not the complete port plan.
 
 [PR #54](https://github.com/BetterCorp/BetterPortal/pull/54) is open for review and
-hosted CI. Its new transport-boundary findings are tracked in the capability ledger;
-these existing reports precede those additional regression cases.
+hosted CI. The AnyVali upgrade commit passes both Python 3.10/3.14 CI jobs and
+Node/CodeQL checks. The expanded transport reports above include the review regressions.
 
 The historical route-discovery stage with AnyVali 1.1.3 passes **5,762/5,770** in both the
 [Windows full gate](results-full-route-discovery.json) and

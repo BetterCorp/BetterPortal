@@ -34,6 +34,13 @@ public static class Hosting
     private static Node Pairs(string raw, int maximumLength = 8192)
     {
         if (raw.Length > maximumLength) throw new RequestException(414, "Query string is too large");
+        for (var index = 0; index < raw.Length; index++)
+        {
+            if (raw[index] != '%') continue;
+            if (index + 2 >= raw.Length || !Uri.IsHexDigit(raw[index + 1]) || !Uri.IsHexDigit(raw[index + 2]))
+                throw new RequestException(400, "Invalid form or query encoding");
+            index += 2;
+        }
         var result = new Node(StringComparer.Ordinal); var count = 0;
         foreach (var pair in new QueryStringEnumerable(raw))
         {

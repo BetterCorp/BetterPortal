@@ -48,7 +48,8 @@ internal static class HostingAdapter
                         {
                             hasStream = true;
                             var producer = new RawBody(raw, stream, started, finished, () => cancelled = true);
-                            return filename is null ? new RawResponse(producer, status, headers) : RawResponse.File(producer, filename, contentType, raw.GetValueOrDefault("inline") is true);
+                            if (raw.GetValueOrDefault("enumerable") is true) return new RawResponse((IAsyncEnumerable<byte[]>)producer, status, headers);
+                            return filename is null ? new RawResponse((Stream)producer, status, headers) : RawResponse.File(producer, filename, contentType, raw.GetValueOrDefault("inline") is true);
                         }
                         var bytes = Convert.FromBase64String((string)raw.GetValueOrDefault("body", "")!);
                         return filename is null ? new RawResponse(bytes, status, headers) : RawResponse.File(bytes, filename, contentType, raw.GetValueOrDefault("inline") is true);
@@ -146,7 +147,11 @@ internal static class HostingAdapter
             var address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
             var input = (Node)body["request"]!;
             using var client = new HttpClient(new HttpClientHandler { UseProxy = false, AllowAutoRedirect = false });
-            using var request = new HttpRequestMessage(new HttpMethod((string)input["method"]!), address + (string)input["path"]!);
+            var target = address + (string)input["path"]!;
+            // Send malformed fixture query escapes verbatim, without Uri repairing them.
+            var uri = body.GetValueOrDefault("rawTarget") is true
+                ? new Uri(target, new UriCreationOptions { DangerousDisablePathAndQueryCanonicalization = true }) : new Uri(target);
+            using var request = new HttpRequestMessage(new HttpMethod((string)input["method"]!), uri);
             var payload = input.TryGetValue("bodyBase64", out var encoded) ? Convert.FromBase64String((string)encoded!) : System.Text.Encoding.UTF8.GetBytes((string)input.GetValueOrDefault("body", "")!);
             request.Content = new ByteArrayContent(payload);
             foreach (var (name, value) in (Node)input.GetValueOrDefault("headers", new Node())!)
@@ -238,7 +243,7 @@ internal static class HostingAdapter
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
         public override Task FlushAsync(CancellationToken cancellationToken) => destination.FlushAsync(cancellationToken);
     }
-    private sealed class RawBody(Node spec, Node state, TaskCompletionSource started, TaskCompletionSource finished, Action cancelled) : Stream
+    private sealed class RawBody(Node spec, Node state, TaskCompletionSource started, TaskCompletionSource finished, Action cancelled) : Stream, IAsyncEnumerable<byte[]>
     {
         private int index;
         public override bool CanRead => true;
@@ -251,6 +256,12 @@ internal static class HostingAdapter
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public async IAsyncEnumerator<byte[]> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        {
+            var buffer = new byte[((List<object?>)spec["chunks"]!).Select(chunk => Convert.FromBase64String((string)chunk!).Length).DefaultIfEmpty(1).Max()];
+            int count;
+            while ((count = await ReadAsync(buffer, cancellationToken)) > 0) yield return buffer[..count];
+        }
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             var chunks = (List<object?>)spec["chunks"]!;
