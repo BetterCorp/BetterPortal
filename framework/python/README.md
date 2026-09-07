@@ -2,8 +2,10 @@
 
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
 hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not ready for production**:
-full theme helpers, scaffolding and streaming dependency clients
+full theme helpers and streaming dependency clients
 remain in the [capability ledger](../conformance/CAPABILITIES.md).
+
+Start a standalone service with the [native init commands](../ROUTE-AUTHORING.md#create-a-standalone-service).
 
 Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
 in `betterportal.asgi` owns the `Service` lifespan. A service combines a registry,
@@ -886,8 +888,7 @@ document. Frozen builds use that cache, verify the configured identity/version,
 and validate every dependency before updating generated sources. They perform no
 network lookup or local override discovery; `--check` performs no writes.
 Explicit installation can migrate a legacy Node lock. Native frozen builds reject
-legacy locale-dependent digests; Node's CLI supports both formats. Route scaffolding
-remains delivery work.
+legacy locale-dependent digests; Node's CLI supports both formats. Native init commands are documented in the route authoring guide.
 
 Without `--path` or `--registry`, `deps add` first discovers exported local contracts:
 literal `package.json` workspaces at the nearest Git root, `node_modules` packages

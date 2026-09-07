@@ -1,6 +1,7 @@
 using BetterPortal;
 using BetterPortal.Tool;
 
+if (args.Length > 0 && args[0] == "init") return Scaffold.Command(args[1..]);
 if (args.Length > 0 && args[0] == "export") return ContractExporter.Command(args[1..]);
 if (args.Length > 0 && args[0] is "deps" or "publish")
 {
@@ -13,6 +14,7 @@ if (args.Length > 0 && args[0] is "deps" or "publish")
 if (args.Length == 0 || args[0] is not ("types" or "client"))
 {
     Console.Error.WriteLine("bp-dotnet types (--platform | --contracts PATH) --output FILE [--namespace NAME] [--check]");
+    Console.Error.WriteLine("bp-dotnet init DIRECTORY --plugin-id ID --registry-ref NAMESPACE/NAME --title TITLE");
     Console.Error.WriteLine("bp-dotnet client --contract FILE --output FILE [--class-name NAME] [--namespace NAME] [--check]");
     Console.Error.WriteLine("bp-dotnet deps add SELECTOR [--path PROJECT | --registry URL] [--alias NAME] [--project DIR]");
     Console.Error.WriteLine("bp-dotnet deps sync --frozen [--check] [--project DIR]");

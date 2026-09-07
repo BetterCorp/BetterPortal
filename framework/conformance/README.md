@@ -3,10 +3,21 @@
 **The full .NET/Python framework delivery is incomplete.** This directory supplies
 canonical AnyVali contracts, native adapters, HTTP schema/security fixtures, and a
 capability ledger. Token and service-envelope interoperability is verified;
-full theme helpers, scaffolding and Bootstrap integration
+full theme helpers and Bootstrap integration
 remain delivery work. No packages are published.
 
 ## Recorded result
+
+Native init commands pass **43 packaged CLI/HTTP checks on each OS** in
+[check_scaffold.py](check_scaffold.py). Generated services build and export without
+Node in their PATH, install against the actual Node config manager, serve
+authenticated JSON/HTML and restore encrypted credentials after restart. The test
+uses shell renderer metadata; full Bootstrap shell integration remains delivery
+work. Existing destinations and invalid identities fail without overwriting files.
+Initial poll/SSE snapshot replacement may return the documented configuration-change
+503; the test retries only that exact response for reads within five seconds.
+The [native route guide](../ROUTE-AUTHORING.md) documents init and generated projects.
+
 
 The review-fix [Windows gate](results-full-transport.json) and
 [Linux gate](results-full-transport-linux.json) each pass **5,861/5,861** scenarios:

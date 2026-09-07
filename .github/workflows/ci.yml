@@ -96,6 +96,7 @@ jobs:
           dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output ports-artifacts/packages
           python -m build framework/python --no-isolation --outdir ports-artifacts/packages
           python framework/conformance/check_packages.py ports-artifacts/packages
+          python framework/conformance/check_scaffold.py ports-artifacts/packages
 
       # SDK and BP regressions fail this gate without exemptions.
       - name: Run the full HTTP interoperability gate

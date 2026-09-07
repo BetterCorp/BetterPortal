@@ -1,9 +1,11 @@
 # BetterPortal .NET port
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
-for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers, scaffolding
+for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers
 and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The AnyVali 1.1.4 schema gate passes all 1,488 checks; see the ledger for results.
+
+Start a standalone service with the [native init commands](../ROUTE-AUTHORING.md#create-a-standalone-service).
 
 Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
 extension. A `Service` combines the registry, manifest declaration and optional
@@ -894,7 +896,7 @@ Frozen builds use that cache, check the configured identity/version, and validat
 all dependencies before updating generated files. They perform no network lookup
 or local override discovery; `--check` performs no writes. Explicit installation
 can migrate a legacy Node lock. Native frozen builds reject legacy locale-dependent
-digests; Node's CLI supports both formats. Route scaffolding remains delivery work.
+digests; Node's CLI supports both formats. Native init commands are documented in the route authoring guide.
 
 Without `--path` or `--registry`, `deps add` first discovers exported local contracts:
 literal `package.json` workspaces at the nearest Git root, `node_modules` packages

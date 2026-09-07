@@ -6,6 +6,30 @@ each factory's source path through `CallerFilePath`; discovery does not read C# 
 PDB files. Keep the route-root segment when using compiler `PathMap` settings.
 These packages are currently unpublished; build/install the local packages first.
 
+## Create a standalone service
+
+The installed native tools create a new project directory:
+
+```sh
+bp-python init python-service --plugin-id com.example.service --registry-ref example/service --title "Example service"
+bp-dotnet init dotnet-service --plugin-id com.example.service --registry-ref example/service --title "Example service"
+```
+
+Each project includes a discovered, authenticated `hello.get` operation, JSON and
+Bootstrap HTML rendering, a contract export factory, `betterportal.json` and an
+empty dependency lock. The generated README supplies native build/export/run
+commands and host configuration. Existing destinations and invalid BP identities
+are rejected before writing project files. Files are created without overwriting.
+
+The host uses `ServiceInstallation` with protected bootstrap storage and durable
+snapshots/settings. Configure the trusted config-manager URL, public service origin
+and a persistent, separately protected master key, then install through the existing
+config manager. Readiness requires manifest submission and a valid snapshot. The
+generated service pins its installed BP package version; no Node or BSB build/run
+hooks are emitted. Scaffolding does not publish a package or contract.
+
+## Route modules
+
 Both forms return the same `Registry` used by hosting and contract export:
 
 | File | Synchronous factory result |

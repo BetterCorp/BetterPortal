@@ -15,6 +15,11 @@ from .contract_export import export_contract
 def main() -> None:
     parser = argparse.ArgumentParser(prog="bp-python")
     commands = parser.add_subparsers(dest="command", required=True)
+    init = commands.add_parser("init", help="Create a standalone service in a new directory")
+    init.add_argument("directory", type=Path)
+    init.add_argument("--plugin-id", required=True)
+    init.add_argument("--registry-ref", required=True)
+    init.add_argument("--title", required=True)
     types = commands.add_parser("types", help="Generate Python input/output types from AnyVali contracts")
     sources = types.add_mutually_exclusive_group(required=True)
     sources.add_argument("--platform", action="store_true", help="Use embedded canonical BP contracts")
@@ -49,6 +54,11 @@ def main() -> None:
     sync.add_argument("--frozen", action="store_true", required=True)
     sync.add_argument("--check", action="store_true", help="Verify generated dependencies without writing files")
     args = parser.parse_args()
+    if args.command == "init":
+        from .scaffold import scaffold
+        scaffold(args.directory, args.plugin_id, args.registry_ref, args.title)
+        print(args.directory / "README.md")
+        return
     if args.command == "export":
         export_contract(args.module, args.project, args.output, check=args.check)
         print(args.project / args.output)
