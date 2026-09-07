@@ -788,8 +788,8 @@ allowed; `TrustedKeys.SecureEndpoint` rejects queries by default for CP base URL
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
-passes 1,468/1,476 scenarios with AnyVali 1.1.3. Python and JavaScript pass all
-492 checks each; eight C# extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
+passes 1,474/1,482 scenarios with AnyVali 1.1.3. Python and JavaScript pass all
+494 checks each; eight C# extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
 See the conformance ledger for runtime results and remaining
 capabilities. Compilation or NuGet packaging is not evidence that the full framework
 plan is complete. Nothing is published.
@@ -887,8 +887,22 @@ Frozen builds use that cache, check the configured identity/version, and validat
 all dependencies before updating generated files. They perform no network lookup
 or local override discovery; `--check` performs no writes. Explicit installation
 can migrate a legacy Node lock. Native frozen builds reject legacy locale-dependent
-digests; Node's CLI supports both formats. Automatic local discovery and route
-scaffolding remain delivery work.
+digests; Node's CLI supports both formats. Route scaffolding remains delivery work.
+
+Without `--path` or `--registry`, `deps add` first discovers exported local contracts:
+literal `package.json` workspaces at the nearest Git root, `node_modules` packages
+(including scopes), sibling repositories, then `BP_DEV_PATHS`. Without Git, the
+consumer directory is the root. Native projects need no `package.json`; siblings
+and `BP_DEV_PATHS` work independently of Node. Development paths are relative to
+`--project`, separated by `;` on Windows or `:` on Linux. A development path named
+`node_modules` is expanded into its packages. Workspace glob entries are ignored,
+matching Node's existing discovery; use explicit development paths for those layouts.
+
+Automatic candidates must declare `registryRef` in `betterportal.json`. Invalid or
+stale exports are skipped; an explicit `--path` reports their errors. Exact versions
+are honored. Multiple matching identities, versions or different contract bytes
+fail before any writes; identical duplicates are accepted. Use a full identity,
+exact version or `--path` to disambiguate. No service code executes during discovery.
 
 ## Registry installation and publishing
 
@@ -898,8 +912,9 @@ bp-dotnet deps add com.example.service@1.0.0 --alias peer
 bp-dotnet publish --contract bp-contract.json --project .
 ```
 
-Without `--path`, installation uses `BP_REGISTRY_URL` (default
-`https://io.betterportal.org`); `--registry URL` overrides it. Short names use
+When no local contract matches, installation uses `BP_REGISTRY_URL` (default
+`https://io.betterportal.org`). `--registry URL` selects the registry directly and
+bypasses automatic local discovery. Short names use
 `defaultNamespace` or require a unique registry match. An explicit version is
 fetched after short-name resolution; omitted versions and `latest` resolve the
 registry's current version. Installation pins the exact response bytes and uses

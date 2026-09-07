@@ -7,11 +7,14 @@ import os
 from pathlib import Path
 import tempfile
 from typing import Any
+from anyvali import ValidationError
 
 from .clientgen import generate_client
 from .contracts import parse
 from .jsoncodec import loads
 from .registry_client import RegistryClient
+
+_Candidate = tuple[Path, str, bytes, Any]
 
 
 def _read(path: Path) -> bytes:
@@ -84,22 +87,76 @@ class Project:
         matched = identity == actual or kind == "shortName" and identity == manifest["pluginId"].split(".")[-1]
         return matched and (version in (None, "latest") or version == manifest["version"])
 
-    def local(self, selector: tuple[str, str, str | None], path: str | Path) -> tuple[Path, str, bytes, Any]:
+    def _local_candidates(self, selector: tuple[str, str, str | None], path: str | Path, *, strict: bool) -> list[_Candidate]:
         directory = (self.directory / path).resolve()
-        if not directory.is_dir(): raise ValueError("A local dependency path must be a project directory")
-        config_path = directory / "betterportal.json"
-        config = parse("BetterPortalProjectConfigSchema", _json(_read(config_path)) if config_path.is_file() else {})
-        reference = config.get("registryRef", selector[1] if selector[0] == "registryRef" else "")
-        parse("RegistryReferenceSchema", reference)
-        files = ([directory / "bp-contract.json"] if (directory / "bp-contract.json").is_file() else [])
-        files += sorted((directory / "lib/bp-contracts").glob("*.json"))
+        try:
+            if not directory.is_dir(): raise ValueError("A local dependency path must be a project directory")
+            config_path = directory / "betterportal.json"
+            config = parse("BetterPortalProjectConfigSchema", _json(_read(config_path)) if config_path.is_file() else {})
+            reference = config.get("registryRef", selector[1] if strict and selector[0] == "registryRef" else "")
+            parse("RegistryReferenceSchema", reference)
+            files = ([directory / "bp-contract.json"] if (directory / "bp-contract.json").is_file() else [])
+            files += sorted((directory / "lib/bp-contracts").glob("*.json"))
+        except (OSError, ValueError, ValidationError):
+            if strict: raise
+            return []
         found = []
         for file in files:
-            data = _read(file); contract = parse("BpSchemaOutputSchema", _json(data))
+            try:
+                data = _read(file); contract = parse("BpSchemaOutputSchema", _json(data))
+            except (OSError, ValueError, ValidationError):
+                if strict: raise
+                continue
             if self._matches(selector, reference, contract): found.append((directory, reference, data, contract))
+        return found
+
+    @staticmethod
+    def _select(found: list[_Candidate]) -> _Candidate | None:
+        if len({(value[1], _digest(value[2])) for value in found}) > 1:
+            raise ValueError("Local dependency is ambiguous; select an exact identity, version or --path")
+        return found[0] if found else None
+
+    def local(self, selector: tuple[str, str, str | None], path: str | Path) -> _Candidate:
+        found = self._select(self._local_candidates(selector, path, strict=True))
         if not found: raise ValueError("No local contract matches the dependency identity and version")
-        if len({_digest(value[2]) for value in found}) != 1: raise ValueError("Local dependency is ambiguous; select an exact version")
-        return found[0]
+        return found
+
+    @staticmethod
+    def _children(directory: Path) -> list[Path]:
+        try: return sorted(path for path in directory.iterdir() if path.is_dir())
+        except OSError: return []
+
+    def _package_roots(self, directory: Path) -> list[Path]:
+        if directory.name != "node_modules": return [directory]
+        roots = []
+        for package in self._children(directory):
+            roots += self._children(package) if package.name.startswith("@") else [package]
+        return roots
+
+    def _discover(self, selector: tuple[str, str, str | None]) -> _Candidate | None:
+        root = next((path for path in (self.directory, *self.directory.parents) if (path / ".git").exists()), self.directory)
+        roots = []
+        package = root / "package.json"
+        if package.is_file():
+            metadata = parse("LocalWorkspacePackageSchema", _json(_read(package)))
+            roots += [root / path for path in metadata["workspaces"] if "*" not in path]
+        roots.append(self.directory / "node_modules")
+        roots += self._children(root.parent)
+        roots += [self.directory / path for path in os.environ.get("BP_DEV_PATHS", "").split(os.pathsep) if path]
+        found = []
+        for path in dict.fromkeys(Path(os.path.abspath(path)) for path in roots):
+            for package in self._package_roots(path):
+                found += self._local_candidates(selector, package, strict=False)
+        return self._select(found)
+
+    async def add(self, value: str, path: str | Path | None = None, alias: str | None = None, url: str | None = None) -> Any:
+        if path is not None and url is not None: raise ValueError("Select --path or --registry")
+        if path is not None: return self.add_local(value, path, alias)
+        if url is None:
+            selector = self.selector(value)
+            local = self._discover(selector)
+            if local is not None: return self._install(selector, *local, alias)
+        return await self.add_registry(value, alias, url)
 
     def _cache(self, locked: Any) -> Path:
         return self.directory / ".betterportal/contracts" / locked["pluginId"] / (locked["version"] + ".json")

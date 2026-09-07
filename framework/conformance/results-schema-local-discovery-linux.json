@@ -1,0 +1,7424 @@
+{
+  "scenarios": 1482,
+  "passed": 1474,
+  "results": [
+    {
+      "runtime": "node",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-redeem-strips-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-sensitive-fields",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "auth-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "missing-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "wrong-uuid-version",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "valid-uuid",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "recursive-json",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-state-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-presence",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-null-app",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "empty-service-callers",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "invalid-action",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-encrypt",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-reject-plaintext-storage",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-decrypt",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "default-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "recursive-export-reimport",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "default-present-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "portable-recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "portable-sensitive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "manifest-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "manifest-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "route-url-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-reject-server-identity",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-key-omitted-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "element-args-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-encrypt",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-decrypt",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-reject-plaintext",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-response-reject-false",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-recursive",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-required-path",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-unknown-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-from-string",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-empty",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-fields",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-reference",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-null-dependencies",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-null-namespace",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "lock-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "lock-null-dependencies",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "locked-native",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "locked-legacy",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "locked-bad-digest",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "locked-unknown-format",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "dependency-alias",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "dependency-alias-traversal",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "local-dependency-lock",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-catalog-empty",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-catalog-null",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-publish-result",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-publish-required",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-publish-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "semantic-extension-unsupported",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "default-semantic-extension-unsupported",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "informational-extensions-extended-export",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "informational-extensions-portable-export",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "informational-extension-native-parent-export",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AdminApiDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ApiAuthRequirementSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ApiCallerModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ApiContractDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthPermissionActionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthPermissionGrantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthRedirectsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthRoleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthViewReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppRouteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AuthAudienceRuleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AuthProviderRuntimeMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AuthRoleAuthoritySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AuthressProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalAppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalAppShellSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalBrandingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalConfigManagementAuthSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalConfigManagementSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalFragmentAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalLockSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalLogLevelSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalMenuItemSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalOriginPolicySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalProjectConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalResourceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalRouteChromeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalRouteChromeValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalRouteMountSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalSeoConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalShellFragmentItemSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalShellFragmentSettingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalSlotAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalTenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalThemeBootstrapPaletteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalThemeConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalThemeSurfaceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalTraceContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BindingRecordSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BindingTrustSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BpSchemaOutputSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BpSchemaRouteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-CacheHintsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigFieldDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigFieldGroupDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigFieldUiDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigOwnershipSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigSchemaDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigScopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigVisibilitySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ControlPlaneSubmissionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-CpEnvelopeClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DefaultAuthProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DemoScenarioMatchSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DemoScenarioSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DependencyAliasSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DeploymentModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DeveloperResourceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-FragmentAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-HtmlRepresentationSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-HttpMethodSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-IdentityRealmSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-JsonObjectSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-JsonValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-JwtClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-LocalDependencyLockSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-LocalWorkspacePackageSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-LockedDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MCallerModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MGrantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MMethodSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MRequestDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ManifestDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-MultipartRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ObservabilityAttributesSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ObservabilityValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-OperationDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PersistedServiceConfigStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PlatformServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PluginCategorySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PluginIdSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PluginManifestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentDeploymentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentDeploymentServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentGroupSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentGroupServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentOidcSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentServiceConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PublicJwksSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RegistryPackageListSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RegistryPublishResultSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RegistryReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RenderModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ResolvedBPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RouteUiOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RouteUrlOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RsaPublicJwkSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ScopedAppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ScopedServiceConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ScopedTenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ScopedTenantServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-SemverSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceCatalogEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigActionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigManagementModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigReadResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigSchemaResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigTicketClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigWriteRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceRedeemResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceTokenClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-SetupTokenClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-SharedServiceDefinitionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ShellFragmentDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ShellManifestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-StreamEndFrameSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-StreamErrorFrameSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-StreamShellContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TenantAppValidationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TenantServiceRegistrationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TenantSharedServiceActivationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TokenLifetimeConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TokenTypeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-UuidV7Schema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewDemoScenarioMatchSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewDemoScenarioSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewOperationMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewPermissionDefinitionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRendererSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRendererVariantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRoleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewTenantContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-WebhookEventDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "install-redeem-strips-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "bootstrap-sensitive-fields-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "auth-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "missing-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "wrong-uuid-version-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "valid-uuid-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "recursive-json-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-state-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-presence-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-null-app-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "empty-service-callers-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "invalid-action-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-encrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-reject-plaintext-storage-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-decrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "default-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "recursive-export-reimport-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "default-present-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "portable-recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "portable-sensitive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "manifest-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "manifest-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-auth-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "renderer-declaration-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "route-url-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-reject-server-identity-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "submission-key-omitted-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "element-args-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-encrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-decrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "sensitive-ref-reject-plaintext-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "config-write-response-reject-false-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-recursive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-required-path-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "stream-shell-unknown-rejected-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "hostname-token-unknown-field-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "coerce-int-from-string-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-fields-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-reference-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-null-dependencies-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "project-null-namespace-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "lock-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "lock-null-dependencies-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "locked-native-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "locked-legacy-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "locked-bad-digest-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "locked-unknown-format-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "dependency-alias-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "dependency-alias-traversal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "local-dependency-lock-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-catalog-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-catalog-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-publish-result-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-publish-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "registry-publish-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "semantic-extension-unsupported-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "default-semantic-extension-unsupported-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "informational-extensions-extended-export-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "informational-extensions-portable-export-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "informational-extension-native-parent-export-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AdminApiDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ApiAuthRequirementSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ApiCallerModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ApiContractDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthPermissionActionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthPermissionGrantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthRedirectsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthRoleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppAuthViewReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppRouteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AuthAudienceRuleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AuthProviderRuntimeMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AuthRoleAuthoritySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-AuthressProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalAppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalAppShellSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalBrandingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalConfigManagementAuthSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalConfigManagementSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalFragmentAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalLockSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalLogLevelSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalMenuItemSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalOriginPolicySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalProjectConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalResourceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalRouteChromeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalRouteChromeValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalRouteMountSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalSeoConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalShellFragmentItemSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalShellFragmentSettingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalSlotAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalTenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalThemeBootstrapPaletteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalThemeConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalThemeSurfaceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BetterPortalTraceContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BindingRecordSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BindingTrustSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BpSchemaOutputSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-BpSchemaRouteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-CacheHintsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigFieldDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigFieldGroupDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigFieldUiDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigOwnershipSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigSchemaDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigScopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ConfigVisibilitySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ControlPlaneSubmissionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-CpEnvelopeClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DefaultAuthProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DemoScenarioMatchSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DemoScenarioSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DependencyAliasSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DeploymentModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-DeveloperResourceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-FragmentAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-HtmlRepresentationSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-HttpMethodSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-IdentityRealmSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-JsonObjectSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-JsonValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-JwtClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-LocalDependencyLockSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-LocalWorkspacePackageSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-LockedDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MCallerModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MGrantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MMethodSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-M2MRequestDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ManifestDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-MultipartRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ObservabilityAttributesSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ObservabilityValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-OperationDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PlatformServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PluginCategorySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PluginIdSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PluginManifestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentDeploymentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentDeploymentServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentGroupSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentGroupServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentOidcSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PreviewEnvironmentServiceConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-PublicJwksSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RegistryPackageListSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RegistryPublishResultSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RegistryReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RenderModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ResolvedBPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RouteUiOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RouteUrlOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-RsaPublicJwkSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ScopedAppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ScopedServiceConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ScopedTenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ScopedTenantServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-SemverSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceCatalogEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigActionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigManagementModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigReadResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigSchemaResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigTicketClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigWriteRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ServiceTokenClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-SetupTokenClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-SharedServiceDefinitionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ShellFragmentDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ShellManifestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-SigningKeyPairSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-StreamEndFrameSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-StreamErrorFrameSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-StreamShellContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TenantAppValidationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TenantServiceRegistrationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TenantSharedServiceActivationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TokenLifetimeConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-TokenTypeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-UuidV7Schema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewDemoScenarioSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewOperationMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewPermissionDefinitionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRendererSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRendererVariantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewRoleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-ViewTenantContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-WebhookEventDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "node",
+      "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-redeem-strips-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-sensitive-fields",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "auth-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "missing-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "wrong-uuid-version",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "valid-uuid",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "recursive-json",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-state-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-presence",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-null-app",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "empty-service-callers",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "invalid-action",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-encrypt",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-reject-plaintext-storage",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-decrypt",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "default-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "recursive-export-reimport",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "default-present-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "portable-recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "portable-sensitive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "manifest-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "manifest-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "route-url-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-reject-server-identity",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-key-omitted-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "element-args-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-encrypt",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-decrypt",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-reject-plaintext",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-reject-false",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-recursive",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-required-path",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-unknown-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-from-string",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-fields",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-reference",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-null-dependencies",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-null-namespace",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "lock-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "lock-null-dependencies",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "locked-native",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "locked-legacy",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "locked-bad-digest",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "locked-unknown-format",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "dependency-alias",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "dependency-alias-traversal",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "local-dependency-lock",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-catalog-empty",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-catalog-null",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-publish-result",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-publish-required",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-publish-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "semantic-extension-unsupported",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "default-semantic-extension-unsupported",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "informational-extensions-extended-export",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "informational-extensions-portable-export",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "informational-extension-native-parent-export",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AdminApiDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ApiAuthRequirementSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ApiCallerModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ApiContractDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthPermissionActionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthPermissionGrantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthRedirectsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthRoleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthViewReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppRouteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AuthAudienceRuleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AuthProviderRuntimeMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AuthRoleAuthoritySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AuthressProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalAppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalAppShellSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalBrandingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalConfigManagementAuthSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalConfigManagementSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalFragmentAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalLockSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalLogLevelSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalMenuItemSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalOriginPolicySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalProjectConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalResourceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalRouteChromeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalRouteChromeValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalRouteMountSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalSeoConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalShellFragmentItemSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalShellFragmentSettingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalSlotAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalTenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalThemeBootstrapPaletteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalThemeConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalThemeSurfaceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalTraceContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BindingRecordSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BindingTrustSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BpSchemaOutputSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BpSchemaRouteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-CacheHintsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigFieldDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigFieldGroupDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigFieldUiDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigOwnershipSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigSchemaDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigScopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigVisibilitySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ControlPlaneSubmissionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-CpEnvelopeClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DefaultAuthProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DemoScenarioMatchSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DemoScenarioSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DependencyAliasSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DeploymentModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DeveloperResourceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-FragmentAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-HtmlRepresentationSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-HttpMethodSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-IdentityRealmSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-JsonObjectSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-JsonValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-JwtClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-LocalDependencyLockSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-LocalWorkspacePackageSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-LockedDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MCallerModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MGrantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MMethodSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MRequestDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ManifestDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-MultipartRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ObservabilityAttributesSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ObservabilityValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-OperationDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PersistedServiceConfigStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PlatformServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PluginCategorySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PluginIdSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PluginManifestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentDeploymentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentDeploymentServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentGroupSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentGroupServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentOidcSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentServiceConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PublicJwksSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RegistryPackageListSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RegistryPublishResultSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RegistryReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RenderModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ResolvedBPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RouteUiOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RouteUrlOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RsaPublicJwkSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ScopedAppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ScopedServiceConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ScopedTenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ScopedTenantServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-SemverSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceCatalogEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigActionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigManagementModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigReadResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigSchemaResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigTicketClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigWriteRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceHostnameChangeResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceRedeemResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceTokenClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-SetupTokenClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-SharedServiceDefinitionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ShellFragmentDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ShellManifestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-StreamEndFrameSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-StreamErrorFrameSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-StreamShellContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TenantAppValidationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TenantServiceRegistrationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TenantSharedServiceActivationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TokenLifetimeConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TokenTypeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-UuidV7Schema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewDemoScenarioMatchSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewDemoScenarioSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewOperationMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewPermissionDefinitionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRendererSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRendererVariantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRoleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewTenantContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-WebhookEventDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "install-redeem-strips-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "bootstrap-sensitive-fields-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "auth-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "missing-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "wrong-uuid-version-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "valid-uuid-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "recursive-json-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-state-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-presence-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-null-app-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "empty-service-callers-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "invalid-action-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-encrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-reject-plaintext-storage-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-decrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "default-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "recursive-export-reimport-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "default-present-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "portable-recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "portable-sensitive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "manifest-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "manifest-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-auth-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "renderer-declaration-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "route-url-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-reject-server-identity-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "submission-key-omitted-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "element-args-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-encrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-decrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "sensitive-ref-reject-plaintext-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "config-write-response-reject-false-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-recursive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-required-path-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "stream-shell-unknown-rejected-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "hostname-token-unknown-field-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "coerce-int-from-string-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-fields-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-reference-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-null-dependencies-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "project-null-namespace-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "lock-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "lock-null-dependencies-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "locked-native-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "locked-legacy-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "locked-bad-digest-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "locked-unknown-format-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "dependency-alias-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "dependency-alias-traversal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "local-dependency-lock-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-catalog-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-catalog-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-publish-result-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-publish-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "registry-publish-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "semantic-extension-unsupported-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "default-semantic-extension-unsupported-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "informational-extensions-extended-export-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "informational-extensions-portable-export-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "informational-extension-native-parent-export-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AdminApiDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ApiAuthRequirementSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ApiCallerModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ApiContractDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthPermissionActionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthPermissionGrantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthRedirectsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthRoleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppAuthViewReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppRouteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AuthAudienceRuleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AuthProviderRuntimeMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AuthRoleAuthoritySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-AuthressProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalAppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalAppShellSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalBrandingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalConfigManagementAuthSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalConfigManagementSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalFragmentAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalLockSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalLogLevelSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalMenuItemSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalOriginPolicySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalProjectConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalResourceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalRouteChromeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalRouteChromeValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalRouteMountSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalSeoConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalShellFragmentItemSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalShellFragmentSettingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalSlotAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalTenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalThemeBootstrapPaletteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalThemeConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalThemeSurfaceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BetterPortalTraceContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BindingRecordSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BindingTrustSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BpSchemaOutputSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-BpSchemaRouteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-CacheHintsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigFieldDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigFieldGroupDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigFieldUiDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigOwnershipSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigSchemaDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigScopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ConfigVisibilitySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ControlPlaneSubmissionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-CpEnvelopeClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DefaultAuthProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DemoScenarioMatchSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DemoScenarioSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DependencyAliasSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DeploymentModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-DeveloperResourceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-FragmentAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-HtmlRepresentationSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-HttpMethodSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-IdentityRealmSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-JsonObjectSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-JsonValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-JwtClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-LocalDependencyLockSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-LocalWorkspacePackageSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-LockedDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MCallerModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MGrantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MMethodSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-M2MRequestDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ManifestDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-MultipartRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ObservabilityAttributesSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ObservabilityValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-OperationDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PlatformServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PluginCategorySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PluginIdSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PluginManifestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentDeploymentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentDeploymentServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentGroupSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentGroupServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentOidcSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PreviewEnvironmentServiceConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-PublicJwksSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RegistryPackageListSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RegistryPublishResultSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RegistryReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RenderModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ResolvedBPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RouteUiOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RouteUrlOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-RsaPublicJwkSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ScopedAppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ScopedServiceConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ScopedTenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ScopedTenantServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-SemverSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceCatalogEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigActionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigManagementModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigReadResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigSchemaResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigTicketClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigWriteRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ServiceTokenClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-SetupTokenClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-SharedServiceDefinitionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ShellFragmentDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ShellManifestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-SigningKeyPairSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-StreamEndFrameSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-StreamErrorFrameSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-StreamShellContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TenantAppValidationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TenantServiceRegistrationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TenantSharedServiceActivationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TokenLifetimeConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-TokenTypeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-UuidV7Schema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewDemoScenarioSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewOperationMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewPermissionDefinitionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRendererSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRendererVariantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewRoleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-ViewTenantContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-WebhookEventDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "python",
+      "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-sensitive-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-token-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-binding-optional-scope",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-response-omits-credentials",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-redeem-strips-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-minimal",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-version-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secret-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-sensitive-fields",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "auth-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "missing-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "wrong-uuid-version",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "valid-uuid",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "recursive-json",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-state-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-presence",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-null-app",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "empty-service-callers",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "invalid-action",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-encrypt",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-reject-plaintext-storage",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-decrypt",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "default-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "unknown-reject",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "recursive-export-reimport",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "default-present-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "portable-recursive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "portable-sensitive-composition",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "manifest-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "manifest-declaration-derived-denied",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-auth-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-id-syntax",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "render-context-presentation",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "route-url-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-reject-server-identity",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-key-omitted-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "element-args-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-encrypt",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-decrypt",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-reject-plaintext",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-bucket-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-legacy-not-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-reject-false",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-recursive",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-required-path",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-unknown-rejected",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-sensitive",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-unknown-field",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-from-string",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-fields",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-reference",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-null-dependencies",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-null-namespace",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "lock-defaults",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "lock-null-dependencies",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "locked-native",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "locked-legacy",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "locked-bad-digest",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "locked-unknown-format",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "dependency-alias",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "dependency-alias-traversal",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "local-dependency-lock",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-catalog-empty",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-catalog-null",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-publish-result",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-publish-required",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-publish-unknown",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "semantic-extension-unsupported",
+      "passed": false,
+      "error": "{'valid': False}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "default-semantic-extension-unsupported",
+      "passed": false,
+      "error": "{'valid': False}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "informational-extensions-extended-export",
+      "passed": false,
+      "error": "{'valid': True, 'output': {}}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "informational-extensions-portable-export",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "informational-extension-native-parent-export",
+      "passed": false,
+      "error": "{'valid': True, 'output': {}}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AdminApiDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ApiAuthRequirementSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ApiCallerModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ApiContractDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthPermissionActionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthPermissionGrantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthRedirectsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthRoleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthViewReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppRouteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AuthAudienceRuleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AuthProviderRuntimeMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AuthRoleAuthoritySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AuthressProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalAppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalAppShellSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalBrandingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalConfigManagementAuthSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalConfigManagementSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalFragmentAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalLockSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalLogLevelSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalMenuItemSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalOriginPolicySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalProjectConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalResourceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalRouteChromeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalRouteChromeValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalRouteMountSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalSeoConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalShellFragmentItemSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalShellFragmentSettingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalSlotAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalTenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalThemeBootstrapPaletteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalThemeConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalThemeSurfaceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalTraceContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BindingRecordSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BindingTrustSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BootstrapStateEnvelopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BootstrapStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BpSchemaOutputSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BpSchemaRouteSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-CacheHintsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigFieldDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigFieldGroupDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigFieldUiDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigOwnershipSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigSchemaDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigScopeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigVisibilitySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ControlPlaneSubmissionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-CpEnvelopeClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DefaultAuthProviderConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DemoScenarioMatchSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DemoScenarioSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DependencyAliasSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DeploymentModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DeveloperResourceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-FragmentAssignmentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-HtmlRepresentationSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-HttpMethodSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-IdentityRealmSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-JsonObjectSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-JsonValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-JwtClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-LocalDependencyLockSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-LocalWorkspacePackageSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-LockedDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MCallerModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MGrantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MMethodSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MRequestDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ManifestDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-MultipartRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ObservabilityAttributesSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ObservabilityValueSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-OperationDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-OperationDependencySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PersistedServiceConfigStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PlatformServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PluginCategorySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PluginIdSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PluginManifestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentDeploymentSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentDeploymentServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentGroupSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentGroupServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentOidcSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentServiceConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PublicJwksSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RegistryPackageListSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RegistryPublishResultSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RegistryReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RenderModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RendererDeclarationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ResolvedBPElementReferenceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RouteUiOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RouteUrlOptionsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RsaPublicJwkSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ScopedAppSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ScopedServiceConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ScopedTenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ScopedTenantServiceSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SemverSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceCatalogEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigActionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigManagementModeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigReadResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigSchemaResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigStateSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigTicketClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigWriteRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigWriteResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallRequestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallationBindingSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceManifestCacheEntrySchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceRedeemResponseSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceTokenClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SetupTokenClaimsSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SharedServiceDefinitionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ShellFragmentDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ShellManifestSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SigningKeyPairSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-StreamEndFrameSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-StreamErrorFrameSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-StreamShellContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TenantAppValidationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TenantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TenantServiceRegistrationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TenantSharedServiceActivationSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TokenLifetimeConfigSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TokenTypeSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-UuidV7Schema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewAppContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewDemoScenarioMatchSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewDemoScenarioSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewOperationMetadataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewPermissionDefinitionSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRenderDataSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRenderErrorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRendererSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRendererVariantSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRoleSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewStreamingSupportSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewTenantContextSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-WebhookEventDescriptorSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-WebhookTargetSchema",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-sensitive-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-token-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-binding-optional-scope-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-response-omits-credentials-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "install-redeem-strips-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-minimal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-version-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-secret-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "bootstrap-sensitive-fields-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "auth-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "missing-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "wrong-uuid-version-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "valid-uuid-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "recursive-json-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-state-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-presence-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-null-app-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "empty-service-callers-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "invalid-action-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-encrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-reject-plaintext-storage-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-decrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "default-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "unknown-reject-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "recursive-export-reimport-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "default-present-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "portable-recursive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "portable-sensitive-composition-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "manifest-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "manifest-declaration-derived-denied-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-auth-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "operation-declaration-id-syntax-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "render-context-presentation-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "renderer-declaration-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "route-url-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-reject-server-identity-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "submission-key-omitted-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "element-args-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-encrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-decrypt-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "sensitive-ref-reject-plaintext-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-bucket-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "persisted-settings-legacy-not-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "config-write-response-reject-false-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-recursive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-required-path-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "stream-shell-unknown-rejected-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-sensitive-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "hostname-token-unknown-field-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "coerce-int-from-string-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-fields-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-reference-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-null-dependencies-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "project-null-namespace-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "lock-defaults-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "lock-null-dependencies-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "locked-native-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "locked-legacy-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "locked-bad-digest-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "locked-unknown-format-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "dependency-alias-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "dependency-alias-traversal-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "local-dependency-lock-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-catalog-empty-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-catalog-null-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-publish-result-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-publish-required-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "registry-publish-unknown-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "semantic-extension-unsupported-roundtrip",
+      "passed": false,
+      "error": "{'valid': False}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "default-semantic-extension-unsupported-roundtrip",
+      "passed": false,
+      "error": "{'valid': False}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "informational-extensions-extended-export-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {}}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "informational-extensions-portable-export-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "informational-extension-native-parent-export-roundtrip",
+      "passed": false,
+      "error": "{'valid': True, 'output': {}}"
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AdminApiDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ApiAuthRequirementSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ApiCallerModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ApiContractDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthPermissionActionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthPermissionGrantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthRedirectsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthRoleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppAuthViewReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppRouteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AuthAudienceRuleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AuthProviderRuntimeMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AuthRoleAuthoritySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-AuthressProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalAppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalAppShellSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalBrandingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalConfigManagementAuthSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalConfigManagementSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalFragmentAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalLockSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalLogLevelSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalMenuItemSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalOriginPolicySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalProjectConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalResourceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalRouteChromeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalRouteChromeValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalRouteMountSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalSeoConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalShellFragmentItemSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalShellFragmentSettingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalSlotAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalTenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalThemeBootstrapPaletteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalThemeConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalThemeSurfaceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BetterPortalTraceContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BindingRecordSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BindingTrustSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BootstrapStateEnvelopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BootstrapStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BpSchemaOutputSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-BpSchemaRouteSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-CacheHintsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigFieldDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigFieldGroupDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigFieldUiDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigOwnershipSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigSchemaDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigScopeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ConfigVisibilitySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ControlPlaneSubmissionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-CpEnvelopeClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DefaultAuthProviderConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DemoScenarioMatchSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DemoScenarioSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DependencyAliasSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DeploymentModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-DeveloperResourceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-FragmentAssignmentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-HtmlRepresentationSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-HttpMethodSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-IdentityRealmSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-JsonObjectSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-JsonValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-JwtClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-LocalDependencyLockSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-LocalWorkspacePackageSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-LockedDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MCallerModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MGrantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MMethodSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-M2MRequestDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ManifestDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-MultipartRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ObservabilityAttributesSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ObservabilityValueSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-OperationDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-OperationDependencySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PersistedServiceConfigStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PlatformServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PluginCategorySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PluginIdSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PluginManifestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentDeploymentSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentDeploymentServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentGroupSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentGroupServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentOidcSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PreviewEnvironmentServiceConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-PublicJwksSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RegistryPackageListSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RegistryPublishResultSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RegistryReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RenderModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RendererDeclarationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ResolvedBPElementReferenceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RouteUiOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RouteUrlOptionsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-RsaPublicJwkSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ScopedAppSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ScopedServiceConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ScopedTenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ScopedTenantServiceSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SemverSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceCatalogEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigActionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigManagementModeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigReadResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigSchemaResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigStateSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigTicketClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigWriteRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceConfigWriteResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceHostnameChangeResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallRequestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceInstallationBindingSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceManifestCacheEntrySchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceRedeemResponseSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ServiceTokenClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SetupTokenClaimsSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SharedServiceDefinitionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ShellFragmentDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ShellManifestSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-SigningKeyPairSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-StreamEndFrameSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-StreamErrorFrameSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-StreamShellContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TenantAppValidationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TenantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TenantServiceRegistrationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TenantSharedServiceActivationSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TokenLifetimeConfigSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-TokenTypeSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-UuidV7Schema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewAppContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewDemoScenarioMatchSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewDemoScenarioSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewOperationMetadataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewPermissionDefinitionSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRenderDataSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRenderErrorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRendererSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRendererVariantSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewRoleSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewStreamingSupportSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-ViewTenantContextSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-WebhookEventDescriptorSchema-roundtrip",
+      "passed": true
+    },
+    {
+      "runtime": "dotnet",
+      "id": "import-WebhookTargetSchema-roundtrip",
+      "passed": true
+    }
+  ]
+}

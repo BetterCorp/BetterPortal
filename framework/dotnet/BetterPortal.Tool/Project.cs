@@ -2,6 +2,7 @@ using BetterPortal;
 using System.Security.Cryptography;
 using System.Text;
 using Node = System.Collections.Generic.Dictionary<string, object?>;
+using Candidate = (string Source, string Reference, byte[] Data, System.Collections.Generic.Dictionary<string, object?> Contract);
 
 namespace BetterPortal.Tool;
 
@@ -79,25 +80,76 @@ internal sealed class Project
         var matched = actual == selector.Identity || selector.Kind == "shortName" && selector.Identity == ((string)manifest["pluginId"]!).Split('.')[^1];
         return matched && (selector.Version is null or "latest" || Equals(selector.Version, manifest["version"]));
     }
-    private (string Source, string Reference, byte[] Data, Node Contract) Local((string Kind, string Identity, string? Version) selector, string path)
+    private static bool InvalidCandidate(Exception error) => error is IOException or UnauthorizedAccessException or ArgumentException or System.Text.Json.JsonException or AnyVali.ValidationError;
+    private List<Candidate> LocalCandidates((string Kind, string Identity, string? Version) selector, string path, bool strict)
     {
         var source = Path.GetFullPath(path, directory);
-        if (!Directory.Exists(source)) throw new ArgumentException("A local dependency path must be a project directory");
-        var configPath = Path.Combine(source, "betterportal.json");
-        var metadata = (Node)Contracts.Parse("BetterPortalProjectConfigSchema", File.Exists(configPath) ? Json.Read(Utf8.GetString(Read(configPath))) : new Node())!;
-        var reference = (string)metadata.GetValueOrDefault("registryRef", selector.Kind == "registryRef" ? selector.Identity : "")!;
-        Contracts.Parse("RegistryReferenceSchema", reference);
-        var direct = Path.Combine(source, "bp-contract.json"); var library = Path.Combine(source, "lib", "bp-contracts");
-        var files = (File.Exists(direct) ? new[] { direct } : []).Concat(Directory.Exists(library) ? Directory.GetFiles(library, "*.json").Order(StringComparer.Ordinal) : []);
-        var found = new List<(string Source, string Reference, byte[] Data, Node Contract)>();
+        string reference; string[] files;
+        try
+        {
+            if (!Directory.Exists(source)) throw new ArgumentException("A local dependency path must be a project directory");
+            var configPath = Path.Combine(source, "betterportal.json");
+            var metadata = (Node)Contracts.Parse("BetterPortalProjectConfigSchema", File.Exists(configPath) ? Json.Read(Utf8.GetString(Read(configPath))) : new Node())!;
+            reference = (string)metadata.GetValueOrDefault("registryRef", strict && selector.Kind == "registryRef" ? selector.Identity : "")!;
+            Contracts.Parse("RegistryReferenceSchema", reference);
+            var direct = Path.Combine(source, "bp-contract.json"); var library = Path.Combine(source, "lib", "bp-contracts");
+            files = (File.Exists(direct) ? new[] { direct } : []).Concat(Directory.Exists(library) ? Directory.GetFiles(library, "*.json").Order(StringComparer.Ordinal) : []).ToArray();
+        }
+        catch (Exception error) when (!strict && InvalidCandidate(error)) { return []; }
+        var found = new List<Candidate>();
         foreach (var file in files)
         {
-            var data = Read(file); var contract = (Node)Contracts.Parse("BpSchemaOutputSchema", Json.Read(Utf8.GetString(data)))!;
-            if (Matches(selector, reference, contract)) found.Add((source, reference, data, contract));
+            try
+            {
+                var data = Read(file); var contract = (Node)Contracts.Parse("BpSchemaOutputSchema", Json.Read(Utf8.GetString(data)))!;
+                if (Matches(selector, reference, contract)) found.Add((source, reference, data, contract));
+            }
+            catch (Exception error) when (!strict && InvalidCandidate(error)) { }
         }
-        if (found.Count == 0) throw new ArgumentException("No local contract matches the dependency identity and version");
-        if (found.Select(value => Digest(value.Data)).Distinct(StringComparer.Ordinal).Count() != 1) throw new ArgumentException("Local dependency is ambiguous; select an exact version");
-        return found[0];
+        return found;
+    }
+    private static Candidate? Select(List<Candidate> found)
+    {
+        if (found.Select(value => (value.Reference, Digest(value.Data))).Distinct().Count() > 1)
+            throw new ArgumentException("Local dependency is ambiguous; select an exact identity, version or --path");
+        return found.Count == 0 ? null : found[0];
+    }
+    private Candidate Local((string Kind, string Identity, string? Version) selector, string path) => Select(LocalCandidates(selector, path, true))
+        ?? throw new ArgumentException("No local contract matches the dependency identity and version");
+    private static string[] Children(string path)
+    {
+        try { return Directory.GetDirectories(path).Order(StringComparer.Ordinal).ToArray(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return []; }
+    }
+    private static IEnumerable<string> PackageRoots(string path) => Path.GetFileName(path) == "node_modules"
+        ? Children(path).SelectMany(package => Path.GetFileName(package).StartsWith('@') ? Children(package) : [package]) : [path];
+    private Candidate? Discover((string Kind, string Identity, string? Version) selector)
+    {
+        var root = directory;
+        for (var current = new DirectoryInfo(directory); current is not null; current = current.Parent)
+            if (Path.Exists(Path.Combine(current.FullName, ".git"))) { root = current.FullName; break; }
+        var roots = new List<string>(); var package = Path.Combine(root, "package.json");
+        if (File.Exists(package))
+        {
+            var metadata = (Node)Contracts.Parse("LocalWorkspacePackageSchema", Json.Read(Utf8.GetString(Read(package))))!;
+            roots.AddRange(((List<object?>)metadata["workspaces"]!).Cast<string>().Where(path => !path.Contains('*')).Select(path => Path.GetFullPath(path, root)));
+        }
+        roots.Add(Path.Combine(directory, "node_modules"));
+        roots.AddRange(Children(Path.GetDirectoryName(root) ?? root));
+        roots.AddRange((Environment.GetEnvironmentVariable("BP_DEV_PATHS") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries).Select(path => Path.GetFullPath(path, directory)));
+        return Select(roots.Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+            .SelectMany(PackageRoots).SelectMany(path => LocalCandidates(selector, path, false)).ToList());
+    }
+    public async Task<Node> Add(string value, string? path, string? alias, string? url, CancellationToken cancellation)
+    {
+        if (path is not null && url is not null) throw new ArgumentException("Select --path or --registry");
+        if (path is not null) return AddLocal(value, path, alias);
+        if (url is null)
+        {
+            var selector = Selector(value);
+            if (Discover(selector) is { } local) return Install(selector, local.Source, local.Reference, local.Data, local.Contract, alias);
+        }
+        return await AddRegistry(value, alias, url, cancellation);
     }
     private string Cache(Node entry) => Path.Combine(directory, ".betterportal", "contracts", (string)entry["pluginId"]!, entry["version"] + ".json");
     private string Output(string alias) => Path.Combine(directory, "BpDependencies", alias.Replace('-', '_') + ".cs");
@@ -193,9 +245,7 @@ internal sealed class Project
         }
         else if (add)
         {
-            if (options.ContainsKey("--path") && options.ContainsKey("--registry")) throw new ArgumentException("Select --path or --registry");
-            var result = options.GetValueOrDefault("--path") is string path ? project.AddLocal(args[1], path, options.GetValueOrDefault("--alias"))
-                : await project.AddRegistry(args[1], options.GetValueOrDefault("--alias"), options.GetValueOrDefault("--registry"), cancellation);
+            var result = await project.Add(args[1], options.GetValueOrDefault("--path"), options.GetValueOrDefault("--alias"), options.GetValueOrDefault("--registry"), cancellation);
             Console.WriteLine(Json.Write(result));
         }
         else

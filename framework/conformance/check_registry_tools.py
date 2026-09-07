@@ -77,7 +77,7 @@ with tempfile.TemporaryDirectory(prefix="bp-registry-tools-", dir=root / ".tmp-r
                 for index, selector in enumerate(("example/service@1.0.0", "com.example.service@1.0.0", "service@1.0.0", "service@latest", "example/service", "com.example.service")):
                     project = directory / f"{language}-{index}"; project.mkdir(); consumers.append((language, project))
                     write(project / "betterportal.json", {})
-                    entry = json.loads(run([*command, "deps", "add", selector, "--alias", "peer"], project))
+                    entry = json.loads(run([*command, "deps", "add", selector, "--alias", "peer", "--registry", url], project))
                     expected = "1.0.0" if selector.endswith("@1.0.0") else "2.0.0"
                     assert entry["version"] == expected and entry["registryRef"] == "example/service", entry
                     cached = project / f".betterportal/contracts/com.example.service/{expected}.json"
@@ -90,7 +90,7 @@ with tempfile.TemporaryDirectory(prefix="bp-registry-tools-", dir=root / ".tmp-r
                 project = directory / (language + "-rejections"); project.mkdir()
                 write(project / "betterportal.json", {})
                 for selector in ("missing", "example/missing", "com.example.missing", "service@3.0.0"):
-                    before = snapshot(project); run([*command, "deps", "add", selector], project, False); assert snapshot(project) == before
+                    before = snapshot(project); run([*command, "deps", "add", selector, "--registry", url], project, False); assert snapshot(project) == before
                 for kind in ("redirect", "denied", "media", "compressed", "missing-ref", "wrong-plugin", "wrong-version", "invalid-schema", "duplicate", "utf8", "large", "slow"):
                     before = snapshot(project); started = time.monotonic()
                     run([*command, "deps", "add", "com.example.service@1.0.0", "--registry", url + "/fault/" + kind], project, False)
@@ -130,10 +130,30 @@ with tempfile.TemporaryDirectory(prefix="bp-registry-tools-", dir=root / ".tmp-r
             for language, command in native.items():
                 project = directory / (language + "-ambiguous"); project.mkdir()
                 write(project / "betterportal.json", {})
-                before = snapshot(project); run([*command, "deps", "add", "service"], project, False); assert snapshot(project) == before
+                before = snapshot(project); run([*command, "deps", "add", "service", "--registry", url], project, False); assert snapshot(project) == before
                 write(project / "betterportal.json", {"defaultNamespace": "example"})
-                entry = json.loads(run([*command, "deps", "add", "service@1.0.0"], project))
+                entry = json.loads(run([*command, "deps", "add", "service@1.0.0", "--registry", url], project))
                 assert entry["registryRef"] == "example/service"
+            # Default installation prefers a matching local export and otherwise falls back to the registry.
+            for language, command in native.items():
+                sandbox = directory / (language + "-discovery"); project = sandbox / "repo"
+                project.mkdir(parents=True); (project / ".git").mkdir()
+                write(project / "betterportal.json", {})
+                env = {**environment, "BP_DEV_PATHS": ""}
+                source = sandbox / "provider"
+                write(source / "betterportal.json", {"registryRef": "example/service"})
+                write(source / "bp-contract.json", contract)
+                with http.open(url + "/__requests") as response: before = len(json.load(response))
+                entry = json.loads(run([*command, "deps", "add", "example/service@1.0.0"], project, env=env))
+                with http.open(url + "/__requests") as response: assert len(json.load(response)) == before
+                assert entry["version"] == "1.0.0"
+                # An exact version not available locally reaches the real Node registry.
+                entry = json.loads(run([*command, "deps", "add", "example/service@2.0.0"], project, env=env))
+                assert entry["version"] == "2.0.0"
+                assert json.loads((project / ".betterportal/local-lock.json").read_text()) == {}, "Registry fallback retained a stale local override"
+                # Explicit registry selection bypasses a matching local contract.
+                entry = json.loads(run([*command, "deps", "add", "example/service", "--registry", url], project, env=env))
+                assert entry["version"] == "2.0.0"
             with http.open(url + "/__requests") as response: requests = json.load(response)
             assert not any(item["cookie"] or item["url"] == "/__sink" or item["method"] == "GET" and item["authorization"] for item in requests)
         finally:

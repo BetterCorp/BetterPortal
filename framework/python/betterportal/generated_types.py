@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: ba93b28d1ebf5be4ffdf5eeac071bb8daa0e0ed7746426f0109282e9ca9d53f1
+# Generated from AnyVali documents; do not edit. SHA256: 3776d58159149babd785870d7fe99d4f0f95fcf485def1f8b7b5171925dc1084
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -2235,6 +2235,14 @@ LocalDependencyLockItem = TypedDict('LocalDependencyLockItem', {
     'digest': Required['str'],
     'digestFormat': NotRequired["Literal['json-bytes']"],
     'path': Required['str'],
+})
+
+LocalWorkspacePackage = TypedDict('LocalWorkspacePackage', {
+    'workspaces': Required['list[str]'],
+})
+
+LocalWorkspacePackageInput = TypedDict('LocalWorkspacePackageInput', {
+    'workspaces': NotRequired['list[str]'],
 })
 
 LockedDependency = TypedDict('LockedDependency', {

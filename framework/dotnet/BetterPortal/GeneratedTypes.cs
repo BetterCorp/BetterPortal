@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: fe06b9138e3c457ea201138ac187af3310e98da72d6359f7c2cef626533af9ed
+// Generated from AnyVali documents; do not edit. SHA256: daca943e8f6b0d9024c0e5248fdae76b0ca987513a27912a3d3c83d6e08782a9
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -5795,6 +5795,19 @@ public enum LocalDependencyLockItemDigestFormat
 {
     [JsonStringEnumMemberName("json-bytes")]
     JsonBytes,
+}
+
+public sealed record LocalWorkspacePackage
+{
+    [JsonPropertyName("workspaces")]
+    public required IReadOnlyList<string> Workspaces { get; init; }
+}
+
+public sealed record LocalWorkspacePackageInput
+{
+    [JsonPropertyName("workspaces")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Workspaces { get; init; }
 }
 
 public sealed record LockedDependency

@@ -41,7 +41,7 @@ def main() -> None:
     add.add_argument("selector")
     source = add.add_mutually_exclusive_group()
     source.add_argument("--path", type=Path, help="A local service project with an exported contract")
-    source.add_argument("--registry", help="Registry URL (defaults to BP_REGISTRY_URL)")
+    source.add_argument("--registry", help="Use this registry URL without automatic local discovery")
     add.add_argument("--alias")
     add.add_argument("--project", type=Path, default=Path.cwd())
     sync = actions.add_parser("sync")
@@ -59,7 +59,7 @@ def main() -> None:
     if args.command == "deps":
         project = Project(args.project)
         if args.action == "add":
-            value = project.add_local(args.selector, args.path, args.alias) if args.path is not None else asyncio.run(project.add_registry(args.selector, args.alias, args.registry))
+            value = asyncio.run(project.add(args.selector, args.path, args.alias, args.registry))
             print(json.dumps(value))
         else:
             for generated_path in project.frozen(check=args.check): print(generated_path)

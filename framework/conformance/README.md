@@ -8,15 +8,18 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.3** passes [1,468/1,476 schema scenarios](results-anyvali-1.1.3.json).
-Each language runs 87 semantic cases and imports all 159 documents, then repeats
-the cases with native export/reimport enabled. JavaScript and Python pass 492/492
-each; C# passes 484/492. The eight C# failures cover unsupported semantic extensions
+Published AnyVali **1.1.3** passes [1,474/1,482 schema scenarios](results-schema-local-discovery.json).
+Each language runs 87 semantic cases and imports all 160 documents, then repeats
+the cases with native export/reimport enabled. JavaScript and Python pass 494/494
+each; C# passes 486/494. The eight C# failures cover unsupported semantic extensions
 and informational metadata lost from extended export, including native-parent
 composition ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
 Portable export correctly clears extension namespaces in all three SDKs.
+The [Linux discovery-stage schema run](results-schema-local-discovery-linux.json)
+matches every Windows outcome, including the same eight upstream failures.
 
-The 28-suite [Windows 1.1.3 full run](results-combined-anyvali-1.1.3.json) passes
+The 28-suite [Windows 1.1.3 full run](results-combined-anyvali-1.1.3.json), recorded
+before the workspace metadata document was added, passes
 **5,750/5,758** using Node 24.4.0, Python 3.10.19 and .NET SDK 10.0.201/runtime
 10.0.5. All 4,282 runtime scenarios pass; the only failures are the eight C# schema
 extension checks above. The gate exits nonzero without skips or changed expectations.
@@ -343,7 +346,7 @@ normal verification detects drift. The same native CLI commands validate stale
 files and reject invalid contracts/names. No Node process is required by a
 consumer's native generation command.
 
-`check_projects.py` passes 130 native CLI and Node compatibility checks on
+`check_projects.py` passes 216 native CLI and Node compatibility checks on
 Windows and Linux. Native local installation preserves `betterportal.json`
 identity, resolves exact contract identities/versions, caches original UTF-8 bytes,
 and generates typed clients. Frozen builds validate every pin before generating;
@@ -351,11 +354,17 @@ and generates typed clients. Frozen builds validate every pin before generating;
 uses SHA-256 without locale-dependent serialization. Node accepts these pins and
 retains its legacy locks; native migration requires explicit installation and
 preserves aliases sharing the old cache. Corrupt caches, changed selectors,
-missing pins and colliding native filenames fail verification. Six canonical
-AnyVali documents define project/lock data. Automatic local discovery remains
-delivery work.
+missing pins and colliding native filenames fail verification. Seven canonical
+AnyVali documents define project/lock data and workspace metadata.
+Automatic discovery covers literal workspaces, sibling projects, installed/scoped
+Node packages and `BP_DEV_PATHS`, including development paths to `node_modules`.
+Each source is checked against the real Node CLI. Native cases also verify exact
+versions, duplicate exports, ambiguous identities/content, invalid candidates,
+explicit path errors and frozen isolation. Automatic candidates require a declared
+registry identity; discovery never executes application code. Workspace glob
+entries remain unsupported, as in Node; explicit development paths cover those layouts.
 
-`check_registry_tools.py` passes 122 CLI checks on Windows and Linux against the real Node
+`check_registry_tools.py` passes 128 CLI checks on Windows and Linux against the real Node
 registry handler and file store, plus explicitly separate hostile HTTP fixtures.
 Both native tools publish identical contracts idempotently, resolve full references,
 plugin IDs and short names, fetch requested versions, and pin exact response bytes.
@@ -363,6 +372,9 @@ Checks cover immutable versions, permanent identity bindings, publisher prefixes
 missing credentials, malformed/oversized responses, redirects, cookie/credential
 isolation and total deadlines against trickling responses. After the registry
 process stops, every installed client still verifies through an offline frozen build.
+Local discovery performs no registry requests when an exact match exists. A missing
+local version falls back to the registry, removes stale local-lock metadata, and
+retains the requested version. Explicit `--registry` bypasses matching local exports.
 Two shared AnyVali documents describe registry catalog and publication responses.
 No remote registry or package release is performed by these tests.
 
@@ -405,8 +417,8 @@ composition. Each case runs in every SDK, with round-trip variants and no waiver
 C# still accepts semantic namespaces and loses extended metadata, tracked in
 [#141](https://github.com/BetterCorp/AnyVali/issues/141) with a standalone NuGet
 reproduction. These eight failures keep both schema and full gates nonzero.
-All 159 canonical BP documents have empty extensions; their generated types are
-unchanged. Generated peer clients were refreshed for Python's explicit empty
+At the 1.1.3 upgrade, all 159 canonical BP documents had empty extensions and their
+generated types were unchanged. Generated peer clients were refreshed for Python's explicit empty
 `extensions` map. BP's document-composition helper does not implement extension semantics.
 
 Supplemental positive documents are generated by native Node schema authoring.

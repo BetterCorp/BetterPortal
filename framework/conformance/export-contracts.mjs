@@ -85,6 +85,8 @@ function portable(name, root) {
 function objectNode(properties, unknownKeys = "strip") {
   return { kind: "object", properties, required: Object.entries(properties).filter(([, value]) => value.kind !== "optional").map(([key]) => key), unknownKeys };
 }
+// cli/client.ts reads literal npm workspace paths as optional local discovery roots.
+portable("LocalWorkspacePackageSchema", node(av.object({ workspaces: av.array(av.string().minLength(1)).default([]) }, { unknownKeys: "strip" })));
 // BSB bootstrapState.ts and runtime/auth/keypair.ts own the existing wire fields.
 // Native runtimes keep the signing identity inside the authenticated state instead
 // of a second plaintext file. Older Node stores preserve this optional extension.

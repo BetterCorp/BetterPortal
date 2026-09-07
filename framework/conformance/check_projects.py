@@ -27,9 +27,9 @@ def write(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 def read(path): return json.loads(path.read_text(encoding="utf-8"))
-def run(command, directory, valid=True):
+def run(command, directory, valid=True, env=None):
     global checks
-    result = subprocess.run(command, cwd=directory, env=environment, capture_output=True, text=True, encoding="utf-8")
+    result = subprocess.run(command, cwd=directory, env=env or environment, capture_output=True, text=True, encoding="utf-8", timeout=45)
     assert (result.returncode == 0) == valid, (command, result.stdout, result.stderr)
     checks += 1
     return result.stdout + result.stderr
@@ -143,4 +143,98 @@ with tempfile.TemporaryDirectory(prefix="bp-projects-", dir=root / ".tmp-run") a
             path = project / relative; path.write_text("stale", encoding="utf-8")
             before = snapshot(project); sync(language, project, False, check=True); assert snapshot(project) == before
             sync(language, project); sync(language, project, check=True)
-print(f"{checks} native project/lock and Node compatibility CLI checks passed")
+with tempfile.TemporaryDirectory(prefix="bp-discovery-", dir=root / ".tmp-run") as temporary:
+    directory = Path(temporary)
+    isolated = {**environment, "BP_DEV_PATHS": "", "BP_REGISTRY_URL": "http://127.0.0.1:1"}
+    install_code = "import {installClient} from " + json.dumps(node_module) + "; console.log(JSON.stringify(await installClient(process.argv[1], {alias:'peer'})));"
+
+    def install(language, project, selector="example/service@1.0.0", *, valid=True, env=None, options=()):
+        command = (["node", "--input-type=module", "--eval", install_code, selector] if language == "node" else
+                   [*native[language], "deps", "add", selector, "--alias", "peer", "--project", str(project), *options])
+        return run(command, project if language == "node" else directory, valid, env or isolated)
+
+    def provider(path, reference="example/service", value=None):
+        write(path / "betterportal.json", {"registryRef": reference})
+        write(path / "bp-contract.json", value or contract)
+        return path
+
+    # Every discovery source agrees with the real Node CLI without contacting a registry.
+    for mode in ("sibling", "workspace", "installed", "scoped", "dev-path", "dev-packages"):
+        for language in (*native, "node"):
+            case = directory / (mode + "-" + language)
+            repo = case / "repo"; repo.mkdir(parents=True)
+            (repo / ".git").write_text("gitdir: fixture", encoding="utf-8")
+            project = repo / "consumer" if mode == "workspace" else repo
+            write(project / "package.json", {"name": "discovery-caller", "type": "module"})
+            write(project / "betterportal.json", {"defaultNamespace": "example"})
+            paths = {"sibling": case / "provider", "workspace": repo / "services/provider",
+                     "installed": project / "node_modules/provider", "scoped": project / "node_modules/@example/provider",
+                     "dev-path": case / "external/services/provider", "dev-packages": case / "external/node_modules/@example/provider"}
+            source = provider(paths[mode])
+            if mode == "workspace": write(repo / "package.json", {"workspaces": ["services/provider", "ignored/*"], "private": True})
+            extra = source if mode == "dev-path" else source.parents[1]
+            env = {**isolated, "BP_DEV_PATHS": os.path.relpath(extra, project) if mode.startswith("dev-") else ""}
+            before = snapshot(source)
+            for selector in ("example/service@1.0.0", "com.example.service@1.0.0", "service"):
+                entry = json.loads(install(language, project, selector, env=env))
+                assert (entry["registryRef"], entry["pluginId"], entry["version"]) == ("example/service", "com.example.service", "1.0.0"), entry
+                local = read(project / ".betterportal/local-lock.json")["peer"]
+                assert (project / local["path"]).resolve() == source.resolve()
+                if language != "node":
+                    cached = project / ".betterportal/contracts/com.example.service/1.0.0.json"
+                    assert cached.read_bytes() == (source / "bp-contract.json").read_bytes()
+            assert snapshot(source) == before, "Discovery changed its provider"
+
+    for language in native:
+        print("Checking local discovery boundaries from " + language, flush=True)
+        case = directory / (language + "-boundaries"); project = case / "repo"
+        project.mkdir(parents=True); (project / ".git").mkdir()
+        write(project / "betterportal.json", {})  # No Node package marker is needed.
+        source = provider(case / "provider")
+        duplicate = provider(case / "duplicate")
+        env = {**isolated, "BP_DEV_PATHS": os.pathsep.join([str(source), str(source), str(case / "missing")])}
+        install(language, project, env=env)  # Identical exports and repeated roots are unambiguous.
+        (duplicate / "bp-contract.json").write_bytes((source / "bp-contract.json").read_bytes() + b" ")
+        before = snapshot(project)
+        assert "ambiguous" in install(language, project, valid=False, env=env)
+        assert snapshot(project) == before
+        install(language, project, options=("--path", str(source)))
+        newer = deepcopy(contract); newer["manifest"]["version"] = "2.0.0"
+        write(duplicate / "bp-contract.json", newer)
+        install(language, project)  # Exact versions disambiguate; latest never picks by directory order.
+        before = snapshot(project)
+        for selector in ("service", "service@latest"):
+            assert "ambiguous" in install(language, project, selector, valid=False)
+            assert snapshot(project) == before
+        assert json.loads(install(language, project, "service@2.0.0"))["version"] == "2.0.0"
+        write(duplicate / "betterportal.json", {"registryRef": "other/service"})
+        write(duplicate / "bp-contract.json", contract)
+        before = snapshot(project)
+        assert "ambiguous" in install(language, project, "service", valid=False)
+        assert snapshot(project) == before
+        write(project / "betterportal.json", {"defaultNamespace": "example"})
+        install(language, project, "service")
+        # Invalid automatic siblings are skipped, but an explicit path reports the defect.
+        (duplicate / "betterportal.json").write_text("invalid JSON", encoding="utf-8")
+        install(language, project)
+        before = snapshot(project)
+        install(language, project, valid=False, options=("--path", str(duplicate)))
+        assert snapshot(project) == before
+        write(source / "lib/bp-contracts/valid.json", contract)
+        (source / "bp-contract.json").write_text("invalid JSON", encoding="utf-8")
+        install(language, project)
+        before = snapshot(project)
+        install(language, project, valid=False, options=("--path", str(source)))
+        assert snapshot(project) == before
+        # Automatic discovery never guesses a missing registry identity from the selector.
+        write(source / "betterportal.json", {})
+        before = snapshot(project)
+        install(language, project, valid=False)
+        assert snapshot(project) == before
+        # Frozen generation ignores mutable local roots and malformed discovery-only metadata.
+        write(project / "package.json", {"workspaces": None})
+        run([*native[language], "deps", "sync", "--frozen", "--project", str(project)], directory, env=env)
+        before = snapshot(project)
+        install(language, project, valid=False)
+        assert snapshot(project) == before
+print(f"{checks} native project/discovery/lock and Node compatibility CLI checks passed")
