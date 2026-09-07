@@ -91,6 +91,10 @@ portable("LocalWorkspacePackageSchema", node(av.object({ workspaces: av.array(av
 // Native runtimes keep the signing identity inside the authenticated state instead
 // of a second plaintext file. Older Node stores preserve this optional extension.
 const optionalNode = inner => ({ kind: "optional", inner });
+// index route modules contain presentation metadata; method modules own policy.
+portable("RouteDeclarationSchema", objectNode(Object.fromEntries(
+  ["viewId", "title", "description"].map(field => [field, optionalNode(sourceNode("ViewMetadataSchema").properties[field])])
+), "reject"));
 const secretString = { kind: "string", minLength: 1, maxLength: 32768, metadata: { sensitive: true } };
 const keyPair = objectNode({
   privateKeyPem: secretString,

@@ -78,10 +78,15 @@ public sealed class Route
     public IReadOnlyList<string> Paths { get; }
     public IReadOnlyList<Operation> Operations { get; }
     public SseFeed? Sse { get; }
+    public string? Title { get; }
+    public string? Description { get; }
     public IReadOnlyList<string> ParamNames => Paths.SelectMany(path => Segments(path).Where(part => part.StartsWith(':')).Select(part => part[1..])).Distinct(StringComparer.Ordinal).ToArray();
-    public Route(string viewId, string path, IEnumerable<Operation> operations, IEnumerable<string>? pathVariants = null, SseFeed? sse = null)
+    public Route(string viewId, string path, IEnumerable<Operation> operations, IEnumerable<string>? pathVariants = null, SseFeed? sse = null,
+        string? title = null, string? description = null)
     {
         ViewId = (string)Contracts.Parse(Contracts.Get("ViewMetadataSchema", "viewId"), viewId)!;
+        Title = title is null ? null : (string)Contracts.Parse(Contracts.Get("ViewMetadataSchema", "title"), title)!;
+        Description = description is null ? null : (string)Contracts.Parse(Contracts.Get("ViewMetadataSchema", "description"), description)!;
         Paths = Array.AsReadOnly(new[] { path }.Concat(pathVariants ?? []).Distinct(StringComparer.Ordinal)
             .OrderByDescending(value => Segments(value).Count(part => part.StartsWith(':'))).ThenByDescending(value => value.Length).ThenBy(value => value, StringComparer.Ordinal).ToArray());
         Operations = Array.AsReadOnly(operations.ToArray());
@@ -147,7 +152,7 @@ public sealed class Registry
             }
             var primary = operations.FirstOrDefault(operation => operation["method"] is "GET") ?? operations[0];
             views.Add(new Node { ["viewId"] = route.ViewId, ["path"] = route.Paths[0], ["pathVariants"] = route.Paths.Count > 1 ? route.Paths : [],
-                ["title"] = primary["title"], ["description"] = primary["description"], ["operations"] = operations,
+                ["title"] = route.Title ?? primary["title"], ["description"] = route.Description ?? primary["description"], ["operations"] = operations,
                 ["paramsSchema"] = route.Operations[0].Handler.Schemas.TryGetValue("params", out var schema) ? Operation.Export(schema) : new Node() });
         }
         var capabilities = ((List<object?>)result["capabilities"]!).Cast<string>().Concat(["view.json", "view.metadata"]).ToList();

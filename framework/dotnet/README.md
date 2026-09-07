@@ -1,8 +1,8 @@
 # BetterPortal .NET port
 
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
-for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers, native route
-tooling and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
+for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers, scaffolding
+and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The AnyVali 1.1.3 schema gate exposes eight C# extension failures; see the ledger for results.
 
 Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
@@ -60,7 +60,7 @@ manifests and discovery schemas from their AnyVali schemas. Operations require
 explicit auth and unique stable IDs. Each view shares one params schema across
 methods; query, headers, body, response and policy are method-specific. Registry
 generation resolves dependency aliases and checks local operation/method targets.
-Path variants publish API contracts once per view. Directory discovery remains pending.
+Path variants publish API contracts once per view. See [native route discovery](../ROUTE-AUTHORING.md) for directory-based registration.
 
 `Renderer<TResult>` accepts a function returning HTML as `string` or
 `ValueTask<string>`. Register it on the typed handler; ASP.NET Core selects the
@@ -539,7 +539,7 @@ Handlers receive effective settings with defaults and preview overrides. Preview
 values validate before snapshot publication and do not overwrite the settings file.
 Missing required values return 503 on operations while configuration remains
 available. Health reflects initialization and managed manifest acknowledgment.
-HTTP provisioning remains delivery work; protected key persistence is described below.
+Protected key persistence and `ServiceInstallation` HTTP provisioning are described below.
 
 `devToken` requires both an explicitly supplied token and
 `BP_ALLOW_DEV_CONFIG_TOKEN=true` at construction. This local-development option
@@ -621,8 +621,8 @@ shutdown. Without a host, dispose the sync before its service with `await using`
 and retries and clears managed readiness. `Status` contains only safe counters and
 error codes; protect any endpoint exposing them. `Submission()` returns the portable
 typed manifest projection. Optional `keyPair` registers a previously persisted RSA
-public key; `authProvider` advertises issuer metadata. Provisioning/install ticket
-hosting remains separate work.
+public key; `authProvider` advertises issuer metadata. Use `ServiceInstallation` below for provisioning and
+install-ticket hosting.
 
 `BootstrapStateStore` protects credentials and a persistent RSA signing identity
 inside the Node-compatible authenticated bootstrap envelope. Supply its master
@@ -788,8 +788,8 @@ allowed; `TrustedKeys.SecureEndpoint` rejects queries by default for CP base URL
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
-passes 1,474/1,482 scenarios with AnyVali 1.1.3. Python and JavaScript pass all
-494 checks each; eight C# extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
+passes 1,480/1,488 scenarios with AnyVali 1.1.3. Python and JavaScript pass all
+496 checks each; eight C# extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
 See the conformance ledger for runtime results and remaining
 capabilities. Compilation or NuGet packaging is not evidence that the full framework
 plan is complete. Nothing is published.
@@ -973,5 +973,5 @@ The exporter loads the explicitly selected assembly and its compiled dependencie
 it does not parse C# source or invoke the application entry point. The factory runs
 as application code. Export uses AnyVali validation, limits the document to 16 MiB
 and atomically replaces the output; `--check` detects drift without writing.
-Assembly and output paths are relative to `--project`. Route-directory discovery
-remains delivery work.
+Assembly and output paths are relative to `--project`. Use [native route discovery](../ROUTE-AUTHORING.md) to build this registry from
+compiled index, method and SSE modules.

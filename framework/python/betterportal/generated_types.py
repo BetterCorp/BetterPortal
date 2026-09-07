@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 3776d58159149babd785870d7fe99d4f0f95fcf485def1f8b7b5171925dc1084
+# Generated from AnyVali documents; do not edit. SHA256: 7af069aeef4cd8dab4b1b10d79673e060d0bd520ef78e9aa99709192983b56f2
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -2799,6 +2799,18 @@ ResolvedBPElementReferenceInput = TypedDict('ResolvedBPElementReferenceInput', {
     'url': NotRequired['str'],
     'serviceId': NotRequired['str'],
     'unavailable': NotRequired['str'],
+})
+
+RouteDeclaration = TypedDict('RouteDeclaration', {
+    'viewId': NotRequired['str'],
+    'title': NotRequired['str'],
+    'description': NotRequired['str'],
+})
+
+RouteDeclarationInput = TypedDict('RouteDeclarationInput', {
+    'viewId': NotRequired['str'],
+    'title': NotRequired['str'],
+    'description': NotRequired['str'],
 })
 
 RouteUiOptions = TypedDict('RouteUiOptions', {

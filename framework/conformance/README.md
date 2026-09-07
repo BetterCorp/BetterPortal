@@ -3,23 +3,42 @@
 **The full .NET/Python framework delivery is incomplete.** This directory supplies
 canonical AnyVali contracts, native adapters, HTTP schema/security fixtures, and a
 capability ledger. Token and service-envelope interoperability is verified;
-full theme helpers, route tooling and Bootstrap integration
+full theme helpers, scaffolding and Bootstrap integration
 remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.3** passes [1,474/1,482 schema scenarios](results-schema-local-discovery.json).
-Each language runs 87 semantic cases and imports all 160 documents, then repeats
-the cases with native export/reimport enabled. JavaScript and Python pass 494/494
-each; C# passes 486/494. The eight C# failures cover unsupported semantic extensions
+The route-discovery stage passes **5,762/5,770** in both the
+[Windows full gate](results-full-route-discovery.json) and
+[Linux full gate](results-full-route-discovery-linux.json). Every case and outcome
+matches after normalizing assigned loopback ports. All **4,282 BP runtime scenarios**
+pass. Native discovery adds 128 CLI/compiler/module checks on each platform,
+including the exact authoring-guide examples and Node path/ID compatibility.
+
+Published AnyVali **1.1.3** passes **1,480/1,488 schema scenarios** in those runs.
+Each language runs 87 semantic cases and imports all 161 documents, then repeats
+the cases with native export/reimport enabled. JavaScript and Python pass 496/496
+each; C# passes 488/496. The eight C# failures cover unsupported semantic extensions
 and informational metadata lost from extended export, including native-parent
 composition ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
 Portable export correctly clears extension namespaces in all three SDKs.
-The [Linux discovery-stage schema run](results-schema-local-discovery-linux.json)
-matches every Windows outcome, including the same eight upstream failures.
+Both gates exit nonzero without skips, waivers or changed expectations.
+
+The [first Windows run](results-full-route-discovery-first.json) also timed out
+once in the enclosing `hostname-input-unknown-field` fixture request. Its cause
+was not established. An [isolated hostname run](results-hostname-route-discovery.json)
+then passed 99/99 with unchanged deadlines; all 228 timed fixture requests completed
+within 2.589 seconds. The subsequent full Windows run above also passed that case
+without code changes. The initial timeout remains recorded rather than being removed.
+Full HTTP runs were serialized without concurrent compilers or other HTTP suites.
+
+The earlier [workspace-discovery schema run](results-schema-local-discovery.json)
+and [Linux counterpart](results-schema-local-discovery-linux.json) passed
+1,474/1,482 before the route declaration document was added, with the same eight
+upstream failures.
 
 The 28-suite [Windows 1.1.3 full run](results-combined-anyvali-1.1.3.json), recorded
-before the workspace metadata document was added, passes
+before the workspace and route metadata documents were added, passes
 **5,750/5,758** using Node 24.4.0, Python 3.10.19 and .NET SDK 10.0.201/runtime
 10.0.5. All 4,282 runtime scenarios pass; the only failures are the eight C# schema
 extension checks above. The gate exits nonzero without skips or changed expectations.
@@ -137,8 +156,8 @@ shared cases use its actual manifest and discovery builders. Native-only cases
 reject duplicate or ambiguous routes and unsafe paths, and publish API contracts
 once for optional path variants; Node currently duplicates those descriptors.
 Authoring declarations are portable projections of the canonical wire contracts,
-excluding derived fields. Finite registration is covered below; route-directory
-discovery remains delivery work.
+excluding derived fields. Finite registration is covered below; native directory
+discovery is exercised by `check_discovery.py`.
 
 The [mount access suite](results-access.json) passes 130 checks. Shared scenarios
 invoke Node's real H3 operation adapter for selected operation IDs, legacy IDs,
@@ -385,9 +404,20 @@ the runtime's schema builders; request handlers are never executed by discovery.
 Checks cover stable `--check` output, invalid signatures/results, missing factories,
 16 MiB bounds, preservation on failure and both native consumers of each export.
 The C# command loads compiled metadata and does not parse source. These explicit
-factory commands are separate from the still-pending route-directory discovery tools.
+factory commands also export registries built by the native route-discovery tools.
 C# README examples compile and run under the Web SDK so its implicit imports are
 included; route construction explicitly names `BetterPortal.Route`.
+
+`check_discovery.py` passes 128 checks on Windows and Linux. It exercises the
+native directory authoring APIs and the exact
+[native route guide](../ROUTE-AUTHORING.md) source files. It compares exported paths,
+view/operation IDs and method policies with Node's real scanner, including required
+and optional parameters, explicit IDs, Unicode and dotted directories. C# discovery
+runs after removing source and PDB files. Python uses real modules and relative
+imports. Checks retain raw/finite/renderer/fragment metadata and exact GET ownership
+for SSE, reject invalid declarations and nested loose/open schemas, preserve existing
+outputs on failure, and verify each successful export with `--check`. Native schema
+exports are compared by validation behavior; the HTTP gate checks SDK round trips.
 
 The following upstream regressions are fixed in AnyVali 1.1.2. Their original
 expectations remain in the shared gate.
@@ -589,6 +619,7 @@ python framework/conformance/check_clientgen.py
 python framework/conformance/check_projects.py
 python framework/conformance/check_registry_tools.py
 python framework/conformance/check_export.py
+python framework/conformance/check_discovery.py
 python framework/conformance/check_docs.py
 dotnet pack framework/dotnet/BetterPortal --no-restore --output .tmp-run/ports-packages
 dotnet pack framework/dotnet/BetterPortal.Tool --no-restore --output .tmp-run/ports-packages

@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: daca943e8f6b0d9024c0e5248fdae76b0ca987513a27912a3d3c83d6e08782a9
+// Generated from AnyVali documents; do not edit. SHA256: 31cb8d99002557cf0b613eb3f3bf8ace9d5d37b90726503e8a00c06d0fd573cc
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -7109,6 +7109,32 @@ public sealed record ResolvedBPElementReferenceInput
     [JsonPropertyName("unavailable")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Unavailable { get; init; }
+}
+
+public sealed record RouteDeclaration
+{
+    [JsonPropertyName("viewId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ViewId { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Description { get; init; }
+}
+
+public sealed record RouteDeclarationInput
+{
+    [JsonPropertyName("viewId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ViewId { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Description { get; init; }
 }
 
 public sealed record RouteUiOptions

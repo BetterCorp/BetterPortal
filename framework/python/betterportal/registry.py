@@ -93,8 +93,10 @@ def _segments(path: str) -> tuple[str, ...]:
 
 class Route:
     def __init__(self, view_id: str, path: str, operations: Iterable[Operation], *, path_variants: Iterable[str] = (),
-                 sse: SseFeed[Any, Any, Any, Any, Any, Any] | None = None):
+                 sse: SseFeed[Any, Any, Any, Any, Any, Any] | None = None, title: str | None = None, description: str | None = None):
         self.view_id = contract("ViewMetadataSchema", "viewId").parse(view_id)
+        self.title = contract("ViewMetadataSchema", "title").parse(title) if title is not None else None
+        self.description = contract("ViewMetadataSchema", "description").parse(description) if description is not None else None
         self.paths = tuple(sorted(set([path, *path_variants]), key=lambda value: (-sum(segment.startswith(":") for segment in _segments(value)), -len(value), value)))
         self.operations = tuple(operations)
         self.sse = sse
@@ -142,7 +144,9 @@ class Registry:
             primary = next((item for item in operations if item["method"] == "GET"), operations[0])
             schema = route.operations[0].handler.schemas.get("params")
             views.append({"viewId": route.view_id, "path": route.paths[0], "pathVariants": list(route.paths) if len(route.paths) > 1 else [],
-                          "title": primary["title"], "description": primary["description"], "paramsSchema": export(schema) if schema is not None else {}, "operations": operations})
+                          "title": route.title if route.title is not None else primary["title"],
+                          "description": route.description if route.description is not None else primary["description"],
+                          "paramsSchema": export(schema) if schema is not None else {}, "operations": operations})
         capabilities = list(dict.fromkeys([*result["capabilities"], "view.json", "view.metadata"]))
         renderers, modes = [], []
         if "shell" in result:

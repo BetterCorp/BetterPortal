@@ -2,7 +2,7 @@
 
 Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
 hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not ready for production**:
-full theme helpers, route tooling and streaming dependency clients
+full theme helpers, scaffolding and streaming dependency clients
 remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
 Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
@@ -57,7 +57,7 @@ an explicit `auth` declaration and a unique stable ID. Methods share the view's
 params schema; their query, headers, body, response and policy remain separate.
 Dependency aliases resolve to plugin IDs, and local dependencies must exist with
 the declared method. Path variants belong to one view and publish API contracts
-once. Directory discovery remains pending.
+once. See [native route discovery](../ROUTE-AUTHORING.md) for directory-based registration.
 
 `Renderer[Result]` accepts a sync/async function returning an HTML string. Register
 it on the typed handler; the adapter selects the exact method, app renderer,
@@ -542,7 +542,7 @@ Handlers receive stored settings plus native defaults and preview overrides.
 Preview values validate before snapshot publication and never overwrite the settings
 file. Missing required effective values return 503 on operations while the config
 API remains available to supply them. Public health reflects initialized state and
-managed manifest acknowledgment. HTTP provisioning remains work; protected key storage is described below.
+managed manifest acknowledgment. Protected key storage and `ServiceInstallation` HTTP provisioning are described below.
 
 `dev_token` is accepted only when explicitly supplied and
 `BP_ALLOW_DEV_CONFIG_TOKEN=true` at construction. It requires an explicit tenant
@@ -620,7 +620,7 @@ cancels pending requests/retries and clears managed readiness. `sync.status` ret
 safe counters/error codes; protect any endpoint exposing them. `sync.submission()`
 returns the portable typed manifest projection. Optional `key_pair` registers a
 previously persisted RSA public key, and `auth_provider` advertises issuer metadata.
-Provisioning/install ticket hosting remains separate work.
+Use `ServiceInstallation` below for provisioning and install-ticket hosting.
 
 `BootstrapStateStore` protects provisioned credentials and a persistent RSA signing
 identity with the Node-compatible authenticated bootstrap envelope. Supply its
@@ -777,8 +777,8 @@ defaults to rejecting queries for control-plane base URLs.
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
-passes 1,474/1,482 scenarios with AnyVali 1.1.3. Python and JavaScript pass all
-494 checks each; eight C# extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
+passes 1,480/1,488 scenarios with AnyVali 1.1.3. Python and JavaScript pass all
+496 checks each; eight C# extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
 See the conformance ledger for runtime results and remaining
 capabilities. Do not treat package builds as evidence that the full framework plan
 is complete. Nothing is published.
@@ -963,5 +963,5 @@ code; keep host startup under its normal entry-point guard. The factory takes no
 arguments and returns the registry's contract. Export uses AnyVali validation,
 limits the document to 16 MiB and atomically replaces the output. `--check` detects
 drift without writing. Output paths are relative to `--project`. No request handler
-or host lifecycle is invoked by the exporter. Route-directory discovery remains
-delivery work.
+or host lifecycle is invoked by the exporter. Use [native route discovery](../ROUTE-AUTHORING.md) to build this registry from
+index, method and SSE modules.
