@@ -6,9 +6,9 @@ delivery order is specification/fixtures → contracts/security → runtime/host
 later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
-native packages and runnable HTTP gates exist. Published AnyVali 1.1.3 passes
-1,480/1,488 schema probes: JavaScript/Python pass all checks, while eight C#
-extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
+native packages and runnable HTTP gates exist. Published AnyVali 1.1.4 passes
+all 1,488 schema probes, including the eight previously failing C# extension checks
+([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
 Token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
@@ -22,10 +22,13 @@ Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane syn
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 139/139, protected bootstrap storage 147/147,
 installation 137/137, hostname changes 99/99 and scoped dependency clients 210/210.
-The route-discovery [Windows full gate](results-full-route-discovery.json) and
+The AnyVali 1.1.4 [Windows full gate](results-combined-anyvali-1.1.4.json) and
+[Linux full gate](results-linux-anyvali-1.1.4.json) each pass **5,770/5,770** existing
+scenarios, with matching case outcomes and no waivers or changed expectations.
+The historical AnyVali 1.1.3 route-discovery [Windows full gate](results-full-route-discovery.json) and
 [Linux full gate](results-full-route-discovery-linux.json) each pass **5,762/5,770**;
-every outcome matches and all 4,282 runtime scenarios pass. The eight remaining
-failures are upstream C# extension checks. An initial Windows hostname-fixture
+every outcome matches and all 4,282 runtime scenarios pass. The eight failures
+in those 1.1.3 runs are upstream C# extension checks. An initial Windows hostname-fixture
 timeout did not reproduce in an unchanged isolated or full run; both results are
 retained in the conformance README.
 Before adding the workspace and route metadata documents, the AnyVali 1.1.3
@@ -39,7 +42,7 @@ The historical AnyVali 1.1.2 [Windows full gate](results-combined-anyvali-1.1.2.
 matching case outcomes on Python 3.10 and 3.14 respectively, including the
 former null-active security failures. Compiler, documentation and package checks
 also pass on both platforms; CI runs its gates without waiving regressions. Hosted CI
-execution awaits a future push. Earlier versioned reports remain historical evidence.
+runs on [PR #54](https://github.com/BetterCorp/BetterPortal/pull/54). Earlier versioned reports remain historical evidence.
 Local project tooling passes 216 CLI checks on Windows and Linux, including
 automatic discovery, dependency locks and frozen builds. Registry installation/publishing adds 128
 passing CLI checks and two canonical response documents.
@@ -113,6 +116,10 @@ JavaScript are not port deliverables. Existing Node services are integration pee
 
 ## Known defects must not become compatibility requirements
 
+- PR #54 review identified malformed percent escapes, duplicate singleton raw
+  response headers and undisposed .NET asynchronous chunk sources. Regression work
+  is underway; the 1.1.4 upgrade reports above precede those additional cases.
+
 - AnyVali 1.1.2 fixes all 30 schema failures recorded against 1.1.1: Python
   explicit-null/default behavior (#127), sensitive references in every SDK (#128),
   recursive native-parent export (#133) and Python coercion export (#134).
@@ -125,8 +132,9 @@ JavaScript are not port deliverables. Existing Node services are integration pee
   ([#139](https://github.com/BetterCorp/AnyVali/issues/139)). Five new shared cases
   expose eight C# failures for semantic rejection and extended metadata retention,
   including native-parent composition ([#141](https://github.com/BetterCorp/AnyVali/issues/141)).
-  Portable export intentionally clears extensions. All SDKs run every new case
-  with round-trip variants; failures remain visible without skips or workarounds.
+  AnyVali 1.1.4 fixes all eight C# regressions. Portable export intentionally
+  clears extensions. All SDKs run every case with round-trip variants and the
+  original expectations; no skips or BP workarounds are needed.
 - Node's platform menu schema is bounded but its exported document can exceed
   application JSON's depth limit. The development exporter uses native AnyVali
   export and supplies BP's existing recursive JSON definition without parsing

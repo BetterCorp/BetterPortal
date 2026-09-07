@@ -8,7 +8,30 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-The route-discovery stage passes **5,762/5,770** in both the
+AnyVali **1.1.4** passes **5,770/5,770** existing scenarios in both the
+[Windows full gate](results-combined-anyvali-1.1.4.json) and
+[Linux full gate](results-linux-anyvali-1.1.4.json): **1,488 schema scenarios** and
+**4,282 BP runtime scenarios**. Every case and outcome matches after normalizing
+assigned loopback ports. Both gates exit zero without skips, waivers or changed
+expectations. The [isolated schema gate](results-anyvali-1.1.4.json) also passes.
+All eight C# extension regressions from [AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)
+are fixed upstream; BP adds no SDK workaround. The 161 canonical documents and
+native generated types remain unchanged.
+
+Windows uses Python 3.10.19, Node 24.4.0 and .NET SDK 10.0.201/runtime 10.0.5;
+Linux uses Python 3.14.4, Node 24.4.0 and .NET SDK 10.0.400/runtime 10.0.11.
+Both platforms pass native type/compiler checks, clients generated from all three
+registries, 216 project/discovery/lock checks, 128 registry checks, 27 export checks,
+128 route-discovery checks and executable README examples. The 99 Node framework
+tests pass. Unpublished NuGet, wheel and source-distribution builds and standalone
+package checks pass on both platforms. Full HTTP runs were serialized without concurrent compilers or other
+HTTP suites. The gate covers the implemented capabilities, not the complete port plan.
+
+[PR #54](https://github.com/BetterCorp/BetterPortal/pull/54) is open for review and
+hosted CI. Its new transport-boundary findings are tracked in the capability ledger;
+these existing reports precede those additional regression cases.
+
+The historical route-discovery stage with AnyVali 1.1.3 passes **5,762/5,770** in both the
 [Windows full gate](results-full-route-discovery.json) and
 [Linux full gate](results-full-route-discovery-linux.json). Every case and outcome
 matches after normalizing assigned loopback ports. All **4,282 BP runtime scenarios**
@@ -444,9 +467,10 @@ AnyVali 1.1.3 resolves the JavaScript/Python extension defects in
 exercise unsupported semantic namespaces (including `default`), explicit/default
 informational criticality, portable versus extended exports and native-parent
 composition. Each case runs in every SDK, with round-trip variants and no waivers.
-C# still accepts semantic namespaces and loses extended metadata, tracked in
+C# 1.1.3 accepted semantic namespaces and lost extended metadata, reported in
 [#141](https://github.com/BetterCorp/AnyVali/issues/141) with a standalone NuGet
-reproduction. These eight failures keep both schema and full gates nonzero.
+reproduction. AnyVali 1.1.4 fixes all eight failures with the original expectations;
+BP adds no SDK patch or extension-policy workaround.
 At the 1.1.3 upgrade, all 159 canonical BP documents had empty extensions and their
 generated types were unchanged. Generated peer clients were refreshed for Python's explicit empty
 `extensions` map. BP's document-composition helper does not implement extension semantics.

@@ -3,7 +3,7 @@
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
 for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers, scaffolding
 and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
-The AnyVali 1.1.3 schema gate exposes eight C# extension failures; see the ledger for results.
+The AnyVali 1.1.4 schema gate passes all 1,488 checks; see the ledger for results.
 
 Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
 extension. A `Service` combines the registry, manifest declaration and optional
@@ -389,7 +389,7 @@ if (Media.Negotiate("text/html;mode=fragment").Mode != "fragment") throw new Exc
 if (Media.Negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).Kind != "json") throw new Exception("Wrong offer");
 ```
 
-Implemented: embedded canonical contracts validated with AnyVali 1.1.3, RSA keys, RS256 token
+Implemented: embedded canonical contracts validated with AnyVali 1.1.4, RSA keys, RS256 token
 purposes through IdentityModel, tenant/app-bound refresh pairs, config-ticket
 scope/action checks, and service authorization against current scoped bindings
 and grants, static JWKS imports and a cancellable remote JWKS cache.
@@ -788,8 +788,9 @@ allowed; `TrustedKeys.SecureEndpoint` rejects queries by default for CP base URL
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
-passes 1,480/1,488 scenarios with AnyVali 1.1.3. Python and JavaScript pass all
-496 checks each; eight C# extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
+passes 1,488/1,488 scenarios with AnyVali 1.1.4: all 496 checks in each language.
+The eight C# extension regressions from [AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)
+pass with their original expectations and no BP workaround.
 See the conformance ledger for runtime results and remaining
 capabilities. Compilation or NuGet packaging is not evidence that the full framework
 plan is complete. Nothing is published.
