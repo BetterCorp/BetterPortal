@@ -8,26 +8,47 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-Published AnyVali **1.1.2** passes [1,446/1,446 schema scenarios](results-anyvali-1.1.2.json).
-Each language runs 82 semantic cases and imports all 159 documents, then repeats
-every case after native export/reimport. The release fixes all 30 failures in the
+Published AnyVali **1.1.3** passes [1,468/1,476 schema scenarios](results-anyvali-1.1.3.json).
+Each language runs 87 semantic cases and imports all 159 documents, then repeats
+the cases with native export/reimport enabled. JavaScript and Python pass 492/492
+each; C# passes 484/492. The eight C# failures cover unsupported semantic extensions
+and informational metadata lost from extended export, including native-parent
+composition ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
+Portable export correctly clears extension namespaces in all three SDKs.
+
+The 28-suite [Windows 1.1.3 full run](results-combined-anyvali-1.1.3.json) passes
+**5,750/5,758** using Node 24.4.0, Python 3.10.19 and .NET SDK 10.0.201/runtime
+10.0.5. All 4,282 runtime scenarios pass; the only failures are the eight C# schema
+extension checks above. The gate exits nonzero without skips or changed expectations.
+The independent [Linux 1.1.3 full run](results-linux-anyvali-1.1.3.json) also records
+**5,750/5,758** using Python 3.14.4, Node 24.4.0 and .NET SDK 10.0.400/runtime
+10.0.11. Every case outcome and failure matches Windows after accounting for
+ordering and assigned loopback ports. Both full runs were serialized without
+concurrent compilers or other HTTP suites.
+The 99 Node framework tests pass. Native compiler/type checks, generated clients
+from all three registries, executable README examples and unpublished package
+checks pass on Windows and Linux with 1.1.3. Linux also reruns the complete CLI
+gate: 130 project/lock, 122 registry and 27 contract-export checks pass.
+
+The earlier **1.1.2** [schema gate](results-anyvali-1.1.2.json) passed 1,446/1,446
+before these five extension cases were added. That release fixed all 30 failures in the
 [1.1.1 schema gate](results-anyvali-1.1.1.json): explicit null/default behavior,
 sensitive references, recursive native-parent composition and Python coercion
 export. The original [1.1.0 result](results-anyvali-1.1.0.json) remains historical evidence.
 
-The current 28-suite [Windows full run](results-combined-anyvali-1.1.2.json) passes
+The historical 28-suite [Windows 1.1.2 full run](results-combined-anyvali-1.1.2.json) passes
 **5,728/5,728** with Node 24.4.0, Python 3.10.19 and .NET SDK 10.0.201/runtime
 10.0.5. It includes the later project/registry contracts and the settings checks
 that replace obsolete sensitive-ref rejection. Both null-active security regressions
 pass without changing their expectations. Windows and Linux compiler, CLI, executable
 README and unpublished package checks also pass with 1.1.2.
 
-The independent [Linux full run](results-linux-anyvali-1.1.2.json) also passes
+The independent [Linux 1.1.2 full run](results-linux-anyvali-1.1.2.json) also passes
 **5,728/5,728**, with matching case outcomes, using Python 3.14.4, Node 24.4.0
 and .NET SDK 10.0.400/runtime 10.0.11. Both full runs were serialized without
 concurrent compilers or other HTTP suites. Report ordering and two assigned
-loopback-port IDs differ between platforms. The SDK-only extension limitation
-described below is outside this corpus; full framework delivery remains incomplete.
+loopback-port IDs differ between platforms. Extension behavior was outside the
+1.1.2 corpus and is now covered by the strict gate. Full framework delivery remains incomplete.
 
 The security suite passes [459/459 scenarios](results-security.json): every
 signing/verifying language pair, six token purposes, signature tampering,
@@ -363,8 +384,8 @@ expectations remain in the shared gate.
 |---|---|---|
 | Python replaces explicit null with a default | default-present-null, lock-null-dependencies and their round trips | Null is present and must fail when the schema is not nullable. |
 | A new native parent loses its imported child's recursive definitions (all SDKs) | recursive-composition and its round trip | Composed portable contracts must retain every referenced definition. |
-| Sensitive metadata directly on ref nodes is ignored (all SDKs) | sensitive-ref encrypt/decrypt/plaintext rejection, direct and roundtrip | Encryption callbacks are skipped and plaintext passes encrypted validation. |
-| Python drops empty/from-string coercion on export | coerce-int-empty and coerce-int-from-string round trips | Re-import rejects values accepted by the original schema and can narrow generated input types. |
+| Sensitive metadata directly on ref nodes is ignored (all SDKs) | sensitive-ref encrypt/decrypt/plaintext rejection, direct and roundtrip | Native transforms must visit sensitive refs and encrypted validation must reject plaintext. |
+| Python drops empty/from-string coercion on export | coerce-int-empty and coerce-int-from-string round trips | Re-import must preserve coercion and the accepted input types. |
 
 [AnyVali #127](https://github.com/BetterCorp/AnyVali/issues/127),
 [#128](https://github.com/BetterCorp/AnyVali/issues/128),
@@ -376,12 +397,17 @@ BP retains portable document composition to preserve extension metadata, check
 document versions and copy inputs; it is not an SDK validation replacement.
 Packages contain no alternate validator or monkeypatch.
 
-A separate SDK-only audit found [AnyVali #139](https://github.com/BetterCorp/AnyVali/issues/139):
-JavaScript/Python accept unsupported semantic extensions, and extended export loses
-imported extension metadata. Clearing extensions in portable export is intentional.
-All 159 canonical BP documents have empty extensions, so the HTTP results here do
-not cover that defect. The upstream issue contains standalone 1.1.2 reproductions;
-BP's document-composition helper does not implement extension semantics.
+AnyVali 1.1.3 resolves the JavaScript/Python extension defects in
+[#139](https://github.com/BetterCorp/AnyVali/issues/139). Five shared schema cases now
+exercise unsupported semantic namespaces (including `default`), explicit/default
+informational criticality, portable versus extended exports and native-parent
+composition. Each case runs in every SDK, with round-trip variants and no waivers.
+C# still accepts semantic namespaces and loses extended metadata, tracked in
+[#141](https://github.com/BetterCorp/AnyVali/issues/141) with a standalone NuGet
+reproduction. These eight failures keep both schema and full gates nonzero.
+All 159 canonical BP documents have empty extensions; their generated types are
+unchanged. Generated peer clients were refreshed for Python's explicit empty
+`extensions` map. BP's document-composition helper does not implement extension semantics.
 
 Supplemental positive documents are generated by native Node schema authoring.
 [export-fixtures.mjs](export-fixtures.mjs) first verifies the expected behavior

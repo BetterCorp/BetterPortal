@@ -77,15 +77,32 @@ app.MapPost("/", async (HttpRequest request) =>
             return Results.Text(Json.Write(EncryptionAdapter.Run(body)), "application/json");
         if (body.GetValueOrDefault("action") is string securityAction && (securityAction.StartsWith("jwt-", StringComparison.Ordinal) || securityAction.StartsWith("keys-", StringComparison.Ordinal)))
             return Results.Text(Json.Write(await SecurityAdapter.Run(body)), "application/json");
-        var schema = body.TryGetValue("document", out var document) ? Contracts.Import(Json.Write(document)) : Contracts.Get((string)body["contract"]!);
         var action = body.GetValueOrDefault("action") as string;
+        if (action == "unsupported-extension")
+        {
+            try
+            {
+                Contracts.Import(Json.Write(body["document"]));
+                return Results.Json(new { valid = false });
+            }
+            catch (ValidationError error)
+            {
+                var issue = error.Issues.FirstOrDefault();
+                if (issue?.Code != IssueCodes.UnsupportedExtension) return Results.Json(new { valid = false });
+                return Results.Json(new { valid = true, output = new { code = issue.Code } });
+            }
+        }
+        var schema = body.TryGetValue("document", out var document) ? Contracts.Import(Json.Write(document)) : Contracts.Get((string)body["contract"]!);
         if (body.GetValueOrDefault("wrapDocument") is true)
             schema = Contracts.Import(Contracts.ObjectDocument(new Dictionary<string, Dictionary<string, object?>>
             {
                 ["payload"] = (Dictionary<string, object?>)Json.Read(Json.Write(V.Export(schema)))!
             }));
         if (body.GetValueOrDefault("wrap") is true) schema = V.Object(new() { ["payload"] = schema });
-        if (body.GetValueOrDefault("roundtrip") is true || action == "roundtrip") schema = V.Import(V.Export(schema));
+        var exportMode = action == "extension-export" && body.GetValueOrDefault("mode") is "extended" ? ExportMode.Extended : ExportMode.Portable;
+        if (body.GetValueOrDefault("roundtrip") is true || action == "roundtrip") schema = V.Import(V.Export(schema, exportMode));
+        if (action == "extension-export")
+            return Results.Text(Json.Write(new { valid = true, output = V.Export(schema, exportMode).Extensions }), "application/json");
         if (action == "encrypt")
             return Results.Text(Json.Write(new { valid = true, output = V.Encrypt(schema, body["input"], (path, value) => "encrypted:" + Json.Write(value)) }), "application/json");
         if (action == "decrypt")

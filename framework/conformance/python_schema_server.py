@@ -171,13 +171,36 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps(payload).encode())
                 return
+            if body.get("action") == "unsupported-extension":
+                issue = None
+                try:
+                    av.import_schema(body["document"])
+                except av.ValidationError as error:
+                    issue = error.issues[0] if error.issues else None
+                valid = issue is not None and issue.code == av.UNSUPPORTED_EXTENSION
+                payload = {"valid": valid}
+                if valid:
+                    payload["output"] = {"code": issue.code}
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload).encode())
+                return
             schema = av.import_schema(body["document"]) if "document" in body else contract(body["contract"])
             if body.get("wrapDocument"):
                 schema = av.import_schema(object_document({"payload": export(schema)}))
             if body.get("wrap"):
                 schema = av.object_({"payload": schema})
+            export_mode = "extended" if body.get("action") == "extension-export" and body.get("mode") == "extended" else "portable"
             if body.get("roundtrip") or body.get("action") == "roundtrip":
-                schema = av.import_schema(export(schema))
+                schema = av.import_schema(av.export_schema(schema, mode=export_mode))
+            if body.get("action") == "extension-export":
+                payload = {"valid": True, "output": av.export_schema(schema, mode=export_mode)["extensions"]}
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(payload).encode())
+                return
             if body.get("action") == "import":
                 payload = {"valid": True, "output": True, "document": export(schema)}
             else:

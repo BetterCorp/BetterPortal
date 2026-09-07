@@ -1386,5 +1386,127 @@
       "extra": true
     },
     "valid": false
+  },
+  {
+    "id": "semantic-extension-unsupported",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "vendor": {
+          "_criticality": "semantic",
+          "feature": true
+        }
+      }
+    },
+    "action": "unsupported-extension",
+    "output": {
+      "code": "unsupported_extension"
+    }
+  },
+  {
+    "id": "default-semantic-extension-unsupported",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "default": {
+          "_criticality": "semantic",
+          "feature": true
+        }
+      }
+    },
+    "action": "unsupported-extension",
+    "output": {
+      "code": "unsupported_extension"
+    }
+  },
+  {
+    "id": "informational-extensions-extended-export",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "vendor": {
+          "_criticality": "informational",
+          "hint": "keep"
+        },
+        "default": {
+          "hint": "implicit informational"
+        }
+      }
+    },
+    "action": "extension-export",
+    "mode": "extended",
+    "output": {
+      "vendor": {
+        "_criticality": "informational",
+        "hint": "keep"
+      },
+      "default": {
+        "hint": "implicit informational"
+      }
+    }
+  },
+  {
+    "id": "informational-extensions-portable-export",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "vendor": {
+          "_criticality": "informational",
+          "hint": "clear"
+        },
+        "default": {
+          "hint": "clear"
+        }
+      }
+    },
+    "action": "extension-export",
+    "mode": "portable",
+    "output": {}
+  },
+  {
+    "id": "informational-extension-native-parent-export",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "vendor": {
+          "_criticality": "informational",
+          "hint": "composed"
+        }
+      }
+    },
+    "action": "extension-export",
+    "mode": "extended",
+    "wrap": true,
+    "output": {
+      "vendor": {
+        "_criticality": "informational",
+        "hint": "composed"
+      }
+    }
   }
 ]

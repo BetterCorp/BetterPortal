@@ -6,8 +6,10 @@ delivery order is specification/fixtures → contracts/security → runtime/host
 later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
-native packages and runnable HTTP gates exist. Published AnyVali 1.1.2 passes
-1,446/1,446 schema probes; token/service security passes 459/459 scenarios and JWKS
+native packages and runnable HTTP gates exist. Published AnyVali 1.1.3 passes
+1,468/1,476 schema probes: JavaScript/Python pass all checks, while eight C#
+extension checks fail ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
+Token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
@@ -20,7 +22,12 @@ Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane syn
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 139/139, protected bootstrap storage 147/147,
 installation 137/137, hostname changes 99/99 and scoped dependency clients 210/210.
-The AnyVali 1.1.2 [Windows full gate](results-combined-anyvali-1.1.2.json) and
+The AnyVali 1.1.3 [Windows full gate](results-combined-anyvali-1.1.3.json) and
+[Linux full gate](results-linux-anyvali-1.1.3.json) each pass 5,750/5,758 with
+matching outcomes: all runtime scenarios pass, with only the eight C# extension failures.
+Native compiler, generated-client, executable documentation and unpublished package
+checks pass on both platforms; Linux also passes all project/registry/export CLI checks.
+The historical AnyVali 1.1.2 [Windows full gate](results-combined-anyvali-1.1.2.json) and
 [Linux full gate](results-linux-anyvali-1.1.2.json) each pass 5,728/5,728 with
 matching case outcomes on Python 3.10 and 3.14 respectively, including the
 former null-active security failures. Compiler, documentation and package checks
@@ -42,7 +49,7 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 159 canonical documents embedded in both packages, including derived authoring declarations, project locks and registry responses; native imports, field selection and portable object composition | manifest.md §4 | schema-cases.json; 1,446/1,446 including all-document round trips |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 159 canonical documents embedded in both packages, including derived authoring declarations, project locks and registry responses; native imports, field selection and portable object composition | manifest.md §4 | schema-cases.json; 1,468/1,476 including all-document round trips; eight C# extension failures block the gate |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; typed subscriber-feed binding; full contexts pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors and renderer/streaming metadata | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |
@@ -79,7 +86,7 @@ future scenarios; they are not assertions that those tests already exist.
 | discovery-tools | codegen/scanner.ts, emitter.ts, validate.ts | Pending compiler-supported C# and module-based Python discovery | docs/building/routes-and-views.md | route-dirs, optional-params, stable-ID, renderer-fragment-SSE-selection |
 | contract-tools | cli/project.ts, contract.ts, publish.ts | Native project/lock parsing, explicit local and registry installation preserve identity/version; explicit Python module/C# compiled factories export validated runtime contracts; publishing uses bounded authenticated HTTP; automatic local discovery pending | docs/building/services.md; port READMEs | check_projects.py: 130 CLI checks; check_registry_tools.py: 122 checks against the real Node registry, hostile responses and offline builds; check_export.py: 27 native factory/consumer checks |
 | dependency-clients | cli/client.ts; BSB service.ts authenticatedFetch | Native runtime and generated JSON clients use AnyVali documents and scoped credentials; project commands install local/registry contracts and verify shared byte locks before frozen generation; raw/streaming clients pending | auth.md §3; port READMEs | client_cases.py: 210 checks, including four generated cross-language host pairs in user/service/delegated modes; check_clientgen.py compiles all three registry exports; check_projects.py: 130 CLI checks for locks, tampering, migration, alias conflicts and frozen builds; two Node-generated outbound pairs pending |
-| delivery | .github/workflows/ci.yml | Partial: Windows Python 3.10/3.13 and Linux Python 3.14 HTTP gates; Linux/Windows mypy/compiler checks, executed README examples, wheel/sdist/NuGet builds and embedded-corpus checks; CI matrix wired with strict conformance failure reporting | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py, check_projects.py, check_registry_tools.py, check_export.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
+| delivery | .github/workflows/ci.yml | Partial: Linux CI matrix uses Python 3.10/3.14 with strict conformance failure reporting; local Windows/Linux HTTP, mypy/compiler, executable README, wheel/sdist/NuGet and embedded-corpus checks | Port READMEs; conformance README | check_packages.py, check_docs.py, check_types.py, check_clientgen.py, check_projects.py, check_registry_tools.py, check_export.py; hosted CI, CM+Bootstrap and two Node-generated client/server pairs pending |
 
 ## BP and BSB ownership
 
@@ -104,12 +111,12 @@ JavaScript are not port deliverables. Existing Node services are integration pee
   the obsolete rejection and union wrapper are removed. BP keeps portable
   composition for extension metadata, document-version checks and input ownership.
   No SDK patch or second validator is introduced.
-- [AnyVali #139](https://github.com/BetterCorp/AnyVali/issues/139) remains open:
-  JavaScript/Python accept unsupported semantic extensions and lose imported
-  metadata in extended export. Portable export intentionally clears extensions.
-  The current 159-document BP corpus has empty extensions; its passing HTTP gate
-  does not establish support for extension semantics. SDK-only reproductions are
-  attached to the upstream issue.
+- AnyVali 1.1.3 resolves JavaScript/Python extension handling
+  ([#139](https://github.com/BetterCorp/AnyVali/issues/139)). Five new shared cases
+  expose eight C# failures for semantic rejection and extended metadata retention,
+  including native-parent composition ([#141](https://github.com/BetterCorp/AnyVali/issues/141)).
+  Portable export intentionally clears extensions. All SDKs run every new case
+  with round-trip variants; failures remain visible without skips or workarounds.
 - Node's platform menu schema is bounded but its exported document can exceed
   application JSON's depth limit. The development exporter uses native AnyVali
   export and supplies BP's existing recursive JSON definition without parsing
