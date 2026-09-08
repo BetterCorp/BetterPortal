@@ -126,11 +126,14 @@ def run_rendering(urls, labels):
             for fail in (False, True):
                 def vary():
                     body = fixture(); body["request"]["headers"]["accept"] = accept
-                    body["routes"][0]["operations"][0].update(throw=fail,
-                        responseHeaders=[["Cache-Control", "public, max-age=60"], ["Vary", "Accept-Language"]])
+                    spec = body["routes"][0]["operations"][0]
+                    spec["declaration"]["cacheHints"] = {"ttlSeconds": 60}
+                    spec.update(throw=fail, responseHeaders=[["Vary", "Accept-Language"]])
                     actual = post(url, body)
                     expected_status = 406 if accept == "image/png" else 500 if fail and "metadata" not in accept else 200
                     assert actual["status"] == expected_status, actual
+                    cache = {part.strip() for part in actual["headers"].get("cache-control", "").split(",")}
+                    assert cache == ({"private", "max-age=60"} if expected_status == 200 else {"no-store"}), actual
                     fields = {part.strip().lower() for part in actual["headers"].get("vary", "").split(",")}
                     assert {"accept", "origin"} <= fields, actual
                     if actual["invoked"] and not fail: assert "accept-language" in fields, actual
