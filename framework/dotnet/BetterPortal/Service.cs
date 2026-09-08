@@ -37,6 +37,7 @@ public sealed partial class Service : IAsyncDisposable
     {
         var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in headers) if (!normalized.TryAdd(key, value)) throw new RequestException(400, "Duplicate request headers");
+        if (normalized.GetValueOrDefault("bp-protocol-version", "2") != "2") throw new RequestException(400, "unsupported_protocol_version");
         return normalized;
     }
     private ScopedContext Resolve(SnapshotState? current, IReadOnlyDictionary<string, string> headers, string scheme, string mode, IEnumerable<string>? trustedAddresses, bool preflight = false)

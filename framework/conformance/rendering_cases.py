@@ -77,6 +77,9 @@ def run_rendering(urls, labels):
     case("fragment-only-mount", fragment_mount, kind="fragment", mode="fragment")
     case("fragment-mount-denied", lambda body: (fragment_mount(body), body["snapshot"]["apps"][0]["fragments"]["nav"][0].update(enabled=False)), 404)
     case("zero-quality-selector", lambda body: (fragment_mount(body), body["request"]["headers"].update(accept="text/html;fragment=nav.profile;q=0,application/json")), 404, native=True)
+    for accept in ("application/json", "application/vnd.betterportal.metadata+json", "text/html;fragment=nav.profile;q=0,application/json", "*/*", "image/png"):
+        case("fragment-grant-denied-" + accept, lambda body, accept=accept: (fragment_mount(body),
+             body["request"].update(path="/check/item?_f=nav.profile"), body["request"]["headers"].update(accept=accept)), 404, native=True)
     case("invalid-accept-auth-first", lambda body: (body["routes"][0]["operations"][0]["declaration"].update(auth={"required": True}), body["request"]["headers"].update(accept="unacceptable")), 401, native=True)
     for method in ("GET", "POST"):
         for selector, kind, key in (("_f", "fragment", "nav.profile"), ("_c", "component", "card")):

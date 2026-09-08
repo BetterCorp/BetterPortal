@@ -18,15 +18,24 @@ checks pass 80/80; encryption passes 444/444, authorization 306/306, media 124/1
 finite stream primitives 113/113, finite operation hosting 368/368, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 35/35.
 Typed handler validation passes 44/44 checks, with native compiler checks for
 input/output types. JSON operation registration and manifest generation pass 119/119
-registry checks. Prototype JSON hosts pass 454/454 HTTP/ASGI checks; raw responses
+registry checks. Prototype JSON hosts pass 488/488 HTTP/ASGI checks; raw responses
 pass 137/137 checks including streamed delivery, ownership and backpressure.
 Typed HTML callbacks, presentation context, fragments/components and status/error
-rendering pass 203/203 checks.
+rendering pass 213/213 checks.
 Scoped URLs pass 261/261, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 147/147, protected bootstrap storage 147/147,
 installation 139/139, hostname changes 101/101 and scoped dependency clients 240/240.
-The AnyVali 1.1.5 [Windows gate](results-combined-anyvali-1.1.5.json) and
+The latest review [Windows checks](results-review7.json) and
+[Linux checks](results-review7-linux.json) each pass **1,549/1,549** scenarios:
+hosting 488, rendering 213, subscriber feeds 161, finite streams 368, CORS 35,
+raw responses 137 and config HTTP 147. The 44 added checks cover malformed path
+escapes, protocol version rejection and fragment grants restricted to HTML.
+Rendered fragment SSE remains supported. Native builds and Python type checks
+pass on both OSes. Canonical export checks pass, and fixture regeneration preserves
+all numeric tokens while still detecting and repairing stale schema documents.
+
+The preceding AnyVali 1.1.5 [Windows gate](results-combined-anyvali-1.1.5.json) and
 [Linux gate](results-linux-anyvali-1.1.5.json) each pass **6,423/6,423** scenarios:
 **1,580 schema checks** and **4,843 BP runtime checks**, with matching outcomes.
 The 106 additional checks cover signed overflow, full unsigned 64-bit values,

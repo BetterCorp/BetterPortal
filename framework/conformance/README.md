@@ -8,7 +8,16 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
-The AnyVali 1.1.5 [Windows gate](results-combined-anyvali-1.1.5.json) and
+The latest review [Windows checks](results-review7.json) and
+[Linux checks](results-review7-linux.json) each pass **1,549/1,549** scenarios:
+hosting 488, rendering 213, subscriber feeds 161, finite streams 368, CORS 35,
+raw responses 137 and config HTTP 147. The 44 added checks cover malformed path
+escapes, protocol version rejection and fragment grants restricted to HTML.
+Rendered fragment SSE remains supported. Native builds and Python type checks
+pass on both OSes. Canonical export checks pass, and fixture regeneration preserves
+all numeric tokens while still detecting and repairing stale schema documents.
+
+The preceding AnyVali 1.1.5 [Windows gate](results-combined-anyvali-1.1.5.json) and
 [Linux gate](results-linux-anyvali-1.1.5.json) each pass **6,423/6,423** scenarios:
 **1,580 schema checks** and **4,843 BP runtime checks**, with matching outcomes.
 The 106 additional checks cover signed overflow, full unsigned 64-bit values,

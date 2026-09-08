@@ -15,6 +15,7 @@ public static class Hosting
     private static string RequestPath(HttpRequest request)
     {
         var raw = request.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
+        if (raw?.StartsWith('/') is true) ValidateEscapes(raw.Split('?', 2)[0]);
         return raw?.StartsWith('/') is true ? new Uri("http://betterportal.invalid" + raw.Split('?', 2)[0]).AbsolutePath : request.PathBase.Add(request.Path).ToUriComponent();
     }
     private static string PathParameter(string value)
@@ -42,16 +43,20 @@ public static class Hosting
         else if (existing is List<object?> items) items.Add(value);
         else values[name] = new List<object?> { existing, value };
     }
-    private static Node Pairs(string raw, int maximumLength = 8192)
+    private static void ValidateEscapes(string raw)
     {
-        if (raw.Length > maximumLength) throw new RequestException(414, "Query string is too large");
         for (var index = 0; index < raw.Length; index++)
         {
             if (raw[index] != '%') continue;
             if (index + 2 >= raw.Length || !Uri.IsHexDigit(raw[index + 1]) || !Uri.IsHexDigit(raw[index + 2]))
-                throw new RequestException(400, "Invalid form or query encoding");
+                throw new RequestException(400, "Invalid percent escape");
             index += 2;
         }
+    }
+    private static Node Pairs(string raw, int maximumLength = 8192)
+    {
+        if (raw.Length > maximumLength) throw new RequestException(414, "Query string is too large");
+        ValidateEscapes(raw);
         var result = new Node(StringComparer.Ordinal); var count = 0;
         foreach (var pair in new QueryStringEnumerable(raw))
         {
@@ -281,7 +286,7 @@ public static class Hosting
             ScopedContext? failureScope = null; Operation? operation = null; Route? route = null; Representation? representation = null;
             var kind = "page"; string? key = null; var matched = ""; var requested = "GET";
             var query = new Node(); var parameters = new Node();
-            var requestPath = RequestPath(context.Request);
+            var requestPath = "";
             var headers = new Dictionary<string, string>();
             async Task Failure(int status, string message, ScopedContext? scope = null)
             {
@@ -304,6 +309,7 @@ public static class Hosting
             }
             try
             {
+                requestPath = RequestPath(context.Request);
                 headers = Headers(context.Request); query = Pairs(context.Request.QueryString.Value ?? "");
                 if (query.GetValueOrDefault("_f") is { } selector && selector is not string) throw new RequestException(400, "Invalid fragment selector");
                 var fragment = (string?)query.GetValueOrDefault("_f");
@@ -344,7 +350,9 @@ public static class Hosting
                 kind = fragment is not null ? "fragment" : component is not null ? "component" : "page";
                 key = fragment ?? component;
                 query.Remove("_f"); query.Remove("_c");
-                var prepared = await service.PrepareAsync(binding.Route, requested, requestPath, headers, binding.Path, fragment, context.Request.Scheme, mode, cancellationToken: context.RequestAborted);
+                // Subscriber fragments select an HTML event renderer before opening their stream.
+                var accessFragment = representation?.Kind == "html" || sse && binding.Route.Sse is not null ? fragment : null;
+                var prepared = await service.PrepareAsync(binding.Route, requested, requestPath, headers, binding.Path, accessFragment, context.Request.Scheme, mode, cancellationToken: context.RequestAborted);
                 responseHeaders = prepared.Headers;
                 failureScope = prepared.Context.Scope;
                 if (negotiationError is not null) throw negotiationError;

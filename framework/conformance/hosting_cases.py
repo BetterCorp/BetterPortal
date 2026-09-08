@@ -78,6 +78,18 @@ def run_hosting(urls, labels):
     case("head-preflight-no-get", lambda body: (head_preflight(body), body["routes"][0]["operations"].pop(0)), 403, 0, native=True)
     for encoded in ("%FF", "%FE", "%C0%AF", "%ED%A0%80", "%E2%82"):
         case("path-invalid-utf8-" + encoded, lambda body, encoded=encoded: body["request"].update(path="/check/" + encoded), 400, 0, native=True)
+    for encoded in ("%", "%2", "%ZZ", "%2G", "%G2", "ok%20bad%"):
+        case("path-invalid-escape-" + encoded, lambda body, encoded=encoded: (body.update(rawTarget=True), body["request"].update(path="/check/" + encoded)), 400, 0, native=True)
+    for encoded, decoded in (("%25ZZ", "%ZZ"), ("%252", "%2")):
+        case("path-encoded-percent-" + encoded, lambda body, encoded=encoded: body["request"].update(path="/check/" + encoded + "?hello=world"),
+             invoked=1, expected={**baseline, "params": {"key": decoded}})
+    case("protocol-supported", lambda body: body["request"]["headers"].update({"BP-Protocol-Version": "2"}), invoked=1, expected=baseline, native=True)
+    for version in ("1", "3", "invalid", "", "2, 2"):
+        case("protocol-unsupported-" + version, lambda body, version=version: body["request"]["headers"].update({"BP-Protocol-Version": version}),
+             400, 0, expected={"error": "unsupported_protocol_version"}, native=True)
+    case("protocol-before-auth", lambda body: (body["request"]["headers"].update({"BP-Protocol-Version": "1"}),
+         body["routes"][0]["operations"][0]["declaration"].update(auth={"required": True})), 400, 0, expected={"error": "unsupported_protocol_version"}, native=True)
+    case("fragment-selector-full-json-mount", lambda body: body["request"].update(path="/check/item?hello=world&_f=nav.profile"), invoked=1, expected=baseline, native=True)
     case("path-replacement-character", lambda body: body["request"].update(path="/check/%EF%BF%BD?hello=world"), invoked=1, expected={**baseline, "params": {"key": "\ufffd"}})
     for number in (9223372036854775809, 18446744073709551615):
         def integer_body(body, number=number):

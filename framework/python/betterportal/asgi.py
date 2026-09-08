@@ -48,6 +48,8 @@ class _SegmentRoute(HttpRoute):
     def matches(self, scope: Scope) -> tuple[Match, Scope]:
         if scope["type"] != "http": return super().matches(scope)
         raw = scope.get("raw_path")
+        if raw is not None and re.search(rb"%(?![0-9A-Fa-f]{2})", raw):
+            raise HTTPException(400, "Invalid path encoding", headers={"cache-control": "no-store"})
         path = ("/".join(quote_from_bytes(unquote_to_bytes(part), safe="") for part in raw.split(b"/"))
                 if raw is not None else quote(scope["path"], safe="/"))
         match, child = super().matches({**scope, "path": path, "root_path": quote(scope.get("root_path", ""), safe="/")})
@@ -242,8 +244,10 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
             async def execute(headers, query, body):
                 nonlocal response_headers, failure_scope
                 assert operation is not None and route is not None
+                # Subscriber fragments select an HTML event renderer before opening their stream.
+                access_fragment = fragment if representation is not None and representation.kind == "html" or sse and route.sse is not None else None
                 context, response_headers = await service.prepare(route, requested, request_path, headers, matched_path=matched,
-                    fragment=fragment, scheme=request.url.scheme, mode=mode)
+                    fragment=access_fragment, scheme=request.url.scheme, mode=mode)
                 failure_scope = context.scope
                 if negotiation_error is not None: raise negotiation_error
                 if representation is not None and representation.kind == "metadata":
