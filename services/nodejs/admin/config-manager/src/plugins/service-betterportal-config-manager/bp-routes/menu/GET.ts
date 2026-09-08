@@ -54,7 +54,7 @@ export const auth: ApiAuthRequirement = {
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin"] };
 
 export const demoScenarios: DemoScenario<ResponseData>[] = [
-  { id: "default", title: "Default", response: { title: "Menu Designer", apps: [], menu: [], routes: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "" } }
+  { id: "default", title: "Default", response: { title: "Menu Designer", apps: [], menu: [], routes: [], adminApiBase: "/.well-known/bp/admin", serviceBaseUrl: "https://config.example.com" } }
 ];
 
 export default createHandler(
