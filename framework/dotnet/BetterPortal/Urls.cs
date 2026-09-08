@@ -179,7 +179,7 @@ public sealed class Urls
         {
             if (value.GetValueOrDefault("path") is not string template || !template.StartsWith('/')) return Unavailable("service_path_required");
             var ids = Ids((string)value["service"]!);
-            var matches = mounts.Where(item => item["enabled"] is true && ids.Contains((string)item["serviceId"]!) && ServicePath(item) is string candidate && AppAccess.PathMatches(candidate, template)).ToArray();
+            var matches = mounts.Where(item => item["enabled"] is true && ids.Contains((string)item["serviceId"]!) && ServicePath(item) is string candidate && global::BetterPortal.Route.PathMatches(candidate, template)).ToArray();
             if (matches.Length != 1) return Unavailable(matches.Length > 0 ? "ambiguous_provider" : "service_unavailable");
             var mount = matches[0]; target = (string)mount["serviceId"]!; origin = ServiceOrigin(target);
             if (origin is null) return Unavailable("service_unavailable");

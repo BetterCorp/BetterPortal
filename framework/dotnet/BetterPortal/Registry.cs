@@ -77,6 +77,7 @@ public sealed class Operation
 
 public sealed class Route
 {
+    public bool HasSse => Sse is not null || Operations.Any(operation => operation.Handler.IsStreaming);
     public string ViewId { get; }
     public IReadOnlyList<string> Paths { get; }
     public IReadOnlyList<Operation> Operations { get; }
@@ -113,6 +114,16 @@ public sealed class Route
         if (segments.Any(part => part.Contains(':') && !part.StartsWith(':'))) throw new ArgumentException("Parameters must occupy a complete route segment");
         return segments;
     }
+    internal static bool PathMatches(string mounted, string registered)
+    {
+        try
+        {
+            var trimmed = mounted.TrimEnd('/');
+            var left = Segments(trimmed.Length == 0 ? "/" : trimmed); var right = Segments(registered);
+            return left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second || pair.First.StartsWith(':') || pair.Second.StartsWith(':'));
+        }
+        catch (ArgumentException) { return false; }
+    }
 }
 
 public sealed class Registry
@@ -136,6 +147,16 @@ public sealed class Registry
                         throw new ArgumentException("Ambiguous route path: " + path);
             }
         }
+        var bindings = Routes.SelectMany(route => route.Paths.Select(path => (Route: route, Path: path))).ToList();
+        foreach (var route in Routes.Where(route => route.HasSse))
+            foreach (var path in route.Paths)
+            {
+                var streamPath = path.TrimEnd('/') + "/__sse";
+                // A route's own optional variants share the same streaming operation.
+                if (bindings.Any(item => (!ReferenceEquals(item.Route, route) || item.Path == streamPath) && Route.PathMatches(item.Path, streamPath)))
+                    throw new ArgumentException("Route conflicts with SSE: " + streamPath);
+                bindings.Add((route, streamPath));
+            }
     }
     private Node ManifestNode(Generated.ManifestDeclarationInput declaration)
     {

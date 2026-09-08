@@ -23,7 +23,7 @@ public sealed class ResponseState
     public void SetHeader(string name, string value, bool append = false)
     {
         _ = new RawResponse(headers: [new(name, value)]);
-        if (name.Equals("content-encoding", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Content-Encoding requires a raw response");
+        if (name.ToLowerInvariant() is "content-encoding" or "cache-control") throw new ArgumentException("Response header requires a raw response");
         if (!append) RemoveHeader(name);
         headers.Add(new(name, value));
     }

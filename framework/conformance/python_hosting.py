@@ -53,9 +53,14 @@ async def hosting_request(body):
                 try: await asyncio.sleep(30)
                 finally: cancelled = True
             if self.index == 1 and self.spec.get("throw"): raise ValueError("private-stream-secret")
+            if self.index == 1 and self.spec.get("invalidChunk"): return "not bytes"
             value = base64.b64decode(self.spec["chunks"][self.index]); self.index += 1
             return value
-        async def aclose(self): stream["closed"] = True
+        async def aclose(self):
+            if self.spec.get("strictClose"):
+                stream["closes"] = stream.get("closes", 0) + 1
+                if stream["closes"] != 1: raise RuntimeError("Raw iterator closed twice")
+            stream["closed"] = True
     def function(spec):
         async def run(context):
             nonlocal invoked, cancelled

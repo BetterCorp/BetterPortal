@@ -254,6 +254,37 @@ def run_hosting(urls, labels):
                     check(label, f"unrelated-{placement}-{status}-{method}", unrelated)
     for url, label in zip(urls, labels):
         if label == "node": continue
+        for stream_kind in ("feed", "finite"):
+            for reverse in (False, True):
+                for stream_path, other_path, method, other_stream, conflict in (
+                    ("/foo", "/foo/:id", "GET", False, True),
+                    ("/foo", "/foo/:id", "POST", False, True),
+                    ("/foo", "/foo/__sse", "GET", False, True),
+                    ("/foo/:key", "/foo/:key/:tail", "GET", False, True),
+                    ("/foo/:key", "/:prefix/item", "GET", True, True),
+                    ("/", "/:id", "GET", False, True),
+                    ("/foo/:key", "/foo/:key/details", "GET", False, False),
+                    ("/foo/:key", "/other/:key", "GET", True, False)):
+                    def sse_collision():
+                        from feed_cases import fixture as feed_fixture
+                        from finite_cases import fixture as finite_fixture
+                        body = feed_fixture() if stream_kind == "feed" else finite_fixture("sse")
+                        owner = body["routes"][0]; owner["path"] = stream_path
+                        other = deepcopy(owner) if other_stream else fixture()["routes"][0]
+                        other.update(viewId="other", path=other_path)
+                        other["operations"] = [other["operations"][0]]
+                        other["operations"][0]["declaration"].update(operationId="other." + method.lower(), method=method)
+                        body["routes"].append(other)
+                        if reverse: body["routes"].reverse()
+                        body["snapshot"]["apps"][0]["routes"][0]["resolvedServicePath"] = stream_path
+                        body["request"]["path"] = "/".join("item" if part.startswith(":") else part for part in stream_path.rstrip("/").split("/")) + "/__sse"
+                        try: actual = post(url, body)
+                        except AssertionError as error:
+                            assert conflict and "Route conflicts with SSE:" in str(error), str(error)
+                        else:
+                            assert not conflict, actual
+                            validate(actual)
+                    check(label, f"sse-overlap-{stream_kind}-{reverse}-{stream_path}-{other_path}-{method}", sse_collision)
         for kind in ("json", "html", "fragment"):
             for name, encoding in (("Content-Encoding", "gzip"), ("cOnTeNt-EnCoDiNg", "br"), ("content-encoding", "identity")):
                 def structured_encoding():
@@ -284,15 +315,20 @@ def run_hosting(urls, labels):
                     if ttl is not None: assert "accept-language" in vary, actual
                     if ttl: assert {"referer", "authority", "alt-used", "authorization", "cookie", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"} <= vary, actual
                 check(label, f"cache-{ttl}-{kind}", cache_response)
-        for kind in ("json", "raw"):
-            def explicit_cache():
-                body = fixture(); spec = body["routes"][0]["operations"][0]
-                spec["declaration"]["cacheHints"] = {"ttlSeconds": 60}
-                if kind == "raw": spec["raw"] = {"body": "b2s=", "headers": [["Cache-Control", "no-store"]]}
-                else: spec["responseHeaders"] = [["Cache-Control", "no-store"]]
-                actual = post(url, body); validate(actual)
-                assert actual["headers"].get("cache-control") == "no-store", actual
-            check(label, "cache-explicit-" + kind, explicit_cache)
+        for kind in ("json", "html", "fragment", "head", "raw"):
+            for header, policy in (("Cache-Control", "public, max-age=3600"), ("cAcHe-CoNtRoL", "no-store")):
+                def declared_cache():
+                    from rendering_cases import fixture as rendered
+                    body = rendered() if kind in ("html", "fragment") else fixture()
+                    if kind == "fragment": body["request"]["path"] = "/check/item?_f=nav.profile"
+                    if kind == "head": body["request"]["method"] = "HEAD"
+                    spec = body["routes"][0]["operations"][0]
+                    spec["declaration"]["cacheHints"] = {"ttlSeconds": 60}
+                    if kind == "raw": spec["raw"] = {"body": "b2s=", "headers": [[header, policy]]}
+                    else: spec["responseHeaders"] = [[header, policy]]
+                    actual = post(url, body); validate(actual, 200 if kind == "raw" else 500, 1)
+                    assert actual["headers"].get("cache-control") == (policy if kind == "raw" else "no-store"), actual
+                check(label, f"cache-ownership-{kind}-{policy}", declared_cache)
         for kind, status in (("auth", 401), ("input", 400), ("handler", 500), ("negotiation", 406), ("origin", 403), ("status", 404)):
             def cache_error():
                 body = fixture(); spec = body["routes"][0]["operations"][0]

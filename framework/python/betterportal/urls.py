@@ -158,7 +158,7 @@ class Urls:
         return mount.get("resolvedServicePath", mount.get("servicePathVariant", mount.get("targetPath")))
 
     def element(self, reference: BPElementReferenceInput) -> ResolvedBPElementReference:
-        from .access import _path_matches
+        from .registry import _path_matches
         value = parse("BPElementReferenceSchema", reference)
         def unavailable(reason): return parse("ResolvedBPElementReferenceSchema", {"unavailable": reason})
         if not value["fragment"].strip(): return unavailable("fragment_required")

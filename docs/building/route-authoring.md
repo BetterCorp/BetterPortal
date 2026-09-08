@@ -166,8 +166,13 @@ Native hosts apply each operation's `cacheHints`: omitted or zero `ttlSeconds`
 emits `Cache-Control: no-store`; positive lifetimes emit `private, max-age=N`.
 Declared `varyBy` headers are added to `Vary`. Cacheable responses also vary by
 addressing, authorization, cookies and BP scope/service headers to separate callers and apps.
-Explicit author cache headers take precedence. Framework errors, SSE, NDJSON and
+Native typed handlers cannot set `Cache-Control` or `Content-Encoding` through
+their response state. Declare caching through `cacheHints`; explicit raw responses
+own their cache and encoding headers. Framework errors, SSE, NDJSON and
 finite stream shells use `no-store`; buffered finite JSON uses the operation policy.
+Native registries reject other routes that overlap generated `/__sse` endpoints,
+including dynamic segments and other generated streams. A stream's own optional
+path variants share its operation and remain supported.
 ASP.NET `MapBetterPortal` owns error bodies for its mapped paths; unrelated endpoints
 and unregistered paths retain the containing application's error behavior.
 

@@ -94,6 +94,14 @@ def _segments(path: str) -> tuple[str, ...]:
     return segments
 
 
+def _path_matches(mounted: str, registered: str) -> bool:
+    try:
+        left, right = _segments(mounted.rstrip("/") or "/"), _segments(registered)
+        return len(left) == len(right) and all(a == b or a.startswith(":") or b.startswith(":") for a, b in zip(left, right))
+    except ValueError:
+        return False
+
+
 class Route:
     def __init__(self, view_id: str, path: str, operations: Iterable[Operation], *, path_variants: Iterable[str] = (),
                  sse: SseFeed[Any, Any, Any, Any, Any, Any] | None = None, title: str | None = None, description: str | None = None):
@@ -110,6 +118,10 @@ class Route:
         schemas = [export(operation.handler.schemas["params"]) if "params" in operation.handler.schemas else {} for operation in self.operations]
         if any(schema != schemas[0] for schema in schemas[1:]):
             raise ValueError("A view must publish one consistent params schema")
+
+    @property
+    def has_sse(self) -> bool:
+        return self.sse is not None or any(isinstance(operation.handler, FiniteHandler) for operation in self.operations)
 
     @property
     def param_names(self) -> list[str]:
@@ -131,6 +143,15 @@ class Registry:
                     key = (operation.method, tuple(":" if part.startswith(":") else part for part in _segments(path)))
                     if key in paths: raise ValueError("Ambiguous route path: " + path)
                     paths.add(key)
+        bindings = [(route, path) for route in self.routes for path in route.paths]
+        for route in self.routes:
+            if not route.has_sse: continue
+            for path in route.paths:
+                stream_path = path.rstrip("/") + "/__sse"
+                # A route's own optional variants share the same streaming operation.
+                if any((other is not route or candidate == stream_path) and _path_matches(candidate, stream_path) for other, candidate in bindings):
+                    raise ValueError("Route conflicts with SSE: " + stream_path)
+                bindings.append((route, stream_path))
 
     def manifest(self, declaration: ManifestDeclarationInput) -> PluginManifest:
         result = parse("ManifestDeclarationSchema", declaration)

@@ -25,16 +25,6 @@ public sealed class AppAccess
         return services.Where(pair => mounted.Contains(pair.Key) && pair.Value.ContainsKey("serviceId") && (route is null || Allows(route, method, path, fragment, pair.Key)))
             .ToFrozenDictionary(pair => pair.Key, pair => (string)pair.Value["serviceId"]!, StringComparer.Ordinal);
     }
-    internal static bool PathMatches(string mounted, string registered)
-    {
-        try
-        {
-            var trimmed = mounted.TrimEnd('/');
-            var left = Route.Segments(trimmed.Length == 0 ? "/" : trimmed); var right = Route.Segments(registered);
-            return left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second || pair.First.StartsWith(':') || pair.Second.StartsWith(':'));
-        }
-        catch (ArgumentException) { return false; }
-    }
     public bool Allows(Route route, string method, string? path = null, string? fragment = null, string? serviceId = null)
     {
         path ??= route.Paths[0];
@@ -54,7 +44,7 @@ public sealed class AppAccess
             var target = (string?)mount.GetValueOrDefault("resolvedServicePath", mount.GetValueOrDefault("servicePathVariant", mount.GetValueOrDefault("targetPath")));
             var operations = (List<object?>)mount["operations"]!;
             if (mount["enabled"] is true && Local((string)mount["serviceId"]!) && Equals(mount["viewId"], viewId)
-                && (operations.Contains(operationId) || operations.Contains(legacy)) && (target is null || PathMatches(target, path))) return true;
+                && (operations.Contains(operationId) || operations.Contains(legacy)) && (target is null || Route.PathMatches(target, path))) return true;
         }
         if (method == "GET")
         {
@@ -69,7 +59,7 @@ public sealed class AppAccess
         return false;
     }
     private bool FragmentAllowed(Node item, string path, string? serviceId = null) => item["enabled"] is true && services.ContainsKey((string)item["serviceId"]!)
-        && (serviceId is null || Equals(item["serviceId"], serviceId)) && PathMatches((string)item["targetPath"]!, path);
+        && (serviceId is null || Equals(item["serviceId"], serviceId)) && Route.PathMatches((string)item["targetPath"]!, path);
     public bool AllowsPreflight(Route route, string method, string? path = null, string? fragment = null)
     {
         if (Allows(route, method, path, fragment)) return true;

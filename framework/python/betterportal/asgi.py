@@ -196,6 +196,7 @@ class _RawReply(Response):
                 await _connected(Request(scope, receive), self.reply.stream_response(send), self.service, self.retired)
             else: await self.reply(scope, receive, send)
         finally:
+            # body_iterator is our chunks() wrapper; RawResponse owns the underlying iterator.
             close = getattr(getattr(self.reply, "body_iterator", None), "aclose", None)
             if close is not None: await close()
             await self.raw.aclose()
@@ -416,9 +417,8 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
     for pattern, operations in groups.items():
         routes.append(_SegmentRoute(pattern, endpoint(operations), methods=[*operations, "OPTIONS"]))
     for pattern, operations in groups.items():
-        if "GET" in operations and (operations["GET"][0].sse is not None or isinstance(next(item for item in operations["GET"][0].operations if item.method == "GET").handler, FiniteHandler)):
+        if "GET" in operations and operations["GET"][0].has_sse:
             stream_path = pattern.rstrip("/") + "/__sse"
-            if stream_path in groups: raise ValueError("Route conflicts with SSE: " + stream_path)
             routes.append(_SegmentRoute(stream_path, endpoint({"GET": operations["GET"]}, sse=True), methods=["GET", "OPTIONS"]))
     # Include generated SSE paths in Starlette's static-before-parameter ordering.
     routes.sort(key=lambda route: tuple(part.startswith("{") for part in route.path.split("/")))

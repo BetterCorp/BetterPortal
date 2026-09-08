@@ -276,10 +276,9 @@ public static class Hosting
         }
         var bindings = groups.Select(pair => (Pattern: pair.Key, Operations: pair.Value, Sse: false)).ToList();
         foreach (var (pattern, operations) in groups)
-            if (operations.TryGetValue("GET", out var get) && (get.Route.Sse is not null || get.Route.Operations.Single(item => item.Method == "GET").Handler.IsStreaming))
+            if (operations.TryGetValue("GET", out var get) && get.Route.HasSse)
             {
                 var path = pattern.TrimEnd('/') + "/__sse";
-                if (groups.ContainsKey(path)) throw new ArgumentException("Route conflicts with SSE: " + path);
                 bindings.Add((path, new() { ["GET"] = get }, true));
             }
         foreach (var (pattern, operations, sse) in bindings) Map(pattern, operations.Keys.Concat(operations.ContainsKey("GET") ? ["HEAD", "OPTIONS"] : new[] { "OPTIONS" }).Distinct(), async (HttpContext context) =>

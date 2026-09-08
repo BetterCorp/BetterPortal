@@ -120,6 +120,23 @@ def run_raw(urls, labels):
             assert actual["observed"] == 1 and actual["stream"] == {"closed": True, "reads": 2}, actual
         check(label, "backpressure", backpressure)
         if label == "python":
+            for kind in ("complete", "head", "cancel", "disconnect", "throw", "invalid-chunk", "abandoned"):
+                def single_close():
+                    body = deepcopy(base); spec = body["routes"][0]["operations"][0]
+                    spec["raw"].update(strictClose=True, chunks=[encoded(b"first"), encoded(b"second")])
+                    if kind == "head": body["request"]["method"] = "HEAD"
+                    if kind in ("cancel", "disconnect"): spec["raw"]["wait"] = True
+                    if kind in ("cancel", "abandoned"): body["cancel"] = True
+                    if kind == "abandoned": spec.update(wait=True, returnOnCancel=True)
+                    if kind == "disconnect": body["rawOutputProbe"] = "disconnect"
+                    if kind == "throw": spec["raw"]["throw"] = True
+                    if kind == "invalid-chunk": spec["raw"]["invalidChunk"] = True
+                    actual = post(url, body)
+                    assert actual["stream"]["closes"] == 1 and actual["stream"]["closed"], actual
+                    if kind in ("complete", "head"): assert actual.get("status") == 200, actual
+                    elif kind in ("cancel", "disconnect", "abandoned"): assert actual["cancelled"], actual
+                    else: assert actual["transportError"], actual
+                check(label, "single-close-" + kind, single_close)
             def disconnect():
                 body = deepcopy(base); body["rawOutputProbe"] = "disconnect"
                 body["routes"][0]["operations"][0]["raw"].update(chunks=[encoded(b"first"), encoded(b"second")], wait=True)

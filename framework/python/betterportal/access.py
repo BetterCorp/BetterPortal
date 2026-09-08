@@ -5,15 +5,7 @@ from types import MappingProxyType
 from typing import Any, Iterable, Mapping
 
 from .context import ScopedContext
-from .registry import Route, _segments
-
-
-def _path_matches(mounted: str, registered: str) -> bool:
-    try:
-        left, right = _segments(mounted.rstrip("/") or "/"), _segments(registered)
-        return len(left) == len(right) and all(a == b or a.startswith(":") or b.startswith(":") for a, b in zip(left, right))
-    except ValueError:
-        return False
+from .registry import Route, _path_matches
 
 
 class AppAccess:

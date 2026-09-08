@@ -50,7 +50,7 @@ class ResponseState:
     def set_header(self, name: str, value: str, *, append: bool = False) -> None:
         from .response import RawResponse
         RawResponse(headers=[(name, value)])
-        if name.lower() == "content-encoding": raise ValueError("Content-Encoding requires a raw response")
+        if name.lower() in ("content-encoding", "cache-control"): raise ValueError("Response header requires a raw response")
         if not append: self.remove_header(name)
         self._headers.append((name, value))
     def remove_header(self, name: str) -> None:
