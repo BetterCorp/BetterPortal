@@ -40,7 +40,7 @@ export const auth: ApiAuthRequirement = {
 
 export const cacheHints: CacheHints = {
   ttlSeconds: 300,
-  varyBy: ["accept", "origin", "referer", ":origin", ":referer"]
+  varyBy: ["accept", "origin", "referer"]
 };
 
 export default createHandler(

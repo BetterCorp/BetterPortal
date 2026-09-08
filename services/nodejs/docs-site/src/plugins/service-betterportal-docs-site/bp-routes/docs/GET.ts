@@ -36,7 +36,7 @@ export const auth: ApiAuthRequirement = {
 
 export const cacheHints: CacheHints = {
   ttlSeconds: 15,
-  varyBy: ["accept", "origin", "referer", ":origin", ":referer"]
+  varyBy: ["accept", "origin", "referer"]
 };
 
 export const demoScenarios: DemoScenario<ResponseData>[] = [
