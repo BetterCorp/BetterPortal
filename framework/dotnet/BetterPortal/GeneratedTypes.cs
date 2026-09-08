@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 31cb8d99002557cf0b613eb3f3bf8ace9d5d37b90726503e8a00c06d0fd573cc
+// Generated from AnyVali documents; do not edit. SHA256: 7801a413e9dbb226129ebb0bc81c744e2f32679038e3c14e76d7f0795aef83c1
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -596,9 +596,9 @@ public sealed record BPElementReference
 public sealed record BPElementReferenceArgs
 {
     [JsonPropertyName("params")]
-    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue> Params { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar> Params { get; init; }
     [JsonPropertyName("query")]
-    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Query { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
 }
 
 public sealed record BPElementReferenceInput
@@ -619,10 +619,10 @@ public sealed record BPElementReferenceInputArgs
 {
     [JsonPropertyName("params")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput>> Params { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput>> Params { get; init; }
     [JsonPropertyName("query")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Query { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }
 }
 
 public sealed record BetterPortalApp
@@ -7143,9 +7143,9 @@ public sealed record RouteUiOptions
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("params")]
-    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Params { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar?> Params { get; init; }
     [JsonPropertyName("query")]
-    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Query { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
     [JsonPropertyName("absolute")]
     public required bool Absolute { get; init; }
     [JsonPropertyName("origin")]
@@ -7179,10 +7179,10 @@ public sealed record RouteUiOptionsInput
     public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("params")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Params { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Params { get; init; }
     [JsonPropertyName("query")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Query { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }
     [JsonPropertyName("absolute")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Absolute { get; init; }
@@ -7252,9 +7252,9 @@ public sealed record RouteUrlOptions
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("params")]
-    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Params { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar?> Params { get; init; }
     [JsonPropertyName("query")]
-    public required IReadOnlyDictionary<string, BetterPortalRouteChromeValue?> Query { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
     [JsonPropertyName("absolute")]
     public required bool Absolute { get; init; }
     [JsonPropertyName("origin")]
@@ -7277,10 +7277,10 @@ public sealed record RouteUrlOptionsInput
     public Optional<string> ServiceId { get; init; }
     [JsonPropertyName("params")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Params { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Params { get; init; }
     [JsonPropertyName("query")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, BetterPortalRouteChromeValueInput?>> Query { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }
     [JsonPropertyName("absolute")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Absolute { get; init; }
@@ -12165,6 +12165,44 @@ public enum TokenTypeInput
     Setup,
     [JsonStringEnumMemberName("install")]
     Install,
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct UrlScalar(Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>> Value) : IWireValue<UrlScalar, Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>>
+{
+    public static UrlScalar FromValue(Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>> value) => new(value);
+    public static implicit operator UrlScalar(Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>> value) => new(value);
+    public static implicit operator Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(UrlScalar value) => value.Value;
+    public static implicit operator UrlScalar(string value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(value));
+    public static implicit operator UrlScalar(long value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(new Variant<long, Variant<ulong, Variant<double, bool>>>(value)));
+    public static implicit operator UrlScalar(ulong value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(new Variant<long, Variant<ulong, Variant<double, bool>>>(new Variant<ulong, Variant<double, bool>>(value))));
+    public static implicit operator UrlScalar(double value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(new Variant<long, Variant<ulong, Variant<double, bool>>>(new Variant<ulong, Variant<double, bool>>(new Variant<double, bool>(value)))));
+    public static implicit operator UrlScalar(bool value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(new Variant<long, Variant<ulong, Variant<double, bool>>>(new Variant<ulong, Variant<double, bool>>(new Variant<double, bool>(value)))));
+    public static implicit operator UrlScalar(sbyte value) => (UrlScalar)(long)value;
+    public static implicit operator UrlScalar(short value) => (UrlScalar)(long)value;
+    public static implicit operator UrlScalar(int value) => (UrlScalar)(long)value;
+    public static implicit operator UrlScalar(byte value) => (UrlScalar)(ulong)value;
+    public static implicit operator UrlScalar(ushort value) => (UrlScalar)(ulong)value;
+    public static implicit operator UrlScalar(uint value) => (UrlScalar)(ulong)value;
+}
+
+[JsonConverter(typeof(WireValueConverterFactory))]
+public readonly record struct UrlScalarInput(Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>> Value) : IWireValue<UrlScalarInput, Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>>
+{
+    public static UrlScalarInput FromValue(Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>> value) => new(value);
+    public static implicit operator UrlScalarInput(Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>> value) => new(value);
+    public static implicit operator Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(UrlScalarInput value) => value.Value;
+    public static implicit operator UrlScalarInput(string value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(value));
+    public static implicit operator UrlScalarInput(long value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(new Variant<long, Variant<ulong, Variant<double, bool>>>(value)));
+    public static implicit operator UrlScalarInput(ulong value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(new Variant<long, Variant<ulong, Variant<double, bool>>>(new Variant<ulong, Variant<double, bool>>(value))));
+    public static implicit operator UrlScalarInput(double value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(new Variant<long, Variant<ulong, Variant<double, bool>>>(new Variant<ulong, Variant<double, bool>>(new Variant<double, bool>(value)))));
+    public static implicit operator UrlScalarInput(bool value) => new(new Variant<string, Variant<long, Variant<ulong, Variant<double, bool>>>>(new Variant<long, Variant<ulong, Variant<double, bool>>>(new Variant<ulong, Variant<double, bool>>(new Variant<double, bool>(value)))));
+    public static implicit operator UrlScalarInput(sbyte value) => (UrlScalarInput)(long)value;
+    public static implicit operator UrlScalarInput(short value) => (UrlScalarInput)(long)value;
+    public static implicit operator UrlScalarInput(int value) => (UrlScalarInput)(long)value;
+    public static implicit operator UrlScalarInput(byte value) => (UrlScalarInput)(ulong)value;
+    public static implicit operator UrlScalarInput(ushort value) => (UrlScalarInput)(ulong)value;
+    public static implicit operator UrlScalarInput(uint value) => (UrlScalarInput)(ulong)value;
 }
 
 [JsonConverter(typeof(WireValueConverterFactory))]

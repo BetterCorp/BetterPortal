@@ -22,6 +22,12 @@
                 "kind": "string"
               },
               {
+                "kind": "int64"
+              },
+              {
+                "kind": "uint64"
+              },
+              {
                 "kind": "number"
               },
               {
@@ -41,6 +47,12 @@
             "variants": [
               {
                 "kind": "string"
+              },
+              {
+                "kind": "int64"
+              },
+              {
+                "kind": "uint64"
               },
               {
                 "kind": "number"

@@ -29,10 +29,10 @@ def run_urls(urls, labels):
         cases.append((name, body, [expected], native, handler, runtimes))
     def route(options=None, view="check", kind="route"): return {"kind": kind, "viewId": view, "options": options or {}}
     params = {"key": "item"}
-    for number in (9007199254740993, 9223372036854775807, -9223372036854775808):
+    for number in (9007199254740993, 9223372036854775807, -9223372036854775808, 9223372036854775809, 18446744073709551615):
         for handler in (False, True):
             case(f"integer-{number}-{handler}", route({"params": {"key": number}, "query": {"n": number}}),
-                 f"/check/{number}?n={number}", handler=handler, runtimes=("python",))
+                 f"/check/{number}?n={number}", handler=handler, native=True)
     for handler in (False, True):
         suffix = "-handler" if handler else "-renderer"
         for name, call, expected in (

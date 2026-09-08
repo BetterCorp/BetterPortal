@@ -1508,5 +1508,379 @@
         "hint": "composed"
       }
     }
+  },
+  {
+    "id": "integer-overflow-1e+21",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 1e+21,
+    "valid": false
+  },
+  {
+    "id": "integer-union-fallback-1e+21",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "union",
+        "variants": [
+          {
+            "kind": "int"
+          },
+          {
+            "kind": "number"
+          }
+        ]
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 1e+21,
+    "output": 1e+21
+  },
+  {
+    "id": "integer-overflow--1e+21",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -1e+21,
+    "valid": false
+  },
+  {
+    "id": "integer-union-fallback--1e+21",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "union",
+        "variants": [
+          {
+            "kind": "int"
+          },
+          {
+            "kind": "number"
+          }
+        ]
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -1e+21,
+    "output": -1e+21
+  },
+  {
+    "id": "integer-signed-9007199254740993",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 9007199254740993,
+    "output": 9007199254740993,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-signed-9223372036854775807",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 9223372036854775807,
+    "output": 9223372036854775807,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-signed--9223372036854775808",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -9223372036854775808,
+    "output": -9223372036854775808,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 9223372036854775809,
+    "output": 9223372036854775809,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-coercion-9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64",
+        "coerce": {
+          "from": "string"
+        }
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "9223372036854775809",
+    "output": 9223372036854775809,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-composition-9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {
+      "payload": 9223372036854775809
+    },
+    "output": {
+      "payload": 9223372036854775809
+    },
+    "runtimes": [
+      "python",
+      "dotnet"
+    ],
+    "wrapDocument": true
+  },
+  {
+    "id": "integer-unsigned-default-9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "id": {
+            "kind": "uint64",
+            "default": 9223372036854775809
+          }
+        },
+        "required": [],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {},
+    "output": {
+      "id": 9223372036854775809
+    },
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-18446744073709551615",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 18446744073709551615,
+    "output": 18446744073709551615,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-coercion-18446744073709551615",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64",
+        "coerce": {
+          "from": "string"
+        }
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "18446744073709551615",
+    "output": 18446744073709551615,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-composition-18446744073709551615",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {
+      "payload": 18446744073709551615
+    },
+    "output": {
+      "payload": 18446744073709551615
+    },
+    "runtimes": [
+      "python",
+      "dotnet"
+    ],
+    "wrapDocument": true
+  },
+  {
+    "id": "integer-unsigned-default-18446744073709551615",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "id": {
+            "kind": "uint64",
+            "default": 18446744073709551615
+          }
+        },
+        "required": [],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {},
+    "output": {
+      "id": 18446744073709551615
+    },
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-negative",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -1,
+    "valid": false
+  },
+  {
+    "id": "integer-unsigned-overflow",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 18446744073709551616,
+    "valid": false,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-signed-boundary-overflow--9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -9223372036854775809,
+    "valid": false,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-signed-boundary-overflow-9223372036854775808",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 9223372036854775808,
+    "valid": false,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
   }
 ]

@@ -182,7 +182,8 @@ portable("StreamShellContextSchema", objectNode({ sseConnectPath: node(av.string
   params: sourceNode("JsonObjectSchema"), query: sourceNode("JsonObjectSchema") }, "reject"));
 
 // Portable declarations for the URL/element interfaces in route.ts and registry.ts.
-const scalar = av.union([av.string(), av.number(), av.bool()]);
+const scalar = av.union([av.string(), av.int64(), av.uint64(), av.number(), av.bool()]);
+portable("UrlScalarSchema", node(scalar));
 const urlFields = {
   serviceId: node(av.optional(av.string().minLength(1))),
   params: node(av.record(av.nullable(scalar)).default({})), query: node(av.record(av.nullable(scalar)).default({})),

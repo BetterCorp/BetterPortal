@@ -75,6 +75,7 @@ def main():
     for index, url in enumerate(args.urls):
         label = args.labels[index] if args.labels else url
         for case in cases:
+            if "runtimes" in case and label not in case["runtimes"]: continue
             result = {"runtime": label, "id": case["id"], "passed": False}
             try:
                 request = Request(url, json.dumps(case).encode(), {"Content-Type": "application/json"})

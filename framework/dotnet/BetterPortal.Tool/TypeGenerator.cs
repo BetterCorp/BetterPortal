@@ -228,6 +228,10 @@ internal sealed class TypeGenerator
                 for (var parent = index - 1; parent >= 0; parent--) value = $"new {Union(types.Skip(parent))}({value})";
                 lines.Insert(lines.Count - 1, $"    public static implicit operator {name}({types[index]} value) => new({value});");
             }
+            // long/ulong conversions otherwise tie for ordinary integer literals and smaller types.
+            if (types.Contains("long") && types.Contains("ulong"))
+                foreach (var (source, target) in new[] { ("sbyte", "long"), ("short", "long"), ("int", "long"), ("byte", "ulong"), ("ushort", "ulong"), ("uint", "ulong") })
+                    if (!types.Contains(source)) lines.Insert(lines.Count - 1, $"    public static implicit operator {name}({source} value) => ({name})({target})value;");
         }
         _emitted[name] = string.Join("\n", lines);
     }

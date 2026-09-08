@@ -107,7 +107,9 @@ public static class Json
         JsonValueKind.Object => value.EnumerateObject().ToDictionary(p => p.Name, p => Value(p.Value)),
         JsonValueKind.Array => value.EnumerateArray().Select(Value).ToList(),
         JsonValueKind.String => value.GetString(),
-        JsonValueKind.Number => value.TryGetInt64(out var n) ? (object)n : value.TryGetUInt64(out var u) ? (object)u : value.GetDouble(),
+        // Keep wider integer tokens exact so AnyVali can reject out-of-range values before rounding.
+        JsonValueKind.Number => value.TryGetInt64(out var n) ? (object)n : value.TryGetUInt64(out var u) ? (object)u
+            : value.GetRawText().IndexOfAny(['.', 'e', 'E']) < 0 && value.TryGetDecimal(out var d) ? (object)d : value.GetDouble(),
         JsonValueKind.True => true,
         JsonValueKind.False => false,
         JsonValueKind.Null => null,

@@ -32,7 +32,7 @@ internal static class SnapshotAdapter
                 {
                     var request = await service.PrepareAsync(route, "GET", "/check/item", supplied.ToDictionary(pair => pair.Key, pair => (string)pair.Value!), cancellationToken: cancellation);
                     return new() { ["status"] = 200, ["config"] = request.Context.Config,
-                        ["url"] = request.Context.Urls.Route("check", new RouteUrlOptionsInput { Params = new Dictionary<string, BetterPortalRouteChromeValueInput?> { ["key"] = "item" }, Absolute = true }) };
+                        ["url"] = request.Context.Urls.Route("check", new RouteUrlOptionsInput { Params = new Dictionary<string, UrlScalarInput?> { ["key"] = "item" }, Absolute = true }) };
                 }
                 catch (RequestException error) { return new() { ["status"] = error.Status }; }
             }

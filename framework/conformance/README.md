@@ -8,6 +8,15 @@ remain delivery work. No packages are published.
 
 ## Recorded result
 
+The AnyVali 1.1.5 [Windows gate](results-combined-anyvali-1.1.5.json) and
+[Linux gate](results-linux-anyvali-1.1.5.json) each pass **6,423/6,423** scenarios:
+**1,580 schema checks** and **4,843 BP runtime checks**, with matching outcomes.
+The 106 additional checks cover signed overflow, full unsigned 64-bit values,
+defaults, coercion, composition and exact native URLs. The corpus contains 162
+canonical contracts. Positive/negative native compiler and type checks pass on
+both OSes. All 99 Node framework tests pass serially; lint, executable native
+README examples and unpublished Python/.NET package builds also pass.
+
 Native init commands pass **43 packaged CLI/HTTP checks on each OS** in
 [check_scaffold.py](check_scaffold.py). Generated services build and export without
 Node in their PATH, install against the actual Node config manager, serve
@@ -19,7 +28,7 @@ Initial poll/SSE snapshot replacement may return the documented configuration-ch
 The [native route guide](../ROUTE-AUTHORING.md) documents init and generated projects.
 
 
-The current review [Windows gate](results-full-review6.json) and
+The previous review [Windows gate](results-full-review6.json) and
 [Linux gate](results-full-review6-linux.json) each pass **6,317/6,317** scenarios:
 **1,488 schema checks** and **4,829 BP runtime checks**, with matching outcomes.
 The 107 additional cases cover unsigned JSON integers, invalid UTF-8 paths,
@@ -32,8 +41,7 @@ The preceding [Windows gate](results-full-review5.json) and
 integer dependency inputs, escaped segments, view metadata, method/mode-specific
 API contracts and validated demo responses.
 Node's 99 framework tests, lint, native builds and Python type checks pass.
-The canonical documents and generated types remain unchanged; the C# integer URL
-type expansion is pending the upstream AnyVali issue described below.
+Those gates preceded the AnyVali 1.1.5 integer and URL contract updates above.
 
 The previous review [Windows gate](results-full-review.json) and
 [Linux gate](results-full-review-linux.json) each pass **6,082/6,082** scenarios:
@@ -319,21 +327,20 @@ helper when the SDK accepts the address. Four portable contracts define the URL
 options and element interfaces. C# generation supports direct primitive values in
 union wrappers; AnyVali still performs all schema validation.
 
-Python URL helpers preserve integer values without conversion to floating point.
-Native dependency clients preserve declared integer inputs in parameters, query
-values and headers, including signed 64-bit boundaries. C# URL `number` values
-currently use `double`; use strings for exact large identifiers. Extending those
-URL types with integers is pending [AnyVali #145](https://github.com/BetterCorp/AnyVali/issues/145):
-1.1.4 accepts out-of-range C# integer inputs and silently clamps them. A standalone
-reproduction confirmed `V.Int().SafeParse(1e21)` returns success with `long.MaxValue`.
-The published package is unchanged and BP contains no workaround for that SDK defect.
+Native URL helpers and dependency clients preserve signed and unsigned 64-bit
+integers in parameters, query values and headers. The portable `UrlScalarSchema`
+provides the generated C# `UrlScalarInput` type and Python scalar union; signed and
+unsigned alternatives precede floating point validation. Ordinary C# integer
+literals and smaller integer types convert without ambiguity. Use strings when
+exact large identifiers must also pass through JavaScript numeric consumers.
 
-C# JSON decoding now preserves unsigned 64-bit integers before using floating point.
-AnyVali 1.1.4 still rejects valid `uint64` values above `Int64.MaxValue`, including
-`9223372036854775809UL` and `ulong.MaxValue`; this separate schema limitation is
-tracked in [AnyVali #146](https://github.com/BetterCorp/AnyVali/issues/146).
-The decoder checks use native AnyVali unknown schemas to isolate BP's conversion
-from that SDK range defect.
+AnyVali 1.1.5 fixes [#145](https://github.com/BetterCorp/AnyVali/issues/145) and
+[#146](https://github.com/BetterCorp/AnyVali/issues/146). Shared regressions verify
+overflow rejection, integer/number fallback, full unsigned values, defaults,
+string coercion and portable composition, both directly and after export/import.
+Large exact integer cases run on the native SDKs; Node's JSON number precision
+does not cover that range. BP also preserves wider integer JSON tokens through
+decoding so AnyVali can reject exact signed underflow before floating point rounding.
 
 The [snapshot suite](results-snapshots.json) passes 125 checks, also run on
 [Python 3.13](results-snapshots-python313.json). Native service probes exercise

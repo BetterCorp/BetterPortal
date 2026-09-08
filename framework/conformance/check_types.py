@@ -208,8 +208,14 @@ var handler = new Handler<object?, object?, object?, object?, BetterPortal.Gener
         Contracts.Parse<BetterPortal.Generated.ApiAuthRequirement>("ApiAuthRequirementSchema", new BetterPortal.Generated.ApiAuthRequirementInput())),
     renderers: new[] { renderer });
 if (handler.Renderers.Count != 1) throw new System.Exception("Missing typed renderer");
-var url = Urls.Path("/hello", new() { Fragment = "nav.profile", Query = new System.Collections.Generic.Dictionary<string, BetterPortal.Generated.BetterPortalRouteChromeValueInput?> { ["count"] = 42, ["missing"] = null } });
+var url = Urls.Path("/hello", new() { Fragment = "nav.profile", Query = new System.Collections.Generic.Dictionary<string, BetterPortal.Generated.UrlScalarInput?> { ["count"] = 42, ["missing"] = null } });
 if (url != "/hello?count=42&_f=nav.profile") throw new System.Exception("Typed URL options changed");
+var integers = new System.Collections.Generic.Dictionary<string, BetterPortal.Generated.UrlScalarInput?> {
+    ["safe"] = 42, ["large"] = 9007199254740993L, ["min"] = long.MinValue, ["max"] = ulong.MaxValue };
+if (Urls.Path("/ids", new() { Query = integers }) != "/ids?safe=42&large=9007199254740993&min=-9223372036854775808&max=18446744073709551615")
+    throw new System.Exception("Typed URL integers lost precision");
+BetterPortal.Generated.UrlScalarInput[] nativeIntegers = { (sbyte)-1, (byte)2, (short)-3, (ushort)4, 5, 6u };
+if (Json.Write(nativeIntegers) != "[-1,2,-3,4,5,6]") throw new System.Exception("Small integer union conversions changed");
 static async System.Collections.Generic.IAsyncEnumerable<StreamValue<BetterPortal.Generated.ApiAuthRequirement, BetterPortal.Generated.ApiAuthRequirement>> Produce(
     HandlerContext<object?, object?, object?, object?> context, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellation)
 {

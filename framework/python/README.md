@@ -398,7 +398,7 @@ assert negotiate("text/html;mode=fragment").mode == "fragment"
 assert negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).kind == "json"
 ```
 
-Implemented: embedded canonical contracts validated with AnyVali 1.1.4, RS256 keys and token
+Implemented: embedded canonical contracts validated with AnyVali 1.1.5, RS256 keys and token
 purposes, tenant/app-bound refresh pairs, config-ticket scope/action checks, and
 service authorization against current scoped bindings and grants, static JWKS
 imports and a cancellable remote JWKS cache. Cryptography
@@ -783,7 +783,7 @@ defaults to rejecting queries for control-plane base URLs.
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
-passes 1,488/1,488 scenarios with AnyVali 1.1.4: all 496 checks in each language.
+passes 1,580/1,580 scenarios with AnyVali 1.1.5: 536 checks in each native runtime and 508 in Node.
 The eight C# extension regressions from [AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)
 pass with their original expectations and no BP workaround.
 See the conformance ledger for runtime results and remaining

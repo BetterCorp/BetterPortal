@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 7af069aeef4cd8dab4b1b10d79673e060d0bd520ef78e9aa99709192983b56f2
+# Generated from AnyVali documents; do not edit. SHA256: 60ed7ea972fa50a45fd87ae800060f1eab3e8404b53abc871c9c3e9ef8c57938
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -259,8 +259,8 @@ BPElementReference = TypedDict('BPElementReference', {
 })
 
 BPElementReferenceArgs = TypedDict('BPElementReferenceArgs', {
-    'params': Required['dict[str, BetterPortalRouteChromeValue]'],
-    'query': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
+    'params': Required['dict[str, UrlScalar]'],
+    'query': Required['dict[str, Union[UrlScalar, None]]'],
 })
 
 BPElementReferenceInput = TypedDict('BPElementReferenceInput', {
@@ -271,8 +271,8 @@ BPElementReferenceInput = TypedDict('BPElementReferenceInput', {
 })
 
 BPElementReferenceInputArgs = TypedDict('BPElementReferenceInputArgs', {
-    'params': NotRequired['dict[str, BetterPortalRouteChromeValueInput]'],
-    'query': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
+    'params': NotRequired['dict[str, UrlScalarInput]'],
+    'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
 })
 
 BetterPortalApp = TypedDict('BetterPortalApp', {
@@ -2815,8 +2815,8 @@ RouteDeclarationInput = TypedDict('RouteDeclarationInput', {
 
 RouteUiOptions = TypedDict('RouteUiOptions', {
     'serviceId': NotRequired['str'],
-    'params': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
-    'query': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
+    'params': Required['dict[str, Union[UrlScalar, None]]'],
+    'query': Required['dict[str, Union[UrlScalar, None]]'],
     'absolute': Required['bool'],
     'origin': NotRequired['str'],
     'component': NotRequired['str'],
@@ -2830,8 +2830,8 @@ RouteUiOptions = TypedDict('RouteUiOptions', {
 
 RouteUiOptionsInput = TypedDict('RouteUiOptionsInput', {
     'serviceId': NotRequired['str'],
-    'params': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
-    'query': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
+    'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
+    'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
     'absolute': NotRequired['bool'],
     'origin': NotRequired['str'],
     'component': NotRequired['str'],
@@ -2845,8 +2845,8 @@ RouteUiOptionsInput = TypedDict('RouteUiOptionsInput', {
 
 RouteUrlOptions = TypedDict('RouteUrlOptions', {
     'serviceId': NotRequired['str'],
-    'params': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
-    'query': Required['dict[str, Union[BetterPortalRouteChromeValue, None]]'],
+    'params': Required['dict[str, Union[UrlScalar, None]]'],
+    'query': Required['dict[str, Union[UrlScalar, None]]'],
     'absolute': Required['bool'],
     'origin': NotRequired['str'],
     'component': NotRequired['str'],
@@ -2856,8 +2856,8 @@ RouteUrlOptions = TypedDict('RouteUrlOptions', {
 
 RouteUrlOptionsInput = TypedDict('RouteUrlOptionsInput', {
     'serviceId': NotRequired['str'],
-    'params': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
-    'query': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, None]]'],
+    'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
+    'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
     'absolute': NotRequired['bool'],
     'origin': NotRequired['str'],
     'component': NotRequired['str'],
@@ -4904,6 +4904,10 @@ TokenLifetimeConfigInput = TypedDict('TokenLifetimeConfigInput', {
 TokenType: TypeAlias = "Literal['access', 'refresh', 'cp-envelope', 'setup', 'install']"
 
 TokenTypeInput: TypeAlias = "Literal['access', 'refresh', 'cp-envelope', 'setup', 'install']"
+
+UrlScalar: TypeAlias = 'Union[str, int, float, bool]'
+
+UrlScalarInput: TypeAlias = 'Union[str, int, float, bool]'
 
 UuidV7: TypeAlias = 'str'
 

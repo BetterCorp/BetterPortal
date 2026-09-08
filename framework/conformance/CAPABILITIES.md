@@ -6,16 +6,13 @@ delivery order is specification/fixtures → contracts/security → runtime/host
 later gates. Publishing and BSB plugins are separate follow-ups.
 
 Current state: canonical documents, native schema adapters, token/service security,
-native packages and runnable HTTP gates exist. Published AnyVali 1.1.4 passes
-all 1,488 schema probes, including the eight previously failing C# extension checks
-([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
-The C# integer overflow defect is tracked in
-[AnyVali #145](https://github.com/BetterCorp/AnyVali/issues/145): out-of-range
-integers can silently clamp. Lossless integer URL type expansion remains blocked
-on that SDK fix; C# URL numbers retain their existing `double` contract.
-C# JSON decoding preserves unsigned 64-bit values, but validation of the upper
-half of the `uint64` range is blocked by
-[AnyVali #146](https://github.com/BetterCorp/AnyVali/issues/146).
+native packages and runnable HTTP gates exist. Published AnyVali 1.1.5 passes
+all 1,580 schema probes, including the earlier extension regressions and the
+signed-overflow/full-uint64 fixes in
+[AnyVali #145](https://github.com/BetterCorp/AnyVali/issues/145) and
+[#146](https://github.com/BetterCorp/AnyVali/issues/146).
+Native URL contracts now preserve signed and unsigned 64-bit integers; generated
+C# scalar conversions support ordinary literals and smaller integer types.
 Token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 444/444, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 368/368, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 35/35.
@@ -25,11 +22,20 @@ registry checks. Prototype JSON hosts pass 454/454 HTTP/ASGI checks; raw respons
 pass 137/137 checks including streamed delivery, ownership and backpressure.
 Typed HTML callbacks, presentation context, fragments/components and status/error
 rendering pass 203/203 checks.
-Scoped URLs pass 247/247, atomic snapshots 125/125, standalone control-plane sync
+Scoped URLs pass 261/261, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 147/147, protected bootstrap storage 147/147,
 installation 139/139, hostname changes 101/101 and scoped dependency clients 240/240.
-The current review [Windows full gate](results-full-review6.json) and
+The AnyVali 1.1.5 [Windows gate](results-combined-anyvali-1.1.5.json) and
+[Linux gate](results-linux-anyvali-1.1.5.json) each pass **6,423/6,423** scenarios:
+**1,580 schema checks** and **4,843 BP runtime checks**, with matching outcomes.
+The 106 additional checks cover signed overflow, full unsigned 64-bit values,
+defaults, coercion, composition and exact native URLs. The corpus contains 162
+canonical contracts. Positive/negative native compiler and type checks pass on
+both OSes. All 99 Node framework tests pass serially; lint, executable native
+README examples and unpublished Python/.NET package builds also pass.
+
+The previous review [Windows full gate](results-full-review6.json) and
 [Linux full gate](results-full-review6-linux.json) each pass **6,317/6,317**
 scenarios: 1,488 schema and 4,829 runtime checks, with matching case outcomes.
 The new cases exercise unsigned JSON integers, strict path UTF-8, HEAD preflights
@@ -93,7 +99,7 @@ future scenarios; they are not assertions that those tests already exist.
 
 | ID / capability | Current BP implementation | Port implementation / status | Documentation | Acceptance |
 |---|---|---|---|---|
-| contracts | contracts/*.ts, runtime/jsonSchema.ts | 161 canonical documents embedded in both packages, including derived authoring declarations, project locks, workspace/route metadata and registry responses; native imports, field selection and portable object composition | manifest.md §4 | schema-cases.json; 1,488/1,488 including all-document round trips with AnyVali 1.1.4 |
+| contracts | contracts/*.ts, runtime/jsonSchema.ts | 162 canonical documents embedded in both packages, including derived authoring declarations, project locks, workspace/route metadata and registry responses; native imports, field selection and portable object composition | manifest.md §4 | schema-cases.json; 1,580/1,580 including all-document round trips and native integer boundaries with AnyVali 1.1.5 |
 | native-types | codegen/emitter.ts, cli/client.ts | C# types/Python typing generated from AnyVali with native CLI commands; input/output presence, recursion, defaults and wire unions | Port READMEs | check_types.py: positive/negative compiler checks, canonical drift and custom contracts |
 | registration | runtime/handler.ts, generatedRegistry.ts, registry.ts; contracts/registry.ts | Native typed JSON/raw/finite handlers, Operation/Route/Registry, canonical declarations, explicit auth and duplicate/ambiguous-route rejection; typed subscriber-feed binding; full contexts pending | manifest.md §1; port READMEs | handler_cases.py, registry_cases.py, raw_cases.py and check_types.py; per-method-policy, stable-ID, required-auth/schema, duplicate operations and paths |
 | manifest | runtime/manifest.ts, registry.ts | Native JSON manifest/discovery generation, optional path variants, dependency aliases/local targets and config admin descriptors and renderer/streaming metadata | manifest.md; schema-json.md; port READMEs | registry_cases.py: 89 checks for defaults, identity, discovery, dependency targets, contract binding and schema interchange |

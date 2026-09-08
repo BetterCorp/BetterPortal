@@ -3,7 +3,7 @@
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
 for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers
 and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
-The AnyVali 1.1.4 schema gate passes all 1,488 checks; see the ledger for results.
+The AnyVali 1.1.5 schema gate passes all 1,580 checks; see the ledger for results.
 
 Start a standalone service with the [native init commands](../ROUTE-AUTHORING.md#create-a-standalone-service).
 
@@ -123,7 +123,7 @@ using BetterPortal;
 using BetterPortal.Generated;
 
 var url = Urls.Path("/items", new() { Fragment = "nav.profile",
-    Query = new Dictionary<string, BetterPortalRouteChromeValueInput?> { ["name"] = "Hi BP", ["omit"] = null } });
+    Query = new Dictionary<string, UrlScalarInput?> { ["name"] = "Hi BP", ["omit"] = null } });
 if (url != "/items?name=Hi+BP&_f=nav.profile") throw new Exception("Query changed");
 if (Urls.Form("/items", new() { Method = RouteUiOptionsInputMethod.POST, Target = "#items" })["hx-post"] != "/items") throw new Exception("Form changed");
 ```
@@ -397,7 +397,7 @@ if (Media.Negotiate("text/html;mode=fragment").Mode != "fragment") throw new Exc
 if (Media.Negotiate("application/x-ndjson,application/json;q=0.5", ["json"]).Kind != "json") throw new Exception("Wrong offer");
 ```
 
-Implemented: embedded canonical contracts validated with AnyVali 1.1.4, RSA keys, RS256 token
+Implemented: embedded canonical contracts validated with AnyVali 1.1.5, RSA keys, RS256 token
 purposes through IdentityModel, tenant/app-bound refresh pairs, config-ticket
 scope/action checks, and service authorization against current scoped bindings
 and grants, static JWKS imports and a cancellable remote JWKS cache.
@@ -796,7 +796,7 @@ allowed; `TrustedKeys.SecureEndpoint` rejects queries by default for CP base URL
 
 The shared [security HTTP suite](../conformance/security_cases.py) passes 459
 scenarios across Node, Python and .NET. The Windows [schema gate](../conformance/README.md)
-passes 1,488/1,488 scenarios with AnyVali 1.1.4: all 496 checks in each language.
+passes 1,580/1,580 scenarios with AnyVali 1.1.5: 536 checks in each native runtime and 508 in Node.
 The eight C# extension regressions from [AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)
 pass with their original expectations and no BP workaround.
 See the conformance ledger for runtime results and remaining

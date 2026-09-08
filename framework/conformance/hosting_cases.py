@@ -84,11 +84,12 @@ def run_hosting(urls, labels):
             write(body, json.dumps({"id": number}))
             spec = body["routes"][0]["operations"][1]
             unknown = {**spec["response"], "root": {"kind": "unknown"}}
-            spec.update(response=unknown, schemas={"request": unknown})
+            unsigned = {**unknown, "root": {"kind": "object", "properties": {"id": {"kind": "uint64"}}, "required": ["id"], "unknownKeys": "reject"}}
+            spec.update(response=unknown, schemas={"request": unsigned})
         case("uint64-body-" + str(number), integer_body, invoked=1, expected={**baseline, "request": {"id": number}}, native=True)
         def integer_result(body, number=number):
             spec = body["routes"][0]["operations"][0]
-            spec.update(result={"id": number}, response={**spec["response"], "root": {"kind": "unknown"}})
+            spec.update(result={"id": number}, response={**spec["response"], "root": {"kind": "object", "properties": {"id": {"kind": "uint64"}}, "required": ["id"], "unknownKeys": "reject"}})
         case("uint64-result-" + str(number), integer_result, invoked=1, expected={"id": number}, native=True)
     case("urlencoded", lambda body: write(body, "hello=world", "application/x-www-form-urlencoded"), expected={**baseline, "request": {"hello": "world"}, "multipart": {"fields": {"hello": "world"}, "files": {}}})
     multipart = '--bp\r\nContent-Disposition: form-data; name="hello"\r\n\r\nworld\r\n--bp\r\nContent-Disposition: form-data; name="upload"; filename="hello.txt"\r\nContent-Type: text/plain\r\n\r\nHi\r\n--bp--\r\n'
