@@ -321,8 +321,9 @@ class Service:
     @staticmethod
     def metadata(route: Route, operation: Operation, matched_path: str) -> dict[str, Any]:
         declaration = operation.declaration
-        primary = next((item.declaration for item in route.operations if item.method == "GET"), declaration)
-        return {"viewId": route.view_id, "title": primary["title"], "description": primary["description"], "path": matched_path,
+        primary = next((item.declaration for item in route.operations if item.method == "GET"), route.operations[0].declaration)
+        return {"viewId": route.view_id, "title": route.title if route.title is not None else primary["title"],
+                "description": route.description if route.description is not None else primary["description"], "path": matched_path,
                 **{key: declaration[key] for key in ("operationId", "method", "auth", "cacheHints")}}
 
     async def aclose(self) -> None:

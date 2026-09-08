@@ -19,7 +19,17 @@ Initial poll/SSE snapshot replacement may return the documented configuration-ch
 The [native route guide](../ROUTE-AUTHORING.md) documents init and generated projects.
 
 
-The current review [Windows gate](results-full-review.json) and
+The current review [Windows gate](results-full-review5.json) and
+[Linux gate](results-full-review5-linux.json) each pass **6,210/6,210** scenarios:
+**1,488 schema checks** and **4,722 BP runtime checks**, with matching outcomes.
+The 128 additional cases cover integer dependency inputs and Python URLs, escaped
+path parameters and SSE links, ASGI mounts, view metadata overrides and no-GET
+fallbacks, method/mode-specific API contracts, and validated demo responses.
+Node's 99 framework tests, lint, native builds and Python type checks pass.
+The canonical documents and generated types remain unchanged; the C# integer URL
+type expansion is pending the upstream AnyVali issue described below.
+
+The previous review [Windows gate](results-full-review.json) and
 [Linux gate](results-full-review-linux.json) each pass **6,082/6,082** scenarios:
 **1,488 schema checks** and **4,594 BP runtime checks**, with matching outcomes.
 The 221 added cases cover declared OPTIONS handlers, deterministic route precedence,
@@ -302,6 +312,15 @@ service URL cases verify rejection either by AnyVali at snapshot import or by th
 helper when the SDK accepts the address. Four portable contracts define the URL
 options and element interfaces. C# generation supports direct primitive values in
 union wrappers; AnyVali still performs all schema validation.
+
+Python URL helpers preserve integer values without conversion to floating point.
+Native dependency clients preserve declared integer inputs in parameters, query
+values and headers, including signed 64-bit boundaries. C# URL `number` values
+currently use `double`; use strings for exact large identifiers. Extending those
+URL types with integers is pending [AnyVali #145](https://github.com/BetterCorp/AnyVali/issues/145):
+1.1.4 accepts out-of-range C# integer inputs and silently clamps them. A standalone
+reproduction confirmed `V.Int().SafeParse(1e21)` returns success with `long.MaxValue`.
+The published package is unchanged and BP contains no workaround for that SDK defect.
 
 The [snapshot suite](results-snapshots.json) passes 125 checks, also run on
 [Python 3.13](results-snapshots-python313.json). Native service probes exercise
@@ -697,5 +716,5 @@ code, documentation, implementation status, and required acceptance scenarios.
 It distinguishes implemented fixtures from planned tests. The rest of the
 HTTP suite (global theme helpers,
 authorized diagnostics and streaming/generated Node clients) and standalone examples remain
-incomplete. CI is wired but awaits a hosted run.
+incomplete. The preceding review commit passed hosted CI; new commits run the same gates.
 Publishing and BSB plugins remain separate follow-ups.

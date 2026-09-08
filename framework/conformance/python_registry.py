@@ -24,7 +24,7 @@ def build_registry(body):
                     renderers=[Renderer(item["declaration"], lambda data, context: "") for item in operation.get("renderers", [])],
                     stream_renderers=[StreamRenderers(item["renderer"], lambda data, context: "", lambda data, context: "") for item in operation.get("streamRenderers", [])], **schemas)
             operations.append(Operation(handler, operation["declaration"]))
-        routes.append(Route(item["viewId"], item["path"], operations, path_variants=item.get("pathVariants", [])))
+        routes.append(Route(item["viewId"], item["path"], operations, path_variants=item.get("pathVariants", []), title=item.get("title"), description=item.get("description")))
     return Registry(routes, dependencies=body.get("dependencies"))
 
 

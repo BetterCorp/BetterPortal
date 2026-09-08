@@ -156,9 +156,9 @@ function parseRouteParams(
       );
     }
   }
-  if (!schema) return rawParams;
   try {
-    return schema.parse(rawParams) as Record<string, string>;
+    const params = Object.fromEntries(Object.entries(rawParams).map(([name, value]) => [name, decodeURIComponent(value)]));
+    return schema ? schema.parse(params) as Record<string, string> : params;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     return coreJsonResponse({

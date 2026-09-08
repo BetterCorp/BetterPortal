@@ -122,7 +122,7 @@ internal static class HostingAdapter
                 return new Operation(handler, Contracts.Parse<BetterPortal.Generated.OperationDeclarationInput>("OperationDeclarationSchema", spec["declaration"]),
                     ((List<object?>)spec.GetValueOrDefault("errorRenderers", new List<object?>())!).Cast<Node>().Select(item => new Renderer<BetterPortal.Generated.ViewRenderError>(
                         Contracts.Parse<BetterPortal.Generated.RendererDeclarationInput>("RendererDeclarationSchema", item["declaration"]), (data, context) => Render(item, data, context))));
-            }), ((List<object?>)item.GetValueOrDefault("pathVariants", new List<object?>())!).Cast<string>())),
+            }), ((List<object?>)item.GetValueOrDefault("pathVariants", new List<object?>())!).Cast<string>(), title: (string?)item.GetValueOrDefault("title"), description: (string?)item.GetValueOrDefault("description"))),
             ((Node)body.GetValueOrDefault("dependencies", new Node())!).ToDictionary(pair => pair.Key, pair => (string)pair.Value!));
         registry = feeds.Bind(registry);
         await using var service = new Service(registry, Contracts.Parse<BetterPortal.Generated.ManifestDeclarationInput>("ManifestDeclarationSchema", body["declaration"]),

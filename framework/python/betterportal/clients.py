@@ -66,7 +66,8 @@ class ClientContract:
                     if name != "body": field["root"].setdefault("default", {})
                     schemas[name] = av.import_schema(object_document({name: field}, unknown_keys="reject"))
                     optional = document("JsonValueSchema")
-                    optional["root"] = {"kind": "optional", "inner": optional["root"]}
+                    # Each declared field schema owns value validation and coercion.
+                    optional["root"] = {"kind": "optional", "inner": {"kind": "unknown"}}
                     keys[name] = optional
                 output = av.import_schema(operation["jsonResponseSchema"]) if operation["jsonResponseSchema"] else None
                 self._operations[identifier] = (view, operation, av.import_schema(object_document(keys, unknown_keys="reject")), schemas, output)
@@ -240,8 +241,9 @@ class Client:
                 and item["contractId"] == request["contractId"] and item["targetViewId"] == view["viewId"]]
             if len(bindings) != 1: raise ClientError(403, "Dependency binding is unavailable or ambiguous")
             binding = bindings[0]
-            contracts = [item for item in self._contract._schema["manifest"]["apiContracts"] if item["id"] == binding["contractId"] and item["viewId"] == view["viewId"]]
-            if len(contracts) != 1 or binding["contractId"] not in [item["id"] for item in operation["apiContracts"]] or operation["method"] not in contracts[0]["methods"] or mode not in contracts[0]["modes"]:
+            contracts = [item for item in self._contract._schema["manifest"]["apiContracts"] if item["id"] == binding["contractId"] and item["viewId"] == view["viewId"]
+                         and operation["method"] in item["methods"] and mode in item["modes"]]
+            if len(contracts) != 1 or binding["contractId"] not in [item["id"] for item in operation["apiContracts"]]:
                 raise ClientError(403, "Dependency contract does not cover the operation")
             if not set(request["requiredCapabilities"]).issubset(contracts[0]["capabilities"]):
                 raise ClientError(403, "Dependency contract capabilities are insufficient")

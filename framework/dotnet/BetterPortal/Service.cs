@@ -120,8 +120,8 @@ public sealed partial class Service : IAsyncDisposable
     public static Node Metadata(Route route, Operation operation, string matchedPath)
     {
         var declaration = operation.Declaration;
-        var primary = route.Operations.FirstOrDefault(item => item.Method == "GET")?.Declaration ?? declaration;
-        return new() { ["viewId"] = route.ViewId, ["title"] = primary.Title, ["description"] = primary.Description, ["path"] = matchedPath,
+        var primary = route.Operations.FirstOrDefault(item => item.Method == "GET")?.Declaration ?? route.Operations[0].Declaration;
+        return new() { ["viewId"] = route.ViewId, ["title"] = route.Title ?? primary.Title, ["description"] = route.Description ?? primary.Description, ["path"] = matchedPath,
             ["operationId"] = declaration.OperationId, ["method"] = operation.Method, ["auth"] = declaration.Auth, ["cacheHints"] = declaration.CacheHints };
     }
     public async ValueTask DisposeAsync()

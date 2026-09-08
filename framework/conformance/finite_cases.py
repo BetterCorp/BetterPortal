@@ -56,6 +56,20 @@ def run_finite(urls, labels):
         assert actual["headers"]["content-type"].startswith("application/x-ndjson" if mode == "ndjson" else "text/event-stream"), actual
         assert frames(actual, mode) == expected, actual
     for url, label in zip(urls, labels):
+        for encoded, decoded in (("a%2Fb", "a/b"), ("a%252Fb", "a%2Fb")):
+            body = fixture("html"); themed(body)
+            body["request"]["path"] = "/check/" + encoded + "?hello=world"
+            def encoded_shell(actual):
+                response(actual, invoked=0)
+                data = html_data(actual["body"])
+                assert data == {"sseConnectPath": "/check/" + encoded + "/__sse?hello=world", "params": {"key": decoded}, "query": {"hello": "world"}}, actual
+            check(url, label, "encoded-shell-" + encoded, body, encoded_shell)
+            body = fixture("sse"); body["request"]["path"] = "/check/" + encoded + "/__sse?hello=world"
+            body["routes"][0]["operations"][0]["finite"].update(items=[], contextItem=True)
+            def encoded_event(actual):
+                response(actual, invoked=1)
+                assert frames(actual, "sse")[0]["data"]["params"] == {"key": decoded}, actual
+            check(url, label, "encoded-stream-" + encoded, body, encoded_event)
         for mode in ("json", "ndjson", "sse"):
             for name, changes in (("order", {}), ("empty", {"items": []}), ("summary", {"summary": {"total": 3}}), ("null-summary", {"summary": None}), ("omitted-summary", {})):
                 body = fixture(mode); finite = body["routes"][0]["operations"][0]["finite"]
@@ -207,7 +221,7 @@ def run_finite(urls, labels):
                 elif name == "fragment-shell": assert "sseConnectPath" in html_data(actual["body"]), actual
                 elif name == "shell-query":
                     assert html_data(actual["body"]) == {"sseConnectPath": "/check/caf%C3%A9/__sse?a=%26&a=two+words&snow=%E9%9B%AA",
-                        "params": {"key": "caf%C3%A9" if label == "node" else "café"},
+                        "params": {"key": "café"},
                         "query": {"a": "two words" if label == "node" else ["&", "two words"], "snow": "雪"}}, actual
                 elif name == "shell-input": assert html_data(actual["body"])["query"] == {"limit": 10}, actual
                 elif name == "shell-percent": assert html_data(actual["body"])["sseConnectPath"] == "/check/a%25b/__sse?hello=%25", actual

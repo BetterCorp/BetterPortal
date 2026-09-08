@@ -48,6 +48,26 @@ def run_hosting(urls, labels):
     case("wrong-operation", lambda body: body["request"].update(method="POST"), 404, 0)
     case("disabled-mount", lambda body: mounted(body).update(enabled=False), 404, 0)
     case("metadata", lambda body: body["request"]["headers"].update(accept="application/vnd.betterportal.metadata+json"))
+    for method in ("GET", "POST"):
+        for title, description in (("View title", "View description"), ("View title", None), (None, None), (None, "View description")):
+            def metadata(body, method=method, title=title, description=description):
+                body["request"].update(method=method)
+                body["request"]["headers"]["accept"] = "application/vnd.betterportal.metadata+json"
+                mounted(body)["operations"] = ["check.get", "check.post"]
+                if title is not None: body["routes"][0]["title"] = title
+                if description is not None: body["routes"][0]["description"] = description
+            case(f"metadata-override-{method}-{title}-{description}", metadata)
+    case("metadata-no-get", lambda body: (metadata(body, "POST", None, None), body["routes"][0]["operations"].pop(0)))
+    def metadata_without_get(body):
+        metadata(body, "PUT", None, None); body["routes"][0]["operations"].pop(0)
+        operation = deepcopy(body["routes"][0]["operations"][0])
+        operation["declaration"].update(method="PUT", operationId="check.put", title="PUT", description="Update")
+        body["routes"][0]["operations"].append(operation)
+        mounted(body)["operations"].append("check.put")
+    case("metadata-no-get-secondary-operation", metadata_without_get)
+    for encoded, decoded in (("a%2Fb", "a/b"), ("a%252Fb", "a%2Fb"), ("%E9%9B%AA%2f%25", "\u96ea/%")):
+        case("encoded-segment-" + encoded, lambda body, encoded=encoded: body["request"].update(path="/check/" + encoded + "?hello=world"),
+             invoked=1, expected={**baseline, "params": {"key": decoded}})
     case("preflight", lambda body: (body["request"].update(method="OPTIONS"), body["request"]["headers"].update({"access-control-request-method": "GET"})), 204, 0)
     case("urlencoded", lambda body: write(body, "hello=world", "application/x-www-form-urlencoded"), expected={**baseline, "request": {"hello": "world"}, "multipart": {"fields": {"hello": "world"}, "files": {}}})
     multipart = '--bp\r\nContent-Disposition: form-data; name="hello"\r\n\r\nworld\r\n--bp\r\nContent-Disposition: form-data; name="upload"; filename="hello.txt"\r\nContent-Type: text/plain\r\n\r\nHi\r\n--bp--\r\n'
@@ -146,14 +166,35 @@ def run_hosting(urls, labels):
                 if label == "dotnet" and name == "unknown-path-json-error":
                     validate(actual, 404, 0); assert actual["body"] == "", actual
                 else: validate(actual, status, invoked, expected)
-                if name == "metadata":
+                if name.startswith("metadata"):
                     value = json.loads(actual["body"])
-                    assert value["operationId"] == "check.get" and value["method"] == "GET", actual
+                    method = body["request"]["method"]
+                    assert value["operationId"] == "check." + method.lower() and value["method"] == method, actual
+                    route = body["routes"][0]
+                    primary = next((item for item in route["operations"] if item["declaration"]["method"] == "GET"), route["operations"][0])["declaration"]
+                    assert value["title"] == route.get("title", primary["title"]) and value["description"] == route.get("description", primary["description"]), actual
                     if label != "node": assert actual["invoked"] == 0, actual
                 if name == "manifest": assert json.loads(actual["body"])["views"][0]["viewId"] == "check", actual
                 if name == "schema": assert json.loads(actual["body"])["manifest"]["pluginId"] == "com.example.service", actual
                 if name == "json-get": assert actual["headers"]["access-control-allow-origin"] == "https://app.test", actual
             check(label, name, action)
+    for url, label in zip(urls, labels):
+        if label != "python": continue
+        for mount in ("", "/prefix", "/caf\u00e9"):
+            for encoded, decoded, raw in (("a%2Fb", "a/b", True), ("a%252Fb", "a%2Fb", True), ("%E9%9B%AA", "\u96ea", False)):
+                def asgi_mount():
+                    from urllib.parse import quote
+                    body = fixture(); body.update(mount=mount, omitRawPath=not raw)
+                    body["request"]["path"] = quote(mount) + "/%63heck/" + encoded + "?hello=world"
+                    validate(post(url, body), invoked=1, expected={**baseline, "params": {"key": decoded}})
+                check(label, f"asgi-mount-{mount}-{encoded}-{raw}", asgi_mount)
+    for url, label in zip(urls, labels):
+        if label != "dotnet": continue
+        for encoded, decoded in (("a%2Fb", "a/b"), ("a%252Fb", "a%2Fb")):
+            def trailing_slash():
+                body = fixture(); body["request"]["path"] = "/check/" + encoded + "/?hello=world"
+                validate(post(url, body), invoked=1, expected={**baseline, "params": {"key": decoded}})
+            check(label, "encoded-trailing-slash-" + encoded, trailing_slash)
     for url, label in zip(urls, labels):
         if label != "dotnet": continue
         for placement in ("before", "after"):

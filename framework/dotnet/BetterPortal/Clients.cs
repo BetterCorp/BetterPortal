@@ -44,7 +44,8 @@ public sealed class ClientContract
                     // Separate wrappers preserve independent definitions and omitted-versus-null fields.
                     schemas[name] = Contracts.Import(Contracts.ObjectDocument(new Dictionary<string, Node> { [name] = document }, "reject"));
                     var optional = Contracts.Document("JsonValueSchema");
-                    optional["root"] = new Node { ["kind"] = "optional", ["inner"] = optional["root"] }; keys[name] = optional;
+                    // Each declared field schema owns value validation and coercion.
+                    optional["root"] = new Node { ["kind"] = "optional", ["inner"] = new Node { ["kind"] = "unknown" } }; keys[name] = optional;
                 }
                 var entry = new Entry(view, operation, Contracts.Import(Contracts.ObjectDocument(keys, "reject")), schemas,
                     operation["jsonResponseSchema"] is Node { Count: > 0 } response ? Contracts.Import(response) : null);
@@ -231,8 +232,9 @@ public sealed class Client
                 && Equals(item["contractId"], request["contractId"]) && Equals(item["targetViewId"], view["viewId"])).ToArray();
             if (bindings.Length != 1) throw new ClientException(403, "Dependency binding is unavailable or ambiguous");
             var binding = bindings[0];
-            var contracts = Items((Node)Contract.Document["manifest"]!, "apiContracts").Where(item => Equals(item["id"], binding["contractId"]) && Equals(item["viewId"], view["viewId"])).ToArray();
-            if (contracts.Length != 1 || !Items(operation, "apiContracts").Any(item => Equals(item["id"], binding["contractId"])) || !((List<object?>)contracts[0]["methods"]!).Contains(method) || !((List<object?>)contracts[0]["modes"]!).Contains(mode))
+            var contracts = Items((Node)Contract.Document["manifest"]!, "apiContracts").Where(item => Equals(item["id"], binding["contractId"]) && Equals(item["viewId"], view["viewId"])
+                && ((List<object?>)item["methods"]!).Contains(method) && ((List<object?>)item["modes"]!).Contains(mode)).ToArray();
+            if (contracts.Length != 1 || !Items(operation, "apiContracts").Any(item => Equals(item["id"], binding["contractId"])))
                 throw new ClientException(403, "Dependency contract does not cover the operation");
             if (!((List<object?>)request["requiredCapabilities"]!).ToHashSet().IsSubsetOf((List<object?>)contracts[0]["capabilities"]!))
                 throw new ClientException(403, "Dependency contract capabilities are insufficient");

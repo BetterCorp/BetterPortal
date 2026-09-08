@@ -45,6 +45,9 @@ public sealed class Operation
     internal Node Metadata(string viewId, IReadOnlyDictionary<string, string> aliases, string pluginId)
     {
         var result = (Node)Json.Read(Json.Write(declaration))!;
+        if (Handler.ResponseSchema is { } demoSchema)
+            foreach (var scenario in ((List<object?>)result["demoScenarios"]!).Cast<Node>())
+                scenario["response"] = Contracts.Parse(demoSchema, scenario["response"]);
         foreach (var (source, target) in new[] { ("query", "querySchema"), ("headers", "headersSchema"), ("request", "bodySchema") })
             result[target] = Handler.Schemas.TryGetValue(source, out var schema) ? Export(schema) : new Node();
         result["jsonResponseSchema"] = Handler.ResponseSchema is { } response ? Export(response) : new Node(); result["metadataResponseSchema"] = new Node();

@@ -467,7 +467,8 @@ function operationToMetadata(
       title: scenario.title,
       ...(scenario.description ? { description: scenario.description } : {}),
       ...(scenario.match ? { match: scenario.match } : {}),
-      response: scenario.response as JsonValue
+      response: (operation.raw !== true && operation.schemas.response
+        ? operation.schemas.response.parse(scenario.response) : scenario.response) as JsonValue
     })),
     cacheHints: operation.cacheHints
   };

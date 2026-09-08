@@ -181,6 +181,14 @@ def run_clients(urls, labels):
                     "x-count": {"kind": "int", "coerce": {"toInt": True}}}, "required": ["x-count"], "unknownKeys": "reject"}}
                 item["steps"] = [{"values": {"params": {"key": "item"}, "headers": {"x-count": "12"}}}]
             case("header-coercion", header_coercion, count=1, validate=lambda values: expect(values[0]["output"]["headers"]["x-count"], "12"))
+            for number in (9007199254740993, 9223372036854775807, -9223372036854775808):
+                def integer(item, number=number):
+                    for owner, field, name in ((view(item), "paramsSchema", "key"), (operation(item), "querySchema", "n"), (operation(item), "headersSchema", "x-number")):
+                        owner[field] = {"anyvaliVersion": "1.0", "schemaVersion": "1.1", "root": {"kind": "object", "properties": {name: {"kind": "int"}}, "required": [name], "unknownKeys": "reject"}}
+                    item.update(steps=[{"values": {"params": {"key": number}, "query": {"n": number}, "headers": {"x-number": number}}}])
+                case(f"integer-{number}", integer, count=1,
+                    validate=lambda values, number=number: (expect(values[0]["output"]["path"], f"/check/{number}?n={number}"),
+                        expect(values[0]["output"]["headers"]["x-number"], str(number))))
             for address in ("http://remote.test", "http://127.1", "http://127.0.0.1.evil.test", "https://user:password@remote.test", base + "/prefix"):
                 case("unsafe-origin-" + address, lambda item, address=address: item["snapshot"]["tenants"][0]["services"][0].update(hostname=address), expected=400, count=0)
             case("redirect", reply={"status": 307, "headers": {"location": base + "/stolen"}}, expected=307, count=1)
@@ -204,6 +212,29 @@ def run_clients(urls, labels):
             case("request-method", lambda item: (service(item), item["declaration"]["m2mRequests"][0].update(methods=["POST"])), expected=403, count=0)
             case("contract-mode", lambda item: (service(item), item["contract"]["manifest"]["apiContracts"][0].update(modes=["delegated"])), expected=403, count=0)
             case("contract-id", lambda item: (service(item), item["contract"]["manifest"]["apiContracts"][0].update(id="other")), expected=403, count=0)
+            def method_contracts(item, mode, method="GET"):
+                (service if mode == "service" else delegated)(item)
+                descriptor = item["contract"]["manifest"]["apiContracts"][0]
+                second = {**deepcopy(descriptor), "methods": ["POST"], "permissions": ["update"], "capabilities": ["write"]}
+                item["contract"]["manifest"]["apiContracts"].append(second)
+                post_operation = deepcopy(operation(item)); post_operation.update(method="POST", operationId="check.post", apiContracts=[deepcopy(second)])
+                post_operation["auth"]["permissions"][0]["permissions"] = ["update"]
+                view(item)["operations"].append(post_operation)
+                item["declaration"]["m2mRequests"][0].update(methods=[method], permissions=["read" if method == "GET" else "update"])
+                item["snapshot"]["m2m"]["grants"][0].update(methods=[method], permissions=["read" if method == "GET" else "update"])
+                item["steps"] = [{"operation": "check." + method.lower(), "values": {"params": {"key": "item"}}}]
+            for mode in ("service", "delegated"):
+                for method in ("GET", "POST"):
+                    case(f"method-contract-{mode}-{method}", lambda item, mode=mode, method=method: method_contracts(item, mode, method), count=1,
+                         validate=lambda values, method=method: expect(values[0]["output"]["method"], method))
+                case("ambiguous-contract-" + mode, lambda item, mode=mode: (method_contracts(item, mode),
+                     item["contract"]["manifest"]["apiContracts"][1].update(methods=["GET"])), expected=403, count=0)
+                case("mode-contract-" + mode, lambda item, mode=mode: (method_contracts(item, mode),
+                     item["contract"]["manifest"]["apiContracts"][1].update(methods=["GET"], modes=["delegated" if mode == "service" else "service"])), count=1)
+                case("contract-permission-isolation-" + mode, lambda item, mode=mode: (method_contracts(item, mode, "POST"),
+                     item["snapshot"]["m2m"]["grants"][0].update(permissions=["read"])), expected=403, count=0)
+                case("contract-capability-isolation-" + mode, lambda item, mode=mode: (method_contracts(item, mode),
+                     item["declaration"]["m2mRequests"][0].update(requiredCapabilities=["write"])), expected=403, count=0)
             case("binding-source", lambda item: (service(item), item["snapshot"]["m2m"]["bindings"][0].update(sourceServiceId=TARGET)), expected=403, count=0)
             case("binding-target-plugin", lambda item: (service(item), item["snapshot"]["m2m"]["services"][1].update(serviceId="com.example.other")), expected=403, count=0)
             case("no-key", lambda item: (service(item), item.update(noKey=True)), expected=503, count=0)

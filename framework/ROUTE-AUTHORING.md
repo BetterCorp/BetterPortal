@@ -40,7 +40,8 @@ Both forms return the same `Registry` used by hosting and contract export:
 
 An index needs at least one method. Every operation declares its own stable ID,
 title, description, auth, dependencies and schemas. Index metadata cannot carry
-method policy. A view title/description overrides its GET labels in the manifest;
+method policy. A view title/description overrides its GET labels in the manifest
+and negotiated metadata;
 otherwise the GET labels (or first declared method) supply them. Each method imports
 the same params schema from its index or a shared module.
 
@@ -58,6 +59,14 @@ of registration order. Same-method paths with the same literal segments and
 parameter positions are rejected. A declared `OPTIONS` operation follows ordinary
 auth and allowlist policy; `OPTIONS` with `Access-Control-Request-Method` is a CORS
 preflight and does not invoke that handler.
+
+Handlers receive path parameters decoded once: `a%2Fb` becomes `a/b`, while
+`a%252Fb` becomes `a%2Fb`. Generated links and SSE connection URLs retain escaped
+segment boundaries. ASGI servers must supply `raw_path` to distinguish an encoded
+slash from a segment separator; ordinary routing also works without it.
+
+JSON demo responses are validated and normalized with the handler's AnyVali
+response schema before manifest export, including buffered finite-stream demos.
 
 The framework consumes `_f` and `_c` before validating application query schemas.
 Keep `unknownKeys: reject` to reject other undeclared query fields. Relative URL

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 def _scalar(value: Any) -> str:
     if isinstance(value, str): return value
     if isinstance(value, bool): return str(value).lower()
+    if isinstance(value, int): return str(value)
     number = float(value)
     if number == 0: return "0"
     text = repr(number).lower()

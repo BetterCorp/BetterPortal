@@ -71,7 +71,7 @@ export async function hostingRequest(body) {
     const primary = methodRoutes.GET ?? Object.values(methodRoutes)[0];
     return { viewId: item.viewId, path, paramNames: path.split("/").filter(part => part.startsWith(":")).map(part => part.slice(1)), methods: Object.keys(methodRoutes),
       schemas: primary.schemas, handlers: Object.fromEntries(Object.entries(methodRoutes).map(([method, spec]) => [method, spec.handler])), methodRoutes,
-      title: primary.title, description: primary.description, ...rendererSets(item), ...feeds.bind(item) };
+      title: item.title ?? primary.title, description: item.description ?? primary.description, ...rendererSets(item), ...feeds.bind(item) };
   }));
   const app = createBetterPortalApp();
   if (machineHost) app.use(event => machineHost.handleWithCors(event));

@@ -5,6 +5,8 @@ import anyvali as av
 import html
 import json
 from urllib.parse import urlsplit
+from starlette.applications import Starlette
+from starlette.routing import Mount
 from betterportal.asgi import create_app
 from betterportal.context import ScopedConfig
 from betterportal.handler import Handler
@@ -123,7 +125,7 @@ async def hosting_request(body):
                 **{target: finite[source] for source, target in (("maxFrameBytes", "max_frame_bytes"), ("maxItems", "max_items"), ("maxBytes", "max_bytes")) if source in finite})
         return RawHandler(function(spec), **schemas) if "raw" in spec and not spec.get("jsonHandler") else Handler(av.import_schema(spec["response"]), function(spec), renderers=renderers, **schemas)
     registry = Registry([Route(item["viewId"], item["path"], [Operation(handler(spec), spec["declaration"], error_renderers=[renderer(item) for item in spec.get("errorRenderers", [])])
-        for spec in item["operations"]], path_variants=item.get("pathVariants", [])) for item in body["routes"]], dependencies=body.get("dependencies"))
+        for spec in item["operations"]], path_variants=item.get("pathVariants", []), title=item.get("title"), description=item.get("description")) for item in body["routes"]], dependencies=body.get("dependencies"))
     registry = feeds.bind(registry, render_function)
     async with Service(registry, body["declaration"], ScopedConfig(body["snapshot"]) if body.get("snapshot") is not None else None) as service, feeds:
         app = create_app(service, max_body_bytes=body.get("maxBodyBytes", 1024 * 1024))
@@ -163,7 +165,11 @@ async def hosting_request(body):
                 return {"observed": observed, "stream": stream, "cancelled": cancelled, "invoked": invoked, **feeds.result()}
             finally:
                 task.cancel(); await asyncio.gather(task, return_exceptions=True)
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://service.test") as client:
+        transport_app = Starlette(routes=[Mount(body["mount"], app=app)]) if body.get("mount") else app
+        async def transport(scope, receive, send):
+            if body.get("omitRawPath"): scope.pop("raw_path", None)
+            await transport_app(scope, receive, send)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=transport), base_url="http://service.test") as client:
             call = asyncio.create_task(client.request(request["method"], request["path"], headers=request.get("headers", {}), content=payload))
             try:
                 if body.get("feedShutdown"):

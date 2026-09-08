@@ -49,7 +49,7 @@ internal static class RegistryAdapter
                 operations.Add(new(handler, declaration));
             }
             routes.Add(new((string)item["viewId"]!, (string)item["path"]!, operations,
-                ((List<object?>?)item.GetValueOrDefault("pathVariants"))?.Cast<string>()));
+                ((List<object?>?)item.GetValueOrDefault("pathVariants"))?.Cast<string>(), title: (string?)item.GetValueOrDefault("title"), description: (string?)item.GetValueOrDefault("description")));
         }
         var dependencies = ((Node?)body.GetValueOrDefault("dependencies"))?.ToDictionary(pair => pair.Key, pair => (string)pair.Value!);
         return new Registry(routes, dependencies);

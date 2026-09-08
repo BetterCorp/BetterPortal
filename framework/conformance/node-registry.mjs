@@ -70,7 +70,7 @@ export function registryRequest(body) {
       return [...new Set([item.path, ...item.pathVariants ?? []])].map(path => ({ viewId: item.viewId, path,
         paramNames: path.split("/").filter(part => part.startsWith(":")).map(part => part.slice(1)), schemas: operations[0].schemas,
         methods: operations.map(operation => operation.method), methodRoutes: Object.fromEntries(operations.map(operation => [operation.method, operation])),
-        handlers: Object.fromEntries(operations.map(operation => [operation.method, operation.handler])), title: primary.title, description: primary.description, ...rendererSets(item) }));
+        handlers: Object.fromEntries(operations.map(operation => [operation.method, operation.handler])), title: item.title ?? primary.title, description: item.description ?? primary.description, ...rendererSets(item) }));
     });
     const registry = { routes, dependencies: body.dependencies ?? {} };
     const declaration = manifestSchema.parse(body.declaration);

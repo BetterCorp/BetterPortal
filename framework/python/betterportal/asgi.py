@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 import re
 from typing import Any, Coroutine, TypeVar, cast
-from urllib.parse import parse_qsl, quote
+from urllib.parse import parse_qsl, quote, quote_from_bytes, unquote, unquote_to_bytes
 
 from starlette.applications import Starlette
 from starlette.datastructures import UploadFile
@@ -14,6 +14,8 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route as HttpRoute
+from starlette.routing import Match
+from starlette.types import Scope
 
 from .contracts import parse
 from .authorization import AuthorizedCaller
@@ -31,6 +33,27 @@ from .installation import ServiceInstallation
 from .finite import FiniteHandler
 
 _SINGLE = {"host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"}
+
+
+def _request_path(request: Request) -> str:
+    raw = request.scope.get("raw_path")
+    return quote_from_bytes(raw, safe="/%:@!$&'()*+,;=-._~") if raw is not None else quote(request.url.path, safe="/:@!$&'()*+,;=-._~")
+
+
+class _SegmentRoute(HttpRoute):
+    """Let Starlette match original segment boundaries, then decode parameters once."""
+    def __init__(self, path: str, endpoint: Any, *, methods: list[str]):
+        super().__init__(quote(path, safe="/{}"), endpoint, methods=methods)
+
+    def matches(self, scope: Scope) -> tuple[Match, Scope]:
+        if scope["type"] != "http": return super().matches(scope)
+        raw = scope.get("raw_path")
+        path = ("/".join(quote_from_bytes(unquote_to_bytes(part), safe="") for part in raw.split(b"/"))
+                if raw is not None else quote(scope["path"], safe="/"))
+        match, child = super().matches({**scope, "path": path, "root_path": quote(scope.get("root_path", ""), safe="/")})
+        if child:
+            child["path_params"].update({name: unquote(child["path_params"][name]) for name in self.param_convertors})
+        return match, child
 
 
 def _headers(request: Request) -> dict[str, str]:
@@ -188,6 +211,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
 
     def endpoint(operations: dict[str, tuple[Route, str]], *, sse: bool = False):
         async def handle(request: Request) -> Response:
+            request_path = _request_path(request)
             response_headers = {"vary": "Origin, Accept"}
             failure_scope = None; operation = None; route = None; representation = None
             kind, key, matched = "page", None, ""
@@ -198,8 +222,8 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 theme = scope.app.get("shell", {}).get("renderer") if scope is not None else None
                 if theme and operation is not None and route is not None and representation is not None and representation.kind == "html":
                     async def render():
-                        context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), cast(HttpMethod, requested), request.url.path,
-                            url_context=service.urls(scope, request.url.path, headers, request.url.scheme)),
+                        context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), cast(HttpMethod, requested), request_path,
+                            url_context=service.urls(scope, request_path, headers, request.url.scheme)),
                             route.view_id, matched, theme, representation.mode or "page", kind, key, status, params, query)
                         value = await operation.render_error(context, message)
                         return _RawReply(value, response_headers, head=request.method == "HEAD", service=service) if value is not None else None
@@ -213,7 +237,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
             async def execute(headers, query, body):
                 nonlocal response_headers, failure_scope
                 assert operation is not None and route is not None
-                context, response_headers = await service.prepare(route, requested, request.url.path, headers, matched_path=matched,
+                context, response_headers = await service.prepare(route, requested, request_path, headers, matched_path=matched,
                     fragment=fragment, scheme=request.url.scheme, mode=mode)
                 failure_scope = context.scope
                 if negotiation_error is not None: raise negotiation_error
@@ -226,14 +250,14 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                     return RenderContext.create(context, route.view_id, matched, theme, "fragment", "page", None, 200, parsed_params, parsed_query)
                 if sse and route.sse is not None:
                     def event_context(theme, parsed_params, parsed_query):
-                        path = request.url.path.removesuffix("/__sse") or "/"
+                        path = request_path.removesuffix("/__sse") or "/"
                         presentation = replace(context, path=path, url_context=service.urls(context.scope, path, headers, request.url.scheme))
                         return RenderContext.create(presentation, route.view_id, matched, theme, "fragment", "fragment", fragment, 200, parsed_params, parsed_query)
                     return _RawReply(route.sse.open_stream(context, values, fragment=fragment, render_context=event_context), response_headers, head=request.method == "HEAD", service=service)
                 if isinstance(operation.handler, FiniteHandler) and (sse or representation is not None and representation.kind == "ndjson"):
                     return _RawReply(operation.handler.open_stream(context, values, sse=sse, render_context=stream_context), response_headers, head=request.method == "HEAD", service=service)
                 if isinstance(operation.handler, FiniteHandler) and requested == "GET" and kind == "page" and representation is not None and representation.kind == "html":
-                    connection = quote(request.url.path.rstrip("/"), safe="/:@!$&'()*+,;=-._~") + "/__sse"
+                    connection = request_path.rstrip("/") + "/__sse"
                     if request.scope["query_string"]: connection += "?" + quote(request.scope["query_string"].decode("utf-8"), safe="!$&'()*+,-./:;=?@_~%")
                     shell = await operation.handler.shell(context, values, connection, representation.mode or "page", stream_context)
                     if shell is not None:
@@ -374,12 +398,12 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
         pattern = "/" + "/".join("{_bp" + str(index) + "}" if part.startswith(":") else part for index, part in enumerate(_segments(path)))
         groups.setdefault(pattern, {}).update({item.method: (route, path) for item in route.operations})
     for pattern, operations in groups.items():
-        routes.append(HttpRoute(pattern, endpoint(operations), methods=[*operations, "OPTIONS"]))
+        routes.append(_SegmentRoute(pattern, endpoint(operations), methods=[*operations, "OPTIONS"]))
     for pattern, operations in groups.items():
         if "GET" in operations and (operations["GET"][0].sse is not None or isinstance(next(item for item in operations["GET"][0].operations if item.method == "GET").handler, FiniteHandler)):
             stream_path = pattern.rstrip("/") + "/__sse"
             if stream_path in groups: raise ValueError("Route conflicts with SSE: " + stream_path)
-            routes.append(HttpRoute(stream_path, endpoint({"GET": operations["GET"]}, sse=True), methods=["GET", "OPTIONS"]))
+            routes.append(_SegmentRoute(stream_path, endpoint({"GET": operations["GET"]}, sse=True), methods=["GET", "OPTIONS"]))
     # Include generated SSE paths in Starlette's static-before-parameter ordering.
     routes.sort(key=lambda route: tuple(part.startswith("{") for part in route.path.split("/")))
     app = Starlette(routes=routes, lifespan=lifespan, exception_handlers={HTTPException: error, Exception: error})

@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Net.Http.Headers;
@@ -11,6 +12,11 @@ namespace BetterPortal.AspNetCore;
 public static class Hosting
 {
     private static readonly UTF8Encoding Utf8 = new(false, true);
+    private static string RequestPath(HttpRequest request)
+    {
+        var raw = request.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
+        return raw?.StartsWith('/') is true ? new Uri("http://betterportal.invalid" + raw.Split('?', 2)[0]).AbsolutePath : request.PathBase.Add(request.Path).ToUriComponent();
+    }
     private static readonly HashSet<string> SingleHeaders = new(["host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"], StringComparer.OrdinalIgnoreCase);
     private static Dictionary<string, string> Headers(HttpRequest request)
     {
@@ -265,6 +271,7 @@ public static class Hosting
             ScopedContext? failureScope = null; Operation? operation = null; Route? route = null; Representation? representation = null;
             var kind = "page"; string? key = null; var matched = ""; var requested = "GET";
             var query = new Node(); var parameters = new Node();
+            var requestPath = RequestPath(context.Request);
             var headers = new Dictionary<string, string>();
             async Task Failure(int status, string message, ScopedContext? scope = null)
             {
@@ -274,7 +281,7 @@ public static class Hosting
                 {
                     try
                     {
-                        var renderContext = RenderContext.Create(new RequestContext(scope, new AuthorizedCaller(), requested, context.Request.Path) { Urls = service.Urls(scope, context.Request.Path, headers, context.Request.Scheme) },
+                        var renderContext = RenderContext.Create(new RequestContext(scope, new AuthorizedCaller(), requested, requestPath) { Urls = service.Urls(scope, requestPath, headers, context.Request.Scheme) },
                             route.ViewId, matched, theme, representation.Mode ?? "page", kind, key, status, parameters, query, context.RequestAborted);
                         var value = await operation.RenderError(renderContext, message);
                         if (value is not null) { await ReplyRaw(context, value, responseHeaders); return; }
@@ -294,8 +301,10 @@ public static class Hosting
                 if (!operations.TryGetValue(requested, out var binding)) throw new RequestException(preflight ? 403 : 405, "Method not allowed");
                 if (sse && (query.ContainsKey("_c") || binding.Route.Sse is null && query.ContainsKey("_f"))) throw new RequestException(400, "Stream connection does not support this selector");
                 route = binding.Route; matched = binding.Path;
+                var routedPath = requestPath.TrimEnd('/');
+                var rawSegments = (sse ? routedPath[..^"/__sse".Length] : routedPath).Split('/').TakeLast(Segments(binding.Path).Length).ToArray();
                 parameters = Segments(binding.Path).Select((part, index) => (part, index)).Where(item => item.part.StartsWith(':'))
-                    .ToDictionary(item => item.part[1..], item => context.Request.RouteValues["_bp" + item.index]);
+                    .ToDictionary(item => item.part[1..], item => (object?)Uri.UnescapeDataString(rawSegments[item.index]));
                 if (preflight)
                 {
                     responseHeaders = service.Preflight(binding.Route, headers, binding.Path, fragment, context.Request.Scheme, mode);
@@ -323,7 +332,7 @@ public static class Hosting
                 kind = fragment is not null ? "fragment" : component is not null ? "component" : "page";
                 key = fragment ?? component;
                 query.Remove("_f"); query.Remove("_c");
-                var prepared = await service.PrepareAsync(binding.Route, requested, context.Request.Path, headers, binding.Path, fragment, context.Request.Scheme, mode, cancellationToken: context.RequestAborted);
+                var prepared = await service.PrepareAsync(binding.Route, requested, requestPath, headers, binding.Path, fragment, context.Request.Scheme, mode, cancellationToken: context.RequestAborted);
                 responseHeaders = prepared.Headers;
                 failureScope = prepared.Context.Scope;
                 if (negotiationError is not null) throw negotiationError;
@@ -338,7 +347,7 @@ public static class Hosting
                 {
                     RenderContext EventContext(string renderer, object? parsedParams, object? parsedQuery)
                     {
-                        var path = context.Request.Path.Value![..^"/__sse".Length];
+                        var path = requestPath.TrimEnd('/')[..^"/__sse".Length];
                         if (path.Length == 0) path = "/";
                         var presentation = requestContext with { Path = path, Urls = service.Urls(requestContext.Scope, path, headers, context.Request.Scheme) };
                         return RenderContext.Create(presentation, binding.Route.ViewId, binding.Path, renderer, "fragment", "fragment", fragment, 200, parsedParams, parsedQuery, context.RequestAborted);
@@ -351,7 +360,7 @@ public static class Hosting
                 }
                 if (operation.Handler.IsStreaming && requested == "GET" && kind == "page" && representation?.Kind == "html")
                 {
-                    var connection = context.Request.Path.ToUriComponent().TrimEnd('/') + "/__sse" + context.Request.QueryString.ToUriComponent();
+                    var connection = requestPath.TrimEnd('/') + "/__sse" + context.Request.QueryString.ToUriComponent();
                     var shell = await operation.Handler.StreamShell(requestContext, values, connection, representation.Mode ?? "page", StreamContext, context.RequestAborted);
                     if (shell is not null)
                     {

@@ -41,6 +41,8 @@ public sealed class Urls
     {
         if (value is string text) return text;
         if (value is bool flag) return flag ? "true" : "false";
+        if (value is sbyte or byte or short or ushort or int or uint or long or ulong)
+            return Convert.ToString(value, CultureInfo.InvariantCulture)!;
         var number = Convert.ToDouble(value, CultureInfo.InvariantCulture);
         if (number == 0) return "0";
         var result = number.ToString("R", CultureInfo.InvariantCulture).ToLowerInvariant();

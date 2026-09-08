@@ -53,6 +53,9 @@ class Operation:
 
     def metadata(self, view_id: str, aliases: Mapping[str, str], plugin_id: str) -> dict[str, Any]:
         result = deepcopy(self._declaration)
+        if self.handler.response_schema is not None:
+            for scenario in result["demoScenarios"]:
+                scenario["response"] = self.handler.response_schema.parse(scenario["response"])
         result.update({target: export(self.handler.schemas[source]) if source in self.handler.schemas else {}
                        for source, target in (("query", "querySchema"), ("headers", "headersSchema"), ("request", "bodySchema"))})
         html = html_metadata(self.handler.renderers, self.handler.stream_renderers if isinstance(self.handler, FiniteHandler) else ())

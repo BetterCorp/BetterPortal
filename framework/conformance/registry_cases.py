@@ -33,6 +33,27 @@ def run_registry(urls, labels):
         shared.append((name, body, status, native))
     def operation(body): return body["routes"][0]["operations"][0]["declaration"]
     case("defaults-methods-variants", lambda body: None)
+    case("empty-view-title", lambda body: body["routes"][0].update(title=""), 400)
+    case("empty-view-description", lambda body: body["routes"][0].update(description=""), 400)
+    def demo(body, response, root=None):
+        if root is not None: body["routes"][0]["operations"][0]["response"]["root"] = root
+        operation(body)["demoScenarios"] = [{"id": "example", "title": "Example", "response": response}]
+    case("demo-recursive", lambda body: demo(body, {"nested": [None, True, {"items": [1, "two"]}]}))
+    case("demo-invalid", lambda body: demo(body, [], {"kind": "string"}), 400)
+    case("demo-null", lambda body: demo(body, None, {"kind": "nullable", "inner": {"kind": "string"}}))
+    case("demo-null-denied", lambda body: demo(body, None, {"kind": "string"}), 400)
+    def demo_object(body, unknown):
+        demo(body, {"count": "12", "extra": True}, {"kind": "object", "properties": {
+            "count": {"kind": "int", "coerce": {"toInt": True}}, "name": {"kind": "string", "default": "Example"}},
+            "required": ["count", "name"], "unknownKeys": unknown})
+    case("demo-normalized", lambda body: demo_object(body, "strip"))
+    case("demo-unknown-denied", lambda body: demo_object(body, "reject"), 400)
+    def finite_demo(body, value):
+        spec = body["routes"][0]["operations"][0]
+        spec["finite"] = {"itemSchema": {**spec["response"], "root": {"kind": "string"}}}
+        demo(body, {"items": [value]})
+    case("demo-finite", lambda body: finite_demo(body, "item"))
+    case("demo-finite-invalid", lambda body: finite_demo(body, 1), 400)
     def api_contract(body, variants=False):
         if not variants: body["routes"][0]["pathVariants"] = []
         body["routes"][0]["operations"][1]["declaration"].update(apiContracts=[{"id": "write", "version": "1.0.0", "title": "Write"}])
@@ -98,6 +119,8 @@ def run_registry(urls, labels):
                     if name.startswith("config-admin"):
                         apis = schema["manifest"]["adminApis"]
                         assert len(apis) == 2 and {item["id"] for item in apis} == {"config.schema", "config.values"}
+                    if name == "demo-normalized":
+                        assert schema["manifest"]["views"][0]["operations"][0]["demoScenarios"][0]["response"] == {"count": 12, "name": "Example"}
                 result["passed"] = True
             except Exception as error: result["error"] = str(error)
             results.append(result)

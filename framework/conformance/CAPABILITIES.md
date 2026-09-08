@@ -9,20 +9,29 @@ Current state: canonical documents, native schema adapters, token/service securi
 native packages and runnable HTTP gates exist. Published AnyVali 1.1.4 passes
 all 1,488 schema probes, including the eight previously failing C# extension checks
 ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
+The C# integer overflow defect is tracked in
+[AnyVali #145](https://github.com/BetterCorp/AnyVali/issues/145): out-of-range
+integers can silently clamp. Lossless integer URL type expansion remains blocked
+on that SDK fix; C# URL numbers retain their existing `double` contract.
 Token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 444/444, authorization 306/306, media 124/124,
-finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
+finite stream primitives 113/113, finite operation hosting 356/356, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
-input/output types. JSON operation registration and manifest generation pass 89/89
-registry checks. Prototype JSON hosts pass 311/311 HTTP/ASGI checks; raw responses
+input/output types. JSON operation registration and manifest generation pass 119/119
+registry checks. Prototype JSON hosts pass 361/361 HTTP/ASGI checks; raw responses
 pass 137/137 checks including streamed delivery, ownership and backpressure.
 Typed HTML callbacks, presentation context, fragments/components and status/error
 rendering pass 203/203 checks.
-Scoped URLs pass 241/241, atomic snapshots 125/125, standalone control-plane sync
+Scoped URLs pass 247/247, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 147/147, protected bootstrap storage 147/147,
-installation 139/139, hostname changes 101/101 and scoped dependency clients 210/210.
-The current review [Windows full gate](results-full-review.json) and
+installation 139/139, hostname changes 101/101 and scoped dependency clients 240/240.
+The current review [Windows full gate](results-full-review5.json) and
+[Linux full gate](results-full-review5-linux.json) each pass **6,210/6,210**
+scenarios: 1,488 schema and 4,722 runtime checks, with matching case outcomes.
+The new cases exercise integer inputs, escaped segments and stream URLs, view
+metadata overrides, method/mode-specific contracts and demo response schemas.
+The preceding review [Windows full gate](results-full-review.json) and
 [Linux full gate](results-full-review-linux.json) each pass **6,082/6,082**
 scenarios: 1,488 schema and 4,594 runtime checks, with matching case outcomes.
 This includes shared input parsing, route precedence, explicit OPTIONS, host error

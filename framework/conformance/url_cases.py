@@ -20,15 +20,19 @@ def fixture():
 
 def run_urls(urls, labels):
     cases, results = [], []
-    def case(name, call, expected, change=lambda body: None, native=False, handler=False):
+    def case(name, call, expected, change=lambda body: None, native=False, handler=False, runtimes=None):
         body = fixture(); change(body)
         if handler:
             body["request"]["headers"]["accept"] = "application/json"
             body["routes"][0]["operations"][0]["urlCalls"] = [call]
         else: body["routes"][0]["operations"][0]["renderers"][0]["urlCalls"] = [call]
-        cases.append((name, body, [expected], native, handler))
+        cases.append((name, body, [expected], native, handler, runtimes))
     def route(options=None, view="check", kind="route"): return {"kind": kind, "viewId": view, "options": options or {}}
     params = {"key": "item"}
+    for number in (9007199254740993, 9223372036854775807, -9223372036854775808):
+        for handler in (False, True):
+            case(f"integer-{number}-{handler}", route({"params": {"key": number}, "query": {"n": number}}),
+                 f"/check/{number}?n={number}", handler=handler, runtimes=("python",))
     for handler in (False, True):
         suffix = "-handler" if handler else "-renderer"
         for name, call, expected in (
@@ -128,9 +132,10 @@ def run_urls(urls, labels):
         ("ambiguous-selectors", route({"params": params, "fragment": "nav.profile", "component": "card"}), {"invalid": True})):
         case(name, call, expected, native=True)
     case("sse-before-query", {"kind": "path", "path": "/x?q=value", "options": {"sse": True}}, "/x/__sse?q=value", native=True)
-    for name, body, expected, native, handler in cases:
+    for name, body, expected, native, handler, runtimes in cases:
         for url, label in zip(urls, labels):
             if native and label == "node": continue
+            if runtimes is not None and label not in runtimes: continue
             result = {"runtime": label, "id": "urls-" + name, "passed": False}
             try:
                 try:
