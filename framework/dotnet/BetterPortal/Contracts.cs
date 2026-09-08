@@ -107,7 +107,7 @@ public static class Json
         JsonValueKind.Object => value.EnumerateObject().ToDictionary(p => p.Name, p => Value(p.Value)),
         JsonValueKind.Array => value.EnumerateArray().Select(Value).ToList(),
         JsonValueKind.String => value.GetString(),
-        JsonValueKind.Number => value.TryGetInt64(out var n) ? (object)n : value.GetDouble(),
+        JsonValueKind.Number => value.TryGetInt64(out var n) ? (object)n : value.TryGetUInt64(out var u) ? (object)u : value.GetDouble(),
         JsonValueKind.True => true,
         JsonValueKind.False => false,
         JsonValueKind.Null => null,

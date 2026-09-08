@@ -52,7 +52,8 @@ class _SegmentRoute(HttpRoute):
                 if raw is not None else quote(scope["path"], safe="/"))
         match, child = super().matches({**scope, "path": path, "root_path": quote(scope.get("root_path", ""), safe="/")})
         if child:
-            child["path_params"].update({name: unquote(child["path_params"][name]) for name in self.param_convertors})
+            try: child["path_params"].update({name: unquote(child["path_params"][name], errors="strict") for name in self.param_convertors})
+            except UnicodeError: raise HTTPException(400, "Invalid path encoding", headers={"cache-control": "no-store"}) from None
         return match, child
 
 
@@ -163,6 +164,9 @@ class _RawReply(Response):
         self.raw, self.service = raw, service
         pairs = [(name.lower().encode("ascii"), value.encode("latin-1")) for name, value in raw.headers]
         for name, value in headers.items():
+            if name.lower() == "cache-control":
+                if any(key == b"cache-control" for key, _ in pairs): continue
+                if raw.status >= 400 or not isinstance(raw.body, bytes): value = "no-store"
             if name.lower() == "vary":
                 value = ", ".join([*(item.decode("latin-1") for key, item in pairs if key == b"vary"), value])
             pairs = [(key, item) for key, item in pairs if key != name.lower().encode("ascii")]
@@ -207,17 +211,18 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
     async def error(request: Request, exception: Exception) -> Response:
         status = exception.status_code if isinstance(exception, HTTPException) else 500
         return JSONResponse({"error": "Route not found" if status == 404 else "Method not allowed" if status == 405 else "Request failed"}, status_code=status,
-                            headers=exception.headers if isinstance(exception, HTTPException) else None)
+                            headers={**(exception.headers or {} if isinstance(exception, HTTPException) else {}), "cache-control": "no-store"})
 
     def endpoint(operations: dict[str, tuple[Route, str]], *, sse: bool = False):
         async def handle(request: Request) -> Response:
             request_path = _request_path(request)
-            response_headers = {"vary": "Origin, Accept"}
+            response_headers = {"vary": "Origin, Accept", "cache-control": "no-store"}
             failure_scope = None; operation = None; route = None; representation = None
             kind, key, matched = "page", None, ""
             query: dict[str, Any] = {}; params: dict[str, Any] = {}; headers: dict[str, str] = {}
 
             async def failure(status, message, scope=None):
+                response_headers["cache-control"] = "no-store"
                 scope = scope or failure_scope
                 theme = scope.app.get("shell", {}).get("renderer") if scope is not None else None
                 if theme and operation is not None and route is not None and representation is not None and representation.kind == "html":
@@ -287,7 +292,8 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 fragment = query.get("_f")
                 if fragment is not None and not isinstance(fragment, str): raise RequestError(400, "Invalid fragment selector")
                 preflight = request.method == "OPTIONS" and "access-control-request-method" in headers
-                requested = headers["access-control-request-method"] if preflight else "GET" if request.method == "HEAD" else request.method
+                requested = headers["access-control-request-method"] if preflight else request.method
+                if requested == "HEAD": requested = "GET"
                 if requested not in operations: raise RequestError(403 if preflight else 405, "Method not allowed")
                 route, matched = operations[requested]
                 if sse and ("_c" in query or route.sse is None and "_f" in query): raise RequestError(400, "Stream connection does not support this selector")
@@ -318,7 +324,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 response_headers = {**response_headers, **exception.headers}
                 return await failure(exception.status, str(exception), exception.scope)
             except CorsDenied:
-                return JSONResponse({"error": "Origin or method is not allowed"}, status_code=403, headers={"vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"})
+                return JSONResponse({"error": "Origin or method is not allowed"}, status_code=403, headers={"vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers", "cache-control": "no-store"})
             except NotAcceptable:
                 return await failure(406, "Representation not available")
             except HandlerInputError as exception:

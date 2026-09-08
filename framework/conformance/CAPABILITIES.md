@@ -13,12 +13,15 @@ The C# integer overflow defect is tracked in
 [AnyVali #145](https://github.com/BetterCorp/AnyVali/issues/145): out-of-range
 integers can silently clamp. Lossless integer URL type expansion remains blocked
 on that SDK fix; C# URL numbers retain their existing `double` contract.
+C# JSON decoding preserves unsigned 64-bit values, but validation of the upper
+half of the `uint64` range is blocked by
+[AnyVali #146](https://github.com/BetterCorp/AnyVali/issues/146).
 Token/service security passes 459/459 scenarios and JWKS
 checks pass 80/80; encryption passes 444/444, authorization 306/306, media 124/124,
-finite stream primitives 113/113, finite operation hosting 356/356, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
+finite stream primitives 113/113, finite operation hosting 368/368, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 35/35.
 Typed handler validation passes 44/44 checks, with native compiler checks for
 input/output types. JSON operation registration and manifest generation pass 119/119
-registry checks. Prototype JSON hosts pass 361/361 HTTP/ASGI checks; raw responses
+registry checks. Prototype JSON hosts pass 454/454 HTTP/ASGI checks; raw responses
 pass 137/137 checks including streamed delivery, ownership and backpressure.
 Typed HTML callbacks, presentation context, fragments/components and status/error
 rendering pass 203/203 checks.
@@ -26,11 +29,17 @@ Scoped URLs pass 247/247, atomic snapshots 125/125, standalone control-plane syn
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
 persistence 70/70, config HTTP hosting 147/147, protected bootstrap storage 147/147,
 installation 139/139, hostname changes 101/101 and scoped dependency clients 240/240.
-The current review [Windows full gate](results-full-review5.json) and
-[Linux full gate](results-full-review5-linux.json) each pass **6,210/6,210**
-scenarios: 1,488 schema and 4,722 runtime checks, with matching case outcomes.
-The new cases exercise integer inputs, escaped segments and stream URLs, view
-metadata overrides, method/mode-specific contracts and demo response schemas.
+The current review [Windows full gate](results-full-review6.json) and
+[Linux full gate](results-full-review6-linux.json) each pass **6,317/6,317**
+scenarios: 1,488 schema and 4,829 runtime checks, with matching case outcomes.
+The new cases exercise unsigned JSON integers, strict path UTF-8, HEAD preflights
+and operation cache policies. Final cache-scope header additions subsequently
+pass all 454 hosting checks on [Windows](results-hosting-review6-final.json)
+and [Linux](results-hosting-review6-final-linux.json).
+The earlier [Windows full gate](results-full-review5.json) and
+[Linux full gate](results-full-review5-linux.json) passed 6,210 scenarios, covering
+integer inputs, escaped segments and stream URLs, view metadata overrides,
+method/mode-specific contracts and demo response schemas.
 The preceding review [Windows full gate](results-full-review.json) and
 [Linux full gate](results-full-review-linux.json) each pass **6,082/6,082**
 scenarios: 1,488 schema and 4,594 runtime checks, with matching case outcomes.
@@ -93,7 +102,7 @@ future scenarios; they are not assertions that those tests already exist.
 | negotiation | runtime/media.ts, adapters/h3.ts | Native media policy plus JSON/metadata/HTML/NDJSON hosts and finite SSE; authorized metadata avoids handler side effects | protocol.md §3; port READMEs | media_cases.py: 124 checks; hosting_cases.py: availability, 406 and metadata; rendering_cases.py: exact renderer, mode and fragment Accept |
 | rendering | runtime/view.ts, element.ts, statusViews.ts | Typed sync/async HTML callbacks, safe canonical render data, page/fragment/component and method/status selection, response state, URL/element helpers and separate error renderers; global status renderers pending | fragment-html.md; port READMEs | rendering_cases.py: 163 checks for selectors, metadata, escaped HTML, parsed context, status/header/chrome, error projection, HEAD and cancellation; url_cases.py, check_types.py and check_docs.py |
 | context | runtime/configProvider.ts, http.ts, tenantResolution.ts; BSB service.ts | Python context.py/C# Context.cs prototype: canonical scoped parse, host/port lookup and origin policy; host proxy middleware/full policy references pending | config.md §1; port READMEs | context_cases.py: 103 checks for isolation, priority, forged hints, duplicate/orphan identities, origin restrictions, owned copies and null-active rejection |
-| cors | runtime/h3.ts; BSB service.ts | Native trusted-origin policy integrated into JSON/raw/HTML/finite hosts, with per-mount preflights before authentication | protocol.md §2; port READMEs | cors_cases.py: 33 checks; hosting_cases.py, raw_cases.py and rendering_cases.py: protected and fragment preflights, denied methods/origins, auth error headers and header ownership |
+| cors | runtime/h3.ts; BSB service.ts | Native trusted-origin policy integrated into JSON/raw/HTML/finite hosts, with per-mount preflights before authentication; HEAD follows GET policy | protocol.md §2; port READMEs | cors_cases.py: 35 checks; hosting_cases.py, raw_cases.py and rendering_cases.py: protected and fragment preflights, denied methods/origins, auth error headers and header ownership |
 | allowlist | adapters/h3.ts appAllowsRoute | Native exact IDs/legacy IDs, path variants, enabled local instances and GET fragment/slot mounts; JSON hosts enforce operation-specific aliases and verified machine audiences | config.md §1; port READMEs | access_cases.py: 130 checks; hosting_cases.py adds wrong-local-target, method dispatch and rejected aliases |
 | URLs | runtime/configProvider.ts, adapters/h3.ts; BSB service.ts | Native Urls on handler/render contexts: service aliases and exact instances, local/optional paths, app-mounted GET navigation, origin/param/query encoding, fragment/component/SSE selection, HTMX attributes, shell/service elements and route-token rewriting | docs/building/shell-links.md; port READMEs | url_cases.py: 232 shared/native checks; generated option compiler checks and executed documentation |
 | jwt | runtime/auth/tokens.ts, jwtCrypto.ts, verifier.ts | Python security.py; C# Security.cs: six purposes, RS256 issuance/verification, strict headers, time and trust checks | auth.md §1; port READMEs | security_cases.py: cross-signature, wrong-purpose, time, issuer-audience, jku-x5u |

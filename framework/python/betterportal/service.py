@@ -260,6 +260,7 @@ class Service:
         assert state is not None
         response_headers = Cors(scope.origin_policy, [item.method for item in route.operations]).headers(normalized.get("origin"))
         response_headers["vary"] += ", Accept"
+        response_headers["cache-control"] = "no-store"
         access = AppAccess(scope, state.snapshot.local_service_ids)
         if not access.allows(route, method, path=matched_path, fragment=fragment):
             raise RequestError(404, "Route not found", response_headers, scope=scope)
@@ -308,6 +309,11 @@ class Service:
         from .clients import RequestClients
         clients = RequestClients(self.clients, scope.tenant_id, scope.app_id, revision=state,
                                  user_token=_bearer(normalized.get("authorization")) if caller.user is not None else None)
+        hints = operation.declaration["cacheHints"]
+        if hints["ttlSeconds"] > 0:
+            response_headers["cache-control"] = f"private, max-age={hints['ttlSeconds']}"
+            response_headers["vary"] += ", Referer, Authority, Alt-Used, Authorization, Cookie, X-BP-Tenant-Id, X-BP-App-Id, X-BP-Service-Id, X-BP-Service-Authorization"
+        if hints["varyBy"]: response_headers["vary"] += ", " + ", ".join(hints["varyBy"])
         return RequestContext(scope, caller, cast(HttpMethod, method), path, config=values,
                               url_context=self.urls(scope, path, normalized, scheme), client_context=clients), response_headers
 

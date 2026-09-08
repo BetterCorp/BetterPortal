@@ -68,6 +68,7 @@ public sealed partial class Service : IAsyncDisposable
         var normalized = Headers(headers); var scope = Resolve(current, normalized, scheme, mode, trustedAddresses);
         var responseHeaders = new Cors(scope.OriginPolicy, route.Operations.Select(operation => operation.Method)).Headers(normalized.GetValueOrDefault("origin"));
         responseHeaders["vary"] += ", Accept";
+        responseHeaders["cache-control"] = "no-store";
         var access = new AppAccess(scope, current!.Snapshot.LocalServiceIds);
         if (!access.Allows(route, method, matchedPath, fragment)) throw new RequestException(404, "Route not found", responseHeaders, scope);
         var operation = route.Operations.Single(item => item.Method == method);
@@ -97,6 +98,13 @@ public sealed partial class Service : IAsyncDisposable
                 try { values = settings.Schema.Effective(tenant, app); }
                 catch (Exception) { throw new RequestException(503, "Service settings are incomplete", responseHeaders, scope); }
             }
+            var hints = operation.Declaration.CacheHints;
+            if (hints.TtlSeconds > 0)
+            {
+                responseHeaders["cache-control"] = "private, max-age=" + hints.TtlSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                responseHeaders["vary"] += ", Referer, Authority, Alt-Used, Authorization, Cookie, X-BP-Tenant-Id, X-BP-App-Id, X-BP-Service-Id, X-BP-Service-Authorization";
+            }
+            if (hints.VaryBy.Count > 0) responseHeaders["vary"] += ", " + string.Join(", ", hints.VaryBy);
             return new(new RequestContext(scope, caller, method, path, values) { Urls = BuildUrls(current, scope, path, normalized, scheme),
                 ClientContext = new(Clients, scope.TenantId, scope.AppId, current, caller.User is not null ? RequestAuthorization.Bearer(normalized.GetValueOrDefault("authorization")) : null, cancellationToken) }, responseHeaders);
         }

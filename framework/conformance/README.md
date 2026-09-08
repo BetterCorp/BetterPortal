@@ -19,12 +19,18 @@ Initial poll/SSE snapshot replacement may return the documented configuration-ch
 The [native route guide](../ROUTE-AUTHORING.md) documents init and generated projects.
 
 
-The current review [Windows gate](results-full-review5.json) and
-[Linux gate](results-full-review5-linux.json) each pass **6,210/6,210** scenarios:
-**1,488 schema checks** and **4,722 BP runtime checks**, with matching outcomes.
-The 128 additional cases cover integer dependency inputs and Python URLs, escaped
-path parameters and SSE links, ASGI mounts, view metadata overrides and no-GET
-fallbacks, method/mode-specific API contracts, and validated demo responses.
+The current review [Windows gate](results-full-review6.json) and
+[Linux gate](results-full-review6-linux.json) each pass **6,317/6,317** scenarios:
+**1,488 schema checks** and **4,829 BP runtime checks**, with matching outcomes.
+The 107 additional cases cover unsigned JSON integers, invalid UTF-8 paths,
+HEAD preflights and operation cache policies across negotiated and raw responses.
+After the full gates, the final cache-scope header additions pass all 454 hosting
+checks on [Windows](results-hosting-review6-final.json) and
+[Linux](results-hosting-review6-final-linux.json).
+The preceding [Windows gate](results-full-review5.json) and
+[Linux gate](results-full-review5-linux.json) each passed 6,210 scenarios, covering
+integer dependency inputs, escaped segments, view metadata, method/mode-specific
+API contracts and validated demo responses.
 Node's 99 framework tests, lint, native builds and Python type checks pass.
 The canonical documents and generated types remain unchanged; the C# integer URL
 type expansion is pending the upstream AnyVali issue described below.
@@ -321,6 +327,13 @@ URL types with integers is pending [AnyVali #145](https://github.com/BetterCorp/
 1.1.4 accepts out-of-range C# integer inputs and silently clamps them. A standalone
 reproduction confirmed `V.Int().SafeParse(1e21)` returns success with `long.MaxValue`.
 The published package is unchanged and BP contains no workaround for that SDK defect.
+
+C# JSON decoding now preserves unsigned 64-bit integers before using floating point.
+AnyVali 1.1.4 still rejects valid `uint64` values above `Int64.MaxValue`, including
+`9223372036854775809UL` and `ulong.MaxValue`; this separate schema limitation is
+tracked in [AnyVali #146](https://github.com/BetterCorp/AnyVali/issues/146).
+The decoder checks use native AnyVali unknown schemas to isolate BP's conversion
+from that SDK range defect.
 
 The [snapshot suite](results-snapshots.json) passes 125 checks, also run on
 [Python 3.13](results-snapshots-python313.json). Native service probes exercise

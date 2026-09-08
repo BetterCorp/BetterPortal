@@ -59,11 +59,13 @@ of registration order. Same-method paths with the same literal segments and
 parameter positions are rejected. A declared `OPTIONS` operation follows ordinary
 auth and allowlist policy; `OPTIONS` with `Access-Control-Request-Method` is a CORS
 preflight and does not invoke that handler.
+GET also supports HEAD, including preflights checked against the GET mount and policy.
 
 Handlers receive path parameters decoded once: `a%2Fb` becomes `a/b`, while
 `a%252Fb` becomes `a%2Fb`. Generated links and SSE connection URLs retain escaped
 segment boundaries. ASGI servers must supply `raw_path` to distinguish an encoded
 slash from a segment separator; ordinary routing also works without it.
+Native hosts reject invalid UTF-8 in encoded parameters with HTTP 400.
 
 JSON demo responses are validated and normalized with the handler's AnyVali
 response schema before manifest export, including buffered finite-stream demos.
@@ -72,6 +74,12 @@ The framework consumes `_f` and `_c` before validating application query schemas
 Keep `unknownKeys: reject` to reject other undeclared query fields. Relative URL
 helpers preserve anchors, including when changing query values or adding SSE paths.
 Negotiated native responses include `Vary: Accept` alongside CORS and author headers.
+Native hosts apply each operation's `cacheHints`: omitted or zero `ttlSeconds`
+emits `Cache-Control: no-store`; positive lifetimes emit `private, max-age=N`.
+Declared `varyBy` headers are added to `Vary`. Cacheable responses also vary by
+addressing, authorization, cookies and BP scope/service headers to separate callers and apps.
+Explicit author cache headers take precedence. Framework errors, SSE, NDJSON and
+finite stream shells use `no-store`; buffered finite JSON uses the operation policy.
 ASP.NET `MapBetterPortal` owns error bodies for its mapped paths; unrelated endpoints
 and unregistered paths retain the containing application's error behavior.
 

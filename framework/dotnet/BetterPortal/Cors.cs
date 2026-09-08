@@ -17,7 +17,8 @@ public sealed class Cors
     public Cors(OriginPolicy policy, IEnumerable<string> methods)
     {
         this.policy = policy;
-        this.methods = methods.Select(method => (string)Contracts.Parse("HttpMethodSchema", method)!).Append("OPTIONS").Distinct(StringComparer.Ordinal).ToArray();
+        this.methods = methods.Select(method => (string)Contracts.Parse("HttpMethodSchema", method)!)
+            .SelectMany(method => method == "GET" ? new[] { "GET", "HEAD" } : new[] { method }).Append("OPTIONS").Distinct(StringComparer.Ordinal).ToArray();
     }
     public Dictionary<string, string> Headers(string? origin)
     {

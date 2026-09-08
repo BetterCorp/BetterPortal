@@ -18,7 +18,8 @@ class CorsDenied(ValueError):
 class Cors:
     def __init__(self, policy: OriginPolicy, methods: Iterable[str]):
         self.policy = policy
-        self.methods = tuple(dict.fromkeys([*(parse("HttpMethodSchema", method) for method in methods), "OPTIONS"]))
+        declared = [parse("HttpMethodSchema", method) for method in methods]
+        self.methods = tuple(dict.fromkeys([*(item for method in declared for item in (("GET", "HEAD") if method == "GET" else (method,))), "OPTIONS"]))
 
     def headers(self, origin: str | None) -> dict[str, str]:
         result = {"vary": "Origin"}

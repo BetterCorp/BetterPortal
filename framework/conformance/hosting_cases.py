@@ -65,10 +65,31 @@ def run_hosting(urls, labels):
         body["routes"][0]["operations"].append(operation)
         mounted(body)["operations"].append("check.put")
     case("metadata-no-get-secondary-operation", metadata_without_get)
-    for encoded, decoded in (("a%2Fb", "a/b"), ("a%252Fb", "a%2Fb"), ("%E9%9B%AA%2f%25", "\u96ea/%")):
+    for encoded, decoded in (("a%2Fb", "a/b"), ("a%252Fb", "a%2Fb"), ("%E9%9B%AA%2f%25", "\u96ea/%"), ("a+b", "a+b"), ("a%2Bb", "a+b")):
         case("encoded-segment-" + encoded, lambda body, encoded=encoded: body["request"].update(path="/check/" + encoded + "?hello=world"),
              invoked=1, expected={**baseline, "params": {"key": decoded}})
     case("preflight", lambda body: (body["request"].update(method="OPTIONS"), body["request"]["headers"].update({"access-control-request-method": "GET"})), 204, 0)
+    def head_preflight(body):
+        body["request"].update(method="OPTIONS")
+        body["request"]["headers"].update({"access-control-request-method": "HEAD", "access-control-request-headers": "Authorization"})
+    case("head-preflight", head_preflight, 204, 0, native=True)
+    case("head-preflight-before-auth", lambda body: (head_preflight(body), body["routes"][0]["operations"][0]["declaration"].update(auth={"required": True})), 204, 0, native=True)
+    case("head-preflight-denied-mount", lambda body: (head_preflight(body), mounted(body).update(operations=["check.post"])), 403, 0, native=True)
+    case("head-preflight-no-get", lambda body: (head_preflight(body), body["routes"][0]["operations"].pop(0)), 403, 0, native=True)
+    for encoded in ("%FF", "%FE", "%C0%AF", "%ED%A0%80", "%E2%82"):
+        case("path-invalid-utf8-" + encoded, lambda body, encoded=encoded: body["request"].update(path="/check/" + encoded), 400, 0, native=True)
+    case("path-replacement-character", lambda body: body["request"].update(path="/check/%EF%BF%BD?hello=world"), invoked=1, expected={**baseline, "params": {"key": "\ufffd"}})
+    for number in (9223372036854775809, 18446744073709551615):
+        def integer_body(body, number=number):
+            write(body, json.dumps({"id": number}))
+            spec = body["routes"][0]["operations"][1]
+            unknown = {**spec["response"], "root": {"kind": "unknown"}}
+            spec.update(response=unknown, schemas={"request": unknown})
+        case("uint64-body-" + str(number), integer_body, invoked=1, expected={**baseline, "request": {"id": number}}, native=True)
+        def integer_result(body, number=number):
+            spec = body["routes"][0]["operations"][0]
+            spec.update(result={"id": number}, response={**spec["response"], "root": {"kind": "unknown"}})
+        case("uint64-result-" + str(number), integer_result, invoked=1, expected={"id": number}, native=True)
     case("urlencoded", lambda body: write(body, "hello=world", "application/x-www-form-urlencoded"), expected={**baseline, "request": {"hello": "world"}, "multipart": {"fields": {"hello": "world"}, "files": {}}})
     multipart = '--bp\r\nContent-Disposition: form-data; name="hello"\r\n\r\nworld\r\n--bp\r\nContent-Disposition: form-data; name="upload"; filename="hello.txt"\r\nContent-Type: text/plain\r\n\r\nHi\r\n--bp--\r\n'
     upload = {"fieldName": "upload", "filename": "hello.txt", "contentType": "text/plain", "size": 2, "data": [72, 105]}
@@ -177,6 +198,8 @@ def run_hosting(urls, labels):
                 if name == "manifest": assert json.loads(actual["body"])["views"][0]["viewId"] == "check", actual
                 if name == "schema": assert json.loads(actual["body"])["manifest"]["pluginId"] == "com.example.service", actual
                 if name == "json-get": assert actual["headers"]["access-control-allow-origin"] == "https://app.test", actual
+                if name.startswith("head-preflight") and status == 204:
+                    assert "HEAD" in actual["headers"]["access-control-allow-methods"].split(", "), actual
             check(label, name, action)
     for url, label in zip(urls, labels):
         if label != "python": continue
@@ -207,6 +230,50 @@ def run_hosting(urls, labels):
                         validate(actual, status if method == "GET" else 405, 0)
                         assert actual["body"] == "" and "content-type" not in actual["headers"], actual
                     check(label, f"unrelated-{placement}-{status}-{method}", unrelated)
+    for url, label in zip(urls, labels):
+        if label == "node": continue
+        for ttl in (None, 0, 60):
+            for kind in ("json", "head", "post", "metadata", "html", "fragment", "raw"):
+                def cache_response():
+                    from rendering_cases import fixture as rendered
+                    body = rendered() if kind in ("html", "fragment") else fixture()
+                    if kind == "head": body["request"]["method"] = "HEAD"
+                    if kind == "post": write(body)
+                    if kind == "metadata": body["request"]["headers"]["accept"] = "application/vnd.betterportal.metadata+json"
+                    if kind == "fragment": body["request"]["path"] = "/check/item?_f=nav.profile"
+                    spec = body["routes"][0]["operations"][1 if kind == "post" else 0]
+                    if kind == "raw": spec["raw"] = {"body": "b2s="}
+                    if ttl is not None: spec["declaration"]["cacheHints"] = {"ttlSeconds": ttl, "varyBy": ["Accept-Language"]}
+                    actual = post(url, body); validate(actual)
+                    cache = {part.strip() for part in actual["headers"].get("cache-control", "").split(",")}
+                    assert cache == ({"private", "max-age=60"} if ttl else {"no-store"}), actual
+                    vary = {name.strip().lower() for name in actual["headers"]["vary"].split(",")}
+                    assert {"origin", "accept"} <= vary, actual
+                    if ttl is not None: assert "accept-language" in vary, actual
+                    if ttl: assert {"referer", "authority", "alt-used", "authorization", "cookie", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"} <= vary, actual
+                check(label, f"cache-{ttl}-{kind}", cache_response)
+        for kind in ("json", "raw"):
+            def explicit_cache():
+                body = fixture(); spec = body["routes"][0]["operations"][0]
+                spec["declaration"]["cacheHints"] = {"ttlSeconds": 60}
+                if kind == "raw": spec["raw"] = {"body": "b2s=", "headers": [["Cache-Control", "no-store"]]}
+                else: spec["responseHeaders"] = [["Cache-Control", "no-store"]]
+                actual = post(url, body); validate(actual)
+                assert actual["headers"].get("cache-control") == "no-store", actual
+            check(label, "cache-explicit-" + kind, explicit_cache)
+        for kind, status in (("auth", 401), ("input", 400), ("handler", 500), ("negotiation", 406), ("origin", 403), ("status", 404)):
+            def cache_error():
+                body = fixture(); spec = body["routes"][0]["operations"][0]
+                spec["declaration"]["cacheHints"] = {"ttlSeconds": 60}
+                if kind == "auth": spec["declaration"]["auth"] = {"required": True}
+                if kind == "input": spec["schemas"] = {"query": {**spec["response"], "root": {"kind": "bool"}}}
+                if kind == "handler": spec["throw"] = True
+                if kind == "origin": body["request"]["headers"].update(origin="https://wrong.test", host="app.test")
+                if kind == "status": spec["status"] = 404
+                if kind == "negotiation": body["request"]["headers"]["accept"] = "image/png"
+                actual = post(url, body); validate(actual, status)
+                assert actual["headers"].get("cache-control") == "no-store", actual
+            check(label, "cache-error-" + kind, cache_error)
     keys = [post(url, {"action": "jwt-key"}) for url in urls]
     claims = fixtures()
     with peer() as (base, routes, counts, barriers):

@@ -17,6 +17,11 @@ public static class Hosting
         var raw = request.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
         return raw?.StartsWith('/') is true ? new Uri("http://betterportal.invalid" + raw.Split('?', 2)[0]).AbsolutePath : request.PathBase.Add(request.Path).ToUriComponent();
     }
+    private static string PathParameter(string value)
+    {
+        try { return Utf8.GetString(System.Web.HttpUtility.UrlDecodeToBytes(value.Replace("+", "%2B", StringComparison.Ordinal), Utf8)); }
+        catch (DecoderFallbackException) { throw new RequestException(400, "Invalid path encoding"); }
+    }
     private static readonly HashSet<string> SingleHeaders = new(["host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"], StringComparer.OrdinalIgnoreCase);
     private static Dictionary<string, string> Headers(HttpRequest request)
     {
@@ -125,6 +130,7 @@ public static class Hosting
     {
         context.Response.StatusCode = status;
         if (headers is not null) foreach (var (key, item) in headers) context.Response.Headers[key] = item;
+        if (status >= 400) context.Response.Headers.CacheControl = "no-store";
         if (status is 204 or 304) return;
         context.Response.ContentType = contentType + "; charset=utf-8";
         if (context.Request.Method == "HEAD") return;
@@ -141,6 +147,10 @@ public static class Hosting
             foreach (var (name, value) in raw.Headers) context.Response.Headers.Append(name, value);
             foreach (var (name, value) in headers)
                 if (name.Equals("vary", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.Append(name, value);
+                else if (name.Equals("cache-control", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!context.Response.Headers.ContainsKey(name)) context.Response.Headers[name] = raw.Status >= 400 || raw.BodyStream is not null || raw.BodyChunks is not null ? "no-store" : value;
+                }
                 else context.Response.Headers[name] = value;
             if (raw.BodyStream is null && raw.BodyChunks is null && raw.Status is not (204 or 304)) context.Response.ContentLength = raw.Body.Length;
             if (context.Request.Method == "HEAD" || raw.Status is 204 or 205 or 304) return;
@@ -267,7 +277,7 @@ public static class Hosting
             var requestAborted = context.RequestAborted;
             using var lifetime = service.Ready ? CancellationTokenSource.CreateLinkedTokenSource(requestAborted, service.Stopping, endpoints.Lifetime.ApplicationStopping) : null;
             if (lifetime is not null) context.RequestAborted = lifetime.Token;
-            IReadOnlyDictionary<string, string> responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin, Accept" };
+            IReadOnlyDictionary<string, string> responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin, Accept", ["cache-control"] = "no-store" };
             ScopedContext? failureScope = null; Operation? operation = null; Route? route = null; Representation? representation = null;
             var kind = "page"; string? key = null; var matched = ""; var requested = "GET";
             var query = new Node(); var parameters = new Node();
@@ -275,6 +285,7 @@ public static class Hosting
             var headers = new Dictionary<string, string>();
             async Task Failure(int status, string message, ScopedContext? scope = null)
             {
+                responseHeaders = new Dictionary<string, string>(responseHeaders) { ["cache-control"] = "no-store" };
                 scope ??= failureScope;
                 var theme = (scope?.App.GetValueOrDefault("shell") as Node)?.GetValueOrDefault("renderer") as string;
                 if (theme is not null && scope is not null && operation is not null && route is not null && representation?.Kind == "html")
@@ -297,14 +308,15 @@ public static class Hosting
                 if (query.GetValueOrDefault("_f") is { } selector && selector is not string) throw new RequestException(400, "Invalid fragment selector");
                 var fragment = (string?)query.GetValueOrDefault("_f");
                 var preflight = context.Request.Method == "OPTIONS" && headers.ContainsKey("access-control-request-method");
-                requested = preflight ? headers["access-control-request-method"] : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;
+                requested = preflight ? headers["access-control-request-method"] : context.Request.Method;
+                if (requested == "HEAD") requested = "GET";
                 if (!operations.TryGetValue(requested, out var binding)) throw new RequestException(preflight ? 403 : 405, "Method not allowed");
                 if (sse && (query.ContainsKey("_c") || binding.Route.Sse is null && query.ContainsKey("_f"))) throw new RequestException(400, "Stream connection does not support this selector");
                 route = binding.Route; matched = binding.Path;
                 var routedPath = requestPath.TrimEnd('/');
                 var rawSegments = (sse ? routedPath[..^"/__sse".Length] : routedPath).Split('/').TakeLast(Segments(binding.Path).Length).ToArray();
                 parameters = Segments(binding.Path).Select((part, index) => (part, index)).Where(item => item.part.StartsWith(':'))
-                    .ToDictionary(item => item.part[1..], item => (object?)Uri.UnescapeDataString(rawSegments[item.index]));
+                    .ToDictionary(item => item.part[1..], item => (object?)PathParameter(rawSegments[item.index]));
                 if (preflight)
                 {
                     responseHeaders = service.Preflight(binding.Route, headers, binding.Path, fragment, context.Request.Scheme, mode);

@@ -13,6 +13,7 @@ def run_cors(urls, labels):
         ("actual-no-origin", "GET", {}, 200),
     ]
     native = [
+        ("head-preflight", "OPTIONS", {"Origin": "https://app.test", "Access-Control-Request-Method": "HEAD"}, 204),
         ("denied-preflight", "OPTIONS", {"Origin": "https://evil.test", "Access-Control-Request-Method": "GET"}, 403),
         ("denied-actual", "GET", {"Origin": "https://evil.test"}, 403),
         ("wrong-port", "OPTIONS", {"Origin": "https://app.test:444", "Access-Control-Request-Method": "GET"}, 403),
@@ -37,6 +38,7 @@ def run_cors(urls, labels):
                         assert not body and response.headers.get("x-test-handler") is None, body
                         assert response.headers["access-control-allow-origin"] == headers["Origin"], response.headers
                         assert "GET" in response.headers["access-control-allow-methods"], response.headers
+                        assert headers["Access-Control-Request-Method"] in {part.strip() for part in response.headers["access-control-allow-methods"].split(",")}, response.headers
                         allowed = {value.strip().lower() for value in response.headers["access-control-allow-headers"].split(",")}
                         requested = {value.strip().lower() for value in headers.get("Access-Control-Request-Headers", "Authorization, traceparent").split(",")}
                         assert requested <= allowed, allowed

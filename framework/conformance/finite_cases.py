@@ -56,6 +56,23 @@ def run_finite(urls, labels):
         assert actual["headers"]["content-type"].startswith("application/x-ndjson" if mode == "ndjson" else "text/event-stream"), actual
         assert frames(actual, mode) == expected, actual
     for url, label in zip(urls, labels):
+        if label != "node":
+            for mode in ("json", "ndjson", "sse", "html"):
+                body = fixture(mode); themed(body)
+                body["routes"][0]["operations"][0]["declaration"]["cacheHints"] = {"ttlSeconds": 60}
+                def cache(actual):
+                    response(actual)
+                    directives = {part.strip() for part in actual["headers"].get("cache-control", "").split(",")}
+                    assert directives == ({"private", "max-age=60"} if mode == "json" else {"no-store"}), actual
+                check(url, label, "cache-" + mode, body, cache)
+            body = fixture("sse"); body["request"].update(method="OPTIONS")
+            body["request"]["headers"]["access-control-request-method"] = "HEAD"
+            def head_preflight(actual):
+                response(actual, 204, 0)
+                assert "HEAD" in actual["headers"]["access-control-allow-methods"].split(", "), actual
+            check(url, label, "head-preflight", body, head_preflight)
+            body = fixture("sse"); body["request"]["path"] = "/check/%FF/__sse"
+            check(url, label, "invalid-utf8-path", body, lambda actual: response(actual, 400, 0))
         for encoded, decoded in (("a%2Fb", "a/b"), ("a%252Fb", "a%2Fb")):
             body = fixture("html"); themed(body)
             body["request"]["path"] = "/check/" + encoded + "?hello=world"
