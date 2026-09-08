@@ -36,6 +36,7 @@ class RequestError(Exception):
 class _Snapshot:
     def __init__(self, snapshot: ScopedConfig, descriptors: Iterable[dict[str, Any]], preview_key: str | None, settings_schema: SettingsSchema | None = None):
         self.snapshot, self.config = snapshot, snapshot.document()
+        self.retired = asyncio.Event()
         self.preview: dict[str, Any] = {}
         self.preview_values: dict[str, Any] = {"tenant": {}, "app": {}}
         self.preview_scope: tuple[str, str] | None = None
@@ -56,6 +57,7 @@ class _Snapshot:
         self.keys = {(issuer, uri): JwksClient(issuer, uri) for issuer, uri in addresses}
 
     async def close(self) -> None:
+        self.retired.set()
         await asyncio.gather(*(client.aclose() for client in self.keys.values()))
 
 
@@ -177,6 +179,7 @@ class Service:
                 previous, self._state = self._state, next_state
                 self._submitted = self._submitted or manifest_submitted
                 if previous is not None:
+                    previous.retired.set()
                     for client in previous.keys.values(): client.invalidate()
                     cleanup = asyncio.create_task(previous.close())
                     self._cleanup.add(cleanup)
@@ -316,7 +319,7 @@ class Service:
             response_headers["vary"] += ", Referer, Authority, Alt-Used, Authorization, Cookie, X-BP-Tenant-Id, X-BP-App-Id, X-BP-Service-Id, X-BP-Service-Authorization"
         if hints["varyBy"]: response_headers["vary"] += ", " + ", ".join(hints["varyBy"])
         return RequestContext(scope, caller, cast(HttpMethod, method), path, config=values,
-                              url_context=self.urls(scope, path, normalized, scheme), client_context=clients), response_headers
+                              url_context=self.urls(scope, path, normalized, scheme), client_context=clients, _retired=state.retired), response_headers
 
     def urls(self, scope: ScopedContext, path: str, headers: Mapping[str, str] | None = None, scheme: str = "https") -> Urls:
         headers = headers or {}

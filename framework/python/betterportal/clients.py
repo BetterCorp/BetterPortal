@@ -266,4 +266,5 @@ class Client:
                 headers.update(authorization="Bearer " + self._context._user_token)
                 headers["x-bp-service-authorization"] = "Bearer " + token
             else: headers["authorization"] = "Bearer " + token
-        return http_origin(secure_endpoint(target["hostname"])), headers
+        endpoint = secure_endpoint(target["hostname"])
+        return http_origin(endpoint, allow_path=True) + httpx.URL(endpoint).raw_path.decode("ascii").rstrip("/"), headers

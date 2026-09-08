@@ -135,6 +135,14 @@ def run_clients(urls, labels):
                     actual = post(verifier, request); assert actual["valid"], (other, actual)
             case("service-cross-verification", service, validate=machine_result, count=1)
             case("delegated-cross-verification", delegated, validate=lambda values: machine_result(values, "delegated"), count=1)
+            for mode, authorize in (("user", lambda item: None), ("service", service), ("delegated", delegated)):
+                for prefix in ("/prefix", "/prefix/", "/caf%C3%A9/a%2Fb"):
+                    def base_path(item):
+                        authorize(item)
+                        item["snapshot"]["tenants"][0]["services"][0]["hostname"] = base + prefix
+                        item["snapshot"]["m2m"]["services"][1]["hostname"] = base + prefix
+                    case(f"base-path-{mode}-{prefix}", base_path, count=1,
+                         validate=lambda values: expect(values[0]["output"]["path"], prefix.rstrip("/") + "/check/item"))
             for author, contract in contracts.items(): case("contract-from-" + author, lambda item, contract=contract: item.update(contract=contract["schema"]), count=1)
             case("alias", lambda item: item.update(dependencies={"peer": "com.example.service"}, serviceId="peer"), count=1)
             case("unknown-service", lambda item: item.update(serviceId="com.example.absent"), expected=403, count=0)
@@ -189,7 +197,7 @@ def run_clients(urls, labels):
                 case(f"integer-{number}", integer, count=1,
                     validate=lambda values, number=number: (expect(values[0]["output"]["path"], f"/check/{number}?n={number}"),
                         expect(values[0]["output"]["headers"]["x-number"], str(number))))
-            for address in ("http://remote.test", "http://127.1", "http://127.0.0.1.evil.test", "https://user:password@remote.test", base + "/prefix"):
+            for address in ("http://remote.test", "http://127.1", "http://127.0.0.1.evil.test", "https://user:password@remote.test", base + "/prefix?query", base + "/prefix#fragment"):
                 case("unsafe-origin-" + address, lambda item, address=address: item["snapshot"]["tenants"][0]["services"][0].update(hostname=address), expected=400, count=0)
             case("redirect", reply={"status": 307, "headers": {"location": base + "/stolen"}}, expected=307, count=1)
             case("upstream-error-redacted", reply={"status": 500, "raw": b"private-error-secret"}, expected=500, count=1,

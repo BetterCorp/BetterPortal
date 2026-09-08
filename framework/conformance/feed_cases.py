@@ -136,6 +136,20 @@ def run_feeds(urls, labels):
             def shutdown(actual):
                 assert actual["shutdown"] and actual["transportOpen"] and actual["invoked"] == 0 and actual["feed"]["active"] == 0 and actual["feed"]["closed"], actual
             check(url, label, "service-shutdown-" + stage, body, shutdown, native=True)
+        for stage in ("subscribe", "mapper", "renderer", "output"):
+            for revoked in ("mount", "tenant", "unchanged"):
+                body = fixture(); body["feedCancelStage"] = stage
+                if stage == "output": body["rawOutputProbe"] = "backpressure"
+                if stage == "mapper": body["routes"][0]["feed"]["wait"] = True
+                if stage == "renderer": themed(body); body["routes"][0]["feed"]["renderers"][0]["wait"] = True
+                body["feedSnapshot"] = deepcopy(body["snapshot"])
+                if revoked == "mount": body["feedSnapshot"]["apps"][0]["routes"][0]["enabled"] = False
+                if revoked == "tenant": body["feedSnapshot"]["tenants"][0]["active"] = False
+                def retired(actual):
+                    shutdown(actual)
+                    assert actual["feed"]["mapped"] == (0 if stage == "subscribe" else 1), actual
+                    if stage == "mapper": assert actual["feed"]["cancelled"], actual
+                check(url, label, f"snapshot-retirement-{stage}-{revoked}", body, retired, native=True)
         for name in ("mapper-error", "invalid-event", "corrupt-json", "corrupt-contract", "event-bound", "render-bound", "overflow"):
             body = fixture(); feed = body["routes"][0]["feed"]
             feed["publications"] = [{"value": "event"}]
@@ -222,4 +236,15 @@ def run_feeds(urls, labels):
                         assert caller["caller"] == name and caller["user"] == "user-1" and caller["tenantId"] == TENANT and caller["appId"] == APP, actual
                 for url, label in zip(urls, labels):
                     check(url, label, signer_label + "-auth-" + name, body, authorized, native=name.startswith("delegated") or name == "machine-grant-revoked")
+                if name in ("user", "delegated"):
+                    body["feedCancelStage"] = "mapper"; feed["wait"] = True
+                    feed["publications"] *= 2
+                    body["feedSnapshot"] = deepcopy(body["snapshot"])
+                    if name == "user": body["feedSnapshot"]["apps"][0]["auth"]["roles"] = []
+                    else: body["feedSnapshot"]["m2m"]["grants"][0]["enabled"] = False
+                    def revoked_while_connected(actual):
+                        assert actual["shutdown"] and actual["transportOpen"] and actual["feed"]["mapped"] == 1, actual
+                        assert actual["feed"]["closed"] and actual["feed"]["active"] == 0 and actual["feed"]["cancelled"], actual
+                    for url, label in zip(urls, labels):
+                        check(url, label, signer_label + "-live-revocation-" + name, body, revoked_while_connected, native=True)
     return results

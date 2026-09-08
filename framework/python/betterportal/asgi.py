@@ -138,13 +138,14 @@ async def _decode(request: Request, body: bytes) -> tuple[Any, Any]:
 _Output = TypeVar("_Output")
 
 
-async def _connected(request: Request, work: Coroutine[Any, Any, _Output], service: Service | None = None) -> _Output:
+async def _connected(request: Request, work: Coroutine[Any, Any, _Output], service: Service | None = None, retired: asyncio.Event | None = None) -> _Output:
     """The body is drained before watching receive, so the watcher cannot steal input."""
     async def disconnected():
         while (await request.receive())["type"] != "http.disconnect": pass
     task = asyncio.create_task(work)
     watchers = [asyncio.create_task(disconnected())]
     if service is not None: watchers.append(asyncio.create_task(service.wait_stopped()))
+    if retired is not None: watchers.append(asyncio.create_task(retired.wait()))
     try:
         try:
             done, _ = await asyncio.wait((task, *watchers), return_when=asyncio.FIRST_COMPLETED)
@@ -163,8 +164,9 @@ async def _connected(request: Request, work: Coroutine[Any, Any, _Output], servi
 
 
 class _RawReply(Response):
-    def __init__(self, raw: RawResponse, headers: dict[str, str], *, head: bool, service: Service | None = None):
+    def __init__(self, raw: RawResponse, headers: dict[str, str], *, head: bool, service: Service | None = None, retired: asyncio.Event | None = None):
         self.raw, self.service = raw, service
+        self.retired = retired
         pairs = [(name.lower().encode("ascii"), value.encode("latin-1")) for name, value in raw.headers]
         for name, value in headers.items():
             if name.lower() == "cache-control":
@@ -180,6 +182,7 @@ class _RawReply(Response):
         else:
             async def chunks():
                 async for chunk in raw.body:
+                    if retired is not None and retired.is_set(): raise asyncio.CancelledError
                     if not isinstance(chunk, bytes): raise TypeError("Raw stream chunks must be bytes")
                     yield chunk
             self.reply = StreamingResponse(chunks(), status_code=raw.status)
@@ -189,7 +192,7 @@ class _RawReply(Response):
         try:
             if isinstance(self.reply, StreamingResponse):
                 # Watch receive for every ASGI version, including while a producer waits.
-                await _connected(Request(scope, receive), self.reply.stream_response(send), self.service)
+                await _connected(Request(scope, receive), self.reply.stream_response(send), self.service, self.retired)
             else: await self.reply(scope, receive, send)
         finally:
             close = getattr(getattr(self.reply, "body_iterator", None), "aclose", None)
@@ -263,9 +266,9 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                         path = request_path.removesuffix("/__sse") or "/"
                         presentation = replace(context, path=path, url_context=service.urls(context.scope, path, headers, request.url.scheme))
                         return RenderContext.create(presentation, route.view_id, matched, theme, "fragment", "fragment", fragment, 200, parsed_params, parsed_query)
-                    return _RawReply(route.sse.open_stream(context, values, fragment=fragment, render_context=event_context), response_headers, head=request.method == "HEAD", service=service)
+                    return _RawReply(route.sse.open_stream(context, values, fragment=fragment, render_context=event_context), response_headers, head=request.method == "HEAD", service=service, retired=context._retired)
                 if isinstance(operation.handler, FiniteHandler) and (sse or representation is not None and representation.kind == "ndjson"):
-                    return _RawReply(operation.handler.open_stream(context, values, sse=sse, render_context=stream_context), response_headers, head=request.method == "HEAD", service=service)
+                    return _RawReply(operation.handler.open_stream(context, values, sse=sse, render_context=stream_context), response_headers, head=request.method == "HEAD", service=service, retired=context._retired)
                 if isinstance(operation.handler, FiniteHandler) and requested == "GET" and kind == "page" and representation is not None and representation.kind == "html":
                     connection = request_path.rstrip("/") + "/__sse"
                     if request.scope["query_string"]: connection += "?" + quote(request.scope["query_string"].decode("utf-8"), safe="!$&'()*+,-./:;=?@_~%")
@@ -277,7 +280,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                     if not any(item.identity[:3] == (theme, kind, key) for item in operation.handler.renderers):
                         raise NotAcceptable("Requested renderer is not available")
                 output = await operation.execute(context, values)
-                if operation.handler.is_raw: return _RawReply(output.value, response_headers, head=request.method == "HEAD", service=service)
+                if operation.handler.is_raw: return _RawReply(output.value, response_headers, head=request.method == "HEAD", service=service, retired=context._retired)
                 status = context.response.status
                 application_headers = [(name, value) for name, value in context.response.headers if name.lower() != "content-type"]
                 if status in (204, 205, 304): return _RawReply(RawResponse(status=status, headers=application_headers), response_headers, head=request.method == "HEAD", service=service)

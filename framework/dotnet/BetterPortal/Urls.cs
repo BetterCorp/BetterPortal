@@ -128,7 +128,7 @@ public sealed class Urls
         var opts = Options(options); var target = (string?)opts.GetValueOrDefault("serviceId", serviceId); var ids = Ids(target);
         if (ids.Count == 0) return null;
         string? path;
-        if (ids.Overlaps(Ids(serviceId))) path = routes.GetValueOrDefault(viewId, []).Select(candidate => Fill(candidate, (Node)opts["params"]!)).FirstOrDefault(value => value is not null);
+        if (ids.Count == 1 && ids.SetEquals(Ids(serviceId))) path = routes.GetValueOrDefault(viewId, []).Select(candidate => Fill(candidate, (Node)opts["params"]!)).FirstOrDefault(value => value is not null);
         else
         {
             var targets = mounts.Where(item => item["enabled"] is true && ids.Contains((string)item["serviceId"]!) && (string)item["viewId"]! == viewId && ServicePath(item) is not null)

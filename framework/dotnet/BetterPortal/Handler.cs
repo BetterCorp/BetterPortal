@@ -37,6 +37,8 @@ public sealed record RequestContext(ScopedContext Scope, AuthorizedCaller Caller
     public Urls Urls { get; init; } = new(Scope, null, null, Path);
     internal RequestClients? ClientContext { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
+    public CancellationToken SnapshotRetired { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
     public RequestClients Clients => ClientContext ?? throw new InvalidOperationException("Clients require a service request context");
 }
 

@@ -142,10 +142,11 @@ public static class Hosting
         await context.Response.WriteAsync(Json.Write(value), context.RequestAborted);
     }
     private static string[] Segments(string path) => path == "/" ? [] : path[1..].Split('/');
-    private static async Task ReplyRaw(HttpContext context, RawResponse raw, IReadOnlyDictionary<string, string> headers)
+    private static async Task ReplyRaw(HttpContext context, RawResponse raw, IReadOnlyDictionary<string, string> headers, CancellationToken retired = default)
     {
         await using (raw)
         {
+            using var retirement = retired.Register(context.Abort);
             context.Response.StatusCode = raw.Status;
             // An intentional empty raw error must not become a framework JSON error.
             if (context.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } statusPages) statusPages.Enabled = false;
@@ -163,6 +164,7 @@ public static class Hosting
             {
                 await foreach (var chunk in raw.BodyChunks.WithCancellation(context.RequestAborted))
                 {
+                    retired.ThrowIfCancellationRequested();
                     await context.Response.Body.WriteAsync(chunk, context.RequestAborted);
                     await context.Response.Body.FlushAsync(context.RequestAborted);
                 }
@@ -372,11 +374,11 @@ public static class Hosting
                         var presentation = requestContext with { Path = path, Urls = service.Urls(requestContext.Scope, path, headers, context.Request.Scheme) };
                         return RenderContext.Create(presentation, binding.Route.ViewId, binding.Path, renderer, "fragment", "fragment", fragment, 200, parsedParams, parsedQuery, context.RequestAborted);
                     }
-                    await ReplyRaw(context, feed.OpenStream(requestContext, values, fragment, EventContext, context.RequestAborted), responseHeaders); return;
+                    await ReplyRaw(context, feed.OpenStream(requestContext, values, fragment, EventContext, context.RequestAborted), responseHeaders, requestContext.SnapshotRetired); return;
                 }
                 if (operation.Handler.IsStreaming && (sse || representation?.Kind == "ndjson"))
                 {
-                    await ReplyRaw(context, operation.Handler.OpenStream(requestContext, values, sse, StreamContext, context.RequestAborted), responseHeaders); return;
+                    await ReplyRaw(context, operation.Handler.OpenStream(requestContext, values, sse, StreamContext, context.RequestAborted), responseHeaders, requestContext.SnapshotRetired); return;
                 }
                 if (operation.Handler.IsStreaming && requested == "GET" && kind == "page" && representation?.Kind == "html")
                 {
@@ -396,7 +398,7 @@ public static class Hosting
                         throw new NotAcceptableException("Requested renderer is not available");
                 }
                 var output = await operation.Execute(requestContext, values, context.RequestAborted);
-                if (operation.Handler.IsRaw) { await ReplyRaw(context, (RawResponse)output.Value!, responseHeaders); return; }
+                if (operation.Handler.IsRaw) { await ReplyRaw(context, (RawResponse)output.Value!, responseHeaders, requestContext.SnapshotRetired); return; }
                 var status = requestContext.Response.Status;
                 var applicationHeaders = requestContext.Response.Headers.Where(pair => !pair.Key.Equals("content-type", StringComparison.OrdinalIgnoreCase)).ToList();
                 if (status is 204 or 205 or 304) { await ReplyRaw(context, new RawResponse(status: status, headers: applicationHeaders), responseHeaders); return; }

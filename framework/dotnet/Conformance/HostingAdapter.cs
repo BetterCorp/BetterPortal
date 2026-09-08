@@ -168,10 +168,11 @@ internal static class HostingAdapter
             {
                 var call = client.SendAsync(request, timeout.Token);
                 var observed = 0;
-                if (body.GetValueOrDefault("feedShutdown") is true)
+                if (body.GetValueOrDefault("feedShutdown") is true || body.ContainsKey("feedSnapshot"))
                 {
-                    await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-                    if (body.GetValueOrDefault("feedHostShutdown") is true)
+                    await (body.GetValueOrDefault("rawOutputProbe") is "backpressure" ? firstWrite.Task : started.Task).WaitAsync(TimeSpan.FromSeconds(3));
+                    if (body.TryGetValue("feedSnapshot", out var nextSnapshot)) await service.ApplySnapshot(nextSnapshot!);
+                    else if (body.GetValueOrDefault("feedHostShutdown") is true)
                     {
                         var stopping = host.StopAsync();
                         try { await stopping.WaitAsync(TimeSpan.FromSeconds(1)); }

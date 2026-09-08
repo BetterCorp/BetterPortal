@@ -260,7 +260,8 @@ public sealed class Client
             }
             else headers["authorization"] = "Bearer " + token;
         }
-        return (HttpAddress.Origin(TrustedKeys.SecureEndpoint((string)target["hostname"]!).AbsoluteUri), headers);
+        var endpoint = TrustedKeys.SecureEndpoint((string)target["hostname"]!);
+        return (HttpAddress.Origin(endpoint.AbsoluteUri, allowPath: true) + endpoint.AbsolutePath.TrimEnd('/'), headers);
     }
 }
 

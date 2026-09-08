@@ -156,6 +156,13 @@ async def hosting_request(body):
             try:
                 await asyncio.wait_for(first.wait(), 3)
                 observed = feeds.stats["mapped"] if feeds.specs else stream["reads"]
+                if "feedSnapshot" in body:
+                    await service.apply_snapshot(body["feedSnapshot"])
+                    try: await asyncio.wait_for(asyncio.shield(task), 1)
+                    except asyncio.TimeoutError: return {"shutdown": False, **feeds.result()}
+                    except asyncio.CancelledError: pass
+                    await feeds.inner.publish(feeds.address, b"null")
+                    return {"shutdown": True, "transportOpen": True, "invoked": invoked, **feeds.result()}
                 if body["rawOutputProbe"] == "disconnect":
                     await asyncio.wait_for(started.wait(), 3); disconnected.set()
                 else: release.set()
@@ -172,9 +179,10 @@ async def hosting_request(body):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=transport), base_url="http://service.test") as client:
             call = asyncio.create_task(client.request(request["method"], request["path"], headers=request.get("headers", {}), content=payload))
             try:
-                if body.get("feedShutdown"):
+                if body.get("feedShutdown") or "feedSnapshot" in body:
                     await asyncio.wait_for(started.wait(), 3)
-                    if body.get("feedHostShutdown"): await lifespan.__aexit__(None, None, None)
+                    if "feedSnapshot" in body: await service.apply_snapshot(body["feedSnapshot"])
+                    elif body.get("feedHostShutdown"): await lifespan.__aexit__(None, None, None)
                     else: await service.aclose()
                     try: await asyncio.wait_for(asyncio.shield(call), 1)
                     except asyncio.TimeoutError: return {"shutdown": False, "invoked": invoked, **feeds.result()}

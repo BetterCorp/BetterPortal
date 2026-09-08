@@ -1,6 +1,7 @@
 """Typed handlers; hosting supplies an already resolved and authorized context."""
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 import inspect
 from types import MappingProxyType
@@ -66,6 +67,7 @@ class RequestContext:
     response: ResponseState = field(default_factory=ResponseState)
     url_context: Urls | None = None
     client_context: RequestClients | None = field(default=None, repr=False, compare=False)
+    _retired: asyncio.Event | None = field(default=None, repr=False, compare=False)
     @property
     def urls(self) -> Urls: return self.url_context or Urls(self.scope, None, None, self.path)
     @property

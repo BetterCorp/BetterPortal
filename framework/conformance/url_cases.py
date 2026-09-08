@@ -102,6 +102,17 @@ def run_urls(urls, labels):
          lambda body: (body["snapshot"]["apps"][0].update(hostnames=["app.test", "second.test"]), body["request"]["headers"].update(origin="https://second.test")))
     case("same-plugin-instance", route({"serviceId": SOURCE}, "docs.index"), "/content/intro",
          lambda body: body["snapshot"]["tenants"][0]["services"][1].update(serviceId="com.example.service"), native=True)
+    for reference in ("com.example.service", "docs"):
+        for ambiguous in (False, True):
+            for absolute in (False, True):
+                def same_plugin(body):
+                    body["snapshot"]["tenants"][0]["services"][1].update(serviceId="com.example.service")
+                    body["dependencies"]["docs"] = "com.example.service"
+                    mounts = body["snapshot"]["apps"][0]["appRoutes"]
+                    mounts[1]["viewId"] = "check"
+                    if not ambiguous: mounts.pop(0)
+                case(f"same-plugin-mount-{reference}-{ambiguous}-{absolute}", route({"serviceId": reference, "params": params, "absolute": absolute}),
+                     None if ambiguous else ("https://other.test" if absolute else "") + "/content/intro", same_plugin, native=True)
     case("credential-service", route({"serviceId": SOURCE, "absolute": True}, "docs.index"), None,
          lambda body: body["snapshot"]["tenants"][0]["services"][1].update(hostname="https://secret:password@other.test"), native=True)
     case("non-http-service", route({"serviceId": SOURCE, "absolute": True}, "docs.index"), None,

@@ -15,7 +15,12 @@ public sealed partial class Service
         public Node PreviewValues { get; } = previewValues;
         public (string, string)? PreviewScope { get; } = previewScope;
         public FrozenDictionary<(string Issuer, string Uri), JwksClient> Keys { get; } = keys;
-        public Task Close() => Task.WhenAll(Keys.Values.Select(client => client.DisposeAsync().AsTask()));
+        public CancellationTokenSource Retirement { get; } = new();
+        public Task Close()
+        {
+            var retired = Retirement.CancelAsync();
+            return Task.WhenAll(Keys.Values.Select(client => client.DisposeAsync().AsTask()).Append(retired));
+        }
     }
     private volatile SnapshotState? state;
     private readonly IStateStore? store;

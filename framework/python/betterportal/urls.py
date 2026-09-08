@@ -124,7 +124,7 @@ class Urls:
         target = opts.get("serviceId", self._service_id)
         ids = self._ids(target)
         if not ids: return None
-        if ids & self._ids(self._service_id):
+        if len(ids) == 1 and ids == self._ids(self._service_id):
             path = next((value for candidate in self._routes.get(view_id, ()) if (value := _fill(candidate, opts["params"])) is not None), None)
         else:
             mounts = {(item["serviceId"], self._service_path(item)): item for item in self._mounts

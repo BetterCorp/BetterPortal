@@ -107,6 +107,7 @@ public sealed partial class Service : IAsyncDisposable
             }
             if (hints.VaryBy.Count > 0) responseHeaders["vary"] += ", " + string.Join(", ", hints.VaryBy);
             return new(new RequestContext(scope, caller, method, path, values) { Urls = BuildUrls(current, scope, path, normalized, scheme),
+                SnapshotRetired = current.Retirement.Token,
                 ClientContext = new(Clients, scope.TenantId, scope.AppId, current, caller.User is not null ? RequestAuthorization.Bearer(normalized.GetValueOrDefault("authorization")) : null, cancellationToken) }, responseHeaders);
         }
         catch (Exception error) when ((error is not OperationCanceledException || !cancellationToken.IsCancellationRequested) && (!ReferenceEquals(state, current) || !Ready))
