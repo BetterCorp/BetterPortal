@@ -1,0 +1,34 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "viewId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "title": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "description": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": [],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

@@ -1,0 +1,347 @@
+# Route authoring
+
+BetterPortal services declare view identity, method-specific operations and AnyVali
+schemas, then discover those declarations into a registry for hosting and contract
+export. Choose the authoring workflow for your runtime:
+
+| Runtime | Route discovery | HTML rendering |
+| --- | --- | --- |
+| [Node.js](#nodejs) | `bp run gen` scans TypeScript under `bp-routes/` | Method files under `_renderer.<theme>/` |
+| [Python](#python-example) | `discover()` imports route-module factories | Typed renderer callbacks attached to handlers |
+| [.NET](#net-example) | `Discovery.Discover()` inspects compiled `[RouteModule]` factories | Typed renderer callbacks attached to handlers |
+
+The detailed [Node.js route reference](routes-and-views.md) covers its handler
+context, dependencies, fragments, downloads, SEO and streaming conventions.
+The native runtimes are still in development and their packages are unpublished.
+
+## Node.js
+
+Start with an existing Node BetterPortal service; [Building services](services.md)
+covers its BSB host and service definition. Inside that package, run `npx bp setup`
+to add the BP scripts and build hooks. This configures an existing npm project;
+it does not scaffold a new service.
+
+Add the route root to `package.json`, retaining the package's other fields:
+
+<!-- file: node/example/package.json -->
+```json
+{
+  "type": "module",
+  "betterportal": {
+    "routes": ["src/plugin/bp-routes/"]
+  }
+}
+```
+
+Use your actual plugin directory in place of `src/plugin`. Keep view metadata in
+`index.ts` and operation policy in the method file:
+
+<!-- file: node/example/src/plugin/bp-routes/hello/index.ts -->
+```ts
+export const viewId = "hello.index";
+export const title = "Hello";
+```
+
+<!-- file: node/example/src/plugin/bp-routes/hello/GET.ts -->
+```ts
+import * as av from "anyvali";
+import { createHandler } from "../../.bp-generated/route-runtime.js";
+
+export const operationId = "hello.get";
+export const title = "Hello";
+export const description = "Hello operation";
+export const auth = { required: false, permissions: [] };
+export const ResponseSchema = av.string();
+
+export default createHandler({ response: ResponseSchema }, () => "Hello");
+```
+
+The generated runtime provides the service's typed handler context. Add a renderer
+whose directory suffix matches the app's configured renderer:
+
+<!-- file: node/example/src/plugin/bp-routes/hello/_renderer.bootstrap5/GET.tsx -->
+```tsx
+/** @jsxImportSource jsx-htmx */
+export function render(data: string) {
+  return <p>{data}</p>;
+}
+```
+
+Generate the registry before compiling the service:
+
+```sh
+npx bp run gen
+npm run build
+```
+
+Generation writes `.bp-generated/` beside `bp-routes/`; do not hand-edit or commit
+that output. The BSB setup hooks run route and dependency-type generation before
+compilation, then `bp run contract` after compilation. To export again from an
+already built service, run `npx bp run contract`. The contract command reads the
+service definition and compiled registry; neither command publishes it.
+
+`[id]` and `[[id]]` directories define required and optional path segments.
+Declare `ParamsSchema` in the route index and pass that same schema to each method.
+Each method owns its stable `operationId`, auth and schemas. Node renderer and SSE
+filenames are described in [Routes and views](routes-and-views.md#fragment-stream-and-sse-selection);
+native factories use the conventions below.
+
+## Python and .NET
+
+Python discovers modules from one filesystem package. .NET discovers public static
+factory methods marked `[RouteModule]` in a compiled assembly. The C# compiler supplies
+each factory's source path through `CallerFilePath`; discovery does not read C# or
+PDB files. Keep the route-root segment when using compiler `PathMap` settings.
+These packages are currently unpublished; build/install the local packages first.
+
+### Create a standalone service
+
+The installed native tools create a new project directory:
+
+```sh
+bp-python init python-service --plugin-id com.example.service --registry-ref example/service --title "Example service"
+bp-dotnet init dotnet-service --plugin-id com.example.service --registry-ref example/service --title "Example service"
+```
+
+Each project includes a discovered, authenticated `hello.get` operation, JSON and
+Bootstrap HTML rendering, a contract export factory, `betterportal.json` and an
+empty dependency lock. The generated README supplies native build/export/run
+commands and host configuration. Existing destinations and invalid BP identities
+are rejected before writing project files. Files are created without overwriting.
+
+The host uses `ServiceInstallation` with protected bootstrap storage and durable
+snapshots/settings. Configure the trusted config-manager URL, public service origin
+and a persistent, separately protected master key, then install through the existing
+config manager. Readiness requires manifest submission and a valid snapshot. The
+generated service pins its installed BP package version; no Node or BSB build/run
+hooks are emitted. Scaffolding does not publish a package or contract.
+
+### Route modules
+
+Both forms return the same `Registry` used by hosting and contract export:
+
+| File | Synchronous factory result |
+| --- | --- |
+| `index.py` / `index.cs` | `RouteDeclarationInput`: optional `viewId`, `title`, `description` |
+| `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS` | An `Operation` for that exact uppercase method |
+| `sse.py` / `sse.cs` | An `SseFeed`, receiving the existing GET handler and resolved view ID |
+
+An index needs at least one method. Every operation declares its own stable ID,
+title, description, auth, dependencies and schemas. Index metadata cannot carry
+method policy. A view title/description overrides its GET labels in the manifest
+and negotiated metadata;
+otherwise the GET labels (or first declared method) supply them. Each method imports
+the same params schema from its index or a shared module.
+
+Folders map to URL segments. `[id]` publishes `:id`; `[[id]]` publishes every
+included/omitted path combination. Optional path parameters need optional schema
+properties. A root index publishes `/`. Catch-all, brace and partial parameters
+are rejected. Default view IDs join folders with dots, turn parameters into `$id`,
+and append `.index`; use an explicit ID to keep identity when moving a view.
+Operation IDs are always explicit. Duplicate IDs, ambiguous paths and inconsistent
+method params schemas fail through the ordinary registry checks.
+
+Routes are matched segment by segment, with literals before parameters. For
+example, `/foo/:id` takes precedence over `/:section/bar` at `/foo/bar`, regardless
+of registration order. Same-method paths with the same literal segments and
+parameter positions are rejected. A declared `OPTIONS` operation follows ordinary
+auth and allowlist policy; `OPTIONS` with `Access-Control-Request-Method` is a CORS
+preflight and does not invoke that handler.
+GET also supports HEAD, including preflights checked against the GET mount and policy.
+
+Handlers receive path parameters decoded once: `a%2Fb` becomes `a/b`, while
+`a%252Fb` becomes `a%2Fb`. Generated links and SSE connection URLs retain escaped
+segment boundaries. ASGI servers must supply `raw_path` to distinguish an encoded
+slash from a segment separator; ordinary routing also works without it.
+Native hosts reject invalid UTF-8 in encoded parameters with HTTP 400.
+
+JSON demo responses are validated and normalized with the handler's AnyVali
+response schema before manifest export, including buffered finite-stream demos.
+
+The framework consumes `_f` and `_c` before validating application query schemas.
+Keep `unknownKeys: reject` to reject other undeclared query fields. Relative URL
+helpers preserve anchors, including when changing query values or adding SSE paths.
+Negotiated native responses include `Vary: Accept` alongside CORS and author headers.
+Native hosts apply each operation's `cacheHints`: omitted or zero `ttlSeconds`
+emits `Cache-Control: no-store`; positive lifetimes emit `private, max-age=N`.
+Declared `varyBy` headers are added to `Vary`. Cacheable responses also vary by
+addressing, authorization, cookies and BP scope/service headers to separate callers and apps.
+Native typed handlers cannot set `Cache-Control` or `Content-Encoding` through
+their response state. Declare caching through `cacheHints`; explicit raw responses
+own their cache and encoding headers. Framework errors, SSE, NDJSON and
+finite stream shells use `no-store`; buffered finite JSON uses the operation policy.
+Native registries reject other routes that overlap generated `/__sse` endpoints,
+including dynamic segments and other generated streams. A stream's own optional
+path variants share its operation and remain supported.
+ASP.NET `MapBetterPortal` owns error bodies for its mapped paths; unrelated endpoints
+and unregistered paths retain the containing application's error behavior.
+
+Service APIs under `/.well-known/bp/` are independent of app page mounts, as in
+[the BP protocol](../../spec/protocol.md). Their operation auth still applies: declare
+required auth and permissions for protected APIs. An empty app route list does
+not disable these APIs, and placing a route here does not authenticate its caller.
+
+Schemas use AnyVali. Discovery rejects `any`, `unknown` and objects with
+`unknownKeys: allow`, including nested and referenced schemas. Use the platform's
+recursive `JsonValueSchema`/`JsonObjectSchema` for arbitrary JSON values.
+
+### Python example
+
+Create empty `my_service/__init__.py` and `my_service/bp_routes/__init__.py` files.
+Intermediate route directories can be namespace packages. Relative imports work
+inside parameter and dotted URL directories; dotted segments use a private module
+alias, so import shared code relatively there. Zip packages and route roots spread
+over multiple filesystem locations are unsupported. Hidden directories,
+`__pycache__` and `_renderer.*` helper directories are not scanned as routes.
+The `.well-known` directory is included, matching Node.
+
+<!-- file: python/my_service/bp_routes/hello/index.py -->
+```python
+from betterportal.generated_types import RouteDeclarationInput
+
+def create() -> RouteDeclarationInput:
+    return {"viewId": "hello.index", "title": "Hello"}
+```
+
+<!-- file: python/my_service/bp_routes/hello/GET.py -->
+```python
+from typing import Any
+import anyvali as av
+from betterportal.handler import Handler, HandlerContext
+from betterportal.registry import Operation
+from betterportal.rendering import Renderer
+
+def hello(context: HandlerContext[Any, Any, Any, Any]) -> str:
+    return "Hello"
+
+def create() -> Operation:
+    page = Renderer[str]({"renderer": "bootstrap5"}, lambda value, context: "<p>Hello</p>")
+    return Operation(Handler(av.string(), hello, renderers=[page]), {
+        "operationId": "hello.get", "method": "GET", "title": "Hello",
+        "description": "Hello operation", "auth": {}
+    })
+```
+
+<!-- file: python/my_service/definition.py -->
+```python
+from betterportal.discovery import discover
+from betterportal.generated_types import BpSchemaOutput
+
+def registry():
+    return discover("my_service.bp_routes")
+
+def contract() -> BpSchemaOutput:
+    return registry().schema({"pluginId": "com.example.hello", "title": "Hello",
+                              "description": "Example service", "version": "1.0.0"})
+```
+
+```sh
+bp-python export --module my_service.definition:contract --project . --output bp-contract.json
+bp-python export --module my_service.definition:contract --project . --output bp-contract.json --check
+```
+
+### .NET example
+
+In a .NET 10 project referencing `BetterPortal`, include these files. The normal
+SDK compile glob includes bracket and dotted route directories. Factory names and
+C# namespaces are unrestricted; source filenames determine their roles. Mark
+exactly one factory in each route module. Unmarked helpers are not discovered.
+
+The SDK excludes hidden directories from its default compile glob. For `.well-known`
+routes, add this item to your `.csproj`:
+
+<!-- well-known-compile -->
+```xml
+<ItemGroup>
+  <Compile Include="**/.well-known/**/*.cs" />
+</ItemGroup>
+```
+
+<!-- file: dotnet/bp-routes/hello/index.cs -->
+```csharp
+using BetterPortal;
+using BetterPortal.Generated;
+
+namespace HelloService.Routes;
+public static class Index
+{
+    [RouteModule]
+    public static RouteDeclarationInput Create() => new() { ViewId = "hello.index", Title = "Hello" };
+}
+```
+
+<!-- file: dotnet/bp-routes/hello/GET.cs -->
+```csharp
+using AnyVali;
+using BetterPortal;
+using BetterPortal.Generated;
+
+namespace HelloService.Routes;
+public static class Get
+{
+    [RouteModule]
+    public static Operation Create()
+    {
+        var page = new Renderer<string>(new() { Renderer = "bootstrap5" }, (value, context) => "<p>Hello</p>");
+        var handler = new Handler<object?, object?, object?, object?, string>(
+            V.String(), context => ValueTask.FromResult("Hello"), renderers: [page]);
+        return new(handler, new() { OperationId = "hello.get", Method = HttpMethodInput.GET,
+            Title = "Hello", Description = "Hello operation", Auth = new() });
+    }
+}
+```
+
+<!-- file: dotnet/Definition.cs -->
+```csharp
+using BetterPortal;
+using BetterPortal.Generated;
+
+namespace HelloService;
+public static class Definition
+{
+    public static Registry Registry() => Discovery.Discover(typeof(Definition).Assembly);
+    public static BpSchemaOutput Export() => Registry().Schema(new() {
+        PluginId = "com.example.hello", Title = "Hello", Description = "Example service", Version = "1.0.0"
+    });
+}
+```
+
+```sh
+dotnet build
+bp-dotnet export --assembly bin/Debug/net10.0/HelloService.dll --factory HelloService.Definition:Export --output bp-contract.json
+bp-dotnet export --assembly bin/Debug/net10.0/HelloService.dll --factory HelloService.Definition:Export --output bp-contract.json --check
+```
+
+`Discovery.Discover` accepts `rootDirectory` to select a different source-directory
+name, and `dependencies` for resolved service aliases. Python `discover` accepts
+the same dependency mapping. Export factories can obtain it from the native
+project's locked dependencies as described in the [Python](../../framework/python/README.md) and
+[.NET](../../framework/dotnet/README.md) SDK guides.
+
+### Renderers and streams
+
+Method factories attach typed page, component and fragment `Renderer` objects to
+their handlers. Put renderer code in separate helper modules/classes and import it
+explicitly. The handler's result type determines renderer input; discovery never
+attaches renderers by erasing their data type. Renderer IDs, fragment locations,
+component keys and error status selection use the existing runtime declaration
+and negotiation rules. There is no mandatory template engine.
+
+A raw method returns an operation containing `RawHandler`. A finite GET uses
+`FiniteHandler` with its item/summary schemas and `StreamRenderers`. For subscriber
+SSE, Python `sse.py` exports `create(owner, view_id)`; C# `sse.cs` marks a factory
+returning `SseFeed<TInput,TEvent>` with two parameters: a compatible typed `Handler`
+and `string viewId`. Bind it with `SseFeed<TInput,TEvent>.Bind`. The returned feed
+must retain that exact owner and view ID. Its tick fragment renderers must match
+an existing GET fragment. `GET.sse` and other method-qualified SSE files are invalid.
+
+Discovery runs selected module initializers and authoring factories. Keep those
+free of host startup and external side effects; request handlers, renderer callbacks
+and stream producers are not invoked. Reuse the discovered registry when starting
+the host. The existing `export --check` command validates and compares the generated
+contract without changing it. No Node executable or BSB build hook is involved.
+
+`python framework/conformance/check_discovery.py` compiles/loads the exact example
+files above, checks both export CLIs, and compares the native discovery corpus with
+Node's scanner. The HTTP runtime suites separately exercise the returned registry's
+authorization, renderer negotiation and streaming behavior.

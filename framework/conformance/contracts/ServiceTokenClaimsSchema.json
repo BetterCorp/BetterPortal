@@ -1,0 +1,71 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "iss": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "sub": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "aud": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "tenantId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "appId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "bindingId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "iat": {
+        "kind": "int",
+        "min": 0
+      },
+      "nbf": {
+        "kind": "optional",
+        "inner": {
+          "kind": "int",
+          "min": 0
+        }
+      },
+      "exp": {
+        "kind": "int",
+        "min": 1
+      },
+      "jti": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "tokenType": {
+        "kind": "literal",
+        "value": "service"
+      }
+    },
+    "required": [
+      "iss",
+      "sub",
+      "aud",
+      "tenantId",
+      "appId",
+      "bindingId",
+      "iat",
+      "exp",
+      "jti",
+      "tokenType"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

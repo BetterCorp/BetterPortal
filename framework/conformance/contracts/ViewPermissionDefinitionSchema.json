@@ -1,0 +1,38 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "description": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "defaultRoles": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "description",
+      "defaultRoles"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

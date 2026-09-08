@@ -1,0 +1,1886 @@
+[
+  {
+    "id": "install-sensitive-token",
+    "contract": "ServiceInstallRequestSchema",
+    "action": "encrypt",
+    "input": {
+      "setupToken": "signed-token",
+      "cpUrl": "https://cp.test"
+    },
+    "output": {
+      "setupToken": "encrypted:\"signed-token\"",
+      "cpUrl": "https://cp.test"
+    }
+  },
+  {
+    "id": "install-token-required",
+    "contract": "ServiceInstallRequestSchema",
+    "input": {
+      "cpUrl": "https://cp.test"
+    },
+    "valid": false
+  },
+  {
+    "id": "install-unknown-reject",
+    "contract": "ServiceInstallRequestSchema",
+    "input": {
+      "setupToken": "signed-token",
+      "cpUrl": "https://cp.test",
+      "unknown": true
+    },
+    "valid": false
+  },
+  {
+    "id": "install-binding-optional-scope",
+    "contract": "ServiceInstallationBindingSchema",
+    "input": {
+      "instanceId": "01952200-0000-7000-8000-000000000004",
+      "serviceUrl": "https://service.test",
+      "cpUrl": "https://cp.test",
+      "cpJwksUri": "https://cp.test/keys",
+      "jti": "once"
+    },
+    "output": {
+      "instanceId": "01952200-0000-7000-8000-000000000004",
+      "serviceUrl": "https://service.test",
+      "cpUrl": "https://cp.test",
+      "cpJwksUri": "https://cp.test/keys",
+      "jti": "once"
+    }
+  },
+  {
+    "id": "install-response-omits-credentials",
+    "contract": "ServiceInstallResponseSchema",
+    "input": {
+      "ok": true,
+      "pluginId": "com.example.service",
+      "cpUrl": "https://cp.test",
+      "manifestVersion": "1.0.0"
+    },
+    "output": {
+      "ok": true,
+      "pluginId": "com.example.service",
+      "cpUrl": "https://cp.test",
+      "manifestVersion": "1.0.0"
+    }
+  },
+  {
+    "id": "install-redeem-strips-unknown",
+    "contract": "ServiceRedeemResponseSchema",
+    "input": {
+      "apiKey": "secret",
+      "cpId": "cp",
+      "cpJwksUri": "https://cp.test/keys",
+      "unknown": true
+    },
+    "output": {
+      "apiKey": "secret",
+      "cpId": "cp",
+      "cpJwksUri": "https://cp.test/keys"
+    }
+  },
+  {
+    "id": "bootstrap-minimal",
+    "contract": "BootstrapStateSchema",
+    "input": {
+      "version": 1
+    },
+    "output": {
+      "version": 1
+    }
+  },
+  {
+    "id": "bootstrap-version-required",
+    "contract": "BootstrapStateSchema",
+    "input": {},
+    "valid": false
+  },
+  {
+    "id": "bootstrap-unknown-reject",
+    "contract": "BootstrapStateSchema",
+    "input": {
+      "version": 1,
+      "unknown": true
+    },
+    "valid": false
+  },
+  {
+    "id": "bootstrap-secret-not-null",
+    "contract": "BootstrapStateSchema",
+    "input": {
+      "version": 1,
+      "apiKey": null
+    },
+    "valid": false
+  },
+  {
+    "id": "bootstrap-sensitive-fields",
+    "contract": "BootstrapStateSchema",
+    "action": "encrypt",
+    "input": {
+      "version": 1,
+      "apiKey": "api",
+      "configEncryptionKey": "config",
+      "identity": {
+        "privateKeyPem": "private",
+        "publicKeyPem": "public",
+        "kid": "key"
+      }
+    },
+    "output": {
+      "version": 1,
+      "apiKey": "encrypted:\"api\"",
+      "configEncryptionKey": "encrypted:\"config\"",
+      "identity": {
+        "privateKeyPem": "encrypted:\"private\"",
+        "publicKeyPem": "public",
+        "kid": "key"
+      }
+    }
+  },
+  {
+    "id": "auth-defaults",
+    "contract": "ApiAuthRequirementSchema",
+    "input": {},
+    "output": {
+      "required": false,
+      "callers": [
+        "user"
+      ],
+      "permissions": []
+    }
+  },
+  {
+    "id": "missing-required",
+    "contract": "UuidV7Schema",
+    "input": null,
+    "valid": false
+  },
+  {
+    "id": "wrong-uuid-version",
+    "contract": "UuidV7Schema",
+    "input": "01900000-0000-4000-8000-000000000001",
+    "valid": false
+  },
+  {
+    "id": "valid-uuid",
+    "contract": "UuidV7Schema",
+    "input": "01900000-0000-7000-8000-000000000001",
+    "output": "01900000-0000-7000-8000-000000000001"
+  },
+  {
+    "id": "recursive-json",
+    "contract": "JsonObjectSchema",
+    "input": {
+      "a": [
+        null,
+        true,
+        1,
+        {
+          "b": [
+            "x"
+          ]
+        }
+      ]
+    },
+    "output": {
+      "a": [
+        null,
+        true,
+        1,
+        {
+          "b": [
+            "x"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "config-state-defaults",
+    "contract": "ServiceConfigStateSchema",
+    "input": {},
+    "output": {
+      "tenant": {},
+      "app": {}
+    }
+  },
+  {
+    "id": "config-write-presence",
+    "contract": "ServiceConfigWriteRequestSchema",
+    "input": {
+      "tenantId": "tenant",
+      "values": {
+        "secret": null
+      },
+      "ignored": true
+    },
+    "output": {
+      "tenantId": "tenant",
+      "values": {
+        "secret": null
+      },
+      "clearKeys": []
+    }
+  },
+  {
+    "id": "config-write-null-app",
+    "contract": "ServiceConfigWriteRequestSchema",
+    "input": {
+      "tenantId": "tenant",
+      "appId": null,
+      "values": {}
+    },
+    "valid": false
+  },
+  {
+    "id": "empty-service-callers",
+    "contract": "ApiAuthRequirementSchema",
+    "input": {
+      "callers": []
+    },
+    "valid": false
+  },
+  {
+    "id": "invalid-action",
+    "contract": "ServiceConfigActionSchema",
+    "input": "admin",
+    "valid": false
+  },
+  {
+    "id": "sensitive-encrypt",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "secret": {
+            "kind": "string",
+            "metadata": {
+              "description": "Private setting",
+              "sensitive": true
+            }
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "action": "encrypt",
+    "input": {
+      "secret": "plaintext"
+    },
+    "output": {
+      "secret": "encrypted:\"plaintext\""
+    }
+  },
+  {
+    "id": "sensitive-reject-plaintext-storage",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "secret": {
+            "kind": "string",
+            "metadata": {
+              "description": "Private setting",
+              "sensitive": true
+            }
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "action": "encrypted",
+    "input": {
+      "secret": "plaintext"
+    },
+    "valid": false
+  },
+  {
+    "id": "sensitive-decrypt",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "secret": {
+            "kind": "string",
+            "metadata": {
+              "description": "Private setting",
+              "sensitive": true
+            }
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "action": "decrypt",
+    "input": {
+      "secret": "encrypted:\"plaintext\""
+    },
+    "output": {
+      "secret": "plaintext"
+    }
+  },
+  {
+    "id": "default-null",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "value": {
+            "kind": "nullable",
+            "inner": {
+              "kind": "string"
+            },
+            "default": null
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {},
+    "output": {
+      "value": null
+    }
+  },
+  {
+    "id": "coerce-int",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int",
+        "coerce": {
+          "toInt": true
+        }
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "42",
+    "output": 42
+  },
+  {
+    "id": "unknown-reject",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {},
+        "required": [],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {
+      "x": 1
+    },
+    "valid": false
+  },
+  {
+    "id": "recursive-export-reimport",
+    "contract": "JsonObjectSchema",
+    "action": "roundtrip",
+    "input": {
+      "a": [
+        null,
+        true,
+        {
+          "x": 2
+        }
+      ]
+    },
+    "output": {
+      "a": [
+        null,
+        true,
+        {
+          "x": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "default-present-null",
+    "input": {
+      "value": null
+    },
+    "valid": false,
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "value": {
+            "kind": "string",
+            "default": "fallback"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    }
+  },
+  {
+    "id": "recursive-composition",
+    "contract": "JsonObjectSchema",
+    "action": "roundtrip",
+    "wrap": true,
+    "input": {
+      "payload": {
+        "a": [
+          null,
+          true,
+          {
+            "x": 2
+          }
+        ]
+      }
+    },
+    "output": {
+      "payload": {
+        "a": [
+          null,
+          true,
+          {
+            "x": 2
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "portable-recursive-composition",
+    "contract": "JsonObjectSchema",
+    "action": "roundtrip",
+    "input": {
+      "payload": {
+        "a": [
+          null,
+          true,
+          {
+            "x": 2
+          }
+        ]
+      }
+    },
+    "output": {
+      "payload": {
+        "a": [
+          null,
+          true,
+          {
+            "x": 2
+          }
+        ]
+      }
+    },
+    "wrapDocument": true
+  },
+  {
+    "id": "portable-sensitive-composition",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "secret": {
+            "kind": "string",
+            "metadata": {
+              "description": "Private setting",
+              "sensitive": true
+            }
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "action": "encrypt",
+    "input": {
+      "payload": {
+        "secret": "plaintext"
+      }
+    },
+    "output": {
+      "payload": {
+        "secret": "encrypted:\"plaintext\""
+      }
+    },
+    "wrapDocument": true
+  },
+  {
+    "id": "operation-declaration-defaults",
+    "contract": "OperationDeclarationSchema",
+    "input": {
+      "operationId": "hello.read",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello",
+      "auth": {}
+    },
+    "output": {
+      "operationId": "hello.read",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello",
+      "auth": {
+        "required": false,
+        "callers": [
+          "user"
+        ],
+        "permissions": []
+      },
+      "robots": [],
+      "dependencies": [],
+      "apiContracts": [],
+      "demoScenarios": [],
+      "cacheHints": {
+        "ttlSeconds": 0,
+        "varyBy": []
+      }
+    }
+  },
+  {
+    "id": "manifest-declaration-defaults",
+    "contract": "ManifestDeclarationSchema",
+    "input": {
+      "pluginId": "com.example.hello",
+      "version": "1.0.0",
+      "title": "Hello",
+      "description": "Hello"
+    },
+    "output": {
+      "pluginId": "com.example.hello",
+      "version": "1.0.0",
+      "title": "Hello",
+      "description": "Hello",
+      "category": "service",
+      "deploymentModes": [
+        "self-hosted"
+      ],
+      "capabilities": [],
+      "configSchemas": [],
+      "permissions": [],
+      "adminApis": [],
+      "webhooks": [],
+      "apiContracts": [],
+      "m2mRequests": [],
+      "developerResources": [],
+      "cacheHints": {
+        "metadataTtlSeconds": 1800
+      }
+    }
+  },
+  {
+    "id": "operation-declaration-derived-denied",
+    "contract": "OperationDeclarationSchema",
+    "input": {
+      "operationId": "hello.read",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello",
+      "raw": true,
+      "auth": {}
+    },
+    "valid": false
+  },
+  {
+    "id": "manifest-declaration-derived-denied",
+    "contract": "ManifestDeclarationSchema",
+    "input": {
+      "pluginId": "com.example.hello",
+      "version": "1.0.0",
+      "title": "Hello",
+      "description": "Hello",
+      "views": []
+    },
+    "valid": false
+  },
+  {
+    "id": "operation-declaration-auth-required",
+    "contract": "OperationDeclarationSchema",
+    "input": {
+      "operationId": "hello.read",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello"
+    },
+    "valid": false
+  },
+  {
+    "id": "operation-declaration-id-syntax",
+    "contract": "OperationDeclarationSchema",
+    "input": {
+      "operationId": "invalid id",
+      "method": "GET",
+      "title": "Hello",
+      "description": "Hello",
+      "auth": {}
+    },
+    "valid": false
+  },
+  {
+    "id": "render-context-presentation",
+    "contract": "ViewRenderDataSchema",
+    "input": {
+      "tenant": {
+        "id": "01900000-0000-7000-8000-000000000001",
+        "slug": "tenant",
+        "title": "Tenant",
+        "branding": {},
+        "config": {
+          "secret": "tenant-secret"
+        },
+        "services": [
+          {
+            "secret": "service-secret"
+          }
+        ]
+      },
+      "app": {
+        "id": "01900000-0000-7000-8000-000000000002",
+        "tenantId": "01900000-0000-7000-8000-000000000001",
+        "slug": "app",
+        "title": "App",
+        "defaultRoute": "/",
+        "auth": {
+          "serviceId": "01900000-0000-7000-8000-000000000003",
+          "loginViewId": "login",
+          "expectedIssuer": "private-issuer",
+          "roles": [
+            {
+              "secret": "role-secret"
+            }
+          ],
+          "jwksUri": "https://keys.example"
+        },
+        "themeConfig": {
+          "secret": "theme-secret"
+        },
+        "routes": [
+          {
+            "secret": "route-secret"
+          }
+        ]
+      },
+      "request": {
+        "method": "GET",
+        "path": "/items/1",
+        "params": {
+          "id": 1
+        },
+        "query": {
+          "nested": [
+            null,
+            true,
+            {
+              "value": 2
+            }
+          ]
+        },
+        "headers": {
+          "authorization": "private-token"
+        }
+      },
+      "route": {
+        "viewId": "items.index",
+        "path": "/items/:id",
+        "renderer": "bootstrap5",
+        "mode": "page",
+        "kind": "page",
+        "status": 200
+      }
+    },
+    "output": {
+      "tenant": {
+        "id": "01900000-0000-7000-8000-000000000001",
+        "slug": "tenant",
+        "title": "Tenant",
+        "branding": {}
+      },
+      "app": {
+        "id": "01900000-0000-7000-8000-000000000002",
+        "tenantId": "01900000-0000-7000-8000-000000000001",
+        "slug": "app",
+        "title": "App",
+        "defaultRoute": "/",
+        "auth": {
+          "serviceId": "01900000-0000-7000-8000-000000000003",
+          "loginViewId": "login"
+        }
+      },
+      "request": {
+        "method": "GET",
+        "path": "/items/1",
+        "params": {
+          "id": 1
+        },
+        "query": {
+          "nested": [
+            null,
+            true,
+            {
+              "value": 2
+            }
+          ]
+        }
+      },
+      "route": {
+        "viewId": "items.index",
+        "path": "/items/:id",
+        "renderer": "bootstrap5",
+        "mode": "page",
+        "kind": "page",
+        "status": 200
+      }
+    }
+  },
+  {
+    "id": "renderer-declaration-defaults",
+    "contract": "RendererDeclarationSchema",
+    "input": {
+      "renderer": "bootstrap5"
+    },
+    "output": {
+      "renderer": "bootstrap5",
+      "kind": "page",
+      "status": 200
+    }
+  },
+  {
+    "id": "renderer-declaration-unknown",
+    "contract": "RendererDeclarationSchema",
+    "input": {
+      "renderer": "bootstrap5",
+      "unexpected": true
+    },
+    "valid": false
+  },
+  {
+    "id": "route-url-defaults",
+    "contract": "RouteUrlOptionsSchema",
+    "input": {},
+    "output": {
+      "params": {},
+      "query": {},
+      "absolute": false,
+      "sse": false
+    }
+  },
+  {
+    "id": "submission-defaults",
+    "contract": "ControlPlaneSubmissionSchema",
+    "input": {
+      "manifestVersion": "1",
+      "viewIndex": {}
+    },
+    "output": {
+      "manifestVersion": "1",
+      "capabilities": [],
+      "m2mRequests": [],
+      "apiContracts": [],
+      "developerResources": [],
+      "configSchemas": [],
+      "webhooks": [],
+      "viewIndex": {}
+    }
+  },
+  {
+    "id": "submission-reject-server-identity",
+    "contract": "ControlPlaneSubmissionSchema",
+    "input": {
+      "manifestVersion": "1",
+      "viewIndex": {},
+      "serviceId": "untrusted"
+    },
+    "valid": false
+  },
+  {
+    "id": "submission-key-omitted-not-null",
+    "contract": "ControlPlaneSubmissionSchema",
+    "input": {
+      "manifestVersion": "1",
+      "viewIndex": {},
+      "keyId": null
+    },
+    "valid": false
+  },
+  {
+    "id": "element-args-defaults",
+    "contract": "BPElementReferenceSchema",
+    "input": {
+      "service": "shell",
+      "fragment": "branding"
+    },
+    "output": {
+      "service": "shell",
+      "fragment": "branding",
+      "args": {
+        "params": {},
+        "query": {}
+      }
+    }
+  },
+  {
+    "id": "sensitive-ref-encrypt",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "unknownKeys": "reject",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "kind": "ref",
+            "ref": "#/definitions/Secret",
+            "metadata": {
+              "sensitive": true
+            }
+          }
+        }
+      },
+      "definitions": {
+        "Secret": {
+          "kind": "string"
+        }
+      },
+      "extensions": {}
+    },
+    "action": "encrypt",
+    "input": {
+      "secret": "plaintext"
+    },
+    "output": {
+      "secret": "encrypted:\"plaintext\""
+    }
+  },
+  {
+    "id": "sensitive-ref-decrypt",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "unknownKeys": "reject",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "kind": "ref",
+            "ref": "#/definitions/Secret",
+            "metadata": {
+              "sensitive": true
+            }
+          }
+        }
+      },
+      "definitions": {
+        "Secret": {
+          "kind": "string"
+        }
+      },
+      "extensions": {}
+    },
+    "action": "decrypt",
+    "input": {
+      "secret": "encrypted:\"plaintext\""
+    },
+    "output": {
+      "secret": "plaintext"
+    }
+  },
+  {
+    "id": "sensitive-ref-reject-plaintext",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "unknownKeys": "reject",
+        "required": [
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "kind": "ref",
+            "ref": "#/definitions/Secret",
+            "metadata": {
+              "sensitive": true
+            }
+          }
+        }
+      },
+      "definitions": {
+        "Secret": {
+          "kind": "string"
+        }
+      },
+      "extensions": {}
+    },
+    "action": "encrypted",
+    "input": {
+      "secret": "plaintext"
+    },
+    "valid": false
+  },
+  {
+    "id": "persisted-settings-defaults",
+    "contract": "PersistedServiceConfigStateSchema",
+    "input": {},
+    "output": {
+      "tenants": {}
+    }
+  },
+  {
+    "id": "persisted-settings-bucket-defaults",
+    "contract": "PersistedServiceConfigStateSchema",
+    "input": {
+      "tenants": {
+        "tenant": {}
+      }
+    },
+    "output": {
+      "tenants": {
+        "tenant": {
+          "tenant": {},
+          "app": {}
+        }
+      }
+    }
+  },
+  {
+    "id": "persisted-settings-legacy-not-null",
+    "contract": "PersistedServiceConfigStateSchema",
+    "input": {
+      "legacy": null
+    },
+    "valid": false
+  },
+  {
+    "id": "config-write-response",
+    "contract": "ServiceConfigWriteResponseSchema",
+    "input": {
+      "serviceId": "com.example.service",
+      "tenantId": "tenant",
+      "values": {
+        "nested": [
+          null,
+          true
+        ]
+      },
+      "ok": true
+    },
+    "output": {
+      "serviceId": "com.example.service",
+      "tenantId": "tenant",
+      "values": {
+        "nested": [
+          null,
+          true
+        ]
+      },
+      "ok": true
+    }
+  },
+  {
+    "id": "config-write-response-reject-false",
+    "contract": "ServiceConfigWriteResponseSchema",
+    "input": {
+      "serviceId": "com.example.service",
+      "tenantId": "tenant",
+      "values": {
+        "nested": [
+          null,
+          true
+        ]
+      },
+      "ok": false
+    },
+    "valid": false
+  },
+  {
+    "id": "stream-shell-recursive",
+    "contract": "StreamShellContextSchema",
+    "input": {
+      "sseConnectPath": "/rows/__sse?x=1",
+      "params": {
+        "id": null
+      },
+      "query": {
+        "nested": [
+          null,
+          true,
+          {
+            "x": 1
+          }
+        ]
+      }
+    },
+    "output": {
+      "sseConnectPath": "/rows/__sse?x=1",
+      "params": {
+        "id": null
+      },
+      "query": {
+        "nested": [
+          null,
+          true,
+          {
+            "x": 1
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "stream-shell-required-path",
+    "contract": "StreamShellContextSchema",
+    "input": {
+      "params": {},
+      "query": {}
+    },
+    "valid": false
+  },
+  {
+    "id": "stream-shell-unknown-rejected",
+    "contract": "StreamShellContextSchema",
+    "input": {
+      "sseConnectPath": "/rows/__sse?x=1",
+      "params": {
+        "id": null
+      },
+      "query": {
+        "nested": [
+          null,
+          true,
+          {
+            "x": 1
+          }
+        ]
+      },
+      "private": "hidden"
+    },
+    "valid": false
+  },
+  {
+    "id": "hostname-token",
+    "contract": "ServiceHostnameChangeRequestSchema",
+    "input": {
+      "changeToken": "bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "output": {
+      "changeToken": "bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "id": "hostname-token-sensitive",
+    "contract": "ServiceHostnameChangeRequestSchema",
+    "action": "encrypt",
+    "input": {
+      "changeToken": "bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "output": {
+      "changeToken": "encrypted:\"bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    }
+  },
+  {
+    "id": "hostname-token-unknown-field",
+    "contract": "ServiceHostnameChangeRequestSchema",
+    "input": {
+      "changeToken": "bp_hc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "serviceUrl": "https://renamed.test"
+    },
+    "valid": false
+  },
+  {
+    "id": "coerce-int-empty",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int",
+        "coerce": {}
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "7",
+    "output": 7
+  },
+  {
+    "id": "coerce-int-from-string",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int",
+        "coerce": {
+          "from": "string"
+        }
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "7",
+    "output": 7
+  },
+  {
+    "id": "project-empty",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {},
+    "output": {}
+  },
+  {
+    "id": "project-fields",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "$schema": "https://io.betterportal.org/v1/project.schema.json",
+      "registryRef": "example/caller",
+      "defaultNamespace": "example",
+      "dependencies": {
+        "peer": "example/service@1.0.0"
+      }
+    },
+    "output": {
+      "$schema": "https://io.betterportal.org/v1/project.schema.json",
+      "registryRef": "example/caller",
+      "defaultNamespace": "example",
+      "dependencies": {
+        "peer": "example/service@1.0.0"
+      }
+    }
+  },
+  {
+    "id": "project-unknown",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "unknown": true
+    },
+    "valid": false
+  },
+  {
+    "id": "project-reference",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "registryRef": "../service"
+    },
+    "valid": false
+  },
+  {
+    "id": "project-null-dependencies",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "dependencies": null
+    },
+    "valid": false
+  },
+  {
+    "id": "project-null-namespace",
+    "contract": "BetterPortalProjectConfigSchema",
+    "input": {
+      "defaultNamespace": null
+    },
+    "valid": false
+  },
+  {
+    "id": "lock-defaults",
+    "contract": "BetterPortalLockSchema",
+    "input": {},
+    "output": {
+      "dependencies": {}
+    }
+  },
+  {
+    "id": "lock-null-dependencies",
+    "contract": "BetterPortalLockSchema",
+    "input": {
+      "dependencies": null
+    },
+    "valid": false
+  },
+  {
+    "id": "locked-native",
+    "contract": "LockedDependencySchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "digestFormat": "json-bytes"
+    },
+    "output": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "digestFormat": "json-bytes"
+    }
+  },
+  {
+    "id": "locked-legacy",
+    "contract": "LockedDependencySchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "output": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "id": "locked-bad-digest",
+    "contract": "LockedDependencySchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:bad"
+    },
+    "valid": false
+  },
+  {
+    "id": "locked-unknown-format",
+    "contract": "LockedDependencySchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "digestFormat": "unknown"
+    },
+    "valid": false
+  },
+  {
+    "id": "dependency-alias",
+    "contract": "DependencyAliasSchema",
+    "input": "peer-name",
+    "output": "peer-name"
+  },
+  {
+    "id": "dependency-alias-traversal",
+    "contract": "DependencyAliasSchema",
+    "input": "../peer",
+    "valid": false
+  },
+  {
+    "id": "local-dependency-lock",
+    "contract": "LocalDependencyLockSchema",
+    "input": {
+      "peer": {
+        "registryRef": "example/service",
+        "pluginId": "com.example.service",
+        "version": "1.0.0",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "path": "../provider"
+      }
+    },
+    "output": {
+      "peer": {
+        "registryRef": "example/service",
+        "pluginId": "com.example.service",
+        "version": "1.0.0",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "path": "../provider"
+      }
+    }
+  },
+  {
+    "id": "registry-catalog-empty",
+    "contract": "RegistryPackageListSchema",
+    "input": [],
+    "output": []
+  },
+  {
+    "id": "registry-catalog-null",
+    "contract": "RegistryPackageListSchema",
+    "input": null,
+    "valid": false
+  },
+  {
+    "id": "registry-publish-result",
+    "contract": "RegistryPublishResultSchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "unchanged": false
+    },
+    "output": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "unchanged": false
+    }
+  },
+  {
+    "id": "registry-publish-required",
+    "contract": "RegistryPublishResultSchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "valid": false
+  },
+  {
+    "id": "registry-publish-unknown",
+    "contract": "RegistryPublishResultSchema",
+    "input": {
+      "registryRef": "example/service",
+      "pluginId": "com.example.service",
+      "version": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "unchanged": false,
+      "extra": true
+    },
+    "valid": false
+  },
+  {
+    "id": "semantic-extension-unsupported",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "vendor": {
+          "_criticality": "semantic",
+          "feature": true
+        }
+      }
+    },
+    "action": "unsupported-extension",
+    "output": {
+      "code": "unsupported_extension"
+    }
+  },
+  {
+    "id": "default-semantic-extension-unsupported",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "default": {
+          "_criticality": "semantic",
+          "feature": true
+        }
+      }
+    },
+    "action": "unsupported-extension",
+    "output": {
+      "code": "unsupported_extension"
+    }
+  },
+  {
+    "id": "informational-extensions-extended-export",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "vendor": {
+          "_criticality": "informational",
+          "hint": "keep"
+        },
+        "default": {
+          "hint": "implicit informational"
+        }
+      }
+    },
+    "action": "extension-export",
+    "mode": "extended",
+    "output": {
+      "vendor": {
+        "_criticality": "informational",
+        "hint": "keep"
+      },
+      "default": {
+        "hint": "implicit informational"
+      }
+    }
+  },
+  {
+    "id": "informational-extensions-portable-export",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "vendor": {
+          "_criticality": "informational",
+          "hint": "clear"
+        },
+        "default": {
+          "hint": "clear"
+        }
+      }
+    },
+    "action": "extension-export",
+    "mode": "portable",
+    "output": {}
+  },
+  {
+    "id": "informational-extension-native-parent-export",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "string"
+      },
+      "definitions": {},
+      "extensions": {
+        "vendor": {
+          "_criticality": "informational",
+          "hint": "composed"
+        }
+      }
+    },
+    "action": "extension-export",
+    "mode": "extended",
+    "wrap": true,
+    "output": {
+      "vendor": {
+        "_criticality": "informational",
+        "hint": "composed"
+      }
+    }
+  },
+  {
+    "id": "integer-overflow-1e+21",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 1e+21,
+    "valid": false
+  },
+  {
+    "id": "integer-union-fallback-1e+21",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "union",
+        "variants": [
+          {
+            "kind": "int"
+          },
+          {
+            "kind": "number"
+          }
+        ]
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 1e+21,
+    "output": 1e+21
+  },
+  {
+    "id": "integer-overflow--1e+21",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -1e+21,
+    "valid": false
+  },
+  {
+    "id": "integer-union-fallback--1e+21",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "union",
+        "variants": [
+          {
+            "kind": "int"
+          },
+          {
+            "kind": "number"
+          }
+        ]
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -1e+21,
+    "output": -1e+21
+  },
+  {
+    "id": "integer-signed-9007199254740993",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 9007199254740993,
+    "output": 9007199254740993,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-signed-9223372036854775807",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 9223372036854775807,
+    "output": 9223372036854775807,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-signed--9223372036854775808",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -9223372036854775808,
+    "output": -9223372036854775808,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 9223372036854775809,
+    "output": 9223372036854775809,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-coercion-9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64",
+        "coerce": {
+          "from": "string"
+        }
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "9223372036854775809",
+    "output": 9223372036854775809,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-composition-9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {
+      "payload": 9223372036854775809
+    },
+    "output": {
+      "payload": 9223372036854775809
+    },
+    "runtimes": [
+      "python",
+      "dotnet"
+    ],
+    "wrapDocument": true
+  },
+  {
+    "id": "integer-unsigned-default-9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "id": {
+            "kind": "uint64",
+            "default": 9223372036854775809
+          }
+        },
+        "required": [],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {},
+    "output": {
+      "id": 9223372036854775809
+    },
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-18446744073709551615",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 18446744073709551615,
+    "output": 18446744073709551615,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-coercion-18446744073709551615",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64",
+        "coerce": {
+          "from": "string"
+        }
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": "18446744073709551615",
+    "output": 18446744073709551615,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-composition-18446744073709551615",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {
+      "payload": 18446744073709551615
+    },
+    "output": {
+      "payload": 18446744073709551615
+    },
+    "runtimes": [
+      "python",
+      "dotnet"
+    ],
+    "wrapDocument": true
+  },
+  {
+    "id": "integer-unsigned-default-18446744073709551615",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "object",
+        "properties": {
+          "id": {
+            "kind": "uint64",
+            "default": 18446744073709551615
+          }
+        },
+        "required": [],
+        "unknownKeys": "reject"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": {},
+    "output": {
+      "id": 18446744073709551615
+    },
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-unsigned-negative",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -1,
+    "valid": false
+  },
+  {
+    "id": "integer-unsigned-overflow",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "uint64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 18446744073709551616,
+    "valid": false,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-signed-boundary-overflow--9223372036854775809",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": -9223372036854775809,
+    "valid": false,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  },
+  {
+    "id": "integer-signed-boundary-overflow-9223372036854775808",
+    "document": {
+      "anyvaliVersion": "1.0",
+      "schemaVersion": "1.1",
+      "root": {
+        "kind": "int64"
+      },
+      "definitions": {},
+      "extensions": {}
+    },
+    "input": 9223372036854775808,
+    "valid": false,
+    "runtimes": [
+      "python",
+      "dotnet"
+    ]
+  }
+]

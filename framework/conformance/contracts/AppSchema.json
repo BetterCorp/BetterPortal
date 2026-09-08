@@ -1,0 +1,127 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "tenantId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "slug": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "hostname": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "shell": {
+        "kind": "object",
+        "properties": {
+          "serviceId": {
+            "kind": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "serviceId"
+        ],
+        "unknownKeys": "strip"
+      },
+      "routes": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "id": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "title": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "path": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "viewId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "serviceId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "enabled": {
+              "kind": "bool",
+              "default": true
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "path",
+            "viewId",
+            "serviceId",
+            "enabled"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      },
+      "fragments": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "array",
+          "items": {
+            "kind": "object",
+            "properties": {
+              "serviceId": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "fragmentId": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "enabled": {
+                "kind": "bool",
+                "default": true
+              }
+            },
+            "required": [
+              "serviceId",
+              "fragmentId",
+              "enabled"
+            ],
+            "unknownKeys": "strip"
+          }
+        },
+        "default": {}
+      }
+    },
+    "required": [
+      "id",
+      "tenantId",
+      "slug",
+      "hostname",
+      "title",
+      "shell",
+      "routes",
+      "fragments"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

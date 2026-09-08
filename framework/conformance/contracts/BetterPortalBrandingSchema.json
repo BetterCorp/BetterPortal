@@ -1,0 +1,42 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "brandName": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "logoUrl": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "format": "url"
+        }
+      },
+      "primaryColor": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "secondaryColor": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "required": [],
+    "unknownKeys": "strip",
+    "default": {}
+  },
+  "definitions": {},
+  "extensions": {}
+}

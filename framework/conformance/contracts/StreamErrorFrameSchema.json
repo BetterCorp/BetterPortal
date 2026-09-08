@@ -1,0 +1,61 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "kind": {
+        "kind": "enum",
+        "values": [
+          "error"
+        ]
+      },
+      "error": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "message": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "issues": {
+        "kind": "optional",
+        "inner": {
+          "kind": "array",
+          "items": {
+            "kind": "object",
+            "properties": {
+              "code": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "path": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "string"
+                }
+              },
+              "message": {
+                "kind": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "unknownKeys": "strip"
+          }
+        }
+      }
+    },
+    "required": [
+      "kind",
+      "error",
+      "message"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

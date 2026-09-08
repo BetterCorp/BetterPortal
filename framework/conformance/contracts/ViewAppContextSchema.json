@@ -1,0 +1,137 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "tenantId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "slug": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "defaultRoute": {
+        "kind": "string",
+        "minLength": 1,
+        "default": "/"
+      },
+      "auth": {
+        "kind": "optional",
+        "inner": {
+          "kind": "optional",
+          "inner": {
+            "kind": "object",
+            "properties": {
+              "serviceId": {
+                "kind": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "loginViewId": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "logoutViewId": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            "required": [
+              "serviceId"
+            ],
+            "unknownKeys": "strip"
+          }
+        }
+      },
+      "shell": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "serviceId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "service": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "renderer": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "serviceId",
+            "service",
+            "renderer"
+          ],
+          "unknownKeys": "strip"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "tenantId",
+      "slug",
+      "title",
+      "defaultRoute"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

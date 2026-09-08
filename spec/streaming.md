@@ -80,6 +80,12 @@ data: {"kind":"end","count":3}
 
 The SSE request MUST validate the same `querySchema` as the view route and MUST run the view's stream itself - the stream is produced by whichever request consumes it; servers MUST NOT stash pending stream state between a shell request and an SSE connect (it breaks multi-instance deployments).
 
+Finite NDJSON and SSE connections do not select fragments or components. They
+MUST reject `_f`/`_c` selectors and authorize the full owning GET operation. A
+fragment-only mount must not grant access to the full frame stream. Selected
+fragments/components use buffered HTML instead. Open-ended subscriber feeds have
+their own fragment event renderers, described in [sse.md](sse.md).
+
 ## 3. Validation
 
 Validation shifts from whole-response to per-frame:

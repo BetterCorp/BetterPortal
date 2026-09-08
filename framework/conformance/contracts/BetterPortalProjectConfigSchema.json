@@ -1,0 +1,43 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "$schema": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "registryRef": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$"
+        }
+      },
+      "defaultNamespace": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        }
+      },
+      "dependencies": {
+        "kind": "optional",
+        "inner": {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "required": [],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

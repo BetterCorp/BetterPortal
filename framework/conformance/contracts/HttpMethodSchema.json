@@ -1,0 +1,17 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "enum",
+    "values": [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS"
+    ]
+  },
+  "definitions": {},
+  "extensions": {}
+}

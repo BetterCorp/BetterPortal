@@ -44,15 +44,15 @@ The manifest is a service's self-description. Themes and admin tooling read it t
 | `pluginId` | string | Reverse-DNS, lowercase. See `protocol.md` section 5.1. |
 | `title` | string | Display title. |
 | `version` | semver string | Service version, NOT protocol version. |
-| `views` | array | Empty array if no views (e.g., a pure auth service). |
+| `description` | string | Nonempty description; Markdown may be treated as plain text. |
+| `category` | string | framework, auth, theme, service, utility, or integration. |
+| `deploymentModes` | string[] | Nonempty list from DeploymentModeSchema. |
 
 ### Optional fields
 
 | Field | Type | Notes |
 |---|---|---|
-| `description` | string | Markdown allowed but tooling MAY treat as plain text. |
-| `category` | string | Free-form. Common values: `service`, `theme`, `auth`. |
-| `deploymentModes` | string[] | Where this service can run. |
+| `views` | array | Defaults to empty, for example for a pure auth service. |
 | `capabilities` | string[] | Free-form capability tokens (e.g., `theme.shell`, `theme.htmx`, `view.json`). |
 | `supportedRenderers` | string[] | Renderer compatibility keys implemented by this service's views. |
 | `shell` | object | Present only for shell services. Declares stable shell `service`, view `renderer`, and fragment definitions. |
@@ -163,7 +163,7 @@ Per-service descriptors for the config UI. Each schema describes a settings surf
 |---|---|
 | `visibility: secret` | Value is encrypted at rest and redacted on read (`"__redacted__"`). |
 | `visibility: protected` | Value is plaintext but only readable with a valid config ticket. |
-| `visibility: public` | Anyone can read. |
+| `visibility: public` | Public descriptor classification; does not bypass ticket-protected config reads. |
 | `ownership: plugin` | The service controls the value; bp-config holds a reference only. |
 | `ownership: bp` | bp-config is the source of truth; the service mirrors it. |
 | `ownership: mixed` | Either side can write. |
@@ -176,21 +176,21 @@ See `config.md` for the read/write protocol.
 
 ## 4. Schema descriptor format
 
-Schemas in the manifest (`paramsSchema`, `querySchema`, `headersSchema`, `bodySchema`, `jsonResponseSchema`, `metadataResponseSchema`) use a small, portable JSON descriptor. The Node SDK derives these from `anyvali` schemas; other SDKs derive them from their native validators.
+Schemas in the manifest (`paramsSchema`, `querySchema`, `headersSchema`, `bodySchema`, `jsonResponseSchema`, `metadataResponseSchema`) are portable AnyVali documents. Every SDK uses AnyVali's native validation/import/export APIs. Generated native types derive from these documents; independently authored platform models or a second validator are not substitutes.
 
 Top-level wrapper:
 
 ```jsonc
 {
   "anyvaliVersion": "1.0",
-  "schemaVersion": "1",
+  "schemaVersion": "1.1",
   "root": <node>,
   "definitions": {},
   "extensions": {}
 }
 ```
 
-`anyvaliVersion` exists for historical reasons (the Node SDK uses anyvali); other SDKs MAY ignore it but MUST emit it.
+Preserve document versions, definitions, extensions, metadata, defaults, and omitted-versus-null semantics. Importers must support the declared format. In particular, losing sensitive metadata is a security failure, not a permitted metadata omission.
 
 ### Node shapes
 
@@ -215,7 +215,7 @@ Top-level wrapper:
 
 // Union
 { "kind": "enum", "values": ["a", "b"] }
-{ "kind": "union", "options": [<node>, ...] }
+{ "kind": "union", "variants": [<node>, ...] }
 
 // Record (map with string keys)
 { "kind": "record", "valueSchema": <node>, "default": {} }

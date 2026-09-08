@@ -1,0 +1,43 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "credentialId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "issuer": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "audience": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "scopes": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      },
+      "rotationVersion": {
+        "kind": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "credentialId",
+      "issuer",
+      "audience",
+      "scopes",
+      "rotationVersion"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

@@ -1,0 +1,32 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "allowedOrigins": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "format": "url"
+        },
+        "default": []
+      },
+      "allowedReferers": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "format": "url"
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "allowedOrigins",
+      "allowedReferers"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

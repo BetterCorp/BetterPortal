@@ -1,0 +1,23 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "workspaces": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "workspaces"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

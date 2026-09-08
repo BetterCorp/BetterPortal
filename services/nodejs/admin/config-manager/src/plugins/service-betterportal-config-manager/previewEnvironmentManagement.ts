@@ -6,6 +6,7 @@ import {
   JsonValueSchema,
   type CacheHints,
   type BetterPortalConfig,
+  type BetterPortalEvent,
   type JsonObject,
   type DemoScenario,
   type PreviewEnvironmentGroup,
@@ -151,12 +152,15 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [{
 
 export const handleGet = createHandler(
   { response: ResponseSchema },
-  (ctx) => buildResponse(
-    previewPath(ctx),
-    {},
-    stringValue(ctx.query._c) === "config" ? stringValue(ctx.query.groupId) : undefined,
-    stringValue(ctx.query._c) === "debug" ? stringValue(ctx.query.deploymentId) : undefined
-  )
+  (ctx) => {
+    const component = (ctx.rawEvent as BetterPortalEvent | undefined)?.url.searchParams.get("_c");
+    return buildResponse(
+      previewPath(ctx),
+      {},
+      component === "config" ? stringValue(ctx.query.groupId) : undefined,
+      component === "debug" ? stringValue(ctx.query.deploymentId) : undefined
+    );
+  }
 );
 
 export const handlePost = createHandler(

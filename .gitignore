@@ -31,3 +31,4 @@ services/nodejs/admin/config-manager/bp-config.yaml
 
 # Legacy
 old_project/
+/ports-artifacts/

@@ -1,0 +1,64 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "itemSchema": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "ref",
+          "ref": "#/definitions/BetterPortalJsonValue"
+        }
+      },
+      "summarySchema": {
+        "kind": "optional",
+        "inner": {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      }
+    },
+    "required": [
+      "itemSchema"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

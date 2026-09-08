@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BetterPortalConfigSchema, generateKeyPair, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { BetterPortalConfigSchema, createBetterPortalApp, generateKeyPair, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { BaseStorage, ConfigRevisionConflictError, hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { FileStorage } from "../src/plugins/service-betterportal-config-manager/storage/file.js";
 import { PostgresStorage } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
@@ -15,7 +15,8 @@ import { buildPreviewDiagnostics, PreviewDiagnosticsSchema, previewServiceStatus
 import { render as renderDebug } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/debug.GET.js";
 import { auth } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/GET.js";
 import { render as renderList } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/GET.js";
-import { demoScenarios, ResponseSchema } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
+import { demoScenarios, handleGet, ResponseSchema } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
+import { setConfigManagerRouteContext } from "../src/plugins/service-betterportal-config-manager/routeContext.js";
 import { chromium } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "@betterportal/theme-runtime";
 
@@ -33,6 +34,28 @@ function fixture(names = ["tools", "auth", "crm", "reports", "theme"]) {
   const { deployment } = provisionPreviewDeployment(config, group.id, { key: "race", hostname: "race.example", services: names.map(n => ({ serviceId: "org.example." + n, url: `https://${n}.race.example` })) }, "https://config.example");
   return { config, deployment, names };
 }
+
+test("preview panels read framework selectors from the request URL", async () => {
+  const { config, deployment } = fixture();
+  setConfigManagerRouteContext({
+    storage: { loadConfig: async () => config, saveConfig: async () => {} },
+    serviceBaseUrl: "https://config.example"
+  } as Parameters<typeof setConfigManagerRouteContext>[0]);
+  const app = createBetterPortalApp();
+  app.get("/preview", event => handleGet({
+    rawEvent: event,
+    query: { groupId: deployment.groupId, deploymentId: deployment.id }
+  } as Parameters<typeof handleGet>[0]));
+  const page = await (await app.fetch(new Request("https://config.example/preview"))).json();
+  assert.equal(page.diagnostics, undefined);
+  assert.ok(page.sourceApps.length > 0);
+  const debug = await (await app.fetch(new Request("https://config.example/preview?_c=debug"))).json();
+  assert.ok(debug.diagnostics);
+  assert.equal(debug.groups.length, 0);
+  const editor = await (await app.fetch(new Request("https://config.example/preview?_c=config"))).json();
+  assert.deepEqual(editor.groups.map((group: { id: string }) => group.id), [deployment.groupId]);
+  assert.equal(editor.sourceApps.length, 0);
+});
 
 test("file storage rejects stale snapshots without discarding the accepted manifest", async t => {
   const directory = mkdtempSync(join(tmpdir(), "bp-preview-sync-"));

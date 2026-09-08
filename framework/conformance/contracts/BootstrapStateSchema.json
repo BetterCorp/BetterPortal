@@ -1,0 +1,166 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "version": {
+        "kind": "literal",
+        "value": 1
+      },
+      "apiKey": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1,
+          "maxLength": 32768,
+          "metadata": {
+            "sensitive": true
+          }
+        }
+      },
+      "cpUrl": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "cpId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "cpJwksUri": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "configEncryptionKey": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1,
+          "maxLength": 32768,
+          "metadata": {
+            "sensitive": true
+          }
+        }
+      },
+      "tenantLock": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      },
+      "installedAt": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "identity": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "privateKeyPem": {
+              "kind": "string",
+              "minLength": 1,
+              "maxLength": 32768,
+              "metadata": {
+                "sensitive": true
+              }
+            },
+            "publicKeyPem": {
+              "kind": "string",
+              "minLength": 1,
+              "maxLength": 32768
+            },
+            "kid": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "privateKeyPem",
+            "publicKeyPem",
+            "kid"
+          ],
+          "unknownKeys": "reject"
+        }
+      },
+      "installation": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "instanceId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "serviceUrl": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "cpUrl": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "cpJwksUri": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "scope": {
+              "kind": "optional",
+              "inner": {
+                "kind": "object",
+                "properties": {
+                  "tenantId": {
+                    "kind": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "appId": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    }
+                  }
+                },
+                "required": [
+                  "tenantId"
+                ],
+                "unknownKeys": "strip"
+              }
+            },
+            "jti": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "instanceId",
+            "serviceUrl",
+            "cpUrl",
+            "cpJwksUri",
+            "jti"
+          ],
+          "unknownKeys": "reject"
+        }
+      }
+    },
+    "required": [
+      "version"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

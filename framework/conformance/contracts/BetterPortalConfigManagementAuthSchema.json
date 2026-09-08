@@ -1,0 +1,52 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "mechanism": {
+        "kind": "enum",
+        "values": [
+          "none",
+          "dev-token",
+          "jwt",
+          "oidc"
+        ],
+        "default": "none"
+      },
+      "issuer": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "audience": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "requiredPermissions": {
+        "kind": "array",
+        "items": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "mechanism",
+      "requiredPermissions"
+    ],
+    "unknownKeys": "strip",
+    "default": {
+      "mechanism": "none",
+      "requiredPermissions": []
+    }
+  },
+  "definitions": {},
+  "extensions": {}
+}

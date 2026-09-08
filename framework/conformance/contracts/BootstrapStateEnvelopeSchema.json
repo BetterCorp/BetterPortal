@@ -1,0 +1,37 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "v": {
+        "kind": "literal",
+        "value": 1
+      },
+      "iv": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 16
+      },
+      "tag": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 24
+      },
+      "ct": {
+        "kind": "string",
+        "minLength": 1,
+        "maxLength": 1398104
+      }
+    },
+    "required": [
+      "v",
+      "iv",
+      "tag",
+      "ct"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

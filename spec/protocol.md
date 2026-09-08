@@ -27,28 +27,12 @@ Theme services additionally expose the app-level AI and developer discovery endp
 `GET /.well-known/bp/health` returns JSON. A service that is ready to receive normal view traffic returns `200`:
 
 ```json
-{
-  "ok": true,
-  "ready": true,
-  "pluginId": "<pluginId>",
-  "protocolVersion": 2,
-  "setupMode": false,
-  "config": {
-    "synced": true,
-    "localConfig": false,
-    "tenants": 1,
-    "apps": 1
-  },
-  "sync": {
-    "mode": "control-plane",
-    "state": "synced"
-  }
-}
+{ "ok": true }
 ```
 
-`protocolVersion` MUST match the manifest when present. A service that has started but has not received scoped tenant/app config yet returns `503` with the same shape and `"ready": false`, normally with `"sync.state": "awaiting-sync"`. Load balancers SHOULD use health readiness, not only process liveness, before passing user traffic.
+Before successful manifest submission and valid scoped config, return `503` with only `{ "ok": false }`. Public probes must not disclose identities, versions, tenant/app counts, configuration, or sync diagnostics. Load balancers use readiness, not only process liveness. A restored snapshot alone does not prove current manifest synchronization.
 
-Setup mode is the exception: a service with no sync credentials is ready for bootstrap/install traffic and MAY return `200` with `"setupMode": true` and `"sync.state": "awaiting-install"`. Normal view routes still MUST NOT be served until the service is installed/adopted and receives config.
+Setup mode is the exception: a service with no sync credentials may expose bootstrap diagnostics at 200 with `setupMode: true`. Normal view routes remain unavailable. Outside setup, diagnostics require a verified access-token user bound to the active configured management tenant/app. Diagnostic fields include pluginId, version, config counts, and manifestSync state. Every health response uses `Cache-Control: private, no-store` and `Vary: Authorization`; invalid or ordinary-tenant credentials receive only the public representation.
 
 Before a service has synced or loaded local config, only core bootstrap/discovery paths should respond normally: health, manifest, schema, install/adoption, bootstrap, service redemption, and JWKS. View routes and tenant/app config endpoints SHOULD return `503`.
 
@@ -69,12 +53,13 @@ Services are cross-origin from the theme that loads them. CORS MUST be enabled o
 Required CORS surface:
 
 ```
-Access-Control-Allow-Origin:      <reflect allowed origin or wildcard for dev>
+Access-Control-Allow-Origin:      <reflect an explicitly allowed origin>
 Access-Control-Allow-Methods:     GET, POST, PUT, PATCH, DELETE, OPTIONS
 Access-Control-Allow-Headers:     Accept, Authorization, Content-Type,
                                   HX-Current-URL, HX-Request, HX-Target,
                                   HX-Trigger, HX-Trigger-Name,
                                   X-BP-Tenant-Id, X-BP-App-Id,
+                                  X-BP-Service-Id, X-BP-Service-Authorization,
                                   BP-SetHeader, BP-RemoveHeader,
                                   traceparent, tracestate, baggage
 Access-Control-Expose-Headers:    HX-Trigger, HX-Trigger-After-Swap,
@@ -85,7 +70,7 @@ Access-Control-Expose-Headers:    HX-Trigger, HX-Trigger-After-Swap,
 Access-Control-Max-Age:           86400 (recommended)
 ```
 
-Preflight `OPTIONS` returns `204` with these headers and an empty body.
+Allowed preflight `OPTIONS` returns `204` with these headers and an empty body, without invoking a handler or demanding a browser bearer token. Reject disallowed origins and methods. Wildcard development policies must not weaken production origin checks.
 
 If `Access-Control-Allow-Origin` is reflected per-request, the response MUST include `Vary: Origin`.
 
@@ -97,13 +82,13 @@ HTMX read `HX-Trigger`, `HX-Location`, etc. from response headers. Browsers stri
 
 ### 3.1 Accept header
 
-A view route inspects the `Accept` header (RFC 7231 section 5.3.2):
+A view route inspects the `Accept` header ([RFC 9110 section 12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1)):
 
 - `application/json` -> JSON response per the view's `ResponseSchema`.
 - `text/html` -> HTML response (themed; see section 3.3).
 - `application/vnd.betterportal.metadata+json` -> metadata about the view (optional).
 - `application/x-ndjson` -> streamed frame-per-line response, streaming views only (see `streaming.md`). Non-streaming views return `406`.
-- Multiple types -> highest q-weight wins; ties broken by the order above.
+- Multiple types -> highest acceptable q-weight wins; ties preserve request order. A q=0 representation is unacceptable.
 - No `Accept` header or `*/*` -> service default (RECOMMENDED: JSON).
 
 Unsupported types return `406 Not Acceptable`.
@@ -135,18 +120,38 @@ For HTML responses, the query string MAY include:
 - `?_f=<location>.<fragmentId>` - render only that fragment (location and id MUST match the manifest).
 - `?_c=<componentId>` - render only that component.
 
+`_f` and `_c` are framework selectors. Hosts consume them before validating the
+application query schema; they are not application query fields. Other unknown
+query fields follow the operation's AnyVali unknown-key policy.
+
 These selectors MUST be honored on **any** view route, not only the canonical view path. They are how the theme pulls fragments without needing per-fragment endpoints.
 
-When `_f` or `_c` is present, the response status SHOULD be `200`, the body SHOULD be the rendered fragment/component HTML only (no `<html>`, `<head>`, or `<body>` wrappers), and the `Content-Type` SHOULD be `text/html; mode=fragment`.
+When `_f` or `_c` is present, preserve the handler/error status and return only the selected fragment/component HTML (no document wrappers), with `Content-Type: text/html; mode=fragment`. Status renderers use the selected method, renderer, kind, and key. Selectors never bypass the operation allowlist or auth policy.
+
+### 3.5 Raw responses
+
+An operation declared `raw: true` returns its own status, headers and byte or
+stream body. It still enforces the operation's input schemas, scope, allowlist
+and caller policy. Raw output bypasses representation negotiation, including a
+metadata Accept header; discovery remains available for its operation metadata.
+JSON handlers must not use raw responses to evade output validation.
+
+The host owns transport and CORS headers and rejects response-header injection.
+Repeated `Set-Cookie` values remain separate. A HEAD response contains no body;
+the host closes an owned response stream without reading it. Final statuses are
+200–599. Status 204, 205 and 304 forbids a body; 206 and redirects may carry one.
+Stream producers advance only after the previous write completes. Completion,
+disconnect and failure close the owned stream, including a result returned after
+cancellation. A raw stream failure after headers aborts delivery; the host must
+not append a JSON error to arbitrary binary content.
 
 ## 4. Error shape
 
-All error responses use this JSON shape:
+JSON framework errors contain a human-readable `error` string, with optional `detail`, `status`, or validation `issues`. Existing Node endpoints do not expose one universal machine-code/message pair. Diagnostic codes belong to the observability outcome. Clients must use HTTP status and declared response contracts, not parse English error strings.
 
 ```json
 {
-  "error": "<short machine-readable code>",
-  "message": "<human-readable detail>",
+  "error": "Invalid query",
   "issues": [           // optional, present for 400-class validation failures
     {
       "code": "<av-error-code>",
@@ -157,7 +162,7 @@ All error responses use this JSON shape:
 }
 ```
 
-For HTMX requests (`HX-Request: true`) with `Accept: text/html`, the service MAY return an HTML error fragment instead. In that case set `HX-Trigger: bp:error` so the theme can show a global error toast.
+HTML errors use a matching status renderer when available. The existing adapter may return an empty body for an HTML error without a renderer. Status codes that forbid a body remain empty. SSE/NDJSON errors after streaming starts are in-band terminal frames. Do not replace these representations with JSON unconditionally or disclose exception internals to unauthenticated callers.
 
 Status codes follow HTTP conventions:
 
@@ -165,7 +170,7 @@ Status codes follow HTTP conventions:
 |---|---|
 | 400 | Schema validation failed; include `issues`. |
 | 401 | Missing or invalid bearer token (see `auth.md`). |
-| 403 | Authenticated but lacks required `permissions`/`audiences`/`minimumTier`. |
+| 403 | Authenticated but lacks scoped role permissions, caller mode, or service grant. |
 | 404 | Path not registered or `fragmentId`/`componentId` unknown. |
 | 406 | Accept type, shell renderer, or render mode unsupported. |
 | 409 | Resource conflict (e.g., tenant already exists). |
@@ -198,7 +203,7 @@ Registry references are distribution coordinates, not runtime IDs. For example, 
 
 ### 5.3 Tenant + app identifiers
 
-`tenantId`, `appId`, `routeId`, `serviceId` (the binding id) are opaque strings, MUST match `[a-z0-9][a-z0-9-]*`, max 64 characters.
+`tenantId`, `appId`, `routeId`, and service-instance/activation IDs are lowercase UUIDv7 strings. Slugs and reverse-DNS plugin IDs are distinct identifiers. The canonical AnyVali contracts preserve the few compatibility surfaces that still accept general nonempty strings, such as config-ticket tenant/service identifiers.
 
 ## 6. Standard request headers
 

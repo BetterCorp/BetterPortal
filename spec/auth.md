@@ -1,228 +1,153 @@
-# Authentication & Authorization
+# Authentication and authorization
 
-**Version:** `bp-protocol/2`
+**Version:** bp-protocol/2
 
-BetterPortal has two authentication surfaces:
+BP has separate user, installed-service, and configuration-ticket credentials.
+They are not interchangeable. Canonical wire contracts are the exported
+[AnyVali documents](../framework/conformance/contracts/), derived from
+framework/nodejs/src/contracts/auth.ts, m2m.ts, and serviceConfig.ts.
 
-1. **View auth** - protecting user-facing routes. Standards-based (OIDC + JWT + JWKS).
-2. **Config ticket** - protecting `/.well-known/bp/config*` admin endpoints. BetterPortal-specific (see `config.md` section 3).
+## 1. User access and refresh tokens
 
-Both use HTTP `Authorization: Bearer <token>` headers. **Neither uses cookies for cross-origin auth** - see `protocol.md` section 8.
+Ordinary service requests carry Authorization: Bearer followed by a BP access
+token. These are RS256 JWTs with typ=JWT and a trusted kid:
 
----
+| Claim | Contract |
+|---|---|
+| iss | Nonempty string, exactly the configured expected issuer. |
+| aud | Nonempty string or nonempty string array containing the configured expected audience. |
+| sub, jti | Nonempty strings. |
+| exp | Positive integer Unix seconds, unexpired. |
+| iat | Nonnegative integer Unix seconds. Future issuance is invalid, subject to clock tolerance. |
+| nbf | Optional nonnegative integer Unix seconds; not in the future beyond tolerance. |
+| tenantId, appId | Lowercase UUIDv7 strings; both must match resolved request scope. |
+| realm | runtime or control-plane. User token helpers issue runtime. |
+| roles | Array of nonempty role IDs; schema default is an empty array. |
+| tokenType | Ordinary routes require access; refresh helpers require refresh. |
+| authProvider, providerSubject, profile fields | Optional; see JwtClaimsSchema. |
+| refreshContext | Optional recursive JSON object; required by the refresh-pair issuance helper. |
 
-## 1. View auth (user sessions)
+Setup, install, and CP-envelope credentials have distinct purposes and dedicated
+contracts. There is no tier, minimumTier, flat JWT permissions, tenant_id, or
+app_id authorization model.
 
-### 1.1 Why standards-based
+External OIDC tokens are verified by the external-provider helper and exchanged
+by an auth provider for BP-scoped tokens. An OIDC ID token with only standard
+claims does not satisfy the BP access-token contract. Provider login/refresh
+paths come from its manifest, not a universal /token endpoint.
 
-A BetterPortal-issued auth service is OPTIONAL. Any OIDC-compliant identity provider (Auth0, Keycloak, Authentik, Okta, custom) MAY be used, provided it emits ID tokens with the required claims (section 1.3).
+### 1.1 Verification and key discovery
 
-### 1.2 Token transport
+Pin RS256 and the expected token purpose; validate the complete claims contract.
+Reject malformed headers, unknown kid, and untrusted jku/x5u references.
+A kid is 1–256 ASCII letters, digits, underscore, or hyphen.
+Use configured static JWKS, a local resolver, or a trusted configured JWKS URL;
+never fetch a URL supplied by a token.
 
-Browser -> service requests carry:
+App auth metadata contains expectedIssuer, expectedAudience, jwksUri, and
+optional pushed publicKeys. The CP verifies with pushed keys to avoid a
+CP-to-provider fetch. Runtime JWKS helpers cache keys and support invalidation.
+Snapshot key changes must invalidate dependent verifier caches.
 
-```
-Authorization: Bearer <id-token>
-```
+### 1.2 Method-specific authorization
 
-The token is injected by the theme via HTMX `hx-headers` on the shell root, so every descendant fragment request inherits it. Browsers never store it in a cookie that crosses origins.
+Each operation declares ApiAuthRequirement: required (default false), callers
+(default user only), and permissions (default empty).
+Permission requirements bind a serviceId (plugin ID), viewId, and an array of
+read/create/update/delete actions. Enforcement precedes the handler and uses
+the selected HTTP operation, including SSE's GET policy.
 
-```html
-<div data-bp-shell-root="" hx-headers='{"Authorization":"Bearer <id-token>"}'>
-  ...
-</div>
-```
+Expand token role IDs through the current app's auth.roles[].permissions.
+Each role grant binds a concrete service instance and view to allowed actions.
+Resolve aliases only through trusted tenant/app configuration. Every required
+action must be granted. Applying a changed snapshot therefore revokes role
+permissions even while a signed token remains unexpired.
 
-The theme is responsible for:
-- Obtaining the ID token (via OIDC code flow against the IdP).
-- Storing it (same-origin theme cookie, `localStorage`, or in-memory) - implementation choice.
-- Refreshing it before expiry (using refresh tokens or silent re-auth).
-- Setting the `hx-headers` attribute on the shell root.
+The reserved platform-root role elevates only inside the configured management
+tenant/app. Preview and ordinary tenant requests cannot acquire management
+authority by supplying that role or claiming a different tenant.
 
-### 1.3 ID token claims (RS256 JWT)
+Optional auth may yield an anonymous context for invalid user credentials;
+it must never attach partial or unverified claims. Protected routes return
+401 for absent/invalid credentials, 403 for insufficient permissions, and 503
+when required verification context is unavailable. HTTP representations are
+defined in [protocol.md](protocol.md), not a separate universal auth error format.
 
-Required claims:
+### 1.3 Refresh
 
-| Claim | Type | Meaning |
-|---|---|---|
-| `iss` | string | Issuer URL; MUST match the IdP's `issuer` from OIDC discovery. |
-| `sub` | string | Subject (user) identifier. |
-| `aud` | string \| string[] | Audience(s); MUST include the calling service's `pluginId` OR a configured audience. |
-| `exp` | int | Expiration, unix seconds. |
-| `iat` | int | Issued-at, unix seconds. |
+The token-pair helper issues access and refresh tokens with the same pair jti.
+Refresh tokens carry roles=[] and require authProvider, refreshContext, and a
+configured refresh lifetime. Verify refresh purpose and tenant/app binding
+before the provider re-evaluates the user and issues another pair.
+Session persistence, revocation, and rotation policy remain provider concerns.
 
-Optional / BetterPortal-recognized claims:
-
-| Claim | Type | Meaning |
-|---|---|---|
-| `realm` | string | Logical realm. Common values: `runtime` (end-user), `control-plane` (admin). |
-| `tier` | string | User tier. Free-form; common: `public`, `user`, `admin`. |
-| `permissions` | string[] | Permission tokens (see service manifest `permissions[]`). |
-| `email`, `name`, etc. | string | Standard OIDC profile claims; optional. |
-
-### 1.4 JWKS
-
-The IdP exposes:
-
-```
-GET /.well-known/jwks.json
-GET /.well-known/openid-configuration
-```
-
-Services verify ID tokens by fetching JWKS (cached, with TTL >= 5 minutes). The reference SDK uses `JwksVerifier` (see `framework/nodejs/src/runtime/jwksVerifier.ts`); other SDKs use their stack's equivalent (`jose`, `firebase/php-jwt + web-token`, `golang-jwt`, etc.).
-
-### 1.5 Per-operation policy: `ViewAuthRequirement`
-
-Every HTTP operation declares an `auth` block in its manifest:
-
-```jsonc
-{
-  "required":   false,             // true -> handler MUST see a verified claim set
-  "realm":      "runtime",
-  "minimumTier":"public",          // "public" | "user" | "admin" | <custom>
-  "audiences":  [],                // additional required aud values
-  "permissions":[]                 // required permission tokens
-}
-```
-
-This is **declarative metadata only**. The protocol does not mandate enforcement; the SDK does it. A service MAY use middleware that reads `auth.required` from the selected method operation and rejects with `401` if no valid token, or `403` if a token is present but fails `realm` / `minimumTier` / `audiences` / `permissions` checks. Methods sharing one `viewId` do not share auth policy.
-
-### 1.6 Tier ordering
-
-If used, tiers form a total order. Reference order:
-
-```
-public  <  user  <  admin
-```
-
-A view's `minimumTier` MUST be satisfied by the token's `tier` (or implicitly inferred from `permissions`). Custom tiers MAY be added by extending the order; the order is configured globally (typically in `bp-config.yaml`'s admin section, TBD).
-
-### 1.7 Failure responses
-
-| Failure | Status | Body |
-|---|---|---|
-| No `Authorization` header | 401 | `{ "error": "unauthorized", "message": "Missing bearer token" }` |
-| Token signature invalid | 401 | `{ "error": "invalid_token", "message": "Signature verification failed" }` |
-| Token expired | 401 | `{ "error": "invalid_token", "message": "Token expired" }` |
-| Audience mismatch | 401 | `{ "error": "invalid_token", "message": "Audience mismatch" }` |
-| Auth context unavailable because scoped config has not synced | 503 | `{ "error": "service_unavailable", "message": "Auth context unavailable" }` |
-| Insufficient tier | 403 | `{ "error": "forbidden", "message": "Required tier: admin" }` |
-| Missing permission | 403 | `{ "error": "forbidden", "message": "Missing permission: orders.refund" }` |
-
-For HTMX requests with `Accept: text/html`, the response MAY be HTML with `HX-Trigger: bp:auth-required` so the theme can show a login redirect.
-
-### 1.8 Refresh
-
-Services MAY return a hint header to nudge clients to refresh:
-
-```
-HX-Trigger: bp:auth-refresh-needed
-```
-
-The theme is responsible for refreshing the token and retrying. For BetterPortal-managed auth, the auth service URL is authoritative: derive the refresh request from the configured auth/login service origin, not from the theme origin or the service that returned 401. If refresh succeeds, retry the original safe request once; if it fails, clear the stored access token and show login.
-
----
+The browser refreshes through the configured auth service origin, never an
+arbitrary service returning 401. All server SDKs reuse the existing browser
+JavaScript runtime.
 
 ## 2. Config tickets
 
-Distinct from view auth. Used only on `/.well-known/bp/config*` endpoints. See `config.md` section 3 for the full spec.
+Config endpoints use CP-signed RS256 JWTs with typ=JWT. The canonical
+ServiceConfigTicketClaimsSchema requires iss, aud, sub, exp, iat, jti,
+realm=control-plane, tenantId, serviceId, and nonempty actions. bindingId is
+optional. There is no appId claim.
 
-Summary:
+The audience is betterportal-service-config and the issuer is the configured
+control-plane issuer. The target serviceId matches the service's configuration
+API identity. Actions are schema.read, config.read, and config.write.
+The reference schema endpoint is public. App authorization uses the scoped
+configApps index, or runtime apps when absent, within the ticket tenant.
+See [config.md](config.md).
 
-- Issued by the admin service (or a designated authority).
-- JWT (RS256) with BetterPortal-specific claims: `tenantId`, `appId`, `serviceId`, `actions[]`.
-- Verified by target services against the issuer's JWKS.
-- Short-lived (<= 5 minutes recommended).
+## 3. Installed-service and delegated authentication
 
----
+Installed services sign their own short-lived RS256 credentials. The CP API key
+is control-plane-only and grants no data-plane access. Each service persists
+its keypair and submits its public key and kid during authenticated sync.
+A mismatched key requires explicit recovery/rotation.
 
-## 3. Optional auth provider services
+Service tokens have typ=BP-S2S-JWT and tokenType=service. Claims bind iss and
+sub to the same source instance, aud to the exact target instance, plus
+tenantId, appId, bindingId, iat, exp, and jti. Lifetime is positive and at most
+60 seconds. nbf is optional.
 
-Reference auth services are provided under `services/nodejs/auth-default/` and `services/nodejs/auth-authress-io/`. `auth-default` is an OIDC-compliant identity provider that:
+Both machine modes require X-BP-Service-Id, X-BP-Tenant-Id, and X-BP-App-Id:
 
-- Issues ID + refresh tokens (RS256 JWT).
-- Exposes `POST /token` (credentials -> tokens), `POST /refresh` (refresh -> ID), `POST /revoke` (token -> 204).
-- Exposes `GET /.well-known/openid-configuration` and `GET /.well-known/jwks.json`.
+| Mode | Credentials |
+|---|---|
+| service | Service bearer token in Authorization. |
+| delegated | Original BP user bearer in Authorization; service bearer in X-BP-Service-Authorization. |
 
-Apps bind an auth provider through `app.auth.serviceId`. That value points at a tenant service id or shared-service activation id. Shared providers are registered in `sharedServiceCatalog` and bound through `sharedServiceActivations`; app config should not point directly at a plugin id or shared catalog id.
+The operation must explicitly allow the selected mode. A complete service
+envelope takes precedence over browser origin resolution. Partial, malformed,
+or mismatched envelopes fail without browser fallback.
+An envelope is identified by a service bearer, X-BP-Service-Id, or
+X-BP-Service-Authorization. Tenant/app hints alone do not establish machine mode
+or override trusted browser scope resolution.
 
-Auth provider implementations are not part of the protocol. A BetterPortal deployment that uses Authress, Auth0, Keycloak, or another provider is fully conformant when tokens and JWKS validation satisfy the app's auth metadata.
+Verify the source key from the current snapshot, source header, local target
+instance, tenant/app, enabled binding, binding mode and target view, enabled
+grant, exact HTTP method, and required permissions. Caller-supplied permissions
+are never authoritative. Delegated calls independently satisfy both user
+policy and delegated service grant. Provisioned identity alone grants nothing.
 
-### 3.1 Custom claim shape (when using the reference auth service)
+Binding/grant creation requires administrator approval. Revocation must not
+silently reactivate an old binding. Services use last-known-good snapshots
+during CP outages; revocations become effective at each target when it
+atomically applies the updated snapshot.
 
-```jsonc
-{
-  "iss": "<auth-service-origin>",
-  "sub": "<user-id>",
-  "aud": ["<target-service-pluginId>", ...],
-  "exp": <unix-seconds>,
-  "iat": <unix-seconds>,
-  "jti": "<unique-id>",
+## 4. Browser transport and helpers
 
-  "realm": "runtime",
-  "tier": "user",
-  "permissions": ["orders.read", ...],
-  "tenant_id": "<tenantId>",                // optional; constrains the token's scope
-  "app_id": "<appId>",                      // optional
-  "email": "...",
-  "name": "..."
-}
-```
+The shell passes access tokens through BP-managed headers and HTMX hx-headers.
+Cross-origin service authentication does not use cookies. Same-origin theme
+cookies may hold refresh state or preferences with appropriate Secure, HttpOnly,
+and SameSite settings. Theme/auth SDKs provide cookie, redirect, issuance, and
+verification building blocks; provider service implementations are outside
+the runtime ports.
 
----
+## 5. Acceptance
 
-## 4. Service-to-service auth
-
-Installed services authenticate directly; neither config-manager nor the app auth provider mints their data-plane service tokens. Provisioned identity alone grants no access.
-
-Routes MUST default to `auth.callers: ["user"]` when caller modes are omitted. A route MUST explicitly allow `service` and/or `delegated` before accepting that mode. Provider contracts MUST declare their supported machine modes, and each outbound request MUST select one mode.
-
-- `service`: `Authorization` contains the short-lived service token.
-- `delegated`: `Authorization` contains the original BP user JWT and `X-BP-Service-Authorization` contains the short-lived service token. The target MUST independently verify both credentials and enforce both user permissions and the delegated service grant.
-
-Both machine modes MUST include `X-BP-Service-Id`, `X-BP-Tenant-Id`, and `X-BP-App-Id`. A complete service envelope takes precedence over browser `Origin`/`Referer` context. A partial, malformed, or mismatched envelope MUST fail and MUST NOT fall back to browser context resolution.
-
-- After installation, a service generates and persists an RS256 keypair beside its bootstrap state.
-- The service submits its public key and derived `kid` during authenticated control-plane sync. A different key is rejected until an explicit recovery/rotation flow is used.
-- Config-manager syncs only relevant public keys, app-scoped `m2m.bindings`, and `m2m.grants` to each source/target service.
-- The caller signs a `BP-S2S-JWT` with a maximum lifetime of 60 seconds. Claims bind the source, exact target instance, tenant, app, and binding.
-- The target verifies the signature, source header, mode, binding, HTTP method, target view, grant, and route permissions from its local snapshot. Caller-supplied permissions are never authoritative.
-- Config-manager MUST create bindings/grants only after explicit administrator approval. Revocation deletes them. A later recurrence MUST return to pending approval and MUST receive fresh binding/grant IDs rather than reactivating revoked records.
-
-The control-plane API key remains control-plane-only and MUST NOT authenticate ordinary service API routes. If config-manager is unavailable, services keep using their persisted last-known-good snapshot. Revocations become effective on each target as soon as that target applies the updated snapshot.
-
----
-## 5. Cookies (theme-origin only)
-
-Themes MAY use HttpOnly, Secure, SameSite=Lax cookies for **same-origin** purposes:
-
-- Storing the refresh token (so a page reload survives without a re-login).
-- Storing UI preferences (chosen theme mode, sidebar collapsed state).
-
-These cookies are set on the theme's origin and are invisible to services. They are NOT a substitute for the `Authorization` header on service calls.
-
-The reference SDK exports `parseCookieHeader`, `serializeCookie`, `serializeClearCookie` for this purpose.
-
----
-
-## 6. Conformance
-
-A service implementing view auth:
-
-- MUST honor `Authorization: Bearer` on protected routes.
-- MUST verify token signatures against the IdP's JWKS.
-- MUST validate `exp`, `iat`, and `aud`.
-- MUST emit `401` for missing/invalid tokens, `403` for scope failures.
-- MUST NOT accept tokens via cookies on view routes.
-
-A service implementing config endpoints:
-
-- MUST follow `config.md` section 3 for ticket verification.
-
-An IdP (whether the reference auth service or a third party):
-
-- MUST serve `/.well-known/openid-configuration` and `/.well-known/jwks.json`.
-- MUST issue RS256-signed JWTs with the required claims (section 1.3).
-- SHOULD support refresh tokens.
-
-See `conformance.md` for the test matrix.
+The [capability ledger](../framework/conformance/CAPABILITIES.md) records
+implementation and acceptance ownership. Compatibility must not preserve known
+validation defects. AnyVali import must retain sensitive metadata and ciphertext
+tampering must fail before encrypted configuration is enabled.

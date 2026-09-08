@@ -1,0 +1,62 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "instanceId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "serviceUrl": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "cpUrl": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "cpJwksUri": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "scope": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "tenantId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "appId": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            }
+          },
+          "required": [
+            "tenantId"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "jti": {
+        "kind": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "instanceId",
+      "serviceUrl",
+      "cpUrl",
+      "cpJwksUri",
+      "jti"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

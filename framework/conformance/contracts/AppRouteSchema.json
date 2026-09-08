@@ -1,0 +1,44 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "path": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "viewId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "serviceId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "enabled": {
+        "kind": "bool",
+        "default": true
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "path",
+      "viewId",
+      "serviceId",
+      "enabled"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

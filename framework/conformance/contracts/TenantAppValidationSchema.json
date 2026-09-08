@@ -1,0 +1,37 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "allowed": {
+        "kind": "bool"
+      },
+      "reason": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "upgradeUrl": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "retryAfterSeconds": {
+        "kind": "optional",
+        "inner": {
+          "kind": "int",
+          "min": 0
+        }
+      }
+    },
+    "required": [
+      "allowed"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

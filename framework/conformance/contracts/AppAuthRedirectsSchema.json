@@ -1,0 +1,55 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "afterLogin": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "serviceId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "viewId": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "serviceId",
+            "viewId"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "afterLogout": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "serviceId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "viewId": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "serviceId",
+            "viewId"
+          ],
+          "unknownKeys": "strip"
+        }
+      }
+    },
+    "required": [],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

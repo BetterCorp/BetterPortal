@@ -1,0 +1,42 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "slotId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "renderModes": {
+        "kind": "array",
+        "items": {
+          "kind": "enum",
+          "values": [
+            "page",
+            "fragment",
+            "embed"
+          ]
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "slotId",
+      "renderModes"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

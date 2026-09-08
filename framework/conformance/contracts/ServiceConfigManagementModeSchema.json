@@ -1,0 +1,14 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "enum",
+    "values": [
+      "static",
+      "bp-managed",
+      "hybrid"
+    ]
+  },
+  "definitions": {},
+  "extensions": {}
+}

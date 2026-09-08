@@ -1,0 +1,26 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "kind": {
+        "kind": "enum",
+        "values": [
+          "end"
+        ]
+      },
+      "count": {
+        "kind": "int",
+        "min": 0
+      }
+    },
+    "required": [
+      "kind",
+      "count"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

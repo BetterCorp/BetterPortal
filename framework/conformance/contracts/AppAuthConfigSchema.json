@@ -1,0 +1,303 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "serviceId": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "provider": {
+        "kind": "optional",
+        "inner": {
+          "kind": "union",
+          "variants": [
+            {
+              "kind": "object",
+              "properties": {
+                "kind": {
+                  "kind": "literal",
+                  "value": "betterportal.default"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "unknownKeys": "strip"
+            },
+            {
+              "kind": "object",
+              "properties": {
+                "kind": {
+                  "kind": "literal",
+                  "value": "authress.io"
+                },
+                "roleClaimPath": {
+                  "kind": "string",
+                  "minLength": 1,
+                  "default": "roles"
+                },
+                "subjectClaimPath": {
+                  "kind": "string",
+                  "minLength": 1,
+                  "default": "sub"
+                },
+                "nameClaimPath": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "emailClaimPath": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "pictureClaimPath": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "kind",
+                "roleClaimPath",
+                "subjectClaimPath"
+              ],
+              "unknownKeys": "strip"
+            }
+          ]
+        }
+      },
+      "roleAuthority": {
+        "kind": "optional",
+        "inner": {
+          "kind": "enum",
+          "values": [
+            "provider",
+            "betterportal"
+          ]
+        }
+      },
+      "loginViewId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "logoutViewId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "refreshViewId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "redirects": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "afterLogin": {
+              "kind": "optional",
+              "inner": {
+                "kind": "object",
+                "properties": {
+                  "serviceId": {
+                    "kind": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "viewId": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "serviceId",
+                  "viewId"
+                ],
+                "unknownKeys": "strip"
+              }
+            },
+            "afterLogout": {
+              "kind": "optional",
+              "inner": {
+                "kind": "object",
+                "properties": {
+                  "serviceId": {
+                    "kind": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "viewId": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "serviceId",
+                  "viewId"
+                ],
+                "unknownKeys": "strip"
+              }
+            }
+          },
+          "required": [],
+          "unknownKeys": "strip"
+        }
+      },
+      "expectedIssuer": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "expectedAudience": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "jwksUri": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "publicKeys": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "keys": {
+              "kind": "array",
+              "items": {
+                "kind": "object",
+                "properties": {
+                  "kty": {
+                    "kind": "literal",
+                    "value": "RSA"
+                  },
+                  "use": {
+                    "kind": "literal",
+                    "value": "sig"
+                  },
+                  "alg": {
+                    "kind": "literal",
+                    "value": "RS256"
+                  },
+                  "kid": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "n": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "e": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kty",
+                  "use",
+                  "alg",
+                  "kid",
+                  "n",
+                  "e"
+                ],
+                "unknownKeys": "strip"
+              }
+            }
+          },
+          "required": [
+            "keys"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "roles": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "id": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "title": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "description": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string"
+              }
+            },
+            "permissions": {
+              "kind": "array",
+              "items": {
+                "kind": "object",
+                "properties": {
+                  "serviceId": {
+                    "kind": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "viewId": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "permissions": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "enum",
+                      "values": [
+                        "read",
+                        "create",
+                        "update",
+                        "delete"
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "serviceId",
+                  "viewId",
+                  "permissions"
+                ],
+                "unknownKeys": "strip"
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "permissions"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "serviceId",
+      "expectedIssuer",
+      "expectedAudience",
+      "jwksUri",
+      "roles"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

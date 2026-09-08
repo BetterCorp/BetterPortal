@@ -1,0 +1,24 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "changeToken": {
+        "kind": "string",
+        "minLength": 49,
+        "maxLength": 49,
+        "metadata": {
+          "sensitive": true
+        },
+        "pattern": "^bp_hc_[A-Za-z0-9_-]{43}$"
+      }
+    },
+    "required": [
+      "changeToken"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

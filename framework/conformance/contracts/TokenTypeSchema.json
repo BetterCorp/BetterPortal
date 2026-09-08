@@ -1,0 +1,16 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "enum",
+    "values": [
+      "access",
+      "refresh",
+      "cp-envelope",
+      "setup",
+      "install"
+    ]
+  },
+  "definitions": {},
+  "extensions": {}
+}

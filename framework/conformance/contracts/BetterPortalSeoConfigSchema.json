@@ -1,0 +1,57 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "visibility": {
+        "kind": "enum",
+        "values": [
+          "auto",
+          "public",
+          "private"
+        ],
+        "default": "auto"
+      },
+      "serviceFailure": {
+        "kind": "enum",
+        "values": [
+          "known-routes",
+          "omit-service",
+          "error"
+        ],
+        "default": "omit-service"
+      },
+      "serviceCache": {
+        "kind": "enum",
+        "values": [
+          "none",
+          "1h",
+          "24h",
+          "7d"
+        ],
+        "default": "24h"
+      },
+      "canonicalOrigin": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "format": "url"
+        }
+      }
+    },
+    "required": [
+      "visibility",
+      "serviceFailure",
+      "serviceCache"
+    ],
+    "unknownKeys": "strip",
+    "default": {
+      "visibility": "auto",
+      "serviceFailure": "omit-service",
+      "serviceCache": "24h"
+    }
+  },
+  "definitions": {},
+  "extensions": {}
+}

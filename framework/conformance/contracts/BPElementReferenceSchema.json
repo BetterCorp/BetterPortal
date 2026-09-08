@@ -1,0 +1,92 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "service": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "path": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string"
+        }
+      },
+      "fragment": {
+        "kind": "string"
+      },
+      "args": {
+        "kind": "object",
+        "properties": {
+          "params": {
+            "kind": "record",
+            "valueSchema": {
+              "kind": "union",
+              "variants": [
+                {
+                  "kind": "string"
+                },
+                {
+                  "kind": "int64"
+                },
+                {
+                  "kind": "uint64"
+                },
+                {
+                  "kind": "number"
+                },
+                {
+                  "kind": "bool"
+                }
+              ]
+            },
+            "default": {}
+          },
+          "query": {
+            "kind": "record",
+            "valueSchema": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "union",
+                "variants": [
+                  {
+                    "kind": "string"
+                  },
+                  {
+                    "kind": "int64"
+                  },
+                  {
+                    "kind": "uint64"
+                  },
+                  {
+                    "kind": "number"
+                  },
+                  {
+                    "kind": "bool"
+                  }
+                ]
+              }
+            },
+            "default": {}
+          }
+        },
+        "required": [
+          "params",
+          "query"
+        ],
+        "unknownKeys": "strip",
+        "default": {}
+      }
+    },
+    "required": [
+      "service",
+      "fragment",
+      "args"
+    ],
+    "unknownKeys": "reject"
+  },
+  "definitions": {},
+  "extensions": {}
+}

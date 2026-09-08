@@ -1,0 +1,92 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "iss": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "aud": {
+        "kind": "union",
+        "variants": [
+          {
+            "kind": "string",
+            "minLength": 1
+          },
+          {
+            "kind": "array",
+            "items": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          }
+        ]
+      },
+      "sub": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "exp": {
+        "kind": "int",
+        "min": 1
+      },
+      "iat": {
+        "kind": "int",
+        "min": 0
+      },
+      "jti": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "realm": {
+        "kind": "literal",
+        "value": "control-plane"
+      },
+      "tenantId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "serviceId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "bindingId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "actions": {
+        "kind": "array",
+        "items": {
+          "kind": "enum",
+          "values": [
+            "schema.read",
+            "config.read",
+            "config.write"
+          ]
+        },
+        "minItems": 1
+      }
+    },
+    "required": [
+      "iss",
+      "aud",
+      "sub",
+      "exp",
+      "iat",
+      "jti",
+      "realm",
+      "tenantId",
+      "serviceId",
+      "actions"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

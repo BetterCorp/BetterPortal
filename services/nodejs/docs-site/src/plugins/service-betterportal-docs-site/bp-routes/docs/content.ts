@@ -35,7 +35,8 @@ function docsRootCandidates(): string[] {
 
 function docsRoot(): string {
   const DocsRootCandidates = docsRootCandidates();
-  const root = DocsRootCandidates.find((candidate) => existsSync(candidate));
+  // Documentation belongs to a project, not the route module also named docs.
+  const root = DocsRootCandidates.find((candidate) => existsSync(candidate) && existsSync(path.join(candidate, "..", "package.json")));
   return root ?? DocsRootCandidates[0];
 }
 

@@ -1,0 +1,162 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "bindings": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "id": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "tenantId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "appId": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "minLength": 1
+              }
+            },
+            "sourceServiceId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "requestId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "contractId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "targetServiceId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "targetViewId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "mode": {
+              "kind": "enum",
+              "values": [
+                "service",
+                "delegated"
+              ],
+              "default": "service"
+            },
+            "enabled": {
+              "kind": "bool",
+              "default": true
+            },
+            "createdAt": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "id",
+            "tenantId",
+            "sourceServiceId",
+            "requestId",
+            "contractId",
+            "targetServiceId",
+            "targetViewId",
+            "mode",
+            "enabled",
+            "createdAt"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      },
+      "grants": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "id": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "tenantId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "appId": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "minLength": 1
+              }
+            },
+            "bindingId": {
+              "kind": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "methods": {
+              "kind": "array",
+              "items": {
+                "kind": "enum",
+                "values": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE",
+                  "OPTIONS"
+                ]
+              },
+              "minItems": 1
+            },
+            "permissions": {
+              "kind": "array",
+              "items": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "enabled": {
+              "kind": "bool",
+              "default": true
+            },
+            "createdAt": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "id",
+            "tenantId",
+            "bindingId",
+            "methods",
+            "permissions",
+            "enabled",
+            "createdAt"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "bindings",
+      "grants"
+    ],
+    "unknownKeys": "strip",
+    "default": {
+      "bindings": [],
+      "grants": []
+    }
+  },
+  "definitions": {},
+  "extensions": {}
+}

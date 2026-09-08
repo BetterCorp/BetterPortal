@@ -1,0 +1,691 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "operationId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "method": {
+        "kind": "enum",
+        "values": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "OPTIONS"
+        ]
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "description": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "querySchema": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "ref",
+          "ref": "#/definitions/BetterPortalJsonValue"
+        }
+      },
+      "headersSchema": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "ref",
+          "ref": "#/definitions/BetterPortalJsonValue"
+        }
+      },
+      "bodySchema": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "ref",
+          "ref": "#/definitions/BetterPortalJsonValue"
+        }
+      },
+      "jsonResponseSchema": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "ref",
+          "ref": "#/definitions/BetterPortalJsonValue"
+        }
+      },
+      "metadataResponseSchema": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "ref",
+          "ref": "#/definitions/BetterPortalJsonValue"
+        }
+      },
+      "renderable": {
+        "kind": "bool",
+        "default": true
+      },
+      "raw": {
+        "kind": "optional",
+        "inner": {
+          "kind": "bool"
+        }
+      },
+      "streaming": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "itemSchema": {
+              "kind": "record",
+              "valueSchema": {
+                "kind": "ref",
+                "ref": "#/definitions/BetterPortalJsonValue"
+              }
+            },
+            "summarySchema": {
+              "kind": "optional",
+              "inner": {
+                "kind": "record",
+                "valueSchema": {
+                  "kind": "ref",
+                  "ref": "#/definitions/BetterPortalJsonValue"
+                }
+              }
+            }
+          },
+          "required": [
+            "itemSchema"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "html": {
+        "kind": "object",
+        "properties": {
+          "renderers": {
+            "kind": "record",
+            "valueSchema": {
+              "kind": "object",
+              "properties": {
+                "defaultRenderer": {
+                  "kind": "string",
+                  "minLength": 1,
+                  "default": "default"
+                },
+                "renderModes": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "enum",
+                    "values": [
+                      "page",
+                      "fragment",
+                      "embed"
+                    ]
+                  },
+                  "default": []
+                },
+                "slots": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "default": []
+                },
+                "renderers": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "properties": {
+                      "id": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "title": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "slotId": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "renderModes": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "enum",
+                          "values": [
+                            "page",
+                            "fragment",
+                            "embed"
+                          ]
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "slotId",
+                      "renderModes"
+                    ],
+                    "unknownKeys": "strip"
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "defaultRenderer",
+                "renderModes",
+                "slots",
+                "renderers"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": {}
+          }
+        },
+        "required": [
+          "renderers"
+        ],
+        "unknownKeys": "strip"
+      },
+      "auth": {
+        "kind": "object",
+        "properties": {
+          "required": {
+            "kind": "bool",
+            "default": false
+          },
+          "callers": {
+            "kind": "array",
+            "items": {
+              "kind": "enum",
+              "values": [
+                "user",
+                "service",
+                "delegated"
+              ]
+            },
+            "minItems": 1,
+            "default": [
+              "user"
+            ]
+          },
+          "permissions": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "serviceId": {
+                  "kind": "string",
+                  "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                },
+                "viewId": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "permissions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "enum",
+                    "values": [
+                      "read",
+                      "create",
+                      "update",
+                      "delete"
+                    ]
+                  },
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "serviceId",
+                "viewId",
+                "permissions"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "required",
+          "callers",
+          "permissions"
+        ],
+        "unknownKeys": "strip"
+      },
+      "sitemap": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "kind": {
+              "kind": "enum",
+              "values": [
+                "default",
+                "exclude",
+                "metadata",
+                "provider"
+              ]
+            },
+            "lastModified": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "format": "date-time"
+              }
+            },
+            "changeFrequency": {
+              "kind": "optional",
+              "inner": {
+                "kind": "enum",
+                "values": [
+                  "always",
+                  "hourly",
+                  "daily",
+                  "weekly",
+                  "monthly",
+                  "yearly",
+                  "never"
+                ]
+              }
+            },
+            "priority": {
+              "kind": "optional",
+              "inner": {
+                "kind": "number",
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "robots": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "userAgent": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "access": {
+              "kind": "enum",
+              "values": [
+                "allow",
+                "disallow"
+              ]
+            },
+            "crawlDelaySeconds": {
+              "kind": "optional",
+              "inner": {
+                "kind": "int",
+                "min": 0,
+                "max": 86400
+              }
+            }
+          },
+          "required": [
+            "userAgent",
+            "access"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      },
+      "role": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "dependencies": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "serviceId": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string",
+                "minLength": 1
+              }
+            },
+            "operationId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "method": {
+              "kind": "enum",
+              "values": [
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+              ]
+            }
+          },
+          "required": [
+            "operationId",
+            "method"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      },
+      "chrome": {
+        "kind": "optional",
+        "inner": {
+          "kind": "intersection",
+          "allOf": [
+            {
+              "kind": "object",
+              "properties": {
+                "hideMenu": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "bool"
+                  }
+                },
+                "hideHeader": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "bool"
+                  }
+                },
+                "hideFooter": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "bool"
+                  }
+                },
+                "fullScreen": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "bool"
+                  }
+                }
+              },
+              "required": [],
+              "unknownKeys": "strip"
+            },
+            {
+              "kind": "record",
+              "valueSchema": {
+                "kind": "union",
+                "variants": [
+                  {
+                    "kind": "string"
+                  },
+                  {
+                    "kind": "number"
+                  },
+                  {
+                    "kind": "bool"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "apiContracts": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "id": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "title": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "description": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string"
+              }
+            },
+            "version": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "viewId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "methods": {
+              "kind": "array",
+              "items": {
+                "kind": "enum",
+                "values": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE",
+                  "OPTIONS"
+                ]
+              },
+              "minItems": 1
+            },
+            "capabilities": {
+              "kind": "array",
+              "items": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "permissions": {
+              "kind": "array",
+              "items": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "modes": {
+              "kind": "array",
+              "items": {
+                "kind": "enum",
+                "values": [
+                  "service",
+                  "delegated"
+                ]
+              },
+              "minItems": 1,
+              "default": [
+                "service"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "version",
+            "viewId",
+            "methods",
+            "capabilities",
+            "permissions",
+            "modes"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      },
+      "demoScenarios": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "id": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "title": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "description": {
+              "kind": "optional",
+              "inner": {
+                "kind": "string"
+              }
+            },
+            "match": {
+              "kind": "optional",
+              "inner": {
+                "kind": "object",
+                "properties": {
+                  "query": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "record",
+                      "valueSchema": {
+                        "kind": "ref",
+                        "ref": "#/definitions/BetterPortalJsonValue"
+                      }
+                    }
+                  },
+                  "params": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "record",
+                      "valueSchema": {
+                        "kind": "ref",
+                        "ref": "#/definitions/BetterPortalJsonValue"
+                      }
+                    }
+                  },
+                  "headers": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "record",
+                      "valueSchema": {
+                        "kind": "string"
+                      }
+                    }
+                  },
+                  "request": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "record",
+                      "valueSchema": {
+                        "kind": "ref",
+                        "ref": "#/definitions/BetterPortalJsonValue"
+                      }
+                    }
+                  }
+                },
+                "required": [],
+                "unknownKeys": "strip"
+              }
+            },
+            "response": {
+              "kind": "ref",
+              "ref": "#/definitions/BetterPortalJsonValue"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "response"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      },
+      "cacheHints": {
+        "kind": "object",
+        "properties": {
+          "ttlSeconds": {
+            "kind": "int",
+            "min": 0,
+            "default": 0
+          },
+          "varyBy": {
+            "kind": "array",
+            "items": {
+              "kind": "string",
+              "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+(?![\\s\\S])"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "ttlSeconds",
+          "varyBy"
+        ],
+        "unknownKeys": "strip"
+      }
+    },
+    "required": [
+      "operationId",
+      "method",
+      "title",
+      "description",
+      "querySchema",
+      "headersSchema",
+      "bodySchema",
+      "jsonResponseSchema",
+      "metadataResponseSchema",
+      "renderable",
+      "html",
+      "auth",
+      "robots",
+      "dependencies",
+      "apiContracts",
+      "demoScenarios",
+      "cacheHints"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

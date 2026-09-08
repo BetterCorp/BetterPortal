@@ -1,0 +1,24 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "ok": {
+        "kind": "literal",
+        "value": true
+      },
+      "serviceUrl": {
+        "kind": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "ok",
+      "serviceUrl"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

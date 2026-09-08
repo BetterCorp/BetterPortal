@@ -1,0 +1,68 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "tenantId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "appId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "serviceId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "eventId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "url": {
+        "kind": "string",
+        "format": "url"
+      },
+      "secret": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "createdAt": {
+        "kind": "string",
+        "format": "date-time"
+      },
+      "enabled": {
+        "kind": "bool",
+        "default": true
+      },
+      "maxAttempts": {
+        "kind": "int",
+        "min": 1,
+        "max": 20,
+        "default": 10
+      }
+    },
+    "required": [
+      "id",
+      "tenantId",
+      "serviceId",
+      "eventId",
+      "url",
+      "secret",
+      "createdAt",
+      "enabled",
+      "maxAttempts"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

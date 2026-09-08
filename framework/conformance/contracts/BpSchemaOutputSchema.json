@@ -1,0 +1,1720 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "manifest": {
+        "kind": "object",
+        "properties": {
+          "protocolVersion": {
+            "kind": "literal",
+            "value": 2
+          },
+          "pluginId": {
+            "kind": "string",
+            "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+          },
+          "title": {
+            "kind": "string",
+            "minLength": 1
+          },
+          "description": {
+            "kind": "string",
+            "minLength": 1
+          },
+          "version": {
+            "kind": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+          },
+          "category": {
+            "kind": "enum",
+            "values": [
+              "framework",
+              "auth",
+              "theme",
+              "service",
+              "utility",
+              "integration"
+            ]
+          },
+          "deploymentModes": {
+            "kind": "array",
+            "items": {
+              "kind": "enum",
+              "values": [
+                "bp-hosted",
+                "customer-hosted",
+                "third-party-saas",
+                "self-hosted",
+                "saas-managed"
+              ]
+            },
+            "minItems": 1
+          },
+          "capabilities": {
+            "kind": "array",
+            "items": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "default": []
+          },
+          "supportedRenderers": {
+            "kind": "array",
+            "items": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "default": []
+          },
+          "supportedRenderModes": {
+            "kind": "array",
+            "items": {
+              "kind": "enum",
+              "values": [
+                "page",
+                "fragment",
+                "embed"
+              ]
+            },
+            "default": []
+          },
+          "views": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "viewId": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "path": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "pathVariants": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "default": []
+                },
+                "paramsSchema": {
+                  "kind": "record",
+                  "valueSchema": {
+                    "kind": "ref",
+                    "ref": "#/definitions/BetterPortalJsonValue"
+                  }
+                },
+                "operations": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "properties": {
+                      "operationId": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "method": {
+                        "kind": "enum",
+                        "values": [
+                          "GET",
+                          "POST",
+                          "PUT",
+                          "PATCH",
+                          "DELETE",
+                          "OPTIONS"
+                        ]
+                      },
+                      "title": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "description": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "querySchema": {
+                        "kind": "record",
+                        "valueSchema": {
+                          "kind": "ref",
+                          "ref": "#/definitions/BetterPortalJsonValue"
+                        }
+                      },
+                      "headersSchema": {
+                        "kind": "record",
+                        "valueSchema": {
+                          "kind": "ref",
+                          "ref": "#/definitions/BetterPortalJsonValue"
+                        }
+                      },
+                      "bodySchema": {
+                        "kind": "record",
+                        "valueSchema": {
+                          "kind": "ref",
+                          "ref": "#/definitions/BetterPortalJsonValue"
+                        }
+                      },
+                      "jsonResponseSchema": {
+                        "kind": "record",
+                        "valueSchema": {
+                          "kind": "ref",
+                          "ref": "#/definitions/BetterPortalJsonValue"
+                        }
+                      },
+                      "metadataResponseSchema": {
+                        "kind": "record",
+                        "valueSchema": {
+                          "kind": "ref",
+                          "ref": "#/definitions/BetterPortalJsonValue"
+                        }
+                      },
+                      "renderable": {
+                        "kind": "bool",
+                        "default": true
+                      },
+                      "raw": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "bool"
+                        }
+                      },
+                      "streaming": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "object",
+                          "properties": {
+                            "itemSchema": {
+                              "kind": "record",
+                              "valueSchema": {
+                                "kind": "ref",
+                                "ref": "#/definitions/BetterPortalJsonValue"
+                              }
+                            },
+                            "summarySchema": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "record",
+                                "valueSchema": {
+                                  "kind": "ref",
+                                  "ref": "#/definitions/BetterPortalJsonValue"
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "itemSchema"
+                          ],
+                          "unknownKeys": "strip"
+                        }
+                      },
+                      "html": {
+                        "kind": "object",
+                        "properties": {
+                          "renderers": {
+                            "kind": "record",
+                            "valueSchema": {
+                              "kind": "object",
+                              "properties": {
+                                "defaultRenderer": {
+                                  "kind": "string",
+                                  "minLength": 1,
+                                  "default": "default"
+                                },
+                                "renderModes": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "enum",
+                                    "values": [
+                                      "page",
+                                      "fragment",
+                                      "embed"
+                                    ]
+                                  },
+                                  "default": []
+                                },
+                                "slots": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "string",
+                                    "minLength": 1
+                                  },
+                                  "default": []
+                                },
+                                "renderers": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "object",
+                                    "properties": {
+                                      "id": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "title": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "slotId": {
+                                        "kind": "string",
+                                        "minLength": 1
+                                      },
+                                      "renderModes": {
+                                        "kind": "array",
+                                        "items": {
+                                          "kind": "enum",
+                                          "values": [
+                                            "page",
+                                            "fragment",
+                                            "embed"
+                                          ]
+                                        },
+                                        "default": []
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "title",
+                                      "slotId",
+                                      "renderModes"
+                                    ],
+                                    "unknownKeys": "strip"
+                                  },
+                                  "default": []
+                                }
+                              },
+                              "required": [
+                                "defaultRenderer",
+                                "renderModes",
+                                "slots",
+                                "renderers"
+                              ],
+                              "unknownKeys": "strip"
+                            },
+                            "default": {}
+                          }
+                        },
+                        "required": [
+                          "renderers"
+                        ],
+                        "unknownKeys": "strip"
+                      },
+                      "auth": {
+                        "kind": "object",
+                        "properties": {
+                          "required": {
+                            "kind": "bool",
+                            "default": false
+                          },
+                          "callers": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "enum",
+                              "values": [
+                                "user",
+                                "service",
+                                "delegated"
+                              ]
+                            },
+                            "minItems": 1,
+                            "default": [
+                              "user"
+                            ]
+                          },
+                          "permissions": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "object",
+                              "properties": {
+                                "serviceId": {
+                                  "kind": "string",
+                                  "pattern": "^[a-z](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$"
+                                },
+                                "viewId": {
+                                  "kind": "string",
+                                  "minLength": 1
+                                },
+                                "permissions": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "enum",
+                                    "values": [
+                                      "read",
+                                      "create",
+                                      "update",
+                                      "delete"
+                                    ]
+                                  },
+                                  "minItems": 1
+                                }
+                              },
+                              "required": [
+                                "serviceId",
+                                "viewId",
+                                "permissions"
+                              ],
+                              "unknownKeys": "strip"
+                            },
+                            "default": []
+                          }
+                        },
+                        "required": [
+                          "required",
+                          "callers",
+                          "permissions"
+                        ],
+                        "unknownKeys": "strip"
+                      },
+                      "sitemap": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "object",
+                          "properties": {
+                            "kind": {
+                              "kind": "enum",
+                              "values": [
+                                "default",
+                                "exclude",
+                                "metadata",
+                                "provider"
+                              ]
+                            },
+                            "lastModified": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "changeFrequency": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "enum",
+                                "values": [
+                                  "always",
+                                  "hourly",
+                                  "daily",
+                                  "weekly",
+                                  "monthly",
+                                  "yearly",
+                                  "never"
+                                ]
+                              }
+                            },
+                            "priority": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "number",
+                                "min": 0,
+                                "max": 1
+                              }
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "unknownKeys": "strip"
+                        }
+                      },
+                      "robots": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "properties": {
+                            "userAgent": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "access": {
+                              "kind": "enum",
+                              "values": [
+                                "allow",
+                                "disallow"
+                              ]
+                            },
+                            "crawlDelaySeconds": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "int",
+                                "min": 0,
+                                "max": 86400
+                              }
+                            }
+                          },
+                          "required": [
+                            "userAgent",
+                            "access"
+                          ],
+                          "unknownKeys": "strip"
+                        },
+                        "default": []
+                      },
+                      "role": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "dependencies": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "properties": {
+                            "serviceId": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "operationId": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "method": {
+                              "kind": "enum",
+                              "values": [
+                                "GET",
+                                "POST",
+                                "PUT",
+                                "PATCH",
+                                "DELETE",
+                                "OPTIONS"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "operationId",
+                            "method"
+                          ],
+                          "unknownKeys": "strip"
+                        },
+                        "default": []
+                      },
+                      "chrome": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "intersection",
+                          "allOf": [
+                            {
+                              "kind": "object",
+                              "properties": {
+                                "hideMenu": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "bool"
+                                  }
+                                },
+                                "hideHeader": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "bool"
+                                  }
+                                },
+                                "hideFooter": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "bool"
+                                  }
+                                },
+                                "fullScreen": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "bool"
+                                  }
+                                }
+                              },
+                              "required": [],
+                              "unknownKeys": "strip"
+                            },
+                            {
+                              "kind": "record",
+                              "valueSchema": {
+                                "kind": "union",
+                                "variants": [
+                                  {
+                                    "kind": "string"
+                                  },
+                                  {
+                                    "kind": "number"
+                                  },
+                                  {
+                                    "kind": "bool"
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "apiContracts": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "properties": {
+                            "id": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "title": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "description": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "string"
+                              }
+                            },
+                            "version": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "viewId": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "methods": {
+                              "kind": "array",
+                              "items": {
+                                "kind": "enum",
+                                "values": [
+                                  "GET",
+                                  "POST",
+                                  "PUT",
+                                  "PATCH",
+                                  "DELETE",
+                                  "OPTIONS"
+                                ]
+                              },
+                              "minItems": 1
+                            },
+                            "capabilities": {
+                              "kind": "array",
+                              "items": {
+                                "kind": "string",
+                                "minLength": 1
+                              },
+                              "default": []
+                            },
+                            "permissions": {
+                              "kind": "array",
+                              "items": {
+                                "kind": "string",
+                                "minLength": 1
+                              },
+                              "default": []
+                            },
+                            "modes": {
+                              "kind": "array",
+                              "items": {
+                                "kind": "enum",
+                                "values": [
+                                  "service",
+                                  "delegated"
+                                ]
+                              },
+                              "minItems": 1,
+                              "default": [
+                                "service"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "title",
+                            "version",
+                            "viewId",
+                            "methods",
+                            "capabilities",
+                            "permissions",
+                            "modes"
+                          ],
+                          "unknownKeys": "strip"
+                        },
+                        "default": []
+                      },
+                      "demoScenarios": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "properties": {
+                            "id": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "title": {
+                              "kind": "string",
+                              "minLength": 1
+                            },
+                            "description": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "string"
+                              }
+                            },
+                            "match": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "object",
+                                "properties": {
+                                  "query": {
+                                    "kind": "optional",
+                                    "inner": {
+                                      "kind": "record",
+                                      "valueSchema": {
+                                        "kind": "ref",
+                                        "ref": "#/definitions/BetterPortalJsonValue"
+                                      }
+                                    }
+                                  },
+                                  "params": {
+                                    "kind": "optional",
+                                    "inner": {
+                                      "kind": "record",
+                                      "valueSchema": {
+                                        "kind": "ref",
+                                        "ref": "#/definitions/BetterPortalJsonValue"
+                                      }
+                                    }
+                                  },
+                                  "headers": {
+                                    "kind": "optional",
+                                    "inner": {
+                                      "kind": "record",
+                                      "valueSchema": {
+                                        "kind": "string"
+                                      }
+                                    }
+                                  },
+                                  "request": {
+                                    "kind": "optional",
+                                    "inner": {
+                                      "kind": "record",
+                                      "valueSchema": {
+                                        "kind": "ref",
+                                        "ref": "#/definitions/BetterPortalJsonValue"
+                                      }
+                                    }
+                                  }
+                                },
+                                "required": [],
+                                "unknownKeys": "strip"
+                              }
+                            },
+                            "response": {
+                              "kind": "ref",
+                              "ref": "#/definitions/BetterPortalJsonValue"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "title",
+                            "response"
+                          ],
+                          "unknownKeys": "strip"
+                        },
+                        "default": []
+                      },
+                      "cacheHints": {
+                        "kind": "object",
+                        "properties": {
+                          "ttlSeconds": {
+                            "kind": "int",
+                            "min": 0,
+                            "default": 0
+                          },
+                          "varyBy": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "string",
+                              "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+(?![\\s\\S])"
+                            },
+                            "default": []
+                          }
+                        },
+                        "required": [
+                          "ttlSeconds",
+                          "varyBy"
+                        ],
+                        "unknownKeys": "strip"
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "method",
+                      "title",
+                      "description",
+                      "querySchema",
+                      "headersSchema",
+                      "bodySchema",
+                      "jsonResponseSchema",
+                      "metadataResponseSchema",
+                      "renderable",
+                      "html",
+                      "auth",
+                      "robots",
+                      "dependencies",
+                      "apiContracts",
+                      "demoScenarios",
+                      "cacheHints"
+                    ],
+                    "unknownKeys": "strip"
+                  },
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "viewId",
+                "title",
+                "description",
+                "path",
+                "pathVariants",
+                "paramsSchema",
+                "operations"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          },
+          "configSchemas": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "id": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "scope": {
+                  "kind": "enum",
+                  "values": [
+                    "tenant",
+                    "app"
+                  ]
+                },
+                "jsonSchema": {
+                  "kind": "record",
+                  "valueSchema": {
+                    "kind": "ref",
+                    "ref": "#/definitions/BetterPortalJsonValue"
+                  }
+                },
+                "groups": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "properties": {
+                        "id": {
+                          "kind": "string",
+                          "minLength": 1
+                        },
+                        "title": {
+                          "kind": "string",
+                          "minLength": 1
+                        },
+                        "description": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "string"
+                          }
+                        },
+                        "order": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "int"
+                          }
+                        },
+                        "optional": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "bool"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "unknownKeys": "strip"
+                    }
+                  }
+                },
+                "fields": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "properties": {
+                      "key": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "title": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "description": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "scope": {
+                        "kind": "enum",
+                        "values": [
+                          "tenant",
+                          "app"
+                        ]
+                      },
+                      "visibility": {
+                        "kind": "enum",
+                        "values": [
+                          "public",
+                          "protected",
+                          "secret"
+                        ]
+                      },
+                      "ownership": {
+                        "kind": "enum",
+                        "values": [
+                          "bp",
+                          "plugin",
+                          "mixed"
+                        ]
+                      },
+                      "sourceOfTruth": {
+                        "kind": "enum",
+                        "values": [
+                          "bp",
+                          "plugin",
+                          "external"
+                        ]
+                      },
+                      "groupId": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "order": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "int"
+                        }
+                      },
+                      "defaultValue": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "ref",
+                          "ref": "#/definitions/BetterPortalJsonValue"
+                        }
+                      },
+                      "ui": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "object",
+                          "properties": {
+                            "control": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "enum",
+                                "values": [
+                                  "text",
+                                  "textarea",
+                                  "password",
+                                  "number",
+                                  "checkbox",
+                                  "select",
+                                  "multiselect",
+                                  "color",
+                                  "date",
+                                  "time",
+                                  "datetime-local",
+                                  "url",
+                                  "email"
+                                ]
+                              }
+                            },
+                            "placeholder": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "string"
+                              }
+                            },
+                            "options": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "array",
+                                "items": {
+                                  "kind": "object",
+                                  "properties": {
+                                    "value": {
+                                      "kind": "string",
+                                      "minLength": 1
+                                    },
+                                    "label": {
+                                      "kind": "string",
+                                      "minLength": 1
+                                    }
+                                  },
+                                  "required": [
+                                    "value",
+                                    "label"
+                                  ],
+                                  "unknownKeys": "strip"
+                                }
+                              }
+                            },
+                            "optionsSource": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "enum",
+                                "values": [
+                                  "app.routes"
+                                ]
+                              }
+                            },
+                            "min": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "union",
+                                "variants": [
+                                  {
+                                    "kind": "number"
+                                  },
+                                  {
+                                    "kind": "string"
+                                  }
+                                ]
+                              }
+                            },
+                            "max": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "union",
+                                "variants": [
+                                  {
+                                    "kind": "number"
+                                  },
+                                  {
+                                    "kind": "string"
+                                  }
+                                ]
+                              }
+                            },
+                            "step": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "number"
+                              }
+                            },
+                            "rows": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "int",
+                                "min": 1
+                              }
+                            }
+                          },
+                          "required": [],
+                          "unknownKeys": "strip"
+                        }
+                      },
+                      "required": {
+                        "kind": "bool",
+                        "default": false
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "title",
+                      "description",
+                      "scope",
+                      "visibility",
+                      "ownership",
+                      "sourceOfTruth",
+                      "required"
+                    ],
+                    "unknownKeys": "strip"
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "description",
+                "scope",
+                "jsonSchema",
+                "fields"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          },
+          "permissions": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "id": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "defaultRoles": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "description",
+                "defaultRoles"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          },
+          "adminApis": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "id": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "path": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "methods": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "enum",
+                    "values": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE"
+                    ]
+                  },
+                  "minItems": 1
+                },
+                "supportsCustomUi": {
+                  "kind": "bool",
+                  "default": false
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "description",
+                "path",
+                "methods",
+                "supportsCustomUi"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          },
+          "webhooks": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "id": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string"
+                  }
+                },
+                "payloadSchema": {
+                  "kind": "record",
+                  "valueSchema": {
+                    "kind": "ref",
+                    "ref": "#/definitions/BetterPortalJsonValue"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "payloadSchema"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          },
+          "apiContracts": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "id": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string"
+                  }
+                },
+                "version": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "viewId": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "methods": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "enum",
+                    "values": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "OPTIONS"
+                    ]
+                  },
+                  "minItems": 1
+                },
+                "capabilities": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "default": []
+                },
+                "permissions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "default": []
+                },
+                "modes": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "enum",
+                    "values": [
+                      "service",
+                      "delegated"
+                    ]
+                  },
+                  "minItems": 1,
+                  "default": [
+                    "service"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "version",
+                "viewId",
+                "methods",
+                "capabilities",
+                "permissions",
+                "modes"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          },
+          "m2mRequests": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "id": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string"
+                  }
+                },
+                "contractId": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "requiredCapabilities": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "default": []
+                },
+                "methods": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "enum",
+                    "values": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "OPTIONS"
+                    ]
+                  },
+                  "minItems": 1
+                },
+                "permissions": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "default": []
+                },
+                "mode": {
+                  "kind": "enum",
+                  "values": [
+                    "service",
+                    "delegated"
+                  ],
+                  "default": "service"
+                },
+                "optional": {
+                  "kind": "bool",
+                  "default": false
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "contractId",
+                "requiredCapabilities",
+                "methods",
+                "permissions",
+                "mode",
+                "optional"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          },
+          "developerResources": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "properties": {
+                "id": {
+                  "kind": "string",
+                  "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+                },
+                "kind": {
+                  "kind": "enum",
+                  "values": [
+                    "guide",
+                    "template",
+                    "skill",
+                    "example"
+                  ]
+                },
+                "title": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string"
+                  }
+                },
+                "mediaType": {
+                  "kind": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[^\\r\\n]+$"
+                },
+                "language": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "content": {
+                  "kind": "string",
+                  "minLength": 1,
+                  "maxLength": 524288
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "title",
+                "mediaType",
+                "content"
+              ],
+              "unknownKeys": "strip"
+            },
+            "default": []
+          },
+          "shell": {
+            "kind": "optional",
+            "inner": {
+              "kind": "object",
+              "properties": {
+                "service": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "renderer": {
+                  "kind": "string",
+                  "minLength": 1
+                },
+                "fragments": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "object",
+                    "properties": {
+                      "id": {
+                        "kind": "string",
+                        "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+                      },
+                      "kind": {
+                        "kind": "enum",
+                        "values": [
+                          "fragment",
+                          "block"
+                        ]
+                      },
+                      "title": {
+                        "kind": "string",
+                        "minLength": 1
+                      },
+                      "description": {
+                        "kind": "string"
+                      },
+                      "defaultItems": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "string",
+                          "minLength": 1
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "title",
+                      "description",
+                      "defaultItems"
+                    ],
+                    "unknownKeys": "strip"
+                  },
+                  "default": []
+                }
+              },
+              "required": [
+                "service",
+                "renderer",
+                "fragments"
+              ],
+              "unknownKeys": "strip"
+            }
+          },
+          "cacheHints": {
+            "kind": "object",
+            "properties": {
+              "metadataTtlSeconds": {
+                "kind": "int",
+                "min": 0,
+                "default": 1800
+              }
+            },
+            "required": [
+              "metadataTtlSeconds"
+            ],
+            "unknownKeys": "strip",
+            "default": {
+              "metadataTtlSeconds": 1800
+            }
+          }
+        },
+        "required": [
+          "protocolVersion",
+          "pluginId",
+          "title",
+          "description",
+          "version",
+          "category",
+          "deploymentModes",
+          "capabilities",
+          "supportedRenderers",
+          "supportedRenderModes",
+          "views",
+          "configSchemas",
+          "permissions",
+          "adminApis",
+          "webhooks",
+          "apiContracts",
+          "m2mRequests",
+          "developerResources",
+          "cacheHints"
+        ],
+        "unknownKeys": "strip"
+      },
+      "routes": {
+        "kind": "array",
+        "items": {
+          "kind": "object",
+          "properties": {
+            "viewId": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "path": {
+              "kind": "string",
+              "minLength": 1
+            },
+            "pathVariants": {
+              "kind": "array",
+              "items": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "operations": {
+              "kind": "array",
+              "items": {
+                "kind": "object",
+                "properties": {
+                  "operationId": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "method": {
+                    "kind": "enum",
+                    "values": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "OPTIONS"
+                    ]
+                  }
+                },
+                "required": [
+                  "operationId",
+                  "method"
+                ],
+                "unknownKeys": "strip"
+              },
+              "minItems": 1
+            },
+            "paramNames": {
+              "kind": "array",
+              "items": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "renderers": {
+              "kind": "array",
+              "items": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": []
+            },
+            "hasFragments": {
+              "kind": "bool",
+              "default": false
+            },
+            "fragments": {
+              "kind": "array",
+              "items": {
+                "kind": "object",
+                "properties": {
+                  "fragmentLocation": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "fragmentId": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "operationId": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "method": {
+                    "kind": "enum",
+                    "values": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "OPTIONS"
+                    ]
+                  },
+                  "renderers": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "string",
+                      "minLength": 1
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "fragmentLocation",
+                  "fragmentId",
+                  "operationId",
+                  "method",
+                  "renderers"
+                ],
+                "unknownKeys": "strip"
+              },
+              "default": []
+            },
+            "components": {
+              "kind": "array",
+              "items": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "default": []
+            }
+          },
+          "required": [
+            "viewId",
+            "path",
+            "pathVariants",
+            "operations",
+            "paramNames",
+            "renderers",
+            "hasFragments",
+            "fragments",
+            "components"
+          ],
+          "unknownKeys": "strip"
+        },
+        "default": []
+      }
+    },
+    "required": [
+      "manifest",
+      "routes"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {
+    "BetterPortalJsonValue": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "null"
+        },
+        {
+          "kind": "bool"
+        },
+        {
+          "kind": "string"
+        },
+        {
+          "kind": "number"
+        },
+        {
+          "kind": "array",
+          "items": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        },
+        {
+          "kind": "record",
+          "valueSchema": {
+            "kind": "ref",
+            "ref": "#/definitions/BetterPortalJsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "extensions": {}
+}

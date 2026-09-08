@@ -1,0 +1,59 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "slug": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "title": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "branding": {
+        "kind": "object",
+        "properties": {
+          "logoUrl": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "format": "url"
+            }
+          },
+          "primaryColor": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          },
+          "secondaryColor": {
+            "kind": "optional",
+            "inner": {
+              "kind": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [],
+        "unknownKeys": "strip",
+        "default": {}
+      }
+    },
+    "required": [
+      "id",
+      "slug",
+      "title",
+      "branding"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

@@ -1,0 +1,45 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "issuer": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "audience": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "jwksUri": {
+        "kind": "string",
+        "format": "url"
+      },
+      "subjectPrefix": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "requiredClaims": {
+        "kind": "record",
+        "valueSchema": {
+          "kind": "string",
+          "minLength": 1
+        },
+        "default": {}
+      }
+    },
+    "required": [
+      "issuer",
+      "audience",
+      "jwksUri",
+      "requiredClaims"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

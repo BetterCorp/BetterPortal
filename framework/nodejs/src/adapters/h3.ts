@@ -123,9 +123,10 @@ function methodRegistrar(app: BetterPortalH3App, method: HttpMethod): MethodRegi
   }
 }
 
-function queryFromUrl(url: URL): Record<string, unknown> {
+function queryFromUrl(url: URL, application = false): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of url.searchParams.entries()) {
+    if (application && (key === "_f" || key === "_c")) continue;
     result[key] = value;
   }
   return result;
@@ -144,20 +145,20 @@ function parseRouteParams(
   rawParams: Record<string, string>,
   schema: RegisteredRoute["schemas"]["params"]
 ): Record<string, string> | Response {
-  for (const [name, value] of Object.entries(rawParams)) {
-    if (!value || value.length > 100) {
-      return coreJsonResponse(
-        { error: `Invalid path parameter: ${name}` },
-        400,
-        "request.params.invalid",
-        `Invalid path parameter: ${name}`,
-        { "bp.request.parameter": name }
-      );
-    }
-  }
-  if (!schema) return rawParams;
   try {
-    return schema.parse(rawParams) as Record<string, string>;
+    const params = Object.fromEntries(Object.entries(rawParams).map(([name, value]) => [name, decodeURIComponent(value)]));
+    for (const [name, value] of Object.entries(params)) {
+      if (!value || value.length > 100) {
+        return coreJsonResponse(
+          { error: `Invalid path parameter: ${name}` },
+          400,
+          "request.params.invalid",
+          `Invalid path parameter: ${name}`,
+          { "bp.request.parameter": name }
+        );
+      }
+    }
+    return schema ? schema.parse(params) as Record<string, string> : params;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     return coreJsonResponse({
@@ -342,7 +343,7 @@ async function prepareSseContext(
     return coreJsonResponse({ error: "SSE GET operation metadata is missing" }, 500, "route.operation_missing", "SSE GET operation metadata is missing");
   }
   const url = getRequestURL(event);
-  const rawQuery = queryFromUrl(url);
+  const rawQuery = queryFromUrl(url, true);
   const queryResult = operation.schemas.query
     ? parseRequestValue(operation.schemas.query, rawQuery, "request.query.invalid", "query parameters")
     : { value: rawQuery };
@@ -734,20 +735,20 @@ function serviceOrigin(extraContext: RequiredHandlerContext, serviceId: string, 
   return service ? service.hostname.replace(/\/+$/, "") : null;
 }
 
-function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absoluteOrigin?: string): string {
+function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absoluteOrigin?: string, sse = false): string {
   const url = new URL(path, absoluteOrigin ?? "http://betterportal.invalid");
+  if (sse) url.pathname = `${url.pathname.replace(/\/+$/, "")}/__sse`;
   for (const [key, value] of Object.entries(query)) {
     if (value !== null && value !== undefined) url.searchParams.set(key, String(value));
   }
-  return absoluteOrigin ? url.toString() : `${url.pathname}${url.search}`;
+  return absoluteOrigin ? url.toString() : `${url.pathname}${url.search}${url.hash}`;
 }
 
 function renderUrl(path: string, options: RouteUrlOptions = {}): string {
   const query = { ...(options.query ?? {}) };
   if (options.component) query._c = options.component;
   if (options.fragment) query._f = options.fragment;
-  const resolvedPath = options.sse ? `${path.replace(/\/+$/, "")}/__sse` : path;
-  return appendQuery(resolvedPath, query, options.absolute ? options.origin : undefined);
+  return appendQuery(path, query, options.absolute ? options.origin : undefined, options.sse);
 }
 
 function createRouteUiAttributes(url: string, options: RouteUiOptions = {}, form = false): RouteUiAttributes {
@@ -1102,7 +1103,7 @@ async function handleRouteRequest(
   // -- Parse inputs -------------------------------------------------
 
   const url = getRequestURL(event);
-  const rawQuery = queryFromUrl(url);
+  const rawQuery = queryFromUrl(url, true);
   const rawHeaders = headersFromEvent(event);
 
   let rawBody: Record<string, unknown> = {};

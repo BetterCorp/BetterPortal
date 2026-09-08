@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+
+# Generated run reports belong in CI artifacts or .tmp-run/.
+/results*.json

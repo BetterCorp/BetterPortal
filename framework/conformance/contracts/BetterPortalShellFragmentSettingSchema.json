@@ -1,0 +1,158 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "union",
+    "variants": [
+      {
+        "kind": "object",
+        "properties": {
+          "mode": {
+            "kind": "literal",
+            "value": "none"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "unknownKeys": "strip"
+      },
+      {
+        "kind": "object",
+        "properties": {
+          "mode": {
+            "kind": "literal",
+            "value": "override"
+          },
+          "item": {
+            "kind": "union",
+            "variants": [
+              {
+                "kind": "object",
+                "properties": {
+                  "source": {
+                    "kind": "literal",
+                    "value": "shell"
+                  },
+                  "fragmentId": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "source",
+                  "fragmentId"
+                ],
+                "unknownKeys": "strip"
+              },
+              {
+                "kind": "object",
+                "properties": {
+                  "source": {
+                    "kind": "literal",
+                    "value": "service"
+                  },
+                  "serviceId": {
+                    "kind": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "fragmentId": {
+                    "kind": "string",
+                    "minLength": 1
+                  },
+                  "targetPath": {
+                    "kind": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "source",
+                  "serviceId",
+                  "fragmentId",
+                  "targetPath"
+                ],
+                "unknownKeys": "strip"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "item"
+        ],
+        "unknownKeys": "strip"
+      },
+      {
+        "kind": "object",
+        "properties": {
+          "mode": {
+            "kind": "literal",
+            "value": "items"
+          },
+          "items": {
+            "kind": "array",
+            "items": {
+              "kind": "union",
+              "variants": [
+                {
+                  "kind": "object",
+                  "properties": {
+                    "source": {
+                      "kind": "literal",
+                      "value": "shell"
+                    },
+                    "fragmentId": {
+                      "kind": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "fragmentId"
+                  ],
+                  "unknownKeys": "strip"
+                },
+                {
+                  "kind": "object",
+                  "properties": {
+                    "source": {
+                      "kind": "literal",
+                      "value": "service"
+                    },
+                    "serviceId": {
+                      "kind": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "fragmentId": {
+                      "kind": "string",
+                      "minLength": 1
+                    },
+                    "targetPath": {
+                      "kind": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "serviceId",
+                    "fragmentId",
+                    "targetPath"
+                  ],
+                  "unknownKeys": "strip"
+                }
+              ]
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "mode",
+          "items"
+        ],
+        "unknownKeys": "strip"
+      }
+    ]
+  },
+  "definitions": {},
+  "extensions": {}
+}

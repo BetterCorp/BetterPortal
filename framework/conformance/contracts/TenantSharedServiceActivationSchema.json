@@ -1,0 +1,46 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "id": {
+        "kind": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "tenantId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "appId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "sharedServiceId": {
+        "kind": "string",
+        "minLength": 1
+      },
+      "activatedAt": {
+        "kind": "string",
+        "format": "date-time"
+      },
+      "enabled": {
+        "kind": "bool",
+        "default": true
+      }
+    },
+    "required": [
+      "id",
+      "tenantId",
+      "sharedServiceId",
+      "activatedAt",
+      "enabled"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

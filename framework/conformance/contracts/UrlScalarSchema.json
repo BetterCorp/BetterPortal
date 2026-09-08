@@ -1,0 +1,26 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "union",
+    "variants": [
+      {
+        "kind": "string"
+      },
+      {
+        "kind": "int64"
+      },
+      {
+        "kind": "uint64"
+      },
+      {
+        "kind": "number"
+      },
+      {
+        "kind": "bool"
+      }
+    ]
+  },
+  "definitions": {},
+  "extensions": {}
+}

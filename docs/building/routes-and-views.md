@@ -1,6 +1,9 @@
 # Routes and Views
 
-BetterPortal routes are file-based inside each service.
+This page describes Node.js route authoring. See the [route-authoring guide](route-authoring.md)
+for Node.js setup and the Python/.NET conventions.
+
+Node.js routes are file-based inside each service.
 
 Codegen scans `bp-routes/` and creates the service registry. Do not hand-write the registry.
 
