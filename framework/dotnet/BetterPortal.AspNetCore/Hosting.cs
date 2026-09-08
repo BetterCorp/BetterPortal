@@ -35,6 +35,7 @@ public static class Hosting
                 throw new RequestException(400, "Invalid or duplicate request header");
             result[name.ToLowerInvariant()] = string.Join(name.Equals("cookie", StringComparison.OrdinalIgnoreCase) ? "; " : ", ", values.ToArray());
         }
+        Service.ValidateProtocolVersion(result.GetValueOrDefault("bp-protocol-version", "2"));
         return result;
     }
     private static void Append(Node values, string name, object? value)
@@ -191,10 +192,12 @@ public static class Hosting
         foreach (var path in discovery) Map(path, ["GET", "HEAD", "OPTIONS"], async (HttpContext context) =>
         {
             var headers = new Dictionary<string, string> { ["access-control-allow-origin"] = "*", ["cache-control"] = "no-store" };
+            try { _ = Headers(context.Request); }
+            catch (RequestException error) { await Reply(context, new { error = error.Message }, error.Status, headers); return; }
             if (context.Request.Method == "OPTIONS")
             {
                 if (context.Request.Headers["access-control-request-method"].ToString() is not ("GET" or "HEAD")) { await Reply(context, new { error = "Method not allowed" }, 403, headers); return; }
-                headers["access-control-allow-methods"] = "GET, HEAD, OPTIONS"; headers["access-control-allow-headers"] = "Accept";
+                headers["access-control-allow-methods"] = "GET, HEAD, OPTIONS"; headers["access-control-allow-headers"] = "Accept, BP-Protocol-Version";
                 await Reply(context, null, 204, headers); return;
             }
             if (path == discovery[0]) await Reply(context, new { ok = service.Ready }, service.Ready ? 200 : 503, headers);
@@ -216,7 +219,7 @@ public static class Hosting
                 var headers = Headers(context.Request);
                 if (context.Request.Method == "OPTIONS")
                 {
-                    responseHeaders["access-control-allow-methods"] = "POST, OPTIONS"; responseHeaders["access-control-allow-headers"] = "Content-Type, Accept";
+                    responseHeaders["access-control-allow-methods"] = "POST, OPTIONS"; responseHeaders["access-control-allow-headers"] = "Content-Type, Accept, BP-Protocol-Version";
                     await Reply(context, null, 204, responseHeaders); return;
                 }
                 var contentType = headers.GetValueOrDefault("content-type", "").Split(';')[0].Trim().ToLowerInvariant();

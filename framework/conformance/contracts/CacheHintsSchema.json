@@ -13,7 +13,7 @@
         "kind": "array",
         "items": {
           "kind": "string",
-          "minLength": 1
+          "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+(?![\\s\\S])"
         },
         "default": []
       }

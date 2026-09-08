@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 60ed7ea972fa50a45fd87ae800060f1eab3e8404b53abc871c9c3e9ef8c57938
+# Generated from AnyVali documents; do not edit. SHA256: fd079873f12d76ad193d34c85b4c329868bffb689463ce5f0fdf3c5884a03144
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict

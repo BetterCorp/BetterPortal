@@ -69,6 +69,7 @@ def _headers(request: Request) -> dict[str, str]:
         if any(char in value for char in "\r\n\0") or key in result and key in _SINGLE:
             raise RequestError(400, "Invalid or duplicate request header")
         result[key] = result[key] + ("; " if key == "cookie" else ", ") + value if key in result else value
+    Service.validate_protocol_version(result.get("bp-protocol-version", "2"))
     return result
 
 
@@ -343,10 +344,12 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
 
     async def discovery(request: Request, *, path: str) -> Response:
         headers = {"access-control-allow-origin": "*", "cache-control": "no-store"}
+        try: _headers(request)
+        except RequestError as error: return JSONResponse({"error": str(error)}, status_code=error.status, headers=headers)
         if request.method == "OPTIONS":
             if request.headers.get("access-control-request-method") not in ("GET", "HEAD"):
                 return JSONResponse({"error": "Method not allowed"}, status_code=403, headers=headers)
-            return Response(status_code=204, headers={**headers, "access-control-allow-methods": "GET, HEAD, OPTIONS", "access-control-allow-headers": "Accept"})
+            return Response(status_code=204, headers={**headers, "access-control-allow-methods": "GET, HEAD, OPTIONS", "access-control-allow-headers": "Accept, BP-Protocol-Version"})
         if path == "/.well-known/bp/health": return JSONResponse({"ok": service.ready}, status_code=200 if service.ready else 503, headers=headers)
         if path == "/.well-known/bp/manifest": return JSONResponse(service.manifest, headers=headers)
         if path == "/.well-known/jwks.json" and installation is not None:
@@ -364,7 +367,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
             try:
                 headers = _headers(request)
                 if request.method == "OPTIONS":
-                    return Response(status_code=204, headers={**response_headers, "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "Content-Type, Accept"})
+                    return Response(status_code=204, headers={**response_headers, "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "Content-Type, Accept, BP-Protocol-Version"})
                 content_type = headers.get("content-type", "").split(";", 1)[0].strip().lower()
                 if content_type != "application/json" and not content_type.endswith("+json"): raise RequestError(415, "Installation requires JSON")
                 body = await _body(request, max_body_bytes)

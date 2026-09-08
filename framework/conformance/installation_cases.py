@@ -234,6 +234,28 @@ def run_installation(urls, labels):
                 assert steps[0]["headers"]["access-control-allow-origin"] == "*" and "POST" in steps[0]["headers"]["access-control-allow-methods"]
                 assert "access-control-allow-credentials" not in steps[0]["headers"] and steps[1]["body"] == ""
         check(label, "public-preflight-and-jwks-head", cors_and_head)
+        for version in (None, "2", "1", "3", "", "2, 2"):
+            def public_protocol():
+                requests = []
+                supported = version in (None, "2")
+                paths = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema", "/.well-known/jwks.json"]
+                if not supported: paths += ["/.well-known/bp/config", "/.well-known/bp/install", "/.well-known/bp/hostname-change"]
+                for path in paths:
+                    methods = ("POST", "OPTIONS") if path.endswith(("/install", "/hostname-change")) else ("GET", "HEAD", "OPTIONS")
+                    for method in methods:
+                        headers = {"access-control-request-method": methods[0], "access-control-request-headers": "BP-Protocol-Version"}
+                        if version is not None: headers["BP-Protocol-Version"] = version
+                        requests.append({"path": path, "method": method, "headers": headers})
+                with peer() as control:
+                    steps = invoke(url, control, requests)
+                    for request, step in zip(requests, steps):
+                        expected = (204 if request["method"] == "OPTIONS" else 503 if request["path"].endswith("/health") else 200) if supported else 400
+                        assert step["status"] == expected, brief([step])
+                        assert step["headers"]["cache-control"] == "no-store", brief([step])
+                        if request["method"] == "HEAD": assert step["body"] == "", brief([step])
+                        elif not supported: assert json.loads(step["body"])["error"] == "unsupported_protocol_version", brief([step])
+                        elif request["method"] == "OPTIONS": assert "bp-protocol-version" in step["headers"]["access-control-allow-headers"].lower(), step["headers"]
+            check(label, "public-protocol-" + repr(version), public_protocol)
         if label == "python":
             for setting in ("mount", "rootPath"):
                 for prefix in ("/prefix", "/caf\u00e9"):

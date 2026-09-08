@@ -10,7 +10,8 @@ const NonEmptyStringSchema = av.string().minLength(1);
 
 export const CacheHintsSchema = av.object({
   ttlSeconds: av.int().min(0).default(0),
-  varyBy: av.array(NonEmptyStringSchema).default([])
+  // Match the entire HTTP field name, including rejection of a trailing newline.
+  varyBy: av.array(av.string().pattern("^[!#$%&'*+.^_`|~0-9A-Za-z-]+(?![\\s\\S])")).default([])
 });
 export type CacheHints = Infer<typeof CacheHintsSchema>;
 

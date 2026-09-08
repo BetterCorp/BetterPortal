@@ -240,10 +240,14 @@ class Service:
         return scope
 
     @staticmethod
+    def validate_protocol_version(version: str) -> None:
+        if version != "2": raise RequestError(400, "unsupported_protocol_version")
+
+    @staticmethod
     def _headers(headers: Mapping[str, str]) -> dict[str, str]:
         result = {key.lower(): value for key, value in headers.items()}
         if len(result) != len(headers): raise RequestError(400, "Duplicate request headers")
-        if result.get("bp-protocol-version", "2") != "2": raise RequestError(400, "unsupported_protocol_version")
+        Service.validate_protocol_version(result.get("bp-protocol-version", "2"))
         return result
 
     def preflight(self, route: Route, headers: Mapping[str, str], *, matched_path: str | None = None, fragment: str | None = None,

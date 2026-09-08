@@ -33,6 +33,11 @@ def run_registry(urls, labels):
         shared.append((name, body, status, native))
     def operation(body): return body["routes"][0]["operations"][0]["declaration"]
     case("defaults-methods-variants", lambda body: None)
+    for index in (0, 1):
+        for field in ("Accept-Language", "X-!#$%&'*+.^_`|~012azAZ-", "", "X-\u00e9", "X-\u2603", "X-Test\n", "X-Test\r\nInjected: yes", "X-Test\0", "X Test", "X-Test,Accept", "X:Test", " X-Test", "X-Test\t"):
+            case(f"vary-field-{index}-{field!r}", lambda body, field=field, index=index:
+                 body["routes"][0]["operations"][index]["declaration"].update(cacheHints={"ttlSeconds": index * 60, "varyBy": [field]}),
+                 200 if field in ("Accept-Language", "X-!#$%&'*+.^_`|~012azAZ-") else 400)
     case("empty-view-title", lambda body: body["routes"][0].update(title=""), 400)
     case("empty-view-description", lambda body: body["routes"][0].update(description=""), 400)
     def demo(body, response, root=None):
