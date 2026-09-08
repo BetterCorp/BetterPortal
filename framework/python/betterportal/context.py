@@ -34,6 +34,12 @@ def http_origin(value: str, *, allow_path: bool = False) -> str:
     return f"{url.scheme}://{host}" + (f":{port}" if port is not None else "")
 
 
+def http_base_url(value: str) -> str:
+    origin = http_origin(value, allow_path=True)
+    if "?" in value or "#" in value: raise ValueError("Service base URL must not contain a query or fragment")
+    return origin + httpx.URL(value).raw_path.decode("ascii").rstrip("/")
+
+
 def _origins(hostname: str) -> list[str]:
     return [http_origin(hostname)] if "://" in hostname else [http_origin("https://" + hostname), http_origin("http://" + hostname)]
 

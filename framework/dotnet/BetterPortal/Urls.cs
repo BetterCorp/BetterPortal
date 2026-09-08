@@ -22,7 +22,7 @@ public sealed class Urls
             try
             {
                 var service = item.Where(pair => pair.Key is "id" or "serviceId").ToDictionary();
-                service["hostname"] = HttpAddress.Origin((string)item["hostname"]!, allowPath: true); enabled.Add(service);
+                service["hostname"] = HttpAddress.BaseUrl((string)item["hostname"]!); enabled.Add(service);
             }
             catch (ArgumentException) { }
         services = enabled.ToArray();
@@ -141,8 +141,9 @@ public sealed class Urls
         if (path is null) return null;
         if (opts["absolute"] is true)
         {
-            opts["origin"] = ServiceOrigin(target!, (string?)opts.GetValueOrDefault("origin"));
-            if (opts["origin"] is null) return null;
+            var origin = ServiceOrigin(target!, (string?)opts.GetValueOrDefault("origin"));
+            opts["absolute"] = false;
+            return origin is null ? null : origin + Render(path, opts);
         }
         return Render(path, opts);
     }
@@ -167,7 +168,7 @@ public sealed class Urls
         Generated.ResolvedBPElementReference Unavailable(string reason) => Contracts.Parse<Generated.ResolvedBPElementReference>("ResolvedBPElementReferenceSchema", new { unavailable = reason });
         var fragment = (string)value["fragment"]!;
         if (fragment.Trim().Length == 0) return Unavailable("fragment_required");
-        string? target, origin, path; var opts = new Node { ["query"] = args["query"], ["absolute"] = true };
+        string? target, origin, path; var opts = new Node { ["query"] = args["query"] };
         if ((string)value["service"]! == "shell")
         {
             target = (string?)shell.GetValueOrDefault("serviceId"); origin = target is null ? null : ServiceOrigin(target);
@@ -187,8 +188,7 @@ public sealed class Urls
             if (path is null) return Unavailable("path_params_required");
             opts["fragment"] = fragment;
         }
-        opts["origin"] = origin;
-        try { return Contracts.Parse<Generated.ResolvedBPElementReference>("ResolvedBPElementReferenceSchema", new { url = Render(path, opts), serviceId = target }); }
+        try { return Contracts.Parse<Generated.ResolvedBPElementReference>("ResolvedBPElementReferenceSchema", new { url = origin + Render(path, opts), serviceId = target }); }
         catch (ArgumentException) { return Unavailable("service_path_required"); }
     }
     private static IReadOnlyDictionary<string, string> Attributes(string url, Node opts, bool form)

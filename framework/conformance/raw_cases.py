@@ -1,5 +1,6 @@
 """Raw-response wire parity and native transport ownership/security probes."""
 import base64
+import gzip
 from copy import deepcopy
 import json
 from hosting_cases import fixture
@@ -24,6 +25,9 @@ def run_raw(urls, labels):
         change(body, spec, spec["raw"])
         cases.append((name, body, status, value, native, invoked))
     case("binary")
+    compressed = gzip.compress(payload, mtime=0)
+    case("gzip", lambda body, spec, raw: raw.update(body=encoded(compressed), headers=[["Content-Encoding", "gzip"]]), value=None)
+    case("gzip-stream", lambda body, spec, raw: raw.update(chunks=[encoded(compressed[:10]), encoded(compressed[10:])], headers=[["Content-Encoding", "gzip"]]), value=None)
     case("accept-bypass", lambda body, spec, raw: body["request"]["headers"].update(accept="image/png"))
     case("metadata-bypass", lambda body, spec, raw: body["request"]["headers"].update(accept="application/vnd.betterportal.metadata+json"))
     case("cookies", lambda body, spec, raw: raw["headers"].extend([["set-cookie", "first=1; HttpOnly; Path=/"], ["Set-Cookie", "second=2; Secure; Path=/"]]))
@@ -74,6 +78,10 @@ def run_raw(urls, labels):
                 actual = post(url, body)
                 assert actual.get("status") == status and actual["invoked"] == invoked, actual
                 if value is not None: assert base64.b64decode(actual["bodyBase64"]) == value, actual
+                if name.startswith("gzip"):
+                    received = base64.b64decode(actual["bodyBase64"])
+                    assert (received if label == "python" else gzip.decompress(received)) == payload, actual
+                    assert actual["headers"]["content-encoding"] == "gzip", actual
                 if status == 500: assert "secret" not in actual["body"] and "bad-result" not in actual["body"], actual
                 if name == "binary": assert actual["headers"].get("access-control-allow-origin") == "https://app.test" and actual["headers"].get("x-download") == "ready", actual
                 if name == "cookies": assert actual["cookies"] == ["first=1; HttpOnly; Path=/", "second=2; Secure; Path=/"], actual

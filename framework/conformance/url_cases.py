@@ -10,7 +10,7 @@ from security_cases import post, SOURCE, TARGET, BINDING
 def fixture():
     body = render_fixture()
     body["dependencies"] = {"docs": "com.example.other"}
-    body["snapshot"]["tenants"][0]["services"][1].update(serviceId="com.example.other", hostname="https://other.test/base")
+    body["snapshot"]["tenants"][0]["services"][1].update(serviceId="com.example.other", hostname="https://other.test")
     app = body["snapshot"]["apps"][0]
     app["routes"][0].update(resolvedMethods=["GET", "POST"])
     app["appRoutes"] = [deepcopy(app["routes"][0]), {"id": SOURCE, "serviceId": SOURCE, "viewId": "docs.index", "path": "/docs/:slug",
@@ -29,6 +29,23 @@ def run_urls(urls, labels):
         cases.append((name, body, [expected], native, handler, runtimes))
     def route(options=None, view="check", kind="route"): return {"kind": kind, "viewId": view, "options": options or {}}
     params = {"key": "item"}
+    # Node's URL constructor replaces a service base path with the absolute route path.
+    for base, expected_base in (("https://other.test/prefix", "https://other.test/prefix"), ("https://other.test/prefix///", "https://other.test/prefix"),
+                                ("https://other.test/a%2Fb", "https://other.test/a%2Fb"), ("https://other.test/caf\u00e9", "https://other.test/caf%C3%A9")):
+        for handler in (False, True):
+            for name, call, expected in (
+                ("local", route({"params": {"key": "a/b"}, "absolute": True}), expected_base + "/check/a%2Fb"),
+                ("alias", route({"serviceId": "docs", "absolute": True, "fragment": "nav.profile", "sse": True}, "docs.index"), expected_base + "/content/intro/__sse?_f=nav.profile"),
+                ("element", {"kind": "element", "reference": {"service": "docs", "path": "/content/:id", "fragment": "nav.profile"}}, {"serviceId": SOURCE, "url": expected_base + "/content/intro?_f=nav.profile"}),
+                ("shell", {"kind": "element", "reference": {"service": "shell", "fragment": "branding"}}, {"serviceId": SOURCE, "url": expected_base + "/.well-known/bp/shell/fragment/branding"}),
+                ("relative", route({"serviceId": "docs"}, "docs.index"), "/content/intro"),
+                ("ui", route({"params": params, "absolute": True}, kind="uiRoute"), "https://app.test/app/item"),
+                ("override", route({"params": params, "absolute": True, "origin": "https://alternate.test"}), "https://alternate.test/check/item")):
+                case(f"service-base-{base}-{name}-{handler}", call, expected,
+                     lambda body, base=base: [service.update(hostname=base) for service in body["snapshot"]["tenants"][0]["services"]], native=True, handler=handler)
+    for suffix in ("?token=secret", "#fragment", "?", "#"):
+        case("service-base-suffix-" + suffix, route({"serviceId": "docs", "absolute": True}, "docs.index"), None,
+             lambda body, suffix=suffix: body["snapshot"]["tenants"][0]["services"][1].update(hostname="https://other.test/prefix" + suffix), native=True)
     for number in (9007199254740993, 9223372036854775807, -9223372036854775808, 9223372036854775809, 18446744073709551615):
         for handler in (False, True):
             case(f"integer-{number}-{handler}", route({"params": {"key": number}, "query": {"n": number}}),

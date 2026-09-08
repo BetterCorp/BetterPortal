@@ -20,6 +20,12 @@ public static class HttpAddress
         if (host.Contains(':')) host = "[" + System.Net.IPAddress.Parse(host.Trim('[', ']')).ToString() + "]";
         return uri.Scheme + "://" + host + (uri.IsDefaultPort ? "" : ":" + uri.Port);
     }
+    public static string BaseUrl(string value)
+    {
+        var origin = Origin(value, allowPath: true);
+        if (value.Contains('?') || value.Contains('#')) throw new ArgumentException("Service base URL must not contain a query or fragment");
+        return origin + new Uri(value).AbsolutePath.TrimEnd('/');
+    }
     internal static IEnumerable<string> Origins(string hostname) => hostname.Contains("://", StringComparison.Ordinal)
         ? [Origin(hostname)] : [Origin("https://" + hostname), Origin("http://" + hostname)];
     internal static string Referer(string value)

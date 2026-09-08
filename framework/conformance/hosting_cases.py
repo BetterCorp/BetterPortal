@@ -68,6 +68,9 @@ def run_hosting(urls, labels):
     for encoded, decoded in (("a%2Fb", "a/b"), ("a%252Fb", "a%2Fb"), ("%E9%9B%AA%2f%25", "\u96ea/%"), ("a+b", "a+b"), ("a%2Bb", "a+b")):
         case("encoded-segment-" + encoded, lambda body, encoded=encoded: body["request"].update(path="/check/" + encoded + "?hello=world"),
              invoked=1, expected={**baseline, "params": {"key": decoded}})
+    for encoded, decoded in (("%E9%9B%AA" * 34, "\u96ea" * 34), ("%E9%9B%AA" * 100, "\u96ea" * 100), ("%61" * 100, "a" * 100), ("%25" * 100, "%" * 100)):
+        case("decoded-parameter-length-" + decoded[:1] + str(len(decoded)), lambda body, encoded=encoded: body["request"].update(path="/check/" + encoded + "?hello=world"),
+             invoked=1, expected={**baseline, "params": {"key": decoded}})
     case("preflight", lambda body: (body["request"].update(method="OPTIONS"), body["request"]["headers"].update({"access-control-request-method": "GET"})), 204, 0)
     def head_preflight(body):
         body["request"].update(method="OPTIONS")
@@ -215,6 +218,12 @@ def run_hosting(urls, labels):
                     assert "HEAD" in actual["headers"]["access-control-allow-methods"].split(", "), actual
             check(label, name, action)
     for url, label in zip(urls, labels):
+        if label == "node":
+            for encoded in ("a" * 101, "%61" * 101, "%E9%9B%AA" * 101, "%FF", "%E2%82"):
+                def invalid_parameter():
+                    body = fixture(); body["request"]["path"] = "/check/" + encoded
+                    validate(post(url, body), 400, 0)
+                check(label, "invalid-decoded-parameter-" + encoded[:9], invalid_parameter)
         if label != "python": continue
         for mount in ("", "/prefix", "/caf\u00e9"):
             for encoded, decoded, raw in (("a%2Fb", "a/b", True), ("a%252Fb", "a%2Fb", True), ("%E9%9B%AA", "\u96ea", False)):
@@ -245,6 +254,16 @@ def run_hosting(urls, labels):
                     check(label, f"unrelated-{placement}-{status}-{method}", unrelated)
     for url, label in zip(urls, labels):
         if label == "node": continue
+        for kind in ("json", "html", "fragment"):
+            for name, encoding in (("Content-Encoding", "gzip"), ("cOnTeNt-EnCoDiNg", "br"), ("content-encoding", "identity")):
+                def structured_encoding():
+                    from rendering_cases import fixture as rendered
+                    body = fixture() if kind == "json" else rendered()
+                    if kind == "fragment": body["request"]["path"] = "/check/item?_f=nav.profile"
+                    body["routes"][0]["operations"][0]["responseHeaders"] = [[name, encoding]]
+                    actual = post(url, body); validate(actual, 500, 1)
+                    assert "content-encoding" not in actual["headers"], actual
+                check(label, f"structured-content-encoding-{kind}-{encoding}", structured_encoding)
         for ttl in (None, 0, 60):
             for kind in ("json", "head", "post", "metadata", "html", "fragment", "raw"):
                 def cache_response():

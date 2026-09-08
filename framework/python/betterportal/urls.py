@@ -7,7 +7,7 @@ import re
 from typing import Any, Iterable, Mapping, TYPE_CHECKING, cast
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 
-from .context import ScopedContext, http_origin, _origins
+from .context import ScopedContext, http_origin, http_base_url, _origins
 from .contracts import parse
 from .generated_types import BPElementReferenceInput, ResolvedBPElementReference, RouteUrlOptionsInput, RouteUiOptionsInput
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ class Urls:
         self._services = []
         for service in scope.tenant["services"]:
             if not scope.tenant["active"] or not service["enabled"]: continue
-            try: origin = http_origin(service["hostname"], allow_path=True)
+            try: origin = http_base_url(service["hostname"])
             except ValueError: continue
             self._services.append({**{key: service[key] for key in ("id", "serviceId") if key in service}, "hostname": origin})
         self._mounts = deepcopy(scope.app.get("appRoutes", scope.app["routes"]))
@@ -134,8 +134,8 @@ class Urls:
             path = _fill(cast(str, template), {**mount["fixedParams"], **opts["params"]})
         if path is None: return None
         if opts["absolute"]:
-            opts["origin"] = self._service_origin(target, opts.get("origin"))
-            if opts["origin"] is None: return None
+            origin = self._service_origin(target, opts.get("origin"))
+            return None if origin is None else origin + _render(path, {**opts, "absolute": False})
         return _render(path, opts)
 
     def ui_route(self, view_id: str, options: RouteUrlOptionsInput | None = None) -> str | None:
@@ -180,7 +180,7 @@ class Urls:
             path = _fill(cast(str, self._service_path(mount)), {**mount["fixedParams"], **value["args"]["params"]})
             if path is None: return unavailable("path_params_required")
             opts = {"query": value["args"]["query"], "fragment": value["fragment"]}
-        try: url = _render(path, {**opts, "absolute": True, "origin": origin})
+        try: url = origin + _render(path, opts)
         except ValueError: return unavailable("service_path_required")
         return parse("ResolvedBPElementReferenceSchema", {"url": url, "serviceId": service_id})
 

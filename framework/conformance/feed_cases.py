@@ -41,7 +41,7 @@ def run_feeds(urls, labels):
         assert actual.get("status") == code and actual["invoked"] == 0, actual
         assert actual["feed"]["active"] == 0 and actual["feed"]["mapped"] == mapped, actual
     for url, label in zip(urls, labels):
-        for name in ("data", "empty", "strings", "scope-isolation", "nullable", "input-rejection", "context", "themed", "fragment-only", "safe-render-context", "render-recovery", "optional-path", "feed-overrides-finite"):
+        for name in ("data", "empty", "strings", "scope-isolation", "nullable", "input-rejection", "context", "encoded-context", "themed", "fragment-only", "safe-render-context", "render-recovery", "optional-path", "feed-overrides-finite"):
             body = fixture(); route = body["routes"][0]; feed = route["feed"]
             expected = [item["value"] for item in feed["publications"]]
             if name == "empty": feed["publications"] = []; expected = []
@@ -52,10 +52,13 @@ def run_feeds(urls, labels):
             if name == "input-rejection":
                 feed["inputSchema"] = {**feed["inputSchema"], "root": {"kind": "string"}}
                 feed["publications"] = [{"value": 42}, {"value": "accepted"}]; expected = ["accepted"]
-            if name == "context":
+            if name in ("context", "encoded-context"):
                 feed.update(contextEvent=True, publications=[{"value": "read"}])
                 app = body["snapshot"]["apps"][0]
                 expected = [{"params": {"key": "item"}, "query": {"hello": "world"}, "tenantId": app["tenantId"], "appId": app["id"], "caller": None, "user": None}]
+                if name == "encoded-context":
+                    body["request"]["path"] = "/check/" + "%E9%9B%AA" * 34 + "/__sse?hello=world"
+                    expected[0]["params"]["key"] = "\u96ea" * 34
             if name in ("themed", "fragment-only", "safe-render-context", "render-recovery"): themed(body)
             if name == "fragment-only":
                 body["snapshot"]["apps"][0]["routes"] = []

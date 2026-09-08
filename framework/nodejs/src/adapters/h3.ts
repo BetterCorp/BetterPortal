@@ -145,19 +145,19 @@ function parseRouteParams(
   rawParams: Record<string, string>,
   schema: RegisteredRoute["schemas"]["params"]
 ): Record<string, string> | Response {
-  for (const [name, value] of Object.entries(rawParams)) {
-    if (!value || value.length > 100) {
-      return coreJsonResponse(
-        { error: `Invalid path parameter: ${name}` },
-        400,
-        "request.params.invalid",
-        `Invalid path parameter: ${name}`,
-        { "bp.request.parameter": name }
-      );
-    }
-  }
   try {
     const params = Object.fromEntries(Object.entries(rawParams).map(([name, value]) => [name, decodeURIComponent(value)]));
+    for (const [name, value] of Object.entries(params)) {
+      if (!value || value.length > 100) {
+        return coreJsonResponse(
+          { error: `Invalid path parameter: ${name}` },
+          400,
+          "request.params.invalid",
+          `Invalid path parameter: ${name}`,
+          { "bp.request.parameter": name }
+        );
+      }
+    }
     return schema ? schema.parse(params) as Record<string, string> : params;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

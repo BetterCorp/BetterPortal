@@ -14,7 +14,7 @@ import anyvali as av
 import httpx
 
 from .access import AppAccess
-from .context import ScopedContext, http_origin, _origins
+from .context import ScopedContext, http_base_url, _origins
 from .contracts import document, object_document, parse
 from .jsoncodec import loads
 from .keys import secure_endpoint
@@ -267,4 +267,4 @@ class Client:
                 headers["x-bp-service-authorization"] = "Bearer " + token
             else: headers["authorization"] = "Bearer " + token
         endpoint = secure_endpoint(target["hostname"])
-        return http_origin(endpoint, allow_path=True) + httpx.URL(endpoint).raw_path.decode("ascii").rstrip("/"), headers
+        return http_base_url(endpoint), headers
