@@ -52,6 +52,9 @@ def run_urls(urls, labels):
             case(name + suffix, call, expected, handler=handler)
     for name, call, expected in (
         ("current", {"kind": "current"}, "/check/item"),
+        ("path-relative-fragment", {"kind": "path", "path": "/docs#intro"}, "/docs#intro"),
+        ("path-relative-encoded-fragment", {"kind": "path", "path": "/docs#hello%20world"}, "/docs#hello%20world"),
+        ("path-relative-query-fragment", {"kind": "path", "path": "/docs?old=1#intro", "options": {"query": {"old": 2}, "sse": True}}, "/docs/__sse?old=2#intro"),
         ("current-fragment", {"kind": "current", "options": {"fragment": "nav.profile"}}, "/check/item?_f=nav.profile"),
         ("path-query", {"kind": "path", "path": "/x?keep=a&keep=b&set=old&end=y", "options": {"query": {"set": "new", "new": 0, "skip": None}}}, "/x?keep=a&keep=b&set=new&end=y&new=0"),
         ("path-utf8", {"kind": "path", "path": "/café"}, "/caf%C3%A9"),

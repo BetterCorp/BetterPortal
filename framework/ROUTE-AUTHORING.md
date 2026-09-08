@@ -52,6 +52,20 @@ and append `.index`; use an explicit ID to keep identity when moving a view.
 Operation IDs are always explicit. Duplicate IDs, ambiguous paths and inconsistent
 method params schemas fail through the ordinary registry checks.
 
+Routes are matched segment by segment, with literals before parameters. For
+example, `/foo/:id` takes precedence over `/:section/bar` at `/foo/bar`, regardless
+of registration order. Same-method paths with the same literal segments and
+parameter positions are rejected. A declared `OPTIONS` operation follows ordinary
+auth and allowlist policy; `OPTIONS` with `Access-Control-Request-Method` is a CORS
+preflight and does not invoke that handler.
+
+The framework consumes `_f` and `_c` before validating application query schemas.
+Keep `unknownKeys: reject` to reject other undeclared query fields. Relative URL
+helpers preserve anchors, including when changing query values or adding SSE paths.
+Negotiated native responses include `Vary: Accept` alongside CORS and author headers.
+ASP.NET `MapBetterPortal` owns error bodies for its mapped paths; unrelated endpoints
+and unregistered paths retain the containing application's error behavior.
+
 Service APIs under `/.well-known/bp/` are independent of app page mounts, as in
 [the BP protocol](../spec/protocol.md). Their operation auth still applies: declare
 required auth and permissions for protected APIs. An empty app route list does

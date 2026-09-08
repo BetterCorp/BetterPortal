@@ -211,6 +211,7 @@ def run_installation(urls, labels):
             ("unknown-field", {"body": {"unknown": True}}, 400), ("bad-token", {"body": {"setupToken": "invalid"}}, 401),
             ("large-token", {"body": {"setupToken": "x" * 32769}}, 400), ("malformed-json", {"raw": "{"}, 400),
             ("duplicate-json", {"raw": '{"setupToken":"one","setupToken":"two","cpUrl":"https://cp.test"}'}, 400),
+            ("deep-json", {"raw": '[' * 2000 + '0' + ']' * 2000}, 400),
             ("wrong-media", {"raw": "not-json", "headers": {"content-type": "text/plain"}}, 415),
             ("wrong-method", {"method": "GET"}, 405), ("wrong-cp", {"body": {"cpUrl": "https://other.test"}}, 403)]:
             def invalid_request():

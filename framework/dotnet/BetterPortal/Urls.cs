@@ -97,8 +97,8 @@ public sealed class Urls
             }
             query = string.Join('&', pairs.Select(pair => FormEncode(pair.Name) + "=" + FormEncode(pair.Value)));
         }
-        var result = encoded + (query.Length > 0 ? "?" + query : "");
-        return options.GetValueOrDefault("absolute") is true && options.GetValueOrDefault("origin") is string origin ? Origin(origin) + result + uri.Fragment : result;
+        var result = encoded + (query.Length > 0 ? "?" + query : "") + uri.Fragment;
+        return options.GetValueOrDefault("absolute") is true && options.GetValueOrDefault("origin") is string origin ? Origin(origin) + result : result;
     }
     private HashSet<string> Ids(string? reference)
     {

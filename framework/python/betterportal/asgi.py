@@ -188,7 +188,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
 
     def endpoint(operations: dict[str, tuple[Route, str]], *, sse: bool = False):
         async def handle(request: Request) -> Response:
-            response_headers = {"vary": "Origin"}
+            response_headers = {"vary": "Origin, Accept"}
             failure_scope = None; operation = None; route = None; representation = None
             kind, key, matched = "page", None, ""
             query: dict[str, Any] = {}; params: dict[str, Any] = {}; headers: dict[str, str] = {}
@@ -262,12 +262,13 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 headers = _headers(request); query = _query(request.scope["query_string"])
                 fragment = query.get("_f")
                 if fragment is not None and not isinstance(fragment, str): raise RequestError(400, "Invalid fragment selector")
-                requested = headers.get("access-control-request-method", "") if request.method == "OPTIONS" else "GET" if request.method == "HEAD" else request.method
-                if requested not in operations: raise RequestError(403 if request.method == "OPTIONS" else 405, "Method not allowed")
+                preflight = request.method == "OPTIONS" and "access-control-request-method" in headers
+                requested = headers["access-control-request-method"] if preflight else "GET" if request.method == "HEAD" else request.method
+                if requested not in operations: raise RequestError(403 if preflight else 405, "Method not allowed")
                 route, matched = operations[requested]
                 if sse and ("_c" in query or route.sse is None and "_f" in query): raise RequestError(400, "Stream connection does not support this selector")
                 params = {part[1:]: request.path_params[f"_bp{index}"] for index, part in enumerate(_segments(matched)) if part.startswith(":")}
-                if request.method == "OPTIONS":
+                if preflight:
                     response_headers = service.preflight(route, headers, matched_path=matched, fragment=fragment, scheme=request.url.scheme, mode=mode)
                     return Response(status_code=204, headers=response_headers)
                 operation = next(item for item in route.operations if item.method == requested)
@@ -286,6 +287,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 if component is not None and not isinstance(component, str) or fragment is not None and component is not None:
                     raise RequestError(400, "Invalid or ambiguous renderer selector")
                 kind, key = ("fragment", fragment) if fragment is not None else ("component", component) if component is not None else ("page", None)
+                query = {name: value for name, value in query.items() if name not in ("_f", "_c")}
                 body = await _body(request, max_body_bytes)
                 return await _connected(request, execute(headers, query, body), service if service.ready else None)
             except RequestError as exception:

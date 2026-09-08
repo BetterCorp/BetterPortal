@@ -53,8 +53,8 @@ export function decryptPreviewConfigValue(
   }
   const [ivValue, ciphertextValue, ...extra] = value.slice(ENCRYPTED_PREFIX.length).split(":");
   if (!ivValue || !ciphertextValue || extra.length > 0) throw new Error("Preview config encrypted envelope is invalid");
-  const iv = Buffer.from(ivValue, "base64url");
-  const payload = Buffer.from(ciphertextValue, "base64url");
+  const iv = decodeBase64Url(ivValue);
+  const payload = decodeBase64Url(ciphertextValue);
   if (iv.length !== IV_BYTES || payload.length < TAG_BYTES) throw new Error("Preview config encrypted envelope is invalid");
   const decipher = createDecipheriv("aes-256-gcm", previewConfigKeyBytes(key), iv);
   decipher.setAAD(previewConfigAad(scope, path));
@@ -67,8 +67,14 @@ export function decryptPreviewConfigValue(
 
 function previewConfigKeyBytes(key: string): Buffer {
   if (!key.startsWith(KEY_PREFIX)) throw new Error(`Preview config key must start with ${KEY_PREFIX}`);
-  const decoded = Buffer.from(key.slice(KEY_PREFIX.length), "base64url");
+  const decoded = decodeBase64Url(key.slice(KEY_PREFIX.length));
   if (decoded.length !== 32) throw new Error("Preview config key must contain 32 bytes");
+  return decoded;
+}
+
+function decodeBase64Url(value: string): Buffer {
+  const decoded = Buffer.from(value, "base64url");
+  if (decoded.toString("base64url") !== value) throw new Error("Preview config contains invalid base64url");
   return decoded;
 }
 

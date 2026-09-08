@@ -52,6 +52,7 @@ def run_finite(urls, labels):
         response(actual, invoked=1); assert json.loads(actual["body"]) == expected, actual
     def stream_value(actual, mode, expected):
         response(actual, invoked=1)
+        if label != "node": assert "accept" in {part.strip().lower() for part in actual["headers"].get("vary", "").split(",")}, actual
         assert actual["headers"]["content-type"].startswith("application/x-ndjson" if mode == "ndjson" else "text/event-stream"), actual
         assert frames(actual, mode) == expected, actual
     for url, label in zip(urls, labels):

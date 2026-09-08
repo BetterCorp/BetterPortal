@@ -58,6 +58,12 @@ def run_encryption(urls, labels):
                 pair = source_label + "->" + target_label
                 decrypt = {**request, "action": "crypto-preview-decrypt", "value": encrypted}
                 check(pair, f"preview-roundtrip-{index}", lambda: expect(target, decrypt, value))
+                parts = encrypted.split(":")
+                for segment in (2, 3):
+                    for suffix in ("!", "=", "\n"):
+                        malformed = parts.copy(); malformed[segment] += suffix
+                        check(pair, f"preview-encoding-{index}-{segment}-{ord(suffix)}", lambda: expect(target, {**decrypt, "value": ":".join(malformed)}, valid=False))
+                check(pair, f"preview-key-encoding-{index}", lambda: expect(target, {**decrypt, "key": key["preview"] + "="}, valid=False))
                 for name, change in [("scope", {"scope": "app"}), ("path", {"path": ["other"]}),
                     ("tag", {"value": altered(encrypted, -1, True)}), ("key", {"key": "bp_pck_" + "A" * 43})]:
                     check(pair, f"preview-tamper-{name}-{index}", lambda: expect(target, {**decrypt, **change}, valid=False))

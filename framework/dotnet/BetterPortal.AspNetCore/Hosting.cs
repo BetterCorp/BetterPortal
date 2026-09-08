@@ -154,11 +154,18 @@ public static class Hosting
     {
         if (maxBodyBytes < 1 || mode is not ("service" or "theme")) throw new ArgumentException("Invalid hosting options");
         if (installation is not null && !ReferenceEquals(installation.Service, service)) throw new ArgumentException("Installation belongs to a different service");
-        endpoints.UseStatusCodePages(async status => await Reply(status.HttpContext,
-            new { error = status.HttpContext.Response.StatusCode switch { 404 => "Route not found", 405 => "Method not allowed", _ => "Request failed" } }, status.HttpContext.Response.StatusCode));
+        void Map(string path, IEnumerable<string> methods, RequestDelegate handler)
+        {
+            var allowed = methods.Distinct().ToArray();
+            endpoints.MapMethods(path, allowed, handler);
+            // Only BP paths own this fallback; other host endpoints keep their error behavior.
+            endpoints.Map(path, (HttpContext context) => Reply(context, new { error = "Method not allowed" }, 405,
+                new Dictionary<string, string> { ["allow"] = string.Join(", ", allowed) }))
+                .WithOrder(int.MaxValue - 1);
+        }
         string[] discovery = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"];
         if (installation is not null) discovery = [.. discovery, "/.well-known/jwks.json"];
-        foreach (var path in discovery) endpoints.MapMethods(path, ["GET", "HEAD", "OPTIONS"], async (HttpContext context) =>
+        foreach (var path in discovery) Map(path, ["GET", "HEAD", "OPTIONS"], async (HttpContext context) =>
         {
             var headers = new Dictionary<string, string> { ["access-control-allow-origin"] = "*", ["cache-control"] = "no-store" };
             if (context.Request.Method == "OPTIONS")
@@ -177,7 +184,7 @@ public static class Hosting
         });
         const string installPath = "/.well-known/bp/install";
         const string hostnamePath = "/.well-known/bp/hostname-change";
-        if (installation is not null) foreach (var path in new[] { installPath, hostnamePath }) endpoints.MapMethods(path, ["POST", "OPTIONS"], async (HttpContext context) =>
+        if (installation is not null) foreach (var path in new[] { installPath, hostnamePath }) Map(path, ["POST", "OPTIONS"], async (HttpContext context) =>
         {
             using var stopping = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, endpoints.Lifetime.ApplicationStopping);
             var responseHeaders = new Dictionary<string, string> { ["access-control-allow-origin"] = "*", ["cache-control"] = "no-store" };
@@ -204,7 +211,7 @@ public static class Hosting
             catch (Exception) { await Reply(context, new { error = "Installation failed", installed = installation.Installed }, 500, responseHeaders); }
         });
         const string configPath = "/.well-known/bp/config";
-        endpoints.MapMethods(configPath, ["GET", "HEAD", "POST", "OPTIONS"], async (HttpContext context) =>
+        Map(configPath, ["GET", "HEAD", "POST", "OPTIONS"], async (HttpContext context) =>
         {
             var responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin", ["cache-control"] = "no-store" };
             try
@@ -249,12 +256,12 @@ public static class Hosting
                 if (groups.ContainsKey(path)) throw new ArgumentException("Route conflicts with SSE: " + path);
                 bindings.Add((path, new() { ["GET"] = get }, true));
             }
-        foreach (var (pattern, operations, sse) in bindings) endpoints.MapMethods(pattern, operations.Keys.Concat(operations.ContainsKey("GET") ? ["HEAD", "OPTIONS"] : new[] { "OPTIONS" }).Distinct(), async (HttpContext context) =>
+        foreach (var (pattern, operations, sse) in bindings) Map(pattern, operations.Keys.Concat(operations.ContainsKey("GET") ? ["HEAD", "OPTIONS"] : new[] { "OPTIONS" }).Distinct(), async (HttpContext context) =>
         {
             var requestAborted = context.RequestAborted;
             using var lifetime = service.Ready ? CancellationTokenSource.CreateLinkedTokenSource(requestAborted, service.Stopping, endpoints.Lifetime.ApplicationStopping) : null;
             if (lifetime is not null) context.RequestAborted = lifetime.Token;
-            IReadOnlyDictionary<string, string> responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin" };
+            IReadOnlyDictionary<string, string> responseHeaders = new Dictionary<string, string> { ["vary"] = "Origin, Accept" };
             ScopedContext? failureScope = null; Operation? operation = null; Route? route = null; Representation? representation = null;
             var kind = "page"; string? key = null; var matched = ""; var requested = "GET";
             var query = new Node(); var parameters = new Node();
@@ -282,13 +289,14 @@ public static class Hosting
                 headers = Headers(context.Request); query = Pairs(context.Request.QueryString.Value ?? "");
                 if (query.GetValueOrDefault("_f") is { } selector && selector is not string) throw new RequestException(400, "Invalid fragment selector");
                 var fragment = (string?)query.GetValueOrDefault("_f");
-                requested = context.Request.Method == "OPTIONS" ? headers.GetValueOrDefault("access-control-request-method", "") : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;
-                if (!operations.TryGetValue(requested, out var binding)) throw new RequestException(context.Request.Method == "OPTIONS" ? 403 : 405, "Method not allowed");
+                var preflight = context.Request.Method == "OPTIONS" && headers.ContainsKey("access-control-request-method");
+                requested = preflight ? headers["access-control-request-method"] : context.Request.Method == "HEAD" ? "GET" : context.Request.Method;
+                if (!operations.TryGetValue(requested, out var binding)) throw new RequestException(preflight ? 403 : 405, "Method not allowed");
                 if (sse && (query.ContainsKey("_c") || binding.Route.Sse is null && query.ContainsKey("_f"))) throw new RequestException(400, "Stream connection does not support this selector");
                 route = binding.Route; matched = binding.Path;
                 parameters = Segments(binding.Path).Select((part, index) => (part, index)).Where(item => item.part.StartsWith(':'))
                     .ToDictionary(item => item.part[1..], item => context.Request.RouteValues["_bp" + item.index]);
-                if (context.Request.Method == "OPTIONS")
+                if (preflight)
                 {
                     responseHeaders = service.Preflight(binding.Route, headers, binding.Path, fragment, context.Request.Scheme, mode);
                     await Reply(context, null, 204, responseHeaders); return;
@@ -314,6 +322,7 @@ public static class Hosting
                 var component = (string?)query.GetValueOrDefault("_c");
                 kind = fragment is not null ? "fragment" : component is not null ? "component" : "page";
                 key = fragment ?? component;
+                query.Remove("_f"); query.Remove("_c");
                 var prepared = await service.PrepareAsync(binding.Route, requested, context.Request.Path, headers, binding.Path, fragment, context.Request.Scheme, mode, cancellationToken: context.RequestAborted);
                 responseHeaders = prepared.Headers;
                 failureScope = prepared.Context.Scope;

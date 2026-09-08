@@ -120,6 +120,10 @@ For HTML responses, the query string MAY include:
 - `?_f=<location>.<fragmentId>` - render only that fragment (location and id MUST match the manifest).
 - `?_c=<componentId>` - render only that component.
 
+`_f` and `_c` are framework selectors. Hosts consume them before validating the
+application query schema; they are not application query fields. Other unknown
+query fields follow the operation's AnyVali unknown-key policy.
+
 These selectors MUST be honored on **any** view route, not only the canonical view path. They are how the theme pulls fragments without needing per-fragment endpoints.
 
 When `_f` or `_c` is present, preserve the handler/error status and return only the selected fragment/component HTML (no document wrappers), with `Content-Type: text/html; mode=fragment`. Status renderers use the selected method, renderer, kind, and key. Selectors never bypass the operation allowlist or auth policy.

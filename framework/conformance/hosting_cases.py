@@ -1,6 +1,7 @@
 """Consumer hosts: Starlette ASGI, ASP.NET Core HTTP and the existing Node H3 adapter."""
 from copy import deepcopy
 import json
+import base64
 from pathlib import Path
 from access_cases import fixture as access_fixture
 from key_cases import peer
@@ -59,6 +60,7 @@ def run_hosting(urls, labels):
     case("json-array", lambda body: (write(body, "[null,true]"), body["routes"][0]["operations"][1].update(schemas={"request": body["routes"][0]["operations"][1]["response"]})), expected={**baseline, "request": [None, True]}, native=True)
     case("malformed-json", lambda body: write(body, "{"), 400, 0, native=True)
     case("duplicate-json-member", lambda body: write(body, '{"x":1,"x":2}'), 400, 0, native=True)
+    case("deep-json", lambda body: write(body, '[' * 2000 + '0' + ']' * 2000), 400, 0, native=True)
     case("nonfinite-json", lambda body: write(body, '{"x":NaN}'), 400, 0, native=True)
     case("unsupported-body", lambda body: write(body, "Hello", "text/plain"), 415, 0, native=True)
     case("body-limit", lambda body: (write(body), body.update(maxBodyBytes=4)), 413, 0, native=True)
@@ -91,6 +93,33 @@ def run_hosting(urls, labels):
         app(body)["routes"].append({**deepcopy(mounted(body)), "id": SOURCE, "viewId": "static", "operations": ["static.get"], "resolvedServicePath": "/check/special"})
         body["request"]["path"] = "/check/special"
     case("static-route-priority", static, expected={"static": True})
+    def intersecting(body, reverse=False):
+        static(body)
+        body["routes"][0]["path"] = "/:section/special"
+        body["routes"][1]["path"] = "/check/:id"
+        for mount, route in zip(app(body)["routes"], body["routes"]): mount["resolvedServicePath"] = route["path"]
+        if reverse: body["routes"].reverse()
+    case("intersecting-route-priority", intersecting, expected={"static": True})
+    case("intersecting-route-priority-reversed", lambda body: intersecting(body, True), expected={"static": True})
+    def options(body, allowed=True, required=False):
+        operation = deepcopy(body["routes"][0]["operations"][0])
+        operation["declaration"].update(operationId="check.options", method="OPTIONS", auth={"required": required})
+        operation["result"] = {"options": True}
+        body["routes"][0]["operations"].append(operation)
+        if allowed: mounted(body)["operations"].append("check.options")
+        body["request"]["method"] = "OPTIONS"
+    case("declared-options", options, invoked=1, expected={"options": True}, native=True)
+    case("declared-options-denied", lambda body: options(body, False), 404, 0, native=True)
+    case("declared-options-auth", lambda body: options(body, required=True), 401, 0, native=True)
+    case("declared-options-preflight", lambda body: (options(body, required=True), body["request"]["headers"].update({"access-control-request-method": "GET"})), 204, 0, native=True)
+    case("undeclared-options", lambda body: body["request"].update(method="OPTIONS"), 405, 0, native=True)
+    nested_header = base64.urlsafe_b64encode(('{"nested":' + '[' * 2000 + '0' + ']' * 2000 + '}').encode()).decode().rstrip("=")
+    for required in (False, True):
+        case("deep-jwt-" + str(required), lambda body, required=required: (
+            app(body).update(auth={"serviceId": SOURCE, "expectedIssuer": ISSUER, "expectedAudience": AUDIENCE, "jwksUri": "http://127.0.0.1:1/keys", "roles": []}),
+            body["routes"][0]["operations"][0]["declaration"].update(auth={"required": required}),
+            body["request"]["headers"].update(authorization="Bearer " + nested_header + ".e30.AA")),
+            401 if required else 200, 0 if required else 1, native=True)
     case("optional-path", lambda body: (body["routes"][0].update(pathVariants=["/check"]), mounted(body).update(resolvedServicePath="/check"), body["request"].update(path="/check?hello=world")), expected={**baseline, "params": {}})
     mixed = multipart.replace('name="hello"', 'name="upload"')
     case("mixed-field-file", lambda body: write(body, mixed, "multipart/form-data; boundary=bp"), expected={**baseline,
@@ -112,7 +141,11 @@ def run_hosting(urls, labels):
         for url, label in zip(urls, labels):
             if native and label == "node": continue
             def action():
-                actual = post(url, body); validate(actual, status, invoked, expected)
+                actual = post(url, body)
+                # Unmapped ASP.NET paths belong to the containing application.
+                if label == "dotnet" and name == "unknown-path-json-error":
+                    validate(actual, 404, 0); assert actual["body"] == "", actual
+                else: validate(actual, status, invoked, expected)
                 if name == "metadata":
                     value = json.loads(actual["body"])
                     assert value["operationId"] == "check.get" and value["method"] == "GET", actual
@@ -121,6 +154,18 @@ def run_hosting(urls, labels):
                 if name == "schema": assert json.loads(actual["body"])["manifest"]["pluginId"] == "com.example.service", actual
                 if name == "json-get": assert actual["headers"]["access-control-allow-origin"] == "https://app.test", actual
             check(label, name, action)
+    for url, label in zip(urls, labels):
+        if label != "dotnet": continue
+        for placement in ("before", "after"):
+            for status in (401, 404, 500):
+                for method in ("GET", "DELETE"):
+                    def unrelated():
+                        body = fixture(); body["hostEndpoints"] = True
+                        body["request"].update(method=method, path=f"/__host/{placement}/{status}")
+                        actual = post(url, body)
+                        validate(actual, status if method == "GET" else 405, 0)
+                        assert actual["body"] == "" and "content-type" not in actual["headers"], actual
+                    check(label, f"unrelated-{placement}-{status}-{method}", unrelated)
     keys = [post(url, {"action": "jwt-key"}) for url in urls]
     claims = fixtures()
     with peer() as (base, routes, counts, barriers):

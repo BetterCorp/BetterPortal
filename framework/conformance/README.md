@@ -19,7 +19,21 @@ Initial poll/SSE snapshot replacement may return the documented configuration-ch
 The [native route guide](../ROUTE-AUTHORING.md) documents init and generated projects.
 
 
-The review-fix [Windows gate](results-full-transport.json) and
+The current review [Windows gate](results-full-review.json) and
+[Linux gate](results-full-review-linux.json) each pass **6,082/6,082** scenarios:
+**1,488 schema checks** and **4,594 BP runtime checks**, with matching outcomes.
+The 221 added cases cover declared OPTIONS handlers, deterministic route precedence,
+mixed ASP.NET hosts, nested JSON/JWTs, bearer scheme casing, canonical preview
+envelopes, relative anchors, strict query schemas with renderer selectors and
+negotiated cache headers. The finite-stream checks also require `Vary: Accept`.
+Node, .NET and Python share the selector and URL regressions. Unmapped ASP.NET paths
+now retain the containing application's 404 behavior; BP paths retain BP errors.
+Node's 99 framework tests, lint, native builds and Python type checks pass.
+The config-manager preview consumer reads its config/debug selector from the
+request URL. Its focused regression fails against the old consumer and passes on
+Windows and Linux after the update; the config-manager build and lint also pass.
+
+The preceding transport [Windows gate](results-full-transport.json) and
 [Linux gate](results-full-transport-linux.json) each pass **5,861/5,861** scenarios:
 **1,488 schema checks** and **4,373 BP runtime checks**, with matching outcomes.
 The added cases cover query/form percent escapes, singleton raw headers, .NET

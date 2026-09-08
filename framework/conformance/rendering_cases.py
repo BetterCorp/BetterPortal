@@ -78,6 +78,18 @@ def run_rendering(urls, labels):
     case("fragment-mount-denied", lambda body: (fragment_mount(body), body["snapshot"]["apps"][0]["fragments"]["nav"][0].update(enabled=False)), 404)
     case("zero-quality-selector", lambda body: (fragment_mount(body), body["request"]["headers"].update(accept="text/html;fragment=nav.profile;q=0,application/json")), 404, native=True)
     case("invalid-accept-auth-first", lambda body: (body["routes"][0]["operations"][0]["declaration"].update(auth={"required": True}), body["request"]["headers"].update(accept="unacceptable")), 401, native=True)
+    for method in ("GET", "POST"):
+        for selector, kind, key in (("_f", "fragment", "nav.profile"), ("_c", "component", "card")):
+            def strict_query(body, method=method, selector=selector, key=key):
+                body["request"].update(method=method, path=f"/check/item?{selector}={key}&n=7")
+                spec = body["routes"][0]["operations"][0 if method == "GET" else 1]
+                if method == "POST":
+                    body["snapshot"]["apps"][0]["routes"][0]["operations"].append("check.post")
+                    spec["renderers"] = deepcopy(body["routes"][0]["operations"][0]["renderers"])
+                spec["schemas"] = {"query": {"anyvaliVersion": "1.0", "schemaVersion": "1.1", "root": {
+                    "kind": "object", "properties": {"n": {"kind": "int", "coerce": {"toInt": True}}}, "required": ["n"], "unknownKeys": "reject"}}}
+            case(f"strict-query-{method}-{selector}", strict_query, kind=kind, mode="fragment")
+            case(f"strict-query-unknown-{method}-{selector}", lambda body, change=strict_query: (change(body), body["request"].update(path=body["request"]["path"] + "&unknown=1")), 400)
     for name, body, status, kind, mode, native in cases:
         expected = None
         for url, label in zip(urls, labels):
@@ -99,11 +111,27 @@ def run_rendering(urls, labels):
                 if name == "parsed-context":
                     assert value["context"]["request"]["params"] == {"key": 42}, actual
                     assert value["context"]["request"]["query"] == {"n": 7, "limit": 10}, actual
+                if name.startswith("strict-query-"): assert value["context"]["request"]["query"] == {"n": 7}, actual
                 assert set(value["context"]["tenant"]) == {"id", "slug", "title", "branding"}, actual
                 assert set(value["context"]["app"]) == {"id", "tenantId", "slug", "title", "defaultRoute", "shell"}, actual
                 if expected is None: expected = value
                 assert value == expected, (expected, value)
             check(label, name, action)
+    for url, label in zip(urls, labels):
+        if label == "node": continue
+        for accept in ("application/json", "application/vnd.betterportal.metadata+json", "text/html", "image/png"):
+            for fail in (False, True):
+                def vary():
+                    body = fixture(); body["request"]["headers"]["accept"] = accept
+                    body["routes"][0]["operations"][0].update(throw=fail,
+                        responseHeaders=[["Cache-Control", "public, max-age=60"], ["Vary", "Accept-Language"]])
+                    actual = post(url, body)
+                    expected_status = 406 if accept == "image/png" else 500 if fail and "metadata" not in accept else 200
+                    assert actual["status"] == expected_status, actual
+                    fields = {part.strip().lower() for part in actual["headers"].get("vary", "").split(",")}
+                    assert {"accept", "origin"} <= fields, actual
+                    if actual["invoked"] and not fail: assert "accept-language" in fields, actual
+                check(label, f"vary-{accept}-{fail}", vary)
     for name, change in (("metadata", lambda body: None), ("method-metadata", post_request)):
         body = fixture(); change(body); body["action"] = "registry"
         expected = None

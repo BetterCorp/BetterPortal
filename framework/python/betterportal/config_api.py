@@ -7,6 +7,7 @@ import os
 import time
 import anyvali as av
 from .contracts import parse
+from .authorization import _bearer
 from .generated_types import ConfigSchemaDescriptorInput, ConfigSchemaDescriptor, ServiceConfigManagementMode
 from .keys import JwksClient, secure_endpoint
 from .security import TokenError, verify_config_ticket, CONFIG_TICKET_AUDIENCE, uuid7
@@ -37,9 +38,8 @@ class ConfigApi:
         if self.settings is not None: await self.settings.initialize()
 
     async def authorize(self, service_id: str, headers: Mapping[str, str], action: str) -> dict[str, Any]:
-        bearer = headers.get("authorization", "")
-        if not bearer.startswith("Bearer "): raise TokenError("A valid config ticket is required")
-        token = bearer[7:]
+        token = _bearer(headers.get("authorization"))
+        if token is None: raise TokenError("A valid config ticket is required")
         if self._keys is not None and self._issuer is not None:
             try: return await verify_config_ticket(token, self._keys.resolve, issuer=self._issuer, service_id=service_id, action=action)
             except TokenError: pass

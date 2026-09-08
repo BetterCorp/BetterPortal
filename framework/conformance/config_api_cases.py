@@ -92,12 +92,16 @@ def run_config_api(urls, labels):
                 expect(invoke(url, [write({"count": 2}), {"snapshot": snapshot}, read(), write({"count": 4})]), [200, 403, 403])
             check(label, "live-tenant-revocation", revoked_scope)
             if label == "node": continue
+            for scheme in ("bearer", "BEARER", "bEaReR"):
+                check(label, "bearer-scheme-" + scheme, lambda: expect(invoke(url, [
+                    {**read(), "headers": {"authorization": scheme + " " + tokens[0]}}]), [200]))
             for name, request, status in [
                 ("unknown-field", write({"unknown": 1}), 400), ("wrong-field-scope", write({"appSecret": "wrong"}), 400),
                 ("wrong-type", write({"count": []}), 400), ("unknown-clear", write({}, clearKeys=["unknown"]), 400),
                 ("missing-placeholder", write({"secret": "__redacted__"}), 400), ("null-app", write({}, appId=None), 400),
                 ("empty-app", write({}, appId=""), 400), ("invalid-json", {**write({}), "body": "{"}, 400),
                 ("duplicate-json", {**write({}), "body": '{"tenantId":"x","tenantId":"y","values":{}}'}, 400),
+                ("deep-json", {**write({}), "body": '[' * 2000 + '0' + ']' * 2000}, 400),
                 ("unsupported-media", {**write({}), "headers": {"authorization": "Bearer " + tokens[0], "content-type": "text/plain"}}, 415),
                 ("tenant-header", {**read(), "headers": {"authorization": "Bearer " + tokens[0], "x-bp-tenant-id": SOURCE}}, 403),
                 ("app-header", {**write({}, appId=APP), "headers": {**write({})["headers"], "x-bp-app-id": SOURCE}}, 403),

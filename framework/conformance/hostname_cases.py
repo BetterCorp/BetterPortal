@@ -96,6 +96,7 @@ def run_hostname(urls, labels):
             ("empty", {"body": {"changeToken": ""}}, 400), ("jwt", {"body": {"changeToken": "eyJ.setup.token"}}, 400),
             ("null", {"body": {"changeToken": None}}, 400), ("unknown-field", {"body": {"changeToken": TOKEN, "serviceUrl": NEW}}, 400),
             ("non-json", {"raw": "{}", "headers": {"content-type": "text/plain"}}, 415), ("invalid-json", {"raw": "{", "headers": {"content-type": "application/json"}}, 400),
+            ("deep-json", {"raw": '[' * 2000 + '0' + ']' * 2000, "headers": {"content-type": "application/json"}}, 400),
             ("oversized", {"raw": " " * (1024 * 1024 + 1), "headers": {"content-type": "application/json"}}, 413),
             ("get", {"method": "GET"}, 405), ("head", {"method": "HEAD"}, 405), ("preflight", {"method": "OPTIONS"}, 204),
         ]:

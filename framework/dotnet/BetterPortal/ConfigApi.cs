@@ -34,9 +34,8 @@ public sealed class ConfigApi : IAsyncDisposable
     internal async Task Initialize(CancellationToken cancellation) { if (Settings is not null) await Settings.Initialize(cancellation: cancellation); }
     internal async Task<Node> Authorize(string serviceId, IReadOnlyDictionary<string, string> headers, string action, CancellationToken cancellation)
     {
-        var bearer = headers.GetValueOrDefault("authorization", "");
-        if (!bearer.StartsWith("Bearer ", StringComparison.Ordinal)) throw new TokenException("A valid config ticket is required");
-        var token = bearer[7..];
+        var token = RequestAuthorization.Bearer(headers.GetValueOrDefault("authorization"))
+            ?? throw new TokenException("A valid config ticket is required");
         if (keys is not null && issuer is not null)
         {
             try { return await Tokens.VerifyConfigTicketAsync(token, keys.ResolveAsync, issuer, serviceId, null, action, cancellation); }

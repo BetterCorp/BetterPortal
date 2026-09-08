@@ -259,6 +259,7 @@ class Service:
         scope = self._resolve(state, normalized, scheme, mode, trusted_addresses)
         assert state is not None
         response_headers = Cors(scope.origin_policy, [item.method for item in route.operations]).headers(normalized.get("origin"))
+        response_headers["vary"] += ", Accept"
         access = AppAccess(scope, state.snapshot.local_service_ids)
         if not access.allows(route, method, path=matched_path, fragment=fragment):
             raise RequestError(404, "Route not found", response_headers, scope=scope)

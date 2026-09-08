@@ -139,7 +139,14 @@ internal static class HostingAdapter
             try { await next(context); }
             finally { context.Response.Body = original; }
         });
+        void Unrelated(string placement)
+        {
+            if (body.GetValueOrDefault("hostEndpoints") is true)
+                host.MapGet("/__host/" + placement + "/{status:int}", (int status) => Results.StatusCode(status));
+        }
+        Unrelated("before");
         host.MapBetterPortal(service, Convert.ToInt32(body.GetValueOrDefault("maxBodyBytes", 1024 * 1024)));
+        Unrelated("after");
         await host.StartAsync();
         feeds.Start();
         try

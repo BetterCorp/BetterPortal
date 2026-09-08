@@ -67,6 +67,7 @@ public sealed partial class Service : IAsyncDisposable
         var current = state;
         var normalized = Headers(headers); var scope = Resolve(current, normalized, scheme, mode, trustedAddresses);
         var responseHeaders = new Cors(scope.OriginPolicy, route.Operations.Select(operation => operation.Method)).Headers(normalized.GetValueOrDefault("origin"));
+        responseHeaders["vary"] += ", Accept";
         var access = new AppAccess(scope, current!.Snapshot.LocalServiceIds);
         if (!access.Allows(route, method, matchedPath, fragment)) throw new RequestException(404, "Route not found", responseHeaders, scope);
         var operation = route.Operations.Single(item => item.Method == method);

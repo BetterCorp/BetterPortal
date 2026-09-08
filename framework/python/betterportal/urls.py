@@ -71,9 +71,9 @@ def _render(path: str, options: Mapping[str, Any]) -> str:
             pairs = [pair for pair in pairs if pair[0] != name]
             pairs.insert(index, (name, _scalar(value)))
         query = urlencode(pairs, safe="*").replace("~", "%7E")
-    result = encoded + ("?" + query if query else "")
+    result = encoded + ("?" + query if query else "") + ("#" + quote(parts.fragment, safe="/?:@!$&'()*+,;=-._~%") if parts.fragment else "")
     if options.get("absolute") and options.get("origin"):
-        result = _origin(options["origin"]) + result + ("#" + quote(parts.fragment, safe="/?:@!$&'()*+,;=-._~%") if parts.fragment else "")
+        result = _origin(options["origin"]) + result
     return result
 
 

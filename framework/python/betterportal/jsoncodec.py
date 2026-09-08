@@ -15,4 +15,7 @@ def loads(value: str) -> Any:
     def invalid_constant(value: str) -> None:
         raise ValueError("Invalid JSON number")
 
-    return json.loads(value, object_pairs_hook=unique, parse_constant=invalid_constant)
+    try:
+        return json.loads(value, object_pairs_hook=unique, parse_constant=invalid_constant)
+    except RecursionError as error:
+        raise ValueError("JSON nesting exceeds the parser limit") from error

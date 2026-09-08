@@ -10,18 +10,23 @@ native packages and runnable HTTP gates exist. Published AnyVali 1.1.4 passes
 all 1,488 schema probes, including the eight previously failing C# extension checks
 ([AnyVali #141](https://github.com/BetterCorp/AnyVali/issues/141)).
 Token/service security passes 459/459 scenarios and JWKS
-checks pass 80/80; encryption passes 318/318, authorization 306/306, media 124/124,
+checks pass 80/80; encryption passes 444/444, authorization 306/306, media 124/124,
 finite stream primitives 113/113, finite operation hosting 344/344, SSE subscriptions/wire 71/71, subscriber hosting 161/161 and CORS 33/33.
 Typed handler validation passes 44/44 checks, with native compiler checks for
 input/output types. JSON operation registration and manifest generation pass 89/89
-registry checks. Prototype JSON hosts pass 277/277 HTTP/ASGI checks; raw responses
+registry checks. Prototype JSON hosts pass 311/311 HTTP/ASGI checks; raw responses
 pass 137/137 checks including streamed delivery, ownership and backpressure.
 Typed HTML callbacks, presentation context, fragments/components and status/error
-rendering pass 163/163 checks.
-Scoped URLs pass 232/232, atomic snapshots 125/125, standalone control-plane sync
+rendering pass 203/203 checks.
+Scoped URLs pass 241/241, atomic snapshots 125/125, standalone control-plane sync
 132/132, settings schema/encryption/redaction policy 130/130, encrypted settings
-persistence 70/70, config HTTP hosting 139/139, protected bootstrap storage 147/147,
-installation 137/137, hostname changes 99/99 and scoped dependency clients 210/210.
+persistence 70/70, config HTTP hosting 147/147, protected bootstrap storage 147/147,
+installation 139/139, hostname changes 101/101 and scoped dependency clients 210/210.
+The current review [Windows full gate](results-full-review.json) and
+[Linux full gate](results-full-review-linux.json) each pass **6,082/6,082**
+scenarios: 1,488 schema and 4,594 runtime checks, with matching case outcomes.
+This includes shared input parsing, route precedence, explicit OPTIONS, host error
+ownership, renderer selectors, relative anchors and negotiated cache headers.
 The transport regression [Windows full gate](results-full-transport.json) and
 [Linux full gate](results-full-transport-linux.json) each pass **5,861/5,861**
 scenarios: 1,488 schema and 4,373 runtime checks, with matching case outcomes.
