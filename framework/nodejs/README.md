@@ -1,5 +1,8 @@
 # BetterPortal Framework for Node.js
 
+See [route authoring](../../docs/building/route-authoring.md#nodejs) for Node.js setup
+and [Routes and views](../../docs/building/routes-and-views.md) for the full reference.
+
 This package is the BetterPortal v10 core library for Node.js.
 
 It provides:

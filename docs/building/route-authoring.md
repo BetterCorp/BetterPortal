@@ -1,4 +1,92 @@
-# Native route authoring
+# Route authoring
+
+BetterPortal services declare view identity, method-specific operations and AnyVali
+schemas, then discover those declarations into a registry for hosting and contract
+export. Choose the authoring workflow for your runtime:
+
+| Runtime | Route discovery | HTML rendering |
+| --- | --- | --- |
+| [Node.js](#nodejs) | `bp run gen` scans TypeScript under `bp-routes/` | Method files under `_renderer.<theme>/` |
+| [Python](#python-example) | `discover()` imports route-module factories | Typed renderer callbacks attached to handlers |
+| [.NET](#net-example) | `Discovery.Discover()` inspects compiled `[RouteModule]` factories | Typed renderer callbacks attached to handlers |
+
+The detailed [Node.js route reference](routes-and-views.md) covers its handler
+context, dependencies, fragments, downloads, SEO and streaming conventions.
+The native runtimes are still in development and their packages are unpublished.
+
+## Node.js
+
+Start with an existing Node BetterPortal service; [Building services](services.md)
+covers its BSB host and service definition. Inside that package, run `npx bp setup`
+to add the BP scripts and build hooks. This configures an existing npm project;
+it does not scaffold a new service.
+
+Add the route root to `package.json`, retaining the package's other fields:
+
+<!-- file: node/example/package.json -->
+```json
+{
+  "type": "module",
+  "betterportal": {
+    "routes": ["src/plugin/bp-routes/"]
+  }
+}
+```
+
+Use your actual plugin directory in place of `src/plugin`. Keep view metadata in
+`index.ts` and operation policy in the method file:
+
+<!-- file: node/example/src/plugin/bp-routes/hello/index.ts -->
+```ts
+export const viewId = "hello.index";
+export const title = "Hello";
+```
+
+<!-- file: node/example/src/plugin/bp-routes/hello/GET.ts -->
+```ts
+import * as av from "anyvali";
+import { createHandler } from "../../.bp-generated/route-runtime.js";
+
+export const operationId = "hello.get";
+export const title = "Hello";
+export const description = "Hello operation";
+export const auth = { required: false, permissions: [] };
+export const ResponseSchema = av.string();
+
+export default createHandler({ response: ResponseSchema }, () => "Hello");
+```
+
+The generated runtime provides the service's typed handler context. Add a renderer
+whose directory suffix matches the app's configured renderer:
+
+<!-- file: node/example/src/plugin/bp-routes/hello/_renderer.bootstrap5/GET.tsx -->
+```tsx
+/** @jsxImportSource jsx-htmx */
+export function render(data: string) {
+  return <p>{data}</p>;
+}
+```
+
+Generate the registry before compiling the service:
+
+```sh
+npx bp run gen
+npm run build
+```
+
+Generation writes `.bp-generated/` beside `bp-routes/`; do not hand-edit or commit
+that output. The BSB setup hooks run route and dependency-type generation before
+compilation, then `bp run contract` after compilation. To export again from an
+already built service, run `npx bp run contract`. The contract command reads the
+service definition and compiled registry; neither command publishes it.
+
+`[id]` and `[[id]]` directories define required and optional path segments.
+Declare `ParamsSchema` in the route index and pass that same schema to each method.
+Each method owns its stable `operationId`, auth and schemas. Node renderer and SSE
+filenames are described in [Routes and views](routes-and-views.md#fragment-stream-and-sse-selection);
+native factories use the conventions below.
+
+## Python and .NET
 
 Python discovers modules from one filesystem package. .NET discovers public static
 factory methods marked `[RouteModule]` in a compiled assembly. The C# compiler supplies
@@ -6,7 +94,7 @@ each factory's source path through `CallerFilePath`; discovery does not read C# 
 PDB files. Keep the route-root segment when using compiler `PathMap` settings.
 These packages are currently unpublished; build/install the local packages first.
 
-## Create a standalone service
+### Create a standalone service
 
 The installed native tools create a new project directory:
 
@@ -28,7 +116,7 @@ config manager. Readiness requires manifest submission and a valid snapshot. The
 generated service pins its installed BP package version; no Node or BSB build/run
 hooks are emitted. Scaffolding does not publish a package or contract.
 
-## Route modules
+### Route modules
 
 Both forms return the same `Registry` used by hosting and contract export:
 
@@ -84,7 +172,7 @@ ASP.NET `MapBetterPortal` owns error bodies for its mapped paths; unrelated endp
 and unregistered paths retain the containing application's error behavior.
 
 Service APIs under `/.well-known/bp/` are independent of app page mounts, as in
-[the BP protocol](../spec/protocol.md). Their operation auth still applies: declare
+[the BP protocol](../../spec/protocol.md). Their operation auth still applies: declare
 required auth and permissions for protected APIs. An empty app route list does
 not disable these APIs, and placing a route here does not authenticate its caller.
 
@@ -92,7 +180,7 @@ Schemas use AnyVali. Discovery rejects `any`, `unknown` and objects with
 `unknownKeys: allow`, including nested and referenced schemas. Use the platform's
 recursive `JsonValueSchema`/`JsonObjectSchema` for arbitrary JSON values.
 
-## Python example
+### Python example
 
 Create empty `my_service/__init__.py` and `my_service/bp_routes/__init__.py` files.
 Intermediate route directories can be namespace packages. Relative imports work
@@ -147,7 +235,7 @@ bp-python export --module my_service.definition:contract --project . --output bp
 bp-python export --module my_service.definition:contract --project . --output bp-contract.json --check
 ```
 
-## .NET example
+### .NET example
 
 In a .NET 10 project referencing `BetterPortal`, include these files. The normal
 SDK compile glob includes bracket and dotted route directories. Factory names and
@@ -222,9 +310,10 @@ bp-dotnet export --assembly bin/Debug/net10.0/HelloService.dll --factory HelloSe
 `Discovery.Discover` accepts `rootDirectory` to select a different source-directory
 name, and `dependencies` for resolved service aliases. Python `discover` accepts
 the same dependency mapping. Export factories can obtain it from the native
-project's locked dependencies as described in the port READMEs.
+project's locked dependencies as described in the [Python](../../framework/python/README.md) and
+[.NET](../../framework/dotnet/README.md) SDK guides.
 
-## Renderers and streams
+### Renderers and streams
 
 Method factories attach typed page, component and fragment `Renderer` objects to
 their handlers. Put renderer code in separate helper modules/classes and import it

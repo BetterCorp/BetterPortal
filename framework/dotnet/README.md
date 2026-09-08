@@ -5,7 +5,7 @@ for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers
 and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
 The AnyVali 1.1.5 schema gate passes all 1,580 checks; see the ledger for results.
 
-Start a standalone service with the [native init commands](../ROUTE-AUTHORING.md#create-a-standalone-service).
+Start a standalone service with the [native init commands](../../docs/building/route-authoring.md#create-a-standalone-service).
 
 Reference `BetterPortal.AspNetCore` for the `MapBetterPortal` WebApplication
 extension. A `Service` combines the registry, manifest declaration and optional
@@ -64,7 +64,7 @@ manifests and discovery schemas from their AnyVali schemas. Operations require
 explicit auth and unique stable IDs. Each view shares one params schema across
 methods; query, headers, body, response and policy are method-specific. Registry
 generation resolves dependency aliases and checks local operation/method targets.
-Path variants publish API contracts once per view. See [native route discovery](../ROUTE-AUTHORING.md) for directory-based registration.
+Path variants publish API contracts once per view. See [native route discovery](../../docs/building/route-authoring.md) for directory-based registration.
 
 `Renderer<TResult>` accepts a function returning HTML as `string` or
 `ValueTask<string>`. Register it on the typed handler; ASP.NET Core selects the
@@ -982,5 +982,5 @@ The exporter loads the explicitly selected assembly and its compiled dependencie
 it does not parse C# source or invoke the application entry point. The factory runs
 as application code. Export uses AnyVali validation, limits the document to 16 MiB
 and atomically replaces the output; `--check` detects drift without writing.
-Assembly and output paths are relative to `--project`. Use [native route discovery](../ROUTE-AUTHORING.md) to build this registry from
+Assembly and output paths are relative to `--project`. Use [native route discovery](../../docs/building/route-authoring.md) to build this registry from
 compiled index, method and SSE modules.

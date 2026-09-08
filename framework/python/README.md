@@ -5,7 +5,7 @@ hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not re
 full theme helpers and streaming dependency clients
 remain in the [capability ledger](../conformance/CAPABILITIES.md).
 
-Start a standalone service with the [native init commands](../ROUTE-AUTHORING.md#create-a-standalone-service).
+Start a standalone service with the [native init commands](../../docs/building/route-authoring.md#create-a-standalone-service).
 
 Install `betterportal[asgi]` and an ASGI server such as Uvicorn. `create_app(service)`
 in `betterportal.asgi` owns the `Service` lifespan. A service combines a registry,
@@ -61,7 +61,7 @@ an explicit `auth` declaration and a unique stable ID. Methods share the view's
 params schema; their query, headers, body, response and policy remain separate.
 Dependency aliases resolve to plugin IDs, and local dependencies must exist with
 the declared method. Path variants belong to one view and publish API contracts
-once. See [native route discovery](../ROUTE-AUTHORING.md) for directory-based registration.
+once. See [native route discovery](../../docs/building/route-authoring.md) for directory-based registration.
 
 `Renderer[Result]` accepts a sync/async function returning an HTML string. Register
 it on the typed handler; the adapter selects the exact method, app renderer,
@@ -969,5 +969,5 @@ code; keep host startup under its normal entry-point guard. The factory takes no
 arguments and returns the registry's contract. Export uses AnyVali validation,
 limits the document to 16 MiB and atomically replaces the output. `--check` detects
 drift without writing. Output paths are relative to `--project`. No request handler
-or host lifecycle is invoked by the exporter. Use [native route discovery](../ROUTE-AUTHORING.md) to build this registry from
+or host lifecycle is invoked by the exporter. Use [native route discovery](../../docs/building/route-authoring.md) to build this registry from
 index, method and SSE modules.

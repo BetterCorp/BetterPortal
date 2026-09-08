@@ -102,7 +102,7 @@ def export():
     props = ET.SubElement(cs_project, "PropertyGroup")
     for name, value in {"TargetFramework":"net10.0", "Nullable":"enable", "ImplicitUsings":"enable", "TreatWarningsAsErrors":"true"}.items(): ET.SubElement(props, name).text = value
     ET.SubElement(ET.SubElement(cs_project, "ItemGroup"), "ProjectReference", Include=str(root / "framework/dotnet/BetterPortal/BetterPortal.csproj"))
-    guide = (root / "framework/ROUTE-AUTHORING.md").read_text(encoding="utf-8")
+    guide = (root / "docs/building/route-authoring.md").read_text(encoding="utf-8")
     cs_project.append(ET.fromstring(re.search(r"<!-- well-known-compile -->\n```xml\n(.*?)```", guide, re.S)[1]))
     # Even explicitly compiled hidden helper factories must be ignored.
     ET.SubElement(ET.SubElement(cs_project, "ItemGroup"), "Compile", Include="**/.internal/**/*.cs")
@@ -245,6 +245,13 @@ public static class Feed {{
                 write(node_dir / (method + ".ts"), f'export const operationId="op.0.{method.lower()}"; export default () => {{ throw new Error("must not execute"); }};')
     for filename, source in re.findall(r"<!-- file: ([^ ]+) -->\n```\w+\n(.*?)```", guide, re.S):
         write(directory / filename, source)
+    node_example = node / "example"
+    write(node_example / "tsconfig.json", json.dumps({"compilerOptions": {
+        "target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": True,
+        "skipLibCheck": True, "noEmit": True, "jsx": "react-jsx", "jsxImportSource": "jsx-htmx", "types": ["node"]
+    }, "include": ["src/**/*.ts", "src/**/*.tsx"]}))
+    run(["node", str(root / "framework/nodejs/lib/cli/bp.js"), "run", "gen"], node_example)
+    run(["node", str(root / "node_modules/typescript/bin/tsc"), "--project", str(node_example)], node_example)
     for filename in ("my_service/__init__.py", "my_service/bp_routes/__init__.py"): write(python / filename, "")
     run(["dotnet", "build", str(dotnet), "-m:1", "-p:UseSharedCompilation=false"], directory)
     assembly = dotnet / "bin/Debug/net10.0/Routes.dll"
@@ -257,6 +264,17 @@ public static class Feed {{
     write(node_script, f'''import {{scanRoutes}} from {json.dumps((root / "framework/nodejs/lib/codegen/scanner.js").as_uri())};
 console.log(JSON.stringify(scanRoutes(process.argv[2]).routes.map(route=>({{path:route.path,viewId:route.viewId,operationIds:route.methodModules.map(method=>method.operationId)}}))));
 ''')
+    assert json.loads(run(["node", str(node_script), str(node_example / "src/plugin")], directory)) == [
+        {"path": "/hello", "viewId": "hello.index", "operationIds": ["hello.get"]}]
+    docs_script = directory / "docs.mjs"
+    write(docs_script, f'''import assert from "node:assert/strict";
+import {{ listDocs, getDoc }} from {json.dumps((root / "services/nodejs/docs-site/src/plugins/service-betterportal-docs-site/bp-routes/docs/content.ts").as_uri())};
+const entry = (await listDocs()).find(page => page.id === "building/route-authoring");
+assert.equal(entry?.href, "/docs/building/route-authoring");
+const page = await getDoc("building", "route-authoring");
+for (const heading of ["## Node.js", "### Python example", "### .NET example"]) assert(page?.markdown.includes(heading));
+''')
+    run(["node", "--import", "tsx", str(docs_script)], directory)
     results = {}
     for language, command, source, project in (
         ("python", [sys.executable, "-m", "betterportal"], ["--module", "entry:export"], python),
