@@ -2,6 +2,11 @@ using BetterPortal;
 
 internal static class StreamAdapter
 {
+    private sealed class BrokenIterable : IAsyncEnumerable<StreamValue<object?, object?>>
+    {
+        public IAsyncEnumerator<StreamValue<object?, object?>> GetAsyncEnumerator(CancellationToken cancellation = default) => throw new Exception("private iterator error");
+    }
+
     public static async Task<Dictionary<string, bool>> Probe()
     {
         var results = new Dictionary<string, bool>();
@@ -97,7 +102,12 @@ internal static class StreamAdapter
             if (body.TryGetValue("summary", out var summary)) yield return StreamValue<object?, object?>.Summary(summary);
             foreach (var item in (List<object?>?)body.GetValueOrDefault("afterSummary") ?? []) yield return StreamValue<object?, object?>.Item(item);
         }
-        var handler = new StreamHandler<object?, object?, object?>(Contracts.Import(Json.Write(body["itemSchema"])), Produce,
+        IAsyncEnumerable<StreamValue<object?, object?>> Factory(object? context, CancellationToken signal)
+        {
+            if (body.GetValueOrDefault("factoryFail") is true) throw new Exception("private factory error");
+            return body.GetValueOrDefault("iteratorFail") is true ? new BrokenIterable() : Produce(context, signal);
+        }
+        var handler = new StreamHandler<object?, object?, object?>(Contracts.Import(Json.Write(body["itemSchema"])), Factory,
             body.TryGetValue("summarySchema", out var schema) ? Contracts.Import(Json.Write(schema)) : null,
             Convert.ToInt32(body.GetValueOrDefault("maxFrameBytes", 1024 * 1024)));
         if (body.GetValueOrDefault("format") is "buffered")

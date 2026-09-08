@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from functools import partial
 import re
 from typing import Any, Coroutine, TypeVar, cast
 from urllib.parse import parse_qsl, quote, quote_from_bytes, unquote, unquote_to_bytes
@@ -337,8 +338,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 return await failure(500, "Request failed")
         return handle
 
-    async def discovery(request: Request) -> Response:
-        path = request.url.path
+    async def discovery(request: Request, *, path: str) -> Response:
         headers = {"access-control-allow-origin": "*", "cache-control": "no-store"}
         if request.method == "OPTIONS":
             if request.headers.get("access-control-request-method") not in ("GET", "HEAD"):
@@ -353,7 +353,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
 
     paths = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"]
     if installation is not None: paths.append("/.well-known/jwks.json")
-    routes = [HttpRoute(path, discovery, methods=["GET", "OPTIONS"]) for path in paths]
+    routes = [HttpRoute(path, partial(discovery, path=path), methods=["GET", "OPTIONS"]) for path in paths]
     if installation is not None:
         async def install_endpoint(request: Request) -> Response:
             response_headers = {"access-control-allow-origin": "*", "cache-control": "no-store"}

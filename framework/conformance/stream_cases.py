@@ -22,6 +22,8 @@ def run_streams(urls, labels):
         ("producer-error", {"items": [1], "fail": True}, "stream_failed"),
     ]
     native = [
+        ("factory-error", {"factoryFail": True}, "stream_failed"),
+        ("iterator-error", {"iteratorFail": True}, "stream_failed"),
         ("after-summary", {"items": [1], "summarySchema": item, "summary": None, "afterSummary": [2]}, "stream_failed"),
         ("undeclared-summary", {"summary": None}, "stream_failed"),
         ("frame-bound", {"items": ["x" * 1100], "maxFrameBytes": 1024}, "stream_failed"),

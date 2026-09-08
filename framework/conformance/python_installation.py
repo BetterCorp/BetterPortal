@@ -5,6 +5,8 @@ from pathlib import Path
 import tempfile
 import time
 import httpx
+from starlette.applications import Starlette
+from starlette.routing import Mount
 from betterportal.asgi import create_app
 from betterportal.bootstrap import BootstrapStateStore
 from betterportal.installation import ServiceInstallation
@@ -114,7 +116,8 @@ async def installation_request(body):
                             fault.mode = "ok"; fault.after_save = None; fault.release.set()
                             if step.get("barrier"): await control.get(step["barrier"] + "/control/release")
                 else:
-                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://service.test") as client:
+                    transport_app = Starlette(routes=[Mount(step["mount"], app=app)]) if step.get("mount") else app
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=transport_app, root_path=step.get("rootPath", "")), base_url="http://service.test") as client:
                         response = await client.request(step.get("method", "GET"), step.get("path", "/.well-known/bp/health"),
                             headers=step.get("headers", {}), **({"content": step["raw"].encode()} if "raw" in step else {"json": step["body"]} if "body" in step else {}))
                         result = {"status": response.status_code, "headers": dict(response.headers), "body": response.text}

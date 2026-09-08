@@ -48,7 +48,7 @@ public sealed class StreamHandler<TItem, TSummary, TContext>
     public async IAsyncEnumerable<Dictionary<string, object?>> Frames(TContext context, [EnumeratorCancellation] CancellationToken cancellation = default)
     {
         cancellation.ThrowIfCancellationRequested();
-        var producer = run(context, cancellation).GetAsyncEnumerator(cancellation);
+        IAsyncEnumerator<StreamValue<TItem, TSummary>>? producer = null;
         Dictionary<string, object?>? failure = null;
         var count = 0;
         var summarized = false;
@@ -61,6 +61,7 @@ public sealed class StreamHandler<TItem, TSummary, TContext>
                 try
                 {
                     cancellation.ThrowIfCancellationRequested();
+                    producer ??= run(context, cancellation).GetAsyncEnumerator(cancellation);
                     pending = producer.MoveNextAsync().AsTask();
                     if (!await pending.WaitAsync(cancellation)) break;
                     cancellation.ThrowIfCancellationRequested();
@@ -80,15 +81,18 @@ public sealed class StreamHandler<TItem, TSummary, TContext>
         }
         finally
         {
-            try
+            if (producer is not null)
             {
-                // An async iterator cannot dispose concurrently with MoveNext.
-                // Cancellation releases the caller; cooperative producer I/O releases its resources.
-                if (pending is { IsCompleted: false }) _ = CloseAfter(pending, producer);
-                else await producer.DisposeAsync();
+                try
+                {
+                    // An async iterator cannot dispose concurrently with MoveNext.
+                    // Cancellation releases the caller; cooperative producer I/O releases its resources.
+                    if (pending is { IsCompleted: false }) _ = CloseAfter(pending, producer);
+                    else await producer.DisposeAsync();
+                }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+                catch (Exception) { failure = Error("stream_failed", "Stream failed"); }
             }
-            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
-            catch (Exception) { failure = Error("stream_failed", "Stream failed"); }
         }
         cancellation.ThrowIfCancellationRequested();
         yield return failure ?? (Dictionary<string, object?>)Contracts.Parse("StreamEndFrameSchema", new Dictionary<string, object?> { ["kind"] = "end", ["count"] = count })!;

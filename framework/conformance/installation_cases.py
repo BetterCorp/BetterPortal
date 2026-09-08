@@ -234,6 +234,25 @@ def run_installation(urls, labels):
                 assert steps[0]["headers"]["access-control-allow-origin"] == "*" and "POST" in steps[0]["headers"]["access-control-allow-methods"]
                 assert "access-control-allow-credentials" not in steps[0]["headers"] and steps[1]["body"] == ""
         check(label, "public-preflight-and-jwks-head", cors_and_head)
+        if label == "python":
+            for setting in ("mount", "rootPath"):
+                for prefix in ("/prefix", "/caf\u00e9"):
+                    def mounted_discovery():
+                        requests = []
+                        for path in ("/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema", "/.well-known/jwks.json"):
+                            for method in ("GET", "HEAD", "OPTIONS"):
+                                request = {"path": path, "method": method, "headers": {"access-control-request-method": "GET"}}
+                                requests.extend([request, {**request, setting: prefix, "path": prefix + path}])
+                        with peer() as control:
+                            steps = invoke(url, control, [*requests, issue(control), {"kind": "wait", "updates": 2}, *requests])
+                            for ready, start in ((False, 0), (True, len(requests) + 2)):
+                                assert steps[start]["status"] == (200 if ready else 503) and json.loads(steps[start]["body"]) == {"ok": ready}, brief(steps)
+                                for index in range(start, start + len(requests), 2):
+                                    direct, mounted = steps[index:index + 2]
+                                    assert (mounted["status"], mounted["body"]) == (direct["status"], direct["body"]), brief([direct, mounted])
+                                    for header in ("content-type", "cache-control", "access-control-allow-origin"):
+                                        assert mounted["headers"].get(header) == direct["headers"].get(header), brief([direct, mounted])
+                    check(label, f"discovery-{setting}-{prefix}", mounted_discovery)
         def body_bound():
             with peer() as control:
                 steps = invoke(url, control, [issue(control)], maxBodyBytes=32)

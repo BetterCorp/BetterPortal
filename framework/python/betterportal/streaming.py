@@ -47,10 +47,11 @@ class StreamHandler(Generic[Item, SummaryValue, Context]):
 
     async def frames(self, context: Context) -> AsyncGenerator[dict[str, Any], None]:
         count, summarized = 0, False
-        producer = self.run(context).__aiter__()
+        producer = None
         failure = None
         try:
             try:
+                producer = self.run(context).__aiter__()
                 async for value in producer:
                     if summarized:
                         raise StreamError("Stream produced a value after its summary")

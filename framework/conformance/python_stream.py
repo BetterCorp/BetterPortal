@@ -72,7 +72,12 @@ async def streaming(response, body):
             yield Summary(body["summary"])
         for item in body.get("afterSummary", []):
             yield item
-    handler = StreamHandler(av.import_schema(body["itemSchema"]), produce,
+    class BrokenIterable:
+        def __aiter__(self): raise RuntimeError("private iterator error")
+    def factory(context):
+        if body.get("factoryFail"): raise RuntimeError("private factory error")
+        return BrokenIterable() if body.get("iteratorFail") else produce(context)
+    handler = StreamHandler(av.import_schema(body["itemSchema"]), factory,
                             av.import_schema(body["summarySchema"]) if "summarySchema" in body else None,
                             max_frame_bytes=body.get("maxFrameBytes", 1024 * 1024))
     if body.get("format") == "buffered":
