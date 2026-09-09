@@ -87,22 +87,25 @@ test("history keeps configured tenant routes before reverse-mapping service path
   assert.match(source, /url\.origin===window\.location\.origin\?matchTenantRoute\(url\.pathname\):null/);
 });
 
-test("missing root replaces history with the first menu or visual route", () => {
-  const source = betterPortalShellRuntimeSource();
-  const fallback = source.slice(source.indexOf("redirectMissingRoot"), source.indexOf("const applyConfigToken"));
-  assert.match(fallback, /normalizePath\(window\.location\.pathname\)!=="\/"\|\|configuredRouteFor\("\/"\)/);
-  assert.ok(fallback.indexOf("routeLinks().find") < fallback.indexOf("configuredRoutes().find"));
-  assert.match(fallback, /route\.kind==="page"&&route\.href&&route\.requestUrl/);
-  assert.match(fallback, /triggerShellLink\(fallback\.href,fallback\.requestUrl,true\)/);
-});
-
-test("missing root skips the configured auth service in menus and page fallbacks", () => {
+test("missing root skips auth and identity handlers in menus and page fallbacks", () => {
   const source = betterPortalShellRuntimeSource();
   const code = source.slice(source.indexOf("const redirectMissingRoot"), source.indexOf("const applyConfigToken"));
-  const login = { href: "/sign-in", requestUrl: "https://shared.test/login", serviceId: "identity", kind: "page" };
-  const logout = { ...login, href: "/sign-out", requestUrl: "https://shared.test/logout" };
+  const login = { href: "/session/start", requestUrl: "https://shared.test/session/start", serviceId: "provider-123", kind: "page" };
+  const logout = { ...login, href: "/session/end", requestUrl: "https://shared.test/session/end" };
   const dashboard = { href: "/dashboard", requestUrl: "https://shared.test/dashboard", serviceId: "app", kind: "page" };
   const api = { ...dashboard, href: "/api", kind: "api" };
+  const specialRoutes = [
+    { ...login, serviceId: "org.example.auth-default" },
+    { ...login, serviceId: "org.example.Identity" },
+    { ...login, requestUrl: "https://auth.example.test/session/start" },
+    { ...login, requestUrl: "https://identity.example.test/session/start" },
+    { ...login, href: "/org.example.auth/profile" },
+    { ...login, href: "/login" },
+    { ...login, requestUrl: "https://shared.test/logout" },
+    { ...login, href: "/sign-in" },
+    { ...login, href: "/sign_out" }
+  ];
+  const ordinary = { ...dashboard, href: "/authors?next=/login", requestUrl: "https://shared.test/authors?next=/identity", serviceId: "authoring" };
   for (const scenario of [
     { name: "menu order", menu: [login, logout, dashboard], routes: [dashboard, login], expected: dashboard },
     { name: "auth-only menu", menu: [login], routes: [login, logout, api, dashboard], expected: dashboard },
@@ -110,16 +113,28 @@ test("missing root skips the configured auth service in menus and page fallbacks
     { name: "only auth routes", menu: [login], routes: [login, logout] },
     { name: "no routes", menu: [], routes: [] },
     { name: "no auth configured", menu: [login, dashboard], routes: [login, dashboard], auth: "", expected: login },
+    { name: "custom theme login URL", menu: [login, logout, dashboard], routes: [login, logout, dashboard], auth: "", loginUrl: login.requestUrl, expected: dashboard },
+    { name: "custom theme page fallback", menu: [], routes: [login, logout, dashboard], auth: "", loginUrl: login.requestUrl, expected: dashboard },
+    { name: "custom theme only auth routes", menu: [login], routes: [login, logout], auth: "", loginUrl: login.requestUrl },
+    { name: "tenant login URL", menu: [logout, dashboard], routes: [login, logout, dashboard], auth: "", loginUrl: login.href, expected: dashboard },
+    { name: "login handler without service metadata", menu: [login, dashboard], routes: [], auth: "", loginUrl: login.requestUrl, expected: dashboard },
+    { name: "explicit and inferred auth services", menu: [login, dashboard], routes: [login, dashboard], loginUrl: dashboard.requestUrl },
+    { name: "special service and path markers", menu: [...specialRoutes, dashboard], routes: [], auth: "", expected: dashboard },
+    { name: "special page fallback markers", menu: [], routes: [...specialRoutes, dashboard], auth: "", expected: dashboard },
+    { name: "only special routes", menu: specialRoutes, routes: specialRoutes, auth: "" },
+    { name: "query strings and substrings are not markers", menu: [ordinary, dashboard], routes: [], auth: "", expected: ordinary },
+    { name: "invalid and self-referencing menu routes", menu: [{ ...dashboard, requestUrl: "http://[" }, { ...dashboard, href: "/" }, dashboard], routes: [], expected: dashboard },
     { name: "explicit root", menu: [login, dashboard], routes: [{ ...login, href: "/" }, dashboard] },
     { name: "non-root navigation", menu: [login, dashboard], routes: [login, dashboard], path: "/sign-in" }
   ]) {
     const redirects: unknown[][] = [];
     runInNewContext(`var __name = f => f; ${code} redirectMissingRoot();`, {
-      window: { location: { pathname: scenario.path ?? "/" } },
+      URL,
+      window: { location: { pathname: scenario.path ?? "/", origin: "https://portal.test" } },
       normalizePath: (path: string) => path.replace(/\/+$/, "") || "/",
       configuredRouteFor: (path: string) => scenario.routes.find(route => route.href === path),
       configuredRoutes: () => scenario.routes,
-      shellRoot: () => ({ getAttribute: () => scenario.auth ?? "identity" }),
+      shellRoot: () => ({ getAttribute: (name: string) => name === "data-bp-auth-service" ? scenario.auth ?? "provider-123" : scenario.loginUrl ?? null }),
       routeLinks: () => scenario.menu.map(route => ({
         closest: () => null,
         hasAttribute: (name: string) => name === "data-bp-route-request",

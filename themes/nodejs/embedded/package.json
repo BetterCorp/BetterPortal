@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/theme-embedded",
-  "version": "10.6.16",
+  "version": "10.6.17",
   "description": "BetterPortal v10 embedded theme plugin for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
@@ -32,9 +32,9 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@betterportal/framework": "10.6.16",
-    "@betterportal/plugin-bsb": "10.6.16",
-    "@betterportal/theme-runtime": "10.6.16",
+    "@betterportal/framework": "10.6.17",
+    "@betterportal/plugin-bsb": "10.6.17",
+    "@betterportal/theme-runtime": "10.6.17",
     "@bsb/base": "^9.7.0",
     "anyvali": "^1.1.5",
     "jsx-htmx": "4.0.0"

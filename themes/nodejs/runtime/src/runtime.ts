@@ -1211,15 +1211,31 @@ export function betterPortalShellRuntimeSource(): string {
 
       const redirectMissingRoot = () => {
         if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
-        const authServiceId = shellRoot()?.getAttribute("data-bp-auth-service");
-        const menuLink = routeLinks().find((link) =>
-          !link.closest("[hidden]") && link.hasAttribute("data-bp-route-request")
-          && (!authServiceId || link.getAttribute("data-bp-service") !== authServiceId)
-        );
-        const fallback = menuLink
-          ? { href: menuLink.getAttribute("href"), requestUrl: menuLink.getAttribute("data-bp-route-request") }
-          : configuredRoutes().find((route) => route.kind === "page" && route.href && route.requestUrl
-            && (!authServiceId || route.serviceId !== authServiceId));
+        const routes = configuredRoutes();
+        const loginUrl = shellRoot()?.getAttribute("data-bp-login-url");
+        const authServiceIds = new Set([
+          shellRoot()?.getAttribute("data-bp-auth-service"),
+          ...routes.filter((route) => loginUrl && (route.requestUrl === loginUrl || route.href === loginUrl)).map((route) => route.serviceId)
+        ].filter(Boolean));
+        const isSafeRootRoute = (route: ConfiguredRoute) => {
+          if (!route.href || !route.requestUrl || authServiceIds.has(route.serviceId)) return false;
+          try {
+            const tenantUrl = new URL(route.href, window.location.origin);
+            const requestUrl = new URL(route.requestUrl, window.location.origin);
+            if (normalizePath(tenantUrl.pathname) === "/") return false;
+            if (route.requestUrl === loginUrl || route.href === loginUrl) return false;
+            // ponytail: name heuristic only for the initial fallback; prefer explicit service metadata when available.
+            return !/(^|[./_-])(auth|authentication|identity|login|logout|sign[-_]?in|sign[-_]?out)(?=$|[./_-])/i.test(
+              [route.serviceId, tenantUrl.pathname, requestUrl.hostname, requestUrl.pathname].join("/")
+            );
+          } catch { return false; }
+        };
+        const menuRoute = routeLinks().filter((link) => !link.closest("[hidden]")).map((link) => ({
+          href: link.getAttribute("href") || "",
+          requestUrl: link.getAttribute("data-bp-route-request") || "",
+          serviceId: link.getAttribute("data-bp-service") || ""
+        })).find(isSafeRootRoute);
+        const fallback = menuRoute ?? routes.find((route) => route.kind === "page" && isSafeRootRoute(route));
         if (fallback?.href && fallback.requestUrl) triggerShellLink(fallback.href, fallback.requestUrl, true);
       };
 
