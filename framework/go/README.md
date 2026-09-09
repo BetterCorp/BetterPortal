@@ -56,8 +56,23 @@ manifest/schema discovery; request/response validation; app resolution, allowlis
 CORS and authentication; rendering; config/install/sync; managed streaming and
 full cross-language HTTP conformance. AnyVali remains the only application
 schema validator. No replacement validator or partial HTTP server is introduced.
-Before adding AnyVali, pin a distributable version and run all canonical contracts,
-including recursion, missing/null defaults, 64-bit integers and concurrent import.
+AnyVali installs successfully with this exact module pin:
+
+```sh
+go get github.com/BetterCorp/AnyVali/sdk/go@v0.0.0-20260908134013-58b58e7e617a
+```
+
+This points to the `v1.1.5` source commit. Native dependency probes found:
+
+- `ImportJSON` rejects BP's `JsonValueSchema`: its record node uses `valueSchema`,
+  while the importer requires `value`.
+- Parsing `TokenLifetimeConfigSchema` with `accessTokenSeconds: nil` accepts the
+  explicit null and substitutes `900`, violating BP's missing/null distinction.
+- Concurrent `ImportJSON` calls trigger the race detector in the importer's
+  global `refResolving` state.
+
+Resolve these upstream and run all canonical contracts, including recursion,
+missing/null defaults, 64-bit integers and concurrent import, before integration.
 
 See [the protocol](../../spec/protocol.md), [SSE](../../spec/sse.md), and the
 [existing port capability ledger](../conformance/CAPABILITIES.md).
