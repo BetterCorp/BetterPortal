@@ -48,9 +48,19 @@ manifest/schema discovery; request/response validation; app resolution, allowlis
 CORS and authentication; rendering; config/install/sync; managed streaming and
 full cross-language HTTP conformance. AnyVali remains the only application
 schema validator. No replacement validator or partial HTTP server is introduced.
-At implementation time the documented `anyvali/anyvali` package was unavailable
-from Packagist; resolve distribution and run the canonical contract corpus before
-adding that dependency. Nothing is published by this PR.
+Dependency verification used AnyVali `v1.1.5` (commit
+`58b58e7e617aa13020b6e700790ac710b658b140`). Its PHP SDK installs successfully
+with a Composer path repository pointing to `AnyVali/sdk/php`; the documented
+Packagist package remains unavailable. Installation alone does not establish
+compatibility. Native `AnyVali::import(...)` / `safeParse(...)` probes found:
+
+- `JsonValueSchema` rejects `{"nested": [null, true, 3]}` because the imported
+  `BetterPortalJsonValue` reference cannot resolve.
+- `TokenLifetimeConfigSchema` rejects an empty input object instead of applying
+  the declared `900` / `604800` defaults.
+
+These must pass, along with the full canonical corpus, before integrating the
+validator. Nothing is published by this PR.
 
 See [the protocol](../../spec/protocol.md), [SSE](../../spec/sse.md), and the
 [existing port capability ledger](../conformance/CAPABILITIES.md).
