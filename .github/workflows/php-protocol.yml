@@ -1,0 +1,33 @@
+name: PHP protocol
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+permissions:
+  contents: read
+jobs:
+  php:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer
+          coverage: none
+      - run: composer validate --strict --working-dir=framework/php
+      - run: composer install --working-dir=framework/php --no-interaction
+      - run: composer test --working-dir=framework/php
+      - name: Test isolated archive
+        run: |
+          mkdir -p "$RUNNER_TEMP/bp-php"
+          composer archive --working-dir=framework/php --format=tar --dir="$RUNNER_TEMP/bp-php"
+          mkdir "$RUNNER_TEMP/bp-php/installed"
+          tar -xf "$RUNNER_TEMP/bp-php/"*.tar -C "$RUNNER_TEMP/bp-php/installed"
+          cd "$RUNNER_TEMP/bp-php/installed"
+          composer install --no-dev --no-interaction
+          php examples/protocol.php

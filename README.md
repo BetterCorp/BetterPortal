@@ -41,6 +41,8 @@ BetterPortal lets you compose a tenant-aware web portal out of small, independen
 - **File-based routing.** Drop a folder under `bp-routes/` - it becomes a route, validated and themed.
 - **Per-tenant config.** Encrypted secrets, scoped sync, admin UI.
 
+PHP port work starts with the experimental [native protocol primitives](framework/php/README.md). They cover negotiation, SSE framing and BP header directives; PHP service hosting remains pending.
+
 ## Specification vs. SDK
 
 | Layer | Where | What |

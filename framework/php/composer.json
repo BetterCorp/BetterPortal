@@ -1,0 +1,10 @@
+{
+  "name": "betterportal/protocol",
+  "description": "Experimental native BetterPortal protocol primitives",
+  "type": "library",
+  "license": ["AGPL-3.0-only", "proprietary"],
+  "require": {"php": ">=8.1"},
+  "autoload": {"psr-4": {"BetterPortal\\Protocol\\": "src/"}},
+  "scripts": {"test": "php tests/run.php"},
+  "archive": {"exclude": ["/tests", "/vendor", "/composer.lock"]}
+}
