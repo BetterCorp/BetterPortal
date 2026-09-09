@@ -434,6 +434,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           initialServiceId: currentRoute?.serviceId,
           routeLinks,
           serviceOrigins: resolveAppServiceOrigins(portalConfig, requestContext),
+          authServiceId: requestContext.app.auth?.serviceId,
           chrome: currentRoute?.chrome,
           aiManifestUrl: "/.well-known/bp/ai.json",
           automationCatalogUrl: discoveryUrls?.catalogUrl,

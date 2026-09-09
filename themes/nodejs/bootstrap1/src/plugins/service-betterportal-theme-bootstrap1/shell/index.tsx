@@ -62,6 +62,7 @@ export interface Bootstrap1HostPageContext {
   serviceOrigins?: Record<string, string>;
   navItems?: Bootstrap1NavItem[];
   loginUrl?: string;
+  authServiceId?: string;
   logoutUrl?: string;
   chrome?: BetterPortalShellChrome;
   aiManifestUrl?: string;
@@ -2161,6 +2162,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
       data-bp-routes={JSON.stringify(context.routeLinks)}
       data-bp-dev-reload="auto"
       data-bp-login-url={context.loginUrl}
+      data-bp-auth-service={context.authServiceId}
       data-bp-logout-url={context.logoutUrl}
       {...betterPortalChromeAttributes(context.chrome)}
     >

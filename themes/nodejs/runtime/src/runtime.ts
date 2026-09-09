@@ -1211,12 +1211,15 @@ export function betterPortalShellRuntimeSource(): string {
 
       const redirectMissingRoot = () => {
         if (normalizePath(window.location.pathname) !== "/" || configuredRouteFor("/")) return;
+        const authServiceId = shellRoot()?.getAttribute("data-bp-auth-service");
         const menuLink = routeLinks().find((link) =>
           !link.closest("[hidden]") && link.hasAttribute("data-bp-route-request")
+          && (!authServiceId || link.getAttribute("data-bp-service") !== authServiceId)
         );
         const fallback = menuLink
           ? { href: menuLink.getAttribute("href"), requestUrl: menuLink.getAttribute("data-bp-route-request") }
-          : configuredRoutes().find((route) => route.kind === "page" && route.href && route.requestUrl);
+          : configuredRoutes().find((route) => route.kind === "page" && route.href && route.requestUrl
+            && (!authServiceId || route.serviceId !== authServiceId));
         if (fallback?.href && fallback.requestUrl) triggerShellLink(fallback.href, fallback.requestUrl, true);
       };
 

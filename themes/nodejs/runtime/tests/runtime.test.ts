@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 import { js } from "jsx-htmx";
 import {
   BETTERPORTAL_HTMX_EXTENSIONS,
@@ -93,6 +94,41 @@ test("missing root replaces history with the first menu or visual route", () => 
   assert.ok(fallback.indexOf("routeLinks().find") < fallback.indexOf("configuredRoutes().find"));
   assert.match(fallback, /route\.kind==="page"&&route\.href&&route\.requestUrl/);
   assert.match(fallback, /triggerShellLink\(fallback\.href,fallback\.requestUrl,true\)/);
+});
+
+test("missing root skips the configured auth service in menus and page fallbacks", () => {
+  const source = betterPortalShellRuntimeSource();
+  const code = source.slice(source.indexOf("const redirectMissingRoot"), source.indexOf("const applyConfigToken"));
+  const login = { href: "/sign-in", requestUrl: "https://shared.test/login", serviceId: "identity", kind: "page" };
+  const logout = { ...login, href: "/sign-out", requestUrl: "https://shared.test/logout" };
+  const dashboard = { href: "/dashboard", requestUrl: "https://shared.test/dashboard", serviceId: "app", kind: "page" };
+  const api = { ...dashboard, href: "/api", kind: "api" };
+  for (const scenario of [
+    { name: "menu order", menu: [login, logout, dashboard], routes: [dashboard, login], expected: dashboard },
+    { name: "auth-only menu", menu: [login], routes: [login, logout, api, dashboard], expected: dashboard },
+    { name: "no menu", menu: [], routes: [login, logout, api, dashboard], expected: dashboard },
+    { name: "only auth routes", menu: [login], routes: [login, logout] },
+    { name: "no routes", menu: [], routes: [] },
+    { name: "no auth configured", menu: [login, dashboard], routes: [login, dashboard], auth: "", expected: login },
+    { name: "explicit root", menu: [login, dashboard], routes: [{ ...login, href: "/" }, dashboard] },
+    { name: "non-root navigation", menu: [login, dashboard], routes: [login, dashboard], path: "/sign-in" }
+  ]) {
+    const redirects: unknown[][] = [];
+    runInNewContext(`var __name = f => f; ${code} redirectMissingRoot();`, {
+      window: { location: { pathname: scenario.path ?? "/" } },
+      normalizePath: (path: string) => path.replace(/\/+$/, "") || "/",
+      configuredRouteFor: (path: string) => scenario.routes.find(route => route.href === path),
+      configuredRoutes: () => scenario.routes,
+      shellRoot: () => ({ getAttribute: () => scenario.auth ?? "identity" }),
+      routeLinks: () => scenario.menu.map(route => ({
+        closest: () => null,
+        hasAttribute: (name: string) => name === "data-bp-route-request",
+        getAttribute: (name: string) => ({ href: route.href, "data-bp-route-request": route.requestUrl, "data-bp-service": route.serviceId })[name]
+      })),
+      triggerShellLink: (...args: unknown[]) => redirects.push(args)
+    });
+    assert.deepEqual(redirects, scenario.expected ? [[scenario.expected.href, scenario.expected.requestUrl, true]] : [], scenario.name);
+  }
 });
 
 test("main outlet HTTP errors only swap explicit themed status views", () => {

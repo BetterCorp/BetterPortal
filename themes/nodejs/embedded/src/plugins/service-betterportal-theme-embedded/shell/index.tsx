@@ -35,6 +35,7 @@ export interface EmbeddedHostPageContext {
   initialRouteError?: string;
   routeLinks: EmbeddedRouteLink[];
   serviceOrigins?: Record<string, string>;
+  authServiceId?: string;
   chrome?: BetterPortalShellChrome;
   aiManifestUrl?: string;
   automationCatalogUrl?: string;
@@ -160,6 +161,7 @@ function EmbeddedBody(context: EmbeddedHostPageContext): HtmlRenderable {
       data-bp-embedded-root=""
       data-bp-services={JSON.stringify(serviceMap)}
       data-bp-routes={JSON.stringify(context.routeLinks)}
+      data-bp-auth-service={context.authServiceId}
       data-bp-initial-service={context.initialServiceId}
       data-bp-menu-health="false"
       {...betterPortalChromeAttributes(context.chrome)}
