@@ -1,0 +1,32 @@
+name: Go protocol
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+permissions:
+  contents: read
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        go: ['1.22.x', 'stable']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - name: Format, test and vet
+        working-directory: framework/go
+        run: |
+          test -z "$(gofmt -l .)"
+          go test -race -cover ./...
+          go vet ./...
+          go test -run='^$' -fuzz=FuzzNegotiate -fuzztime=10s
+      - name: Run isolated example without network dependencies
+        run: |
+          cp -R framework/go "$RUNNER_TEMP/bp-go"
+          cd "$RUNNER_TEMP/bp-go"
+          GOWORK=off GOPROXY=off GOSUMDB=off go run ./examples/protocol
