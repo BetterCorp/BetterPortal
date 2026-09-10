@@ -58,7 +58,7 @@ These are theme-specific CSS contracts, not universal tokens for Embedded or thi
 
 ### Appearance mode and contrast
 
-The shell owns light/dark/system preference, persistence, mode-specific surfaces, text and logos. Bootstrap shells set `data-bs-theme` and generate the effective mode's styles. Reuse a declared `theme-selector` shell fragment when needed. A service must not set document appearance, add its own theme switch/storage or install a separate `prefers-color-scheme` controller.
+The shell owns light/dark/system preference, persistence, mode-specific surfaces, text and logos. Bootstrap1/2 include both light and dark styles and logos, scoped by `data-bs-theme`, so a mode change updates the complete palette and branding without a request. A saved browser preference takes precedence over the configured default; system mode follows changes to the OS preference. Configuration refreshes replace both palettes together and apply the updated default when the browser has no explicit preference. A user selection takes precedence, including a session-only selection when browser storage is unavailable. Reuse a declared `theme-selector` shell fragment when needed. A service must not set document appearance, add its own theme switch/storage or install a separate `prefers-color-scheme` controller.
 
 Check light/dark modes with the effective app palette, including select options, placeholders, read-only/disabled controls, hover and keyboard focus. If defaults are unreadable, inspect configuration and computed styles and reproduce with an unmodified themed component. Report the failing pairing to the theme owner instead of adding hardcoded colors or `!important` patches in each service view.
 
