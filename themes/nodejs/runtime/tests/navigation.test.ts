@@ -28,6 +28,20 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
 
 const html = (route: Route, body: string, status = 200, headers = {}) => route.fulfill({ status, contentType: "text/html", body, headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "HX-Location,HX-Redirect,HX-Trigger,BP-SetHeader", ...headers } });
 
+test("absolute role-sync fragments returned by a service receive managed credentials", async t => {
+  let authorization: string | undefined;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().includes("service.test")) {
+      return html(route, '<div hx-get="https://auth.test/.well-known/bp/config/workos-role-sync?tenantId=target&amp;appId=app" hx-trigger="load" hx-target="this" hx-swap="innerHTML"></div>');
+    }
+    authorization = route.request().headers().authorization;
+    return html(route, '<p id="role-sync">Role sync loaded</p>');
+  }, { Authorization: { value: "Bearer management-test", owner: "auth", scope: null } });
+  await page.waitForSelector("#role-sync");
+  assert.equal(authorization, "Bearer management-test");
+  assert.deepEqual(errors, []);
+});
+
 test("an empty initial route does not turn the whole content area into a link", async t => {
   let requests = 0;
   const { page, errors } = await shell(t, route => { requests++; return html(route, "Unexpected"); }, {}, "");

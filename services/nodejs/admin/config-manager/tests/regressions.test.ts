@@ -5,7 +5,7 @@ import { registerWebhookRoutes } from "../src/plugins/service-betterportal-confi
 import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
 import { test } from "node:test";
 import * as av from "anyvali";
-import { BetterPortalConfigSchema, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
+import { BetterPortalConfigSchema, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin, registerSetupEndpoints, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
@@ -1350,6 +1350,36 @@ test("ordinary service scopes include separate application route and fragment in
   assert.deepEqual(scopedApp.appRoutes?.map((route) => route.serviceId), [sourceId, targetId]);
   assert.deepEqual(scopedApp.fragments.nav?.map((fragment) => fragment.serviceId), [sourceId]);
   assert.deepEqual(scopedApp.appFragments?.nav?.map((fragment) => fragment.serviceId), [sourceId, targetId]);
+});
+
+test("only the management shell trusts active apps' auth services for role management", async () => {
+  const { config, tenantId, appId, sourceId, targetId } = s2sConfig();
+  const target = s2sConfig();
+  const app = config.apps[0];
+  app.shell = { serviceId: sourceId };
+  app.shellFragments = {};
+  app.routes = [{ id: uuidv7(), kind: "page", path: "/", serviceId: targetId, viewId: "target.index", enabled: true, methods: ["GET"], operations: ["target.get"] }];
+  config.configManagement.adminTenantId = tenantId;
+  config.configManagement.managementAppId = appId;
+  target.config.apps[0].auth = { serviceId: target.sourceId, roles: [] } as never;
+  config.tenants.push(...target.config.tenants);
+  config.apps.push(...target.config.apps);
+  const storage = new MemoryStorage(config);
+  const managementApp = async () => (await storage.getScopedConfig(sourceId, "tenant", tenantId)).apps[0];
+  const scoped = ScopedAppSchema.parse(await managementApp());
+  assert.deepEqual(scoped.managementAuthServiceOrigins, { [target.sourceId]: "https://source.example" });
+  const context = { tenant: config.tenants[0], app: scoped };
+  assert.equal(resolveAppServiceOrigins(config, context as never)[target.sourceId], "https://source.example");
+  assert.equal(resolveAppServiceOrigins(config, { ...context, app: { ...scoped, id: target.appId } } as never)[target.sourceId], undefined);
+  const ordinary = await storage.getScopedConfig(targetId, "tenant", tenantId);
+  assert.equal(ordinary.apps[0].managementAuthServiceOrigins, undefined);
+  target.config.tenants[0].services[0].enabled = false;
+  assert.deepEqual((await managementApp()).managementAuthServiceOrigins, {});
+  target.config.tenants[0].services[0].enabled = true;
+  target.config.tenants[0].active = false;
+  assert.deepEqual((await managementApp()).managementAuthServiceOrigins, {});
+  config.configManagement.managementAppId = target.appId;
+  assert.equal((await managementApp()).managementAuthServiceOrigins, undefined);
 });
 
 test("shared activation purge removes every linked reference", () => {

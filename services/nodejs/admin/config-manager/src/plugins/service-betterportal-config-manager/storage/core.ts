@@ -6,7 +6,7 @@ import type {
   ScopedTenant,
   ScopedApp
 } from "@betterportal/framework";
-import { resolveAppShell } from "@betterportal/framework";
+import { resolveAppShell, resolveServiceForTenant } from "@betterportal/framework";
 import type {
   BetterPortalConfig,
   BetterPortalTenant,
@@ -1088,7 +1088,28 @@ export abstract class BaseStorage implements PlatformConfigStore {
 
   private scopeApp(config: BetterPortalConfig, app: BetterPortalApp, serviceKeys: string[], isShellCaller: boolean, isAuthCaller: boolean): ScopedApp {
     const serviceKeySet = new Set(serviceKeys);
+    let managementAuthServiceOrigins: Record<string, string> | undefined;
+    if (isShellCaller && app.id === config.configManagement.managementAppId
+      && app.tenantId === config.configManagement.adminTenantId) {
+      managementAuthServiceOrigins = {};
+      for (const targetApp of config.apps) {
+        const serviceId = targetApp.auth?.serviceId;
+        const tenant = config.tenants.find(candidate => candidate.active && candidate.id === targetApp.tenantId);
+        if (!serviceId || !tenant) continue;
+        const binding = resolveServiceForTenant(config, serviceId, {
+          tenant, app: { ...targetApp, shell: resolveAppShell(config, targetApp) }
+        });
+        if (!binding) continue;
+        try {
+          const url = new URL(binding.service.hostname);
+          if (["https:", "http:"].includes(url.protocol) && !url.username && !url.password) {
+            managementAuthServiceOrigins[serviceId] = url.origin;
+          }
+        } catch { /* Invalid service URLs are not credential destinations. */ }
+      }
+    }
     return {
+      ...(managementAuthServiceOrigins ? { managementAuthServiceOrigins } : {}),
       id: app.id,
       tenantId: app.tenantId,
       slug: app.slug,

@@ -5272,6 +5272,16 @@
                           }
                         }
                       },
+                      "managementAuthServiceOrigins": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "record",
+                          "valueSchema": {
+                            "kind": "string",
+                            "format": "url"
+                          }
+                        }
+                      },
                       "shell": {
                         "kind": "optional",
                         "inner": {
@@ -10669,6 +10679,16 @@
                     "roles"
                   ],
                   "unknownKeys": "strip"
+                }
+              }
+            },
+            "managementAuthServiceOrigins": {
+              "kind": "optional",
+              "inner": {
+                "kind": "record",
+                "valueSchema": {
+                  "kind": "string",
+                  "format": "url"
                 }
               }
             },

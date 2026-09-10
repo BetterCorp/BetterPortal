@@ -293,6 +293,15 @@ export function resolveAppServiceOrigins(config: BetterPortalConfig, context: Be
     for (const item of items) if (item.source === "service") ids.add(item.serviceId);
   }
   const origins: Record<string, string> = {};
+  if (app.id && app.id === config.configManagement?.managementAppId
+    && context.tenant.id === config.configManagement.adminTenantId) {
+    for (const [id, origin] of Object.entries(app.managementAuthServiceOrigins ?? {})) {
+      try {
+        const url = new URL(origin);
+        if (["https:", "http:"].includes(url.protocol) && !url.username && !url.password) origins[id] = url.origin;
+      } catch { /* Invalid service URLs are not credential destinations. */ }
+    }
+  }
   for (const id of ids) {
     const binding = resolveServiceForTenant(config, id, context);
     if (!binding) continue;

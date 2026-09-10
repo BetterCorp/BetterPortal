@@ -31,6 +31,7 @@ export const ScopedTenantSchema = project(BetterPortalTenantSchema, [], {
   services: av.array(ScopedTenantServiceSchema)
 });
 export const ScopedAppSchema = project(BetterPortalAppSchema, ["layoutId", "statusViewIds"], {
+  managementAuthServiceOrigins: av.optional(av.record(av.string().format("url"))),
   shell: av.optional(av.object({ serviceId: UuidV7Schema, service: text, renderer: text })),
   appRoutes: av.optional(av.array(BetterPortalRouteMountSchema)),
   appFragments: av.optional(av.record(av.array(BetterPortalFragmentAssignmentSchema)))

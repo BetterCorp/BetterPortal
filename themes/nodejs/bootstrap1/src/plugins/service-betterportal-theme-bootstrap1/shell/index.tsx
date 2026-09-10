@@ -368,8 +368,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
     "html, body": {
       margin: 0,
       minHeight: "100%",
-      background: "radial-gradient(ellipse at 15% 10%, color-mix(in srgb, var(--bp-accent) 14%, transparent), transparent 50%), radial-gradient(ellipse at 85% 80%, color-mix(in srgb, var(--bp-accent-secondary) 10%, transparent), transparent 40%), radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--bp-accent) 5%, transparent), transparent 60%), var(--bp-bg)",
-      backgroundAttachment: "fixed",
+      background: "var(--bp-bg)",
       color: "var(--bp-text)"
     },
     body: {
@@ -1900,13 +1899,13 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       content: "\"\"",
       position: "absolute",
       inset: 0,
-      background: "linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--bp-accent) 15%, transparent) 50%, transparent 100%)",
+      background: "color-mix(in srgb, var(--bp-accent) 15%, transparent)",
       animation: "bp-shimmer 1.4s ease infinite",
       borderRadius: "inherit",
       pointerEvents: "none"
     },
     ".bp-admin__route.active.htmx-request::after": {
-      background: "linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--bp-accent) 12%, transparent) 50%, transparent 100%)"
+      background: "color-mix(in srgb, var(--bp-accent) 12%, transparent)"
     },
 
     /* -- Topbar progress bar -- */
@@ -1928,7 +1927,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       content: "\"\"",
       position: "absolute",
       inset: 0,
-      background: "linear-gradient(90deg, transparent, var(--bp-accent), color-mix(in srgb, var(--bp-accent) 60%, var(--bp-accent-secondary)), transparent)",
+      background: "var(--bp-accent)",
       transform: "translateX(-100%)",
       borderRadius: "inherit"
     },
@@ -1997,7 +1996,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       content: "\"\"",
       position: "absolute",
       inset: 0,
-      background: "linear-gradient(90deg, transparent, var(--bp-accent), color-mix(in srgb, var(--bp-accent) 60%, var(--bp-accent-secondary)), transparent)",
+      background: "var(--bp-accent)",
       animation: "bp-progress-slide 1.4s ease infinite",
       borderRadius: "inherit"
     },

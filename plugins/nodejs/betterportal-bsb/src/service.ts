@@ -360,6 +360,7 @@ export abstract class BPService<
         slots: [...(a.slots ?? [])],
         fragments: a.fragments,
         shellFragments: a.shellFragments,
+        managementAuthServiceOrigins: a.managementAuthServiceOrigins,
         auth: a.auth
       })) as any
     } as unknown as PlatformConfig;

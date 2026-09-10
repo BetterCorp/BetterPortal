@@ -84,6 +84,8 @@ export type ScopedTenantService = Omit<TenantServiceRegistration, "apiKeyHash"> 
 };
 
 export interface ScopedApp {
+  /** Auth service destinations supplied only to the configured management app's shell. */
+  readonly managementAuthServiceOrigins?: Readonly<Record<string, string>>;
   readonly id: string;
   readonly tenantId: string;
   readonly slug: string;

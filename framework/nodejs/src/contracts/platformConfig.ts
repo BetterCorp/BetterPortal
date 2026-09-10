@@ -301,6 +301,8 @@ export interface BetterPortalResolvedShell {
 }
 
 export type BetterPortalResolvedApp = Omit<BetterPortalApp, "shell"> & {
+  /** Trusted auth service destinations for cross-app role management. */
+  readonly managementAuthServiceOrigins?: Readonly<Record<string, string>>;
   readonly shell?: BetterPortalResolvedShell;
   /** Full application route index supplied to scoped services for cross-service lookup. */
   readonly appRoutes?: ReadonlyArray<BetterPortalApp["routes"][number]>;
