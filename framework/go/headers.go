@@ -7,7 +7,9 @@ import (
 )
 
 // HeaderOptions configures a BP-SetHeader directive. Expires is an absolute Unix
-// timestamp in seconds. RefreshPath is a URL-encoded root-relative service path.
+// timestamp in seconds. Expires and RefreshBeforeSeconds must be positive when
+// supplied, for shell compatibility. RefreshPath is a URL-encoded root-relative
+// service path.
 type HeaderOptions struct {
 	Locked               bool
 	ScopeToOwner         bool
@@ -33,7 +35,7 @@ func (h *HeaderDirectives) Set(name, value string, options HeaderOptions) error 
 	if len(value) > 8192 || unsafeDirective(value, false) {
 		return fmt.Errorf("invalid BP header value")
 	}
-	if options.Expires != nil && *options.Expires <= 0 || options.RefreshBeforeSeconds != nil && *options.RefreshBeforeSeconds < 0 {
+	if options.Expires != nil && *options.Expires <= 0 || options.RefreshBeforeSeconds != nil && *options.RefreshBeforeSeconds <= 0 {
 		return fmt.Errorf("invalid BP header time")
 	}
 	if path := options.RefreshPath; path != nil {
