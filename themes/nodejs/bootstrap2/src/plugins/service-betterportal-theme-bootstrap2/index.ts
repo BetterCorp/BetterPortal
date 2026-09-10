@@ -8,6 +8,9 @@ import * as av from "anyvali";
 import {
   InMemoryServiceConfigStore,
   buildThemeAiManifest,
+  buildBpSchema,
+  renderThemeLlmsDrop,
+  type BpSchemaOutput,
   resolveThemeLlmsContext,
   renderThemeLlmsApi,
   renderThemeLlmsDev,
@@ -199,6 +202,7 @@ const EventSchemas = createEventSchemas({
 export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventSchemas> {
   static Config = Config;
   static EventSchemas = EventSchemas;
+  private llmsSchema!: BpSchemaOutput;
   protected configStore = new InMemoryServiceConfigStore();
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
@@ -233,7 +237,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   // Called by BPService.init after framework setup. Theme registers its
   // manual routes here so they sit alongside the auto-mounted /.well-known/* set.
-  protected async onRegistered(_registry: BetterPortalRegistry, obs: Observable): Promise<void> {
+  protected async onRegistered(registry: BetterPortalRegistry, obs: Observable): Promise<void> {
+    this.llmsSchema = buildBpSchema(registry, this.manifest);
     this.registerRoutes();
     await loadBootstrap2Asset("bootstrap2-core.js");
     obs.log.info("Bootstrap2 theme initialized with default mode {mode}", {
@@ -297,6 +302,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.get("/llms-api.txt", (event) => this.handleLlmsApi(event));
     this.app.get("/llms-dev.txt", (event) => this.handleLlmsDev(event));
     this.app.get("/llms-ui.txt", (event) => this.handleLlmsUi(event));
+    this.app.get("/llms-drop.txt", (event) => this.handleLlmsDrop(event));
     this.app.get("/.well-known/bp/ai.json", (event) => this.handleAiManifest(event));
     this.app.get("/.well-known/bp/manifest", (event) => this.handleManifest(event));
     this.app.get("/.well-known/bp/public", (event) => this.handlePublicDiscovery(event));
@@ -365,6 +371,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private handleLlmsDev(event: BetterPortalEvent): Promise<Response> {
     return this.handleLlmsDocument(event, "llms_dev", renderThemeLlmsDev);
+  }
+
+  private handleLlmsDrop(event: BetterPortalEvent): Promise<Response> {
+    return this.handleLlmsDocument(event, "llms_drop", (context) => renderThemeLlmsDrop(context, this.llmsSchema));
   }
 
   private handleLlmsUi(event: BetterPortalEvent): Promise<Response> {

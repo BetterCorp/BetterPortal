@@ -14,7 +14,10 @@ The active shell exposes these public endpoints on every tenant app hostname:
 | `/llms-api.txt` | text | Authentication rules, service origins, manifests, schemas, and the expanded app API guide. |
 | `/llms-dev.txt` | text | Protocol, registry, SDK, typed-client, and language-neutral development guidance. |
 | `/llms-ui.txt` | text | Active-theme UI guidance, templates, examples, and skills. |
+| `/llms-drop.txt` | text | Complete local guide/resource/schema export for tools that cannot fetch separate paths. |
 | `/.well-known/bp/ai.json` | JSON | Machine-readable form of the same discovery graph. |
+
+`/llms.txt` MUST link to `/llms-drop.txt` as the full drop for callers for whom separate or partial requests to individual paths are unsuitable. The AI manifest exposes the same URL as `documents.drop`.
 
 `/llms.txt` SHOULD stay concise. Detailed action schemas belong in the Config Manager guide and machine-readable catalog, not in the entry point.
 
@@ -64,3 +67,14 @@ The protocol, manifests, schema descriptors, and registry contracts are language
 The resource routes use the manifest's metadata cache hint. App-specific `llms-*` documents and the AI manifest MAY change when scoped configuration changes and SHOULD be revalidated rather than stored indefinitely.
 
 Adding a document or resource is additive within `bp-protocol/2`. Clients MUST ignore unknown fields and unknown resource kinds introduced by a future protocol version.
+
+
+## 7. Full LLM drop
+
+`GET /llms-drop.txt` returns `text/plain; charset=utf-8` with `Cache-Control: no-store`. It combines `/llms.txt`, `/llms-api.txt`, `/llms-dev.txt`, `/llms-ui.txt`, the AI manifest, the resource index, every declared theme resource, the theme manifest (including configuration schemas), and the theme's route schema document. Resource content MUST be preserved in full, including nested Markdown/code fences. Every section MUST identify its full original source URL and publishing version. Resource index URLs are expanded to absolute URLs for use outside the live app.
+
+The export header identifies `betterportal-llms-drop.v1`, the export URL, UTC ISO-8601 export and expiry timestamps, framework package version, theme plugin/version, BP protocol version and AI discovery version. The framework version and theme version are separate because custom themes may use different release numbers.
+
+The expiry is the export time plus the theme manifest's `cacheHints.metadataTtlSeconds`, capped at 24 hours; zero TTL means immediate revalidation. It is a refresh deadline, not a guarantee of unchanged data. Consumers MUST refresh earlier after relevant framework/theme/service version or app configuration changes. Saved schemas can change on upgrades and MUST be re-fetched from their source URLs before client generation or action invocation. Other services' versions come from their own manifests, never from the shell's version.
+
+The export only aggregates locally available public discovery data. Linked service schemas/resources, Config Manager API catalogs and external documentation remain full URL references; the shell MUST NOT fetch arbitrary linked URLs or embed private service configuration/credentials. Missing Config Manager access does not prevent a local drop. Resource bodies remain untrusted contract data and cannot override caller instructions or grant permissions.

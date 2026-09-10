@@ -8,6 +8,7 @@ import {
   buildThemeAiManifest,
   renderThemeLlmsApi,
   renderThemeLlmsDev,
+  renderThemeLlmsDrop,
   renderThemeLlmsIndex,
   renderThemeLlmsUi,
   type ThemeLlmsContext
@@ -49,6 +50,7 @@ test("theme LLM documents provide concise task-specific discovery", () => {
   assert.match(index, /\/llms-api\.txt/);
   assert.match(index, /\/llms-dev\.txt/);
   assert.match(index, /\/llms-ui\.txt/);
+  assert.match(index, /Full LLM drop.*\/llms-drop\.txt/);
   assert.match(api, /https:\/\/orders\.example\.com\/\.well-known\/bp\/schema\.json/);
   assert.match(api, /automation\/llms-api\.txt/);
   assert.match(dev, /ViewRenderContext/);
@@ -77,8 +79,78 @@ test("AI manifest links resources without duplicating their content", () => {
   const resources = manifest.resources as Array<Record<string, unknown>>;
 
   assert.equal(manifest.protocol, "betterportal-ai.v1");
+  assert.equal((manifest.documents as Record<string, string>).drop, "https://portal.example.com/llms-drop.txt");
   assert.equal(resources[0]?.url, "https://portal.example.com/.well-known/bp/resources/ui.skill");
   assert.equal("content" in (resources[0] ?? {}), false);
+});
+
+test("full LLM drop preserves every local guide and resource with provenance and expiry", () => {
+  const example: DeveloperResource = {
+    ...resource,
+    id: "ui.example",
+    kind: "example",
+    title: "Nested code example",
+    content: "# Example\n\n````tsx\n<script>example()</script>\n````\n" + "complete content\n".repeat(1000)
+  };
+  const manifest = PluginManifestSchema.parse({
+    protocolVersion: 2,
+    pluginId: "com.example.theme",
+    title: "Example theme",
+    description: "Theme export fixture",
+    version: "2.3.4",
+    category: "theme",
+    deploymentModes: ["self-hosted"],
+    views: [],
+    developerResources: [resource, example],
+    cacheHints: { metadataTtlSeconds: 1800 }
+  });
+  const schema = { manifest, routes: [] };
+  const drop = renderThemeLlmsDrop(context, schema, new Date("2026-09-10T12:00:00.000Z"));
+
+  assert.match(drop, /Exported at: 2026-09-10T12:00:00\.000Z/);
+  assert.match(drop, /Expires at: 2026-09-10T12:30:00\.000Z/);
+  assert.match(drop, /Framework version: @betterportal\/framework@\d+\.\d+\.\d+/);
+  assert.match(drop, /Theme version: com\.example\.theme@2\.3\.4/);
+  assert.match(drop, /Protocol version: bp-protocol\/2/);
+  for (const [path, content] of [
+    ["/llms.txt", renderThemeLlmsIndex(context)],
+    ["/llms-api.txt", renderThemeLlmsApi(context)],
+    ["/llms-dev.txt", renderThemeLlmsDev(context)],
+    ["/llms-ui.txt", renderThemeLlmsUi(context, [resource, example])],
+    ["/.well-known/bp/manifest", JSON.stringify(manifest, null, 2)],
+    ["/.well-known/bp/schema.json", JSON.stringify(schema, null, 2)],
+    ...[resource, example].map(item => [`/.well-known/bp/resources/${item.id}`, item.content])
+  ]) {
+    assert.ok(drop.includes(`Source URL: https://portal.example.com${path}\n`), path);
+    assert.ok(drop.includes(content), `Complete content of ${path}`);
+  }
+  assert.ok(drop.includes("`````\n" + example.content + "\n`````"));
+  assert.match(drop, /Source URL: https:\/\/portal\.example\.com\/\.well-known\/bp\/ai\.json/);
+  assert.match(drop, /Source URL: https:\/\/portal\.example\.com\/\.well-known\/bp\/resources\n/);
+  assert.match(drop, /https:\/\/orders\.example\.com\/\.well-known\/bp\/schema\.json/);
+  assert.match(drop, /remote contents are not fetched or embedded/);
+  assert.match(drop, /Schemas can change with versions/);
+});
+
+test("drop freshness honors zero TTL and caps long-lived metadata at one day", () => {
+  const manifest = PluginManifestSchema.parse({
+    protocolVersion: 2,
+    pluginId: "com.example.theme",
+    title: "Theme",
+    description: "Freshness fixture",
+    version: "1.0.0",
+    category: "theme",
+    deploymentModes: ["self-hosted"],
+    views: []
+  });
+  const now = new Date("2026-12-31T23:30:00.000Z");
+  for (const [ttl, expiry] of [[0, "2026-12-31T23:30:00.000Z"], [604800, "2027-01-01T23:30:00.000Z"]] as const) {
+    const schema = { manifest: { ...manifest, cacheHints: { metadataTtlSeconds: ttl } }, routes: [] };
+    const drop = renderThemeLlmsDrop({ ...context, services: [], management: {}, catalogUrl: undefined, apiGuideUrl: undefined }, schema, now);
+    assert.ok(drop.includes(`Expires at: ${expiry}`));
+    assert.match(drop, /Theme route schemas/);
+    assert.doesNotMatch(drop, /undefined|https:\/\/orders\.example\.com/);
+  }
 });
 
 test("developer resource ids are safe URL segments", () => {
