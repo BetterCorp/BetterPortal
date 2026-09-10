@@ -48,19 +48,23 @@ manifest/schema discovery; request/response validation; app resolution, allowlis
 CORS and authentication; rendering; config/install/sync; managed streaming and
 full cross-language HTTP conformance. AnyVali remains the only application
 schema validator. No replacement validator or partial HTTP server is introduced.
-Dependency verification used AnyVali `v1.1.5` (commit
-`58b58e7e617aa13020b6e700790ac710b658b140`). Its PHP SDK installs successfully
-with a Composer path repository pointing to `AnyVali/sdk/php`; the documented
-Packagist package remains unavailable. Installation alone does not establish
-compatibility. Native `AnyVali::import(...)` / `safeParse(...)` probes found:
 
-- `JsonValueSchema` rejects `{"nested": [null, true, 3]}` because the imported
-  `BetterPortalJsonValue` reference cannot resolve.
-- `TokenLifetimeConfigSchema` rejects an empty input object instead of applying
-  the declared `900` / `604800` defaults.
+The previously reported PHP reference/default failures are fixed in AnyVali
+`v1.1.6` (commit `c04ae2b71c8e8b8efc7b6dab53f6bd3f2909d15e`). Native probes
+now accept scalar and nested recursive JSON, materialize missing string/integer
+defaults, and reject explicit null for non-nullable fields. These checks verify
+[reference resolution](https://github.com/BetterCorp/AnyVali/issues/148) and
+[imported defaults](https://github.com/BetterCorp/AnyVali/issues/149); they do not
+replace the full canonical contract/HTTP gate needed for SDK integration.
 
-These must pass, along with the full canonical corpus, before integrating the
-validator. Nothing is published by this PR.
+PHP remains source-distributed. AnyVali's
+[installation guide](https://github.com/BetterCorp/AnyVali/blob/v1.1.6/docs/sdk-php.md)
+now documents Composer path repositories instead of promising a Packagist
+package. For integration testing, pin the source checkout to `v1.1.6` and set
+both the Composer path repository's `options.versions["anyvali/anyvali"]` and
+application requirement to `1.1.6`. The path must target `sdk/php`, with
+`symlink: false` for a copied installation. Recreate that source checkout before
+installing from the lockfile in CI. No PHP package is published by this PR.
 
 See [the protocol](../../spec/protocol.md), [SSE](../../spec/sse.md), and the
 [existing port capability ledger](../conformance/CAPABILITIES.md).
