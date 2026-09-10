@@ -24,6 +24,44 @@ The theme declares its BP configuration schema and defaults. Config Manager stor
 
 Bootstrap1 and Bootstrap2 map the effective BP values into Bootstrap semantic colors, brand name, browser title, logos, favicon, and mode. Service pages must not emit document titles, favicons, global logos, theme-mode scripts, or palette overrides; use `ViewRenderContext` only for page-local presentation.
 
+The configuration flow is: theme-declared schema/defaults → tenant values → app overrides → shell CSS variables and component styles → service HTML. Configure branding through the selected theme's service configuration UI/API in Config Manager. Services inherit the resulting CSS; they do not need to fetch palette values or add branding fields to their response schemas.
+
+Field names and extra color roles belong to each theme. `apps[].themeConfig.bootstrap` is a compatibility configuration shape, not a universal palette specification. Sharing the `bootstrap5` renderer makes markup compatible; it does not make Bootstrap1, Bootstrap2 and custom Bootstrap themes visually identical. Read the active theme's manifest and resources before choosing tokens or components.
+
+### Semantic colors and component states
+
+Choose a role based on meaning, not on its current hex value:
+
+| Intent | Bootstrap-compatible markup | Meaning |
+| --- | --- | --- |
+| Principal action | `.btn.btn-primary` | The theme's primary action treatment; not necessarily blue |
+| Supporting text | `.text-body-secondary`, `.form-text` | Lower-emphasis text; distinct from the secondary brand color |
+| Positive status | `.alert.alert-success` with text | A successful outcome, not decorative brand emphasis |
+| Warning | `.alert.alert-warning` with text | Attention required |
+| Destructive action | `.btn.btn-danger` or `.btn.btn-outline-danger` | A destructive action with an explicit label |
+| Input | `.form-control`, `.form-select` | Coordinated text, surface, border, focus and disabled styling |
+
+Prefer complete component classes over assembling unrelated foreground/background utilities. Do not assume a white label contrasts with every configured primary color, or that `secondary` means muted text. Color alone must not convey state.
+
+For custom local presentation, consume the active theme's documented tokens. Bootstrap1 and Bootstrap2 currently expose these roles:
+
+| CSS variable | Role |
+| --- | --- |
+| `--bp-bg` | Page background |
+| `--bp-surface`, `--bp-surface-alt` | Primary and alternate surfaces |
+| `--bp-text`, `--bp-text-soft` | Main and supporting text |
+| `--bp-border` | Border color |
+| `--bp-accent`, `--bp-accent-secondary` | Primary and secondary accents |
+| `--bp-accent-success`, `--bp-accent-info`, `--bp-accent-warning`, `--bp-accent-danger` | Semantic status accents |
+
+These are theme-specific CSS contracts, not universal tokens for Embedded or third-party themes. Bootstrap1/2 also emit `--bs-*` semantic colors and style components directly; do not assume stock Bootstrap variables alone describe the final computed component style. Service-local CSS may use documented role variables, but must not redefine root tokens, replace the palette or load another Bootstrap/font asset.
+
+### Appearance mode and contrast
+
+The shell owns light/dark/system preference, persistence, mode-specific surfaces, text and logos. Bootstrap shells set `data-bs-theme` and generate the effective mode's styles. Reuse a declared `theme-selector` shell fragment when needed. A service must not set document appearance, add its own theme switch/storage or install a separate `prefers-color-scheme` controller.
+
+Check light/dark modes with the effective app palette, including select options, placeholders, read-only/disabled controls, hover and keyboard focus. If defaults are unreadable, inspect configuration and computed styles and reproduce with an unmodified themed component. Report the failing pairing to the theme owner instead of adding hardcoded colors or `!important` patches in each service view.
+
 ## Shared Node shell runtime
 
 Node shells use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and `bp-element` lifecycle states.
@@ -126,6 +164,52 @@ For Bootstrap1, the shell already provides the route header context. Service ren
 Service pages should not create their own persistent side navigation when the BP shell already provides navigation.
 
 Use the app menu in `bp-config.yaml` for product-level navigation, and keep service pages focused on content and workflows.
+
+## Guidance for generated service views
+
+Every theme serves the shared view-authoring rules through `/llms-ui.txt`, followed by links to its own UI guide, skill and templates. `/llms-dev.txt` links to these rules too. Keep theme resources consistent with this shared guidance.
+
+Views render typed handler data, semantic controls, theme components and HTMX attributes. Formatting, conditional presentation and small local widgets belong here. Authorization, business defaults, eligibility rules, authoritative validation, calculations, persistence and report generation belong in method handlers or typed domain helpers. HTML constraints and hidden inputs do not enforce a business policy.
+
+### Initialization must not submit
+
+A view can be inserted on initial load, an HTMX swap, history navigation or a prefetched navigation. Initialization and draft restoration must not submit a form or replay a mutation. Keep recalculation and final submission as explicit handler intents with appropriate server validation. User changes may trigger recalculation; loading the same markup must not simulate user changes. Do not leave action flags behind after failed validation or cancellation.
+
+Prefer native forms, HTMX triggers, `hx-indicator` and HTMX 4 `hx-disable`. Use the installed runtime's event names when a local interaction needs them: `htmx:before:request` and `htmx:finally:request`, not HTMX 2 camelCase names. Service views must not inject HTMX, inline extension files, register extensions or add unsupported `hx-ext` values. Match the published input schema and supported form encoding; report serialization gaps upstream.
+
+For necessary local JavaScript, use typed `jsx-htmx` `js(() => ...)` and pass its safe result directly. Avoid generated script strings and custom escaping helpers. Bind once to the owned component, scope selectors to it, and clean up listeners/timers when removed. Do not install global submission functions or a second document-wide request/error lifecycle from swapped content.
+
+### Preserve HTML5 form validation
+
+The backend input schema defines the constraints. Render its browser-expressible rules as appropriate `type`, `required`, `min`, `max`, `step`, `minlength`, `maxlength` and `pattern` attributes, including in replacement fragments. The browser validates those HTML controls, not an AnyVali/JSON schema automatically. Preserve those constraints in scripts; do not maintain a competing client schema. For `type="number"`, use range and step constraints; `pattern` does not apply. Hidden inputs and controls barred from constraint validation are not checked by these APIs; validate computed payloads against the published input contract and always on the server.
+
+Prefer a normal submit button. A necessary programmatic submission uses `form.requestSubmit(submitter)`, which runs native validation and the submit event HTMX handles. If custom code needs to check first, `form.reportValidity()` returns a boolean and displays validation errors; `form.checkValidity()` checks without displaying the browser's error UI. Stop without sending a request when invalid.
+
+```ts
+// Inside an explicit user-action handler, with the owned form and submit button:
+if (!form.reportValidity()) return;
+form.requestSubmit(submitButton);
+```
+
+Do not use `form.submit()`, synthetic submit events, a direct fetch/HTMX call, `noValidate`, `formNoValidate`, `novalidate`, `formnovalidate` or disabled HTMX validation to post an invalid form. A recalculation that accepts fewer fields needs a separate, non-nested form/component with its own schema-backed constraints. It must not switch off validation on the full form. Server validation remains mandatory, including cross-field and business rules HTML cannot express.
+
+Verify invalid submissions by button, Enter and custom triggers produce no POST, and that valid submissions produce the intended request. See the [HTML form API](https://html.spec.whatwg.org/multipage/forms.html#dom-form-requestsubmit-dev) and [constraint validation API](https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#the-constraint-validation-api).
+
+### Drafts need an explicit contract
+
+Prefer handler-owned drafts or existing component-state primitives. Do not add browser persistence as an incidental fix for a rerender. If browser drafts are required, define allowed fields, schema version, tenant/app/service/user scope, expiry and clearing rules. Validate stored data on restore and submitted data on the server; preserve types and repeated fields, exclude action/auth fields, and never create hidden inputs from arbitrary stored keys. Browser owner metadata does not authorize access. Restore without requests and provide an explicit resume/recalculate action when server work is necessary.
+
+### Use reporting tools for platform defects
+
+When documented theme or framework behavior fails, use the available project issue/reporting tools. Search existing reports, then capture a minimal reproduction, package/theme versions, expected and actual behavior, and relevant request initiators/statuses or computed styles. Remove credentials and customer data. If access is unavailable, provide a ready-to-file report; only claim submission with an issue reference. Attribute confirmed service bugs to the service and label unverified platform causes as hypotheses.
+
+Unreadable themed controls, missing shell navigation and broken loading behavior need evidence and a fix in the owning project. Do not conceal them in service views with hardcoded light/dark palettes, `!important` patches, duplicate shell navigation or replacement runtime code. Service-specific layout CSS is fine; theme defaults remain theme-owned.
+
+Runtime diagnostics are separate from defect reports: method handlers call `ctx.diagnostic({ code, reason, attributes? })` before service-specific responses outside HTTP 200-399. Use stable lowercase dotted codes without secrets or unnecessary personal data. Views display the safe error state.
+
+### Verify the actual request initiator
+
+Check a failed POST followed by menu navigation, Back/Forward, prefetched navigation, repeated swaps and invalid/stale drafts. A navigation GET can be satisfied from preload before a service startup script issues a POST; do not infer that the menu changed methods from the last network entry alone. Navigation and restoration must not mutate; one user action should produce its intended request without duplicates. Check that failure/cancellation leaves controls usable, and verify applicable light/dark modes and keyboard behavior.
 
 ## Service route links
 

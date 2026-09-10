@@ -680,3 +680,9 @@ App route paths may also define params. Prefer `{name}` in `bp-config.yaml` beca
 ```
 
 `{tenantId}` is matched from the visible UI path and interpolated into `targetPath` before the browser calls the service. Legacy `:tenantId` is also accepted. Keep this in the theme/app routing layer; do not parse browser URLs inside the view file to recover the same value.
+
+## Browser form validation
+
+Render browser-expressible constraints from the operation's input schema into the HTML controls (`type`, `required`, `min`, `max`, `step`, `minlength`, `maxlength`, `pattern`). Keep those constraints in replacement fragments. The browser validates these attributes; it does not execute the backend AnyVali/JSON schema automatically. Hidden inputs and controls barred from constraint validation are not checked by these APIs; validate computed payloads against the published input contract and always on the server.
+
+Use a normal submit button or `form.requestSubmit(submitter)` so native validation and HTMX submit handling run. Necessary custom triggers must stop when `form.reportValidity()` returns false. Do not disable validation or use `form.submit()`, synthetic submit events or direct requests to force an invalid form through. Recalculation that accepts a subset needs its own non-nested form/component with the corresponding constraints. The backend still validates every submission and all business rules. See [form validation in service views](./themes.md#preserve-html5-form-validation) for API details and verification steps.

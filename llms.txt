@@ -2,6 +2,8 @@
 
 A multi-tenant portal platform composed of independent services unified by an app-selected shell. API-first, HTMX-first, strict schema validation, plugin-based.
 
+Research the [BetterPortal documentation](https://github.com/BetterCorp/BetterPortal/tree/master/docs), especially [themes and colors](https://github.com/BetterCorp/BetterPortal/blob/master/docs/building/themes.md) and [routes/views](https://github.com/BetterCorp/BetterPortal/blob/master/docs/building/routes-and-views.md). For a deployed app, also read its `/llms-ui.txt` and active theme resources. Master documentation may be newer than installed packages; match examples to the deployed version.
+
 > **Protocol-first.** BetterPortal is a **wire protocol** (`bp-protocol/2`). The normative spec lives in [`spec/`](spec/README.md). `framework/nodejs` is the **Node SDK** - one reference implementation. A PHP/Python/Go/Rust service that implements the spec is a first-class BetterPortal service.
 >
 > This file is the working guide for the Node SDK and the current repo. When this file disagrees with the spec on protocol behavior, **the spec wins** - file a bug.
@@ -704,7 +706,7 @@ Events used in this codebase: `bp:theme-changed`, `bp:menu-changed`, `bp:fragmen
 
 ### 13d. Hidden-form pattern (for JS-triggered HTMX)
 
-When JS computes a payload (drag-drop, custom event) and needs to submit via HTMX:
+When a user action produces a JS-computed payload (for example, drag-drop) and needs to submit via HTMX:
 
 ```html
 <form id="bp-action" style="display:none"
@@ -716,14 +718,16 @@ When JS computes a payload (drag-drop, custom event) and needs to submit via HTM
 
 ```js
 form.querySelector("[name=x]").value = ...;
-form.requestSubmit();  // htmx intercepts the submit event
+form.requestSubmit();  // HTMX handles submit; hidden fields are not validated by HTML5
 ```
 
-Form's relative hx-post gets rewritten by `resolveServiceLinks` to the correct origin. Avoids hardcoding URLs in JS.
+This pattern transports an already validated computed payload. Hidden inputs are barred from HTML constraint validation: `reportValidity()` and `requestSubmit()` do not check their requiredness, range or pattern. Validate computed values against the published input contract before assigning them, and always validate again on the server. Prefer visible, constraint-validatable controls when the browser should enforce the schema.
+
+Form's relative hx-post gets rewritten by `resolveServiceLinks` to the correct origin. Avoids hardcoding URLs in JS. Never invoke this pattern during rendering, initialization, draft restoration or history/preload insertion. Recalculation and final submission are explicit handler intents; validation failure or cancellation must not leave a one-shot action flag for the next edit.
 
 ### 13e. Idempotent body-delegated handlers
 
-Long-lived UI bindings (drag, keyboard) go on `document.body` once, gated by a dataset flag:
+Shell-owned, long-lived UI bindings (drag, keyboard) go on `document.body` once, gated by a dataset flag. Service widgets should bind to their own component and clean up on removal; do not install a document-wide submission/request lifecycle from each swapped fragment:
 
 ```js
 if (document.body.dataset.bpFooBound !== "1") {
@@ -733,6 +737,30 @@ if (document.body.dataset.bpFooBound !== "1") {
 ```
 
 Survives HTMX swaps; never double-binds.
+
+### 13f. Colors and theming
+
+Theme-declared defaults → tenant values → app overrides → shell CSS variables/component styles → inherited service HTML. Configure the selected theme through BetterPortal's service configuration flow in Config Manager. `sec-config.yaml` is process configuration; views must not fetch/copy palette values, redefine root variables or load another stylesheet/font framework. Configuration fields and palette roles are theme-owned, and `apps[].themeConfig.bootstrap` is not a universal theme schema.
+
+Use semantic components according to purpose: `.btn-primary` for the main action, `.alert-warning` for warnings, `.btn-danger` for destructive actions and `.text-body-secondary` / `.form-text` for supporting text. Primary is not a fixed hue, and secondary brand color is not muted text. Use full component styles to coordinate foreground, background, border, focus, hover and disabled states; do not assume a white foreground contrasts with every configured brand color.
+
+Bootstrap1/2 expose `--bp-bg`, `--bp-surface`, `--bp-surface-alt`, `--bp-text`, `--bp-text-soft`, `--bp-border` and semantic `--bp-accent*` roles for local presentation. Use only tokens declared by the active theme; sharing `bootstrap5` markup does not imply identical palettes or variables. Embedded does not provide this Bootstrap palette contract.
+
+The shell owns light/dark/system preference and applies mode-specific styles. Reuse its declared `theme-selector` fragment. Services must not force `data-bs-theme`, implement another mode/storage controller or copy light/dark hex palettes. Check actual controls, options, placeholders, disabled/read-only states and focus in supported modes. Investigate unreadable defaults using effective configuration and computed styles, then report to the owning theme instead of patching every view. See [theme ownership and color roles](https://github.com/BetterCorp/BetterPortal/blob/master/docs/building/themes.md).
+
+### 13g. Service view boundaries and reporting
+
+The active theme's `/llms-ui.txt` publishes the shared view-authoring rules plus theme resource links. Read it before writing UI.
+
+- **Preserve HTML5 form validation.** Render the backend input schema's applicable `type`, `required`, `min`, `max`, `step`, `minlength`, `maxlength` and `pattern` constraints, including after swaps. Browsers validate the returned controls, not AnyVali/JSON schemas automatically; do not create a competing client schema. Use native submit buttons or `form.requestSubmit(submitter)`. A custom trigger must stop if `form.reportValidity()` is false; `checkValidity()` checks without displaying errors. Never bypass invalid controls with `form.submit()`, synthetic submit events, direct fetch/HTMX posts, `noValidate`/`formNoValidate`, `novalidate`/`formnovalidate` or disabled HTMX validation. A partial recalculation needs its own non-nested form/component with matching constraints. Server validation remains mandatory. `pattern` does not apply to numeric inputs; use `min`/`max`/`step`. Verify invalid button/Enter/custom submissions send no POST, then verify a valid request.
+- Views render typed handler data, semantic controls, theme components and HTMX attributes. Formatting and conditional presentation are appropriate; business defaults, eligibility rules, validation, calculations, persistence and report generation belong in method handlers or typed domain helpers. HTML constraints are not authoritative validation.
+- The shell owns HTMX 4, BP headers, navigation, preload and request/error lifecycle. The extension allowlist is `bp-shell, sse`. Never inline extension files, register extensions or add unsupported `hx-ext` values from a service view. Match the supported form encoding and published input schema; report serialization gaps upstream.
+- Prefer native controls, HTMX triggers, `hx-indicator` and HTMX 4 `hx-disable`. Necessary local scripts use typed `jsx-htmx` `js(() => ...)`, not generated JavaScript strings or custom escaping helpers. Scope selectors/listeners to the owned component, bind idempotently and cancel timers/listeners on removal. HTMX 4 events include `htmx:before:request` and `htmx:finally:request`; do not copy HTMX 2 camelCase event names.
+- Do not invent browser persistence to fix a rerender. Prefer handler-owned drafts or existing component-state primitives. Required browser drafts need allowed fields, a schema version, tenant/app/service/user scope, expiry and clearing rules. Validate on restore and again on submission; preserve types/repeated values, exclude action/auth fields, and never create hidden inputs from arbitrary stored keys. Browser owner metadata is not authorization. Restore without requests; provide an explicit resume/recalculate action if server work is needed.
+- Use available project issue/reporting tools for reproducible theme/framework defects. Search existing reports; include versions, minimal reproduction, expected/actual behavior and relevant request initiators/statuses or computed styles. Omit credentials and customer data. If access is unavailable, return a ready-to-file report; claim submission only with an issue reference. Distinguish confirmed service bugs from suspected platform defects.
+- Do not hide unreadable theme controls, missing shell navigation or broken loading behavior behind hardcoded palettes, `!important` patches, duplicate shell navigation or replacement runtime code. Theme defaults need an upstream fix; service-specific layout and local presentation remain appropriate in views.
+- Service error reporting uses `ctx.diagnostic({ code, reason, attributes? })` in the handler before service-specific responses outside HTTP 200-399, with stable lowercase dotted codes and no secrets or unnecessary personal data. Render a safe error state; runtime diagnostics and upstream issue reports serve different purposes.
+- Verify failed POST then navigation, Back/Forward, preload, repeated swaps and stale/invalid drafts. A navigation GET may be satisfied from preload before a service initialization script issues a POST. Inspect methods, URLs and initiators; navigation/restoration must not mutate, user actions must not produce duplicate submissions, and cancellation/failure must leave controls usable.
 
 ---
 
