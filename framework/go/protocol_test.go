@@ -113,10 +113,10 @@ func TestHeaderDirectives(t *testing.T) {
 	if !reflect.DeepEqual(h.Emit(), []HeaderPair{{"BP-SetHeader", "AUTHORIZATION=next"}}) {
 		t.Fatal(h.Emit())
 	}
-	if err := h.Set("X-Next", "a=b", HeaderOptions{Expires: ptr(int64(0)), RefreshBeforeSeconds: ptr(int64(0))}); err != nil {
+	if err := h.Set("X-Next", "a=b", HeaderOptions{Expires: ptr(int64(1)), RefreshBeforeSeconds: ptr(int64(0))}); err != nil {
 		t.Fatal(err)
 	}
-	if got := h.Emit(); len(got) != 2 || got[1].Value != "X-Next=a=b; expires=0; refreshBefore=0" {
+	if got := h.Emit(); len(got) != 2 || got[1].Value != "X-Next=a=b; expires=1; refreshBefore=0" {
 		t.Fatal(got)
 	}
 	before := h.Emit()
@@ -135,6 +135,9 @@ func TestHeaderDirectives(t *testing.T) {
 	}
 	if err := h.Remove(""); err == nil {
 		t.Fatal("empty name accepted")
+	}
+	if err := h.Set("AUTHORIZATION", "invalid", HeaderOptions{Expires: ptr(int64(0))}); err == nil {
+		t.Fatal("expected zero expiry rejection")
 	}
 	if err := h.Set("X", "x", HeaderOptions{Expires: ptr(int64(-1))}); err == nil {
 		t.Fatal("negative time accepted")

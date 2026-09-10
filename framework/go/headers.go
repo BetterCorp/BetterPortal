@@ -33,7 +33,7 @@ func (h *HeaderDirectives) Set(name, value string, options HeaderOptions) error 
 	if len(value) > 8192 || unsafeDirective(value, false) {
 		return fmt.Errorf("invalid BP header value")
 	}
-	if options.Expires != nil && *options.Expires < 0 || options.RefreshBeforeSeconds != nil && *options.RefreshBeforeSeconds < 0 {
+	if options.Expires != nil && *options.Expires <= 0 || options.RefreshBeforeSeconds != nil && *options.RefreshBeforeSeconds < 0 {
 		return fmt.Errorf("invalid BP header time")
 	}
 	if path := options.RefreshPath; path != nil {

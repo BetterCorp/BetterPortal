@@ -38,7 +38,9 @@ A zero-value `HeaderDirectives` collects one response's BP header updates. Never
 share it across requests or mutate it concurrently. `Set` supports locked,
 owner scope, absolute Unix expiry, a URL-encoded root-relative refresh path and
 refresh lead time. Last action wins case-insensitively. Values reject control
-bytes and unescaped comma/semicolon delimiters. Zero times are retained. `Emit`
+bytes and unescaped comma/semicolon delimiters. Expiry must be a positive Unix timestamp; zero is rejected because older shells
+treat it as no expiry. Use `Remove` for immediate removal. Refresh lead time
+may be zero. `Emit`
 returns an owned snapshot of header pairs; append these individually using the
 host's header API and expose their names through CORS. The collector neither
 persists credentials nor authenticates callers.
