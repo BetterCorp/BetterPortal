@@ -11,7 +11,8 @@ final class HeaderDirectives
 
     /**
      * Queue a browser-managed header; names are case-insensitive and last action wins.
-     * Expiry is an absolute Unix timestamp in seconds, allowing deterministic clocks.
+     * Expiry is a positive absolute Unix timestamp in seconds.
+     * Refresh lead time, when supplied, must be positive for shell compatibility.
      * Delimiters are rejected because the shell's directive format has no escaping.
      * @throws \InvalidArgumentException before mutating state if an argument is unsafe.
      */
@@ -21,7 +22,7 @@ final class HeaderDirectives
         if (strlen($value) > 8192 || preg_match('/[\x00-\x1f\x7f-\xff;,]/', $value)) {
             throw new \InvalidArgumentException('Invalid BP header value');
         }
-        if (($expires !== null && $expires <= 0) || ($refreshBeforeSeconds !== null && $refreshBeforeSeconds < 0)) {
+        if (($expires !== null && $expires <= 0) || ($refreshBeforeSeconds !== null && $refreshBeforeSeconds <= 0)) {
             throw new \InvalidArgumentException('Invalid BP header time');
         }
         if ($refreshPath !== null && (strlen($refreshPath) > 2048 || !str_starts_with($refreshPath, '/') || str_starts_with($refreshPath, '//') || preg_match('/[\x00-\x20\x7f-\xff;,\\\\#]/', $refreshPath))) {

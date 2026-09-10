@@ -33,7 +33,8 @@ path and refresh lead time. Last action wins case-insensitively. Values reject
 control bytes and unescaped comma/semicolon delimiters. Use URL-encoded refresh
 paths. Expiry must be a positive Unix timestamp; zero is rejected because older shells
 treat it as no expiry. Use `remove()` for immediate removal. Refresh lead time
-may be zero. `emit()`
+must also be positive when supplied: existing shells interpret zero as their
+default 60-second lead. Omit it (or use `null`) to use that default. `emit()`
 returns a snapshot without consuming it. Append each pair separately in the host,
 and expose both names through its CORS policy. This collector neither persists
 credentials nor authenticates a caller.
