@@ -334,7 +334,8 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
     insetSoft: "none"
   };
 
-  return css({
+  const rules: Exclude<Parameters<typeof css>[0], string> = {
+    [`[data-bp-theme-logo="${mode === "light" ? "dark" : "light"}"]`]: { display: "none" },
     ":root": {
       colorScheme: mode === "dark" ? "dark" : "light",
       "--bp-bg": surfaceConfig.background ?? neu.bg,
@@ -2091,7 +2092,31 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
         borderRadius: 0
       }
     }
-  });
+  };
+  // Scope the built-in selector lists, including responsive rules, to the
+  // concrete mode. Both palettes can then switch atomically with Bootstrap.
+  const scopeRules = (input: typeof rules): typeof rules => Object.fromEntries(
+    Object.entries(input).map(([selector, declaration]) => {
+      if (selector.startsWith("@media")) return [selector, scopeRules(declaration as typeof rules)];
+      if (selector.startsWith("@")) return [selector, declaration];
+      const scoped = selector.split(",").map(part => {
+        const value = part.trim();
+        return value === ":root" || value === "html"
+          ? `${value}[data-bs-theme="${mode}"]`
+          : `:where(html[data-bs-theme="${mode}"]) ${value}`;
+      }).join(", ");
+      return [scoped, declaration];
+    })
+  );
+  return css(scopeRules(rules));
+}
+
+export function renderThemeStyles(themeConfig: BetterPortalThemeConfig): HtmlRenderable {
+  return <style id="bp-theme-style" hx-get="/.well-known/bp/theme/style"
+    hx-trigger="bp:theme-changed from:body" hx-swap="outerHTML" data-bp-no-route="">
+    {shellStyles("light", themeConfig)}
+    {shellStyles("dark", themeConfig)}
+  </style>;
 }
 
 function shellAssetUrl(context: Bootstrap2ShellContext, name: string): string {
@@ -2101,7 +2126,7 @@ function shellAssetUrl(context: Bootstrap2ShellContext, name: string): string {
 
 function Bootstrap2Document(context: Bootstrap2ShellContext): HtmlRenderable {
   return (
-    <html lang="en" data-bs-theme={context.themeMode}>
+    <html lang="en" data-bs-theme={context.themeMode} data-bp-theme-default={context.themeConfig.mode}>
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -2120,13 +2145,7 @@ function Bootstrap2Document(context: Bootstrap2ShellContext): HtmlRenderable {
         <script src={shellAssetUrl(context, "bootstrap.bundle.min.js")} defer></script>
         <script src={shellAssetUrl(context, "bootstrap2-core.js")} fetchpriority="high" defer></script>
         <script src={shellAssetUrl(context, "bootstrap2-register.js")} defer></script>
-        <style
-          id="bp-theme-style"
-          hx-get="/.well-known/bp/theme/style"
-          hx-trigger="bp:theme-changed from:body"
-          hx-swap="outerHTML"
-          data-bp-no-route=""
-        >{shellStyles(context.themeMode, context.themeConfig)}</style>
+        {renderThemeStyles(context.themeConfig)}
       </head>
       <body>{context.bodyHtml}</body>
     </html>
@@ -2147,7 +2166,9 @@ function buildServiceMap(routeLinks: Bootstrap2RouteLink[]): Record<string, stri
   return map;
 }
 
-export function renderBrand(brandName: string, logoUrl?: string, id?: string): HtmlRenderable {
+export function renderBrand(brandName: string, logoUrl?: string, id?: string, themeConfig?: BetterPortalThemeConfig): HtmlRenderable {
+  const lightLogo = themeConfig?.lightLogoUrl ?? themeConfig?.darkLogoUrl ?? logoUrl;
+  const darkLogo = themeConfig?.darkLogoUrl ?? themeConfig?.lightLogoUrl ?? logoUrl;
   return (
     <div
       class="bp-admin__brand-row"
@@ -2157,7 +2178,9 @@ export function renderBrand(brandName: string, logoUrl?: string, id?: string): H
       hx-swap="outerHTML"
       data-bp-no-route=""
     >
-      {logoUrl ? <img class="bp-admin__brand-logo" src={logoUrl} alt="" width="32" height="32" loading="eager" decoding="async" /> : null}
+      {([['light', lightLogo], ['dark', darkLogo]] as const).map(([mode, url]) => url
+        ? <img class="bp-admin__brand-logo" data-bp-theme-logo={mode} src={url} alt="" width="32" height="32" loading="eager" decoding="async" />
+        : null)}
       <div class="bp-admin__brand-name">{brandName}</div>
     </div>
   );
@@ -2185,7 +2208,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
     >
       <div class="offcanvas offcanvas-start bp-admin__mobile-menu" tabindex={-1} id="bp-mobile-menu" aria-labelledby="bp-mobile-menu-title">
         <div class="offcanvas-header">
-          {renderBrand(context.brandName, context.logoUrl, "bp-mobile-menu-title")}
+          {renderBrand(context.brandName, context.logoUrl, "bp-mobile-menu-title", context.themeConfig)}
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
@@ -2204,7 +2227,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
       </div>
       <div class="bp-admin">
         <aside class="bp-admin__sidebar">
-          {renderBrand(context.brandName, context.logoUrl)}
+          {renderBrand(context.brandName, context.logoUrl, undefined, context.themeConfig)}
           <section class="bp-admin__sidebar-nav">
             <nav
               class="bp-admin__nav"

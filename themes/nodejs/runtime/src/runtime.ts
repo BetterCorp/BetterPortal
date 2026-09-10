@@ -593,10 +593,13 @@ export function betterPortalShellRuntimeSource(): string {
         source instanceof Element ? source.closest("bp-element[data-bp-element]") : null;
 
       const themeModeKey = "bp.theme.mode:" + window.location.host;
+      const themeMedia = window.matchMedia?.("(prefers-color-scheme: dark)");
+      let selectedThemeMode = "system";
       const applyThemeMode = (mode: string) => {
         const selected = ["light", "dark", "system"].includes(mode) ? mode : "system";
+        selectedThemeMode = selected;
         const concrete = selected === "system"
-          ? (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          ? (themeMedia?.matches ? "dark" : "light")
           : selected;
         document.documentElement.setAttribute("data-bs-theme", concrete);
         document.querySelectorAll("[data-bp-theme-mode]").forEach((button) =>
@@ -604,6 +607,10 @@ export function betterPortalShellRuntimeSource(): string {
         );
         triggerBodyEvent("bp:theme-mode-changed", { mode: selected, concrete });
       };
+
+      themeMedia?.addEventListener("change", () => {
+        if (selectedThemeMode === "system") applyThemeMode("system");
+      });
 
       const serviceIdByOrigin: Record<string, string> = (() => {
         const map: Record<string, string> = {};
@@ -1972,8 +1979,11 @@ export function betterPortalShellRuntimeSource(): string {
         resolveServiceLinks(document.body);
         initBootstrapComponents(document.body);
         initializeBpElements(document.body);
-        try { applyThemeMode(localStorage.getItem(themeModeKey) || document.documentElement.getAttribute("data-bs-theme") || "system"); }
-        catch { applyThemeMode(document.documentElement.getAttribute("data-bs-theme") || "system"); }
+        // HTMX initializes the body; the shell's refreshable style lives in head.
+        const themeStyle = document.getElementById("bp-theme-style");
+        if (themeStyle) htmx.process(themeStyle);
+        try { applyThemeMode(localStorage.getItem(themeModeKey) || document.documentElement.getAttribute("data-bp-theme-default") || document.documentElement.getAttribute("data-bs-theme") || "system"); }
+        catch { applyThemeMode(document.documentElement.getAttribute("data-bp-theme-default") || document.documentElement.getAttribute("data-bs-theme") || "system"); }
         if (!hasLoaded()) setLoading(true);
         // P14: kick off menu service health checks for the admin shell only.
         if (shellRoot()?.getAttribute("data-bp-menu-health") !== "false") {

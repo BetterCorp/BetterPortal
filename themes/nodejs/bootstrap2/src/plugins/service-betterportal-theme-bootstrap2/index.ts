@@ -41,7 +41,7 @@ import {
   type BPServiceDefinition,
   type BetterPortalConfig
 } from "@betterportal/plugin-bsb";
-import { isUserFacingRoute, renderBootstrap2HostPage, renderNavItems, shellStyles, renderBrand, type Bootstrap2NavItem } from "./shell/index.js";
+import { isUserFacingRoute, renderBootstrap2HostPage, renderNavItems, renderThemeStyles, renderBrand, type Bootstrap2NavItem } from "./shell/index.js";
 import { toHtmlString } from "@betterportal/framework";
 import { loadBootstrap2Asset } from "./assets.js";
 import { Bootstrap2DeveloperResources } from "./resources.js";
@@ -432,9 +432,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private async handleThemeStyle(event: BetterPortalEvent): Promise<Response> {
     const eff = await this.resolveEffectiveTheme(event);
     if (!eff) return new Response("", { status: 404 });
-    const css = shellStyles(eff.mode, eff.themeConfig);
     return htmlResponse(
-      `<style id="bp-theme-style" hx-get="/.well-known/bp/theme/style" hx-trigger="bp:theme-changed from:body" hx-swap="outerHTML">${css}</style>`,
+      toHtmlString(renderThemeStyles(eff.themeConfig)),
       200,
       "text/html; mode=fragment",
       { "cache-control": "no-store" }
@@ -445,7 +444,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const eff = await this.resolveEffectiveTheme(event);
     if (!eff) return new Response("", { status: 404 });
     return htmlResponse(
-      toHtmlString(renderBrand(eff.brandName, eff.logoUrl) as any),
+      toHtmlString(renderBrand(eff.brandName, eff.logoUrl, undefined, eff.themeConfig) as any),
       200,
       "text/html; mode=fragment",
       { "cache-control": "no-store" }
