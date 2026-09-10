@@ -2097,7 +2097,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
 }
 
 export function renderThemeStyles(themeConfig: BetterPortalThemeConfig): HtmlRenderable {
-  return <style id="bp-theme-style" hx-get="/.well-known/bp/theme/style"
+  return <style id="bp-theme-style" data-bp-theme-default={themeConfig.mode} hx-get="/.well-known/bp/theme/style"
     hx-trigger="bp:theme-changed from:body" hx-swap="outerHTML" data-bp-no-route="">
     {shellStyles("light", themeConfig)}
     {shellStyles("dark", themeConfig)}

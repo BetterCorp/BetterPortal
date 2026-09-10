@@ -17,7 +17,7 @@ for (const theme of [
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     const asset = await buildBetterPortalShellRuntimeAsset({});
-    const config = { mode: "system" as const, bootstrap: {},
+    const config = { mode: "system" as "light" | "dark" | "system", bootstrap: {},
       light: { background: "#eeeeee", text: "#112233" },
       dark: { background: "#222222", text: "#ddeeff" },
       lightLogoUrl: "/light.svg", darkLogoUrl: "/dark.svg" };
@@ -50,15 +50,35 @@ for (const theme of [
       await page.locator(".bp-admin__route").hover();
       await expect(page.locator(".bp-admin__route")).toHaveCSS("background-color", mode === "light" ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.08)");
     };
+    const refresh = async (mode: typeof config.mode) => {
+      config.mode = mode;
+      const previous = refreshes;
+      await page.evaluate(() => document.body.dispatchEvent(new CustomEvent("bp:theme-changed", { bubbles: true })));
+      await expect.poll(() => refreshes).toBe(previous + 2);
+      await expect(page.locator("html")).toHaveAttribute("data-bp-theme-default", mode);
+    };
     await page.goto("https://app.test/");
     await check("dark"); // Server fallback is light; configured system mode is dark.
+    await refresh("light");
+    await check("light");
+    await refresh("dark");
+    await check("dark");
+    await refresh("system");
+    await page.emulateMedia({ colorScheme: "light" });
+    await check("light");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await check("dark");
+    assert.equal(await page.evaluate(() => localStorage.getItem("bp.theme.mode:" + location.host)), null);
     await page.locator('[data-bp-theme-mode="light"]').click();
     await check("light");
     await page.emulateMedia({ colorScheme: "light" });
     await page.emulateMedia({ colorScheme: "dark" });
     await check("light"); // Explicit choice ignores OS changes.
+    await refresh("dark");
+    await check("light"); // Saved light preference also overrides changed defaults.
     await page.locator('[data-bp-theme-mode="dark"]').click();
     await check("dark");
+    config.mode = "light";
     await page.reload();
     await check("dark"); // Persisted preference survives a light server fallback.
     await page.locator('[data-bp-theme-mode="system"]').click();
@@ -66,13 +86,30 @@ for (const theme of [
     await check("light");
     await page.emulateMedia({ colorScheme: "dark" });
     await check("dark");
-    assert.equal(refreshes, 0); // Switching needs no style or brand fetch.
+    assert.equal(refreshes, 8); // Only the four config changes fetched style/brand.
+    await refresh("light");
+    await check("dark"); // Saved system mode still follows the dark OS preference.
+    await expect(page.locator('[data-bp-theme-mode="system"]')).toHaveAttribute("aria-pressed", "true");
     config.dark.text = "#abcdef";
     await page.evaluate(() => document.body.dispatchEvent(new CustomEvent("bp:theme-changed", { bubbles: true })));
-    await expect.poll(() => refreshes).toBe(2);
+    await expect.poll(() => refreshes).toBe(12);
     await expect(page.locator("body")).toHaveCSS("color", "rgb(171, 205, 239)");
     await expect(page.locator('[data-bp-theme-logo="dark"]')).toBeVisible();
-    assert.equal(refreshes, 2);
+    assert.equal(refreshes, 12);
+    // A newer session selection wins even if an older stored preference is readable.
+    await page.evaluate(() => {
+      Storage.prototype.setItem = () => { throw new Error("storage is read-only"); };
+    });
+    await page.locator('[data-bp-theme-mode="light"]').click();
+    await refresh("dark");
+    await check("light");
+    // Without storage, an explicit selection must survive config refreshes too.
+    await page.evaluate(() => {
+      Object.defineProperty(window, "localStorage", { get() { throw new Error("storage unavailable"); } });
+    });
+    await page.locator('[data-bp-theme-mode="light"]').click();
+    await refresh("dark");
+    await check("light");
     assert.deepEqual(errors, []);
   });
 }

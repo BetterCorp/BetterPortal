@@ -595,6 +595,7 @@ export function betterPortalShellRuntimeSource(): string {
       const themeModeKey = "bp.theme.mode:" + window.location.host;
       const themeMedia = window.matchMedia?.("(prefers-color-scheme: dark)");
       let selectedThemeMode = "system";
+      let sessionThemeMode: string | null = null;
       const applyThemeMode = (mode: string) => {
         const selected = ["light", "dark", "system"].includes(mode) ? mode : "system";
         selectedThemeMode = selected;
@@ -606,6 +607,18 @@ export function betterPortalShellRuntimeSource(): string {
           button.setAttribute("aria-pressed", String(button.getAttribute("data-bp-theme-mode") === selected))
         );
         triggerBodyEvent("bp:theme-mode-changed", { mode: selected, concrete });
+      };
+
+      const syncConfiguredThemeMode = () => {
+        const configuredMode = document.head.querySelector("style#bp-theme-style[data-bp-theme-default]")?.getAttribute("data-bp-theme-default")
+          || document.documentElement.getAttribute("data-bp-theme-default")
+          || document.documentElement.getAttribute("data-bs-theme") || "system";
+        document.documentElement.setAttribute("data-bp-theme-default", configuredMode);
+        let preference = sessionThemeMode;
+        if (!preference) {
+          try { preference = localStorage.getItem(themeModeKey); } catch { /* use configured default */ }
+        }
+        applyThemeMode(preference || configuredMode);
       };
 
       themeMedia?.addEventListener("change", () => {
@@ -1982,8 +1995,7 @@ export function betterPortalShellRuntimeSource(): string {
         // HTMX initializes the body; the shell's refreshable style lives in head.
         const themeStyle = document.getElementById("bp-theme-style");
         if (themeStyle) htmx.process(themeStyle);
-        try { applyThemeMode(localStorage.getItem(themeModeKey) || document.documentElement.getAttribute("data-bp-theme-default") || document.documentElement.getAttribute("data-bs-theme") || "system"); }
-        catch { applyThemeMode(document.documentElement.getAttribute("data-bp-theme-default") || document.documentElement.getAttribute("data-bs-theme") || "system"); }
+        syncConfiguredThemeMode();
         if (!hasLoaded()) setLoading(true);
         // P14: kick off menu service health checks for the admin shell only.
         if (shellRoot()?.getAttribute("data-bp-menu-health") !== "false") {
@@ -1998,7 +2010,10 @@ export function betterPortalShellRuntimeSource(): string {
         const button = (event.target as Element)?.closest?.("[data-bp-theme-mode]");
         const mode = button?.getAttribute("data-bp-theme-mode");
         if (!mode) return;
-        try { localStorage.setItem(themeModeKey, mode); } catch { /* preference remains session-only */ }
+        try {
+          localStorage.setItem(themeModeKey, mode);
+          sessionThemeMode = null;
+        } catch { sessionThemeMode = mode; }
         applyThemeMode(mode);
       });
 
@@ -2141,6 +2156,9 @@ export function betterPortalShellRuntimeSource(): string {
 
         htmx_after_process(elt: any) {
           if (elt instanceof Element) {
+            if (elt.matches("style#bp-theme-style[data-bp-theme-default]") && elt.parentElement === document.head) {
+              syncConfiguredThemeMode();
+            }
             resolveServiceLinks(elt, false);
             initializeBpElements(elt);
           }
