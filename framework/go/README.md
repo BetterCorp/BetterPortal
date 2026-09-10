@@ -56,23 +56,25 @@ manifest/schema discovery; request/response validation; app resolution, allowlis
 CORS and authentication; rendering; config/install/sync; managed streaming and
 full cross-language HTTP conformance. AnyVali remains the only application
 schema validator. No replacement validator or partial HTTP server is introduced.
-AnyVali installs successfully with this exact module pin:
+
+The previously reported Go schema/concurrency failures are fixed in AnyVali
+`v1.1.6`. The verified source pin installs as:
 
 ```sh
-go get github.com/BetterCorp/AnyVali/sdk/go@v0.0.0-20260908134013-58b58e7e617a
+go get github.com/BetterCorp/AnyVali/sdk/go@v0.0.0-20260910095723-c04ae2b71c8e
 ```
 
-This points to the `v1.1.5` source commit. Native dependency probes found:
+This resolves to commit `c04ae2b71c8e8b8efc7b6dab53f6bd3f2909d15e`. All six
+native dependency probes pass with `go test -race -count=1`: canonical record
+import, recursive JSON parsing, missing/default versus explicit-null behavior,
+and concurrent imports of simple and recursive documents. The corresponding
+[record interchange](https://github.com/BetterCorp/AnyVali/issues/150),
+[null/default](https://github.com/BetterCorp/AnyVali/issues/151), and
+[import race](https://github.com/BetterCorp/AnyVali/issues/152) blockers are resolved.
 
-- `ImportJSON` rejects BP's `JsonValueSchema`: its record node uses `valueSchema`,
-  while the importer requires `value`.
-- Parsing `TokenLifetimeConfigSchema` with `accessTokenSeconds: nil` accepts the
-  explicit null and substitutes `900`, violating BP's missing/null distinction.
-- Concurrent `ImportJSON` calls trigger the race detector in the importer's
-  global `refResolving` state.
-
-Resolve these upstream and run all canonical contracts, including recursion,
-missing/null defaults, 64-bit integers and concurrent import, before integration.
+These targeted dependency checks do not replace the full canonical contract
+gate, including 64-bit integers and export/reimport, or the runtime/HTTP
+acceptance required before full SDK integration.
 
 See [the protocol](../../spec/protocol.md), [SSE](../../spec/sse.md), and the
 [existing port capability ledger](../conformance/CAPABILITIES.md).
