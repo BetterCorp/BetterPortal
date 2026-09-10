@@ -23,8 +23,14 @@ export interface ThemeLlmsContext {
   };
 }
 
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end--;
+  return value.slice(0, end);
+}
+
 function absolute(origin: string, path: string): string {
-  return new URL(path, `${origin.replace(/\/+$/, "")}/`).href;
+  return new URL(path, `${trimTrailingSlashes(origin)}/`).href;
 }
 
 function appPublicUrl(app: { hostnames: string[] } | undefined): string | undefined {
@@ -59,7 +65,7 @@ export function resolveThemeLlmsContext(
   const managementAppId = config.configManagement?.managementAppId;
   const managementApp = managementAppId ? config.apps.find((app) => app.id === managementAppId) : undefined;
   const query = `tenantUrl=${encodeURIComponent(tenantUrl)}`;
-  const configManagerBase = configManagerUrl?.replace(/\/+$/, "");
+  const configManagerBase = configManagerUrl ? trimTrailingSlashes(configManagerUrl) : undefined;
 
   return {
     tenant: { id: context.tenant.id, title: context.tenant.title },
@@ -177,7 +183,7 @@ export function renderThemeLlmsApi(context: ThemeLlmsContext): string {
     ""
   ];
   for (const service of context.services) {
-    const base = service.url.replace(/\/+$/, "");
+    const base = trimTrailingSlashes(service.url);
     lines.push(
       `### ${service.title}`,
       "",

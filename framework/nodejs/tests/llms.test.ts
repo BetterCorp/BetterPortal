@@ -74,6 +74,20 @@ test("theme LLM documents hide unavailable root management links", () => {
   assert.doesNotMatch(renderThemeLlmsApi(tenantContext), /Complete catalog|unavailable/);
 });
 
+test("discovery normalizes long trailing slash sequences without regex backtracking", () => {
+  const suffix = "/".repeat(100_000);
+  const input: ThemeLlmsContext = {
+    ...context,
+    app: { ...context.app, url: context.app.url + suffix },
+    services: context.services.map(service => ({ ...service, url: service.url + suffix }))
+  };
+  const api = renderThemeLlmsApi(input);
+  assert.match(api, /https:\/\/orders\.example\.com\/\.well-known\/bp\/schema\.json/);
+  assert.ok(api.length < 5000);
+  const manifest = buildThemeAiManifest(input, []) as Record<string, unknown>;
+  assert.equal((manifest.documents as Record<string, string>).drop, "https://portal.example.com/llms-drop.txt");
+});
+
 test("AI manifest links resources without duplicating their content", () => {
   const manifest = buildThemeAiManifest(context, [resource]) as Record<string, unknown>;
   const resources = manifest.resources as Array<Record<string, unknown>>;
