@@ -31,7 +31,9 @@ exposing a per-view feed. Do not register a manual generator as a BP route.
 `set` supports locked, owner scope, absolute Unix expiry, root-relative refresh
 path and refresh lead time. Last action wins case-insensitively. Values reject
 control bytes and unescaped comma/semicolon delimiters. Use URL-encoded refresh
-paths. Expiry/refresh times are nonnegative integers; zero is retained. `emit()`
+paths. Expiry must be a positive Unix timestamp; zero is rejected because older shells
+treat it as no expiry. Use `remove()` for immediate removal. Refresh lead time
+may be zero. `emit()`
 returns a snapshot without consuming it. Append each pair separately in the host,
 and expose both names through its CORS policy. This collector neither persists
 credentials nor authenticates a caller.

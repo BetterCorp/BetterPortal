@@ -21,7 +21,7 @@ final class HeaderDirectives
         if (strlen($value) > 8192 || preg_match('/[\x00-\x1f\x7f-\xff;,]/', $value)) {
             throw new \InvalidArgumentException('Invalid BP header value');
         }
-        if (($expires !== null && $expires < 0) || ($refreshBeforeSeconds !== null && $refreshBeforeSeconds < 0)) {
+        if (($expires !== null && $expires <= 0) || ($refreshBeforeSeconds !== null && $refreshBeforeSeconds < 0)) {
             throw new \InvalidArgumentException('Invalid BP header time');
         }
         if ($refreshPath !== null && (strlen($refreshPath) > 2048 || !str_starts_with($refreshPath, '/') || str_starts_with($refreshPath, '//') || preg_match('/[\x00-\x20\x7f-\xff;,\\\\#]/', $refreshPath))) {

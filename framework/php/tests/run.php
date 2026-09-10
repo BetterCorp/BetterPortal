@@ -45,8 +45,8 @@ $headers->remove('authorization');
 same($headers->emit(), [['BP-RemoveHeader', 'authorization']]);
 $headers->set('AUTHORIZATION', 'next');
 same($headers->emit(), [['BP-SetHeader', 'AUTHORIZATION=next']]);
-$headers->set('X-Next', 'a=b', expires: 0, refreshBeforeSeconds: 0);
-same(count($headers->emit()), 2);
+$headers->set('X-Next', 'a=b', expires: 1, refreshBeforeSeconds: 0);
+same($headers->emit()[1], ['BP-SetHeader', 'X-Next=a=b; expires=1; refreshBefore=0']);
 $before = $headers->emit();
 foreach (["x\r\ny", 'x; locked=true', 'x,y', "\x7f", "\xff", str_repeat('x', 8193)] as $value) {
     rejects(fn() => $headers->set('Authorization', $value));
@@ -57,5 +57,6 @@ foreach (['https://evil.test', '//evil.test', '/a;b', '/a,b', '/a b', '/a#b', '/
 rejects(fn() => $headers->set('Bad:Name', 'x'));
 rejects(fn() => $headers->remove(''));
 rejects(fn() => $headers->set('X', 'x', expires: -1));
+rejects(fn() => $headers->set('AUTHORIZATION', 'invalid', expires: 0));
 same($headers->emit(), $before);
 echo "$count checks passed\n";
