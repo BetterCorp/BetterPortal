@@ -172,7 +172,7 @@ test("well-known resource routes expose descriptors and inert content", async ()
     developerResources: [resource]
   });
   const app = createBetterPortalApp();
-  registerBpWellKnownRoutes(app, manifest, { manifest, routes: [] });
+  registerBpWellKnownRoutes(app, manifest, { manifest, routes: [] }, { llmsContext: () => context });
   const server = createServer(createBetterPortalNodeHandler(app));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 
@@ -180,6 +180,7 @@ test("well-known resource routes expose descriptors and inert content", async ()
     const address = server.address();
     assert(address && typeof address === "object");
     const base = `http://127.0.0.1:${address.port}`;
+    assert.equal((await fetch(`${base}/llms-drop.txt`)).status, 404); // ordinary services are not shells
     const healthResponse = await fetch(`${base}/.well-known/bp/health`);
     assert.deepEqual(await healthResponse.json(), { ok: true });
     assert.equal(healthResponse.headers.get("cache-control"), "no-store");
@@ -191,6 +192,44 @@ test("well-known resource routes expose descriptors and inert content", async ()
     assert.equal("content" in (index.resources[0] ?? {}), false);
     assert.equal(await contentResponse.text(), "# UI skill");
     assert.equal(contentResponse.headers.get("content-security-policy"), "sandbox; default-src 'none'");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+
+test("shell drop route uses the shared public schema and rejects missing app context", async () => {
+  const manifest = PluginManifestSchema.parse({
+    protocolVersion: 2, pluginId: "com.example.shell", title: "Shell", description: "HTTP fixture",
+    version: "3.2.1", category: "theme", deploymentModes: ["self-hosted"], views: [],
+    shell: { service: "custom", renderer: "bootstrap5", fragments: [] }, developerResources: [resource]
+  });
+  const app = createBetterPortalApp();
+  let activeContext: ThemeLlmsContext | null = context;
+  const schema = { manifest, routes: [] };
+  registerBpWellKnownRoutes(app, manifest, schema, { llmsContext: () => activeContext });
+  app.get("/**", () => new Response("page catchall"));
+  const server = createServer(createBetterPortalNodeHandler(app));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    assert(address && typeof address === "object");
+    const base = `http://127.0.0.1:${address.port}`;
+    const response = await fetch(`${base}/llms-drop.txt`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "text/plain; charset=utf-8");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    const drop = await response.text();
+    const publishedSchema = await (await fetch(`${base}/.well-known/bp/schema.json`)).json();
+    assert.ok(drop.includes(JSON.stringify(publishedSchema, null, 2)));
+    assert.ok(drop.includes(resource.content));
+    assert.match(drop, /Theme version: com.example.shell@3.2.1/);
+    activeContext = null;
+    const missing = await fetch(`${base}/llms-drop.txt`);
+    assert.equal(missing.status, 404);
+    assert.equal(missing.headers.get("cache-control"), "no-store");
+    assert.doesNotMatch(await missing.text(), /tenant-1|App URL|full LLM drop/);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
