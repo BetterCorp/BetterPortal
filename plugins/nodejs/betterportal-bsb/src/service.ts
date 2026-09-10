@@ -34,6 +34,7 @@ import {
   resolveEmbeddedSourceHeader,
   resolveEmbeddedRequestContext,
   resolveThemeSourceHeader,
+  resolveThemeLlmsContext,
   verifySetupToken,
   verifyServiceConfigTicket,
   type AppAuthConfig,
@@ -934,7 +935,11 @@ export abstract class BPService<
 
     const bpSchema = buildBpSchema(registry, this.manifest);
     registerBpWellKnownRoutes(this.app, this.manifest, bpSchema, {
-      health: async (event) => this.renderHealth(this.inSetupMode || await this.canReadHealthDiagnostics(event))
+      health: async (event) => this.renderHealth(this.inSetupMode || await this.canReadHealthDiagnostics(event)),
+      llmsContext: (event) => {
+        const config = this.getPortalConfig();
+        return config ? resolveThemeLlmsContext(config, eventHeaders(event), event.url.origin, this.headerTrustOptions(event)) : null;
+      }
     });
     this.registerShellFragmentRoutes(registry);
     this.registerSeoRoutes();

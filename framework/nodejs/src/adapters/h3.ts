@@ -2,6 +2,7 @@ import { createEventStream, getRequestIP, getRequestURL } from "h3";
 import type { HttpMethod } from "../contracts/common.js";
 import type { JsonValue } from "../contracts/json.js";
 import type { BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
+import { renderThemeLlmsDrop, type ThemeLlmsContext } from "../runtime/llms.js";
 import type { BetterPortalObservability, ObservabilityAttributes } from "../contracts/observability.js";
 import type { BPElementReference, BetterPortalRegistry, RegisteredRoute, RouteUiAttributes, RouteUiOptions, ViewRenderContext } from "../contracts/registry.js";
 import type {
@@ -2072,8 +2073,22 @@ export function registerBpWellKnownRoutes(
   bpSchema: BpSchemaOutput,
   options: {
     health?: (event: BetterPortalEvent) => Response | JsonValue | Promise<Response | JsonValue>;
+    llmsContext?: (event: BetterPortalEvent) => ThemeLlmsContext | null;
   } = {}
 ): void {
+  const resolveLlmsContext = options.llmsContext;
+  if (manifest.shell && resolveLlmsContext) {
+    app.get("/llms-drop.txt", (event) => {
+      const context = resolveLlmsContext(event);
+      return new Response(
+        context ? renderThemeLlmsDrop(context, bpSchema) : "BetterPortal app context is not available yet.\n",
+        {
+          status: context ? 200 : 404,
+          headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" }
+        }
+      );
+    });
+  }
   app.get("/.well-known/bp/schema.json", () => {
     return jsonResponse(bpSchema as unknown as JsonValue);
   });

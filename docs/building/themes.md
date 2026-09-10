@@ -167,7 +167,7 @@ Use the app menu in `bp-config.yaml` for product-level navigation, and keep serv
 
 ## Guidance for generated service views
 
-Every theme serves the shared view-authoring rules through `/llms-ui.txt`, followed by links to its own UI guide, skill and templates. `/llms-dev.txt` links to these rules too. Keep theme resources consistent with this shared guidance.
+Every theme serves the shared view-authoring rules through `/llms-ui.txt`, followed by links to its own UI guide, skill and templates. `/llms.txt` and the AI manifest also link to `/llms-drop.txt` for tools that need a single full local export. It combines the guides, theme resources and theme schemas with full source URLs, separate framework/theme versions, UTC export time and expiry; remote service schemas remain linked to their authoritative sources. Node themes using `BPService` receive the endpoint automatically with the framework/plugin update, including custom themes. Standalone Node shells pass an app-context resolver as `llmsContext` to `registerBpWellKnownRoutes`; the shell manifest and generated schema supply the exported resources/contracts. See the [drop contract](../../spec/ai.md#7-full-llm-drop). `/llms-dev.txt` links to these rules too. Keep theme resources consistent with this shared guidance.
 
 Views render typed handler data, semantic controls, theme components and HTMX attributes. Formatting, conditional presentation and small local widgets belong here. Authorization, business defaults, eligibility rules, authoritative validation, calculations, persistence and report generation belong in method handlers or typed domain helpers. HTML constraints and hidden inputs do not enforce a business policy.
 
