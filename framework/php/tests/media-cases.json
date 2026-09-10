@@ -1,0 +1,568 @@
+[
+  {
+    "id": "missing",
+    "action": "media",
+    "accept": null,
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "empty",
+    "action": "media",
+    "accept": " \t",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "json",
+    "action": "media",
+    "accept": "application/json",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "wildcard",
+    "action": "media",
+    "accept": "*/*",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "html",
+    "action": "media",
+    "accept": "text/html",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "page",
+    "action": "media",
+    "accept": "text/html;mode=page",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "fragment",
+    "action": "media",
+    "accept": "text/html;mode=\"fragment\"",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "fragment"
+      }
+    }
+  },
+  {
+    "id": "embed",
+    "action": "media",
+    "accept": "text/html;mode=embed",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "embed"
+      }
+    }
+  },
+  {
+    "id": "metadata",
+    "action": "media",
+    "accept": "application/vnd.betterportal.metadata+json",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "metadata",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "ndjson",
+    "action": "media",
+    "accept": "application/x-ndjson",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "ndjson",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "quality",
+    "action": "media",
+    "accept": "application/json;q=0.5,text/html;q=0.9",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "tie-html",
+    "action": "media",
+    "accept": "text/html,application/json",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "tie-json",
+    "action": "media",
+    "accept": "application/json,text/html",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "case",
+    "action": "media",
+    "accept": "TEXT/HTML;MODE=fragment;Q=1.000",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "fragment"
+      }
+    }
+  },
+  {
+    "id": "theme-ignored",
+    "action": "media",
+    "accept": "text/html;theme=untrusted",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "unsupported-alternative",
+    "action": "media",
+    "accept": "image/png,application/json;q=0.1",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "q-zero",
+    "action": "media",
+    "accept": "application/json;q=0",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "zero-wildcard",
+    "action": "media",
+    "accept": "*/*;q=0",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "specific-exclusion",
+    "action": "media",
+    "accept": "application/json;q=0,*/*;q=1",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "specific-quality",
+    "action": "media",
+    "accept": "application/json;q=0.1,application/*;q=0.8,text/html;q=0.5",
+    "available": [
+      "html",
+      "json"
+    ],
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "excluded-only-offer",
+    "action": "media",
+    "accept": "application/json;q=0,*/*;q=1",
+    "available": [
+      "json"
+    ],
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "unavailable-stream",
+    "action": "media",
+    "accept": "application/x-ndjson",
+    "available": [
+      "json",
+      "html"
+    ],
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "available-fallback",
+    "action": "media",
+    "accept": "application/x-ndjson,application/json;q=0.5",
+    "available": [
+      "json"
+    ],
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "html-only-default",
+    "action": "media",
+    "accept": null,
+    "available": [
+      "html"
+    ],
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "no-offers",
+    "action": "media",
+    "accept": null,
+    "available": [],
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "subtype-wildcard",
+    "action": "media",
+    "accept": "text/*",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "unsupported",
+    "action": "media",
+    "accept": "image/png",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "invalid-mode",
+    "action": "media",
+    "accept": "text/html;mode=other",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "mode-case-sensitive",
+    "action": "media",
+    "accept": "text/html;mode=Page",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "mode-fallback",
+    "action": "media",
+    "accept": "text/html;mode=other,application/json;q=0.5",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "fragment-exclusion",
+    "action": "media",
+    "accept": "text/html;mode=fragment;q=0,text/html;q=1",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "page"
+      }
+    }
+  },
+  {
+    "id": "fragment-priority",
+    "action": "media",
+    "accept": "text/html;q=0,text/html;mode=fragment",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "fragment"
+      }
+    }
+  },
+  {
+    "id": "quoted-comma",
+    "action": "media",
+    "accept": "text/html;theme=\"one,two\";mode=fragment",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "fragment"
+      }
+    }
+  },
+  {
+    "id": "quoted-semicolon",
+    "action": "media",
+    "accept": "text/html;theme=\"one;two\";mode=embed",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "embed"
+      }
+    }
+  },
+  {
+    "id": "quoted-escape",
+    "action": "media",
+    "accept": "text/html;theme=\"a\\\"b\";mode=fragment",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "fragment"
+      }
+    }
+  },
+  {
+    "id": "escaped-mode",
+    "action": "media",
+    "accept": "text/html;mode=\"frag\\ment\"",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "html",
+        "mode": "fragment"
+      }
+    }
+  },
+  {
+    "id": "empty-list-members",
+    "action": "media",
+    "accept": ", , application/json,,",
+    "expected": {
+      "status": 200,
+      "output": {
+        "kind": "json",
+        "mode": null
+      }
+    }
+  },
+  {
+    "id": "malformed-0",
+    "action": "media",
+    "accept": "application/json;q=2",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-1",
+    "action": "media",
+    "accept": "application/json;q=-1",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-2",
+    "action": "media",
+    "accept": "application/json;q=0.1234",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-3",
+    "action": "media",
+    "accept": "application/json;q=nan",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-4",
+    "action": "media",
+    "accept": "application/json;q=\"0.5\"",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-5",
+    "action": "media",
+    "accept": "application/json;q=1;Q=0",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-6",
+    "action": "media",
+    "accept": "text/html;mode=\"fragment",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-7",
+    "action": "media",
+    "accept": "text/html;mode=page;Mode=embed",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-8",
+    "action": "media",
+    "accept": "text/html;foo",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-9",
+    "action": "media",
+    "accept": "text/html;foo=",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-10",
+    "action": "media",
+    "accept": "*/json",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-11",
+    "action": "media",
+    "accept": "text/html\r\nX-Test: yes",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-12",
+    "action": "media",
+    "accept": "text/html\u0000",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-13",
+    "action": "media",
+    "accept": "text/html;theme=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-14",
+    "action": "media",
+    "accept": ",,",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-15",
+    "action": "media",
+    "accept": "text /html",
+    "expected": {
+      "status": 406
+    }
+  },
+  {
+    "id": "malformed-16",
+    "action": "media",
+    "accept": "text/html garbage",
+    "expected": {
+      "status": 406
+    }
+  }
+]
