@@ -113,10 +113,10 @@ func TestHeaderDirectives(t *testing.T) {
 	if !reflect.DeepEqual(h.Emit(), []HeaderPair{{"BP-SetHeader", "AUTHORIZATION=next"}}) {
 		t.Fatal(h.Emit())
 	}
-	if err := h.Set("X-Next", "a=b", HeaderOptions{Expires: ptr(int64(1)), RefreshBeforeSeconds: ptr(int64(0))}); err != nil {
+	if err := h.Set("X-Next", "a=b", HeaderOptions{Expires: ptr(int64(1)), RefreshBeforeSeconds: ptr(int64(1))}); err != nil {
 		t.Fatal(err)
 	}
-	if got := h.Emit(); len(got) != 2 || got[1].Value != "X-Next=a=b; expires=1; refreshBefore=0" {
+	if got := h.Emit(); len(got) != 2 || got[1].Value != "X-Next=a=b; expires=1; refreshBefore=1" {
 		t.Fatal(got)
 	}
 	before := h.Emit()
@@ -141,6 +141,11 @@ func TestHeaderDirectives(t *testing.T) {
 	}
 	if err := h.Set("X", "x", HeaderOptions{Expires: ptr(int64(-1))}); err == nil {
 		t.Fatal("negative time accepted")
+	}
+	for _, lead := range []int64{0, -1} {
+		if err := h.Set("AUTHORIZATION", "invalid", HeaderOptions{RefreshBeforeSeconds: &lead}); err == nil {
+			t.Fatal("nonpositive refresh lead accepted")
+		}
 	}
 	if !reflect.DeepEqual(h.Emit(), before) {
 		t.Fatal("failed mutation changed collector")
