@@ -59,6 +59,7 @@ BetterPortal/
 +-- spec/                             # NORMATIVE protocol specification (language-neutral)
 +-- bp-config.yaml                    # platform config (tenants/apps/routes/services/menu/fragments)
 +-- framework/nodejs/                 # Node SDK: contracts, runtime, codegen, h3 adapter
++-- framework/go/                     # experimental Go protocol primitives (hosting pending)
 +-- plugins/nodejs/betterportal-bsb/  # BSB <-> Node SDK integration (BPService base class)
 +-- themes/nodejs/
 |   +-- runtime/                      # shared backend-built HTMX shell runtime
@@ -94,6 +95,8 @@ cd services/nodejs/examples/hello-view  && npm start   # http://localhost:3200
 ```
 
 The default `bp-config.yaml` ships with the `betterportal` tenant + `betterportal-web` app pre-configured. The sidebar menu exposes the showcase routes (hello-view) and admin tools (config-manager).
+
+Go port work starts with the experimental [native protocol primitives](framework/go/README.md). They cover negotiation, SSE framing and BP header directives; Go service hosting remains pending.
 
 ## Building a new service
 
