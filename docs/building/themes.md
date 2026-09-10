@@ -181,7 +181,7 @@ For necessary local JavaScript, use typed `jsx-htmx` `js(() => ...)` and pass it
 
 ### Preserve HTML5 form validation
 
-The backend input schema defines the constraints. Render its browser-expressible rules as appropriate `type`, `required`, `min`, `max`, `step`, `minlength`, `maxlength` and `pattern` attributes, including in replacement fragments. The browser validates those HTML controls, not an AnyVali/JSON schema automatically. Preserve those constraints in scripts; do not maintain a competing client schema. For `type="number"`, use range and step constraints; `pattern` does not apply.
+The backend input schema defines the constraints. Render its browser-expressible rules as appropriate `type`, `required`, `min`, `max`, `step`, `minlength`, `maxlength` and `pattern` attributes, including in replacement fragments. The browser validates those HTML controls, not an AnyVali/JSON schema automatically. Preserve those constraints in scripts; do not maintain a competing client schema. For `type="number"`, use range and step constraints; `pattern` does not apply. Hidden inputs and controls barred from constraint validation are not checked by these APIs; validate computed payloads against the published input contract and always on the server.
 
 Prefer a normal submit button. A necessary programmatic submission uses `form.requestSubmit(submitter)`, which runs native validation and the submit event HTMX handles. If custom code needs to check first, `form.reportValidity()` returns a boolean and displays validation errors; `form.checkValidity()` checks without displaying the browser's error UI. Stop without sending a request when invalid.
 

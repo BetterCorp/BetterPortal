@@ -67,7 +67,7 @@ Research the [BetterPortal theme contract](https://github.com/BetterCorp/BetterP
 
 ## Form validation before requests
 
-The backend input schema is the source of truth. Render its applicable HTML5 constraints (`type`, `required`, `min`, `max`, `step`, `minlength`, `maxlength`, `pattern`) and preserve them after swaps. The browser validates the returned HTML controls; it does not execute AnyVali/JSON schema automatically. Numeric inputs use range/step constraints, not `pattern`.
+The backend input schema is the source of truth. Render its applicable HTML5 constraints (`type`, `required`, `min`, `max`, `step`, `minlength`, `maxlength`, `pattern`) and preserve them after swaps. The browser validates the returned HTML controls; it does not execute AnyVali/JSON schema automatically. Numeric inputs use range/step constraints, not `pattern`. Hidden inputs and controls barred from constraint validation are not checked by these APIs; validate computed payloads against the published input contract and always on the server.
 
 Prefer native submit buttons or `form.requestSubmit(submitter)`. For a necessary custom trigger, stop if `form.reportValidity()` is false; `form.checkValidity()` checks without showing validation messages. Never bypass invalid controls with `form.submit()`, synthetic submit events, custom fetch/HTMX posts, `noValidate`/`formNoValidate`, `novalidate`/`formnovalidate` or disabled HTMX validation. Recalculation that accepts fewer fields needs a separate non-nested form/component with its own constraints, not a bypass on the full form. The backend validates every submission, including rules HTML cannot express.
 

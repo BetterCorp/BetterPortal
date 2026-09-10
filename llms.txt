@@ -718,9 +718,10 @@ When a user action produces a JS-computed payload (for example, drag-drop) and n
 
 ```js
 form.querySelector("[name=x]").value = ...;
-if (!form.reportValidity()) return; // keep schema-backed HTML constraints
-form.requestSubmit();  // native validation runs; htmx handles the submit event
+form.requestSubmit();  // HTMX handles submit; hidden fields are not validated by HTML5
 ```
+
+This pattern transports an already validated computed payload. Hidden inputs are barred from HTML constraint validation: `reportValidity()` and `requestSubmit()` do not check their requiredness, range or pattern. Validate computed values against the published input contract before assigning them, and always validate again on the server. Prefer visible, constraint-validatable controls when the browser should enforce the schema.
 
 Form's relative hx-post gets rewritten by `resolveServiceLinks` to the correct origin. Avoids hardcoding URLs in JS. Never invoke this pattern during rendering, initialization, draft restoration or history/preload insertion. Recalculation and final submission are explicit handler intents; validation failure or cancellation must not leave a one-shot action flag for the next edit.
 
