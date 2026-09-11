@@ -5,10 +5,18 @@ Use Bootstrap 5 classes and server-rendered JSX/HTMX. BetterPortal service rende
 ## Layout
 
 - Render primary content for the `main` slot. Never emit another page shell, `<html>`, `<head>`, sidebar navigation or top bar.
-- Start pages with a semantic heading and a short action row when actions exist.
+- Check the configured shell before adding a page heading: omit a title/header already shown by the theme. Start with content and a short action row when actions exist; use semantic headings for distinct content sections.
 - Use `.container-fluid`, Bootstrap grid classes and responsive gaps. Avoid fixed widths except a declared `data-bp-sidebar-width`.
-- Use cards for grouped settings, tables for comparable records and list groups for short navigation or status collections.
+- Use cards for grouped settings, tables for comparable records and list groups for status collections. The theme owns app navigation; do not repeat it as navigation cards, link grids or another menu inside a view. Local workflow navigation must serve a distinct need.
 - Keep primary actions on the right of desktop action rows and allow them to wrap on small screens.
+
+## Tables inside cards
+
+- Align the first column's header and row text with the card title, and the last column with the card's right content inset. Align the text, not just the table's outer border.
+- A table inside `.card-body.p-0` or directly inside a card uses cell padding that can be smaller than the title's padding, leaving row text too far left. For this flush layout, give the first and last cells matching outer padding: use `--bs-card-cap-padding-x` when the title is in `.card-header`, or `--bs-card-spacer-x` when it is in `.card-body`. Keep inner column spacing intact.
+- A normally padded `.card-body` already adds an inset; adding full card padding to its table cells doubles that spacing. Account for both wrapper and cell padding instead of blindly adding `.p-3`, `.px-3` or negative margins.
+- Keep `.table-responsive` around the table and use `.table.mb-0` for a flush card table. Apply the same alignment to `thead`, `tbody` and `tfoot`, including empty/loading rows with `colspan`.
+- Check normal and `.table-sm` density, narrow screens and horizontal scrolling. Card titles, column labels and row content should share a deliberate alignment without shrinking text or removing useful cell padding.
 
 ## Forms and mutations
 

@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/auth-authress-io",
-  "version": "10.6.20",
+  "version": "10.6.21",
   "description": "BetterPortal Authress.io auth service for Node.js",
   "main": "lib/index.js",
   "types": "src/index.ts",
@@ -35,10 +35,10 @@
   },
   "dependencies": {
     "@authress/sdk": "^3.2.280",
-    "@betterportal/framework": "10.6.20",
-    "@betterportal/plugin-bsb": "10.6.20",
-    "@bsb/base": "^9.7.0",
-    "anyvali": "^1.1.5",
+    "@betterportal/framework": "10.6.21",
+    "@betterportal/plugin-bsb": "10.6.21",
+    "@bsb/base": "^9.7.2",
+    "anyvali": "^1.1.6",
     "jsonwebtoken": "^9.0.2",
     "jsx-htmx": "4.0.0"
   },

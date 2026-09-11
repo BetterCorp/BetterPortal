@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/framework",
-  "version": "10.6.20",
+  "version": "10.6.21",
   "description": "BetterPortal v10 core library for Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,7 +35,7 @@
     "README.md"
   ],
   "dependencies": {
-    "anyvali": "^1.1.5",
+    "anyvali": "^1.1.6",
     "h3": "^2.0.1-rc.31",
     "jose": "^6.2.10",
     "typescript": "^6.0.3",

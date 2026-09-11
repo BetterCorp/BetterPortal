@@ -171,6 +171,12 @@ Every theme serves the shared view-authoring rules through `/llms-ui.txt`, follo
 
 Views render typed handler data, semantic controls, theme components and HTMX attributes. Formatting, conditional presentation and small local widgets belong here. Authorization, business defaults, eligibility rules, authoritative validation, calculations, persistence and report generation belong in method handlers or typed domain helpers. HTML constraints and hidden inputs do not enforce a business policy.
 
+### Document title, header and navigation ownership
+
+Theme authors must state in their theme notes and published UI guide which page titles, headers, breadcrumbs and navigation the shell already renders. Document any configuration that changes that behavior, the heading level supplied by the shell, and what service views should supply or omit. Keep the theme's skills, examples and templates consistent with these rules so LLM-generated views do not recreate shell UI.
+
+View authors must check that guidance and the active layout first. When the theme supplies the page title/header or app navigation, do not add duplicate titles, heading banners, menus, navigation cards or link grids inside service content. Start with the actual content and actions. Retain meaningful section headings, accessible heading order and task-specific controls; add a page heading or local navigation only when the theme delegates that responsibility and it serves a distinct content/workflow need. If ownership is undocumented, inspect the rendered shell instead of automatically adding another header or navigation layer.
+
 ### Initialization must not submit
 
 A view can be inserted on initial load, an HTMX swap, history navigation or a prefetched navigation. Initialization and draft restoration must not submit a form or replay a mutation. Keep recalculation and final submission as explicit handler intents with appropriate server validation. User changes may trigger recalculation; loading the same markup must not simulate user changes. Do not leave action flags behind after failed validation or cancellation.
