@@ -1,8 +1,9 @@
 import * as oidc from "openid-client";
 import * as av from "anyvali";
 import { requireElevation, type RouteHandlerContext, type JsonObject } from "@betterportal/framework";
-import { AuthError, secretHash, type User } from "./identity.js";
+import { AuthError, secretHash, type Challenge, type User } from "./identity.js";
 import type { AuthRuntime } from "./plugins/service-betterportal-auth-default/index.js";
+import type { AuthTransaction } from "./storage.js";
 import { publishSession } from "./account.js";
 
 type Context = RouteHandlerContext & { plugin: { runtime: AuthRuntime } };
@@ -90,8 +91,8 @@ export async function socialPost(ctx: Context): Promise<JsonObject> {
     return { status: "ok", ...ticket, authorizationUrl };
   }
   if (body.action !== "complete") throw new AuthError("Unknown social action.");
-  const result = await identity.consume(scope, "social", String(body.id), String(body.secret), async (challenge, tx) => {
-    const data = challenge.data; const connection = connections.find(c => c.id === data.connectionId);
+  const validate = async (challenge: Challenge, tx: AuthTransaction) => {
+    const data = challenge.data; const connection = socialConnections(runtime, scope).find(c => c.id === data.connectionId);
     if (!connection || data.configHash !== secretHash(JSON.stringify(connection)) || data.origin !== origin) throw new AuthError("Sign-in configuration changed. Start again.");
     const dir = { tenantId: scope.tenantId, appId: policy.isolation === "app" ? scope.appId : "" };
     let linkingUser: User | undefined;
@@ -101,8 +102,20 @@ export async function socialPost(ctx: Context): Promise<JsonObject> {
       if (!linkingUser?.enabled) throw new AuthError("Account unavailable.", 401);
       await identity.assertActiveSession(tx, scope, ctx.user, linkingUser);
     }
+    return { connection, linkingUser, dir };
+  };
+  const result = await identity.consumeWithPreparation(scope, "social", String(body.id), String(body.secret), async challenge => {
+    const { connection } = await identity.storage.transaction(scope, tx => validate(challenge, tx));
+    const data = challenge.data;
     const callback = new URL(String(data.redirectUri)); callback.searchParams.set("code", String(body.code)); callback.searchParams.set("state", challenge.id);
-    const external = await socialAdapter.exchange(connection, callback, { verifier: identity.cipher.decrypt(String(data.verifier)), nonce: String(data.nonce), state: challenge.id, redirectUri: String(data.redirectUri) });
+    try {
+      return await socialAdapter.exchange(connection, callback, { verifier: identity.cipher.decrypt(String(data.verifier)), nonce: String(data.nonce), state: challenge.id, redirectUri: String(data.redirectUri) });
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw new AuthError("Provider sign-in failed. Start again.", 502);
+    }
+  }, async (challenge, tx, external) => {
+    const { connection, linkingUser, dir } = await validate(challenge, tx);
     const id = secretHash(JSON.stringify([connection.kind, external.issuer, external.subject]));
     const linked = await tx.get("external", id, dir);
     if (linkingUser) {

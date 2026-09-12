@@ -17,8 +17,11 @@ export function parseMailHeaders(configured: unknown): Record<string, string> | 
   return result.data;
 }
 interface Mail extends RecordValue { scope: Scope; encrypted: string; attempts: number; nextAttempt: number; state: "pending" | "sending" | "sent" | "failed"; lease?: string; updatedAt: number }
-function validateMailUrl(config: MailConfig): void {
-  const url = new URL(config.url);
+const MailUrlSchema = av.string().format("url");
+export function validateMailUrl(value: unknown): void {
+  const result = MailUrlSchema.safeParse(value);
+  if (!result.success) throw new AuthError("Email delivery requires a valid absolute URL.", 503);
+  const url = new URL(result.data);
   if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) throw new AuthError("Email delivery requires HTTPS.", 503);
 }
 export class MailQueue {
@@ -26,7 +29,7 @@ export class MailQueue {
   async enqueue(tx: AuthTransaction, scope: Scope, to: string, subject: string, text: string): Promise<void> {
     const config = this.config(scope);
     if (!config) throw new AuthError("Email delivery has not been configured.", 503);
-    validateMailUrl(config);
+    validateMailUrl(config.url);
     if (this.identity.storage.mode === "simple") {
       const rows = await tx.list<Mail>("mail", scope);
       if (rows.filter(row => row.state !== "sent").length >= 500) throw new AuthError("Email queue is full. Contact your administrator.", 503);
@@ -53,7 +56,7 @@ export class MailQueue {
       try {
         const config = this.config(row.scope);
         if (!config) throw new Error("Mail not configured");
-        validateMailUrl(config);
+        validateMailUrl(config.url);
         const payload = JSON.parse(this.identity.cipher.decrypt(row.encrypted)) as { to: string; subject: string; text: string };
         const body = { from: config.from, to: payload.to, subject: payload.subject, text: payload.text, html: "" };
         const url = config.transport === "postal" ? `${config.url.replace(/\/+$/, "")}/api/v1/send/message` : config.url;

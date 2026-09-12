@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "no
 import { tmpdir, hostname } from "node:os";
 import { join } from "node:path";
 import { createBpTokenIssuer, generateKeyPair, uuidv7 } from "@betterportal/framework";
-import { AuthError, IdentityService, SecretCipher, secretHash, type IdentityPolicy, type User } from "../src/identity.js";
+import { AuthError, IdentityService, SecretCipher, secretHash, verifyPassword, type IdentityPolicy, type User } from "../src/identity.js";
 import { JsonAuthStorage, openAuthStorage } from "../src/storage.js";
 import { UserStore } from "../src/userStore.js";
 import { Factors } from "../src/factors.js";
@@ -169,6 +169,23 @@ test("mail header configuration rejects malformed values before saving or queuei
   await queue.drain(); assert.equal(fetch.mock.callCount(), 1);
 });
 
+test("mail URLs are validated before saving and malformed legacy values return safe errors", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const { MailQueue } = await import("../src/mail.js");
+  const service = Object.create(Plugin.prototype) as any; service.identity = identity;
+  let writes = 0;
+  const write = (mailUrl: unknown) => service.mutateServiceConfiguration(scope.tenantId, scope.appId, { mailUrl }, () => { writes++; });
+  for (const mailUrl of ["not-a-url", "/relative", "https://", "http://remote.test", "ftp://mail.test", 42, null]) {
+    await assert.rejects(write(mailUrl), (error: any) => error.status === 400);
+    const queue = new MailQueue(identity, () => ({ transport: "http", url: mailUrl as string, from: "auth@example.com" }));
+    await assert.rejects(storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Reset", "private proof")), (error: any) => error instanceof AuthError && error.status === 503);
+  }
+  assert.equal(writes, 0); assert.deepEqual(await storage.transaction(scope, tx => tx.list("mail", scope)), []);
+  for (const value of ["", "https://mail.test/send", "http://localhost:1234/send", "http://127.0.0.1/send"]) await write(value);
+  assert.equal(writes, 4);
+});
+
 test("tenant passkeys unavailable on another RP give recovery instructions without bypassing MFA", async t => {
   const { identity, scope, storage } = fixture(t);
   const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
@@ -320,6 +337,29 @@ test("legacy migration preserves bcrypt credentials and roles while locking tena
   assert.equal(JSON.parse(readFileSync(path, "utf8")).version, 2); assert.ok(existsSync(`${path}.v1.backup`));
 });
 
+test("migration accepts long bcrypt passwords and upgrades without truncating the new Argon2 password", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-legacy-passwords-")); const path = join(dir, "users.json");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const old = new UserStore(path); const scope = { tenantId: uuidv7(), appId: uuidv7() };
+  const passwords = ["a".repeat(72) + "original suffix", "a".repeat(71) + "é".repeat(20), "a".repeat(1100)];
+  const users = [];
+  for (const [i, password] of passwords.entries()) users.push(await old.createUser({ username: "legacy-" + i, password, tenantId: scope.tenantId, appRoles: { [scope.appId]: [] } }));
+  const storage = await openAuthStorage({ mode: "simple", path, installationId: "test", appIds: { [scope.tenantId]: [scope.appId] } }); t.after(() => storage.close());
+  const identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7))); const legacyPolicy = { ...policy, isolation: "tenant" as const };
+  for (const [i, password] of passwords.entries()) {
+    assert.equal(await verifyPassword(users[i].passwordHash, password), true);
+    assert.equal(await identity.authenticate(scope, legacyPolicy, users[i].username, "wrong" + password), undefined);
+    const user = (await identity.authenticate(scope, legacyPolicy, users[i].username, password))!;
+    assert.equal(user.id, users[i].id);
+    assert.equal(await verifyPassword(user.passwordHash, password), true);
+    if (Buffer.byteLength(password) <= 1024) {
+      assert.ok(user.passwordHash?.startsWith("$argon2"));
+      assert.equal(await verifyPassword(user.passwordHash, password + "different suffix"), false);
+    } else assert.ok(user.passwordHash?.startsWith("$2"));
+    assert.equal((await identity.authenticate(scope, legacyPolicy, users[i].username, password))?.id, user.id);
+  }
+});
+
 test("legacy collisions preserve exact password logins and reserve ambiguous emails without merging accounts", async t => {
   const dir = mkdtempSync(join(tmpdir(), "bp-legacy-collisions-")); const path = join(dir, "users.json");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -411,6 +451,62 @@ test("social linking survives an elevation redirect but remains bound to its act
   ctx.user = normal; ctx.request = { action: "complete", id: next.id, secret: next.secret, code: "unused-code" };
   await assert.rejects(socialPost(ctx as never), /Session changed/);
   assert.equal(exchanges, 1);
+});
+
+for (const change of ["none", "revoke", "config", "expire"] as const) test(`social exchange releases storage and revalidates completion after ${change}`, async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { socialPost, socialAdapter } = await import("../src/social.js");
+  const user = await identity.createUser(scope, policy, { username: "alice", verified: true });
+  const pair = await identity.issueSession(scope, policy, user, issuer, 3600);
+  const normal = await issuer.verifier().verify(pair.accessToken, scope); const now = Math.floor(Date.now() / 1000);
+  const elevated = await issuer.verifier().verify(issuer.signElevatedAccessToken(normal, { assurance: "confirmed", verifiedAt: now, expiresAt: now + 300 }, 300), scope);
+  const connection = { id: "test", kind: "google", clientId: "client", clientSecret: "secret" };
+  const runtime = { identity, policy: async () => policy, configuration: () => ({ socialConnections: [connection] }) };
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user: elevated,
+    rawEvent: { req: new Request("https://auth.test/social", { headers: { Origin: "https://app.test" } }), url: new URL("https://auth.test/social") },
+    uiRouteUrl: () => "https://app.test/social", request: { action: "link", connection: "test" } as Record<string, unknown> };
+  t.mock.method(socialAdapter, "authorize", async () => "https://provider.test/authorize");
+  let started!: () => void; let release!: (identity: { issuer: string; subject: string; emailVerified: boolean }) => void;
+  const exchangeStarted = new Promise<void>(resolve => { started = resolve; });
+  const exchangeResult = new Promise<{ issuer: string; subject: string; emailVerified: boolean }>(resolve => { release = resolve; });
+  t.mock.method(socialAdapter, "exchange", async () => { started(); return exchangeResult; });
+  const ticket = await socialPost(ctx as never);
+  ctx.request = { action: "complete", id: ticket.id, secret: ticket.secret, code: "test-code" };
+  const completed = socialPost(ctx as never).then(value => ({ value, error: undefined }), error => ({ value: undefined, error }));
+  await exchangeStarted;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      storage.transaction(scope, async tx => {
+        await tx.put("sentinel", scope, { id: "unblocked" });
+        if (change === "revoke") { const session = (await tx.get("session", normal.sessionId!, scope))!; await tx.put("session", scope, { ...session, revoked: true }); }
+        if (change === "config") connection.clientSecret = "changed";
+        if (change === "expire") { const challenge = (await tx.get("challenge", String(ticket.id), scope))!; await tx.put("challenge", scope, { ...challenge, expiresAt: 0 }); }
+      }),
+      new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("Provider exchange holds the storage lock")), 1000); })
+    ]);
+  } finally { clearTimeout(timer); release({ issuer: "https://provider.test", subject: "external-user", emailVerified: false }); }
+  const result = await completed;
+  const links = await storage.transaction(scope, tx => tx.list("external", scope));
+  if (change === "none") { assert.equal(result.value?.status, "ok"); assert.equal(links.length, 1); await assert.rejects(socialPost(ctx as never), /expired or unavailable/); }
+  else { assert.ok(result.error instanceof AuthError); assert.equal(links.length, 0); }
+});
+
+test("provider failures consume the bounded challenge attempts without persisting identities", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { socialPost, socialAdapter } = await import("../src/social.js");
+  const runtime = { identity, policy: async () => policy, configuration: () => ({ socialConnections: [{ id: "test", kind: "google", clientId: "client", clientSecret: "secret" }] }) };
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: { req: new Request("https://app.test/social"), url: new URL("https://app.test/social") }, uiRouteUrl: () => "https://app.test/social", request: { action: "start", connection: "test" } as Record<string, unknown> };
+  t.mock.method(socialAdapter, "authorize", async () => "https://provider.test/authorize");
+  const exchange = t.mock.method(socialAdapter, "exchange", async () => { throw new Error("Provider private response"); });
+  const ticket = await socialPost(ctx as never);
+  ctx.request = { action: "complete", id: ticket.id, secret: "wrong", code: "code" };
+  await assert.rejects(socialPost(ctx as never), /expired or unavailable/); assert.equal(exchange.mock.callCount(), 0);
+  ctx.request.secret = ticket.secret;
+  for (let i = 0; i < 4; i++) await assert.rejects(socialPost(ctx as never), (error: any) => error instanceof AuthError && error.status === 502 && !error.message.includes("private"));
+  await assert.rejects(socialPost(ctx as never), /expired or unavailable/);
+  assert.equal(exchange.mock.callCount(), 4);
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("user")), []);
 });
 
 test("registration and verification keep proof out of URLs sent to the server and enforce app binding", async t => {

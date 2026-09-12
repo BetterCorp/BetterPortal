@@ -58,6 +58,26 @@ test("PostgreSQL imports once, verifies leftovers, preserves keys, and serialize
   assert.equal(await b.findUser({ tenantId: uuidv7(), appId: scope.appId }, policy, "unique@example.com"), undefined);
   await assert.rejects(b.createUser(scope, { ...policy, isolation: "tenant" }, { username: "another" }), /isolation is locked/);
 
+  // Both replicas can prepare remotely without retaining the tenant advisory lock.
+  const preparedTicket = await a.challenge(scope, "remote-test", {});
+  let release!: () => void; let started!: () => void; let entered = 0;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  const completions = Promise.allSettled([a, b].map(identity => identity.consumeWithPreparation(scope, "remote-test", preparedTicket.id, preparedTicket.secret, async () => {
+    entered++; if (entered === 2) started(); await gate; return "prepared";
+  }, async (_challenge, tx, prepared) => { await tx.put("sentinel", scope, { id: "committed" }); return prepared; })));
+  await ready;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      b.storage.transaction(scope, tx => tx.put("sentinel", scope, { id: "remote-work-does-not-block" })),
+      new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("Remote preparation retained the tenant lock")), 1000); })
+    ]);
+  } finally { clearTimeout(timer); release(); }
+  const completionResults = await completions;
+  assert.equal(completionResults.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(completionResults.filter(result => result.status === "rejected").length, 1);
+
   // Customer accounts, including an account in the management app, cannot claim bootstrap.
   const management = { tenantId: uuidv7(), appId: uuidv7() };
   await a.createUser(management, policy, { username: "customer", verified: true });

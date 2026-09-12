@@ -65,11 +65,12 @@ export function validatePassword(value: string): void {
 export async function hashPassword(value: string): Promise<string> { validatePassword(value); return argon2.hash(value, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 }); }
 let dummyHash: Promise<string> | undefined;
 export async function verifyPassword(hash: string | undefined, value: string): Promise<boolean> {
+  // Legacy bcrypt accepted UTF-8 input beyond its 72-byte effective key length.
+  if (hash?.startsWith("$2")) return bcrypt.compare(value, hash);
   if (Buffer.byteLength(value, "utf8") > 1024) return false;
   if (!hash) { dummyHash ??= hashPassword("unavailable account timing check"); await argon2.verify(await dummyHash, value); return false; }
   if (hash.startsWith("$argon2")) return argon2.verify(hash, value);
-  if (Buffer.byteLength(value, "utf8") > 72) return false;
-  return bcrypt.compare(value, hash);
+  return false;
 }
 
 export class IdentityService {
@@ -139,7 +140,7 @@ export class IdentityService {
     });
     const verified = await verifyPassword(before?.passwordHash, password);
     if (!before?.enabled || !verified) return undefined;
-    const nextHash = before.passwordHash?.startsWith("$2") ? await argon2.hash(password, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 }) : undefined;
+    const nextHash = before.passwordHash?.startsWith("$2") && Buffer.byteLength(password, "utf8") <= 1024 ? await argon2.hash(password, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 }) : undefined;
     return this.storage.transaction(scope, async tx => {
       const dir = await this.directory(tx, scope, policy.isolation);
       const current = await tx.get<User>("user", before.id, dir);
@@ -218,20 +219,25 @@ export class IdentityService {
     return { id, secret };
   }
   async consume<T>(scope: Scope, purpose: string, id: string, secret: string, complete: (challenge: Challenge, tx: AuthTransaction) => Promise<T>): Promise<T> {
+    return this.consumeWithPreparation(scope, purpose, id, secret, async () => undefined, complete);
+  }
+  async consumeWithPreparation<T, P>(scope: Scope, purpose: string, id: string, secret: string, prepare: (challenge: Challenge) => Promise<P>, complete: (challenge: Challenge, tx: AuthTransaction, prepared: P) => Promise<T>): Promise<T> {
     // Charge the attempt independently. The application transaction must roll back
     // every side effect on failure, while a failed factor still consumes an attempt.
     const accepted = await this.storage.transaction(scope, async tx => {
       const challenge = await tx.get<Challenge>("challenge", id, scope);
       if (!challenge || challenge.purpose !== purpose || challenge.expiresAt <= Date.now() || challenge.attempts >= 5) return false;
       challenge.attempts++; await tx.put("challenge", scope, challenge);
-      return equalSecret(challenge.hash, secretHash(secret));
+      return equalSecret(challenge.hash, secretHash(secret)) ? challenge : false;
     });
     if (!accepted) throw new AuthError("Verification expired or unavailable.");
+    // Remote work happens without a store/tenant lock. Revalidate and consume only on commit.
+    const prepared = await prepare(accepted);
     return this.storage.transaction(scope, async tx => {
       const challenge = await tx.get<Challenge>("challenge", id, scope);
       if (!challenge || challenge.purpose !== purpose || challenge.expiresAt <= Date.now()
         || !equalSecret(challenge.hash, secretHash(secret))) throw new AuthError("Verification expired or unavailable.");
-      const value = await complete(challenge, tx);
+      const value = await complete(challenge, tx, prepared);
       await tx.remove("challenge", id, scope);
       return value;
     });
