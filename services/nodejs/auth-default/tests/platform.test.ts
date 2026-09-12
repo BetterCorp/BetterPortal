@@ -91,6 +91,51 @@ test("login account limits normalize padding and case across different peers", a
   assert.equal(authenticate.mock.callCount(), 10);
 });
 
+test("credential-sharing apps share login limits while separate directories retain separate budgets", async t => {
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  for (const isolation of ["tenant", "app"] as const) {
+    const { identity, scope } = fixture(t);
+    const apps = [scope.appId, uuidv7()];
+    const authenticate = t.mock.method(identity, "authenticate", async () => undefined);
+    const attempt = async (tenantId: string, appId: string, n: number) => {
+      const req = new Request("https://auth.test/login"); Object.assign(req, { ip: `192.0.2.${n + 1}` });
+      let status = 0;
+      await handlePost({ tenant: { id: tenantId }, app: { id: appId }, rawEvent: { req }, request: { username: " Alice@Example.COM ", password: "incorrect" },
+        plugin: { runtime: { identity, policy: async () => ({ ...policy, isolation }) } }, setStatus: (value: number) => { status = value; } } as never);
+      return status;
+    };
+    for (let i = 0; i < 20; i++) assert.equal(await attempt(scope.tenantId, apps[i % 2], i), isolation === "tenant" && i >= 10 ? 429 : 401);
+    assert.equal(authenticate.mock.callCount(), isolation === "tenant" ? 10 : 20);
+    assert.equal(await attempt(scope.tenantId, apps[0], 21), 429);
+    assert.equal(await attempt(uuidv7(), apps[0], 22), 401);
+  }
+});
+
+test("social configuration is rejected before writes and legacy malformed config returns a safe 503", async t => {
+  const { identity, scope } = fixture(t);
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const { default: getSocial } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/social/GET.js");
+  const { default: postSocial } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/social/POST.js");
+  const service = Object.create(Plugin.prototype) as any; service.identity = identity;
+  const connection = { id: "test", kind: "google", clientId: "client", clientSecret: "do-not-expose-secret" };
+  let writes = 0;
+  const write = (value: unknown) => service.mutateServiceConfiguration(scope.tenantId, scope.appId, { socialConnections: value }, () => { writes++; return "saved"; });
+  const invalid = ["{invalid-json", "null", "[null]", JSON.stringify([{ id: "test" }]), JSON.stringify([{ ...connection, clientId: 123 }]), JSON.stringify([{ ...connection, kind: "microsoft" }]), JSON.stringify([{ ...connection, kind: "microsoft", tenantId: "common" }]), JSON.stringify([connection, connection]), JSON.stringify(Array.from({ length: 21 }, (_, i) => ({ ...connection, id: String(i) })))];
+  for (const configured of invalid) {
+    await assert.rejects(write(configured), (error: any) => error.status === 400 && !error.message.includes(connection.clientSecret));
+    let status = 0;
+    const ctx = { plugin: { runtime: { identity, policy: async () => policy, configuration: () => ({ socialConnections: configured }) } }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, query: {}, request: { action: "start" }, setStatus: (value: number) => { status = value; } };
+    const result = await getSocial(ctx as never);
+    assert.equal(status, 503); assert.equal(result.status, "error"); assert.deepEqual(result.connections, []);
+    assert.equal((await postSocial(ctx as never)).status, "error"); assert.equal(status, 503);
+  }
+  assert.equal(writes, 0);
+  assert.equal(await write(JSON.stringify([connection, { ...connection, id: "ms", kind: "microsoft", tenantId: uuidv7() } ])), "saved");
+  assert.equal(await write("[]"), "saved");
+  assert.equal(await write(""), "saved");
+  assert.equal(writes, 3);
+});
+
 test("session issuance and refresh preserve the current profile picture", async t => {
   const { identity, scope } = fixture(t);
   const original = await identity.createUser(scope, policy, { username: "alice", verified: true });

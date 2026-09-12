@@ -31,6 +31,7 @@ import { AuthError, IdentityService, SecretCipher, equalSecret, type IdentityPol
 import { Factors } from "../../factors.js";
 import { MailQueue, type MailConfig } from "../../mail.js";
 import { AuthConfigSchemas } from "../../config.js";
+import { parseSocialConnections } from "../../social.js";
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -195,6 +196,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected async mutateServiceConfiguration<T>(tenantId: string, appId: string | undefined, values: Record<string, unknown>, write: () => T | Promise<T>): Promise<T> {
     if (!this.identity) throw new ServiceConfigWriteError("Auth storage is initializing.", 503);
     return this.identity.storage.transaction({ tenantId, appId: "" }, async tx => {
+      if (Object.hasOwn(values, "socialConnections")) {
+        try { parseSocialConnections(values.socialConnections); }
+        catch (error) {
+          if (!(error instanceof AuthError)) throw error;
+          throw new ServiceConfigWriteError(error.message, 400);
+        }
+      }
       if (appId && values.defaultRoleIds !== undefined) {
         let roles: unknown;
         try { roles = typeof values.defaultRoleIds === "string" ? JSON.parse(values.defaultRoleIds) : values.defaultRoleIds; }

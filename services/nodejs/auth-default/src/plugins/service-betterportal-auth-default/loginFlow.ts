@@ -150,7 +150,8 @@ export const handlePost = createHandler(
     const policy = await runtime.policy(scope);
     try {
     await runtime.identity.rateLimit(scope, "login-peer", getEventPeerIp(ctx.rawEvent as BetterPortalEvent) ?? "unknown", 100, 600);
-    await runtime.identity.rateLimit(scope, "login", normalizeAccountIdentifier(body.username));
+    const directoryScope = { tenantId, appId: policy.isolation === "tenant" ? "" : appId };
+    await runtime.identity.rateLimit(directoryScope, "login", normalizeAccountIdentifier(body.username));
     const user = await runtime.identity.authenticate(scope, policy, body.username, body.password);
     if (!user) { ctx.setStatus?.(401); return { status: "error" as const, message: "Invalid username or password." }; }
     const roles = await runtime.identity.storage.transaction(scope, tx => runtime.identity.roles(tx, scope, user, policy));

@@ -3,7 +3,7 @@ import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 export function render(data: Record<string, any>): HtmlRenderable {
   return <section id="bp-social-ui" class="container py-4" style="max-width:540px" data-endpoint={data.endpoint} data-code={data.code} data-state={data.state}>
-    <h2>{data.signedIn ? "Link a sign-in provider" : "Sign in"}</h2><p role="status">{data.error ? "The provider declined sign-in. Try again." : ""}</p>
+    <h2>{data.signedIn ? "Link a sign-in provider" : "Sign in"}</h2><p role="status">{data.message ?? (data.error ? "The provider declined sign-in. Try again." : "")}</p>
     {data.connections.map((c: any) => <button class="btn btn-outline-primary m-2" data-connection={c.id} data-action={data.signedIn ? "link" : "start"}>Continue with {c.title}</button>)}
     <script>{js(`(() => {
       const root = document.getElementById("bp-social-ui"); if (!root) return;

@@ -1,4 +1,5 @@
 import * as oidc from "openid-client";
+import * as av from "anyvali";
 import { requireElevation, type RouteHandlerContext, type JsonObject } from "@betterportal/framework";
 import { AuthError, secretHash, type User } from "./identity.js";
 import type { AuthRuntime } from "./plugins/service-betterportal-auth-default/index.js";
@@ -6,6 +7,11 @@ import { publishSession } from "./account.js";
 
 type Context = RouteHandlerContext & { plugin: { runtime: AuthRuntime } };
 export interface SocialConnection { id: string; kind: "google" | "microsoft" | "github"; clientId: string; clientSecret: string; tenantId?: string }
+const TenantIdSchema = av.string().format("uuid");
+const ConnectionsSchema = av.array(av.object({
+  id: av.string().minLength(1), kind: av.enum_(["google", "microsoft", "github"] as const),
+  clientId: av.string().minLength(1), clientSecret: av.string().minLength(1), tenantId: av.optional(TenantIdSchema)
+})).maxItems(20);
 export interface ExternalIdentity { issuer: string; subject: string; email?: string; emailVerified: boolean; name?: string }
 /** Enterprise adapters can implement the same normalized identity boundary later. */
 export interface IdentityProviderAdapter {
@@ -13,15 +19,22 @@ export interface IdentityProviderAdapter {
   exchange(connection: SocialConnection, callback: URL, checks: { verifier: string; nonce: string; state: string; redirectUri: string }): Promise<ExternalIdentity>;
 }
 export function socialConnections(runtime: AuthRuntime, scope: { tenantId: string; appId: string }): SocialConnection[] {
-  const configured = runtime.configuration(scope).socialConnections;
-  if (!configured) return [];
-  const list = typeof configured === "string" ? JSON.parse(configured) : configured;
-  if (!Array.isArray(list) || list.length > 20 || list.some(c => !c.id || !["google", "microsoft", "github"].includes(c.kind) || !c.clientId || !c.clientSecret)) throw new AuthError("Invalid social connection configuration.", 503);
+  return parseSocialConnections(runtime.configuration(scope).socialConnections);
+}
+export function parseSocialConnections(configured: unknown): SocialConnection[] {
+  if (configured === undefined || configured === "") return [];
+  let value: unknown;
+  try { value = typeof configured === "string" ? JSON.parse(configured) : configured; }
+  catch { throw new AuthError("Social connections must be a valid JSON array.", 503); }
+  const result = ConnectionsSchema.safeParse(value);
+  if (!result.success) throw new AuthError("Invalid social connection configuration. Check provider types and required credentials.", 503);
+  const list = result.data;
   if (new Set(list.map(c => c.id)).size !== list.length) throw new AuthError("Duplicate social connection ID.", 503);
+  if (list.some(c => c.kind === "microsoft" && !c.tenantId)) throw new AuthError("Microsoft requires an explicit directory tenant ID.", 503);
   return list;
 }
 async function discover(c: SocialConnection): Promise<oidc.Configuration> {
-  if (c.kind === "microsoft" && !/^[0-9a-f-]{36}$/i.test(c.tenantId ?? "")) throw new AuthError("Microsoft requires an explicit directory tenant ID.", 503);
+  if (c.kind === "microsoft" && !TenantIdSchema.safeParse(c.tenantId).success) throw new AuthError("Microsoft requires an explicit directory tenant ID.", 503);
   return oidc.discovery(new URL(c.kind === "google" ? "https://accounts.google.com" : `https://login.microsoftonline.com/${c.tenantId}/v2.0`), c.clientId, c.clientSecret);
 }
 export const socialAdapter: IdentityProviderAdapter = {
