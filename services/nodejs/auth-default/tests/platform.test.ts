@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "no
 import { tmpdir, hostname } from "node:os";
 import { join } from "node:path";
 import { createBpTokenIssuer, generateKeyPair, uuidv7 } from "@betterportal/framework";
-import { AuthError, IdentityService, SecretCipher, type IdentityPolicy, type User } from "../src/identity.js";
+import { AuthError, IdentityService, SecretCipher, secretHash, type IdentityPolicy, type User } from "../src/identity.js";
 import { JsonAuthStorage, openAuthStorage } from "../src/storage.js";
 import { UserStore } from "../src/userStore.js";
 import { Factors } from "../src/factors.js";
@@ -134,6 +134,71 @@ test("social configuration is rejected before writes and legacy malformed config
   assert.equal(await write("[]"), "saved");
   assert.equal(await write(""), "saved");
   assert.equal(writes, 3);
+});
+
+test("mail header configuration rejects malformed values before saving or queueing mail", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const { MailQueue } = await import("../src/mail.js");
+  const service = Object.create(Plugin.prototype) as any; service.identity = identity;
+  let configured: unknown;
+  service.effectiveServiceConfig = () => ({ mailTransport: "http", mailUrl: "https://mail.test", mailFrom: "auth@example.com", mailHeaders: configured });
+  const queue = new MailQueue(identity, () => service.mailConfiguration(scope));
+  let writes = 0;
+  const write = (value: unknown) => service.mutateServiceConfiguration(scope.tenantId, scope.appId, { mailHeaders: value }, () => { writes++; });
+  const invalid = ['{invalid-secret', '[]', 'null', '"text"', '{"X-Auth":123}', '{"X-Auth":null}', '{"X-Auth":{}}', JSON.stringify({ "bad name": "private-secret" }), JSON.stringify({ "X-Auth": "private-secret\r\nInjected: true" }), JSON.stringify({ "X-Auth": "\u0100" })];
+  for (const value of invalid) {
+    configured = value;
+    await assert.rejects(write(value), (error: any) => error.status === 400 && !error.message.includes("secret"));
+    await assert.rejects(storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Verify", "one-use-proof")), (error: any) => error instanceof AuthError && error.status === 503 && !error.message.includes("secret"));
+  }
+  assert.equal(writes, 0);
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("mail", scope)), []);
+  for (const value of ["", "{}", JSON.stringify({ Authorization: "Bearer private-secret", "X-Request-ID": "auth" })]) await write(value);
+  assert.equal(writes, 3);
+  configured = JSON.stringify({ Authorization: "Bearer private-secret" });
+  await storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Verify", "one-use-proof"));
+  const fetch = t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    assert.equal(new Headers(init.headers).get("Authorization"), "Bearer private-secret"); return new Response("ok");
+  });
+  configured = invalid[0]; await queue.drain(); assert.equal(fetch.mock.callCount(), 0);
+  const [pending] = await storage.transaction(scope, tx => tx.list("mail", scope));
+  assert.equal(pending.state, "pending");
+  configured = JSON.stringify({ Authorization: "Bearer private-secret" });
+  await storage.transaction(scope, tx => tx.put("mail", scope, { ...pending, nextAttempt: 0 }));
+  await queue.drain(); assert.equal(fetch.mock.callCount(), 1);
+});
+
+test("tenant passkeys unavailable on another RP give recovery instructions without bypassing MFA", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const tenantPolicy = { ...policy, isolation: "tenant" as const };
+  const factors = new Factors(identity); const other = { ...scope, appId: uuidv7() };
+  const user = await identity.createUser(scope, tenantPolicy, { username: "alice", verified: true, password: "a unique test password" });
+  await storage.transaction(user, tx => tx.put("passkey", user, { id: "cGFzc2tleQ", userId: user.id, rpId: "app-a.test", publicKey: "", counter: 0, name: "Passkey" }));
+  const attempt = async (app: typeof scope, origin: string) => {
+    let status = 200;
+    const result = await handlePost({ tenant: { id: app.tenantId }, app: { id: app.appId }, request: { username: "alice", password: "a unique test password" }, rawEvent: { req: new Request(origin + "/login"), url: new URL(origin + "/login") },
+      plugin: { runtime: { identity, factors, policy: async () => tenantPolicy, isManagement: () => false } }, setStatus: (value: number) => { status = value; } } as never);
+    return { result, status };
+  };
+  const blocked = await attempt(other, "https://app-b.test");
+  assert.equal(blocked.status, 403); assert.match(blocked.result.message, /app where your passkey works/);
+  assert.equal(blocked.result.challenge, undefined); assert.equal(blocked.result.accessToken, undefined);
+  assert.deepEqual(await storage.transaction(other, tx => tx.list("challenge", other)), []);
+  assert.equal((await attempt(scope, "https://app-a.test")).result.challenge?.enroll, false);
+  await identity.updateUser(scope, tenantPolicy, user.id, async u => { u.recoveryCodes = [secretHash("recovery-proof")]; });
+  const recovery = (await attempt(other, "https://app-b.test")).result.challenge;
+  assert.deepEqual(recovery?.methods, ["recovery"]); assert.equal(recovery?.enroll, false);
+  const current = (await identity.findUser(scope, tenantPolicy, user.id, true))!;
+  await storage.transaction(other, tx => factors.complete(tx, other, current, { enroll: false }, { method: "recovery", code: "recovery-proof" }));
+  assert.equal((await attempt(other, "https://app-b.test")).status, 403);
+  // An authenticator enrolled through the protected Account flow on the working RP restores access.
+  const enroll = await factors.prepare(current, "https://app-a.test", true);
+  const code = await generate({ secret: String(enroll.public.totpSecret) });
+  await storage.transaction(scope, tx => factors.complete(tx, scope, current, enroll.private, { method: "totp", code }));
+  const restored = (await attempt(other, "https://app-b.test")).result.challenge;
+  assert.equal(restored?.enroll, false); assert.deepEqual(restored?.methods, ["totp", "recovery"]);
 });
 
 test("session issuance and refresh preserve the current profile picture", async t => {

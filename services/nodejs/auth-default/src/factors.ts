@@ -7,6 +7,7 @@ interface Passkey extends RecordValue { userId: string; rpId: string; publicKey:
 export interface FactorRequest { method?: string; code?: string; credential?: unknown }
 export class Factors {
   constructor(private readonly identity: IdentityService) {}
+  // This is account-wide: an unusable passkey must not turn MFA into password-only login.
   async hasFactors(user: User): Promise<boolean> {
     if (user.totp) return true;
     return this.identity.storage.transaction(user, async tx => (await tx.list<Passkey>("passkey", user)).some(p => p.userId === user.id));
@@ -14,12 +15,16 @@ export class Factors {
   async prepare(user: User, origin: string, enroll = false): Promise<{ public: Record<string, unknown>; private: Record<string, unknown> }> {
     const rpId = new URL(origin).hostname;
     const keys = await this.identity.storage.transaction(user, async tx => (await tx.list<Passkey>("passkey", user)).filter(p => p.userId === user.id && p.rpId === rpId));
+    const methods = enroll ? ["totp", "passkey"] : [...(user.totp ? ["totp"] : []), ...(keys.length ? ["passkey"] : []), ...(user.recoveryCodes?.length ? ["recovery"] : [])];
+    if (!methods.length) throw new AuthError("No authentication factor is available for this app. Sign in to an app where your passkey works and add an authenticator in Account, then try again.", 403);
     const options = enroll
       ? await generateRegistrationOptions({ rpName: "BetterPortal", rpID: rpId, userName: user.username, userID: new Uint8Array(Buffer.from(secretHash(`${user.tenantId}:${user.appId}:${user.id}`), "hex")), excludeCredentials: keys.map(p => ({ id: p.id })), authenticatorSelection: { residentKey: "preferred", userVerification: "required" } })
       : await generateAuthenticationOptions({ rpID: rpId, allowCredentials: keys.map(p => ({ id: p.id })), userVerification: "required" });
     const secret = enroll ? generateSecret() : undefined;
+    // WebAuthn options may include undefined optional fields; expose their JSON wire representation.
+    const publicOptions = JSON.parse(JSON.stringify(options)) as Record<string, unknown>;
     return {
-      public: { methods: enroll ? ["totp", "passkey"] : [...(user.totp ? ["totp"] : []), ...(keys.length ? ["passkey"] : []), ...(user.recoveryCodes?.length ? ["recovery"] : [])], options, enroll, ...(secret ? { totpSecret: secret, totpUri: generateURI({ issuer: "BetterPortal", label: user.username, secret }) } : {}) },
+      public: { methods, options: publicOptions, enroll, ...(secret ? { totpSecret: secret, totpUri: generateURI({ issuer: "BetterPortal", label: user.username, secret }) } : {}) },
       private: { origin, rpId, challenge: options.challenge, enroll, ...(secret ? { totpSecret: this.identity.cipher.encrypt(secret) } : {}) }
     };
   }

@@ -1,8 +1,21 @@
 import { uuidv7 } from "@betterportal/framework";
+import * as av from "anyvali";
 import { AuthError, type IdentityService } from "./identity.js";
 import type { AuthTransaction, RecordValue, Scope } from "./storage.js";
 
 export interface MailConfig { transport: "postal" | "http"; url: string; from: string; apiKey?: string; headers?: Record<string, string> }
+const MailHeadersSchema = av.record(av.string());
+export function parseMailHeaders(configured: unknown): Record<string, string> | undefined {
+  if (configured === undefined || configured === "") return undefined;
+  let value: unknown;
+  try { value = typeof configured === "string" ? JSON.parse(configured) : configured; }
+  catch { throw new AuthError("Custom mail headers must be a valid JSON object of strings.", 503); }
+  const result = MailHeadersSchema.safeParse(value);
+  if (!result.success) throw new AuthError("Custom mail headers must be a JSON object of strings.", 503);
+  try { new Headers(result.data); }
+  catch { throw new AuthError("Custom mail headers contain an invalid HTTP header name or value.", 503); }
+  return result.data;
+}
 interface Mail extends RecordValue { scope: Scope; encrypted: string; attempts: number; nextAttempt: number; state: "pending" | "sending" | "sent" | "failed"; lease?: string; updatedAt: number }
 function validateMailUrl(config: MailConfig): void {
   const url = new URL(config.url);

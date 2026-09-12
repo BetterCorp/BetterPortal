@@ -73,6 +73,8 @@ The Bootstrap renderer runs in the BP shell and uses its shared auth runtime. Em
 
 Passwords created/reset now use Argon2id, a minimum of 12 characters and a maximum of 1024 UTF-8 bytes, with common-password rejection. Password recovery requires email verification and preserves enrolled factors. TOTP uses replay protection; passkeys require user verification and validate the RP, origin, challenge and credential ownership. Enrollment produces ten one-use recovery codes, displayed once and stored hashed. Enroll a replacement before removing the last factor.
 
+For tenant-shared accounts, passkeys only work on their registered hostname. Keep an authenticator or recovery codes available for other app hostnames. If neither is available, sign in on the passkey's original app and add an authenticator in Account before retrying the other app. Login and elevation return recovery instructions instead of an empty challenge; they never bypass existing MFA or authorize replacement enrollment using only a password.
+
 The refresh token rotates on every refresh. Replay revokes its family; logout, account disable, password changes and factor changes revoke the applicable sessions. Browser refreshes use the Web Locks API to coordinate tabs where available. Already-issued access tokens at other services remain bounded by their normal expiry; immediate distributed access-token revocation is not promised.
 
 ### Email delivery

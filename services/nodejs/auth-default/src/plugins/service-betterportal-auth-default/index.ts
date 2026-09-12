@@ -29,7 +29,7 @@ import type { BetterPortalEvent } from "@betterportal/framework/lib/runtime/h3.j
 import { atomicWrite, openAuthStorage, type Scope } from "../../storage.js";
 import { AuthError, IdentityService, SecretCipher, equalSecret, type IdentityPolicy, type User } from "../../identity.js";
 import { Factors } from "../../factors.js";
-import { MailQueue, type MailConfig } from "../../mail.js";
+import { MailQueue, parseMailHeaders, type MailConfig } from "../../mail.js";
 import { AuthConfigSchemas } from "../../config.js";
 import { parseSocialConnections } from "../../social.js";
 
@@ -196,6 +196,13 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   protected async mutateServiceConfiguration<T>(tenantId: string, appId: string | undefined, values: Record<string, unknown>, write: () => T | Promise<T>): Promise<T> {
     if (!this.identity) throw new ServiceConfigWriteError("Auth storage is initializing.", 503);
     return this.identity.storage.transaction({ tenantId, appId: "" }, async tx => {
+      if (Object.hasOwn(values, "mailHeaders")) {
+        try { parseMailHeaders(values.mailHeaders); }
+        catch (error) {
+          if (!(error instanceof AuthError)) throw error;
+          throw new ServiceConfigWriteError(error.message, 400);
+        }
+      }
       if (Object.hasOwn(values, "socialConnections")) {
         try { parseSocialConnections(values.socialConnections); }
         catch (error) {
@@ -250,7 +257,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private mailConfiguration(scope: Scope): MailConfig | undefined {
     const config = this.effectiveServiceConfig(scope.tenantId, scope.appId);
     if (!config.mailUrl || !config.mailFrom || !["postal", "http"].includes(String(config.mailTransport))) return undefined;
-    return { transport: config.mailTransport as "postal" | "http", url: String(config.mailUrl), from: String(config.mailFrom), apiKey: String(config.mailApiKey ?? ""), headers: config.mailHeaders ? JSON.parse(String(config.mailHeaders)) : undefined };
+    return { transport: config.mailTransport as "postal" | "http", url: String(config.mailUrl), from: String(config.mailFrom), apiKey: String(config.mailApiKey ?? ""), headers: parseMailHeaders(config.mailHeaders) };
   }
 
   protected async beginAuthElevation(claims: JwtClaims, requirement: ElevationRequirement, event: BetterPortalEvent, actionContext: Record<string, string> = {}): Promise<Record<string, unknown>> {
