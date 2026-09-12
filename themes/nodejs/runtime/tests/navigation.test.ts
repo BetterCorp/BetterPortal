@@ -1,3 +1,14 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
+import { createH3Router } from "../../../../framework/nodejs/src/adapters/h3.js";
+import { emitRegistry } from "../../../../framework/nodejs/src/codegen/emitter.js";
+import { scanRoutes } from "../../../../framework/nodejs/src/codegen/scanner.js";
+import { validateScanResult } from "../../../../framework/nodejs/src/codegen/validate.js";
+import type { BetterPortalApp, BetterPortalTenant } from "../../../../framework/nodejs/src/contracts/platformConfig.js";
+import { createBetterPortalApp } from "../../../../framework/nodejs/src/runtime/h3.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
@@ -370,4 +381,92 @@ test("login challenges cannot send verification proof to another installed servi
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.locator("#bp-login-error").getByText("The auth service returned an invalid verification endpoint.").waitFor();
   assert.equal(otherRequests, 0); assert.equal(await page.locator("dialog").count(), 0); assert.deepEqual(errors, []);
+});
+
+test("generated JSX anchors preserve mounted queries and Back/Forward across origins", async t => {
+  const root = mkdtempSync(join(tmpdir(), "bp-navigation-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  symlinkSync(fileURLToPath(new URL("../../../../node_modules", import.meta.url)), join(root, "node_modules"), "dir");
+  writeFileSync(join(root, "package.json"), JSON.stringify({ type: "module" }));
+  writeFileSync(join(root, "tsconfig.json"), JSON.stringify({ compilerOptions: { jsx: "react-jsx", jsxImportSource: "jsx-htmx" } }));
+  writeFileSync(join(root, "index.ts"), "export class Plugin {}\n");
+  const routeDir = join(root, "bp-routes", "dashboard");
+  mkdirSync(join(routeDir, "_renderer.bootstrap5"), { recursive: true });
+  writeFileSync(join(routeDir, "index.ts"), 'export const viewId = "archive.call";\n');
+  writeFileSync(join(routeDir, "GET.ts"), `
+    import * as av from "anyvali";
+    import { createHandler } from "@betterportal/framework";
+    export const operationId = "archive.call.read";
+    export const title = "Call";
+    export const description = "Navigation regression fixture";
+    export const auth = { required: false, permissions: [] };
+    export const QuerySchema = av.object({ id: av.optional(av.string()) });
+    export const ResponseSchema = av.object({ detail: av.bool() });
+    export type ResponseData = av.Infer<typeof ResponseSchema>;
+    export default createHandler({ response: ResponseSchema, query: QuerySchema }, ctx => ({ detail: !!ctx.query.id }));
+  `);
+  writeFileSync(join(routeDir, "_renderer.bootstrap5", "GET.tsx"), `
+    /** @jsxImportSource jsx-htmx */
+    import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
+    import type { ResponseData } from "../GET.js";
+    export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+      if (data.detail) return <p id="call-detail">Call 42</p>;
+      return <a id="call-link" href={ctx.url.route("archive.call", { query: { id: "call 42" } }) ?? undefined}>Call 42</a>;
+    }
+  `);
+  const scanned = scanRoutes(root);
+  assert.deepEqual(validateScanResult(scanned).filter(issue => issue.severity === "error"), []);
+  mkdirSync(join(root, ".bp-generated"));
+  const registryPath = join(root, ".bp-generated", "registry.ts");
+  writeFileSync(registryPath, emitRegistry(scanned));
+  const program = ts.createProgram([registryPath], {
+    target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext,
+    jsx: ts.JsxEmit.ReactJSX, jsxImportSource: "jsx-htmx", strict: true, skipLibCheck: true,
+    rootDir: root, outDir: join(root, "lib")
+  });
+  assert.deepEqual(ts.getPreEmitDiagnostics(program).map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")), []);
+  assert.equal(program.emit().emitSkipped, false);
+  const { registry } = await import(pathToFileURL(join(root, "lib", ".bp-generated", "registry.js")).href);
+  const appConfig = {
+    id: "app", tenantId: "tenant", slug: "app", title: "App", hostnames: ["app.test"],
+    originOverrides: [], refererOverrides: [], defaultRoute: "/tools/dashboard", menu: [], slots: [], fragments: {},
+    shell: { serviceId: "service", service: "test", renderer: "bootstrap5" },
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    routes: [{ id: "call", kind: "page", path: "/tools/dashboard", serviceId: "service",
+      viewId: "archive.call", resolvedServicePath: "/dashboard", enabled: true,
+      operations: ["archive.call.read"], resolvedMethods: ["GET"] }]
+  } as BetterPortalApp;
+  const tenantConfig: BetterPortalTenant = {
+    id: "tenant", slug: "tenant", title: "Tenant", active: true, branding: {}, services: [], activatedPlatformServices: []
+  };
+  const service = createBetterPortalApp();
+  service.use("/**", event => {
+    (event as unknown as { __bpApp: BetterPortalApp }).__bpApp = appConfig;
+  });
+  createH3Router(registry, service, { serviceId: "service", resolveContext: () => ({ tenant: tenantConfig, app: appConfig }) });
+  const requests: Array<{ url: string; method: string; authorization?: string }> = [];
+  const { page, errors } = await shell(t, async route => {
+    const request = route.request();
+    requests.push({ url: request.url(), method: request.method(), authorization: request.headers().authorization });
+    const response = await service.fetch(new Request(request.url(), { headers: { accept: "text/html" } }));
+    const body = await response.text();
+    assert.equal(response.status, 200, body);
+    assert.doesNotMatch(body, /href=["'][^"']*\{archive\.call\}/);
+    return html(route, body);
+  }, { Authorization: { value: "Bearer navigation-test", owner: "service", scope: null } });
+  await page.waitForSelector("#call-link");
+  assert.equal(await page.locator("#call-link").getAttribute("href"), "/tools/dashboard?id=call+42");
+  assert.equal(await page.locator("#call-link").getAttribute("hx-get"), "https://service.test/dashboard?id=call+42");
+  await page.locator("#call-link").click();
+  await page.waitForSelector("#call-detail");
+  assert.equal(page.url(), "https://app.test/tools/dashboard?id=call+42");
+  assert.ok(requests.some(request => new URL(request.url).searchParams.get("id") === "call 42"));
+  await page.goBack();
+  await page.waitForSelector("#call-link");
+  assert.equal(page.url(), "https://app.test/tools/dashboard");
+  await page.goForward();
+  await page.waitForSelector("#call-detail");
+  assert.equal(page.url(), "https://app.test/tools/dashboard?id=call+42");
+  assert.ok(requests.every(request => request.method === "GET" && request.authorization === "Bearer navigation-test"));
+  assert.deepEqual(errors, []);
 });
