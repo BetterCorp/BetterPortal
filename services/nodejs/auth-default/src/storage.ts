@@ -210,17 +210,39 @@ export function importLegacy(raw: unknown, appIds: Record<string, string[]>): Fi
   if (file.version !== 1 || !Array.isArray(file.users)) throw new Error("Unsupported legacy auth store");
   const records: StoredRecord[] = [];
   const tenants = new Set<string>();
+  const identifiers = new Map<string, { scope: Scope; id: string; users: Set<string> }>();
+  // Legacy usernames were case-sensitive, and email addresses were not unique.
+  // Collect ownership before emitting records so a collision never chooses a winner.
+  for (const user of file.users) {
+    if (typeof user.id !== "string" || typeof user.tenantId !== "string" || typeof user.username !== "string" || typeof user.passwordHash !== "string") throw new Error("Malformed legacy user");
+    const scope = { tenantId: user.tenantId, appId: "" };
+    for (const id of new Set([user.username.trim().toLowerCase(), ...(typeof user.email === "string" && user.email ? [user.email.trim().toLowerCase()] : [])])) {
+      const indexKey = key("identifier", id, scope);
+      const entry = identifiers.get(indexKey) ?? { scope, id, users: new Set<string>() };
+      entry.users.add(user.id); identifiers.set(indexKey, entry);
+    }
+  }
   for (const user of file.users) {
     if (typeof user.id !== "string" || typeof user.tenantId !== "string" || typeof user.username !== "string" || typeof user.passwordHash !== "string") throw new Error("Malformed legacy user");
     tenants.add(user.tenantId);
     const scope = { tenantId: user.tenantId, appId: "" };
-    records.push({ kind: "user", scope, value: { ...user, id: user.id, appId: "", legacyUsernameLogin: !user.email, bootstrapAdmin: Object.values(user.appRoles as Record<string, string[]> ?? {}).some(roles => roles.includes("*")), emailVerified: false, refreshVersion: Number(user.refreshVersion ?? 0) + 1 } });
-    for (const id of new Set([user.username.trim().toLowerCase(), ...(typeof user.email === "string" && user.email ? [user.email.trim().toLowerCase()] : [])])) records.push({ kind: "identifier", scope, value: { id, userId: user.id } });
+    const email = typeof user.email === "string" ? user.email.trim().toLowerCase() : "";
+    const ambiguousEmail = !!email && identifiers.get(key("identifier", email, scope))!.users.size > 1;
+    const value: RecordValue = { ...user, id: user.id, appId: "", legacyUsernameLogin: !email || ambiguousEmail, bootstrapAdmin: Object.values(user.appRoles as Record<string, string[]> ?? {}).some(roles => roles.includes("*")), emailVerified: false, refreshVersion: Number(user.refreshVersion ?? 0) + 1 };
+    if (ambiguousEmail) { value.legacyEmail = user.email; delete value.email; }
+    else if (email) value.email = email;
+    records.push({ kind: "user", scope, value });
+    if (identifiers.get(key("identifier", user.username.trim().toLowerCase(), scope))!.users.size > 1) {
+      records.push({ kind: "legacy-username", scope, value: { id: user.username, userId: user.id } });
+    }
     const roles = user.appRoles as Record<string, string[]> ?? {};
     for (const appId of new Set([...(appIds[user.tenantId] ?? []), ...Object.keys(roles)])) {
       records.push({ kind: "roles", scope: { tenantId: user.tenantId, appId }, value: { id: user.id, roles: roles[appId] ?? [], initialized: true } });
     }
   }
+  for (const entry of identifiers.values()) records.push({ kind: "identifier", scope: entry.scope, value: entry.users.size === 1
+    ? { id: entry.id, userId: [...entry.users][0] }
+    : { id: entry.id, ambiguous: true } });
   for (const tenantId of tenants) records.push({ kind: "tenant", scope: { tenantId, appId: "" }, value: { id: tenantId, isolation: "tenant", lockedAt: Date.now(), bootstrapComplete: true } });
   for (const [id, expiresAt] of Object.entries(file.revokedRefreshTokens ?? {})) records.push({ kind: "legacy-revocation", scope: { tenantId: "", appId: "" }, value: { id, expiresAt } });
   return validateRecords({ version: 2, records });

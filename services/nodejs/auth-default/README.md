@@ -31,6 +31,8 @@ The JSON lock refuses concurrent writers. A demonstrably dead process on the sam
 
 Legacy accounts keep IDs, bcrypt hashes and existing app-role assignments. Their directory remains tenant-scoped and locked, and existing app assignments—including empty assignments—are marked initialized. Bcrypt upgrades to Argon2id after successful password verification. Refresh sessions are invalidated during import; users sign in again. A legacy Simple store above ten users retains login/recovery but cannot create accounts; a store with accounts in multiple tenants requires Advanced.
 
+Legacy identifier collisions never merge accounts or choose an owner by file order. Colliding usernames retain exact, case-sensitive password sign-in; ambiguous normalized identifiers remain reserved and cannot be used for email lookup or new registrations. Conflicting emails are preserved as `legacyEmail` migration metadata and removed from the active email field. These accounts can sign in with their original username and password, subject to MFA, then add and verify a unique email in Account. The original store remains in the migration backup.
+
 Legacy username-only accounts retain password login, subject to MFA policy. Add and verify an email from Account to enable email recovery; migration never invents a verified address. New self-service registrations require verified email.
 
 ## Tenant and app configuration

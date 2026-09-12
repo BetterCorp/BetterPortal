@@ -130,7 +130,13 @@ export class IdentityService {
     });
   }
   async authenticate(scope: Scope, policy: IdentityPolicy, username: string, password: string): Promise<User | undefined> {
-    const before = await this.findUser(scope, policy, username);
+    const before = await this.storage.transaction(scope, async tx => {
+      const dir = await this.directory(tx, scope, policy.isolation);
+      // Only password sign-in accepts exact legacy usernames for ambiguous identifiers.
+      // Email recovery and all other lookups continue to reject ambiguous ownership.
+      const index = await tx.get("legacy-username", username, dir) ?? await tx.get("identifier", normalizeAccountIdentifier(username), dir);
+      return typeof index?.userId === "string" ? tx.get<User>("user", index.userId, dir) : undefined;
+    });
     const verified = await verifyPassword(before?.passwordHash, password);
     if (!before?.enabled || !verified) return undefined;
     const nextHash = before.passwordHash?.startsWith("$2") ? await argon2.hash(password, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 }) : undefined;

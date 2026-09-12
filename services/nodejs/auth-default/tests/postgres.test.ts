@@ -13,7 +13,8 @@ const policy: IdentityPolicy = { isolation: "app", registration: "public", requi
 
 test("PostgreSQL imports once, verifies leftovers, preserves keys, and serializes replica mutations", { skip: !connectionString }, async t => {
   const dir = mkdtempSync(join(tmpdir(), "bp-auth-pg-")); const path = join(dir, "users.json"); const installationId = uuidv7(); const tenantId = uuidv7(); const appId = uuidv7();
-  const old = new UserStore(path); const user = await old.createUser({ username: "legacy", password: "a legacy test password", tenantId, appRoles: { [appId]: ["reader"] } });
+  const old = new UserStore(path); const user = await old.createUser({ username: "legacy", email: "shared@example.com", password: "a legacy test password", tenantId, appRoles: { [appId]: ["reader"] } });
+  const collision = await old.createUser({ username: "Legacy", email: "shared@example.com", password: "another legacy test password", tenantId, appRoles: { [appId]: ["editor"] } });
   writeFileSync(join(dir, "keys.json"), "signing material sentinel");
   const source = readFileSync(path, "utf8");
   const options = { mode: "advanced" as const, path, connectionString, installationId, appIds: { [tenantId]: [appId] } };
@@ -26,12 +27,16 @@ test("PostgreSQL imports once, verifies leftovers, preserves keys, and serialize
   // Simulate a crash after the import committed but before source cleanup.
   writeFileSync(path, source);
   const resumed = await openAuthStorage(options); await resumed.close(); assert.equal(existsSync(path), false);
-  assert.equal((await first.transaction({ tenantId, appId }, tx => tx.list("user"))).length, 1);
+  assert.equal((await first.transaction({ tenantId, appId }, tx => tx.list("user"))).length, 2);
   writeFileSync(path, JSON.stringify({ version: 1, users: [] }));
   await assert.rejects(openAuthStorage(options), /differs from the committed import/);
   assert.ok(existsSync(path));
   await assert.rejects(openAuthStorage({ ...options, mode: "simple" }), /downgrade/);
   const a = new IdentityService(first, new SecretCipher(Buffer.alloc(32, 7))); const b = new IdentityService(second, new SecretCipher(Buffer.alloc(32, 7)));
+  const legacyScope = { tenantId, appId }; const legacyPolicy = { ...policy, isolation: "tenant" as const };
+  assert.equal((await a.authenticate(legacyScope, legacyPolicy, "legacy", "a legacy test password"))?.id, user.id);
+  assert.equal((await b.authenticate(legacyScope, legacyPolicy, "Legacy", "another legacy test password"))?.id, collision.id);
+  assert.equal(await b.findUser(legacyScope, legacyPolicy, "shared@example.com"), undefined);
   const scope = { tenantId: uuidv7(), appId: uuidv7() };
   const creates = await Promise.allSettled([a, b].map(identity => identity.createUser(scope, policy, { username: "unique@example.com", email: "unique@example.com" })));
   assert.equal(creates.filter(r => r.status === "fulfilled").length, 1);

@@ -258,14 +258,9 @@ function s2sConfig(): {
   return { config, tenantId, appId, sourceId, targetId, bindingId };
 }
 
-function assertStoredAuthHeaders(html: string): void {
-  const helper = /const bpHeaders = \(\) => \{[\s\S]*?\n\s*\};/.exec(html)?.[0];
-  assert.ok(helper);
-  const readHeaders = new Function("localStorage", helper + "; return bpHeaders();");
-  for (const name of ["Authorization", "authorization", "AUTHORIZATION"]) {
-    assert.deepEqual(readHeaders({ getItem: () => JSON.stringify({ [name]: { value: "Bearer test" } }) }), { Authorization: "Bearer test" });
-  }
-  assert.deepEqual(readHeaders({ getItem: () => "bad-json" }), {});
+function assertScopedAuthFetch(html: string): void {
+  assert.match(html, /window\.BetterPortalAuth\.fetch/);
+  assert.doesNotMatch(html, /localStorage\.getItem/);
 }
 
 test("Postgres config reads reuse an isolated validated snapshot until invalidated", async () => {
@@ -1745,7 +1740,7 @@ test("service config editor transfers scoped values and defaults the first app",
   });
 
   assert.match(html, /data-bp-config-export/);
-  assertStoredAuthHeaders(html);
+  assertScopedAuthFetch(html);
   assert.match(html, /data-bp-config-import/);
   assert.match(html, /betterportal\.service-config/);
   assert.match(html, /apps\[0\]\?\.id/);
@@ -2240,7 +2235,7 @@ test("preview environment editor keeps config crypto in the browser", () => {
   assert.doesNotMatch(page, /BP_PREVIEW_CONFIG_KEY/);
   assert.doesNotMatch(page, /crypto\.subtle\.encrypt/);
   assert.match(html, /BP_PREVIEW_CONFIG_KEY/);
-  assertStoredAuthHeaders(html);
+  assertScopedAuthFetch(html);
   assert.doesNotMatch(html, /Service plugin IDs/);
   assert.match(html, /crypto\.subtle\.encrypt/);
   assert.match(html, /Sync from prod/);

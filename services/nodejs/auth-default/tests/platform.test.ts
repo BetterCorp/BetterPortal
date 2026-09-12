@@ -300,6 +300,45 @@ test("legacy migration preserves bcrypt credentials and roles while locking tena
   assert.equal(JSON.parse(readFileSync(path, "utf8")).version, 2); assert.ok(existsSync(`${path}.v1.backup`));
 });
 
+test("legacy collisions preserve exact password logins and reserve ambiguous emails without merging accounts", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-legacy-collisions-")); const path = join(dir, "users.json");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const old = new UserStore(path); const scope = { tenantId: uuidv7(), appId: uuidv7() };
+  const inputs = [
+    { username: "Alice", email: "Shared@Example.COM", password: "Alice legacy password", roles: ["editor"] },
+    { username: "alice", email: "shared@example.com", password: "alice legacy password", roles: ["reader"] },
+    { username: " alice ", email: "unique@example.com", password: "padded legacy password", roles: [] },
+    { username: "shared@example.com", password: "email username password", roles: [] }
+  ];
+  const users = [];
+  for (const input of inputs) users.push(await old.createUser({ ...input, tenantId: scope.tenantId, appRoles: { [scope.appId]: input.roles } }));
+  const original = readFileSync(path, "utf8");
+  const options = { mode: "simple" as const, path, installationId: "test", appIds: { [scope.tenantId]: [scope.appId] } };
+  let storage = await openAuthStorage(options); t.after(() => storage.close());
+  let identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  const legacyPolicy = { ...policy, isolation: "tenant" as const };
+  for (const [i, input] of inputs.entries()) {
+    const user = await identity.authenticate(scope, legacyPolicy, input.username, input.password);
+    assert.equal(user?.id, users[i].id);
+    assert.deepEqual(await storage.transaction(scope, tx => identity.roles(tx, scope, user!, legacyPolicy)), input.roles);
+  }
+  assert.equal(await identity.authenticate(scope, legacyPolicy, "Alice", inputs[1].password), undefined);
+  assert.equal(await identity.authenticate(scope, legacyPolicy, "ALICE", inputs[0].password), undefined);
+  assert.equal(await identity.findUser(scope, legacyPolicy, "shared@example.com"), undefined);
+  assert.equal((await identity.findUser(scope, legacyPolicy, "unique@example.com"))?.id, users[2].id);
+  const alice = (await identity.findUser(scope, legacyPolicy, users[0].id, true))!;
+  assert.equal(alice.email, undefined); assert.equal(alice.legacyEmail, inputs[0].email); assert.equal(alice.legacyUsernameLogin, true);
+  await assert.rejects(identity.createUser(scope, legacyPolicy, { username: "shared@example.com" }), /cannot be registered/);
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const login = await handlePost({ tenant: { id: scope.tenantId }, app: { id: scope.appId }, request: { username: "Alice", password: inputs[0].password }, query: {}, rawEvent: { req: new Request("https://auth.test/login") },
+    plugin: { runtime: { identity, tokenIssuer: issuer, refreshTokenSeconds: 3600, factors: new Factors(identity), isManagement: () => false, policy: async () => legacyPolicy } } } as never);
+  assert.equal(login.status, "ok"); assert.equal((await issuer.verifier().verify(login.accessToken!, scope)).sub, users[0].id);
+  assert.deepEqual(JSON.parse(readFileSync(path + ".v1.backup", "utf8")), JSON.parse(original));
+  await storage.close(); storage = await openAuthStorage(options); identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  assert.equal((await identity.authenticate(scope, legacyPolicy, "alice", inputs[1].password))?.id, users[1].id);
+  assert.equal((await storage.transaction(scope, tx => tx.list("user"))).length, inputs.length);
+});
+
 test("Advanced markers prevent silent downgrade, even when no active JSON file remains", async t => {
   const dir = mkdtempSync(join(tmpdir(), "bp-downgrade-")); const path = join(dir, "users.json"); t.after(() => rmSync(dir, { recursive: true, force: true }));
   writeFileSync(`${path}.mode.json`, JSON.stringify({ mode: "advanced", state: "migrating" }));
