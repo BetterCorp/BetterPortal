@@ -13,6 +13,9 @@ export interface AuthTransaction {
   get<T extends RecordValue>(kind: string, id: string, scope: Scope): Promise<T | undefined>;
   list<T extends RecordValue>(kind: string, scope?: Scope): Promise<T[]>;
   page<T extends RecordValue>(kind: string, scope: Scope, options?: PageOptions): Promise<T[]>;
+  pruneSessions(scope: Scope, now: number): Promise<void>;
+  activeSessions<T extends RecordValue>(scope: Scope, userId: string, now: number, options?: PageOptions): Promise<T[]>;
+  failedMail<T extends RecordValue>(scope: Scope, options?: PageOptions): Promise<T[]>;
   dueMail<T extends RecordValue>(now: number, limit: number): Promise<T[]>;
   put(kind: string, scope: Scope, value: RecordValue): Promise<void>;
   remove(kind: string, id: string, scope: Scope): Promise<void>;
@@ -114,14 +117,22 @@ export class JsonAuthStorage implements AuthStorage {
       if (this.closed) throw new Error("Auth store is closed");
       const draft = structuredClone(this.data);
       let dirty = false;
+      const filteredPage = <R extends RecordValue>(kind: string, scope: Scope, predicate: (value: RecordValue) => boolean, options: PageOptions = {}): R[] => structuredClone(draft.records
+        .filter(row => row.kind === kind && sameScope(row.scope, scope) && predicate(row.value)).map(row => row.value as R)
+        .filter(row => !options.after || (options.descending ? row.id < options.after : row.id > options.after))
+        .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) * (options.descending ? -1 : 1)).slice(0, Math.max(1, Math.min(501, options.limit ?? 100))));
       const result = await work({
+        pruneSessions: async (scope, now) => {
+          const retained = draft.records.filter(row => row.kind !== "session" || !sameScope(row.scope, scope) || (row.value.revoked !== true && Number(row.value.expiresAt) > now));
+          if (retained.length !== draft.records.length) { draft.records = retained; dirty = true; }
+        },
+        activeSessions: async <R extends RecordValue>(scope: Scope, userId: string, now: number, options?: PageOptions) => filteredPage<R>("session", scope, value => value.userId === userId && value.revoked === false && Number(value.expiresAt) > now, options),
+        failedMail: async <R extends RecordValue>(scope: Scope, options?: PageOptions) => filteredPage<R>("mail", scope, value => value.state === "failed", options),
         get: async <R extends RecordValue>(kind: string, id: string, scope: Scope) => structuredClone(draft.records.find(row => key(row.kind, row.value.id, row.scope) === key(kind, id, scope))?.value as R | undefined),
         list: async <R extends RecordValue>(kind: string, scope?: Scope) => structuredClone(draft.records.filter(row => row.kind === kind && (!scope || sameScope(row.scope, scope))).map(row => row.value as R)),
         dueMail: async <R extends RecordValue>(now: number, limit: number) => structuredClone(draft.records.filter(row => row.kind === "mail" && ["pending", "sending"].includes(String(row.value.state)) && Number(row.value.nextAttempt) <= now)
           .sort((a, b) => Number(a.value.nextAttempt) - Number(b.value.nextAttempt) || a.value.id.localeCompare(b.value.id)).slice(0, Math.max(1, Math.min(100, limit))).map(row => row.value as R)),
-        page: async <R extends RecordValue>(kind: string, scope: Scope, options: PageOptions = {}) => structuredClone(draft.records.filter(row => row.kind === kind && sameScope(row.scope, scope)).map(row => row.value as R)
-          .filter(row => !options.after || (options.descending ? row.id < options.after : row.id > options.after))
-          .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) * (options.descending ? -1 : 1)).slice(0, Math.max(1, Math.min(501, options.limit ?? 100)))),
+        page: async <R extends RecordValue>(kind: string, scope: Scope, options?: PageOptions) => filteredPage<R>(kind, scope, () => true, options),
         put: async (kind, scope, value) => {
           const i = draft.records.findIndex(row => key(row.kind, row.value.id, row.scope) === key(kind, value.id, scope));
           const row = structuredClone({ kind, scope, value });
@@ -141,7 +152,21 @@ export class JsonAuthStorage implements AuthStorage {
 }
 
 function pgTransaction(client: PoolClient, installationId: string): AuthTransaction {
+  const filteredPage = async <T extends RecordValue>(scope: Scope, predicate: string, parameters: unknown[], options: PageOptions = {}): Promise<T[]> => {
+    const comparison = options.descending ? "<" : ">"; const order = options.descending ? "DESC" : "ASC";
+    const values = [installationId, scope.tenantId, scope.appId, ...parameters];
+    values.push(options.after || null, Math.max(1, Math.min(501, options.limit ?? 100)));
+    const cursor = values.length - 1;
+    const result = await client.query(`SELECT value FROM bp_auth_records WHERE installation=$1 AND tenant=$2 AND app=$3 AND ${predicate} AND ($${cursor}::text IS NULL OR id ${comparison} $${cursor}) ORDER BY id ${order} LIMIT $${values.length}`, values);
+    return result.rows.map(row => row.value as T);
+  };
   return {
+    pruneSessions: async (scope, now) => {
+      await client.query("DELETE FROM bp_auth_records WHERE installation=$1 AND tenant=$2 AND app=$3 AND kind='session' AND (value->>'expiresAt')::bigint <= $4", [installationId, scope.tenantId, scope.appId, now]);
+      await client.query("DELETE FROM bp_auth_records WHERE installation=$1 AND tenant=$2 AND app=$3 AND kind='session' AND value->>'revoked'='true'", [installationId, scope.tenantId, scope.appId]);
+    },
+    activeSessions: <T extends RecordValue>(scope: Scope, userId: string, now: number, options?: PageOptions) => filteredPage<T>(scope, "kind='session' AND value->>'userId'=$4 AND value->>'revoked'='false' AND (value->>'expiresAt')::bigint > $5", [userId, now], options),
+    failedMail: <T extends RecordValue>(scope: Scope, options?: PageOptions) => filteredPage<T>(scope, "kind='mail' AND value->>'state'='failed'", [], options),
     get: async <T extends RecordValue>(kind: string, id: string, scope: Scope) => {
       const r = await client.query("SELECT value FROM bp_auth_records WHERE installation=$1 AND tenant=$2 AND app=$3 AND kind=$4 AND id=$5", [installationId, scope.tenantId, scope.appId, kind, id]);
       return r.rows[0]?.value as T | undefined;
@@ -186,6 +211,10 @@ export class PostgresAuthStorage implements AuthStorage {
         PRIMARY KEY(installation,tenant,app,kind,id))`);
       await client.query("CREATE INDEX IF NOT EXISTS bp_auth_record_kind ON bp_auth_records(installation,kind,tenant,app)");
       await client.query("CREATE INDEX IF NOT EXISTS bp_auth_mail_due ON bp_auth_records(installation,((value->>'nextAttempt')::bigint),id) WHERE kind='mail' AND value->>'state' IN ('pending','sending')");
+      await client.query("CREATE INDEX IF NOT EXISTS bp_auth_session_expiry ON bp_auth_records(installation,tenant,app,((value->>'expiresAt')::bigint)) WHERE kind='session'");
+      await client.query("CREATE INDEX IF NOT EXISTS bp_auth_session_revoked ON bp_auth_records(installation,tenant,app,id) WHERE kind='session' AND value->>'revoked'='true'");
+      await client.query("CREATE INDEX IF NOT EXISTS bp_auth_session_user ON bp_auth_records(installation,tenant,app,(value->>'userId'),id) WHERE kind='session' AND value->>'revoked'='false'");
+      await client.query("CREATE INDEX IF NOT EXISTS bp_auth_mail_failed ON bp_auth_records(installation,tenant,app,id) WHERE kind='mail' AND value->>'state'='failed'");
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }

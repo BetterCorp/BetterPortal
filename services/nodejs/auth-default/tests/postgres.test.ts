@@ -96,6 +96,8 @@ test("PostgreSQL imports once, verifies leftovers, preserves keys, and serialize
   const due = await second.transaction(scope, tx => tx.dueMail(1000, 100));
   assert.equal(due.length, 100);
   assert.deepEqual(due.map(row => row.id), Array.from({ length: 100 }, (_, i) => `due-${String(i).padStart(3, "0")}`));
+  const { checkSessionAndMailPages } = await import("./storageCases.js");
+  await checkSessionAndMailPages(first, { tenantId: uuidv7(), appId: uuidv7() });
   const inspection = new Pool({ connectionString });
   try {
     const client = await inspection.connect();

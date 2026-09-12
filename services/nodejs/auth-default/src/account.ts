@@ -23,10 +23,16 @@ export async function accountGet(ctx: Context): Promise<JsonObject> {
   if (!ctx.user) return { status: "ok", accountUrl, registration: policy.registration, signedIn: false };
   const user = await runtime.identity.findUser(scope, policy, ctx.user.sub, true);
   if (!user?.enabled) throw new AuthError("Sign in again.", 401);
-  const sessions = await runtime.identity.storage.transaction(scope, async tx => (await tx.list<Session>("session", scope)).filter(s => s.userId === user.id && !s.revoked && s.expiresAt > Date.now()).map(s => ({ id: s.id, createdAt: s.createdAt, expiresAt: s.expiresAt })));
+  const sessionPage = await runtime.identity.storage.transaction(scope, async tx => {
+    const now = Date.now();
+    await tx.pruneSessions(scope, now);
+    return tx.activeSessions<Session>(scope, user.id, now, { after: typeof ctx.query?.sessionAfter === "string" ? ctx.query.sessionAfter : undefined, limit: 101 });
+  });
+  const sessions = sessionPage.slice(0, 100).map(s => ({ id: s.id, createdAt: s.createdAt, expiresAt: s.expiresAt }));
+  const sessionNextUrl = sessionPage.length > 100 ? ctx.routeUrl?.("account.index", { absolute: true, query: { sessionAfter: sessions.at(-1)!.id } }) ?? "" : "";
   const passkeys = await runtime.identity.storage.transaction(scope, async tx => (await tx.list("passkey", user)).filter(p => p.userId === user.id).map(p => ({ id: p.id, name: String(p.name), rpId: String(p.rpId) })));
   const linkedIdentities = await runtime.identity.storage.transaction(scope, async tx => (await tx.list("external", user)).filter(p => p.userId === user.id).map(p => ({ id: p.id, provider: String(p.provider) })));
-  return { status: "ok", passkeys, linkedIdentities, accountUrl, socialUrl: ctx.routeUrl?.("social.index", { absolute: true }) ?? "/social", registration: policy.registration, signedIn: true, user: publicUser(user), sessions };
+  return { status: "ok", passkeys, linkedIdentities, accountUrl, socialUrl: ctx.routeUrl?.("social.index", { absolute: true }) ?? "/social", registration: policy.registration, signedIn: true, user: publicUser(user), sessions, sessionNextUrl };
 }
 export async function accountPost(ctx: Context): Promise<JsonObject> {
   const runtime = ctx.plugin.runtime; const identity = runtime.identity;

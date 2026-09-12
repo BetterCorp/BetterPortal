@@ -77,6 +77,7 @@ export function renderAccount(data: Record<string, any>): HtmlRenderable {
       {form("factor.start", "Add an authentication factor")}
       {data.user?.totp ? form("factor.remove", "Remove authenticator", <input type="hidden" name="method" value="totp" />) : null}
       {(data.passkeys ?? []).map((key: any) => form("factor.remove", "Remove passkey", <><p>{key.name} · {key.rpId}</p><input type="hidden" name="method" value="passkey" /><input type="hidden" name="id" value={key.id} /></>))}
+      {data.sessionNextUrl ? <a href={data.sessionNextUrl} hx-get={data.sessionNextUrl} hx-target="#bp-main">More active sessions</a> : null}
       <h3>Active sessions in this app</h3>{(data.sessions ?? []).map((session: any) => form("session.revoke", "Revoke session", <><p>{new Date(session.createdAt).toISOString()}</p><input type="hidden" name="id" value={session.id} /></>))}
     </> : <>
       {data.registration === "public" ? form("signup", "Create account", <>{field("email", "Email", "email")}{field("name", "Display name")}{field("password", "Password (at least 12 characters)", "password")}</>) : null}

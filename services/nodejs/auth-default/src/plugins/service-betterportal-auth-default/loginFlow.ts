@@ -149,7 +149,7 @@ export const handlePost = createHandler(
     const scope = { tenantId, appId };
     const policy = await runtime.policy(scope);
     try {
-    await runtime.identity.rateLimit(scope, "login-peer", getEventPeerIp(ctx.rawEvent as BetterPortalEvent) ?? "unknown", 100, 600);
+    await runtime.identity.rateLimit(scope, "login-peer", runtime.clientAddress?.(ctx.rawEvent as BetterPortalEvent) ?? getEventPeerIp(ctx.rawEvent as BetterPortalEvent) ?? "unknown", 100, 600);
     const directoryScope = { tenantId, appId: policy.isolation === "tenant" ? "" : appId };
     await runtime.identity.rateLimit(directoryScope, "login", normalizeAccountIdentifier(body.username));
     const user = await runtime.identity.authenticate(scope, policy, body.username, body.password);

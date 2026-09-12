@@ -570,3 +570,34 @@ test("app administrators cannot mutate shared tenant accounts; direct roles stay
   assert.equal((await manage(ctx as never)).status, "ok");
   assert.equal((await identity.findUser(scope, shared, target.id, true))?.enabled, false);
 });
+
+test("session cleanup and bounded account/mail pages preserve app and tenant isolation", async t => {
+  const { storage, scope } = fixture(t);
+  const { checkSessionAndMailPages } = await import("./storageCases.js");
+  await checkSessionAndMailPages(storage, scope);
+});
+
+test("login rate limits use trusted client addresses and reject spoofed proxy chains", async t => {
+  const { clientAddress } = await import("../src/clientAddress.js");
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const trust = { trustedProxyHeaders: true, trustedProxyIps: ["10.0.0.1", "10.0.0.2"] };
+  const event = (ip: string, headers: Record<string, string>) => ({ req: Object.assign(new Request("https://auth.test/login", { headers }), { ip }) });
+  assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": "192.0.2.1, 10.0.0.2" }) as never, trust), "192.0.2.1");
+  assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": "192.0.2.99, 192.0.2.1" }) as never, trust), "192.0.2.1");
+  for (const header of ["bad", "192.0.2.1, bad", "192.0.2.1," , "1".repeat(5000)]) assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": header }) as never, trust), "10.0.0.1");
+  assert.equal(clientAddress(event("192.0.2.5", { "x-forwarded-for": "192.0.2.1", "cf-connecting-ip": "192.0.2.2" }) as never, { ...trust, cfProxy: true }), "192.0.2.5");
+  assert.equal(clientAddress(event("10.0.0.1", { "cf-connecting-ip": "192.0.2.2" }) as never, { ...trust, cfProxy: true }), "192.0.2.2");
+  assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": "192.0.2.1" }) as never, { ...trust, trustedProxyHeaders: false }), "10.0.0.1");
+  assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": "2001:0db8::1" }) as never, trust), "2001:db8::1");
+  const { identity, scope } = fixture(t);
+  t.mock.method(identity, "authenticate", async () => undefined);
+  const attempt = async (ip: string, forwarded: string, username: string) => {
+    let status = 0;
+    await handlePost({ tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: event(ip, { "x-forwarded-for": forwarded }), request: { username, password: "incorrect" },
+      plugin: { runtime: { identity, policy: async () => policy, clientAddress: (e: any) => clientAddress(e, trust) } }, setStatus: (value: number) => { status = value; } } as never);
+    return status;
+  };
+  for (let i = 0; i < 101; i++) assert.equal(await attempt("10.0.0.1", `192.0.2.${i + 1}`, `distributed-${i}`), 401);
+  for (let i = 0; i < 100; i++) assert.equal(await attempt("10.0.0.1", `198.51.100.${i + 1}, 192.0.2.1`, `same-client-${i}`), i < 99 ? 401 : 429);
+  for (let i = 0; i < 101; i++) assert.equal(await attempt("192.0.2.200", `198.51.100.${i + 1}`, `untrusted-${i}`), i < 100 ? 401 : 429);
+});

@@ -174,6 +174,7 @@ export class IdentityService {
       const dir = await this.directory(tx, scope, policy.isolation);
       const current = await tx.get<User>("user", user.id, dir);
       if (!current?.enabled || current.refreshVersion !== user.refreshVersion) throw new AuthError("Account changed; sign in again.", 401);
+      await tx.pruneSessions(scope, Date.now());
       const id = uuidv7();
       const roles = await this.roles(tx, scope, current, policy, true);
       const issued = issuer.issueTokenPair({ sub: user.id, ...scope, roles, sessionId: id, sessionVersion: user.refreshVersion, name: current.name ?? current.username, email: current.email, picture: current.picture, authProvider: "betterportal.default", refreshContext: { sessionId: id, version: user.refreshVersion } });

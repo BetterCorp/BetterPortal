@@ -77,6 +77,10 @@ Passwords created/reset now use Argon2id, a minimum of 12 characters and a maxim
 
 For tenant-shared accounts, passkeys only work on their registered hostname. Keep an authenticator or recovery codes available for other app hostnames. If neither is available, sign in on the passkey's original app and add an authenticator in Account before retrying the other app. Login and elevation return recovery instructions instead of an empty challenge; they never bypass existing MFA or authorize replacement enrollment using only a password.
 
+Expired and revoked sessions are pruned within their app during session issuance and account-page reads. The account page queries only the signed-in user’s active sessions and shows 100 per page.
+
+Login throttling applies both an account budget and a 100-attempt/10-minute client-address budget. Behind a reverse proxy, configure `betterportal.trustedProxyIps` with the immediate proxy addresses and enable `trustedProxyHeaders` for `X-Forwarded-For` (or `cfProxy` for Cloudflare’s `CF-Connecting-IP`). The proxy must overwrite or append the actual connecting client address. Forwarded chains are traversed from the socket peer toward the first untrusted address; spoofed addresses beyond that hop are ignored. Untrusted peers, missing headers and malformed chains fall back to the socket address. With no proxy trust configured, clients behind one proxy share that socket-address budget.
+
 The refresh token rotates on every refresh. Replay revokes its family; logout, account disable, password changes and factor changes revoke the applicable sessions. Browser refreshes use the Web Locks API to coordinate tabs where available. Already-issued access tokens at other services remain bounded by their normal expiry; immediate distributed access-token revocation is not promised.
 
 ### Email delivery
@@ -85,7 +89,7 @@ Postal sends JSON to `<mailUrl>/api/v1/send/message`, with `X-Server-API-Key` an
 
 Custom HTTP delivery POSTs `{from,to,subject,text,html}` to `mailUrl` using the configured server-side headers; any 2xx response succeeds. HTTPS is required, with a localhost exception for development. Redirects are rejected. There is no SMTP transport.
 
-Mail jobs commit with their corresponding identity/challenge mutations and encrypt their sensitive payloads. A leased worker retries failures up to five times with backoff. PostgreSQL selects at most 100 due pending/expired-lease jobs using a partial index, excluding delivery history. Delivery revalidates the current configured URL before decrypting or sending a queued message. Simple limits outstanding/failed jobs to 500 per app and retains the latest 100 successful delivery records. `/users` shows failed delivery IDs and supports retry, without exposing keys or reset links. Provider response bodies and credentials are not logged. Delivery is at least once: a crash after delivery but before acknowledgement can resend the same one-use link.
+Mail jobs commit with their corresponding identity/challenge mutations and encrypt their sensitive payloads. A leased worker retries failures up to five times with backoff. PostgreSQL selects at most 100 due pending/expired-lease jobs using a partial index, excluding delivery history. Delivery revalidates the current configured URL before decrypting or sending a queued message. Simple limits outstanding/failed jobs to 500 per app and retains the latest 100 successful delivery records. `/users` queries failed deliveries through a partial index and shows 100 per page with cursor navigation and retry, without exposing keys or reset links. Provider response bodies and credentials are not logged. Delivery is at least once: a crash after delivery but before acknowledgement can resend the same one-use link.
 
 ### Social connections
 

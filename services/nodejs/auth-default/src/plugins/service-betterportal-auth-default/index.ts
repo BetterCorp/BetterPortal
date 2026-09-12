@@ -30,6 +30,7 @@ import { atomicWrite, openAuthStorage, type Scope } from "../../storage.js";
 import { AuthError, IdentityService, SecretCipher, equalSecret, type IdentityPolicy, type User } from "../../identity.js";
 import { Factors } from "../../factors.js";
 import { MailQueue, parseMailHeaders, validateMailUrl, type MailConfig } from "../../mail.js";
+import { clientAddress } from "../../clientAddress.js";
 import { AuthConfigSchemas } from "../../config.js";
 import { parseSocialConnections } from "../../social.js";
 
@@ -71,6 +72,7 @@ const EventSchemas = createEventSchemas({
 });
 
 export interface AuthRuntime {
+  readonly clientAddress?: (event: BetterPortalEvent) => string | undefined;
   readonly tokenIssuer: BpTokenIssuer;
   readonly identity: IdentityService;
   readonly factors: Factors;
@@ -157,6 +159,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   get runtime(): AuthRuntime {
     return {
+      clientAddress: event => clientAddress(event, this.bp),
       tokenIssuer: this.tokenIssuer(),
       identity: this.identity,
       factors: this.factors,
