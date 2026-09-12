@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import * as av from "anyvali";
 import { createH3Router, type H3RouterObservabilityOptions } from "../src/adapters/h3.js";
 import type { JwtClaims } from "../src/contracts/auth.js";
+import { createNoopObservability } from "../src/contracts/observability.js";
 import type { BetterPortalRegistry, RegisteredRoute } from "../src/contracts/registry.js";
 import { createHandler, createRawHandler } from "../src/runtime/handler.js";
 import type { RouteHandler } from "../src/contracts/route.js";
@@ -844,4 +845,99 @@ test("elevation is enforced before effects; root and conditional handlers cannot
     for (const path of ["/secure", "/conditional"]) assert.equal((await fetch(baseUrl + path, { headers: { Authorization: "Bearer valid", Accept: "application/json" } })).status, 200);
     assert.equal(effects, 2);
   }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, managementScope: { tenantId: tenant.id, appId: app.id } }) } });
+});
+
+test("renderer service URLs encode queries and route tokens require a whole supported attribute", async () => {
+  const warnings: string[] = [];
+  const observability = createNoopObservability();
+  observability.logger.warn = message => { warnings.push(message); };
+  observability.startSpan = () => observability;
+  const serviceId = uuidv7();
+  const app = {
+    id: uuidv7(), tenantId: tenant.id, slug: "navigation", title: "Navigation",
+    hostnames: ["app.local"], originOverrides: [], refererOverrides: [],
+    shell: { serviceId, service: "test", renderer: "bootstrap5" },
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/archive/call", menu: [], slots: [], fragments: {},
+    routes: [{ id: uuidv7(), kind: "page", path: "/archive/call", serviceId,
+      viewId: "archive.call", resolvedServicePath: "/call", enabled: true,
+      operations: ["archive.call"], resolvedMethods: ["GET"] }]
+  } as BetterPortalApp;
+  const pageRoute = {
+    ...route("/call", "archive.call"),
+    renderers: {
+      bootstrap5: {
+        pages: [{
+          rendererId: "default", type: "page" as const, method: "GET" as const,
+          render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
+            assert.equal(ctx.url.route("archive.call", { query: { id: "call 42&x" } }), "/call?id=call+42%26x");
+            assert.equal(ctx.url.uiRoute("archive.call", { query: { id: "call 42&x" } }), "/archive/call?id=call+42%26x");
+            assert.equal(ctx.url.route("missing.page"), null);
+            return `<a href="{archive.call}">Call</a><form action='{archive.call}'></form>`
+              + ["get", "post", "put", "patch", "delete", "download"].map(method => `<button hx-${method}="{archive.call}"></button>`).join("")
+              + '<a href="{archive.call}?id=123">Invalid query</a><a href="{missing.page}">Missing</a>'
+              + '<a data-href="{archive.call}" title="{archive.call}">Unsupported</a>';
+          }
+        }],
+        components: [], fragments: []
+      }
+    }
+  } satisfies RegisteredRoute;
+  await withServer(app, { routes: [pageRoute] }, async baseUrl => {
+    const response = await fetch(`${baseUrl}/call`, { headers: { accept: "text/html" } });
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    assert.match(body, /href="\/call"/);
+    assert.match(body, /action='\/call'/);
+    for (const method of ["get", "post", "put", "patch", "delete", "download"]) {
+      assert.ok(body.includes(`hx-${method}="/call"`));
+    }
+    assert.ok(body.includes('href="{archive.call}?id=123"'));
+    assert.ok(body.includes('href="{missing.page}"'));
+    assert.ok(body.includes('data-href="{archive.call}" title="{archive.call}"'));
+    assert.ok(warnings.some(message => message.includes("must occupy the whole attribute")));
+    assert.ok(warnings.some(message => message.includes("BP route token unresolved")));
+    assert.ok(warnings.every(message => !message.includes("id=123")));
+  }, { serviceId, router: { createRequestObservability: () => observability } });
+});
+
+test("renderer app URLs resolve parameterized mounts and reject missing or ambiguous mounts", async () => {
+  const serviceId = uuidv7();
+  for (const paths of [[], ["/archive/call/:id"], ["/archive/call/:id", "/alternate/call/:id"]]) {
+    const app = {
+      id: uuidv7(), tenantId: tenant.id, slug: "navigation", title: "Navigation",
+      hostnames: ["app.local"], originOverrides: [], refererOverrides: [],
+      shell: { serviceId, service: "test", renderer: "bootstrap5" },
+      themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+      defaultRoute: "/source", menu: [], slots: [], fragments: {},
+      routes: [{ id: uuidv7(), kind: "page", path: "/source", serviceId,
+        viewId: "source", resolvedServicePath: "/source", enabled: true,
+        operations: ["source"], resolvedMethods: ["GET"] },
+      ...paths.map(path => ({ id: uuidv7(), kind: "page", path, serviceId,
+        viewId: "archive.call", resolvedServicePath: "/call/:id", enabled: true,
+        operations: ["archive.call"], resolvedMethods: ["GET"] }))]
+    } as BetterPortalApp;
+    const source = {
+      ...route("/source", "source"),
+      renderers: { bootstrap5: {
+        pages: [{ rendererId: "default", type: "page" as const, method: "GET" as const,
+          render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
+            const options = { params: { id: "call 42" }, query: { tab: "recording" } };
+            return JSON.stringify({ service: ctx.url.route("archive.call", options),
+              app: ctx.url.uiRoute("archive.call", options),
+              missingParams: ctx.url.uiRoute("archive.call") });
+          }
+        }], components: [], fragments: []
+      } }
+    } satisfies RegisteredRoute;
+    await withServer(app, { routes: [source, route("/call/:id", "archive.call")] }, async baseUrl => {
+      const response = await fetch(`${baseUrl}/source`, { headers: { accept: "text/html" } });
+      assert.equal(response.status, 200);
+      assert.deepEqual(JSON.parse(await response.text()), {
+        service: "/call/call%2042?tab=recording",
+        app: paths.length === 1 ? "/archive/call/call%2042?tab=recording" : null,
+        missingParams: null
+      }, `mounts: ${paths.join(", ") || "none"}`);
+    }, { serviceId });
+  }
 });

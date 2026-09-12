@@ -163,7 +163,8 @@ test("drop freshness honors zero TTL and caps long-lived metadata at one day", (
     const drop = renderThemeLlmsDrop({ ...context, services: [], management: {}, catalogUrl: undefined, apiGuideUrl: undefined }, schema, now);
     assert.ok(drop.includes(`Expires at: ${expiry}`));
     assert.match(drop, /Theme route schemas/);
-    assert.doesNotMatch(drop, /undefined|https:\/\/orders\.example\.com/);
+    // Code examples may use undefined; optional metadata and links must not.
+    assert.doesNotMatch(drop, /: undefined\b|\]\(undefined|https:\/\/orders\.example\.com/);
   }
 });
 

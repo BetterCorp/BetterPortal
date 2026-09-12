@@ -928,8 +928,12 @@ function rewriteServiceRouteTokens(
 ): string {
   let rewritten = html;
   for (const attr of BP_ROUTE_TOKEN_ATTRS) {
-    const attrRe = new RegExp(`\\b${attr}=(["'])\\{([A-Za-z0-9_$.-]+)\\}\\1`, "g");
-    rewritten = rewritten.replace(attrRe, (match, quote: string, viewId: string) => {
+    const attrRe = new RegExp(`(?<![\\w:-])${attr}=(["'])\\{([A-Za-z0-9_$.-]+)\\}([^"']*)\\1`, "g");
+    rewritten = rewritten.replace(attrRe, (match, quote: string, viewId: string, suffix: string) => {
+      if (suffix) {
+        obs?.logger.warn("BP route token must occupy the whole attribute: attr={attr} viewId={viewId}; use the renderer URL helper for params/query", { attr, viewId });
+        return match;
+      }
       const resolved = routeUrl?.(viewId);
       if (!resolved) {
         obs?.logger.warn("BP route token unresolved: attr={attr} viewId={viewId}", { attr, viewId });
