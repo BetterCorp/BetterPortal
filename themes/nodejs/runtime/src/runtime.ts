@@ -1415,11 +1415,12 @@ export function betterPortalShellRuntimeSource(): string {
         return "";
       };
 
+      const pendingLoginForms = new WeakSet<HTMLFormElement>();
       (window as any).bpLoginSubmit = async (event: SubmitEvent) => {
         event.preventDefault();
         event.stopImmediatePropagation();
         const form = event.currentTarget as HTMLFormElement | null;
-        if (!form) return false;
+        if (!form || pendingLoginForms.has(form)) return false;
         const errEl = document.getElementById("bp-login-error");
         if (errEl) errEl.classList.add("d-none");
         const fd = new FormData(form);
@@ -1435,15 +1436,38 @@ export function betterPortalShellRuntimeSource(): string {
           "Content-Type": "application/x-www-form-urlencoded"
         };
         attachBpHeaders(headers, action, context.id);
+        pendingLoginForms.add(form);
         try {
-          const response = await fetch(action, {
+          let responseUrl = action;
+          let response = await fetch(action, {
             method: "POST",
             mode: "cors",
             credentials: "include",
             headers,
             body: new URLSearchParams(fd as any)
           });
-          applyBpHeaderDirectives(response, action);
+          let body: any = await response.json().catch(() => null);
+          if (!response.ok || body?.status !== "ok") throw new Error(body?.message || "Login failed (HTTP " + response.status + ")");
+          if (!form.isConnected) return false;
+          if (body.challenge) {
+            const challenge = body.challenge;
+            const endpoint = typeof body.accountUrl === "string" ? new URL(body.accountUrl, action) : null;
+            if (!endpoint || endpoint.origin !== new URL(action).origin || serviceIdForUrl(endpoint.href) !== context.id) throw new Error("The auth service returned an invalid verification endpoint.");
+            const proof = await factorDialog({ ...challenge, purpose: "login" });
+            if (!proof) throw new Error("Sign-in verification cancelled.");
+            if (!form.isConnected) return false;
+            responseUrl = endpoint.href;
+            const completionHeaders: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+            attachBpHeaders(completionHeaders, responseUrl, context.id);
+            response = await fetch(responseUrl, {
+              method: "POST", mode: "cors", credentials: "include", redirect: "error", headers: completionHeaders,
+              body: JSON.stringify({ action: "login.complete", id: challenge.id, secret: challenge.secret, next: String(fd.get("next") || ""), ...proof })
+            });
+            body = await response.json().catch(() => null);
+            if (!response.ok || body?.status !== "ok" || body.challenge) throw new Error(body?.message || "Sign-in verification failed. Try signing in again.");
+          }
+          if (!form.isConnected) return false;
+          applyBpHeaderDirectives(response, responseUrl);
           const hxTrigger = response.headers.get("HX-Trigger");
           if (hxTrigger) {
             try {
@@ -1455,22 +1479,14 @@ export function betterPortalShellRuntimeSource(): string {
               }
             }
           }
-          let body: any = null;
-          try { body = await response.json(); } catch { /* non-JSON */ }
-          if (!response.ok || !body || body.status !== "ok") {
-            if (errEl) {
-              errEl.textContent = (body && body.message) || ("Login failed (HTTP " + response.status + ")");
-              errEl.classList.remove("d-none");
-            }
-            return false;
-          }
-          triggerShellLink(String(fd.get("next") || "/"), undefined, true);
-        } catch {
+          if (Array.isArray(body.recoveryCodes) && body.recoveryCodes.length) await showLoginRecoveryCodes(body.recoveryCodes);
+          if (form.isConnected) triggerShellLink(String(fd.get("next") || "/"), undefined, true);
+        } catch (error) {
           if (errEl) {
-            errEl.textContent = "Login failed. Service unavailable.";
+            errEl.textContent = error instanceof Error ? error.message : "Login failed. Service unavailable.";
             errEl.classList.remove("d-none");
           }
-        }
+        } finally { pendingLoginForms.delete(form); }
         return false;
       };
 
@@ -2169,11 +2185,21 @@ export function betterPortalShellRuntimeSource(): string {
             ? { clientDataJSON: response.clientDataJSON, attestationObject: response.attestationObject, transports: response.getTransports?.() ?? [] }
             : { clientDataJSON: response.clientDataJSON, authenticatorData: response.authenticatorData, signature: response.signature, userHandle: response.userHandle } });
       };
+      const showLoginRecoveryCodes = (codes: string[]): Promise<void> => new Promise(resolve => {
+        const dialog = document.createElement("dialog"); dialog.className = "bp-auth-dialog";
+        const title = document.createElement("h2"); title.textContent = "Save your recovery codes";
+        const explanation = document.createElement("p"); explanation.textContent = "Keep these codes somewhere safe. They are shown only once.";
+        const pre = document.createElement("pre"); pre.textContent = codes.join("\n");
+        const button = document.createElement("button"); button.type = "button"; button.className = "btn btn-primary"; button.textContent = "I saved my recovery codes";
+        button.addEventListener("click", () => { dialog.close(); dialog.remove(); resolve(); });
+        dialog.addEventListener("cancel", event => event.preventDefault());
+        dialog.append(title, explanation, pre, button); document.body.append(dialog); dialog.showModal();
+      });
       const factorDialog = (challenge: any): Promise<Record<string, unknown> | null> => new Promise(resolve => {
         const dialog = document.createElement("dialog"); dialog.className = "bp-auth-dialog";
         dialog.style.cssText = "max-width:440px;width:90%;padding:24px;border:1px solid #888;border-radius:8px";
         const title = document.createElement("h2"); title.textContent = challenge.enroll ? "Set up authentication" : "Verify your identity";
-        const explanation = document.createElement("p"); explanation.textContent = challenge.enroll ? "Add an authenticator or passkey to protect your account." : "Verification covers eligible actions in this app until the token expires.";
+        const explanation = document.createElement("p"); explanation.textContent = challenge.enroll ? "Add an authenticator or passkey to protect your account." : challenge.purpose === "login" ? "Complete verification to sign in." : "Verification covers eligible actions in this app until the token expires.";
         const form = document.createElement("form"); form.method = "dialog";
         const methods: string[] = challenge.method === "confirm" ? ["confirm"] : challenge.methods ?? [];
         const select = document.createElement("select"); select.className = "form-select mb-3";

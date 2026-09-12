@@ -3,7 +3,7 @@ import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 
-async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard") {
+async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard") {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -20,9 +20,9 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
       data-bp-services='{"service":"https://service.test","auth":"https://auth.test"}'
       data-bp-routes='[{"href":"/tools/dashboard","requestUrl":"https://service.test/dashboard","serviceId":"service","kind":"page"},{"href":"/auth/login","requestUrl":"https://auth.test/login","serviceId":"auth","kind":"page"}]'>
       <a id="menu" href="/tools/dashboard" data-bp-route-link data-bp-service="service" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
-      <main id="bp-main" data-bp-service="service" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
+      <main id="bp-main" data-bp-service="${initialUrl.startsWith("https://auth.test") ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
     </div><script>${asset.body}</script></body></html>` }));
-  await page.goto("https://app.test/tools/dashboard");
+  await page.goto("https://app.test" + initialTenantPath);
   return { page, errors };
 }
 
@@ -276,4 +276,98 @@ test("cancelling elevation leaves the session and submitted action untouched", a
   assert.equal(mutations, 1); assert.equal(completions, 0);
   assert.ok((await page.evaluate(() => localStorage.getItem("bp.headers")))?.includes(base));
   assert.deepEqual(errors, []);
+});
+
+const passwordLoginForm = '<form id="bp-login-form" hx-post="this" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="alice"><input name="password" value="password"><input name="next" value="/tools/dashboard"><button type="submit">Sign in</button></form><p id="bp-login-error" class="d-none"></p>';
+const loginJson = (route: Route, body: unknown, status = 200, headers = {}) => route.fulfill({ status, json: body, headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true", "access-control-expose-headers": "BP-SetHeader,HX-Trigger", ...headers } });
+
+for (const enroll of [false, true]) test(`password login completes ${enroll ? "factor enrollment" : "MFA"} before navigation`, async t => {
+  const completions: unknown[] = []; let dashboards = 0; let logins = 0;
+  const { page, errors } = await shell(t, async route => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true", "access-control-allow-methods": "POST,GET", "access-control-allow-headers": "*" } });
+    if (request.url().endsWith("/dashboard")) {
+      dashboards++; assert.equal(request.headers().authorization, "Bearer verified-session");
+      return html(route, '<p id="signed-in">Signed in</p>');
+    }
+    if (request.url().endsWith("/account")) {
+      completions.push(request.postDataJSON());
+      return loginJson(route, { status: "ok", recoveryCodes: enroll ? ["recovery-one", "recovery-two"] : [] }, 200, { "BP-SetHeader": "Authorization=Bearer verified-session; locked=true" });
+    }
+    if (request.method() === "POST") {
+      logins++;
+      assert.equal(new URLSearchParams(request.postData()!).get("next"), "/tools/dashboard");
+      return loginJson(route, { status: "ok", accountUrl: "https://auth.test/account", challenge: { id: "login-ticket", secret: "login-proof", methods: ["totp"], enroll, ...(enroll ? { totpSecret: "enrollment-secret" } : {}) } });
+    }
+    return html(route, passwordLoginForm);
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.locator("dialog[open]").waitFor();
+  assert.equal(dashboards, 0); assert.equal(completions.length, 0);
+  assert.ok(!(await page.evaluate(() => localStorage.getItem("bp.headers")))?.includes("verified-session"));
+  // Repeated form submission during verification cannot create another challenge.
+  await page.locator("#bp-login-form").evaluate((form: HTMLFormElement) => form.requestSubmit());
+  await page.locator("dialog").getByLabel("Verification code").fill("123456");
+  await page.locator("dialog").getByRole("button", { name: "Continue", exact: true }).click();
+  if (enroll) {
+    await page.locator("dialog").getByText("Save your recovery codes", { exact: true }).waitFor();
+    assert.equal(dashboards, 0);
+    assert.match(await page.locator("dialog pre").innerText(), /recovery-one\nrecovery-two/);
+    await page.locator("dialog").getByRole("button", { name: "I saved my recovery codes" }).click();
+  }
+  await page.locator("#signed-in").waitFor();
+  assert.equal(logins, 1); assert.equal(dashboards, 1);
+  assert.deepEqual(completions, [{ action: "login.complete", id: "login-ticket", secret: "login-proof", next: "/tools/dashboard", method: "totp", code: "123456" }]);
+  assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
+  const stored = await page.evaluate(() => localStorage.getItem("bp.headers"));
+  assert.ok(stored?.includes("verified-session")); assert.ok(!stored?.includes("recovery-one"));
+  assert.deepEqual(errors, []);
+});
+
+test("cancelled or rejected login verification stays on the form without storing credentials", async t => {
+  let completions = 0; let dashboards = 0;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/dashboard")) { dashboards++; return html(route, "Unexpected navigation"); }
+    if (route.request().url().endsWith("/account")) { completions++; return loginJson(route, { status: "error", message: "Invalid verification code." }, 403); }
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok", accountUrl: "/account", challenge: { id: "ticket", secret: "proof", methods: ["recovery"] } });
+    return html(route, passwordLoginForm);
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.locator("dialog").getByRole("button", { name: "Cancel" }).click();
+  await page.locator("#bp-login-error").getByText("Sign-in verification cancelled.").waitFor();
+  assert.equal(completions, 0); assert.equal(dashboards, 0);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.locator("dialog").getByLabel("Verification code").fill("wrong-code");
+  await page.locator("dialog").getByRole("button", { name: "Continue" }).click();
+  await page.locator("#bp-login-error").getByText("Invalid verification code.").waitFor();
+  assert.equal(completions, 1); assert.equal(dashboards, 0);
+  assert.equal(await page.locator("#bp-login-form").count(), 1);
+  assert.ok(!(await page.evaluate(() => localStorage.getItem("bp.headers")))?.includes("authorization"));
+  assert.deepEqual(errors, []);
+});
+
+test("password-only login still stores session headers and navigates directly", async t => {
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/dashboard")) {
+      assert.equal(route.request().headers().authorization, "Bearer password-session");
+      return html(route, '<p id="signed-in">Signed in</p>');
+    }
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok" }, 200, { "BP-SetHeader": "Authorization=Bearer password-session; locked=true" });
+    return html(route, passwordLoginForm);
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.locator("#signed-in").waitFor();
+  assert.equal(await page.locator("dialog").count(), 0); assert.deepEqual(errors, []);
+});
+
+test("login challenges cannot send verification proof to another installed service", async t => {
+  let otherRequests = 0;
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().startsWith("https://service.test")) { otherRequests++; return loginJson(route, { status: "ok" }); }
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok", accountUrl: "https://service.test/account", challenge: { id: "ticket", secret: "proof", methods: ["totp"] } });
+    return html(route, passwordLoginForm);
+  }, {}, "https://auth.test/login", "/auth/login");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.locator("#bp-login-error").getByText("The auth service returned an invalid verification endpoint.").waitFor();
+  assert.equal(otherRequests, 0); assert.equal(await page.locator("dialog").count(), 0); assert.deepEqual(errors, []);
 });
