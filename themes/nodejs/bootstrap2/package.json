@@ -28,8 +28,8 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
-    "@bsb/tests": "^9.7.2",
-    "@types/node": "^26.4.0",
+    "@bsb/tests": "^9.7.3",
+    "@types/node": "^26.5.1",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3"
   },
@@ -37,10 +37,10 @@
     "@betterportal/framework": "10.6.21",
     "@betterportal/plugin-bsb": "10.6.21",
     "@betterportal/theme-runtime": "10.6.21",
-    "@bsb/base": "^9.7.2",
+    "@bsb/base": "^9.7.3",
     "anyvali": "^1.1.6",
     "bootstrap": "^5.3.8",
-    "jsx-htmx": "4.0.0"
+    "jsx-htmx": "4.0.100"
   },
   "files": [
     "lib/**/*",

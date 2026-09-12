@@ -29,7 +29,7 @@
   "type": "module",
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.5.1",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3"
   },
@@ -37,10 +37,10 @@
     "@authress/sdk": "^3.2.280",
     "@betterportal/framework": "10.6.21",
     "@betterportal/plugin-bsb": "10.6.21",
-    "@bsb/base": "^9.7.2",
+    "@bsb/base": "^9.7.3",
     "anyvali": "^1.1.6",
     "jsonwebtoken": "^9.0.2",
-    "jsx-htmx": "4.0.0"
+    "jsx-htmx": "4.0.100"
   },
   "files": [
     "lib/**/*",

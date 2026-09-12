@@ -25,11 +25,11 @@
   ],
   "dependencies": {
     "@betterportal/framework": "10.6.21",
-    "@bsb/base": "^9.7.2",
+    "@bsb/base": "^9.7.3",
     "anyvali": "^1.1.6"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.5.1",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3"
   },
