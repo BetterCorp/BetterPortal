@@ -17,6 +17,11 @@ function configError(body: JsonObject, status: number, code: string, reason: str
   return withCoreHttpOutcome(jsonResponse(body, status), { code, reason });
 }
 
+/** A rejected configuration mutation, safe to report to the administrator. */
+export class ServiceConfigWriteError extends Error {
+  constructor(message: string, readonly status = 409) { super(message); }
+}
+
 export interface ServiceConfigAccessContext {
   ticket: ServiceConfigTicketClaims;
   action: ServiceConfigAction;
@@ -205,6 +210,7 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
     }
 
     let state: ServiceConfigState | null = null;
+    try {
     for (const key of parsedWrite.data.clearKeys) {
       state = options.clearConfigKey
         ? await options.clearConfigKey({
@@ -227,6 +233,10 @@ export function registerServiceConfigRoutes(options: ServiceConfigRouteOptions):
       action: "config.write"
     }, event);
 
+    } catch (error) {
+      if (error instanceof ServiceConfigWriteError) return jsonResponse({ error: error.message }, error.status);
+      throw error;
+    }
     const parsedState = ServiceConfigStateSchema.parse(state ?? { tenant: {}, app: {} });
     return jsonResponse({
       ok: true,

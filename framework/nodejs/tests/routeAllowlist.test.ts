@@ -821,3 +821,27 @@ test("route caller modes default to user and delegated calls verify both credent
     }
   });
 });
+
+test("elevation is enforced before effects; root and conditional handlers cannot bypass it", async () => {
+  const serviceId = uuidv7();
+  const app = { id: uuidv7(), tenantId: tenant.id, slug: "app", title: "App", hostnames: ["app.local"], originOverrides: [], refererOverrides: [], themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} }, defaultRoute: "/secure", routes: [], menu: [], slots: [], fragments: {} } as unknown as BetterPortalApp;
+  let effects = 0;
+  const secured = route("/secure", "secure.index", () => { effects++; return { ok: true }; });
+  secured.methodRoutes.GET!.auth = { required: false, permissions: [], elevation: { minimum: "mfa" } };
+  const conditional = route("/conditional", "conditional.index", ctx => { ctx.requireElevation!({ minimum: "mfa" }); effects++; return { ok: true }; });
+  conditional.methodRoutes.GET!.auth = { required: true, permissions: [] };
+  app.routes = [secured, conditional].map(r => ({ id: uuidv7(), path: r.path, serviceId, viewId: r.viewId, enabled: true, operations: [r.viewId] }));
+  let claims: JwtClaims = { iss: "test", aud: "test", sub: "root", jti: uuidv7(), iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 60, ...{ tenantId: tenant.id, appId: app.id }, roles: ["*"], realm: "runtime", tokenType: "access" };
+  await withServer(app, { routes: [secured, conditional] }, async baseUrl => {
+    for (const path of ["/secure", "/conditional"]) {
+      const response = await fetch(baseUrl + path, { headers: { Authorization: "Bearer valid", Accept: "application/json" } });
+      assert.equal(response.status, 401); assert.ok(response.headers.has("BP-Auth-Challenge"));
+    }
+    assert.equal(effects, 0);
+    const missing = await fetch(baseUrl + "/secure", { headers: { Accept: "application/json" } });
+    assert.equal(missing.status, 401); assert.equal(missing.headers.has("BP-Auth-Challenge"), false);
+    claims = { ...claims, elevation: { assurance: "mfa", verifiedAt: claims.iat, expiresAt: claims.exp } };
+    for (const path of ["/secure", "/conditional"]) assert.equal((await fetch(baseUrl + path, { headers: { Authorization: "Bearer valid", Accept: "application/json" } })).status, 200);
+    assert.equal(effects, 2);
+  }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, managementScope: { tenantId: tenant.id, appId: app.id } }) } });
+});

@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: fd079873f12d76ad193d34c85b4c329868bffb689463ce5f0fdf3c5884a03144
+# Generated from AnyVali documents; do not edit. SHA256: 7290b4f5e7a6a2a16b41e6d17de52c4d45804da1cacbe0a058b64ec3037cbc93
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -23,12 +23,14 @@ AdminApiDescriptorInput = TypedDict('AdminApiDescriptorInput', {
 
 ApiAuthRequirement = TypedDict('ApiAuthRequirement', {
     'required': Required['bool'],
+    'elevation': NotRequired['ElevationRequirement'],
     'callers': Required['list[ApiCallerMode]'],
     'permissions': Required['list[ApiAuthRequirementPermissionsItem]'],
 })
 
 ApiAuthRequirementInput = TypedDict('ApiAuthRequirementInput', {
     'required': NotRequired['bool'],
+    'elevation': NotRequired['ElevationRequirementInput'],
     'callers': NotRequired['list[ApiCallerModeInput]'],
     'permissions': NotRequired['list[ApiAuthRequirementInputPermissionsItem]'],
 })
@@ -2119,6 +2121,28 @@ DeveloperResourceInput = TypedDict('DeveloperResourceInput', {
     'content': Required['str'],
 })
 
+ElevationClaims = TypedDict('ElevationClaims', {
+    'assurance': Required["Literal['confirmed', 'mfa']"],
+    'verifiedAt': Required['int'],
+    'expiresAt': Required['int'],
+})
+
+ElevationClaimsInput = TypedDict('ElevationClaimsInput', {
+    'assurance': Required["Literal['confirmed', 'mfa']"],
+    'verifiedAt': Required['int'],
+    'expiresAt': Required['int'],
+})
+
+ElevationRequirement = TypedDict('ElevationRequirement', {
+    'minimum': Required["Literal['confirm', 'mfa']"],
+    'maxAgeSeconds': NotRequired['int'],
+})
+
+ElevationRequirementInput = TypedDict('ElevationRequirementInput', {
+    'minimum': Required["Literal['confirm', 'mfa']"],
+    'maxAgeSeconds': NotRequired['int'],
+})
+
 FragmentAssignment = TypedDict('FragmentAssignment', {
     'serviceId': Required['str'],
     'fragmentId': Required['str'],
@@ -2170,6 +2194,9 @@ JwtClaims = TypedDict('JwtClaims', {
     'tokenType': Required['TokenType'],
     'authProvider': NotRequired['str'],
     'refreshContext': NotRequired['JsonObject'],
+    'elevation': NotRequired['ElevationClaims'],
+    'sessionId': NotRequired['str'],
+    'sessionVersion': NotRequired['int'],
     'providerSubject': NotRequired['str'],
     'provider': NotRequired['JwtClaimsProvider'],
     'name': NotRequired['str'],
@@ -2192,6 +2219,9 @@ JwtClaimsInput = TypedDict('JwtClaimsInput', {
     'tokenType': Required['TokenTypeInput'],
     'authProvider': NotRequired['str'],
     'refreshContext': NotRequired['JsonObjectInput'],
+    'elevation': NotRequired['ElevationClaimsInput'],
+    'sessionId': NotRequired['str'],
+    'sessionVersion': NotRequired['int'],
     'providerSubject': NotRequired['str'],
     'provider': NotRequired['JwtClaimsInputProvider'],
     'name': NotRequired['str'],
@@ -2900,6 +2930,7 @@ ScopedApp = TypedDict('ScopedApp', {
     'fragments': Required['dict[str, list[BetterPortalFragmentAssignment]]'],
     'shellFragments': Required['dict[str, dict[str, BetterPortalShellFragmentSetting]]'],
     'auth': NotRequired['ScopedAppAuth'],
+    'managementAuthServiceOrigins': NotRequired['dict[str, str]'],
     'shell': NotRequired['ScopedAppShell'],
     'appRoutes': NotRequired['list[BetterPortalRouteMount]'],
     'appFragments': NotRequired['dict[str, list[BetterPortalFragmentAssignment]]'],
@@ -2958,6 +2989,7 @@ ScopedAppInput = TypedDict('ScopedAppInput', {
     'fragments': NotRequired['dict[str, list[BetterPortalFragmentAssignmentInput]]'],
     'shellFragments': NotRequired['dict[str, dict[str, BetterPortalShellFragmentSettingInput]]'],
     'auth': NotRequired['ScopedAppInputAuth'],
+    'managementAuthServiceOrigins': NotRequired['dict[str, str]'],
     'shell': NotRequired['ScopedAppInputShell'],
     'appRoutes': NotRequired['list[BetterPortalRouteMountInput]'],
     'appFragments': NotRequired['dict[str, list[BetterPortalFragmentAssignmentInput]]'],

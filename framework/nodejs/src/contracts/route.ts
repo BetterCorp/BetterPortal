@@ -4,7 +4,7 @@ import { PluginIdSchema, type HttpMethod } from "./common.js";
 import { JsonObjectSchema, JsonValueSchema, type JsonObject, type JsonValue } from "./json.js";
 import type { BetterPortalObservability, HttpOutcomeDiagnostic } from "./observability.js";
 import type { BetterPortalResolvedApp, BetterPortalTenant } from "./platformConfig.js";
-import { AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
+import { ElevationRequirementSchema, type ElevationRequirement, AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
 import { ApiCallerModeSchema, type ApiCallerMode, type M2MCallerMode, type ServiceTokenClaims } from "./m2m.js";
 
 /**
@@ -14,6 +14,7 @@ import { ApiCallerModeSchema, type ApiCallerMode, type M2MCallerMode, type Servi
  */
 export const ApiAuthRequirementSchema = av.object({
   required: av.bool().default(false),
+  elevation: av.optional(ElevationRequirementSchema),
   callers: av.array(ApiCallerModeSchema).minItems(1).default(["user"]),
   permissions: av.array(av.object({
     serviceId: PluginIdSchema,
@@ -185,6 +186,8 @@ export interface RouteHandlerContextBase<
   readonly obs?: BetterPortalObservability;
   /** Validated user claims when auth resolver succeeds. `undefined` for anonymous or invalid token. */
   readonly user?: ValidatedUserClaims;
+  /** Call after resource authorization and before any side effects. */
+  readonly requireElevation?: (requirement: ElevationRequirement) => void;
   /** Validated installed-service caller. Never populated from a user JWT. */
   readonly serviceCaller?: ValidatedServiceClaims;
   /** Verified caller shape. Delegated calls populate both user and serviceCaller. */

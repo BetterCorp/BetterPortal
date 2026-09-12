@@ -9,6 +9,18 @@ const NonEmptyStringArraySchema = av.array(NonEmptyStringSchema).minItems(1);
 export const TokenTypeSchema = av.enum_(["access", "refresh", "cp-envelope", "setup", "install"] as const);
 export type TokenType = Infer<typeof TokenTypeSchema>;
 
+export const ElevationRequirementSchema = av.object({
+  minimum: av.enum_(["confirm", "mfa"] as const),
+  maxAgeSeconds: av.optional(av.int().min(1))
+});
+export type ElevationRequirement = Infer<typeof ElevationRequirementSchema>;
+export const ElevationClaimsSchema = av.object({
+  assurance: av.enum_(["confirmed", "mfa"] as const),
+  verifiedAt: av.int().min(0),
+  expiresAt: av.int().min(1)
+});
+export type ElevationClaims = Infer<typeof ElevationClaimsSchema>;
+
 export const JwtClaimsSchema = av.object({
   iss: NonEmptyStringSchema,
   aud: av.union([NonEmptyStringSchema, NonEmptyStringArraySchema]),
@@ -24,6 +36,9 @@ export const JwtClaimsSchema = av.object({
   tokenType: TokenTypeSchema,
   authProvider: av.optional(av.string().minLength(1)),
   refreshContext: av.optional(JsonObjectSchema),
+  elevation: av.optional(ElevationClaimsSchema),
+  sessionId: av.optional(NonEmptyStringSchema),
+  sessionVersion: av.optional(av.int().min(0)),
   providerSubject: av.optional(av.string().minLength(1)),
   provider: av.optional(av.object({
     username: av.optional(av.string()),

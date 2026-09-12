@@ -52,3 +52,5 @@ export * from "./contracts/controlPlane.js";
 export * from "./contracts/scopedConfig.js";
 export * from "./runtime/uuid.js";
 export * from "./adapters/h3.js";
+
+export * from "./runtime/auth/elevation.js";

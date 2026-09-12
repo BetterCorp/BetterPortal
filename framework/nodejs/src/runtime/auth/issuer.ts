@@ -1,4 +1,4 @@
-import type { JwtClaims, TokenType } from "../../contracts/auth.js";
+import type { ElevationClaims, JwtClaims, TokenType } from "../../contracts/auth.js";
 import type { JsonObject } from "../../contracts/json.js";
 import type { JwtVerifier } from "../../contracts/route.js";
 import { uuidv7 } from "../uuid.js";
@@ -20,6 +20,8 @@ export interface BpTokenUser {
   roles?: string[];
   authProvider?: string;
   refreshContext?: JsonObject;
+  sessionId?: string;
+  sessionVersion?: number;
   providerSubject?: string;
   provider?: JwtClaims["provider"];
   name?: string;
@@ -52,7 +54,7 @@ export function createBpTokenIssuer(options: BpTokenIssuerOptions) {
     return options.keyPair.publicKeyPem;
   };
 
-  const signToken = (input: BpTokenUser, tokenType: TokenType, expiresInSeconds: number, tokenId = uuidv7()): string => signJwt({
+  const signToken = (input: BpTokenUser, tokenType: TokenType, expiresInSeconds: number, tokenId = uuidv7(), elevation?: ElevationClaims): string => signJwt({
     privateKeyPem: options.keyPair.privateKeyPem,
     kid: options.keyPair.kid,
     claims: {
@@ -65,6 +67,9 @@ export function createBpTokenIssuer(options: BpTokenIssuerOptions) {
       realm: "runtime",
       tokenType,
       authProvider: input.authProvider,
+      elevation: tokenType === "access" ? elevation : undefined,
+      sessionId: tokenType === "access" ? input.sessionId : undefined,
+      sessionVersion: tokenType === "access" ? input.sessionVersion : undefined,
       refreshContext: tokenType === 'refresh' ? input.refreshContext : undefined,
       providerSubject: input.providerSubject,
       provider: input.provider,
@@ -77,6 +82,17 @@ export function createBpTokenIssuer(options: BpTokenIssuerOptions) {
   });
 
   return {
+    accessTokenSeconds: options.accessTokenSeconds,
+    // The caller must verify a server-side challenge before invoking this hook.
+    // Normal access/refresh issuance deliberately never copies elevation.
+    signElevatedAccessToken(input: BpTokenUser, elevation: ElevationClaims, expiresInSeconds: number): string {
+      const now = Math.floor(Date.now() / 1000);
+      const lifetime = Math.min(options.accessTokenSeconds, Math.floor(expiresInSeconds));
+      if (lifetime < 1 || elevation.verifiedAt > now || elevation.expiresAt > now + lifetime
+        || elevation.expiresAt <= now || elevation.verifiedAt >= elevation.expiresAt) throw new Error("Invalid elevation lifetime");
+      return signToken(input, "access", lifetime, uuidv7(), elevation);
+    },
+
     signAccessToken(input: BpTokenUser): string {
       return signToken(input, "access", options.accessTokenSeconds);
     },

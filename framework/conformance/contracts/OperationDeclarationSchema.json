@@ -35,6 +35,32 @@
             "kind": "bool",
             "default": false
           },
+          "elevation": {
+            "kind": "optional",
+            "inner": {
+              "kind": "object",
+              "properties": {
+                "minimum": {
+                  "kind": "enum",
+                  "values": [
+                    "confirm",
+                    "mfa"
+                  ]
+                },
+                "maxAgeSeconds": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "int",
+                    "min": 1
+                  }
+                }
+              },
+              "required": [
+                "minimum"
+              ],
+              "unknownKeys": "strip"
+            }
+          },
           "callers": {
             "kind": "array",
             "items": {

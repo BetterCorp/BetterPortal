@@ -13,8 +13,9 @@ export const QuerySchema = av.object({
 export const HeadersSchema = av.object({});
 
 export const RequestSchema = av.object({
-  username: av.string().minLength(1).describe("Username for the first admin account."),
-  password: av.string().minLength(8).describe("Password for the first admin account."),
+  setupToken: av.optional(av.string()),
+  username: av.string().minLength(1).describe("Username for the account."),
+  password: av.string().minLength(12).describe("Password for the first admin account."),
   email: av.optional(av.string()).describe("Email address for the first admin account."),
   name: av.optional(av.string()).describe("Display name for the first admin account.")
 });
@@ -57,13 +58,13 @@ export const cacheHints: CacheHints = {
 
 export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema },
-  (ctx) => {
+  async (ctx) => {
     const runtime = ctx.plugin.runtime;
     const next = (ctx.query as { next?: string }).next;
     const query = next ? { next } : undefined;
     return {
       status: "ok" as const,
-      registrationOpen: runtime.userStore.hasNoUsers(),
+      registrationOpen: runtime.isManagement({ tenantId: ctx.tenant.id, appId: ctx.app.id }) && await runtime.identity.bootstrapAvailable({ tenantId: ctx.tenant.id, appId: ctx.app.id }),
       loginUrl: ctx.routeUrl?.("login.index", { absolute: true, query })
         ?? ctx.routeUrl?.("login.index", { query })
         ?? undefined
@@ -78,7 +79,8 @@ export const handlePost = createHandler(
     const tenantId = ctx.tenant.id;
     const appId = ctx.app.id;
 
-    if (!runtime.userStore.hasNoUsers()) {
+    const scope = { tenantId, appId };
+    if (!runtime.isManagement(scope) || !await runtime.identity.bootstrapAvailable(scope)) {
       // Registration is closed once any user exists. Respond 404 so the route
       // appears not to exist (no user-enumeration surface).
       ctx.setStatus?.(404);
@@ -90,14 +92,9 @@ export const handlePost = createHandler(
 
     const body = ctx.request as Infer<typeof RequestSchema>;
     try {
-      const created = await runtime.userStore.createUser({
-        username: body.username,
-        password: body.password,
-        email: body.email,
-        name: body.name,
-        tenantId,
-        appRoles: { [appId]: ["*"] }
-      }, true);
+      await runtime.identity.rateLimit(scope, "bootstrap", "setup", 10);
+      if (!runtime.verifySetup(body.setupToken ?? "")) throw new Error("Enter the deployment setup token.");
+      const created = await runtime.identity.createUser(scope, await runtime.policy(scope), { username: body.username, password: body.password, email: body.email, name: body.name }, ["*"], true);
       const next = (ctx.query as { next?: string }).next;
       const query = next ? { next } : undefined;
       return {

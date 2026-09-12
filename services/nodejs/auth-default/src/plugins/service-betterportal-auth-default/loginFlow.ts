@@ -1,12 +1,15 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
 import {
+  JsonObjectSchema,
   resolveAppAuthRedirect,
   type ApiAuthRequirement,
   type CacheHints,
   type BetterPortalRouteChrome
 } from "@betterportal/framework";
 import { createHandler } from "./.bp-generated/route-runtime.js";
+import { getEventPeerIp, type BetterPortalEvent } from "@betterportal/framework/lib/runtime/h3.js";
+import { AuthError } from "../../identity.js";
 import { revokePresentedRefreshToken } from "./logoutFlow.js";
 
 export const QuerySchema = av.object({
@@ -23,6 +26,9 @@ export const RequestSchema = av.object({
 });
 
 export const ResponseSchema = av.object({
+  challenge: av.optional(JsonObjectSchema),
+  accountUrl: av.optional(av.string()),
+  socialUrl: av.optional(av.string()),
   status: av.enum_(["ok", "error"] as const).describe("Login request outcome."),
   message: av.optional(av.string()).describe("Human-readable status or error message for the renderer."),
   accessToken: av.optional(av.string()).describe("Signed JWT access token returned on successful login."),
@@ -59,7 +65,9 @@ export const dependencies = [
   { operationId: "auth.login", method: "POST" },
   { operationId: "auth.logout.view", method: "GET" },
   { operationId: "auth.refresh", method: "POST" },
-  { operationId: "auth.register.view", method: "GET" }
+  { operationId: "auth.register.view", method: "GET" },
+  { operationId: "auth.account.view", method: "GET" },
+  { operationId: "auth.social.view", method: "GET" }
 ] as const;
 export const chrome: BetterPortalRouteChrome = { fullScreen: true };
 
@@ -77,7 +85,7 @@ export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema, headers: HeadersSchema },
   async (ctx) => {
     const runtime = ctx.plugin.runtime;
-    const requiresFirstAdmin = runtime.userStore.hasNoUsers();
+    const requiresFirstAdmin = runtime.isManagement({ tenantId: ctx.tenant.id, appId: ctx.app.id }) && await runtime.identity.bootstrapAvailable({ tenantId: ctx.tenant.id, appId: ctx.app.id });
     if ((ctx.query as Infer<typeof QuerySchema>).action === "logout") {
       await revokePresentedRefreshToken(runtime, ctx.headers["x-bp-refresh"], ctx.tenant.id, ctx.app.id);
       const nextUrl = resolveAppAuthRedirect(ctx, "afterLogout");
@@ -122,7 +130,9 @@ export const handleGet = createHandler(
     return {
       status: "ok" as const,
       message: "Submit username + password via POST to authenticate.",
+      socialUrl: ctx.routeUrl?.("social.index", { absolute: true }) ?? "/social",
       requiresFirstAdmin,
+      accountUrl: ctx.routeUrl?.("account.index", { absolute: true }) ?? "/account",
       ...(firstAdminUrl ? { firstAdminUrl } : {})
     };
   }
@@ -136,33 +146,24 @@ export const handlePost = createHandler(
     const appId = ctx.app.id;
 
     const body = ctx.request as Infer<typeof RequestSchema>;
-    const user = await runtime.userStore.authenticate(
-      tenantId,
-      appId,
-      body.username,
-      body.password
-    );
-
-    if (!user) {
-      // Auth failures are 401, not 200-with-error-body.
-      ctx.setStatus?.(401);
-      return {
-        status: "error" as const,
-        message: "Invalid username or password."
-      };
+    const scope = { tenantId, appId };
+    const policy = await runtime.policy(scope);
+    try {
+    await runtime.identity.rateLimit(scope, "login-peer", getEventPeerIp(ctx.rawEvent as BetterPortalEvent) ?? "unknown", 100, 600);
+    await runtime.identity.rateLimit(scope, "login", body.username.toLowerCase());
+    const user = await runtime.identity.authenticate(scope, policy, body.username, body.password);
+    if (!user) { ctx.setStatus?.(401); return { status: "error" as const, message: "Invalid username or password." }; }
+    const roles = await runtime.identity.storage.transaction(scope, tx => runtime.identity.roles(tx, scope, user, policy));
+    const root = runtime.isManagement(scope) && roles.includes("*");
+    if (!user.emailVerified && !root && !(user.legacyUsernameLogin === true && !user.email)) { ctx.setStatus?.(403); return { status: "error" as const, message: "Verify your email address before signing in. Use account recovery to resend the verification email." }; }
+    const hasFactors = await runtime.factors.hasFactors(user);
+    if (hasFactors || policy.requireMfa || root) {
+      const event = ctx.rawEvent as { req: Request; url: URL };
+      const prepared = await runtime.factors.prepare(user, event.req.headers.get("origin") ?? event.url.origin, !hasFactors);
+      const ticket = await runtime.identity.challenge(scope, "login", { version: user.refreshVersion, factor: prepared.private }, user.id);
+      return { status: "ok" as const, accountUrl: ctx.routeUrl?.("account.index", { absolute: true }) ?? "/account", challenge: { ...ticket, ...prepared.public } as any, message: hasFactors ? "Verify your identity." : "Set up multi-factor authentication to finish signing in." };
     }
-
-    const issued = runtime.tokenIssuer.issueTokenPair({
-      sub: user.id,
-      tenantId: user.tenantId,
-      appId,
-      authProvider: 'betterportal.default',
-      refreshContext: { version: user.refreshVersion },
-      roles: user.roles,
-      name: user.name ?? user.username,
-      email: user.email,
-      picture: user.picture
-    });
+    const issued = await runtime.identity.issueSession(scope, policy, user, runtime.tokenIssuer, runtime.refreshTokenSeconds);
     if (!issued.refreshToken) {
       throw new Error("Auth token issuer did not return a refresh token");
     }
@@ -205,5 +206,10 @@ export const handlePost = createHandler(
         name: user.name ?? user.username
       }
     };
+    } catch (error) {
+      if (!(error instanceof AuthError)) throw error;
+      ctx.setStatus?.(error.status);
+      return { status: "error" as const, message: error.message };
+    }
   }
 );

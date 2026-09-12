@@ -11,7 +11,7 @@ public sealed class CorsDeniedException(string message) : Exception(message)
 public sealed class Cors
 {
     private const string Allow = "Accept, Authorization, Content-Type, HX-Current-URL, HX-Request, HX-Target, HX-Trigger, HX-Trigger-Name, X-BP-Tenant-Id, X-BP-App-Id, X-BP-Service-Id, X-BP-Service-Authorization, BP-SetHeader, BP-RemoveHeader, traceparent, tracestate, baggage";
-    private const string Expose = "HX-Trigger, HX-Trigger-After-Swap, HX-Trigger-After-Settle, HX-Location, HX-Push-Url, HX-Redirect, HX-Refresh, HX-Replace-Url, HX-Reswap, HX-Retarget, BP-SetHeader, BP-RemoveHeader";
+    private const string Expose = "HX-Trigger, HX-Trigger-After-Swap, HX-Trigger-After-Settle, HX-Location, HX-Push-Url, HX-Redirect, HX-Refresh, HX-Replace-Url, HX-Reswap, HX-Retarget, BP-SetHeader, BP-RemoveHeader, WWW-Authenticate, BP-Auth-Challenge";
     private readonly OriginPolicy policy;
     private readonly string[] methods;
     public Cors(OriginPolicy policy, IEnumerable<string> methods)

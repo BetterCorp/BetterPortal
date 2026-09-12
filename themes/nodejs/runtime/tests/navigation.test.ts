@@ -224,3 +224,56 @@ test("a late failed refresh cannot replace a newer user navigation with login", 
   assert.equal(loginRequests, 0);
   assert.equal(await page.locator("#new-page").count(), 1);
 });
+
+test("elevation retries the captured mutation once and reuses the token for subsequent actions", async t => {
+  const now = Math.floor(Date.now() / 1000);
+  const claims = { tenantId: "tenant", appId: "app", sub: "alice", exp: now + 600 };
+  const token = (value: unknown) => "header." + Buffer.from(JSON.stringify(value)).toString("base64url") + ".signature";
+  const base = token(claims); const elevated = token({ ...claims, elevation: { assurance: "confirmed", verifiedAt: now, expiresAt: now + 600 } });
+  const mutations: Array<{ body: string; authorization: string | undefined }> = [];
+  let starts = 0; let completes = 0;
+  const { page, errors } = await shell(t, async route => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "POST,GET", "access-control-allow-headers": "*" } });
+    if (request.url().endsWith("/dashboard")) return html(route, '<form hx-post="https://service.test/change" hx-target="#result" hx-swap="innerHTML"><input id="message" name="message" value="submitted"><button type="submit">Save change</button></form><div id="result"></div>');
+    if (request.url().includes("/auth/elevate")) {
+      const input = request.postDataJSON();
+      if (input.action === "start") { starts++; return route.fulfill({ json: { challengeId: "challenge", method: "confirm" }, headers: { "access-control-allow-origin": "*" } }); }
+      completes++; return route.fulfill({ json: { accessToken: elevated }, headers: { "access-control-allow-origin": "*" } });
+    }
+    mutations.push({ body: request.postData() ?? "", authorization: request.headers().authorization });
+    if (request.headers().authorization !== "Bearer " + elevated) return html(route, "elevation required", 401, { "BP-Auth-Challenge": JSON.stringify({ version: 1, tenantId: "tenant", appId: "app", minimum: "confirm" }), "access-control-expose-headers": "BP-Auth-Challenge" });
+    return html(route, "<p>Saved</p>");
+  }, { Authorization: { value: "Bearer " + base, owner: "auth", scope: null } });
+  await page.getByRole("button", { name: "Save change" }).click();
+  await page.locator("dialog[open]").waitFor();
+  await page.locator("#message").fill("edited-after-submit");
+  await page.locator("dialog").getByRole("button", { name: "Continue" }).click();
+  await page.locator("#result").getByText("Saved").waitFor();
+  assert.equal(mutations.length, 2); assert.equal(mutations[0].body, mutations[1].body);
+  assert.ok(mutations[1].body.includes("submitted"));
+  await page.getByRole("button", { name: "Save change" }).click();
+  await page.waitForFunction(() => !document.querySelector("dialog[open]"));
+  await page.waitForTimeout(100);
+  assert.equal(mutations.length, 3); assert.equal(starts, 1); assert.equal(completes, 1);
+  const stored = await page.evaluate(() => localStorage.getItem("bp.headers"));
+  assert.ok(!stored?.includes(elevated)); assert.deepEqual(errors, []);
+});
+
+test("cancelling elevation leaves the session and submitted action untouched", async t => {
+  const base = "header." + Buffer.from(JSON.stringify({ tenantId: "tenant", appId: "app", sub: "alice", exp: Math.floor(Date.now() / 1000) + 600 })).toString("base64url") + ".signature";
+  let mutations = 0; let completions = 0;
+  const { page, errors } = await shell(t, async route => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "POST,GET", "access-control-allow-headers": "*" } });
+    if (request.url().endsWith("/dashboard")) return html(route, '<button hx-post="https://service.test/change" hx-target="#result">Delete item</button><div id="result">Unchanged</div>');
+    if (request.url().includes("/auth/elevate")) { if (request.postDataJSON().action === "complete") completions++; return route.fulfill({ json: { challengeId: "challenge", method: "confirm" }, headers: { "access-control-allow-origin": "*" } }); }
+    mutations++; return html(route, "elevation required", 401, { "BP-Auth-Challenge": JSON.stringify({ version: 1, tenantId: "tenant", appId: "app", minimum: "confirm" }), "access-control-expose-headers": "BP-Auth-Challenge" });
+  }, { Authorization: { value: "Bearer " + base, owner: "auth", scope: null } });
+  await page.getByRole("button", { name: "Delete item" }).click();
+  await page.locator("dialog").getByRole("button", { name: "Cancel" }).click();
+  await page.locator("#result").getByText("Unchanged").waitFor();
+  assert.equal(mutations, 1); assert.equal(completions, 0);
+  assert.ok((await page.evaluate(() => localStorage.getItem("bp.headers")))?.includes(base));
+  assert.deepEqual(errors, []);
+});

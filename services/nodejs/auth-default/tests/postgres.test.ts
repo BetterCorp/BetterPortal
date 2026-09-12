@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Pool } from "pg";
+import { uuidv7 } from "@betterportal/framework";
+import { IdentityService, SecretCipher, type IdentityPolicy, type User } from "../src/identity.js";
+import { openAuthStorage } from "../src/storage.js";
+import { UserStore } from "../src/userStore.js";
+const connectionString = process.env.BP_AUTH_TEST_POSTGRES;
+const policy: IdentityPolicy = { isolation: "app", registration: "public", requireMfa: false, allowedRoleIds: [], defaultRoleIds: [] };
+
+test("PostgreSQL imports once, verifies leftovers, preserves keys, and serializes replica mutations", { skip: !connectionString }, async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-auth-pg-")); const path = join(dir, "users.json"); const installationId = uuidv7(); const tenantId = uuidv7(); const appId = uuidv7();
+  const old = new UserStore(path); const user = await old.createUser({ username: "legacy", password: "a legacy test password", tenantId, appRoles: { [appId]: ["reader"] } });
+  writeFileSync(join(dir, "keys.json"), "signing material sentinel");
+  const source = readFileSync(path, "utf8");
+  const options = { mode: "advanced" as const, path, connectionString, installationId, appIds: { [tenantId]: [appId] } };
+  const first = await openAuthStorage(options); const second = await openAuthStorage({ ...options, path: join(dir, "replica-users.json") });
+  t.after(async () => { await first.close(); await second.close(); const pool = new Pool({ connectionString }); await pool.query("DELETE FROM bp_auth_records WHERE installation=$1", [installationId]); await pool.end(); rmSync(dir, { recursive: true, force: true }); });
+  assert.equal(existsSync(path), false); assert.ok(existsSync(`${path}.advanced.backup`));
+  assert.equal(readFileSync(join(dir, "keys.json"), "utf8"), "signing material sentinel");
+  const imported = await first.transaction({ tenantId, appId }, tx => tx.get("user", user.id, { tenantId, appId: "" }));
+  assert.equal(imported?.passwordHash, user.passwordHash);
+  // Simulate a crash after the import committed but before source cleanup.
+  writeFileSync(path, source);
+  const resumed = await openAuthStorage(options); await resumed.close(); assert.equal(existsSync(path), false);
+  assert.equal((await first.transaction({ tenantId, appId }, tx => tx.list("user"))).length, 1);
+  writeFileSync(path, JSON.stringify({ version: 1, users: [] }));
+  await assert.rejects(openAuthStorage(options), /differs from the committed import/);
+  assert.ok(existsSync(path));
+  await assert.rejects(openAuthStorage({ ...options, mode: "simple" }), /downgrade/);
+  const a = new IdentityService(first, new SecretCipher(Buffer.alloc(32, 7))); const b = new IdentityService(second, new SecretCipher(Buffer.alloc(32, 7)));
+  const scope = { tenantId: uuidv7(), appId: uuidv7() };
+  const creates = await Promise.allSettled([a, b].map(identity => identity.createUser(scope, policy, { username: "unique@example.com", email: "unique@example.com" })));
+  assert.equal(creates.filter(r => r.status === "fulfilled").length, 1);
+  await a.createUser(scope, policy, { username: "second" });
+  await b.createUser(scope, policy, { username: "third" });
+  await a.createUser({ ...scope, appId: uuidv7() }, policy, { username: "separate-app" });
+  const page = await first.transaction(scope, tx => tx.page<User>("user", scope, { limit: 2 }));
+  const rest = await second.transaction(scope, tx => tx.page<User>("user", scope, { limit: 2, after: page.at(-1)!.id }));
+  assert.equal(page.length, 2); assert.equal(rest.length, 1);
+  assert.equal(new Set([...page, ...rest].map(u => u.id)).size, 3);
+  assert.ok(page[0].id < page[1].id && page[1].id < rest[0].id);
+  assert.equal(await b.findUser({ tenantId: uuidv7(), appId: scope.appId }, policy, "unique@example.com"), undefined);
+  await assert.rejects(b.createUser(scope, { ...policy, isolation: "tenant" }, { username: "another" }), /isolation is locked/);
+});

@@ -7,7 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace BetterPortal;
 
-public sealed class TokenException(string message, int status = 401) : Exception(message)
+public class TokenException(string message, int status = 401) : Exception(message)
 {
     public int Status { get; } = status;
 }
@@ -206,6 +206,7 @@ public sealed class TokenIssuer(KeyPair key, string issuer, string audience, int
         {
             ["iss"] = issuer, ["aud"] = audience, ["realm"] = "runtime", ["iat"] = now, ["jti"] = identifier
         };
+        common.Remove("elevation");
         var access = new Dictionary<string, object?>(common) { ["tokenType"] = "access", ["exp"] = now + accessSeconds };
         access.Remove("refreshContext");
         var result = new Dictionary<string, object?>
