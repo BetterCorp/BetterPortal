@@ -900,3 +900,44 @@ test("renderer service URLs encode queries and route tokens require a whole supp
     assert.ok(warnings.every(message => !message.includes("id=123")));
   }, { serviceId, router: { createRequestObservability: () => observability } });
 });
+
+test("renderer app URLs resolve parameterized mounts and reject missing or ambiguous mounts", async () => {
+  const serviceId = uuidv7();
+  for (const paths of [[], ["/archive/call/:id"], ["/archive/call/:id", "/alternate/call/:id"]]) {
+    const app = {
+      id: uuidv7(), tenantId: tenant.id, slug: "navigation", title: "Navigation",
+      hostnames: ["app.local"], originOverrides: [], refererOverrides: [],
+      shell: { serviceId, service: "test", renderer: "bootstrap5" },
+      themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+      defaultRoute: "/source", menu: [], slots: [], fragments: {},
+      routes: [{ id: uuidv7(), kind: "page", path: "/source", serviceId,
+        viewId: "source", resolvedServicePath: "/source", enabled: true,
+        operations: ["source"], resolvedMethods: ["GET"] },
+      ...paths.map(path => ({ id: uuidv7(), kind: "page", path, serviceId,
+        viewId: "archive.call", resolvedServicePath: "/call/:id", enabled: true,
+        operations: ["archive.call"], resolvedMethods: ["GET"] }))]
+    } as BetterPortalApp;
+    const source = {
+      ...route("/source", "source"),
+      renderers: { bootstrap5: {
+        pages: [{ rendererId: "default", type: "page" as const, method: "GET" as const,
+          render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
+            const options = { params: { id: "call 42" }, query: { tab: "recording" } };
+            return JSON.stringify({ service: ctx.url.route("archive.call", options),
+              app: ctx.url.uiRoute("archive.call", options),
+              missingParams: ctx.url.uiRoute("archive.call") });
+          }
+        }], components: [], fragments: []
+      } }
+    } satisfies RegisteredRoute;
+    await withServer(app, { routes: [source, route("/call/:id", "archive.call")] }, async baseUrl => {
+      const response = await fetch(`${baseUrl}/source`, { headers: { accept: "text/html" } });
+      assert.equal(response.status, 200);
+      assert.deepEqual(JSON.parse(await response.text()), {
+        service: "/call/call%2042?tab=recording",
+        app: paths.length === 1 ? "/archive/call/call%2042?tab=recording" : null,
+        missingParams: null
+      }, `mounts: ${paths.join(", ") || "none"}`);
+    }, { serviceId });
+  }
+});
