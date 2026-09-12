@@ -290,13 +290,33 @@ test("legacy migration preserves bcrypt credentials and roles while locking tena
   assert.equal(user?.id, oldUser.id); assert.ok(user?.passwordHash?.startsWith("$argon2id$"));
   assert.deepEqual(await storage.transaction(scope, tx => identity.roles(tx, scope, user!, migratedPolicy)), ["editor"]);
   const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
-  const login = await handlePost({
-    tenant: { id: tenantId }, app: { id: appId }, request: { username: "legacy-local", password: "legacy-password" }, query: {},
-    rawEvent: { req: new Request("https://auth.test/login") }, responseHeaders: new Headers(),
-    plugin: { runtime: { identity, tokenIssuer: issuer, refreshTokenSeconds: 3600, factors: new Factors(identity), isManagement: () => false, policy: async () => migratedPolicy } }
-  } as never);
-  assert.equal(login.status, "ok");
-  assert.equal((await issuer.verifier().verify(login.accessToken!, scope)).sub, usernameOnly.id);
+  const login = async (username: string, password: string, requireMfa = false) => {
+    let status = 200;
+    const response = await handlePost({
+      tenant: { id: tenantId }, app: { id: appId }, request: { username, password }, query: {},
+      rawEvent: { req: new Request("https://auth.test/login"), url: new URL("https://auth.test/login") }, responseHeaders: new Headers(),
+      setStatus: (value: number) => { status = value; },
+      plugin: { runtime: { identity, tokenIssuer: issuer, refreshTokenSeconds: 3600, factors: new Factors(identity), isManagement: () => false, policy: async () => ({ ...migratedPolicy, requireMfa }) } }
+    } as never);
+    return { status, response };
+  };
+  // No mail service is configured in this runtime. Existing credentials still work.
+  for (const [username, password, id] of [["legacy-local", "legacy-password", usernameOnly.id], ["alice", "a long legacy password", oldUser.id], ["alice@example.com", "a long legacy password", oldUser.id]]) {
+    const result = await login(username, password);
+    assert.equal(result.status, 200); assert.equal(result.response.status, "ok");
+    assert.equal((await issuer.verifier().verify(result.response.accessToken!, scope)).sub, id);
+  }
+  const retained = (await identity.findUser(scope, migratedPolicy, oldUser.id, true))!;
+  assert.equal(retained.email, "alice@example.com"); assert.equal(retained.emailVerified, false);
+  const requiredMfa = await login("alice", "a long legacy password", true);
+  assert.equal(requiredMfa.response.accessToken, undefined); assert.equal(requiredMfa.response.challenge?.enroll, true);
+  const newUser = await identity.createUser(scope, migratedPolicy, { username: "new@example.com", email: "new@example.com", password: "a newly registered password", legacyUsernameLogin: true } as never);
+  assert.equal(newUser.legacyUsernameLogin, undefined);
+  const unverified = await login("new@example.com", "a newly registered password");
+  assert.equal(unverified.status, 403); assert.equal(unverified.response.accessToken, undefined);
+  await identity.updateUser(scope, migratedPolicy, oldUser.id, async u => { u.enabled = false; });
+  const disabled = await login("alice", "a long legacy password");
+  assert.equal(disabled.status, 401); assert.equal(disabled.response.accessToken, undefined);
   assert.equal(JSON.parse(readFileSync(path, "utf8")).version, 2); assert.ok(existsSync(`${path}.v1.backup`));
 });
 

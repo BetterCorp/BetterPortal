@@ -33,7 +33,7 @@ Legacy accounts keep IDs, bcrypt hashes and existing app-role assignments. Their
 
 Legacy identifier collisions never merge accounts or choose an owner by file order. Colliding usernames retain exact, case-sensitive password sign-in; ambiguous normalized identifiers remain reserved and cannot be used for email lookup or new registrations. Conflicting emails are preserved as `legacyEmail` migration metadata and removed from the active email field. These accounts can sign in with their original username and password, subject to MFA, then add and verify a unique email in Account. The original store remains in the migration backup.
 
-Legacy username-only accounts retain password login, subject to MFA policy. Add and verify an email from Account to enable email recovery; migration never invents a verified address. New self-service registrations require verified email.
+All migrated legacy accounts retain password login, subject to enabled-account checks and MFA policy, even when mail delivery is not configured. This migration-only exception also applies to accounts with a retained email; migration never marks the address verified. Accounts without an active email can add and verify one from Account. New self-service registrations still require verified email.
 
 ## Tenant and app configuration
 

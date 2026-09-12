@@ -15,6 +15,7 @@ test("PostgreSQL imports once, verifies leftovers, preserves keys, and serialize
   const dir = mkdtempSync(join(tmpdir(), "bp-auth-pg-")); const path = join(dir, "users.json"); const installationId = uuidv7(); const tenantId = uuidv7(); const appId = uuidv7();
   const old = new UserStore(path); const user = await old.createUser({ username: "legacy", email: "shared@example.com", password: "a legacy test password", tenantId, appRoles: { [appId]: ["reader"] } });
   const collision = await old.createUser({ username: "Legacy", email: "shared@example.com", password: "another legacy test password", tenantId, appRoles: { [appId]: ["editor"] } });
+  const emailUser = await old.createUser({ username: "email-user", email: "unique@example.com", password: "email legacy test password", tenantId, appRoles: { [appId]: [] } });
   writeFileSync(join(dir, "keys.json"), "signing material sentinel");
   const source = readFileSync(path, "utf8");
   const options = { mode: "advanced" as const, path, connectionString, installationId, appIds: { [tenantId]: [appId] } };
@@ -27,7 +28,7 @@ test("PostgreSQL imports once, verifies leftovers, preserves keys, and serialize
   // Simulate a crash after the import committed but before source cleanup.
   writeFileSync(path, source);
   const resumed = await openAuthStorage(options); await resumed.close(); assert.equal(existsSync(path), false);
-  assert.equal((await first.transaction({ tenantId, appId }, tx => tx.list("user"))).length, 2);
+  assert.equal((await first.transaction({ tenantId, appId }, tx => tx.list("user"))).length, 3);
   writeFileSync(path, JSON.stringify({ version: 1, users: [] }));
   await assert.rejects(openAuthStorage(options), /differs from the committed import/);
   assert.ok(existsSync(path));
@@ -37,6 +38,12 @@ test("PostgreSQL imports once, verifies leftovers, preserves keys, and serialize
   assert.equal((await a.authenticate(legacyScope, legacyPolicy, "legacy", "a legacy test password"))?.id, user.id);
   assert.equal((await b.authenticate(legacyScope, legacyPolicy, "Legacy", "another legacy test password"))?.id, collision.id);
   assert.equal(await b.findUser(legacyScope, legacyPolicy, "shared@example.com"), undefined);
+  const retainedEmailUser = (await b.authenticate(legacyScope, legacyPolicy, "email-user", "email legacy test password"))!;
+  assert.equal(retainedEmailUser.id, emailUser.id);
+  assert.equal(retainedEmailUser.email, "unique@example.com");
+  assert.equal(retainedEmailUser.emailVerified, false);
+  assert.equal(retainedEmailUser.legacyUsernameLogin, true);
+
   const scope = { tenantId: uuidv7(), appId: uuidv7() };
   const creates = await Promise.allSettled([a, b].map(identity => identity.createUser(scope, policy, { username: "unique@example.com", email: "unique@example.com" })));
   assert.equal(creates.filter(r => r.status === "fulfilled").length, 1);

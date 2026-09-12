@@ -156,7 +156,7 @@ export const handlePost = createHandler(
     if (!user) { ctx.setStatus?.(401); return { status: "error" as const, message: "Invalid username or password." }; }
     const roles = await runtime.identity.storage.transaction(scope, tx => runtime.identity.roles(tx, scope, user, policy));
     const root = runtime.isManagement(scope) && roles.includes("*");
-    if (!user.emailVerified && !root && !(user.legacyUsernameLogin === true && !user.email)) { ctx.setStatus?.(403); return { status: "error" as const, message: "Verify your email address before signing in. Use account recovery to resend the verification email." }; }
+    if (!user.emailVerified && !root && user.legacyUsernameLogin !== true) { ctx.setStatus?.(403); return { status: "error" as const, message: "Verify your email address before signing in. Use account recovery to resend the verification email." }; }
     const hasFactors = await runtime.factors.hasFactors(user);
     if (hasFactors || policy.requireMfa || root) {
       const event = ctx.rawEvent as { req: Request; url: URL };

@@ -228,7 +228,8 @@ export function importLegacy(raw: unknown, appIds: Record<string, string[]>): Fi
     const scope = { tenantId: user.tenantId, appId: "" };
     const email = typeof user.email === "string" ? user.email.trim().toLowerCase() : "";
     const ambiguousEmail = !!email && identifiers.get(key("identifier", email, scope))!.users.size > 1;
-    const value: RecordValue = { ...user, id: user.id, appId: "", legacyUsernameLogin: !email || ambiguousEmail, bootstrapAdmin: Object.values(user.appRoles as Record<string, string[]> ?? {}).some(roles => roles.includes("*")), emailVerified: false, refreshVersion: Number(user.refreshVersion ?? 0) + 1 };
+    // Preserve existing password access without treating a stored email as verified ownership.
+    const value: RecordValue = { ...user, id: user.id, appId: "", legacyUsernameLogin: true, bootstrapAdmin: Object.values(user.appRoles as Record<string, string[]> ?? {}).some(roles => roles.includes("*")), emailVerified: false, refreshVersion: Number(user.refreshVersion ?? 0) + 1 };
     if (ambiguousEmail) { value.legacyEmail = user.email; delete value.email; }
     else if (email) value.email = email;
     records.push({ kind: "user", scope, value });
