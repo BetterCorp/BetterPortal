@@ -3,7 +3,7 @@ import * as av from "anyvali";
 import { JsonObjectSchema, uuidv7 } from "@betterportal/framework";
 import { createHandler } from "../../.bp-generated/route-runtime.js";
 import { accountLink } from "../../../../account.js";
-import { AuthError, type User } from "../../../../identity.js";
+import { AuthError, isValidEmail, type User } from "../../../../identity.js";
 export const operationId = "auth.users.manage";
 export const auth = { required: true, elevation: { minimum: "mfa" as const }, permissions: [{ serviceId: "org.betterportal.auth.default", viewId: "users.index", permissions: ["update" as const] }] };
 export const cacheHints = { ttlSeconds: 0, varyBy: [] };
@@ -23,7 +23,7 @@ export default createHandler({ response: ResponseSchema, request: RequestSchema 
       if (body.action === "invite") {
         if (policy.registration === "closed") throw new AuthError("Registration is closed.");
         const email = (body.email ?? "").trim().toLowerCase();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AuthError("Enter a valid email.");
+        if (!isValidEmail(email)) throw new AuthError("Enter a valid email.");
         const ticket = await identity.challengeInTransaction(tx, scope, "invite", { email, roles }, undefined, 86400);
         const link = accountLink(ctx, "invite.accept", ticket);
         if (!link) throw new AuthError("Mount the account page before inviting users.");

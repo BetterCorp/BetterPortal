@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import argon2 from "argon2";
 import bcrypt from "bcrypt";
+import * as av from "anyvali";
 import { uuidv7, type BpTokenIssuer, type JwtClaims } from "@betterportal/framework";
 import type { AuthStorage, AuthTransaction, RecordValue, Scope } from "./storage.js";
 
@@ -35,6 +36,11 @@ const tenantScope = (tenantId: string): Scope => ({ tenantId, appId: "" });
 export const secretHash = (value: string) => createHash("sha256").update(value).digest("hex");
 export const newSecret = () => randomBytes(32).toString("base64url");
 const normalize = (value: string) => value.trim().toLowerCase();
+const EmailSchema = av.string().maxLength(254).format("email");
+export function isValidEmail(value: string): boolean {
+  // Bound input before parsing: AnyVali collects issues rather than stopping at maxLength.
+  return value.length <= 254 && EmailSchema.safeParse(value).success;
+}
 export function equalSecret(a: string, b: string): boolean {
   const aa = Buffer.from(secretHash(a)); const bb = Buffer.from(secretHash(b));
   return timingSafeEqual(aa, bb);
@@ -101,7 +107,7 @@ export class IdentityService {
     const dir = await this.directory(tx, scope, policy.isolation, true);
     if (this.storage.mode === "simple" && (await tx.list("user")).length >= 10) throw new AuthError("Simple auth is limited to 10 stored users. Upgrade to Advanced.", 426);
     const username = normalize(input.username); const email = input.email ? normalize(input.email) : undefined;
-    if (!username || username.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) throw new AuthError("Enter a valid account identifier and email.");
+    if (!username || username.length > 254 || (email !== undefined && !isValidEmail(email))) throw new AuthError("Enter a valid account identifier and email.");
     for (const id of new Set([username, ...(email ? [email] : [])])) if (await tx.get("identifier", id, dir)) throw new AuthError("This account cannot be registered.", 409);
     if (roles?.includes("*") && !root) throw new AuthError("Root cannot be assigned by account provisioning.", 403);
     if (root) {

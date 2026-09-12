@@ -30,6 +30,42 @@ test("app directories isolate identical emails; first account locks tenant isola
   await assert.rejects(identity.createUser({ tenantId: uuidv7(), appId: uuidv7() }, policy, { username: "bob" }), /one tenant/);
 });
 
+test("account provisioning, invitations and email changes use bounded email validation", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { accountPost } = await import("../src/account.js");
+  const { default: manage } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/POST.js");
+  const actor = await identity.createUser(scope, policy, { username: "admin", email: "  Admin+Test@Example.COM  ", verified: true });
+  assert.equal(actor.email, "admin+test@example.com");
+  const session = await identity.issueSession(scope, policy, actor, issuer, 3600);
+  const normal = await issuer.verifier().verify(session.accessToken, scope);
+  const now = Math.floor(Date.now() / 1000);
+  const user = await issuer.verifier().verify(issuer.signElevatedAccessToken(normal, { assurance: "mfa", verifiedAt: now, expiresAt: now + 300 }, 300), scope);
+  const recipients: string[] = [];
+  const runtime = { identity, policy: async () => policy, factors: new Factors(identity), mail: { enqueue: async (_tx: unknown, _scope: unknown, to: string) => { recipients.push(to); } } };
+  let status = 200;
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
+    rawEvent: { req: new Request("https://auth.test/account"), url: new URL("https://auth.test/account") },
+    uiRouteUrl: () => "https://app.test/account", request: {} as Record<string, unknown>, setStatus: (code: number) => { status = code; } };
+  const boundary = "a".repeat(64) + "@" + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(61);
+  assert.equal(boundary.length, 254);
+  for (const email of ["alice@example..com", "alice@-example.com", "alice@example.com\r\nBcc: other@example.com", "   ", "a" + boundary, "!@!." + "!.".repeat(100_000)]) {
+    await assert.rejects(identity.createUser(scope, policy, { username: "new-user", email }), /valid account identifier and email/);
+    ctx.request = { action: "invite", email };
+    assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 400);
+    ctx.request = { action: "email.change", email };
+    await assert.rejects(accountPost(ctx as never), /valid email/);
+  }
+  assert.deepEqual(recipients, []);
+  assert.equal((await storage.transaction(scope, tx => tx.list("user", scope))).length, 1);
+  assert.equal((await storage.transaction(scope, tx => tx.list("challenge", scope))).length, 0);
+  await identity.createUser(scope, policy, { username: "boundary", email: boundary });
+  ctx.request = { action: "invite", email: "  Invite+Test@Example.COM  " };
+  assert.equal((await manage(ctx as never)).status, "ok");
+  ctx.request = { action: "email.change", email: "  New+Test@Example.COM  " };
+  assert.equal((await accountPost(ctx as never)).status, "ok");
+  assert.deepEqual(recipients, ["invite+test@example.com", "new+test@example.com", "admin+test@example.com"]);
+});
+
 test("tenant directory shares accounts while roles and sessions stay app-bound", async t => {
   const { identity, scope } = fixture(t); const tenantPolicy = { ...policy, isolation: "tenant" as const }; const other = { ...scope, appId: uuidv7() };
   const user = await identity.createUser(scope, tenantPolicy, { username: "alice", verified: true }, ["editor"]);

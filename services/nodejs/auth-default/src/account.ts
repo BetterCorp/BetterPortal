@@ -1,5 +1,5 @@
 import { requireElevation, resolveAppAuthRedirect, type RouteHandlerContext, type JsonObject } from "@betterportal/framework";
-import { AuthError, hashPassword, verifyPassword, type User, type Session } from "./identity.js";
+import { AuthError, hashPassword, verifyPassword, isValidEmail, type User, type Session } from "./identity.js";
 import type { AuthRuntime } from "./plugins/service-betterportal-auth-default/index.js";
 import type { AuthTransaction } from "./storage.js";
 
@@ -149,7 +149,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
   } else if (action === "email.change") {
     requireElevation(ctx.user, { minimum: await runtime.factors.hasFactors(user) ? "mfa" : "confirm", maxAgeSeconds: 300 });
     const email = String(body.email ?? "").trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AuthError("Enter a valid email.");
+    if (!isValidEmail(email)) throw new AuthError("Enter a valid email.");
     await identity.storage.transaction(scope, async tx => {
       await assertCurrent(tx);
       const ticket = await identity.challengeInTransaction(tx, scope, "email.verify", { email, version: user.refreshVersion }, user.id, 1800);
