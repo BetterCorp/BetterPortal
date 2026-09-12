@@ -28,10 +28,10 @@ export const ResponseSchema = av.object({
     username: av.string().describe("Created account username."),
     isFirstAdmin: av.bool().describe("True when this account is the deployment's first admin.")
   }).describe("Created first-admin user summary.")),
-  // GET state for the theme renderer: registrations are closed once any user
-  // exists; loginUrl (self-origin, absolute) is where the renderer sends the
+  // GET state for the theme renderer: registration closes after management
+  // bootstrap; loginUrl (self-origin, absolute) is where the renderer sends the
   // browser in that case - and after a successful first-admin creation.
-  registrationOpen: av.optional(av.bool()).describe("True while the auth service has zero users; once false, the renderer should send the browser to login."),
+  registrationOpen: av.optional(av.bool()).describe("True while management bootstrap is incomplete; once false, the renderer should send the browser to login."),
   loginUrl: av.optional(av.string()).describe("Absolute self-origin URL of this auth service's login view, used when registration is closed and after successful first-admin creation.")
 });
 export type ResponseData = Infer<typeof ResponseSchema>;
@@ -81,7 +81,7 @@ export const handlePost = createHandler(
 
     const scope = { tenantId, appId };
     if (!runtime.isManagement(scope) || !await runtime.identity.bootstrapAvailable(scope)) {
-      // Registration is closed once any user exists. Respond 404 so the route
+      // Registration closes once management bootstrap completes. Respond 404 so the route
       // appears not to exist (no user-enumeration surface).
       ctx.setStatus?.(404);
       return {

@@ -111,6 +111,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   async init(obs: Observable): Promise<void> {
     const cfg = this.config;
+    if (cfg.mode === "advanced" && !cfg.setupToken) throw new Error("Advanced auth requires a setupToken shared by all replicas");
 
     if (cfg.mode === "advanced" && !existsSync(resolve(cfg.keyStorePath))) throw new Error("Advanced auth requires provisioned signing keys shared by its replicas");
     this.keyPair = loadOrGenerateKeyPair(resolve(cfg.keyStorePath));
@@ -133,7 +134,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const setupPath = `${resolve(cfg.userStorePath)}.setup.json`;
     if (cfg.setupToken) this.setupSecret = cfg.setupToken;
     else if (existsSync(setupPath)) this.setupSecret = JSON.parse(readFileSync(setupPath, "utf8")).token;
-    else if (await this.identity.hasNoUsers()) { this.setupSecret = randomBytes(32).toString("base64url"); atomicWrite(setupPath, { token: this.setupSecret }); }
+    else { this.setupSecret = randomBytes(32).toString("base64url"); atomicWrite(setupPath, { token: this.setupSecret }); }
     this.mailTimer = setInterval(() => { void this.mail.drain().catch(() => obs.log.error("Auth mail delivery queue unavailable")); }, 15000);
     this.mailTimer.unref();
 

@@ -860,29 +860,24 @@ export abstract class BPService<
     );
   }
 
-  private elevationChallenges = new Map<string, { user: JwtClaims; requirement: ElevationRequirement; expiresAt: number }>();
+  private elevationIssuer?: BpTokenIssuer;
 
   /** Providers may override these two hooks to persist challenges and require enrolled factors. */
   protected async beginAuthElevation(user: JwtClaims, requirement: ElevationRequirement, _event: BetterPortalEvent, _actionContext: Record<string, string> = {}): Promise<Record<string, unknown>> {
     if (requirement.minimum === "mfa") throw new Error("This provider does not support MFA elevation");
-    for (const [id, challenge] of this.elevationChallenges) if (challenge.expiresAt <= Date.now()) this.elevationChallenges.delete(id);
-    if (this.elevationChallenges.size >= 1000) throw new Error("Too many pending elevation challenges");
-    const challengeId = randomBytes(32).toString("base64url");
-    this.elevationChallenges.set(challengeId, { user, requirement, expiresAt: Math.min(user.exp * 1000, Date.now() + 300000) });
+    if (!this.elevationIssuer) throw new Error("Elevation issuer unavailable");
+    const challengeId = this.elevationIssuer.signConfirmationChallenge(user);
     return { challengeId, method: "confirm" };
   }
 
-  protected async finishAuthElevation(user: JwtClaims, body: Record<string, unknown>, _event: BetterPortalEvent): Promise<{ user: JwtClaims; assurance: "confirmed" | "mfa" }> {
-    const challengeId = String(body.challengeId ?? "");
-    const challenge = this.elevationChallenges.get(challengeId);
-    if (!challenge || challenge.expiresAt <= Date.now() || challenge.user.jti !== user.jti
-      || challenge.user.sub !== user.sub || challenge.user.tenantId !== user.tenantId || challenge.user.appId !== user.appId
-      || body.confirm !== true) throw new Error("Elevation challenge invalid or expired");
-    this.elevationChallenges.delete(challengeId);
-    return { user: challenge.user, assurance: "confirmed" };
+  protected async finishAuthElevation(user: JwtClaims, body: Record<string, unknown>, _event: BetterPortalEvent): Promise<{ user: JwtClaims; assurance: "confirmed" | "mfa"; verifiedAt?: number }> {
+    if (!this.elevationIssuer || body.confirm !== true || typeof body.challengeId !== "string") throw new Error("Elevation challenge invalid or expired");
+    const verifiedAt = this.elevationIssuer.verifyConfirmationChallenge(user, body.challengeId);
+    return { user, assurance: "confirmed", verifiedAt };
   }
 
   private registerElevationEndpoint(issuer: BpTokenIssuer): void {
+    this.elevationIssuer = issuer;
     this.app.post("/.well-known/bp/auth/elevate", async (event) => {
       event.res.headers.set("Cache-Control", "no-store");
       const context = await this.resolveRequestContext(event);
@@ -911,9 +906,10 @@ export abstract class BPService<
         if (body.action !== "complete") throw new Error("Invalid elevation action");
         const verified = await this.finishAuthElevation(user, body, event);
         const now = Math.floor(Date.now() / 1000);
+        const verifiedAt = verified.verifiedAt ?? now;
         // Generic providers cannot revalidate the underlying session. Never extend it.
-        const expiresInSeconds = Math.min(user.exp - now, issuer.accessTokenSeconds);
-        const elevation = { assurance: verified.assurance, verifiedAt: now, expiresAt: now + expiresInSeconds };
+        const expiresInSeconds = Math.min(user.exp - now, verifiedAt + issuer.accessTokenSeconds - now);
+        const elevation = { assurance: verified.assurance, verifiedAt, expiresAt: now + expiresInSeconds };
         const accessToken = issuer.signElevatedAccessToken(verified.user, elevation, expiresInSeconds);
         return jsonResponse({ accessToken, expiresInSeconds, elevation });
       } catch { return jsonResponse({ error: "Elevation unavailable or verification failed" }, 400); }

@@ -77,6 +77,38 @@ test("tenant directory shares accounts while roles and sessions stay app-bound",
   await assert.rejects(issuer.verifyRefreshToken({ refreshToken: a.refreshToken!, ...other }), /different tenant\/app/);
 });
 
+test("login account limits normalize padding and case across different peers", async t => {
+  const { identity, scope } = fixture(t);
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const authenticate = t.mock.method(identity, "authenticate", async () => undefined);
+  let status = 0;
+  for (let i = 0; i < 11; i++) {
+    const req = new Request("https://auth.test/login"); Object.assign(req, { ip: `192.0.2.${i + 1}` });
+    await handlePost({ tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: { req }, request: { username: " ".repeat(i) + "Alice@Example.COM" + " ".repeat(i), password: "incorrect" },
+      plugin: { runtime: { identity, policy: async () => policy } }, setStatus: (value: number) => { status = value; } } as never);
+    assert.equal(status, i < 10 ? 401 : 429);
+  }
+  assert.equal(authenticate.mock.callCount(), 10);
+});
+
+test("session issuance and refresh preserve the current profile picture", async t => {
+  const { identity, scope } = fixture(t);
+  const original = await identity.createUser(scope, policy, { username: "alice", verified: true });
+  await identity.updateUser(scope, policy, original.id, async u => { u.picture = "https://images.test/avatar.png"; });
+  const pair = await identity.issueSession(scope, policy, original, issuer, 3600);
+  assert.equal((await issuer.verifier().verify(pair.accessToken, scope)).picture, "https://images.test/avatar.png");
+  const claims = await issuer.verifyRefreshToken({ ...scope, refreshToken: pair.refreshToken! });
+  const refreshed = await identity.refresh(scope, policy, claims, issuer);
+  assert.equal((await issuer.verifier().verify(refreshed!.accessToken, scope)).picture, "https://images.test/avatar.png");
+});
+
+test("Advanced startup refuses a replica-local generated bootstrap secret", async () => {
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const service = Object.create(Plugin.prototype);
+  Object.defineProperty(service, "config", { value: { mode: "advanced", setupToken: "" } });
+  await assert.rejects(service.init({} as never), /setupToken shared by all replicas/);
+});
+
 test("concurrent registrations cannot exceed ten stored accounts, including disabled accounts", async t => {
   const { identity, scope, storage } = fixture(t);
   const created = await Promise.allSettled(Array.from({ length: 15 }, (_, i) => identity.createUser(scope, policy, { username: `user${i}` })));

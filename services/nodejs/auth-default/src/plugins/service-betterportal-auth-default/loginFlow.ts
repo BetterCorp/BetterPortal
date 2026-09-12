@@ -9,7 +9,7 @@ import {
 } from "@betterportal/framework";
 import { createHandler } from "./.bp-generated/route-runtime.js";
 import { getEventPeerIp, type BetterPortalEvent } from "@betterportal/framework/lib/runtime/h3.js";
-import { AuthError } from "../../identity.js";
+import { AuthError, normalizeAccountIdentifier } from "../../identity.js";
 import { revokePresentedRefreshToken } from "./logoutFlow.js";
 
 export const QuerySchema = av.object({
@@ -40,9 +40,9 @@ export const ResponseSchema = av.object({
     email: av.optional(av.string()).describe("User email address, when set."),
     name: av.optional(av.string()).describe("Display name, when set.")
   }).describe("Authenticated user summary.")),
-  // True while the auth service has zero users - the theme renderer redirects
+  // True while management bootstrap is incomplete - the theme renderer redirects
   // to the register view (first-admin setup) instead of showing the login form.
-  requiresFirstAdmin: av.optional(av.bool()).describe("True while the auth service has zero users; the theme renderer should redirect to first-admin registration instead of showing the login form."),
+  requiresFirstAdmin: av.optional(av.bool()).describe("True while management bootstrap is incomplete; the theme renderer should redirect to first-admin registration instead of showing the login form."),
   // Absolute URL of this auth service's register view (self-origin). Provided so
   // the theme renderer can load it in-shell without knowing the auth origin.
   firstAdminUrl: av.optional(av.string()).describe("Absolute self-origin URL of this auth service's register view so the theme can load it in-shell without knowing the auth origin."),
@@ -101,7 +101,7 @@ export const handleGet = createHandler(
     }
 
     // Valid token already on the request - no point rendering a login form.
-    // First-admin setup still wins: a token can outlive a wiped user store.
+    // Management bootstrap still wins until its durable completion marker exists.
     if (ctx.user && !requiresFirstAdmin) {
       const next = resolveAppAuthRedirect(ctx, "afterLogin", (ctx.query as { next?: string }).next);
       return {
@@ -150,7 +150,7 @@ export const handlePost = createHandler(
     const policy = await runtime.policy(scope);
     try {
     await runtime.identity.rateLimit(scope, "login-peer", getEventPeerIp(ctx.rawEvent as BetterPortalEvent) ?? "unknown", 100, 600);
-    await runtime.identity.rateLimit(scope, "login", body.username.toLowerCase());
+    await runtime.identity.rateLimit(scope, "login", normalizeAccountIdentifier(body.username));
     const user = await runtime.identity.authenticate(scope, policy, body.username, body.password);
     if (!user) { ctx.setStatus?.(401); return { status: "error" as const, message: "Invalid username or password." }; }
     const roles = await runtime.identity.storage.transaction(scope, tx => runtime.identity.roles(tx, scope, user, policy));

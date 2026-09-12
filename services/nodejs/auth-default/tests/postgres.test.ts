@@ -45,4 +45,32 @@ test("PostgreSQL imports once, verifies leftovers, preserves keys, and serialize
   assert.ok(page[0].id < page[1].id && page[1].id < rest[0].id);
   assert.equal(await b.findUser({ tenantId: uuidv7(), appId: scope.appId }, policy, "unique@example.com"), undefined);
   await assert.rejects(b.createUser(scope, { ...policy, isolation: "tenant" }, { username: "another" }), /isolation is locked/);
+
+  // Customer accounts, including an account in the management app, cannot claim bootstrap.
+  const management = { tenantId: uuidv7(), appId: uuidv7() };
+  await a.createUser(management, policy, { username: "customer", verified: true });
+  assert.equal(await a.bootstrapAvailable(management), true);
+  const roots = await Promise.allSettled([a, b].map((identity, i) => identity.createUser(management, policy, { username: `root-${i}` }, ["*"], true)));
+  assert.equal(roots.filter(r => r.status === "fulfilled").length, 1);
+  assert.equal(await b.bootstrapAvailable(management), false);
+  await assert.rejects(a.createUser(management, policy, { username: "root-again" }, ["*"], true), /Bootstrap already completed/);
+
+  await first.transaction(scope, async tx => {
+    for (let i = 0; i < 300; i++) await tx.put("mail", scope, { id: `history-${i}`, scope, state: "sent", nextAttempt: 0 });
+    for (let i = 0; i < 105; i++) await tx.put("mail", scope, { id: `due-${String(i).padStart(3, "0")}`, scope, state: i % 2 ? "sending" : "pending", nextAttempt: i });
+    await tx.put("mail", scope, { id: "future", scope, state: "sending", nextAttempt: 9999 });
+    await tx.put("mail", scope, { id: "failed", scope, state: "failed", nextAttempt: 0 });
+  });
+  const due = await second.transaction(scope, tx => tx.dueMail(1000, 100));
+  assert.equal(due.length, 100);
+  assert.deepEqual(due.map(row => row.id), Array.from({ length: 100 }, (_, i) => `due-${String(i).padStart(3, "0")}`));
+  const inspection = new Pool({ connectionString });
+  try {
+    const client = await inspection.connect();
+    try {
+      await client.query("SET enable_seqscan=off");
+      const plan = await client.query("EXPLAIN SELECT value FROM bp_auth_records WHERE installation=$1 AND kind='mail' AND value->>'state' IN ('pending','sending') AND (value->>'nextAttempt')::bigint <= $2 ORDER BY (value->>'nextAttempt')::bigint,id LIMIT 100", [installationId, 1000]);
+      assert.match(plan.rows.map(r => r["QUERY PLAN"]).join("\n"), /bp_auth_mail_due/);
+    } finally { client.release(); }
+  } finally { await inspection.end(); }
 });

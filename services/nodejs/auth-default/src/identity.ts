@@ -35,7 +35,7 @@ interface Assignment extends RecordValue { roles: string[]; initialized: boolean
 const tenantScope = (tenantId: string): Scope => ({ tenantId, appId: "" });
 export const secretHash = (value: string) => createHash("sha256").update(value).digest("hex");
 export const newSecret = () => randomBytes(32).toString("base64url");
-const normalize = (value: string) => value.trim().toLowerCase();
+export const normalizeAccountIdentifier = (value: string) => value.trim().toLowerCase();
 const EmailSchema = av.string().maxLength(254).format("email");
 export function isValidEmail(value: string): boolean {
   // Bound input before parsing: AnyVali collects issues rather than stopping at maxLength.
@@ -97,7 +97,7 @@ export class IdentityService {
   }
   async hasNoUsers(): Promise<boolean> { return this.storage.transaction(tenantScope(""), async tx => !(await tx.list("user")).length); }
   async bootstrapAvailable(scope: Scope): Promise<boolean> {
-    return this.storage.transaction(scope, async tx => !(await tx.get<TenantSettings>("tenant", scope.tenantId, tenantScope(scope.tenantId)))?.bootstrapComplete && !(await tx.list("user")).length);
+    return this.storage.transaction(scope, async tx => !(await tx.get<TenantSettings>("tenant", scope.tenantId, tenantScope(scope.tenantId)))?.bootstrapComplete);
   }
   async createUser(scope: Scope, policy: IdentityPolicy, input: { username: string; password?: string; email?: string; name?: string; verified?: boolean }, roles?: string[], root = false): Promise<User> {
     const passwordHash = input.password ? await hashPassword(input.password) : undefined;
@@ -106,12 +106,12 @@ export class IdentityService {
   async createInTransaction(tx: AuthTransaction, scope: Scope, policy: IdentityPolicy, input: { username: string; email?: string; name?: string; verified?: boolean }, passwordHash?: string, roles?: string[], root = false): Promise<User> {
     const dir = await this.directory(tx, scope, policy.isolation, true);
     if (this.storage.mode === "simple" && (await tx.list("user")).length >= 10) throw new AuthError("Simple auth is limited to 10 stored users. Upgrade to Advanced.", 426);
-    const username = normalize(input.username); const email = input.email ? normalize(input.email) : undefined;
+    const username = normalizeAccountIdentifier(input.username); const email = input.email ? normalizeAccountIdentifier(input.email) : undefined;
     if (!username || username.length > 254 || (email !== undefined && !isValidEmail(email))) throw new AuthError("Enter a valid account identifier and email.");
     for (const id of new Set([username, ...(email ? [email] : [])])) if (await tx.get("identifier", id, dir)) throw new AuthError("This account cannot be registered.", 409);
     if (roles?.includes("*") && !root) throw new AuthError("Root cannot be assigned by account provisioning.", 403);
     if (root) {
-      if ((await tx.list("user")).length || (await tx.get<TenantSettings>("tenant", scope.tenantId, tenantScope(scope.tenantId)))?.bootstrapComplete) throw new AuthError("Bootstrap already completed.", 409);
+      if ((await tx.get<TenantSettings>("tenant", scope.tenantId, tenantScope(scope.tenantId)))?.bootstrapComplete) throw new AuthError("Bootstrap already completed.", 409);
       const settings = await tx.get<TenantSettings>("tenant", scope.tenantId, tenantScope(scope.tenantId));
       await tx.put("tenant", tenantScope(scope.tenantId), { ...settings!, bootstrapComplete: true });
     }
@@ -125,7 +125,7 @@ export class IdentityService {
   async findUser(scope: Scope, policy: IdentityPolicy, identifier: string, byId = false): Promise<User | undefined> {
     return this.storage.transaction(scope, async tx => {
       const dir = await this.directory(tx, scope, policy.isolation);
-      const id = byId ? identifier : (await tx.get("identifier", normalize(identifier), dir))?.userId as string | undefined;
+      const id = byId ? identifier : (await tx.get("identifier", normalizeAccountIdentifier(identifier), dir))?.userId as string | undefined;
       return id ? tx.get<User>("user", id, dir) : undefined;
     });
   }
@@ -169,7 +169,7 @@ export class IdentityService {
       if (!current?.enabled || current.refreshVersion !== user.refreshVersion) throw new AuthError("Account changed; sign in again.", 401);
       const id = uuidv7();
       const roles = await this.roles(tx, scope, current, policy, true);
-      const issued = issuer.issueTokenPair({ sub: user.id, ...scope, roles, sessionId: id, sessionVersion: user.refreshVersion, name: user.name ?? user.username, email: user.email, authProvider: "betterportal.default", refreshContext: { sessionId: id, version: user.refreshVersion } });
+      const issued = issuer.issueTokenPair({ sub: user.id, ...scope, roles, sessionId: id, sessionVersion: user.refreshVersion, name: current.name ?? current.username, email: current.email, picture: current.picture, authProvider: "betterportal.default", refreshContext: { sessionId: id, version: user.refreshVersion } });
       await tx.put("session", scope, { id, userId: user.id, userAppId: dir.appId, version: user.refreshVersion, jti: issued.tokenId, previousJtis: [], expiresAt: Date.now() + refreshSeconds * 1000, createdAt: Date.now(), revoked: false });
       await this.audit(tx, scope, user.id, "login.success");
       return issued;
@@ -184,7 +184,7 @@ export class IdentityService {
       if (!session || !user?.enabled || session.revoked || session.expiresAt <= Date.now() || user.id !== claims.sub || user.refreshVersion !== session.version) return undefined;
       if (session.jti !== claims.jti) { session.revoked = true; await tx.put("session", scope, session); await this.audit(tx, scope, user.id, "refresh.replay"); return undefined; }
       const roles = await this.roles(tx, scope, user, policy);
-      const issued = issuer.issueTokenPair({ sub: user.id, ...scope, roles, sessionId: id, sessionVersion: user.refreshVersion, name: user.name ?? user.username, email: user.email, authProvider: "betterportal.default", refreshContext: { sessionId: id, version: user.refreshVersion } });
+      const issued = issuer.issueTokenPair({ sub: user.id, ...scope, roles, sessionId: id, sessionVersion: user.refreshVersion, name: user.name ?? user.username, email: user.email, picture: user.picture, authProvider: "betterportal.default", refreshContext: { sessionId: id, version: user.refreshVersion } });
       session.previousJtis = [...session.previousJtis.slice(-4), session.jti]; session.jti = issued.tokenId;
       await tx.put("session", scope, session); return issued;
     });

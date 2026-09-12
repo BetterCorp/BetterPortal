@@ -13,6 +13,7 @@ export interface AuthTransaction {
   get<T extends RecordValue>(kind: string, id: string, scope: Scope): Promise<T | undefined>;
   list<T extends RecordValue>(kind: string, scope?: Scope): Promise<T[]>;
   page<T extends RecordValue>(kind: string, scope: Scope, options?: PageOptions): Promise<T[]>;
+  dueMail<T extends RecordValue>(now: number, limit: number): Promise<T[]>;
   put(kind: string, scope: Scope, value: RecordValue): Promise<void>;
   remove(kind: string, id: string, scope: Scope): Promise<void>;
 }
@@ -116,6 +117,8 @@ export class JsonAuthStorage implements AuthStorage {
       const result = await work({
         get: async <R extends RecordValue>(kind: string, id: string, scope: Scope) => structuredClone(draft.records.find(row => key(row.kind, row.value.id, row.scope) === key(kind, id, scope))?.value as R | undefined),
         list: async <R extends RecordValue>(kind: string, scope?: Scope) => structuredClone(draft.records.filter(row => row.kind === kind && (!scope || sameScope(row.scope, scope))).map(row => row.value as R)),
+        dueMail: async <R extends RecordValue>(now: number, limit: number) => structuredClone(draft.records.filter(row => row.kind === "mail" && ["pending", "sending"].includes(String(row.value.state)) && Number(row.value.nextAttempt) <= now)
+          .sort((a, b) => Number(a.value.nextAttempt) - Number(b.value.nextAttempt) || a.value.id.localeCompare(b.value.id)).slice(0, Math.max(1, Math.min(100, limit))).map(row => row.value as R)),
         page: async <R extends RecordValue>(kind: string, scope: Scope, options: PageOptions = {}) => structuredClone(draft.records.filter(row => row.kind === kind && sameScope(row.scope, scope)).map(row => row.value as R)
           .filter(row => !options.after || (options.descending ? row.id < options.after : row.id > options.after))
           .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) * (options.descending ? -1 : 1)).slice(0, Math.max(1, Math.min(501, options.limit ?? 100)))),
@@ -154,6 +157,10 @@ function pgTransaction(client: PoolClient, installationId: string): AuthTransact
       const result = await client.query(`SELECT value FROM bp_auth_records WHERE installation=$1 AND tenant=$2 AND app=$3 AND kind=$4 AND ($5::text IS NULL OR id ${comparison} $5) ORDER BY id ${order} LIMIT $6`, [installationId, scope.tenantId, scope.appId, kind, options.after || null, Math.max(1, Math.min(501, options.limit ?? 100))]);
       return result.rows.map(row => row.value as T);
     },
+    dueMail: async <T extends RecordValue>(now: number, limit: number) => {
+      const result = await client.query("SELECT value FROM bp_auth_records WHERE installation=$1 AND kind='mail' AND value->>'state' IN ('pending','sending') AND (value->>'nextAttempt')::bigint <= $2 ORDER BY (value->>'nextAttempt')::bigint,id LIMIT $3", [installationId, now, Math.max(1, Math.min(100, limit))]);
+      return result.rows.map(row => row.value as T);
+    },
     put: async (kind, scope, value) => {
       await client.query("INSERT INTO bp_auth_records(installation,tenant,app,kind,id,value) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(installation,tenant,app,kind,id) DO UPDATE SET value=EXCLUDED.value", [installationId, scope.tenantId, scope.appId, kind, value.id, value]);
     },
@@ -178,6 +185,7 @@ export class PostgresAuthStorage implements AuthStorage {
         value jsonb NOT NULL CHECK(jsonb_typeof(value)='object' AND value->>'id'=id),
         PRIMARY KEY(installation,tenant,app,kind,id))`);
       await client.query("CREATE INDEX IF NOT EXISTS bp_auth_record_kind ON bp_auth_records(installation,kind,tenant,app)");
+      await client.query("CREATE INDEX IF NOT EXISTS bp_auth_mail_due ON bp_auth_records(installation,((value->>'nextAttempt')::bigint),id) WHERE kind='mail' AND value->>'state' IN ('pending','sending')");
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }

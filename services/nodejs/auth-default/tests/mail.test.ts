@@ -30,3 +30,20 @@ test("Postal uses the documented payload and treats a 200 error as a retryable f
   const [sent] = await storage.transaction(scope, tx => tx.list("mail", scope));
   assert.equal(calls, 2); assert.equal(sent.state, "sent"); assert.equal(sent.encrypted, "");
 });
+
+test("queued mail revalidates changed delivery configuration before exposing secrets", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-mail-url-")); const storage = new JsonAuthStorage(join(dir, "users.json"));
+  t.after(async () => { await storage.close(); rmSync(dir, { recursive: true, force: true }); });
+  const identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  const config = { transport: "http" as const, url: "https://mail.test", from: "auth@example.com" };
+  const queue = new MailQueue(identity, () => config); const scope = { tenantId: "tenant", appId: "app" };
+  await storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Reset", "private reset proof"));
+  let calls = 0; t.mock.method(globalThis, "fetch", async () => { calls++; return new Response("ok"); });
+  config.url = "http://mail.test";
+  await queue.drain(); assert.equal(calls, 0);
+  const [job] = await storage.transaction(scope, tx => tx.list("mail", scope));
+  assert.equal(job.state, "pending"); assert.equal(job.attempts, 1);
+  config.url = "https://mail.test";
+  await storage.transaction(scope, tx => tx.put("mail", scope, { ...job, nextAttempt: 0 }));
+  await queue.drain(); assert.equal(calls, 1);
+});
