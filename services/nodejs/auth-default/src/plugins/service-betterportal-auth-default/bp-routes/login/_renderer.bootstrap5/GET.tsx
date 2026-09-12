@@ -1,4 +1,5 @@
 /** @jsxImportSource jsx-htmx */
+import { renderChallenge } from "../../../../../accountUI.js";
 import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../../../loginFlow.js";
@@ -15,28 +16,28 @@ function loginScript(): HtmlRenderable {
     if (nextInput) {
       nextInput.value = new URLSearchParams(window.location.search).get("next") || "";
     }
-    form.addEventListener("htmx:beforeRequest", () => {
+    form.addEventListener("htmx:before:request", () => {
       const errEl = document.getElementById("bp-login-error");
       if (errEl) errEl.classList.add("d-none");
     });
-    form.addEventListener("htmx:responseError", (ev) => {
-      const xhr = ev.detail.xhr;
+    form.addEventListener("htmx:response:error", (ev) => {
+      const xhr = { status: ev.detail.ctx?.response?.status, responseText: ev.detail.ctx?.text };
       let body = null;
       try { body = JSON.parse(xhr.responseText); } catch { /* non-JSON */ }
       const errEl = document.getElementById("bp-login-error");
       if (errEl) {
-        errEl.textContent = (body && body.message) || ("Login failed (HTTP " + xhr.status + ")");
+        errEl.textContent = (body && body.message) || new DOMParser().parseFromString(xhr.responseText || "", "text/html").getElementById("bp-login-error")?.textContent?.trim() || ("Login failed (HTTP " + xhr.status + ")");
         errEl.classList.remove("d-none");
       }
     });
-    form.addEventListener("htmx:afterRequest", (ev) => {
-      const xhr = ev.detail.xhr;
+    form.addEventListener("htmx:after:request", (ev) => {
+      const xhr = { status: ev.detail.ctx?.response?.status, responseText: ev.detail.ctx?.text };
       let body = null;
       try { body = JSON.parse(xhr.responseText); } catch { /* non-JSON */ }
       const errEl = document.getElementById("bp-login-error");
       if (!xhr.status || xhr.status >= 400 || !body || body.status !== "ok") {
         if (errEl) {
-          errEl.textContent = (body && body.message) || ("Login failed (HTTP " + xhr.status + ")");
+          errEl.textContent = (body && body.message) || new DOMParser().parseFromString(xhr.responseText || "", "text/html").getElementById("bp-login-error")?.textContent?.trim() || ("Login failed (HTTP " + xhr.status + ")");
           errEl.classList.remove("d-none");
         }
         return;
@@ -50,6 +51,7 @@ function loginScript(): HtmlRenderable {
 }
 
 export function render(data: ResponseData): HtmlRenderable {
+  if (data.challenge) return renderChallenge(data.challenge, data.accountUrl ?? "/account");
   if (data.loggedOut) {
     const next = data.nextUrl || "/";
     return (
@@ -156,6 +158,8 @@ export function render(data: ResponseData): HtmlRenderable {
             <div class="alert alert-danger d-none" id="bp-login-error"></div>
             <button type="submit" class="btn btn-primary w-100">Sign in</button>
           </form>
+          {data.socialUrl ? <a class="d-block mt-3" href={data.socialUrl} hx-get={data.socialUrl} hx-target="#bp-main">Sign in with Google, Microsoft or GitHub</a> : null}
+          {data.accountUrl ? <a class="d-block mt-3" href={data.accountUrl} hx-get={data.accountUrl} hx-target="#bp-main">Register or recover your account</a> : null}
         </div>
       </div>
       <script>{loginScript()}</script>

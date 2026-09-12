@@ -21,7 +21,7 @@ function registerScript(): HtmlRenderable {
   return js(`(() => {
     const form = document.getElementById("bp-register-form");
     if (!form) return;
-    form.addEventListener("htmx:beforeRequest", (ev) => {
+    form.addEventListener("htmx:before:request", (ev) => {
       const errEl = document.getElementById("bp-register-error");
       const pw = form.querySelector('input[name="password"]');
       const confirm = document.getElementById("bp-register-confirm");
@@ -66,6 +66,7 @@ function renderForm(data: ResponseData): HtmlRenderable {
             hx-target="#bp-main"
             hx-swap="innerHTML"
           >
+            <div class="mb-3"><label class="form-label">Deployment setup token</label><input class="form-control" type="password" name="setupToken" required autocomplete="off" /></div>
             <div class="mb-3">
               <label class="form-label">Username *</label>
               <input type="text" class="form-control" name="username" autocomplete="username" required autofocus />
@@ -75,12 +76,12 @@ function renderForm(data: ResponseData): HtmlRenderable {
               <input type="email" class="form-control" name="email" autocomplete="email" />
             </div>
             <div class="mb-3">
-              <label class="form-label">Password * <span class="text-secondary small">(min 8 chars)</span></label>
-              <input type="password" class="form-control" name="password" autocomplete="new-password" minlength="8" required />
+              <label class="form-label">Password * <span class="text-secondary small">(min 12 chars)</span></label>
+              <input type="password" class="form-control" name="password" autocomplete="new-password" minlength="12" required />
             </div>
             <div class="mb-3">
               <label class="form-label">Confirm password *</label>
-              <input type="password" class="form-control" id="bp-register-confirm" autocomplete="new-password" minlength="8" required />
+              <input type="password" class="form-control" id="bp-register-confirm" autocomplete="new-password" minlength="12" required />
             </div>
             <div class={`alert alert-danger ${data.status === "error" && data.message ? "" : "d-none"}`} id="bp-register-error">
               {data.status === "error" ? (data.message ?? "") : ""}

@@ -19,6 +19,7 @@ export const RequestSchema = av.object({
 export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const).describe("Refresh request outcome."),
   message: av.optional(av.string()).describe("Human-readable status or error message for the renderer."),
+  refreshToken: av.optional(av.string()),
   accessToken: av.optional(av.string()).describe("New signed JWT access token returned when refresh succeeds."),
   expiresInSeconds: av.optional(av.int().min(1)).describe("New access token lifetime in seconds.")
 });
@@ -85,32 +86,15 @@ export default createHandler(
       };
     }
 
-    const user = runtime.userStore.findById(claims.sub);
-    if (!user || !user.enabled || runtime.userStore.isRefreshTokenRevoked(claims.jti)
-      || (claims.refreshContext.version ?? 0) !== (user.refreshVersion ?? 0)) {
+    const scope = { tenantId, appId };
+    const policy = await runtime.policy(scope);
+    const issued = await runtime.identity.refresh(scope, policy, claims, runtime.tokenIssuer);
+    if (!issued) {
       ctx.setStatus?.(401);
-      ctx.bpHeaders?.remove('Authorization');
-      ctx.bpHeaders?.remove('X-BP-Refresh');
-      return {
-        status: "error" as const,
-        message: "User unavailable or refresh session revoked."
-      };
+      ctx.bpHeaders?.remove("Authorization"); ctx.bpHeaders?.remove("X-BP-Refresh");
+      return { status: "error" as const, message: "Refresh session unavailable or revoked." };
     }
-
-    const roles = user.appRoles[appId] ?? [];
-    const issued = runtime.tokenIssuer.issueTokenPair({
-      sub: user.id,
-      tenantId: user.tenantId,
-      appId,
-      authProvider: 'betterportal.default',
-      refreshContext: {},
-      roles,
-      name: user.name ?? user.username,
-      email: user.email,
-      picture: user.picture
-    }, {
-      includeRefreshToken: false
-    });
+    ctx.bpHeaders?.set("X-BP-Refresh", issued.refreshToken!, { expiresInSeconds: issued.refreshTokenExpiresInSeconds!, locked: true, scopeToOwner: true });
 
     ctx.bpHeaders?.set("Authorization", `Bearer ${issued.accessToken}`, {
       expiresInSeconds: issued.accessTokenExpiresInSeconds,
@@ -122,6 +106,7 @@ export default createHandler(
     return {
       status: "ok" as const,
       accessToken: issued.accessToken,
+      refreshToken: issued.refreshToken,
       expiresInSeconds: issued.accessTokenExpiresInSeconds
     };
   }

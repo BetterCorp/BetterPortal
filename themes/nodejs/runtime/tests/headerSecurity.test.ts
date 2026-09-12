@@ -6,10 +6,10 @@ import ts from "typescript";
 
 test("browser header ownership is case-insensitive and credentials stay on registered origins", () => {
   const source = readFileSync(new URL("../src/runtime.ts", import.meta.url), "utf8");
-  const code = source.slice(source.indexOf('const BP_HEADERS_KEY ='), source.indexOf('const contentDispositionFilename ='));
+  const code = source.slice(source.indexOf('const authScope ='), source.indexOf('const contentDispositionFilename ='));
   let saved = JSON.stringify({ Authorization: { value: "Bearer secret", owner: "auth", locked: true, scope: null } });
   const api = runInNewContext(ts.transpile(code + '\n({attachBpHeaders, applyBpHeaderDirectives, readBpHeaders});'), {
-    URL, TextEncoder, Response, sessionId: "session", htmx: {}, document: { body: {} },
+    URL, TextEncoder, Response, shellRoot: () => null, sessionId: "session", htmx: {}, document: { body: {} },
     window: { location: { origin: "https://app.test" }, clearTimeout() {}, setTimeout() {} },
     serviceIdByOrigin: { "https://auth.test": "auth", "https://service.test": "service", "https://app.test": "app", "http://service.test": "http", "http://localhost:8080": "local", "http://127.0.0.1": "ipv4", "http://[::1]": "ipv6" },
     serviceOrigins: { auth: "https://auth.test", service: "https://service.test", app: "https://app.test", http: "http://service.test", local: "http://localhost:8080", ipv4: "http://127.0.0.1", ipv6: "http://[::1]" },
@@ -49,4 +49,21 @@ test("browser header ownership is case-insensitive and credentials stay on regis
   }
   saved = JSON.stringify({ Authorization: { value: "one" }, authorization: { value: "two" } });
   assert.equal(api.readBpHeaders().authorization, undefined);
+});
+
+test("legacy browser credentials migrate only into their signed tenant/app storage scope", () => {
+  const source = readFileSync(new URL("../src/runtime.ts", import.meta.url), "utf8");
+  const code = source.slice(source.indexOf('const authScope ='), source.indexOf('const contentDispositionFilename ='));
+  const token = "header." + Buffer.from(JSON.stringify({ tenantId: "tenant", appId: "app-a" })).toString("base64url") + ".signature";
+  const storage = new Map([["bp.headers", JSON.stringify({ Authorization: { value: "Bearer " + token, owner: "auth", locked: true, scope: null } })]]);
+  const context = (appId: string) => runInNewContext(ts.transpile(code + '\n({readBpHeaders});'), {
+    URL, TextEncoder, Response, atob, sessionId: "session", htmx: {}, document: { body: {} },
+    shellRoot: () => ({ getAttribute: (name: string) => name === "data-bp-tenant-id" ? "tenant" : appId }),
+    window: { location: { origin: "https://app.test" }, clearTimeout() {}, setTimeout() {} },
+    serviceIdByOrigin: { "https://auth.test": "auth" }, serviceOrigins: { auth: "https://auth.test" },
+    localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) }
+  });
+  assert.equal(context("app-b").readBpHeaders().authorization, undefined);
+  assert.equal(context("app-a").readBpHeaders().authorization.value, "Bearer " + token);
+  assert.equal(JSON.parse(storage.get("bp.headers:tenant:app-b")!).authorization, undefined);
 });

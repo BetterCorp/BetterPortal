@@ -7,6 +7,7 @@ import json
 from typing import Any, Iterable, Mapping, TYPE_CHECKING, cast
 
 from .access import AppAccess
+from .elevation import ElevationRequired
 from .authorization import AuthContext, _bearer, authorize_request, is_machine_request
 from .context import ScopedConfig, ScopedContext, OriginPolicy, http_origin
 from .config_api import ConfigApi
@@ -297,6 +298,8 @@ class Service:
         except TokenError as error:
             if self._state is not state or not self.ready:
                 raise RequestError(503, "Configuration changed during authentication") from error
+            if isinstance(error, ElevationRequired):
+                raise RequestError(401, str(error), {**response_headers, **error.headers}, scope=scope) from error
             message = {401: "Authentication required or invalid", 403: "Access denied", 503: "Authentication unavailable"}.get(error.status, "Authentication failed")
             raise RequestError(error.status, message, response_headers, scope=scope) from error
         except Exception as error:

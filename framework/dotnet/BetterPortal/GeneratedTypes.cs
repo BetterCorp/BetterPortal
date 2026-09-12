@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 56769b2c24c6dc065eef1db3b8c4ca0497ab7096573c64e23610c7436eb0caef
+// Generated from AnyVali documents; do not edit. SHA256: aa1a71231bc1bbf3ddd66309ca242e7af25f71324c593198e938525783d071dc
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -73,6 +73,9 @@ public sealed record ApiAuthRequirement
 {
     [JsonPropertyName("required")]
     public required bool Required { get; init; }
+    [JsonPropertyName("elevation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ElevationRequirement> Elevation { get; init; }
     [JsonPropertyName("callers")]
     public required IReadOnlyList<ApiCallerMode> Callers { get; init; }
     [JsonPropertyName("permissions")]
@@ -84,6 +87,9 @@ public sealed record ApiAuthRequirementInput
     [JsonPropertyName("required")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Required { get; init; }
+    [JsonPropertyName("elevation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ElevationRequirementInput> Elevation { get; init; }
     [JsonPropertyName("callers")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<ApiCallerModeInput>> Callers { get; init; }
@@ -5484,6 +5490,80 @@ public enum DeveloperResourceKind
     Example,
 }
 
+public sealed record ElevationClaims
+{
+    [JsonPropertyName("assurance")]
+    public required ElevationClaimsAssurance Assurance { get; init; }
+    [JsonPropertyName("verifiedAt")]
+    public required long VerifiedAt { get; init; }
+    [JsonPropertyName("expiresAt")]
+    public required long ExpiresAt { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ElevationClaimsAssurance>))]
+public enum ElevationClaimsAssurance
+{
+    [JsonStringEnumMemberName("confirmed")]
+    Confirmed,
+    [JsonStringEnumMemberName("mfa")]
+    Mfa,
+}
+
+public sealed record ElevationClaimsInput
+{
+    [JsonPropertyName("assurance")]
+    public required ElevationClaimsInputAssurance Assurance { get; init; }
+    [JsonPropertyName("verifiedAt")]
+    public required long VerifiedAt { get; init; }
+    [JsonPropertyName("expiresAt")]
+    public required long ExpiresAt { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ElevationClaimsInputAssurance>))]
+public enum ElevationClaimsInputAssurance
+{
+    [JsonStringEnumMemberName("confirmed")]
+    Confirmed,
+    [JsonStringEnumMemberName("mfa")]
+    Mfa,
+}
+
+public sealed record ElevationRequirement
+{
+    [JsonPropertyName("minimum")]
+    public required ElevationRequirementMinimum Minimum { get; init; }
+    [JsonPropertyName("maxAgeSeconds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> MaxAgeSeconds { get; init; }
+}
+
+public sealed record ElevationRequirementInput
+{
+    [JsonPropertyName("minimum")]
+    public required ElevationRequirementInputMinimum Minimum { get; init; }
+    [JsonPropertyName("maxAgeSeconds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> MaxAgeSeconds { get; init; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ElevationRequirementInputMinimum>))]
+public enum ElevationRequirementInputMinimum
+{
+    [JsonStringEnumMemberName("confirm")]
+    Confirm,
+    [JsonStringEnumMemberName("mfa")]
+    Mfa,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ElevationRequirementMinimum>))]
+public enum ElevationRequirementMinimum
+{
+    [JsonStringEnumMemberName("confirm")]
+    Confirm,
+    [JsonStringEnumMemberName("mfa")]
+    Mfa,
+}
+
 public sealed record FragmentAssignment
 {
     [JsonPropertyName("serviceId")]
@@ -5631,6 +5711,15 @@ public sealed record JwtClaims
     [JsonPropertyName("refreshContext")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonObject> RefreshContext { get; init; }
+    [JsonPropertyName("elevation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ElevationClaims> Elevation { get; init; }
+    [JsonPropertyName("sessionId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> SessionId { get; init; }
+    [JsonPropertyName("sessionVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> SessionVersion { get; init; }
     [JsonPropertyName("providerSubject")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ProviderSubject { get; init; }
@@ -5682,6 +5771,15 @@ public sealed record JwtClaimsInput
     [JsonPropertyName("refreshContext")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonObjectInput> RefreshContext { get; init; }
+    [JsonPropertyName("elevation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ElevationClaimsInput> Elevation { get; init; }
+    [JsonPropertyName("sessionId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> SessionId { get; init; }
+    [JsonPropertyName("sessionVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long> SessionVersion { get; init; }
     [JsonPropertyName("providerSubject")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ProviderSubject { get; init; }
@@ -7408,6 +7506,9 @@ public sealed record ScopedApp
     [JsonPropertyName("auth")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedAppAuth> Auth { get; init; }
+    [JsonPropertyName("managementAuthServiceOrigins")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, string>> ManagementAuthServiceOrigins { get; init; }
     [JsonPropertyName("shell")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedAppShell> Shell { get; init; }
@@ -7541,6 +7642,9 @@ public sealed record ScopedAppInput
     [JsonPropertyName("auth")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedAppInputAuth> Auth { get; init; }
+    [JsonPropertyName("managementAuthServiceOrigins")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, string>> ManagementAuthServiceOrigins { get; init; }
     [JsonPropertyName("shell")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedAppInputShell> Shell { get; init; }

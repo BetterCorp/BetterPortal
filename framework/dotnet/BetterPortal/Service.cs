@@ -116,6 +116,11 @@ public sealed partial class Service : IAsyncDisposable
         }
         catch (Exception error) when ((error is not OperationCanceledException || !cancellationToken.IsCancellationRequested) && (!ReferenceEquals(state, current) || !Ready))
         { throw new RequestException(503, "Configuration changed during authentication"); }
+        catch (ElevationRequiredException error)
+        {
+            foreach (var (key, value) in error.Headers) responseHeaders[key] = value;
+            throw new RequestException(401, error.Message, responseHeaders, scope);
+        }
         catch (TokenException error)
         {
             var message = error.Status switch { 401 => "Authentication required or invalid", 403 => "Access denied", 503 => "Authentication unavailable", _ => "Authentication failed" };

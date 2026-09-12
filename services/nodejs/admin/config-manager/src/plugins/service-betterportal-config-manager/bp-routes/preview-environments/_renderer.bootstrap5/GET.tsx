@@ -69,17 +69,11 @@ export function configEditorScript(): HtmlRenderable {
       if (type.includes("application/json")) return response.json();
       throw new Error(label + " returned HTTP " + response.status);
     };
-    const bpHeaders = () => {
-      try {
-        const stored = JSON.parse(localStorage.getItem("bp.headers") || "{}");
-        const auth = Object.entries(stored).find(([name]) => name.toLowerCase() === "authorization")?.[1];
-        return auth && typeof auth.value === "string" ? { Authorization: auth.value } : {};
-      } catch { return {}; }
-    };
     const requestTicket = async (form, source) => {
-      const response = await fetch(form.dataset.ticketUrl, {
+      if (!window.BetterPortalAuth) throw new Error("Authentication runtime is unavailable. Reload this page.");
+      const response = await window.BetterPortalAuth.fetch(form.dataset.ticketUrl, {
         method: "POST",
-        headers: { ...bpHeaders(), "Content-Type": "application/json", Accept: "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           tenantId: form.dataset.sourceTenantId,
           serviceInstanceId: source.instanceId,

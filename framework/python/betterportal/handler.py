@@ -69,6 +69,14 @@ class RequestContext:
     url_context: Urls | None = None
     client_context: RequestClients | None = field(default=None, repr=False, compare=False)
     _retired: asyncio.Event | None = field(default=None, repr=False, compare=False)
+    def require_elevation(self, requirement: Mapping[str, Any]) -> None:
+        from .elevation import require_elevation, ElevationRequired
+        from .security import TokenError
+        from .service import RequestError
+        if self.caller.mode == "service": raise RequestError(403, "Human authentication required", scope=self.scope)
+        try: require_elevation(self.caller.user, requirement)
+        except ElevationRequired as error: raise RequestError(401, str(error), error.headers, scope=self.scope) from error
+        except TokenError as error: raise RequestError(401, str(error), scope=self.scope) from error
     @property
     def urls(self) -> Urls: return self.url_context or Urls(self.scope, None, None, self.path)
     @property
@@ -84,6 +92,7 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     query: Query
     headers: Headers
     request: Body
+    def require_elevation(self, requirement: Mapping[str, Any]) -> None: self.request_context.require_elevation(requirement)
     @property
     def response(self) -> ResponseState: return self.request_context.response
     @property

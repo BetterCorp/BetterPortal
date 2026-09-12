@@ -75,5 +75,5 @@ export async function revokePresentedRefreshToken(runtime: AuthRuntime, token: s
   let claims;
   try { claims = await runtime.tokenIssuer.verifyRefreshToken({ refreshToken: token, tenantId, appId }); }
   catch { return; } // Logout still clears invalid or expired credentials.
-  runtime.userStore.revokeRefreshToken(claims.jti, claims.exp);
+  await runtime.identity.revokeSession({ tenantId, appId }, claims);
 }

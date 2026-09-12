@@ -1,6 +1,8 @@
 using AnyVali;
 using BetterPortal;
 
+if (args.Length == 2 && args[0] == "--elevation") { ElevationChecks.Run(args[1]); return; }
+
 if (args.Length == 2 && args[0] == "--registry")
 {
     Console.WriteLine(Json.Write(RegistryAdapter.Run((Dictionary<string, object?>)Json.Read(File.ReadAllText(args[1]))!)));

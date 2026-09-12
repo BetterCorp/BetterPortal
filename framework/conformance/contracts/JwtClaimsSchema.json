@@ -98,6 +98,49 @@
           }
         }
       },
+      "elevation": {
+        "kind": "optional",
+        "inner": {
+          "kind": "object",
+          "properties": {
+            "assurance": {
+              "kind": "enum",
+              "values": [
+                "confirmed",
+                "mfa"
+              ]
+            },
+            "verifiedAt": {
+              "kind": "int",
+              "min": 0
+            },
+            "expiresAt": {
+              "kind": "int",
+              "min": 1
+            }
+          },
+          "required": [
+            "assurance",
+            "verifiedAt",
+            "expiresAt"
+          ],
+          "unknownKeys": "strip"
+        }
+      },
+      "sessionId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "sessionVersion": {
+        "kind": "optional",
+        "inner": {
+          "kind": "int",
+          "min": 0
+        }
+      },
       "providerSubject": {
         "kind": "optional",
         "inner": {

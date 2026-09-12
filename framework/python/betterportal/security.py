@@ -243,6 +243,7 @@ class TokenIssuer:
             raise ValueError("Refresh tokens require authProvider and refreshContext")
         now, identifier = int(time.time()), uuid7()
         common = {**user, "iss": self.issuer, "aud": self.audience, "realm": "runtime", "iat": now, "jti": identifier}
+        common.pop("elevation", None)
         access = {**common, "tokenType": "access", "exp": now + self.access_seconds}
         access.pop("refreshContext", None)
         result = {"tokenId": identifier, "accessToken": sign_token(self.key, access, TokenPurpose.ACCESS),

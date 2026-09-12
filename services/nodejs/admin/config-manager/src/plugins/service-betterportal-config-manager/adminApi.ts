@@ -2946,19 +2946,11 @@ export function renderConfigClientShell(d: {
     const text = await response.text().catch(() => "");
     throw new Error(label + " returned " + (contentType || "non-JSON") + " HTTP " + response.status + (text ? ": " + text.slice(0, 160) : ""));
   };
-  const bpHeaders = () => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("bp.headers") || "{}");
-      const auth = Object.entries(stored).find(([name]) => name.toLowerCase() === "authorization")?.[1];
-      return auth && typeof auth.value === "string" ? { Authorization: auth.value } : {};
-    } catch {
-      return {};
-    }
-  };
   const requestTicket = async () => {
-    const response = await fetch(cfg.ticketUrl, {
+    if (!window.BetterPortalAuth) throw new Error("Authentication runtime is unavailable. Reload this page.");
+    const response = await window.BetterPortalAuth.fetch(cfg.ticketUrl, {
       method: "POST",
-      headers: { ...bpHeaders(), "Content-Type": "application/json", Accept: "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         hostname: cfg.hostname,
         tenantId: cfg.tenantId,

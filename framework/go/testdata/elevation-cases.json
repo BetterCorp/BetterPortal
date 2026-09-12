@@ -1,0 +1,360 @@
+[
+  {
+    "name": "normal access needs confirmation",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": []
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": false
+  },
+  {
+    "name": "confirmed suffices for confirm",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "confirmed",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": true
+  },
+  {
+    "name": "confirmed cannot satisfy MFA",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "confirmed",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "mfa"
+    },
+    "allowed": false
+  },
+  {
+    "name": "MFA satisfies confirm",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": true
+  },
+  {
+    "name": "MFA satisfies MFA",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "mfa"
+    },
+    "allowed": true
+  },
+  {
+    "name": "freshness boundary",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "mfa",
+      "maxAgeSeconds": 10
+    },
+    "allowed": true
+  },
+  {
+    "name": "stale assurance",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "mfa",
+      "maxAgeSeconds": 9
+    },
+    "allowed": false
+  },
+  {
+    "name": "elevation expiry boundary",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 990,
+        "expiresAt": 1000
+      }
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": false
+  },
+  {
+    "name": "future verification",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 1001,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": false
+  },
+  {
+    "name": "elevation outlives access",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 990,
+        "expiresAt": 1101
+      }
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": false
+  },
+  {
+    "name": "refresh never elevates",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "refresh",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": false
+  },
+  {
+    "name": "unknown assurance",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "sms",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": false
+  },
+  {
+    "name": "root still needs elevation",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 1100,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [
+        "*"
+      ]
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": false
+  },
+  {
+    "name": "expired access",
+    "now": 1000,
+    "user": {
+      "iss": "test",
+      "aud": "test",
+      "sub": "alice",
+      "jti": "jti",
+      "iat": 900,
+      "exp": 999,
+      "tokenType": "access",
+      "realm": "runtime",
+      "tenantId": "019fdf50-6127-7000-8000-000000000001",
+      "appId": "019fdf50-6127-7000-8000-000000000002",
+      "roles": [],
+      "elevation": {
+        "assurance": "mfa",
+        "verifiedAt": 990,
+        "expiresAt": 1050
+      }
+    },
+    "requirement": {
+      "minimum": "confirm"
+    },
+    "allowed": false
+  }
+]

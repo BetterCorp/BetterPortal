@@ -1,3 +1,4 @@
+import { ElevationRequired, requireElevation, elevationResponse } from "../runtime/auth/elevation.js";
 import { createEventStream, getRequestIP, getRequestURL } from "h3";
 import type { HttpMethod } from "../contracts/common.js";
 import type { JsonValue } from "../contracts/json.js";
@@ -1205,7 +1206,7 @@ async function handleRouteRequest(
 
   // -- Auth resolution (per spec section 0.5) ----------------------
 
-  const apiAuth: ApiAuthRequirement = methodRoute.auth;
+  const apiAuth: ApiAuthRequirement = { ...methodRoute.auth, required: methodRoute.auth.required || !!methodRoute.auth.elevation };
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs);
   if (authResult.error) {
@@ -1219,6 +1220,15 @@ async function handleRouteRequest(
       authResult.requiredPermissions,
       earlyRenderContext(authResult.status)
     );
+  }
+
+  if (apiAuth.elevation) {
+    if (authResult.callerMode === "service") return jsonResponse({ error: "Human authentication is required for elevation" }, 403);
+    try { requireElevation(authResult.user, apiAuth.elevation); }
+    catch (error) {
+      if (error instanceof ElevationRequired && authResolved) return elevationResponse(error.requirement, { tenantId: authResolved.tenantId, appId: authResolved.appId, serviceId: routerOptions.serviceId, operationId: methodRoute.operationId, method });
+      throw error;
+    }
   }
 
   // -- Tenant/app activation check (validateTenantApp hook -> 426) -----
@@ -1262,6 +1272,9 @@ async function handleRouteRequest(
     callerMode: authResult.callerMode,
     ...extraContext,
     bpHeaders,
+    requireElevation: (requirement) => {
+      requireElevation(authResult.user, requirement);
+    },
     responseHeaders: event.res.headers,
     setStatus: (status) => { event.res.status = status; },
     diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
@@ -1274,6 +1287,7 @@ async function handleRouteRequest(
   };
 
   let rawData: unknown;
+  try {
   if (isStreamHandler(handler)) {
     // Streamed representations (NDJSON, themed streaming shell) respond
     // directly; buffered representations fall through to the standard
@@ -1297,6 +1311,14 @@ async function handleRouteRequest(
       "bp.route.path": route.path,
       "http.request.method": method
     }, () => (handler as RouteHandler)(ctx)));
+  }
+
+  } catch (error) {
+    if (error instanceof ElevationRequired) {
+      if (!authResult.user || !authResolved || authResult.callerMode === "service") return jsonResponse({ error: "Authentication required" }, authResult.callerMode === "service" ? 403 : 401);
+      return elevationResponse(error.requirement, { tenantId: authResolved.tenantId, appId: authResolved.appId, serviceId: routerOptions.serviceId, operationId: methodRoute.operationId, method });
+    }
+    throw error;
   }
 
   // -- Emit BP-managed headers -------------------------------------
@@ -1988,6 +2010,7 @@ async function withCoreFailure<T>(
   try {
     return await handler();
   } catch (error) {
+    if (error instanceof ElevationRequired) throw error;
     annotateCoreHttpOutcome(event, {
       code,
       reason: (error instanceof Error ? error.message : String(error)).slice(0, 2048)

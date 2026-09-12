@@ -14,9 +14,10 @@ import { createPreviewGroup, provisionPreviewDeployment, reconcilePreviewService
 import { buildPreviewDiagnostics, PreviewDiagnosticsSchema, previewServiceStatus } from "../src/plugins/service-betterportal-config-manager/previewDiagnostics.js";
 import { render as renderDebug } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/debug.GET.js";
 import { auth } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/GET.js";
-import { render as renderList } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/GET.js";
+import { configEditorScript, render as renderList } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/GET.js";
 import { demoScenarios, handleGet, ResponseSchema } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
 import { setConfigManagerRouteContext } from "../src/plugins/service-betterportal-config-manager/routeContext.js";
+import { renderConfigClientShell } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { chromium } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "@betterportal/theme-runtime";
 
@@ -325,4 +326,44 @@ test("Debug loads on demand into its drawer without navigating or replacing the 
   await page.locator('#bp-preview-debug button[aria-label="Close"]').click();
   await page.waitForSelector("#bp-preview-debug.show", { state: "hidden" });
   assert.deepEqual(errors, []);
+});
+
+
+test("config editor and preview tickets use only the active app's managed credentials", async t => {
+  const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
+  const page = await browser.newPage(); const runtime = await buildBetterPortalShellRuntimeAsset({});
+  await page.addInitScript(entries => {
+    for (const [key, value] of Object.entries(entries)) localStorage.setItem(key, value);
+  }, Object.fromEntries(["bp.headers", "bp.headers:management:app-a", "bp.headers:management:app-b"].map((key, i) => [key, JSON.stringify({ Authorization: { value: ["Bearer stale-global", "Bearer app-a", "Bearer app-b"][i], owner: "config", scope: null } })])));
+  const requests: Array<{ token?: string; body: unknown }> = [];
+  await page.route("https://config.test/**", route => {
+    requests.push({ token: route.request().headers().authorization, body: route.request().postDataJSON() });
+    return route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ token: "config-ticket" }) });
+  });
+  await page.route("https://app.test/**", route => {
+    const appId = new URL(route.request().url()).pathname.slice(1);
+    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{ "extensions":"bp-shell, sse" }'></head><body><div data-bp-shell-root data-bp-menu-health="false" data-bp-tenant-id="management" data-bp-app-id="${appId}" data-bp-services='{"config":"https://config.test"}'><main id="bp-main"></main></div><script>${runtime.body}</script></body></html>` });
+  });
+  const editor = renderConfigClientShell({ hostname: "https://target.test", tenantId: "customer", appId: "target-app", serviceId: "service", serviceTitle: "Service", adminApiBase: "https://config.test/admin", tenantApps: [] });
+  const scripts = [editor, String(configEditorScript())].map(html => {
+    const start = html.indexOf("const requestTicket = async");
+    const end = html.indexOf("\n  };", start) >= 0 && html === editor ? html.indexOf("\n  };", start) : html.indexOf("\n    };", start);
+    assert.ok(start >= 0 && end > start);
+    return html.slice(start, end) + "\n};";
+  });
+  for (const appId of ["app-a", "app-b"]) {
+    await page.goto("https://app.test/" + appId);
+    assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-app-id"), appId);
+    assert.equal(await page.evaluate(id => JSON.parse(localStorage.getItem("bp.headers:management:" + id) || "{}").Authorization?.value, appId), "Bearer " + appId);
+
+    for (const script of scripts) {
+      const token = await page.evaluate(async source => {
+        const cfg = { ticketUrl: "https://config.test/admin/config-ticket", tenantId: "customer", hostname: "https://target.test", serviceId: "service" };
+        return new Function("cfg", "const readJson = response => response.json(); " + source + "; return requestTicket({dataset:{ticketUrl:cfg.ticketUrl,sourceTenantId:cfg.tenantId}}, {instanceId:'source',hostname:cfg.hostname,serviceId:cfg.serviceId});")(cfg);
+      }, script);
+      assert.equal(token, "config-ticket");
+    }
+  }
+  assert.deepEqual(requests.map(r => r.token), ["Bearer app-a", "Bearer app-a", "Bearer app-b", "Bearer app-b"]);
+  assert.ok(requests.every(r => (r.body as { tenantId: string }).tenantId === "customer"));
 });

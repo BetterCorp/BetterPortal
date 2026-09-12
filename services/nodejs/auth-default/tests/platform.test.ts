@@ -1,0 +1,603 @@
+import assert from "node:assert/strict";
+import test, { type TestContext } from "node:test";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { tmpdir, hostname } from "node:os";
+import { join } from "node:path";
+import { createBpTokenIssuer, generateKeyPair, uuidv7 } from "@betterportal/framework";
+import { AuthError, IdentityService, SecretCipher, secretHash, verifyPassword, type IdentityPolicy, type User } from "../src/identity.js";
+import { JsonAuthStorage, openAuthStorage } from "../src/storage.js";
+import { UserStore } from "../src/userStore.js";
+import { Factors } from "../src/factors.js";
+import { generate } from "otplib";
+
+const policy: IdentityPolicy = { isolation: "app", registration: "public", requireMfa: false, defaultRoleIds: [], allowedRoleIds: ["reader", "editor"] };
+const issuer = createBpTokenIssuer({ keyPair: generateKeyPair(), issuer: "https://auth.test", audience: "test", accessTokenSeconds: 900, refreshTokenSeconds: 3600 });
+function fixture(t: TestContext) {
+  const dir = mkdtempSync(join(tmpdir(), "bp-auth-platform-"));
+  const path = join(dir, "users.json"); const storage = new JsonAuthStorage(path);
+  const identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  t.after(async () => { await storage.close(); rmSync(dir, { recursive: true, force: true }); });
+  return { path, storage, identity, scope: { tenantId: uuidv7(), appId: uuidv7() } };
+}
+
+test("app directories isolate identical emails; first account locks tenant isolation", async t => {
+  const { identity, scope } = fixture(t); const other = { ...scope, appId: uuidv7() };
+  const a = await identity.createUser(scope, policy, { username: "alice@example.com", email: "alice@example.com", verified: true });
+  const b = await identity.createUser(other, policy, { username: "alice@example.com", email: "alice@example.com", verified: true });
+  assert.notEqual(a.id, b.id);
+  assert.equal(await identity.findUser(other, policy, a.id, true), undefined);
+  await assert.rejects(identity.createUser(scope, { ...policy, isolation: "tenant" }, { username: "bob" }), /isolation is locked/);
+  await assert.rejects(identity.createUser({ tenantId: uuidv7(), appId: uuidv7() }, policy, { username: "bob" }), /one tenant/);
+});
+
+test("account provisioning, invitations and email changes use bounded email validation", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { accountPost } = await import("../src/account.js");
+  const { default: manage } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/POST.js");
+  const actor = await identity.createUser(scope, policy, { username: "admin", email: "  Admin+Test@Example.COM  ", verified: true });
+  assert.equal(actor.email, "admin+test@example.com");
+  const session = await identity.issueSession(scope, policy, actor, issuer, 3600);
+  const normal = await issuer.verifier().verify(session.accessToken, scope);
+  const now = Math.floor(Date.now() / 1000);
+  const user = await issuer.verifier().verify(issuer.signElevatedAccessToken(normal, { assurance: "mfa", verifiedAt: now, expiresAt: now + 300 }, 300), scope);
+  const recipients: string[] = [];
+  const runtime = { identity, policy: async () => policy, factors: new Factors(identity), mail: { enqueue: async (_tx: unknown, _scope: unknown, to: string) => { recipients.push(to); } } };
+  let status = 200;
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
+    rawEvent: { req: new Request("https://auth.test/account"), url: new URL("https://auth.test/account") },
+    uiRouteUrl: () => "https://app.test/account", request: {} as Record<string, unknown>, setStatus: (code: number) => { status = code; } };
+  const boundary = "a".repeat(64) + "@" + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(61);
+  assert.equal(boundary.length, 254);
+  for (const email of ["alice@example..com", "alice@-example.com", "alice@example.com\r\nBcc: other@example.com", "   ", "a" + boundary, "!@!." + "!.".repeat(100_000)]) {
+    await assert.rejects(identity.createUser(scope, policy, { username: "new-user", email }), /valid account identifier and email/);
+    ctx.request = { action: "invite", email };
+    assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 400);
+    ctx.request = { action: "email.change", email };
+    await assert.rejects(accountPost(ctx as never), /valid email/);
+  }
+  assert.deepEqual(recipients, []);
+  assert.equal((await storage.transaction(scope, tx => tx.list("user", scope))).length, 1);
+  assert.equal((await storage.transaction(scope, tx => tx.list("challenge", scope))).length, 0);
+  await identity.createUser(scope, policy, { username: "boundary", email: boundary });
+  ctx.request = { action: "invite", email: "  Invite+Test@Example.COM  " };
+  assert.equal((await manage(ctx as never)).status, "ok");
+  ctx.request = { action: "email.change", email: "  New+Test@Example.COM  " };
+  assert.equal((await accountPost(ctx as never)).status, "ok");
+  assert.deepEqual(recipients, ["invite+test@example.com", "new+test@example.com", "admin+test@example.com"]);
+});
+
+test("tenant directory shares accounts while roles and sessions stay app-bound", async t => {
+  const { identity, scope } = fixture(t); const tenantPolicy = { ...policy, isolation: "tenant" as const }; const other = { ...scope, appId: uuidv7() };
+  const user = await identity.createUser(scope, tenantPolicy, { username: "alice", verified: true }, ["editor"]);
+  assert.equal((await identity.findUser(other, tenantPolicy, "alice"))?.id, user.id);
+  const a = await identity.issueSession(scope, tenantPolicy, user, issuer, 3600);
+  const b = await identity.issueSession(other, tenantPolicy, user, issuer, 3600);
+  assert.deepEqual((await issuer.verifier().verify(a.accessToken, scope)).roles, ["editor"]);
+  assert.deepEqual((await issuer.verifier().verify(b.accessToken, other)).roles, []);
+  await assert.rejects(issuer.verifyRefreshToken({ refreshToken: a.refreshToken!, ...other }), /different tenant\/app/);
+});
+
+test("login account limits normalize padding and case across different peers", async t => {
+  const { identity, scope } = fixture(t);
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const authenticate = t.mock.method(identity, "authenticate", async () => undefined);
+  let status = 0;
+  for (let i = 0; i < 11; i++) {
+    const req = new Request("https://auth.test/login"); Object.assign(req, { ip: `192.0.2.${i + 1}` });
+    await handlePost({ tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: { req }, request: { username: " ".repeat(i) + "Alice@Example.COM" + " ".repeat(i), password: "incorrect" },
+      plugin: { runtime: { identity, policy: async () => policy } }, setStatus: (value: number) => { status = value; } } as never);
+    assert.equal(status, i < 10 ? 401 : 429);
+  }
+  assert.equal(authenticate.mock.callCount(), 10);
+});
+
+test("credential-sharing apps share login limits while separate directories retain separate budgets", async t => {
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  for (const isolation of ["tenant", "app"] as const) {
+    const { identity, scope } = fixture(t);
+    const apps = [scope.appId, uuidv7()];
+    const authenticate = t.mock.method(identity, "authenticate", async () => undefined);
+    const attempt = async (tenantId: string, appId: string, n: number) => {
+      const req = new Request("https://auth.test/login"); Object.assign(req, { ip: `192.0.2.${n + 1}` });
+      let status = 0;
+      await handlePost({ tenant: { id: tenantId }, app: { id: appId }, rawEvent: { req }, request: { username: " Alice@Example.COM ", password: "incorrect" },
+        plugin: { runtime: { identity, policy: async () => ({ ...policy, isolation }) } }, setStatus: (value: number) => { status = value; } } as never);
+      return status;
+    };
+    for (let i = 0; i < 20; i++) assert.equal(await attempt(scope.tenantId, apps[i % 2], i), isolation === "tenant" && i >= 10 ? 429 : 401);
+    assert.equal(authenticate.mock.callCount(), isolation === "tenant" ? 10 : 20);
+    assert.equal(await attempt(scope.tenantId, apps[0], 21), 429);
+    assert.equal(await attempt(uuidv7(), apps[0], 22), 401);
+  }
+});
+
+test("social configuration is rejected before writes and legacy malformed config returns a safe 503", async t => {
+  const { identity, scope } = fixture(t);
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const { default: getSocial } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/social/GET.js");
+  const { default: postSocial } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/social/POST.js");
+  const service = Object.create(Plugin.prototype) as any; service.identity = identity;
+  const connection = { id: "test", kind: "google", clientId: "client", clientSecret: "do-not-expose-secret" };
+  let writes = 0;
+  const write = (value: unknown) => service.mutateServiceConfiguration(scope.tenantId, scope.appId, { socialConnections: value }, () => { writes++; return "saved"; });
+  const invalid = ["{invalid-json", "null", "[null]", JSON.stringify([{ id: "test" }]), JSON.stringify([{ ...connection, clientId: 123 }]), JSON.stringify([{ ...connection, kind: "microsoft" }]), JSON.stringify([{ ...connection, kind: "microsoft", tenantId: "common" }]), JSON.stringify([connection, connection]), JSON.stringify(Array.from({ length: 21 }, (_, i) => ({ ...connection, id: String(i) })))];
+  for (const configured of invalid) {
+    await assert.rejects(write(configured), (error: any) => error.status === 400 && !error.message.includes(connection.clientSecret));
+    let status = 0;
+    const ctx = { plugin: { runtime: { identity, policy: async () => policy, configuration: () => ({ socialConnections: configured }) } }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, query: {}, request: { action: "start" }, setStatus: (value: number) => { status = value; } };
+    const result = await getSocial(ctx as never);
+    assert.equal(status, 503); assert.equal(result.status, "error"); assert.deepEqual(result.connections, []);
+    assert.equal((await postSocial(ctx as never)).status, "error"); assert.equal(status, 503);
+  }
+  assert.equal(writes, 0);
+  assert.equal(await write(JSON.stringify([connection, { ...connection, id: "ms", kind: "microsoft", tenantId: uuidv7() } ])), "saved");
+  assert.equal(await write("[]"), "saved");
+  assert.equal(await write(""), "saved");
+  assert.equal(writes, 3);
+});
+
+test("mail header configuration rejects malformed values before saving or queueing mail", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const { MailQueue } = await import("../src/mail.js");
+  const service = Object.create(Plugin.prototype) as any; service.identity = identity;
+  let configured: unknown;
+  service.effectiveServiceConfig = () => ({ mailTransport: "http", mailUrl: "https://mail.test", mailFrom: "auth@example.com", mailHeaders: configured });
+  const queue = new MailQueue(identity, () => service.mailConfiguration(scope));
+  let writes = 0;
+  const write = (value: unknown) => service.mutateServiceConfiguration(scope.tenantId, scope.appId, { mailHeaders: value }, () => { writes++; });
+  const invalid = ['{invalid-secret', '[]', 'null', '"text"', '{"X-Auth":123}', '{"X-Auth":null}', '{"X-Auth":{}}', JSON.stringify({ "bad name": "private-secret" }), JSON.stringify({ "X-Auth": "private-secret\r\nInjected: true" }), JSON.stringify({ "X-Auth": "\u0100" })];
+  for (const value of invalid) {
+    configured = value;
+    await assert.rejects(write(value), (error: any) => error.status === 400 && !error.message.includes("secret"));
+    await assert.rejects(storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Verify", "one-use-proof")), (error: any) => error instanceof AuthError && error.status === 503 && !error.message.includes("secret"));
+  }
+  assert.equal(writes, 0);
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("mail", scope)), []);
+  for (const value of ["", "{}", JSON.stringify({ Authorization: "Bearer private-secret", "X-Request-ID": "auth" })]) await write(value);
+  assert.equal(writes, 3);
+  configured = JSON.stringify({ Authorization: "Bearer private-secret" });
+  await storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Verify", "one-use-proof"));
+  const fetch = t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    assert.equal(new Headers(init.headers).get("Authorization"), "Bearer private-secret"); return new Response("ok");
+  });
+  configured = invalid[0]; await queue.drain(); assert.equal(fetch.mock.callCount(), 0);
+  const [pending] = await storage.transaction(scope, tx => tx.list("mail", scope));
+  assert.equal(pending.state, "pending");
+  configured = JSON.stringify({ Authorization: "Bearer private-secret" });
+  await storage.transaction(scope, tx => tx.put("mail", scope, { ...pending, nextAttempt: 0 }));
+  await queue.drain(); assert.equal(fetch.mock.callCount(), 1);
+});
+
+test("mail URLs are validated before saving and malformed legacy values return safe errors", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const { MailQueue } = await import("../src/mail.js");
+  const service = Object.create(Plugin.prototype) as any; service.identity = identity;
+  let writes = 0;
+  const write = (mailUrl: unknown) => service.mutateServiceConfiguration(scope.tenantId, scope.appId, { mailUrl }, () => { writes++; });
+  for (const mailUrl of ["not-a-url", "/relative", "https://", "http://remote.test", "ftp://mail.test", 42, null]) {
+    await assert.rejects(write(mailUrl), (error: any) => error.status === 400);
+    const queue = new MailQueue(identity, () => ({ transport: "http", url: mailUrl as string, from: "auth@example.com" }));
+    await assert.rejects(storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Reset", "private proof")), (error: any) => error instanceof AuthError && error.status === 503);
+  }
+  assert.equal(writes, 0); assert.deepEqual(await storage.transaction(scope, tx => tx.list("mail", scope)), []);
+  for (const value of ["", "https://mail.test/send", "http://localhost:1234/send", "http://127.0.0.1/send"]) await write(value);
+  assert.equal(writes, 4);
+});
+
+test("tenant passkeys unavailable on another RP give recovery instructions without bypassing MFA", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const tenantPolicy = { ...policy, isolation: "tenant" as const };
+  const factors = new Factors(identity); const other = { ...scope, appId: uuidv7() };
+  const user = await identity.createUser(scope, tenantPolicy, { username: "alice", verified: true, password: "a unique test password" });
+  await storage.transaction(user, tx => tx.put("passkey", user, { id: "cGFzc2tleQ", userId: user.id, rpId: "app-a.test", publicKey: "", counter: 0, name: "Passkey" }));
+  const attempt = async (app: typeof scope, origin: string) => {
+    let status = 200;
+    const result = await handlePost({ tenant: { id: app.tenantId }, app: { id: app.appId }, request: { username: "alice", password: "a unique test password" }, rawEvent: { req: new Request(origin + "/login"), url: new URL(origin + "/login") },
+      plugin: { runtime: { identity, factors, policy: async () => tenantPolicy, isManagement: () => false } }, setStatus: (value: number) => { status = value; } } as never);
+    return { result, status };
+  };
+  const blocked = await attempt(other, "https://app-b.test");
+  assert.equal(blocked.status, 403); assert.match(blocked.result.message, /app where your passkey works/);
+  assert.equal(blocked.result.challenge, undefined); assert.equal(blocked.result.accessToken, undefined);
+  assert.deepEqual(await storage.transaction(other, tx => tx.list("challenge", other)), []);
+  assert.equal((await attempt(scope, "https://app-a.test")).result.challenge?.enroll, false);
+  await identity.updateUser(scope, tenantPolicy, user.id, async u => { u.recoveryCodes = [secretHash("recovery-proof")]; });
+  const recovery = (await attempt(other, "https://app-b.test")).result.challenge;
+  assert.deepEqual(recovery?.methods, ["recovery"]); assert.equal(recovery?.enroll, false);
+  const current = (await identity.findUser(scope, tenantPolicy, user.id, true))!;
+  await storage.transaction(other, tx => factors.complete(tx, other, current, { enroll: false }, { method: "recovery", code: "recovery-proof" }));
+  assert.equal((await attempt(other, "https://app-b.test")).status, 403);
+  // An authenticator enrolled through the protected Account flow on the working RP restores access.
+  const enroll = await factors.prepare(current, "https://app-a.test", true);
+  const code = await generate({ secret: String(enroll.public.totpSecret) });
+  await storage.transaction(scope, tx => factors.complete(tx, scope, current, enroll.private, { method: "totp", code }));
+  const restored = (await attempt(other, "https://app-b.test")).result.challenge;
+  assert.equal(restored?.enroll, false); assert.deepEqual(restored?.methods, ["totp", "recovery"]);
+});
+
+test("session issuance and refresh preserve the current profile picture", async t => {
+  const { identity, scope } = fixture(t);
+  const original = await identity.createUser(scope, policy, { username: "alice", verified: true });
+  await identity.updateUser(scope, policy, original.id, async u => { u.picture = "https://images.test/avatar.png"; });
+  const pair = await identity.issueSession(scope, policy, original, issuer, 3600);
+  assert.equal((await issuer.verifier().verify(pair.accessToken, scope)).picture, "https://images.test/avatar.png");
+  const claims = await issuer.verifyRefreshToken({ ...scope, refreshToken: pair.refreshToken! });
+  const refreshed = await identity.refresh(scope, policy, claims, issuer);
+  assert.equal((await issuer.verifier().verify(refreshed!.accessToken, scope)).picture, "https://images.test/avatar.png");
+});
+
+test("Advanced startup refuses a replica-local generated bootstrap secret", async () => {
+  const { Plugin } = await import("../src/plugins/service-betterportal-auth-default/index.js");
+  const service = Object.create(Plugin.prototype);
+  Object.defineProperty(service, "config", { value: { mode: "advanced", setupToken: "" } });
+  await assert.rejects(service.init({} as never), /setupToken shared by all replicas/);
+});
+
+test("concurrent registrations cannot exceed ten stored accounts, including disabled accounts", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const created = await Promise.allSettled(Array.from({ length: 15 }, (_, i) => identity.createUser(scope, policy, { username: `user${i}` })));
+  assert.equal(created.filter(r => r.status === "fulfilled").length, 10);
+  const first = (await storage.transaction(scope, tx => tx.list<User>("user", scope)))[0];
+  await identity.updateUser(scope, policy, first.id, async u => { u.enabled = false; });
+  await assert.rejects(identity.createUser(scope, policy, { username: "another" }), /10 stored users/);
+});
+
+test("default role initialization is once-only, including empty and revoked assignments", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const user = await identity.createUser(scope, policy, { username: "alice", verified: true });
+  const defaults = { ...policy, defaultRoleIds: ["reader"] };
+  const issue = () => identity.issueSession(scope, defaults, user, issuer, 3600);
+  assert.deepEqual((await issuer.verifier().verify((await issue()).accessToken, scope)).roles, ["reader"]);
+  await storage.transaction(scope, tx => tx.put("roles", scope, { id: user.id, roles: [], initialized: true }));
+  assert.deepEqual((await issuer.verifier().verify((await issue()).accessToken, scope)).roles, []);
+  const empty = await identity.createUser(scope, policy, { username: "empty", verified: true });
+  await identity.issueSession(scope, policy, empty, issuer, 3600);
+  assert.deepEqual((await issuer.verifier().verify((await identity.issueSession(scope, defaults, empty, issuer, 3600)).accessToken, scope)).roles, []);
+  const invalid = await identity.createUser(scope, policy, { username: "invalid", verified: true });
+  await assert.rejects(identity.issueSession(scope, { ...policy, defaultRoleIds: ["*"] }, invalid, issuer, 3600), /Default roles/);
+});
+
+test("refresh rotates and replay revokes the family; access elevation never refreshes", async t => {
+  const { identity, scope } = fixture(t);
+  const user = await identity.createUser(scope, policy, { username: "alice", verified: true });
+  const first = await identity.issueSession(scope, policy, user, issuer, 3600);
+  const claims = await issuer.verifyRefreshToken({ refreshToken: first.refreshToken!, ...scope });
+  const next = await identity.refresh(scope, policy, claims, issuer); assert.ok(next?.refreshToken);
+  assert.notEqual(first.refreshToken, next.refreshToken);
+  assert.equal(await identity.refresh(scope, policy, claims, issuer), undefined);
+  assert.equal(await identity.refresh(scope, policy, await issuer.verifyRefreshToken({ refreshToken: next.refreshToken!, ...scope }), issuer), undefined);
+  const access = await issuer.verifier().verify(first.accessToken, scope);
+  await assert.rejects(identity.storage.transaction(scope, tx => identity.assertActiveSession(tx, scope, access, user)), /Session changed/);
+});
+
+test("failed challenge callbacks roll back changes but persist attempts; consumption is exclusive", async t => {
+  const { identity, scope, storage } = fixture(t); const ticket = await identity.challenge(scope, "reset", {});
+  for (let i = 0; i < 5; i++) await assert.rejects(identity.consume(scope, "reset", ticket.id, ticket.secret, async (_c, tx) => { await tx.put("sentinel", scope, { id: "bad" }); throw new AuthError("Invalid factor"); }), /Invalid factor/);
+  assert.equal(await storage.transaction(scope, tx => tx.get("sentinel", "bad", scope)), undefined);
+  await assert.rejects(identity.consume(scope, "reset", ticket.id, ticket.secret, async () => true), /expired or unavailable/);
+  const once = await identity.challenge(scope, "reset", {});
+  const results = await Promise.allSettled([1, 2].map(() => identity.consume(scope, "reset", once.id, once.secret, async () => true)));
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+});
+
+test("TOTP enrollment and recovery enforce replay protection", async t => {
+  const { identity, scope, storage } = fixture(t); const factors = new Factors(identity);
+  const user = await identity.createUser(scope, policy, { username: "alice", verified: true });
+  const prepared = await factors.prepare(user, "https://app.test", true);
+  const code = await generate({ secret: String(prepared.public.totpSecret) });
+  const codes = await storage.transaction(scope, tx => factors.complete(tx, scope, user, prepared.private, { method: "totp", code }));
+  assert.equal(codes?.length, 10); assert.ok(await factors.hasFactors(user));
+  await assert.rejects(storage.transaction(scope, tx => factors.complete(tx, scope, user, { ...prepared.private, enroll: false }, { method: "totp", code })), /reused/);
+  await storage.transaction(scope, tx => factors.complete(tx, scope, user, { enroll: false }, { method: "recovery", code: codes![0] }));
+  await assert.rejects(storage.transaction(scope, tx => factors.complete(tx, scope, user, { enroll: false }, { method: "recovery", code: codes![0] })), /Invalid recovery/);
+});
+
+test("legacy migration preserves bcrypt credentials and roles while locking tenant scope", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-legacy-")); const path = join(dir, "users.json");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const old = new UserStore(path); const tenantId = uuidv7(); const appId = uuidv7();
+  const oldUser = await old.createUser({ username: "alice", password: "a long legacy password", email: "alice@example.com", tenantId, appRoles: { [appId]: ["editor"] } });
+  const usernameOnly = await old.createUser({ username: "legacy-local", password: "legacy-password", tenantId, appRoles: { [appId]: [] } });
+  const storage = await openAuthStorage({ mode: "simple", path, installationId: "test", appIds: { [tenantId]: [appId] } }); t.after(() => storage.close());
+  const identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7))); const scope = { tenantId, appId }; const migratedPolicy = { ...policy, isolation: "tenant" as const };
+  const user = await identity.authenticate(scope, migratedPolicy, "alice@example.com", "a long legacy password");
+  assert.equal(user?.id, oldUser.id); assert.ok(user?.passwordHash?.startsWith("$argon2id$"));
+  assert.deepEqual(await storage.transaction(scope, tx => identity.roles(tx, scope, user!, migratedPolicy)), ["editor"]);
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const login = async (username: string, password: string, requireMfa = false) => {
+    let status = 200;
+    const response = await handlePost({
+      tenant: { id: tenantId }, app: { id: appId }, request: { username, password }, query: {},
+      rawEvent: { req: new Request("https://auth.test/login"), url: new URL("https://auth.test/login") }, responseHeaders: new Headers(),
+      setStatus: (value: number) => { status = value; },
+      plugin: { runtime: { identity, tokenIssuer: issuer, refreshTokenSeconds: 3600, factors: new Factors(identity), isManagement: () => false, policy: async () => ({ ...migratedPolicy, requireMfa }) } }
+    } as never);
+    return { status, response };
+  };
+  // No mail service is configured in this runtime. Existing credentials still work.
+  for (const [username, password, id] of [["legacy-local", "legacy-password", usernameOnly.id], ["alice", "a long legacy password", oldUser.id], ["alice@example.com", "a long legacy password", oldUser.id]]) {
+    const result = await login(username, password);
+    assert.equal(result.status, 200); assert.equal(result.response.status, "ok");
+    assert.equal((await issuer.verifier().verify(result.response.accessToken!, scope)).sub, id);
+  }
+  const retained = (await identity.findUser(scope, migratedPolicy, oldUser.id, true))!;
+  assert.equal(retained.email, "alice@example.com"); assert.equal(retained.emailVerified, false);
+  const requiredMfa = await login("alice", "a long legacy password", true);
+  assert.equal(requiredMfa.response.accessToken, undefined); assert.equal(requiredMfa.response.challenge?.enroll, true);
+  const newUser = await identity.createUser(scope, migratedPolicy, { username: "new@example.com", email: "new@example.com", password: "a newly registered password", legacyUsernameLogin: true } as never);
+  assert.equal(newUser.legacyUsernameLogin, undefined);
+  const unverified = await login("new@example.com", "a newly registered password");
+  assert.equal(unverified.status, 403); assert.equal(unverified.response.accessToken, undefined);
+  await identity.updateUser(scope, migratedPolicy, oldUser.id, async u => { u.enabled = false; });
+  const disabled = await login("alice", "a long legacy password");
+  assert.equal(disabled.status, 401); assert.equal(disabled.response.accessToken, undefined);
+  assert.equal(JSON.parse(readFileSync(path, "utf8")).version, 2); assert.ok(existsSync(`${path}.v1.backup`));
+});
+
+test("migration accepts long bcrypt passwords and upgrades without truncating the new Argon2 password", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-legacy-passwords-")); const path = join(dir, "users.json");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const old = new UserStore(path); const scope = { tenantId: uuidv7(), appId: uuidv7() };
+  const passwords = ["a".repeat(72) + "original suffix", "a".repeat(71) + "é".repeat(20), "a".repeat(1100)];
+  const users = [];
+  for (const [i, password] of passwords.entries()) users.push(await old.createUser({ username: "legacy-" + i, password, tenantId: scope.tenantId, appRoles: { [scope.appId]: [] } }));
+  const storage = await openAuthStorage({ mode: "simple", path, installationId: "test", appIds: { [scope.tenantId]: [scope.appId] } }); t.after(() => storage.close());
+  const identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7))); const legacyPolicy = { ...policy, isolation: "tenant" as const };
+  for (const [i, password] of passwords.entries()) {
+    assert.equal(await verifyPassword(users[i].passwordHash, password), true);
+    assert.equal(await identity.authenticate(scope, legacyPolicy, users[i].username, "wrong" + password), undefined);
+    const user = (await identity.authenticate(scope, legacyPolicy, users[i].username, password))!;
+    assert.equal(user.id, users[i].id);
+    assert.equal(await verifyPassword(user.passwordHash, password), true);
+    if (Buffer.byteLength(password) <= 1024) {
+      assert.ok(user.passwordHash?.startsWith("$argon2"));
+      assert.equal(await verifyPassword(user.passwordHash, password + "different suffix"), false);
+    } else assert.ok(user.passwordHash?.startsWith("$2"));
+    assert.equal((await identity.authenticate(scope, legacyPolicy, users[i].username, password))?.id, user.id);
+  }
+});
+
+test("legacy collisions preserve exact password logins and reserve ambiguous emails without merging accounts", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-legacy-collisions-")); const path = join(dir, "users.json");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const old = new UserStore(path); const scope = { tenantId: uuidv7(), appId: uuidv7() };
+  const inputs = [
+    { username: "Alice", email: "Shared@Example.COM", password: "Alice legacy password", roles: ["editor"] },
+    { username: "alice", email: "shared@example.com", password: "alice legacy password", roles: ["reader"] },
+    { username: " alice ", email: "unique@example.com", password: "padded legacy password", roles: [] },
+    { username: "shared@example.com", password: "email username password", roles: [] }
+  ];
+  const users = [];
+  for (const input of inputs) users.push(await old.createUser({ ...input, tenantId: scope.tenantId, appRoles: { [scope.appId]: input.roles } }));
+  const original = readFileSync(path, "utf8");
+  const options = { mode: "simple" as const, path, installationId: "test", appIds: { [scope.tenantId]: [scope.appId] } };
+  let storage = await openAuthStorage(options); t.after(() => storage.close());
+  let identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  const legacyPolicy = { ...policy, isolation: "tenant" as const };
+  for (const [i, input] of inputs.entries()) {
+    const user = await identity.authenticate(scope, legacyPolicy, input.username, input.password);
+    assert.equal(user?.id, users[i].id);
+    assert.deepEqual(await storage.transaction(scope, tx => identity.roles(tx, scope, user!, legacyPolicy)), input.roles);
+  }
+  assert.equal(await identity.authenticate(scope, legacyPolicy, "Alice", inputs[1].password), undefined);
+  assert.equal(await identity.authenticate(scope, legacyPolicy, "ALICE", inputs[0].password), undefined);
+  assert.equal(await identity.findUser(scope, legacyPolicy, "shared@example.com"), undefined);
+  assert.equal((await identity.findUser(scope, legacyPolicy, "unique@example.com"))?.id, users[2].id);
+  const alice = (await identity.findUser(scope, legacyPolicy, users[0].id, true))!;
+  assert.equal(alice.email, undefined); assert.equal(alice.legacyEmail, inputs[0].email); assert.equal(alice.legacyUsernameLogin, true);
+  await assert.rejects(identity.createUser(scope, legacyPolicy, { username: "shared@example.com" }), /cannot be registered/);
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const login = await handlePost({ tenant: { id: scope.tenantId }, app: { id: scope.appId }, request: { username: "Alice", password: inputs[0].password }, query: {}, rawEvent: { req: new Request("https://auth.test/login") },
+    plugin: { runtime: { identity, tokenIssuer: issuer, refreshTokenSeconds: 3600, factors: new Factors(identity), isManagement: () => false, policy: async () => legacyPolicy } } } as never);
+  assert.equal(login.status, "ok"); assert.equal((await issuer.verifier().verify(login.accessToken!, scope)).sub, users[0].id);
+  assert.deepEqual(JSON.parse(readFileSync(path + ".v1.backup", "utf8")), JSON.parse(original));
+  await storage.close(); storage = await openAuthStorage(options); identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  assert.equal((await identity.authenticate(scope, legacyPolicy, "alice", inputs[1].password))?.id, users[1].id);
+  assert.equal((await storage.transaction(scope, tx => tx.list("user"))).length, inputs.length);
+});
+
+test("Advanced markers prevent silent downgrade, even when no active JSON file remains", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-downgrade-")); const path = join(dir, "users.json"); t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(`${path}.mode.json`, JSON.stringify({ mode: "advanced", state: "migrating" }));
+  await assert.rejects(openAuthStorage({ mode: "simple", path, installationId: "test", appIds: {} }), /downgrade/);
+});
+
+test("JSON storage recovers a dead writer and refuses a live concurrent writer", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-lock-")); const path = join(dir, "users.json");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(`${path}.lock`, JSON.stringify({ host: hostname(), pid: 2147483647, nonce: "dead" }));
+  const first = new JsonAuthStorage(path);
+  assert.throws(() => new JsonAuthStorage(path), /lock|writer/i);
+  await first.close();
+  const second = new JsonAuthStorage(path);
+  await first.close(); // Closing the previous owner again must not remove this lock.
+  assert.throws(() => new JsonAuthStorage(path), /lock|writer/i);
+  await second.close();
+});
+
+test("social linking survives an elevation redirect but remains bound to its active app session", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { socialPost, socialAdapter } = await import("../src/social.js");
+  const user = await identity.createUser(scope, policy, { username: "alice", email: "alice@example.com", verified: true });
+  const pair = await identity.issueSession(scope, policy, user, issuer, 3600);
+  const normal = await issuer.verifier().verify(pair.accessToken, scope);
+  const now = Math.floor(Date.now() / 1000);
+  const elevated = await issuer.verifier().verify(issuer.signElevatedAccessToken(normal, { assurance: "confirmed", verifiedAt: now, expiresAt: now + 300 }, 300), scope);
+  assert.notEqual(normal.jti, elevated.jti);
+  t.mock.method(socialAdapter, "authorize", async () => "https://provider.test/authorize");
+  let exchanges = 0;
+  t.mock.method(socialAdapter, "exchange", async () => { exchanges++; return { issuer: "https://provider.test", subject: "provider-user", emailVerified: false }; });
+  const runtime = { identity, policy: async () => policy, configuration: () => ({ socialConnections: [{ id: "test", kind: "google", clientId: "client", clientSecret: "secret" }] }) };
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user: elevated,
+    rawEvent: { req: new Request("https://auth.test/social", { headers: { Origin: "https://app.test" } }), url: new URL("https://auth.test/social") },
+    uiRouteUrl: () => "https://app.test/social", request: { action: "link", connection: "test" } as Record<string, unknown> };
+  const ticket = await socialPost(ctx as never);
+  ctx.request = { action: "complete", id: ticket.id, secret: ticket.secret, code: "test-code" };
+  const otherSession = await identity.issueSession(scope, policy, user, issuer, 3600);
+  ctx.user = await issuer.verifier().verify(otherSession.accessToken, scope);
+  await assert.rejects(socialPost(ctx as never), /Sign in again/);
+  assert.equal(exchanges, 0);
+  const refreshed = await identity.refresh(scope, policy, await issuer.verifyRefreshToken({ ...scope, refreshToken: pair.refreshToken! }), issuer);
+  ctx.user = await issuer.verifier().verify(refreshed!.accessToken, scope);
+  assert.equal((await socialPost(ctx as never)).message, "Provider linked to your account.");
+  assert.equal((await storage.transaction(scope, tx => tx.list("external", scope))).length, 1);
+  await assert.rejects(socialPost(ctx as never), /expired or unavailable/);
+  ctx.user = elevated; ctx.request = { action: "link", connection: "test" };
+  const next = await socialPost(ctx as never);
+  await identity.revokeSession(scope, await issuer.verifyRefreshToken({ ...scope, refreshToken: refreshed!.refreshToken! }));
+  ctx.user = normal; ctx.request = { action: "complete", id: next.id, secret: next.secret, code: "unused-code" };
+  await assert.rejects(socialPost(ctx as never), /Session changed/);
+  assert.equal(exchanges, 1);
+});
+
+for (const change of ["none", "revoke", "config", "expire"] as const) test(`social exchange releases storage and revalidates completion after ${change}`, async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { socialPost, socialAdapter } = await import("../src/social.js");
+  const user = await identity.createUser(scope, policy, { username: "alice", verified: true });
+  const pair = await identity.issueSession(scope, policy, user, issuer, 3600);
+  const normal = await issuer.verifier().verify(pair.accessToken, scope); const now = Math.floor(Date.now() / 1000);
+  const elevated = await issuer.verifier().verify(issuer.signElevatedAccessToken(normal, { assurance: "confirmed", verifiedAt: now, expiresAt: now + 300 }, 300), scope);
+  const connection = { id: "test", kind: "google", clientId: "client", clientSecret: "secret" };
+  const runtime = { identity, policy: async () => policy, configuration: () => ({ socialConnections: [connection] }) };
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user: elevated,
+    rawEvent: { req: new Request("https://auth.test/social", { headers: { Origin: "https://app.test" } }), url: new URL("https://auth.test/social") },
+    uiRouteUrl: () => "https://app.test/social", request: { action: "link", connection: "test" } as Record<string, unknown> };
+  t.mock.method(socialAdapter, "authorize", async () => "https://provider.test/authorize");
+  let started!: () => void; let release!: (identity: { issuer: string; subject: string; emailVerified: boolean }) => void;
+  const exchangeStarted = new Promise<void>(resolve => { started = resolve; });
+  const exchangeResult = new Promise<{ issuer: string; subject: string; emailVerified: boolean }>(resolve => { release = resolve; });
+  t.mock.method(socialAdapter, "exchange", async () => { started(); return exchangeResult; });
+  const ticket = await socialPost(ctx as never);
+  ctx.request = { action: "complete", id: ticket.id, secret: ticket.secret, code: "test-code" };
+  const completed = socialPost(ctx as never).then(value => ({ value, error: undefined }), error => ({ value: undefined, error }));
+  await exchangeStarted;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      storage.transaction(scope, async tx => {
+        await tx.put("sentinel", scope, { id: "unblocked" });
+        if (change === "revoke") { const session = (await tx.get("session", normal.sessionId!, scope))!; await tx.put("session", scope, { ...session, revoked: true }); }
+        if (change === "config") connection.clientSecret = "changed";
+        if (change === "expire") { const challenge = (await tx.get("challenge", String(ticket.id), scope))!; await tx.put("challenge", scope, { ...challenge, expiresAt: 0 }); }
+      }),
+      new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("Provider exchange holds the storage lock")), 1000); })
+    ]);
+  } finally { clearTimeout(timer); release({ issuer: "https://provider.test", subject: "external-user", emailVerified: false }); }
+  const result = await completed;
+  const links = await storage.transaction(scope, tx => tx.list("external", scope));
+  if (change === "none") { assert.equal(result.value?.status, "ok"); assert.equal(links.length, 1); await assert.rejects(socialPost(ctx as never), /expired or unavailable/); }
+  else { assert.ok(result.error instanceof AuthError); assert.equal(links.length, 0); }
+});
+
+test("provider failures consume the bounded challenge attempts without persisting identities", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { socialPost, socialAdapter } = await import("../src/social.js");
+  const runtime = { identity, policy: async () => policy, configuration: () => ({ socialConnections: [{ id: "test", kind: "google", clientId: "client", clientSecret: "secret" }] }) };
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: { req: new Request("https://app.test/social"), url: new URL("https://app.test/social") }, uiRouteUrl: () => "https://app.test/social", request: { action: "start", connection: "test" } as Record<string, unknown> };
+  t.mock.method(socialAdapter, "authorize", async () => "https://provider.test/authorize");
+  const exchange = t.mock.method(socialAdapter, "exchange", async () => { throw new Error("Provider private response"); });
+  const ticket = await socialPost(ctx as never);
+  ctx.request = { action: "complete", id: ticket.id, secret: "wrong", code: "code" };
+  await assert.rejects(socialPost(ctx as never), /expired or unavailable/); assert.equal(exchange.mock.callCount(), 0);
+  ctx.request.secret = ticket.secret;
+  for (let i = 0; i < 4; i++) await assert.rejects(socialPost(ctx as never), (error: any) => error instanceof AuthError && error.status === 502 && !error.message.includes("private"));
+  await assert.rejects(socialPost(ctx as never), /expired or unavailable/);
+  assert.equal(exchange.mock.callCount(), 4);
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("user")), []);
+});
+
+test("registration and verification keep proof out of URLs sent to the server and enforce app binding", async t => {
+  const { identity, scope, storage, path } = fixture(t);
+  const { accountPost } = await import("../src/account.js");
+  const { MailQueue } = await import("../src/mail.js");
+  const mail = new MailQueue(identity, () => ({ transport: "http", url: "https://mail.test/send", from: "auth@example.com" }));
+  const runtime = { identity, mail, factors: new Factors(identity), tokenIssuer: issuer, refreshTokenSeconds: 3600, policy: async () => ({ ...policy, defaultRoleIds: ["reader"] }) };
+  const ctx = {
+    plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, responseHeaders: new Headers(),
+    rawEvent: { req: new Request("https://auth.test/account", { headers: { Origin: "https://app.test" } }), url: new URL("https://auth.test/account") },
+    routeUrl: () => "https://auth.test/account", uiRouteUrl: () => "https://app.test/account",
+    request: { action: "signup", email: "alice@example.com", password: "a secure test password" } as Record<string, unknown>
+  };
+  const response = await accountPost(ctx as never); assert.equal(response.status, "ok");
+  let user = await identity.findUser(scope, policy, "alice@example.com"); assert.equal(user?.emailVerified, false);
+  assert.equal(await storage.transaction(scope, tx => tx.get("roles", user!.id, scope)), undefined);
+  const [job] = await storage.transaction(scope, tx => tx.list("mail", scope));
+  const message = JSON.parse(identity.cipher.decrypt(String(job.encrypted)));
+  const url = new URL(message.text.match(/https:\/\/app\.test\/account\S+/)[0]);
+  assert.equal(url.search, "");
+  const proof = JSON.parse(decodeURIComponent(url.hash.slice(9)));
+  assert.ok(!readFileSync(path, "utf8").includes(proof.secret));
+  ctx.request = proof;
+  await assert.rejects(accountPost({ ...ctx, app: { id: uuidv7() } } as never), /expired or unavailable/);
+  assert.equal((await accountPost(ctx as never)).status, "ok");
+  await assert.rejects(accountPost(ctx as never), /expired or unavailable/);
+  user = await identity.findUser(scope, policy, "alice@example.com"); assert.equal(user?.emailVerified, true);
+  assert.equal(await storage.transaction(scope, tx => tx.get("roles", user!.id, scope)), undefined);
+  // Duplicate public registration has the same outward response as new registration.
+  ctx.request = { action: "signup", email: "alice@example.com", password: "another secure password" };
+  assert.deepEqual(await accountPost(ctx as never), response);
+});
+
+test("app administrators cannot mutate shared tenant accounts; direct roles stay separate from groups", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { default: manage } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/POST.js");
+  const { default: list } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/GET.js");
+  const shared = { ...policy, isolation: "tenant" as const, canManageDirectory: false };
+  const actor = await identity.createUser(scope, shared, { username: "actor", verified: true });
+  const target = await identity.createUser(scope, shared, { username: "target", verified: true });
+  const signed = await identity.issueSession(scope, shared, actor, issuer, 3600);
+  const user = await issuer.verifier().verify(signed.accessToken, scope);
+  const runtime = { identity, policy: async () => shared };
+  let status = 200;
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
+    request: { action: "disable", id: target.id } as Record<string, unknown>, setStatus: (code: number) => { status = code; } };
+  for (const action of ["disable", "sessions.revoke", "group.save", "group.delete"]) {
+    ctx.request.action = action;
+    assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 403);
+  }
+  assert.equal((await identity.findUser(scope, shared, target.id, true))?.enabled, true);
+  ctx.request = { action: "roles", id: target.id, roles: ["reader"] };
+  assert.equal((await manage(ctx as never)).status, "ok");
+  await storage.transaction(scope, tx => tx.put("group", { tenantId: scope.tenantId, appId: "" }, { id: uuidv7(), members: [target.id], appRoles: { [scope.appId]: ["editor"] } }));
+  const data = await list(ctx as never);
+  const listed = (data.users as Array<Record<string, unknown>>).find(u => u.id === target.id)!;
+  assert.deepEqual(listed.roles, ["reader"]); assert.deepEqual(listed.effectiveRoles, ["reader", "editor"]);
+  shared.canManageDirectory = true;
+  ctx.request = { action: "disable", id: target.id };
+  assert.equal((await manage(ctx as never)).status, "ok");
+  assert.equal((await identity.findUser(scope, shared, target.id, true))?.enabled, false);
+});
+
+test("session cleanup and bounded account/mail pages preserve app and tenant isolation", async t => {
+  const { storage, scope } = fixture(t);
+  const { checkSessionAndMailPages } = await import("./storageCases.js");
+  await checkSessionAndMailPages(storage, scope);
+});
+
+test("login rate limits use trusted client addresses and reject spoofed proxy chains", async t => {
+  const { clientAddress } = await import("../src/clientAddress.js");
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  const trust = { trustedProxyHeaders: true, trustedProxyIps: ["10.0.0.1", "10.0.0.2"] };
+  const event = (ip: string, headers: Record<string, string>) => ({ req: Object.assign(new Request("https://auth.test/login", { headers }), { ip }) });
+  assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": "192.0.2.1, 10.0.0.2" }) as never, trust), "192.0.2.1");
+  assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": "192.0.2.99, 192.0.2.1" }) as never, trust), "192.0.2.1");
+  for (const header of ["bad", "192.0.2.1, bad", "192.0.2.1," , "1".repeat(5000)]) assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": header }) as never, trust), "10.0.0.1");
+  assert.equal(clientAddress(event("192.0.2.5", { "x-forwarded-for": "192.0.2.1", "cf-connecting-ip": "192.0.2.2" }) as never, { ...trust, cfProxy: true }), "192.0.2.5");
+  assert.equal(clientAddress(event("10.0.0.1", { "cf-connecting-ip": "192.0.2.2" }) as never, { ...trust, cfProxy: true }), "192.0.2.2");
+  assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": "192.0.2.1" }) as never, { ...trust, trustedProxyHeaders: false }), "10.0.0.1");
+  assert.equal(clientAddress(event("10.0.0.1", { "x-forwarded-for": "2001:0db8::1" }) as never, trust), "2001:db8::1");
+  const { identity, scope } = fixture(t);
+  t.mock.method(identity, "authenticate", async () => undefined);
+  const attempt = async (ip: string, forwarded: string, username: string) => {
+    let status = 0;
+    await handlePost({ tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: event(ip, { "x-forwarded-for": forwarded }), request: { username, password: "incorrect" },
+      plugin: { runtime: { identity, policy: async () => policy, clientAddress: (e: any) => clientAddress(e, trust) } }, setStatus: (value: number) => { status = value; } } as never);
+    return status;
+  };
+  for (let i = 0; i < 101; i++) assert.equal(await attempt("10.0.0.1", `192.0.2.${i + 1}`, `distributed-${i}`), 401);
+  for (let i = 0; i < 100; i++) assert.equal(await attempt("10.0.0.1", `198.51.100.${i + 1}, 192.0.2.1`, `same-client-${i}`), i < 99 ? 401 : 429);
+  for (let i = 0; i < 101; i++) assert.equal(await attempt("192.0.2.200", `198.51.100.${i + 1}`, `untrusted-${i}`), i < 100 ? 401 : 429);
+});

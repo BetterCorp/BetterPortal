@@ -1,0 +1,29 @@
+{
+  "anyvaliVersion": "1.0",
+  "schemaVersion": "1.1",
+  "root": {
+    "kind": "object",
+    "properties": {
+      "minimum": {
+        "kind": "enum",
+        "values": [
+          "confirm",
+          "mfa"
+        ]
+      },
+      "maxAgeSeconds": {
+        "kind": "optional",
+        "inner": {
+          "kind": "int",
+          "min": 1
+        }
+      }
+    },
+    "required": [
+      "minimum"
+    ],
+    "unknownKeys": "strip"
+  },
+  "definitions": {},
+  "extensions": {}
+}

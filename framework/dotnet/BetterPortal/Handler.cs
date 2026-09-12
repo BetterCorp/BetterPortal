@@ -46,6 +46,12 @@ public sealed record RequestContext(ScopedContext Scope, AuthorizedCaller Caller
 public sealed record HandlerContext<TParams, TQuery, THeaders, TBody>(RequestContext RequestContext,
     TParams Params, TQuery Query, THeaders Headers, TBody Request, CancellationToken Cancellation)
 {
+    public void RequireElevation(Dictionary<string, object?> requirement) {
+        if (RequestContext.Caller.Mode == "service") throw new RequestException(403, "Human authentication required");
+        try { Elevation.Require(RequestContext.Caller.User, requirement); }
+        catch (ElevationRequiredException error) { throw new RequestException(401, error.Message, error.Headers, RequestContext.Scope); }
+        catch (TokenException error) { throw new RequestException(error.Status, error.Message); }
+    }
     public ResponseState Response => RequestContext.Response;
     public Urls Urls => RequestContext.Urls;
 }

@@ -48,6 +48,7 @@ export interface BetterPortalShellAdapter {
 declare global {
   interface Window {
     BetterPortalShellAdapter?: BetterPortalShellAdapter;
+    BetterPortalAuth?: { factor(challenge: any): Promise<Record<string, unknown> | null>; fetch(url: string, init?: RequestInit): Promise<Response> };
   }
 }
 
@@ -649,7 +650,8 @@ export function betterPortalShellRuntimeSource(): string {
         refreshBefore: number | null;
       }
 
-      const BP_HEADERS_KEY = "bp.headers";
+      const authScope = [shellRoot()?.getAttribute("data-bp-tenant-id"), shellRoot()?.getAttribute("data-bp-app-id")];
+      const BP_HEADERS_KEY = authScope.every(Boolean) ? "bp.headers:" + authScope.join(":") : "bp.headers";
       const DEFAULT_HEADER_REFRESH_BEFORE_SECONDS = 60;
       const HEADER_REFRESH_RETRY_MS = 30_000;
       const headerRefreshTimers = new Map<string, number>();
@@ -658,7 +660,19 @@ export function betterPortalShellRuntimeSource(): string {
 
       const readBpHeaders = (): Record<string, BpStoredHeader> => {
         try {
-          const raw = JSON.parse(localStorage.getItem(BP_HEADERS_KEY) || "{}");
+          const scoped = localStorage.getItem(BP_HEADERS_KEY);
+          let raw = JSON.parse(scoped || "{}");
+          if (!scoped && BP_HEADERS_KEY !== "bp.headers") {
+            const legacy = JSON.parse(localStorage.getItem("bp.headers") || "{}");
+            raw = Object.fromEntries(Object.entries(legacy).filter(([name, value]: [string, any]) => {
+              if (!["authorization", "x-bp-refresh"].includes(name.toLowerCase())) return false;
+              try {
+                const claims = JSON.parse(atob(value.value.replace(/^Bearer /, "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+                return claims.tenantId === authScope[0] && claims.appId === authScope[1];
+              } catch { return false; }
+            }));
+            localStorage.setItem(BP_HEADERS_KEY, JSON.stringify(raw));
+          }
           const normalized: Record<string, BpStoredHeader> = Object.create(null);
           const conflicts = new Set<string>();
           for (const [name, value] of Object.entries(raw)) {
@@ -732,7 +746,10 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       /** Refresh one managed header within five seconds; failures leave recovery to the caller. */
-      const refreshStoredHeader = async (name: string, entry: BpStoredHeader): Promise<boolean> => {
+      const refreshStoredHeader = (name: string, entry: BpStoredHeader): Promise<boolean> => {
+        const operation = async (): Promise<boolean> => {
+        const latest = liveBpHeaders()[name];
+        if (latest && latest.value !== entry.value) return true;
         const refreshUrl = refreshUrlForHeader(entry);
         if (!refreshUrl) return false;
         const previous = liveBpHeaders()[name] ?? entry;
@@ -762,6 +779,8 @@ export function betterPortalShellRuntimeSource(): string {
         return response.ok
           && !!current
           && (current.value !== previous.value || current.expires !== previous.expires);
+        };
+        return navigator.locks ? navigator.locks.request(BP_HEADERS_KEY + ":refresh:" + name, operation) : operation();
       };
 
       const refreshStoredHeaders = async (force = false): Promise<boolean> => {
@@ -1396,11 +1415,12 @@ export function betterPortalShellRuntimeSource(): string {
         return "";
       };
 
+      const pendingLoginForms = new WeakSet<HTMLFormElement>();
       (window as any).bpLoginSubmit = async (event: SubmitEvent) => {
         event.preventDefault();
         event.stopImmediatePropagation();
         const form = event.currentTarget as HTMLFormElement | null;
-        if (!form) return false;
+        if (!form || pendingLoginForms.has(form)) return false;
         const errEl = document.getElementById("bp-login-error");
         if (errEl) errEl.classList.add("d-none");
         const fd = new FormData(form);
@@ -1416,15 +1436,38 @@ export function betterPortalShellRuntimeSource(): string {
           "Content-Type": "application/x-www-form-urlencoded"
         };
         attachBpHeaders(headers, action, context.id);
+        pendingLoginForms.add(form);
         try {
-          const response = await fetch(action, {
+          let responseUrl = action;
+          let response = await fetch(action, {
             method: "POST",
             mode: "cors",
             credentials: "include",
             headers,
             body: new URLSearchParams(fd as any)
           });
-          applyBpHeaderDirectives(response, action);
+          let body: any = await response.json().catch(() => null);
+          if (!response.ok || body?.status !== "ok") throw new Error(body?.message || "Login failed (HTTP " + response.status + ")");
+          if (!form.isConnected) return false;
+          if (body.challenge) {
+            const challenge = body.challenge;
+            const endpoint = typeof body.accountUrl === "string" ? new URL(body.accountUrl, action) : null;
+            if (!endpoint || endpoint.origin !== new URL(action).origin || serviceIdForUrl(endpoint.href) !== context.id) throw new Error("The auth service returned an invalid verification endpoint.");
+            const proof = await factorDialog({ ...challenge, purpose: "login" });
+            if (!proof) throw new Error("Sign-in verification cancelled.");
+            if (!form.isConnected) return false;
+            responseUrl = endpoint.href;
+            const completionHeaders: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+            attachBpHeaders(completionHeaders, responseUrl, context.id);
+            response = await fetch(responseUrl, {
+              method: "POST", mode: "cors", credentials: "include", redirect: "error", headers: completionHeaders,
+              body: JSON.stringify({ action: "login.complete", id: challenge.id, secret: challenge.secret, next: String(fd.get("next") || ""), ...proof })
+            });
+            body = await response.json().catch(() => null);
+            if (!response.ok || body?.status !== "ok" || body.challenge) throw new Error(body?.message || "Sign-in verification failed. Try signing in again.");
+          }
+          if (!form.isConnected) return false;
+          applyBpHeaderDirectives(response, responseUrl);
           const hxTrigger = response.headers.get("HX-Trigger");
           if (hxTrigger) {
             try {
@@ -1436,22 +1479,14 @@ export function betterPortalShellRuntimeSource(): string {
               }
             }
           }
-          let body: any = null;
-          try { body = await response.json(); } catch { /* non-JSON */ }
-          if (!response.ok || !body || body.status !== "ok") {
-            if (errEl) {
-              errEl.textContent = (body && body.message) || ("Login failed (HTTP " + response.status + ")");
-              errEl.classList.remove("d-none");
-            }
-            return false;
-          }
-          triggerShellLink(String(fd.get("next") || "/"), undefined, true);
-        } catch {
+          if (Array.isArray(body.recoveryCodes) && body.recoveryCodes.length) await showLoginRecoveryCodes(body.recoveryCodes);
+          if (form.isConnected) triggerShellLink(String(fd.get("next") || "/"), undefined, true);
+        } catch (error) {
           if (errEl) {
-            errEl.textContent = "Login failed. Service unavailable.";
+            errEl.textContent = error instanceof Error ? error.message : "Login failed. Service unavailable.";
             errEl.classList.remove("d-none");
           }
-        }
+        } finally { pendingLoginForms.delete(form); }
         return false;
       };
 
@@ -2116,6 +2151,158 @@ export function betterPortalShellRuntimeSource(): string {
         }
       });
 
+      // Elevated credentials are deliberately memory-only and tied to the normal
+      // credential that earned them. Refresh/logout in any tab invalidates them.
+      let elevated: { token: string; base: string; expiresAt: number } | null = null;
+      let elevationPending: Promise<void> | null = null;
+      const jwtBody = (token: string): any => {
+        try { return JSON.parse(atob(token.replace(/^Bearer /, "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); } catch { return null; }
+      };
+      const baseAuthorization = () => liveBpHeaders().authorization?.value || "";
+      const validElevated = (base: string) => {
+        if (elevated && (elevated.base !== base || elevated.expiresAt <= Date.now() / 1000)) elevated = null;
+        return elevated;
+      };
+      window.addEventListener("storage", () => { elevated = null; });
+      window.addEventListener("pagehide", () => { elevated = null; });
+      const decodeBuffer = (value: string) => Uint8Array.from(atob(value.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+      const encodeCredential = (value: any): any => {
+        if (value instanceof ArrayBuffer) return btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        if (value === null || typeof value !== "object") return value;
+        if (Array.isArray(value)) return value.map(encodeCredential);
+        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, encodeCredential(v)]));
+      };
+      const getCredential = async (challenge: any) => {
+        const options = structuredClone(challenge.options);
+        options.challenge = decodeBuffer(options.challenge);
+        if (options.user) options.user.id = decodeBuffer(options.user.id);
+        for (const key of ["allowCredentials", "excludeCredentials"]) if (options[key]) options[key] = options[key].map((v: any) => ({ ...v, id: decodeBuffer(v.id) }));
+        const credential = await (challenge.enroll ? navigator.credentials.create({ publicKey: options }) : navigator.credentials.get({ publicKey: options })) as PublicKeyCredential | null;
+        if (!credential) throw new Error("Passkey verification cancelled.");
+        const response: any = credential.response;
+        return encodeCredential({ id: credential.id, rawId: credential.rawId, type: credential.type, authenticatorAttachment: credential.authenticatorAttachment,
+          clientExtensionResults: credential.getClientExtensionResults(), response: challenge.enroll
+            ? { clientDataJSON: response.clientDataJSON, attestationObject: response.attestationObject, transports: response.getTransports?.() ?? [] }
+            : { clientDataJSON: response.clientDataJSON, authenticatorData: response.authenticatorData, signature: response.signature, userHandle: response.userHandle } });
+      };
+      const showLoginRecoveryCodes = (codes: string[]): Promise<void> => new Promise(resolve => {
+        const dialog = document.createElement("dialog"); dialog.className = "bp-auth-dialog";
+        const title = document.createElement("h2"); title.textContent = "Save your recovery codes";
+        const explanation = document.createElement("p"); explanation.textContent = "Keep these codes somewhere safe. They are shown only once.";
+        const pre = document.createElement("pre"); pre.textContent = codes.join("\n");
+        const button = document.createElement("button"); button.type = "button"; button.className = "btn btn-primary"; button.textContent = "I saved my recovery codes";
+        button.addEventListener("click", () => { dialog.close(); dialog.remove(); resolve(); });
+        dialog.addEventListener("cancel", event => event.preventDefault());
+        dialog.append(title, explanation, pre, button); document.body.append(dialog); dialog.showModal();
+      });
+      const factorDialog = (challenge: any): Promise<Record<string, unknown> | null> => new Promise(resolve => {
+        const dialog = document.createElement("dialog"); dialog.className = "bp-auth-dialog";
+        dialog.style.cssText = "max-width:440px;width:90%;padding:24px;border:1px solid #888;border-radius:8px";
+        const title = document.createElement("h2"); title.textContent = challenge.enroll ? "Set up authentication" : "Verify your identity";
+        const explanation = document.createElement("p"); explanation.textContent = challenge.enroll ? "Add an authenticator or passkey to protect your account." : challenge.purpose === "login" ? "Complete verification to sign in." : "Verification covers eligible actions in this app until the token expires.";
+        const form = document.createElement("form"); form.method = "dialog";
+        const methods: string[] = challenge.method === "confirm" ? ["confirm"] : challenge.methods ?? [];
+        const select = document.createElement("select"); select.className = "form-select mb-3";
+        const labels: Record<string, string> = { confirm: "Confirm", totp: "Authenticator code", passkey: "Passkey", recovery: "Recovery code" };
+        for (const method of methods) { const option = document.createElement("option"); option.value = method; option.textContent = labels[method] ?? method; select.append(option); }
+        const code = document.createElement("input"); code.autocomplete = "one-time-code"; code.className = "form-control mb-3"; code.placeholder = "Verification code"; code.setAttribute("aria-label", "Verification code");
+        const secret = document.createElement("p"); secret.textContent = challenge.totpSecret ? "Add this secret to your authenticator, then enter its code: " + challenge.totpSecret : "";
+        secret.style.overflowWrap = "anywhere";
+        const error = document.createElement("p"); error.setAttribute("role", "alert");
+        const confirm = document.createElement("button"); confirm.type = "submit"; confirm.className = "btn btn-primary"; confirm.textContent = "Continue";
+        const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn btn-secondary ms-2"; cancel.textContent = "Cancel";
+        const update = () => { code.hidden = ["confirm", "passkey"].includes(select.value); secret.hidden = select.value !== "totp"; };
+        select.addEventListener("change", update); update();
+        let done = false;
+        const finish = (value: Record<string, unknown> | null) => { if (done) return; done = true; dialog.close(); dialog.remove(); resolve(value); };
+        cancel.addEventListener("click", () => finish(null)); dialog.addEventListener("cancel", () => finish(null));
+        form.addEventListener("submit", async event => {
+          event.preventDefault(); confirm.disabled = true;
+          try { finish(select.value === "passkey" ? { method: "passkey", credential: await getCredential(challenge) } : select.value === "confirm" ? { confirm: true } : { method: select.value, code: code.value }); }
+          catch (failure) { error.textContent = (failure as Error).message; confirm.disabled = false; }
+        });
+        form.append(select, secret, code, error, confirm, cancel); dialog.append(title, explanation, form); document.body.append(dialog); dialog.showModal();
+      });
+      const requestElevation = async (challenge: any, base: string): Promise<void> => {
+        if (elevationPending) {
+          await elevationPending;
+          const claims = jwtBody(validElevated(base)?.token ?? "");
+          if (claims?.elevation && (challenge.minimum !== "mfa" || claims.elevation.assurance === "mfa")) return;
+        }
+        elevationPending = (async () => {
+          const authId = shellRoot()?.getAttribute("data-bp-auth-service") || serviceIdForUrl(shellRoot()?.getAttribute("data-bp-login-url") || "");
+          const authOrigin = originForServiceId(authId);
+          if (!authOrigin || authOrigin === unresolvedServiceOrigin) throw new Error("Auth service unavailable.");
+          const url = authOrigin.replace(/\/+$/, "") + "/.well-known/bp/auth/elevate";
+          const send = async (body: unknown) => {
+            const response = await fetch(url, { method: "POST", headers: { Authorization: base, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), redirect: "error" });
+            if (!response.ok) throw new Error("Additional verification is unavailable or failed. Open your account settings to check your authentication methods.");
+            return response.json();
+          };
+          const prepared = await send({ action: "start", context: { serviceId: challenge.serviceId, operationId: challenge.operationId, method: challenge.method }, requirement: { minimum: challenge.minimum, ...(challenge.maxAgeSeconds ? { maxAgeSeconds: challenge.maxAgeSeconds } : {}) } });
+          const result = await factorDialog(prepared);
+          if (!result) throw new Error("Verification cancelled.");
+          if (baseAuthorization() !== base) throw new Error("Your session changed. Submit the action again.");
+          const issued = await send({ action: "complete", challengeId: prepared.challengeId, secret: prepared.secret, ...result });
+          const claims = jwtBody(issued.accessToken); const previous = jwtBody(base);
+          if (!claims?.elevation || claims.tenantId !== previous?.tenantId || claims.appId !== previous?.appId || claims.sub !== previous?.sub || baseAuthorization() !== base) throw new Error("Your session changed. Submit the action again.");
+          elevated = { token: issued.accessToken, base, expiresAt: Math.min(claims.exp, claims.elevation.expiresAt) };
+        })();
+        try { await elevationPending; } finally { elevationPending = null; }
+      };
+      const fetchWithElevation = async (url: RequestInfo | URL, init: RequestInit = {}, ctx?: any, transport = fetch): Promise<Response> => {
+        const request = new Request(url, init);
+        if (!serviceIdForUrl(request.url)) return transport(url, init);
+        const base = baseAuthorization();
+        const eligible = !!base && request.headers.get("Authorization") === base;
+        const active = eligible ? validElevated(base) : null;
+        if (active) request.headers.set("Authorization", "Bearer " + active.token);
+        const original = request.clone();
+        const response = await transport(request);
+        const raw = response.status === 401 ? response.headers.get("BP-Auth-Challenge") : null;
+        if (!raw || !eligible) return response;
+        let challenge: any;
+        try { challenge = JSON.parse(raw); } catch { return response; }
+        const claims = jwtBody(base);
+        if (challenge.version !== 1 || !["confirm", "mfa"].includes(challenge.minimum) || !claims || claims.tenantId !== challenge.tenantId || claims.appId !== challenge.appId) return response;
+        const blocked = (message: string) => {
+          if (ctx) ctx.__bpElevationHandled = true;
+          if (ctx?.target instanceof Element) ctx.target.classList.remove("bp-fragment-loading");
+          setLoading(false);
+          triggerBodyEvent("bp:auth:elevation-cancelled", { message });
+          if (ctx?.sourceElement instanceof Element) {
+            const outlet = mutationErrorOutlet(ctx.sourceElement);
+            if (outlet) { outlet.textContent = message; outlet.hidden = false; }
+          }
+          return response;
+        };
+        const hasUpload = init.body instanceof FormData && Array.from(init.body.values()).some(value => value instanceof File && value.size > 0);
+        if (document.visibilityState === "hidden" || hasUpload || (ctx && (!ctx.sourceElement?.isConnected || ctx.sourceElement?.getAttribute?.("hx-trigger")?.includes("load") || ctx.sourceElement?.getAttribute?.("hx-trigger")?.includes("every")))) return blocked("Verify your identity before submitting this request again.");
+        const generation = ctx?.__bpMainGeneration;
+        try {
+          await requestElevation(challenge, base);
+          if (baseAuthorization() !== base || (ctx && (!ctx.sourceElement?.isConnected || (generation && generation !== mainRequestGeneration)))) return blocked("The page or session changed. Submit the action again.");
+          const verified = validElevated(base);
+          if (!verified) return blocked("Verification expired. Submit again.");
+          original.headers.set("Authorization", "Bearer " + verified.token);
+          // Exactly one retry, using the already-captured method, body and headers.
+          const retry = await transport(original);
+          if (retry.status === 401 && retry.headers.has("BP-Auth-Challenge")) return blocked("This action requires stronger or more recent verification.");
+          return retry;
+        } catch (failure) { return blocked((failure as Error).message); }
+      };
+      window.BetterPortalAuth = {
+        factor: factorDialog,
+        async fetch(url: string, init: RequestInit = {}) {
+          if (!serviceIdForUrl(url)) throw new Error("Auth request must target an installed service.");
+          const headers: Record<string, string> = Object.fromEntries(new Headers(init.headers));
+          attachBpHeaders(headers, url);
+          const response = await fetchWithElevation(url, { ...init, headers });
+          applyBpHeaderDirectives(response, url);
+          return response;
+        }
+      };
+
       // -- HTMX extension: bp-shell --
 
       htmx.registerExtension("bp-shell", {
@@ -2244,6 +2431,9 @@ export function betterPortalShellRuntimeSource(): string {
             );
           }
           if (preload) delete (source as any)._htmx.preload;
+          const transport = detail.ctx.fetch;
+          detail.ctx.fetch = (input: RequestInfo | URL, init?: RequestInit) => fetchWithElevation(input, init, detail.ctx, transport);
+
           if (requestTargetEscapesLane(detail)) {
             if (source instanceof Element && sanitizeHtmxTarget(source)) {
               htmx.process(source);
@@ -2272,6 +2462,8 @@ export function betterPortalShellRuntimeSource(): string {
         // Only explicit themed status HTML may replace the main outlet on an
         // HTTP error. All other error bodies are data, not trusted shell UI.
         htmx_before_swap(_elt: any, detail: any) {
+          if (detail.ctx?.__bpElevationHandled) return false;
+          if (detail.ctx?.response?.status >= 400 && detail.ctx?.sourceElement?.closest?.("#bp-login-form")) return false;
           const ctx = detail.ctx;
           const status = ctx?.response?.status;
           const target = ctx?.target;
@@ -2398,6 +2590,7 @@ export function betterPortalShellRuntimeSource(): string {
         // pipeline builds task fragments, so hx-sse ext reads the absolute
         // service-origin URL once the new content is processed.
         htmx_after_request(_elt: any, detail: any) {
+          if (detail.ctx?.__bpElevationHandled) return false;
           // HTMX follows these before before_swap. A 401 belongs to the
           // shell's auth flow, not service-supplied redirects or retargeting.
           if (detail.ctx?.response?.status === 401 && isMainTarget(detail.ctx?.target)) {

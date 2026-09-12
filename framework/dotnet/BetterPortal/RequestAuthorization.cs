@@ -76,7 +76,11 @@ public static class RequestAuthorization
             if (machine && (mode == "user" || scopeHeaders.Any(name => string.IsNullOrEmpty(normalized.GetValueOrDefault(name)))))
                 throw new TokenException("Incomplete service envelope");
             if (!((IEnumerable<object?>)policy["callers"]!).Contains(mode)) throw new TokenException("Caller mode is not allowed", 403);
-            if (!machine) return new("user", await AuthorizeUserAsync(primary, policy, context, cancellationToken));
+            if (!machine) {
+                var human = await AuthorizeUserAsync(primary, policy, context, cancellationToken);
+                if (policy.GetValueOrDefault("elevation") is Node elevation) Elevation.Require(human, elevation);
+                return new("user", human);
+            }
             if (normalized["x-bp-tenant-id"] != context.TenantId || normalized["x-bp-app-id"] != context.AppId)
                 throw new TokenException("Service headers do not match resolved scope");
             if (context.ServicePolicy is null) throw new TokenException("Service authentication context unavailable", 503);
@@ -86,8 +90,12 @@ public static class RequestAuthorization
             var caller = await Authorization.AuthorizeServiceAsync(delegated ? secondary! : primary, context.ServicePolicy,
                 normalized["x-bp-service-id"], context.TenantId, context.AppId, viewId, method, mode,
                 ((IEnumerable<object?>)policy["permissions"]!).Cast<Node>().SelectMany(item => ((IEnumerable<object?>)item["permissions"]!).Cast<string>()).ToArray(), cancellationToken);
+            if (policy.GetValueOrDefault("elevation") is Node requirementElevation) {
+                if (user is null) throw new TokenException("Human authentication required for elevation", 403);
+                Elevation.Require(user, requirementElevation);
+            }
             return new(mode, user, caller.Claims);
         }
-        catch (TokenException) when (policy["required"] is not true && !machine) { return new(); }
+        catch (TokenException) when (policy["required"] is not true && !policy.ContainsKey("elevation") && !machine) { return new(); }
     }
 }

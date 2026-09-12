@@ -7,7 +7,7 @@ from .context import OriginPolicy, http_origin
 from .contracts import parse
 
 _ALLOW = "Accept, Authorization, Content-Type, HX-Current-URL, HX-Request, HX-Target, HX-Trigger, HX-Trigger-Name, X-BP-Tenant-Id, X-BP-App-Id, X-BP-Service-Id, X-BP-Service-Authorization, BP-SetHeader, BP-RemoveHeader, traceparent, tracestate, baggage"
-_EXPOSE = "HX-Trigger, HX-Trigger-After-Swap, HX-Trigger-After-Settle, HX-Location, HX-Push-Url, HX-Redirect, HX-Refresh, HX-Replace-Url, HX-Reswap, HX-Retarget, BP-SetHeader, BP-RemoveHeader"
+_EXPOSE = "HX-Trigger, HX-Trigger-After-Swap, HX-Trigger-After-Settle, HX-Location, HX-Push-Url, HX-Redirect, HX-Refresh, HX-Replace-Url, HX-Reswap, HX-Retarget, BP-SetHeader, BP-RemoveHeader, WWW-Authenticate, BP-Auth-Challenge"
 _TOKEN = re.compile(r"[!#$%&'*+.^_`|~A-Za-z0-9-]+\Z")
 
 

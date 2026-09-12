@@ -29,6 +29,17 @@ function recordingObservability(records: Array<{ name: string; attributes: Obser
   return wrap(createNoopObservability(), "bp.http.request");
 }
 
+test("request telemetry redacts auth callback proofs while handlers receive the original query", async () => {
+  let attributes: ObservabilityAttributes | undefined;
+  const app = createBetterPortalApp({ createRequestObservability: (_name, received) => { attributes = received; return createNoopObservability(); } });
+  app.get("/callback", event => jsonResponse({ code: event.url.searchParams.get("code") }));
+  const response = await app.fetch(new Request("https://auth.test/callback?code=private-code&secret=private-secret&access_token=private-token&page=2"));
+  assert.deepEqual(await response.json(), { code: "private-code" });
+  const logged = new URL(String(attributes?.["url.full"]));
+  for (const name of ["code", "secret", "access_token"]) assert.equal(logged.searchParams.get(name), "[REDACTED]");
+  assert.equal(logged.searchParams.get("page"), "2");
+});
+
 test("middleware response headers survive error responses", async () => {
   const app = createBetterPortalApp();
   app.use("/**", (event) => {

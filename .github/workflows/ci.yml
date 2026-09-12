@@ -16,6 +16,19 @@ concurrency:
 jobs:
   nodejs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    services:
+      auth-postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bp-test-only
+          POSTGRES_DB: bp_auth_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      BP_AUTH_TEST_POSTGRES: postgres://postgres:bp-test-only@127.0.0.1:5432/bp_auth_test
     steps:
       - uses: actions/checkout@v7
 
@@ -81,6 +94,8 @@ jobs:
 
       - name: Check generated types and executable documentation
         run: |
+          python framework/conformance/check_elevation.py
+          dotnet framework/dotnet/Conformance/bin/Debug/net10.0/Conformance.dll --elevation framework/conformance/elevation-cases.json
           python framework/conformance/check_types.py
           python framework/conformance/check_clientgen.py
           python framework/conformance/check_projects.py

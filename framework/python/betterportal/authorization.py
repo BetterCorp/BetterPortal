@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from .contracts import parse
+from .elevation import require_elevation
 from .security import KeyResolver, PermissionDenied, TokenError, TokenPurpose, _jwt_object, authorize_service, verify_token
 
 
@@ -107,7 +108,9 @@ async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str
         if mode not in policy["callers"]:
             raise PermissionDenied("Caller mode is not allowed")
         if not machine:
-            return AuthorizedCaller("user", await authorize_user(primary, policy, context))
+            human = await authorize_user(primary, policy, context)
+            if policy.get("elevation"): require_elevation(human, policy["elevation"])
+            return AuthorizedCaller("user", human)
         if (normalized["x-bp-tenant-id"], normalized["x-bp-app-id"]) != (context.tenant_id, context.app_id):
             raise TokenError("Service headers do not match resolved scope")
         if context.service_policy is None:
@@ -123,8 +126,11 @@ async def authorize_request(headers: Mapping[str, str], requirement: Mapping[str
             source_service_id=normalized["x-bp-service-id"], tenant_id=context.tenant_id, app_id=context.app_id,
             view_id=view_id, method=method, mode=mode,
             required_permissions=tuple(action for item in policy["permissions"] for action in item["permissions"]))
+        if policy.get("elevation"):
+            if user is None: raise PermissionDenied("Human authentication required for elevation")
+            require_elevation(user, policy["elevation"])
         return AuthorizedCaller(mode, user, caller["claims"])
     except TokenError:
-        if policy["required"] or machine:
+        if policy["required"] or policy.get("elevation") or machine:
             raise
         return AuthorizedCaller()

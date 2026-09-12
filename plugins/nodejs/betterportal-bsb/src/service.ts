@@ -37,6 +37,10 @@ import {
   resolveThemeLlmsContext,
   verifySetupToken,
   verifyServiceConfigTicket,
+  ElevationRequirementSchema,
+  type ElevationRequirement,
+  type JwtClaims,
+  type BpTokenIssuer,
   type AppAuthConfig,
   type AppAuthRole,
   type AuthProviderRuntimeMetadata,
@@ -833,7 +837,9 @@ export abstract class BPService<
     jwksUri: string;
     jwks: PublicJwks;
     cacheMaxAgeSeconds?: number;
+    tokenIssuer?: BpTokenIssuer;
   }): void {
+    if (input.tokenIssuer) this.registerElevationEndpoint(input.tokenIssuer);
     const cacheMaxAge = input.cacheMaxAgeSeconds ?? 600;
     const payload = JSON.stringify(input.jwks);
     this.publishedJwks = input.jwks;
@@ -852,6 +858,62 @@ export abstract class BPService<
         }
       })
     );
+  }
+
+  private elevationIssuer?: BpTokenIssuer;
+
+  /** Providers may override these two hooks to persist challenges and require enrolled factors. */
+  protected async beginAuthElevation(user: JwtClaims, requirement: ElevationRequirement, _event: BetterPortalEvent, _actionContext: Record<string, string> = {}): Promise<Record<string, unknown>> {
+    if (requirement.minimum === "mfa") throw new Error("This provider does not support MFA elevation");
+    if (!this.elevationIssuer) throw new Error("Elevation issuer unavailable");
+    const challengeId = this.elevationIssuer.signConfirmationChallenge(user);
+    return { challengeId, method: "confirm" };
+  }
+
+  protected async finishAuthElevation(user: JwtClaims, body: Record<string, unknown>, _event: BetterPortalEvent): Promise<{ user: JwtClaims; assurance: "confirmed" | "mfa"; verifiedAt?: number }> {
+    if (!this.elevationIssuer || body.confirm !== true || typeof body.challengeId !== "string") throw new Error("Elevation challenge invalid or expired");
+    const verifiedAt = this.elevationIssuer.verifyConfirmationChallenge(user, body.challengeId);
+    return { user, assurance: "confirmed", verifiedAt };
+  }
+
+  private registerElevationEndpoint(issuer: BpTokenIssuer): void {
+    this.elevationIssuer = issuer;
+    this.app.post("/.well-known/bp/auth/elevate", async (event) => {
+      event.res.headers.set("Cache-Control", "no-store");
+      const context = await this.resolveRequestContext(event);
+      if (!context || !await this.validateConfigScope(context.tenant.id, context.app.id)) return jsonResponse({ error: "App unavailable" }, 403);
+      const validation = await this.validateTenantApp(context.tenant.id, context.app.id);
+      if (!validation.allowed) return jsonResponse({ error: "Tenant unavailable" }, 426);
+      let user: JwtClaims;
+      try {
+        const token = event.req.headers.get("authorization");
+        if (!token?.startsWith("Bearer ") || event.req.headers.has("x-bp-service-authorization")) throw new Error("User token required");
+        user = await issuer.verifier().verify(token.slice(7), { tenantId: context.tenant.id, appId: context.app.id });
+        if (user.tenantId !== context.tenant.id || user.appId !== context.app.id) throw new Error("Wrong app");
+      } catch { return jsonResponse({ error: "Authentication required" }, 401); }
+      try {
+        if (!event.req.headers.get("content-type")?.startsWith("application/json")) return jsonResponse({ error: "JSON required" }, 415);
+        const text = await event.req.text();
+        if (text.length > 65536) return jsonResponse({ error: "Request too large" }, 413);
+        const body = JSON.parse(text);
+        if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid request");
+        if (body.action === "start") {
+          const requirement = ElevationRequirementSchema.parse(body.requirement);
+          const actionContext: Record<string, string> = {};
+          if (body.context && typeof body.context === "object") for (const key of ["serviceId", "operationId", "method"]) if (typeof body.context[key] === "string") actionContext[key] = body.context[key].slice(0, 256);
+          return jsonResponse(await this.beginAuthElevation(user, requirement, event, actionContext) as any);
+        }
+        if (body.action !== "complete") throw new Error("Invalid elevation action");
+        const verified = await this.finishAuthElevation(user, body, event);
+        const now = Math.floor(Date.now() / 1000);
+        const verifiedAt = verified.verifiedAt ?? now;
+        // Generic providers cannot revalidate the underlying session. Never extend it.
+        const expiresInSeconds = Math.min(user.exp - now, verifiedAt + issuer.accessTokenSeconds - now);
+        const elevation = { assurance: verified.assurance, verifiedAt, expiresAt: now + expiresInSeconds };
+        const accessToken = issuer.signElevatedAccessToken(verified.user, elevation, expiresInSeconds);
+        return jsonResponse({ accessToken, expiresInSeconds, elevation });
+      } catch { return jsonResponse({ error: "Elevation unavailable or verification failed" }, 400); }
+    });
   }
 
   constructor(cfg: BSBServiceConstructor<TConfig, TEvents>) {
@@ -1511,7 +1573,7 @@ export abstract class BPService<
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowHeaders,
         credentials: true,
-        exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader"],
+        exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader", "WWW-Authenticate", "BP-Auth-Challenge"],
         maxAge: "600",
         preflight: { statusCode: 204 }
       });
@@ -1550,7 +1612,7 @@ export abstract class BPService<
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowHeaders,
         credentials: true,
-        exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader"],
+        exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader", "WWW-Authenticate", "BP-Auth-Challenge"],
         maxAge: "600",
         preflight: { statusCode: 204 }
       });
@@ -1630,7 +1692,7 @@ export abstract class BPService<
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowHeaders,
       credentials: true,
-      exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader"],
+      exposeHeaders: ["HX-Trigger", "HX-Trigger-After-Swap", "HX-Trigger-After-Settle", "HX-Location", "HX-Push-Url", "HX-Redirect", "HX-Refresh", "HX-Replace-Url", "HX-Reswap", "HX-Retarget", "BP-SetHeader", "BP-RemoveHeader", "WWW-Authenticate", "BP-Auth-Challenge"],
       maxAge: "600",
       preflight: { statusCode: 204 }
     });
@@ -1816,7 +1878,7 @@ export abstract class BPService<
     }
   }
 
-  private effectiveServiceConfig(tenantId?: string, appId?: string): Record<string, unknown> {
+  protected effectiveServiceConfig(tenantId?: string, appId?: string): Record<string, unknown> {
     if (!tenantId) return {};
     const state = this.configStore.read(this.internalConfigReadTicket(tenantId));
     return {
@@ -2646,10 +2708,15 @@ export abstract class BPService<
       readConfig: ({ ticket }) =>
         this.configStore.read(ticket),
       writeConfig: ({ tenantId, appId, values }, { ticket }) =>
-        this.configStore.write(tenantId, appId, values, ticket),
+        this.mutateServiceConfiguration(tenantId, appId, values, () => this.configStore.write(tenantId, appId, values, ticket)),
       clearConfigKey: ({ tenantId, appId, key }, { ticket }) =>
-        this.configStore.clearKey?.(tenantId, appId, key, ticket) ?? this.configStore.read(ticket)
+        this.mutateServiceConfiguration(tenantId, appId, { [key]: undefined }, () => this.configStore.clearKey?.(tenantId, appId, key, ticket) ?? this.configStore.read(ticket))
     });
+  }
+
+  /** Providers can fence configuration changes against identity creation. */
+  protected async mutateServiceConfiguration<T>(_tenantId: string, _appId: string | undefined, _values: Record<string, unknown>, write: () => T | Promise<T>): Promise<T> {
+    return write();
   }
 
   protected async validateConfigScope(tenantId: string, appId?: string): Promise<boolean> {

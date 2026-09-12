@@ -118,6 +118,12 @@ export function withCoreHttpOutcome(response: Response, diagnostic: HttpOutcomeD
   return response;
 }
 
+function redactAuthQuery(url: URL): string {
+  const safe = new URL(url);
+  for (const name of safe.searchParams.keys()) if (/^(code|secret|token|password|access_?token|refresh_?token|id_?token|assertion|samlresponse|setuptoken)$/i.test(name)) safe.searchParams.set(name, "[REDACTED]");
+  return safe.toString();
+}
+
 /**
  * The direct socket peer IP of the request - i.e. NOT derived from
  * X-Forwarded-For. Use this to decide whether a request actually arrived from a
@@ -292,7 +298,7 @@ function requestAttributes(event: BetterPortalEvent): ObservabilityAttributes {
 
   return {
     "http.request.method": event.req.method,
-    "url.full": requestUrl.toString(),
+    "url.full": redactAuthQuery(requestUrl),
     "url.path": requestUrl.pathname,
     "server.address": event.req.headers.get("host") ?? "",
     "http.request.header.referer": event.req.headers.get("referer") ?? "",
