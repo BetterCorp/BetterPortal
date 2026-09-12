@@ -20,7 +20,7 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
       data-bp-services='{"service":"https://service.test","auth":"https://auth.test"}'
       data-bp-routes='[{"href":"/tools/dashboard","requestUrl":"https://service.test/dashboard","serviceId":"service","kind":"page"},{"href":"/auth/login","requestUrl":"https://auth.test/login","serviceId":"auth","kind":"page"}]'>
       <a id="menu" href="/tools/dashboard" data-bp-route-link data-bp-service="service" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
-      <main id="bp-main" data-bp-service="${initialUrl.startsWith("https://auth.test") ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
+      <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
     </div><script>${asset.body}</script></body></html>` }));
   await page.goto("https://app.test" + initialTenantPath);
   return { page, errors };
@@ -363,7 +363,7 @@ test("password-only login still stores session headers and navigates directly", 
 test("login challenges cannot send verification proof to another installed service", async t => {
   let otherRequests = 0;
   const { page, errors } = await shell(t, route => {
-    if (route.request().url().startsWith("https://service.test")) { otherRequests++; return loginJson(route, { status: "ok" }); }
+    if (new URL(route.request().url()).origin === "https://service.test") { otherRequests++; return loginJson(route, { status: "ok" }); }
     if (route.request().method() === "POST") return loginJson(route, { status: "ok", accountUrl: "https://service.test/account", challenge: { id: "ticket", secret: "proof", methods: ["totp"] } });
     return html(route, passwordLoginForm);
   }, {}, "https://auth.test/login", "/auth/login");
