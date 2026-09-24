@@ -142,3 +142,11 @@ The fragment editor is driven by the selected shell's cached manifest. With no s
 An unset value uses the theme default. `none` is the explicit empty value. Service fragments are selected from synced manifest metadata and the app route allowlist; the editor never fetches service or theme manifests from the browser.
 
 Legacy `app.fragments` and `app.slots` values remain read-only fallbacks until an administrator saves an explicit setting for that theme fragment. New edits write only `app.shellFragments`.
+
+## Preview deployment concurrency
+
+Preview deployments share the platform configuration with other previews and service updates. If another writer changes its revision, the preview API discards the stale snapshot, reloads configuration, and reapplies the operation. It makes at most five attempts with a short randomized backoff, rechecking authorization and existing credential replay on each attempt.
+
+POST request bodies are read once. Identical requests replay committed credentials for 15 minutes, including when another replica wins a concurrent request. The same conflict recovery covers DELETE and expired-preview cleanup during GET.
+
+If all attempts conflict, the API returns `503` with `Retry-After: 1` and `Cache-Control: no-store`. Deployment automation should retry the same request after that delay. Validation and authorization failures retain their normal status codes; unrelated server errors still return `500`.

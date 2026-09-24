@@ -1,3 +1,5 @@
+import { setTimeout as delay } from "node:timers/promises";
+import { ConfigRevisionConflictError } from "./storage/core.js";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import {
   jsonResponse,
@@ -26,7 +28,7 @@ export function registerPreviewDeploymentApi(input: {
 }): void {
   const route = `${PREVIEW_DEPLOYMENT_API_BASE}/:groupId/deployments/:key`;
 
-  input.app.get(route, async (event) => withPreviewApiErrors(event, async () => {
+  input.app.get(route, async (event) => withPreviewApiErrors(event, input.storage, async () => {
     const config = await input.storage.loadConfig();
     const group = config.previewEnvironmentGroups.find((candidate) => candidate.id === event.context.params?.groupId);
     if (!group) throw new PreviewEnvironmentError("Preview group was not found", 404);
@@ -41,55 +43,59 @@ export function registerPreviewDeploymentApi(input: {
     return jsonResponse(publicDeployment as unknown as JsonValue, 200, NO_STORE);
   }));
 
-  input.app.post(route, async (event) => withPreviewApiErrors(event, async () => {
-    const config = await input.storage.loadConfig();
-    const groupId = event.context.params?.groupId ?? "";
-    const key = event.context.params?.key ?? "";
-    const group = config.previewEnvironmentGroups.find((candidate) => candidate.id === groupId);
-    if (!group) throw new PreviewEnvironmentError("Preview group was not found", 404);
-    await authenticatePreviewGroup(group, event.req.headers.get("authorization"));
-    const body = await readObject(event);
-    if (body.setupMode !== undefined && body.setupMode !== "pull") {
-      throw new PreviewEnvironmentError("Only pull setup mode is supported for preview deployments");
-    }
-    const existing = config.previewEnvironmentDeployments.find((candidate) => candidate.groupId === groupId && candidate.key === key);
-    const hostname = typeof body.hostname === "string" ? body.hostname : existing?.hostname;
-    if (!hostname) throw new PreviewEnvironmentError("hostname is required when creating a preview");
-    const request = {
-      key,
-      name: typeof body.name === "string" ? body.name : undefined,
-      hostname,
-      expiresInDays: parseExpiry(body.expiresInDays),
-      services: parseServices(body.services).sort((a, b) => a.serviceId.localeCompare(b.serviceId))
-    };
-    const requestHash = createHash("sha256").update(JSON.stringify(request)).digest("hex");
-    const aad = `${groupId}:${key}:${requestHash}`;
-    const replay = existing?.credentialReplay;
-    if (replay?.requestHash === requestHash && Date.parse(replay.expiresAt) > Date.now()) {
-      const payload = openReplay(replay.ciphertext, input.replayEncryptionKey, aad);
-      return jsonResponse(payload, (payload as { created: boolean }).created ? 201 : 200, NO_STORE);
-    }
-    const result = provisionPreviewDeployment(config, groupId, request, input.controlPlaneUrl);
-    const payload = {
-      created: result.created,
-      preview: {
-        key: result.deployment.key,
-        name: result.deployment.name,
-        hostname: result.deployment.hostname,
-        expiresAt: result.deployment.expiresAt ?? null
-      },
-      credentials: result.credentials
-    } as unknown as JsonValue;
-    result.deployment.credentialReplay = {
-      requestHash,
-      ciphertext: sealReplay(payload, input.replayEncryptionKey, aad),
-      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString()
-    };
-    await input.storage.saveConfig(config);
-    return jsonResponse(payload, result.created ? 201 : 200, NO_STORE);
-  }));
+  input.app.post(route, async (event) => {
+    // Request bodies are streams: parse once, but reauthenticate and recompute on every attempt.
+    let bodyPromise: Promise<Record<string, unknown>> | undefined;
+    return withPreviewApiErrors(event, input.storage, async () => {
+      const config = await input.storage.loadConfig();
+      const groupId = event.context.params?.groupId ?? "";
+      const key = event.context.params?.key ?? "";
+      const group = config.previewEnvironmentGroups.find((candidate) => candidate.id === groupId);
+      if (!group) throw new PreviewEnvironmentError("Preview group was not found", 404);
+      await authenticatePreviewGroup(group, event.req.headers.get("authorization"));
+      const body = await (bodyPromise ??= readObject(event));
+      if (body.setupMode !== undefined && body.setupMode !== "pull") {
+        throw new PreviewEnvironmentError("Only pull setup mode is supported for preview deployments");
+      }
+      const existing = config.previewEnvironmentDeployments.find((candidate) => candidate.groupId === groupId && candidate.key === key);
+      const hostname = typeof body.hostname === "string" ? body.hostname : existing?.hostname;
+      if (!hostname) throw new PreviewEnvironmentError("hostname is required when creating a preview");
+      const request = {
+        key,
+        name: typeof body.name === "string" ? body.name : undefined,
+        hostname,
+        expiresInDays: parseExpiry(body.expiresInDays),
+        services: parseServices(body.services).sort((a, b) => a.serviceId.localeCompare(b.serviceId))
+      };
+      const requestHash = createHash("sha256").update(JSON.stringify(request)).digest("hex");
+      const aad = `${groupId}:${key}:${requestHash}`;
+      const replay = existing?.credentialReplay;
+      if (replay?.requestHash === requestHash && Date.parse(replay.expiresAt) > Date.now()) {
+        const payload = openReplay(replay.ciphertext, input.replayEncryptionKey, aad);
+        return jsonResponse(payload, (payload as { created: boolean }).created ? 201 : 200, NO_STORE);
+      }
+      const result = provisionPreviewDeployment(config, groupId, request, input.controlPlaneUrl);
+      const payload = {
+        created: result.created,
+        preview: {
+          key: result.deployment.key,
+          name: result.deployment.name,
+          hostname: result.deployment.hostname,
+          expiresAt: result.deployment.expiresAt ?? null
+        },
+        credentials: result.credentials
+      } as unknown as JsonValue;
+      result.deployment.credentialReplay = {
+        requestHash,
+        ciphertext: sealReplay(payload, input.replayEncryptionKey, aad),
+        expiresAt: new Date(Date.now() + 15 * 60_000).toISOString()
+      };
+      await input.storage.saveConfig(config);
+      return jsonResponse(payload, result.created ? 201 : 200, NO_STORE);
+    });
+  });
 
-  input.app.delete(route, async (event) => withPreviewApiErrors(event, async () => {
+  input.app.delete(route, async (event) => withPreviewApiErrors(event, input.storage, async () => {
     const config = await input.storage.loadConfig();
     const groupId = event.context.params?.groupId ?? "";
     const key = event.context.params?.key ?? "";
@@ -121,17 +127,36 @@ function openReplay(value: string, secret: string, aad: string): JsonValue {
   return JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString("utf8")) as JsonValue;
 }
 
-async function withPreviewApiErrors(event: BetterPortalEvent, action: () => Promise<Response>): Promise<Response> {
-  try {
-    return await action();
-  } catch (error) {
-    if (error instanceof PreviewEnvironmentError) {
-      return jsonResponse({ error: error.message }, error.status, NO_STORE);
+async function withPreviewApiErrors(
+  event: BetterPortalEvent,
+  storage: PlatformConfigStore,
+  action: () => Promise<Response>
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await action();
+    } catch (error) {
+      if (error instanceof ConfigRevisionConflictError) {
+        // Never resave the rejected snapshot: discard cached state and rerun the
+        // full operation, including authorization and credential replay lookup.
+        storage.invalidate();
+        if (attempt < 4) {
+          await delay(25 * 2 ** attempt * (1 + Math.random()));
+          continue;
+        }
+        return jsonResponse({ error: "Preview configuration is busy; retry submission" }, 503, {
+          ...NO_STORE,
+          "Retry-After": "1"
+        });
+      }
+      if (error instanceof PreviewEnvironmentError) {
+        return jsonResponse({ error: error.message }, error.status, NO_STORE);
+      }
+      eventObservability(event)?.logger.error("Preview deployment API failed: {msg}", {
+        msg: error instanceof Error ? error.message : String(error)
+      });
+      return jsonResponse({ error: "Preview operation failed" }, 500, NO_STORE);
     }
-    eventObservability(event)?.logger.error("Preview deployment API failed: {msg}", {
-      msg: error instanceof Error ? error.message : String(error)
-    });
-    return jsonResponse({ error: "Preview operation failed" }, 500, NO_STORE);
   }
 }
 
