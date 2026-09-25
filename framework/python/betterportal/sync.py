@@ -151,10 +151,10 @@ class ControlPlaneSync:
                     elif name == "data": lines.append(value)
                 if event == "config" and lines:
                     try:
-                        value = ScopedConfig(loads("\n".join(lines))).document()
+                        snapshot = ScopedConfig(loads("\n".join(lines))).document()
                         # The initial SSE event commonly repeats the acknowledged
                         # poll. It must not retire in-flight requests needlessly.
-                        if value != self.service.snapshot(): await self.service.apply_snapshot(value)
+                        if snapshot != self.service.snapshot(): await self.service.apply_snapshot(snapshot)
                     except Exception:
                         self._error = "invalid_update"
                     else: self._updates += 1; self._error = None
