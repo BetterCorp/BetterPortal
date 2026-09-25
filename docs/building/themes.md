@@ -226,3 +226,33 @@ Service HTML should use `{view.id}` tokens for service-owned links and HTMX path
 ```
 
 The framework rewrites those tokens to service route paths before sending HTML. Do not emit absolute service URLs from renderers.
+
+### Auth-aware navigation
+
+The selected shell receives the app's role grants and manifest-derived route
+`menu`, `authRequired`, and `menuPermissions` through normal scoped config sync.
+Bootstrap1/2 use the shared `resolveThemeAuth` and `filterThemeMenu` helpers to
+verify access tokens against cached keys and render menus without contacting
+content services. Missing auth/permission metadata stays unresolved rather than
+exposing protected entries. Initial full-page loads without an auth header defer
+personalized entries until the browser refreshes the menu with its stored auth.
+
+Shell fragment renderers receive `ctx.auth` with `status` (`unknown`, `anonymous`,
+`authenticated`), verified `user` claims when available, and effective permissions.
+Use this request-scoped context rather than decoding a token yourself. Responses
+containing personalized shell content must not be shared-cacheable.
+
+The shared runtime emits `bp:auth-changed` after managed Authorization changes,
+including login, logout, refresh, expiry and cross-tab updates. It clears stale
+menus/fragments, emits the existing `bp:fragments-changed` refresh event, and
+rejects fragment/menu responses started under the previous auth state. The
+`bp:auth-changed` event contains no token. Menu and fragment endpoints continue
+to render using the current cached configuration and validated request identity.
+
+Custom shells using the shared runtime should put the selected shell instance ID
+in `data-bp-shell-service` on the shell root, include its registered origin in
+`data-bp-services`, and load their menu through HTMX on `load` and
+`bp:fragments-changed from:body`. This associates requests on the public app
+hostname with the selected theme service, including when that hostname differs
+from the service's registered origin. Apply the shared visibility filter on both
+initial rendering and menu refreshes.

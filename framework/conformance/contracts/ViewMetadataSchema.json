@@ -446,6 +446,12 @@
               },
               "default": []
             },
+            "menu": {
+              "kind": "optional",
+              "inner": {
+                "kind": "bool"
+              }
+            },
             "chrome": {
               "kind": "optional",
               "inner": {

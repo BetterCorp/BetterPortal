@@ -631,6 +631,8 @@ export function betterPortalShellRuntimeSource(): string {
         for (const [id, origin] of Object.entries(serviceOrigins)) {
           try { map[new URL(origin).origin] = id; } catch { /* skip invalid */ }
         }
+        const shellService = shellRoot()?.getAttribute("data-bp-shell-service");
+        if (shellService && serviceOrigins[shellService]) map[window.location.origin] = shellService;
         return map;
       })();
 
@@ -687,9 +689,34 @@ export function betterPortalShellRuntimeSource(): string {
         catch { return {}; }
       };
 
+      let authGeneration = 0;
+      let authSignature = readBpHeaders().authorization?.value ?? "";
+      let authRefreshQueued = false;
+      const authChanged = () => {
+        const signature = readBpHeaders().authorization?.value ?? "";
+        if (signature === authSignature) return;
+        authSignature = signature;
+        authGeneration++;
+        // Hide stale personalized content before any asynchronous refresh.
+        document.querySelectorAll("#bp-nav-desktop, #bp-nav-mobile, [data-bp-profile-mirror]").forEach(el => { el.replaceChildren(); });
+        document.querySelectorAll('[hx-get*="/.well-known/bp/shell/fragment/"]').forEach(el => { el.replaceChildren(); });
+        if (authRefreshQueued) return;
+        authRefreshQueued = true;
+        queueMicrotask(() => {
+          authRefreshQueued = false;
+          triggerBodyEvent("bp:auth-changed");
+          triggerBodyEvent("bp:fragments-changed");
+        });
+      };
+      window.addEventListener("storage", event => {
+        if (event.key === BP_HEADERS_KEY || event.key === null) { authChanged(); scheduleHeaderRefreshes(); }
+      });
+      setInterval(() => { liveBpHeaders(); authChanged(); }, 1000);
+
       const writeBpHeaders = (headers: Record<string, BpStoredHeader>) => {
         try { localStorage.setItem(BP_HEADERS_KEY, JSON.stringify(headers)); }
         catch { /* storage unavailable - headers just won't persist */ }
+        authChanged();
       };
 
       const triggerBodyEvent = (name: string, detail?: unknown) => {
@@ -935,7 +962,6 @@ export function betterPortalShellRuntimeSource(): string {
         if (changed) {
           writeBpHeaders(stored);
           scheduleHeaderRefreshes();
-          triggerBodyEvent("bp:fragments-changed");
         }
       };
 
@@ -1039,7 +1065,6 @@ export function betterPortalShellRuntimeSource(): string {
         delete stored.authorization;
         writeBpHeaders(stored);
         scheduleHeaderRefreshes();
-        triggerBodyEvent("bp:fragments-changed");
       };
 
       scheduleHeaderRefreshes();
@@ -2053,12 +2078,8 @@ export function betterPortalShellRuntimeSource(): string {
       });
 
       const syncMenuVisibility = () => {
-        const hasAuth = Object.keys(liveBpHeaders()).some((name) => name.toLowerCase() === "authorization");
         document.querySelectorAll("[data-bp-route-link][data-bp-service]").forEach((el) => {
-          const policy = el.getAttribute("data-bp-auth-status");
-          const authHidden = policy === "hide-unauthenticated"
-            ? !hasAuth
-            : policy === "hide-unauthorized" && el.hasAttribute("data-bp-auth-denied");
+          const authHidden = el.hasAttribute("data-bp-auth-denied");
           const serviceHidden = el.classList.contains("bp-service-down") && el.getAttribute("data-bp-service-status") === "hide";
           el.toggleAttribute("hidden", authHidden || serviceHidden);
         });
@@ -2354,6 +2375,8 @@ export function betterPortalShellRuntimeSource(): string {
         htmx_config_request(elt: any, detail: any) {
           const ctx = detail.ctx;
           if (!ctx || !ctx.request) return;
+          liveBpHeaders();
+          ctx.__bpAuthGeneration = authGeneration;
           const source = ctx.sourceElement instanceof Element
             ? ctx.sourceElement
             : elt instanceof Element
@@ -2462,6 +2485,8 @@ export function betterPortalShellRuntimeSource(): string {
         // Only explicit themed status HTML may replace the main outlet on an
         // HTTP error. All other error bodies are data, not trusted shell UI.
         htmx_before_swap(_elt: any, detail: any) {
+          if (!isMainTarget(detail.ctx?.target) && detail.ctx?.__bpAuthGeneration !== undefined
+            && detail.ctx.__bpAuthGeneration !== authGeneration) return false;
           if (detail.ctx?.__bpElevationHandled) return false;
           if (detail.ctx?.response?.status >= 400 && detail.ctx?.sourceElement?.closest?.("#bp-login-form")) return false;
           const ctx = detail.ctx;
@@ -2470,8 +2495,9 @@ export function betterPortalShellRuntimeSource(): string {
           const source = ctx?.sourceElement;
           if (source instanceof Element && (status === 401 || status === 403)) {
             const policy = source.getAttribute("data-bp-auth-status");
-            if ((status === 401 && policy === "hide-unauthenticated") || (status === 403 && policy === "hide-unauthorized")) {
-              (source as HTMLElement).hidden = true;
+            if ((status === 401 && ["auto", "hide-unauthenticated", "hide-unauthorized"].includes(policy || "auto"))
+              || (status === 403 && ["auto", "hide-unauthorized"].includes(policy || "auto"))) {
+              source.setAttribute("data-bp-auth-denied", "");
               syncMenuVisibility();
             }
           }
@@ -2655,6 +2681,7 @@ export function betterPortalShellRuntimeSource(): string {
 
         // After successful swap: clear loading, resolve service links, reload Bootstrap
         htmx_after_swap(_elt: any, detail: any) {
+          syncMenuVisibility();
           let target = detail.ctx?.target;
           if (!target) return;
           if (target instanceof Element && !target.isConnected && target.id) {

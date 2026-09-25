@@ -1,3 +1,4 @@
+import { isMenuRouteExcluded } from "./routeMounts.js";
 import type {
   BetterPortalH3App,
   BetterPortalEvent,
@@ -122,7 +123,11 @@ function normalizeMenuItem(raw: unknown): BetterPortalMenuItem {
   const item = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   return BetterPortalMenuItemSchema.parse({
     id: typeof item.id === "string" ? item.id : uuidv7(),
-    type: item.type === "group" ? "group" : "link",
+    type: item.type ?? "link",
+    authStatus: item.authStatus ?? "auto",
+    serviceStatus: item.serviceStatus ?? "show",
+    rolesAnyOf: item.rolesAnyOf,
+    defaultExpanded: item.defaultExpanded,
     title: typeof item.title === "string" ? item.title : undefined,
     icon: typeof item.icon === "string" ? item.icon : undefined,
     routeId: typeof item.routeId === "string" ? item.routeId : undefined,
@@ -212,7 +217,7 @@ type WizardManifestView = {
     operationId?: unknown;
     method?: unknown;
     title?: unknown;
-    renderable?: boolean;
+    renderable?: boolean; menu?: boolean;
     dependencies?: unknown[];
     html?: { renderers?: Record<string, { renderModes?: unknown[] }> };
   }>;
@@ -2323,7 +2328,13 @@ export function registerAdminApiRoutes(
     const config = await store.loadConfig();
     const appDef = config.apps.find((a) => a.id === appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-    appDef.menu = items.map(normalizeMenuItem);
+    const menu = items.map(normalizeMenuItem);
+    const invalid = (entries: BetterPortalMenuItem[]): boolean => entries.some(item => {
+      const route = item.routeId ? appDef.routes.find(route => route.id === item.routeId) : undefined;
+      return (Boolean(item.routeId) && (!route || isMenuRouteExcluded(route, getManifestCache()))) || invalid(item.children);
+    });
+    if (invalid(menu)) return jsonResponse({ error: "Menu contains a missing or excluded route" }, 400);
+    appDef.menu = menu;
     await store.saveConfig(config);
     return jsonResponse({ ok: true });
   });
@@ -2415,6 +2426,7 @@ export function registerAdminApiRoutes(
       title: string;
       renderable: boolean;
       pageRenderable: boolean;
+      menu?: boolean;
     }> = [];
     let dependencyOperationIds = new Set<string>();
     const schemaText = typeof body.schema === "string" ? body.schema : "";
@@ -2447,6 +2459,7 @@ export function registerAdminApiRoutes(
               operationId: operation.operationId,
               title: typeof operation.title === "string" ? operation.title : view.title,
               renderable: operation.renderable === true,
+              menu: operation.menu,
               pageRenderable: operation.method === "GET" && hasPageRenderer({ ...view, operations: [operation] })
             }]
             : []
@@ -2503,7 +2516,7 @@ export function registerAdminApiRoutes(
             operations: [r.operationId]
           });
           if (r.pageRenderable) existingPaths.add(mountPath);
-          if (r.pageRenderable && !isApiRoute({ kind: "page", path: mountPath }, true)) {
+          if (r.pageRenderable && r.menu !== false && !isApiRoute({ kind: "page", path: mountPath }, true)) {
             groupChildren.push({
               id: uuidv7(),
               type: "link",
@@ -2511,7 +2524,7 @@ export function registerAdminApiRoutes(
               routeId,
               enabled: true,
               serviceStatus: "show",
-              authStatus: "show",
+              authStatus: "auto",
               children: []
             });
           }
@@ -2524,7 +2537,7 @@ export function registerAdminApiRoutes(
             title,
             enabled: true,
             serviceStatus: "show",
-            authStatus: "show",
+            authStatus: "auto",
             children: groupChildren
           });
         }

@@ -52,6 +52,38 @@
           "kind": "bool"
         }
       },
+      "menuPermissions": {
+        "kind": "optional",
+        "inner": {
+          "kind": "array",
+          "items": {
+            "kind": "object",
+            "properties": {
+              "serviceId": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "viewId": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "permissions": {
+                "kind": "array",
+                "items": {
+                  "kind": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": [
+              "serviceId",
+              "viewId",
+              "permissions"
+            ],
+            "unknownKeys": "strip"
+          }
+        }
+      },
       "sitemap": {
         "kind": "optional",
         "inner": {
@@ -212,6 +244,12 @@
           "minLength": 1
         },
         "minItems": 1
+      },
+      "menu": {
+        "kind": "optional",
+        "inner": {
+          "kind": "bool"
+        }
       },
       "chrome": {
         "kind": "optional",

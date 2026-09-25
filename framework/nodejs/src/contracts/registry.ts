@@ -210,6 +210,8 @@ export interface RegisteredMethodRoute {
   readonly robots?: import("./seo.js").RouteRobotsPolicy;
   readonly role?: string;
   readonly dependencies?: ReadonlyArray<OperationDependency>;
+  /** False excludes this operation from application menus, without disabling routing. */
+  readonly menu?: boolean;
   readonly chrome?: BetterPortalRouteChrome;
   readonly apiContracts?: ReadonlyArray<Omit<ApiContractDescriptor, "viewId" | "methods">>;
   readonly cacheHints: CacheHints;
@@ -246,6 +248,7 @@ export interface RegisteredRoute {
 }
 
 export interface ShellFragmentRenderContext {
+  readonly auth?: import("../runtime/auth/menu.js").ThemeAuthContext;
   readonly tenant: BetterPortalTenant;
   readonly app: BetterPortalApp;
   readonly config?: Readonly<Record<string, unknown>>;

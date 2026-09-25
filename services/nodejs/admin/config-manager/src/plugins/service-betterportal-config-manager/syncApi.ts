@@ -98,6 +98,7 @@ export interface CachedManifestOperation {
     priority?: number;
   };
   robots: Array<{ userAgent: string; access: "allow" | "disallow"; crawlDelaySeconds?: number }>;
+  menu?: boolean;
   chrome?: BetterPortalRouteChrome;
   dependencies: OperationDependency[];
   /** Per-view permission requirements from the service's auth.permissions[]. */
@@ -464,6 +465,7 @@ export async function reconcileServiceRegistry(
           authRequired: operation.auth.required,
           sitemap: sitemapMetadata(operation.sitemap),
           robots: [...(operation.robots ?? [])],
+          ...(operation.menu !== undefined ? { menu: operation.menu } : {}),
           ...(operation.chrome ? { chrome: operation.chrome } : {}),
           dependencies: [...(operation.dependencies ?? [])],
           permissions: operation.auth.permissions ?? [],
@@ -521,11 +523,11 @@ export async function reconcileServiceRegistry(
 }
 
 /**
- * Inject resolvedServicePath onto each app route using the manifest cache.
+ * Inject resolved paths and authoritative menu/access policy using the manifest cache.
  * Routes whose target service hasn't published a manifest yet are left
  * with resolvedServicePath undefined - client treats as unresolved.
  */
-function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceConfig {
+export function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceConfig {
   const serviceManifestKeys = new Map<string, string>();
   for (const tenant of scoped.tenants) {
     for (const service of tenant.services) {
@@ -555,6 +557,12 @@ function injectResolvedServicePaths(scoped: ScopedServiceConfig): ScopedServiceC
         : view.path,
       resolvedMethods,
       authRequired: operation.authRequired,
+      menu: operation.menu !== false,
+      menuPermissions: operation.permissions.map(requirement => ({
+        ...requirement,
+        serviceId: [...serviceManifestKeys].find(([id, plugin]) => plugin === requirement.serviceId && id === route.serviceId)?.[0]
+          ?? requirement.serviceId
+      })),
       ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
       robots: [...operation.robots],
       ...(chrome ? { chrome } : {})

@@ -158,6 +158,7 @@ const WELL_KNOWN_EXPORTS = [
   "role",
   "dependencies",
   "chrome",
+  "menu",
   "apiContracts",
   "cacheHints",
   "demoScenarios",

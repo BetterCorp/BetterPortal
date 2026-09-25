@@ -934,6 +934,38 @@
                       "kind": "bool"
                     }
                   },
+                  "menuPermissions": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "object",
+                        "properties": {
+                          "serviceId": {
+                            "kind": "string",
+                            "minLength": 1
+                          },
+                          "viewId": {
+                            "kind": "string",
+                            "minLength": 1
+                          },
+                          "permissions": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "string",
+                              "minLength": 1
+                            }
+                          }
+                        },
+                        "required": [
+                          "serviceId",
+                          "viewId",
+                          "permissions"
+                        ],
+                        "unknownKeys": "strip"
+                      }
+                    }
+                  },
                   "sitemap": {
                     "kind": "optional",
                     "inner": {
@@ -1095,6 +1127,12 @@
                     },
                     "minItems": 1
                   },
+                  "menu": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "bool"
+                    }
+                  },
                   "chrome": {
                     "kind": "optional",
                     "inner": {
@@ -1227,11 +1265,23 @@
                   "authStatus": {
                     "kind": "enum",
                     "values": [
+                      "auto",
                       "show",
                       "hide-unauthenticated",
-                      "hide-unauthorized"
+                      "hide-unauthorized",
+                      "show-unauthenticated"
                     ],
-                    "default": "show"
+                    "default": "auto"
+                  },
+                  "rolesAnyOf": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "array",
+                      "items": {
+                        "kind": "string",
+                        "minLength": 1
+                      }
+                    }
                   },
                   "defaultExpanded": {
                     "kind": "optional",
@@ -1301,11 +1351,23 @@
                         "authStatus": {
                           "kind": "enum",
                           "values": [
+                            "auto",
                             "show",
                             "hide-unauthenticated",
-                            "hide-unauthorized"
+                            "hide-unauthorized",
+                            "show-unauthenticated"
                           ],
-                          "default": "show"
+                          "default": "auto"
+                        },
+                        "rolesAnyOf": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "array",
+                            "items": {
+                              "kind": "string",
+                              "minLength": 1
+                            }
+                          }
                         },
                         "defaultExpanded": {
                           "kind": "optional",
@@ -1375,11 +1437,23 @@
                               "authStatus": {
                                 "kind": "enum",
                                 "values": [
+                                  "auto",
                                   "show",
                                   "hide-unauthenticated",
-                                  "hide-unauthorized"
+                                  "hide-unauthorized",
+                                  "show-unauthenticated"
                                 ],
-                                "default": "show"
+                                "default": "auto"
+                              },
+                              "rolesAnyOf": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "array",
+                                  "items": {
+                                    "kind": "string",
+                                    "minLength": 1
+                                  }
+                                }
                               },
                               "defaultExpanded": {
                                 "kind": "optional",
@@ -1449,11 +1523,23 @@
                                     "authStatus": {
                                       "kind": "enum",
                                       "values": [
+                                        "auto",
                                         "show",
                                         "hide-unauthenticated",
-                                        "hide-unauthorized"
+                                        "hide-unauthorized",
+                                        "show-unauthenticated"
                                       ],
-                                      "default": "show"
+                                      "default": "auto"
+                                    },
+                                    "rolesAnyOf": {
+                                      "kind": "optional",
+                                      "inner": {
+                                        "kind": "array",
+                                        "items": {
+                                          "kind": "string",
+                                          "minLength": 1
+                                        }
+                                      }
                                     },
                                     "defaultExpanded": {
                                       "kind": "optional",
@@ -1523,11 +1609,23 @@
                                           "authStatus": {
                                             "kind": "enum",
                                             "values": [
+                                              "auto",
                                               "show",
                                               "hide-unauthenticated",
-                                              "hide-unauthorized"
+                                              "hide-unauthorized",
+                                              "show-unauthenticated"
                                             ],
-                                            "default": "show"
+                                            "default": "auto"
+                                          },
+                                          "rolesAnyOf": {
+                                            "kind": "optional",
+                                            "inner": {
+                                              "kind": "array",
+                                              "items": {
+                                                "kind": "string",
+                                                "minLength": 1
+                                              }
+                                            }
                                           },
                                           "defaultExpanded": {
                                             "kind": "optional",
@@ -1597,11 +1695,23 @@
                                                 "authStatus": {
                                                   "kind": "enum",
                                                   "values": [
+                                                    "auto",
                                                     "show",
                                                     "hide-unauthenticated",
-                                                    "hide-unauthorized"
+                                                    "hide-unauthorized",
+                                                    "show-unauthenticated"
                                                   ],
-                                                  "default": "show"
+                                                  "default": "auto"
+                                                },
+                                                "rolesAnyOf": {
+                                                  "kind": "optional",
+                                                  "inner": {
+                                                    "kind": "array",
+                                                    "items": {
+                                                      "kind": "string",
+                                                      "minLength": 1
+                                                    }
+                                                  }
                                                 },
                                                 "defaultExpanded": {
                                                   "kind": "optional",
@@ -1671,11 +1781,23 @@
                                                       "authStatus": {
                                                         "kind": "enum",
                                                         "values": [
+                                                          "auto",
                                                           "show",
                                                           "hide-unauthenticated",
-                                                          "hide-unauthorized"
+                                                          "hide-unauthorized",
+                                                          "show-unauthenticated"
                                                         ],
-                                                        "default": "show"
+                                                        "default": "auto"
+                                                      },
+                                                      "rolesAnyOf": {
+                                                        "kind": "optional",
+                                                        "inner": {
+                                                          "kind": "array",
+                                                          "items": {
+                                                            "kind": "string",
+                                                            "minLength": 1
+                                                          }
+                                                        }
                                                       },
                                                       "defaultExpanded": {
                                                         "kind": "optional",
@@ -1745,11 +1867,23 @@
                                                             "authStatus": {
                                                               "kind": "enum",
                                                               "values": [
+                                                                "auto",
                                                                 "show",
                                                                 "hide-unauthenticated",
-                                                                "hide-unauthorized"
+                                                                "hide-unauthorized",
+                                                                "show-unauthenticated"
                                                               ],
-                                                              "default": "show"
+                                                              "default": "auto"
+                                                            },
+                                                            "rolesAnyOf": {
+                                                              "kind": "optional",
+                                                              "inner": {
+                                                                "kind": "array",
+                                                                "items": {
+                                                                  "kind": "string",
+                                                                  "minLength": 1
+                                                                }
+                                                              }
                                                             },
                                                             "defaultExpanded": {
                                                               "kind": "optional",
@@ -1819,11 +1953,23 @@
                                                                   "authStatus": {
                                                                     "kind": "enum",
                                                                     "values": [
+                                                                      "auto",
                                                                       "show",
                                                                       "hide-unauthenticated",
-                                                                      "hide-unauthorized"
+                                                                      "hide-unauthorized",
+                                                                      "show-unauthenticated"
                                                                     ],
-                                                                    "default": "show"
+                                                                    "default": "auto"
+                                                                  },
+                                                                  "rolesAnyOf": {
+                                                                    "kind": "optional",
+                                                                    "inner": {
+                                                                      "kind": "array",
+                                                                      "items": {
+                                                                        "kind": "string",
+                                                                        "minLength": 1
+                                                                      }
+                                                                    }
                                                                   },
                                                                   "defaultExpanded": {
                                                                     "kind": "optional",
@@ -1893,11 +2039,23 @@
                                                                         "authStatus": {
                                                                           "kind": "enum",
                                                                           "values": [
+                                                                            "auto",
                                                                             "show",
                                                                             "hide-unauthenticated",
-                                                                            "hide-unauthorized"
+                                                                            "hide-unauthorized",
+                                                                            "show-unauthenticated"
                                                                           ],
-                                                                          "default": "show"
+                                                                          "default": "auto"
+                                                                        },
+                                                                        "rolesAnyOf": {
+                                                                          "kind": "optional",
+                                                                          "inner": {
+                                                                            "kind": "array",
+                                                                            "items": {
+                                                                              "kind": "string",
+                                                                              "minLength": 1
+                                                                            }
+                                                                          }
                                                                         },
                                                                         "defaultExpanded": {
                                                                           "kind": "optional",
@@ -1967,11 +2125,23 @@
                                                                               "authStatus": {
                                                                                 "kind": "enum",
                                                                                 "values": [
+                                                                                  "auto",
                                                                                   "show",
                                                                                   "hide-unauthenticated",
-                                                                                  "hide-unauthorized"
+                                                                                  "hide-unauthorized",
+                                                                                  "show-unauthenticated"
                                                                                 ],
-                                                                                "default": "show"
+                                                                                "default": "auto"
+                                                                              },
+                                                                              "rolesAnyOf": {
+                                                                                "kind": "optional",
+                                                                                "inner": {
+                                                                                  "kind": "array",
+                                                                                  "items": {
+                                                                                    "kind": "string",
+                                                                                    "minLength": 1
+                                                                                  }
+                                                                                }
                                                                               },
                                                                               "defaultExpanded": {
                                                                                 "kind": "optional",
@@ -2041,11 +2211,23 @@
                                                                                     "authStatus": {
                                                                                       "kind": "enum",
                                                                                       "values": [
+                                                                                        "auto",
                                                                                         "show",
                                                                                         "hide-unauthenticated",
-                                                                                        "hide-unauthorized"
+                                                                                        "hide-unauthorized",
+                                                                                        "show-unauthenticated"
                                                                                       ],
-                                                                                      "default": "show"
+                                                                                      "default": "auto"
+                                                                                    },
+                                                                                    "rolesAnyOf": {
+                                                                                      "kind": "optional",
+                                                                                      "inner": {
+                                                                                        "kind": "array",
+                                                                                        "items": {
+                                                                                          "kind": "string",
+                                                                                          "minLength": 1
+                                                                                        }
+                                                                                      }
                                                                                     },
                                                                                     "defaultExpanded": {
                                                                                       "kind": "optional",
@@ -2115,11 +2297,23 @@
                                                                                           "authStatus": {
                                                                                             "kind": "enum",
                                                                                             "values": [
+                                                                                              "auto",
                                                                                               "show",
                                                                                               "hide-unauthenticated",
-                                                                                              "hide-unauthorized"
+                                                                                              "hide-unauthorized",
+                                                                                              "show-unauthenticated"
                                                                                             ],
-                                                                                            "default": "show"
+                                                                                            "default": "auto"
+                                                                                          },
+                                                                                          "rolesAnyOf": {
+                                                                                            "kind": "optional",
+                                                                                            "inner": {
+                                                                                              "kind": "array",
+                                                                                              "items": {
+                                                                                                "kind": "string",
+                                                                                                "minLength": 1
+                                                                                              }
+                                                                                            }
                                                                                           },
                                                                                           "defaultExpanded": {
                                                                                             "kind": "optional",
@@ -2189,11 +2383,23 @@
                                                                                                 "authStatus": {
                                                                                                   "kind": "enum",
                                                                                                   "values": [
+                                                                                                    "auto",
                                                                                                     "show",
                                                                                                     "hide-unauthenticated",
-                                                                                                    "hide-unauthorized"
+                                                                                                    "hide-unauthorized",
+                                                                                                    "show-unauthenticated"
                                                                                                   ],
-                                                                                                  "default": "show"
+                                                                                                  "default": "auto"
+                                                                                                },
+                                                                                                "rolesAnyOf": {
+                                                                                                  "kind": "optional",
+                                                                                                  "inner": {
+                                                                                                    "kind": "array",
+                                                                                                    "items": {
+                                                                                                      "kind": "string",
+                                                                                                      "minLength": 1
+                                                                                                    }
+                                                                                                  }
                                                                                                 },
                                                                                                 "defaultExpanded": {
                                                                                                   "kind": "optional",
@@ -2263,11 +2469,23 @@
                                                                                                       "authStatus": {
                                                                                                         "kind": "enum",
                                                                                                         "values": [
+                                                                                                          "auto",
                                                                                                           "show",
                                                                                                           "hide-unauthenticated",
-                                                                                                          "hide-unauthorized"
+                                                                                                          "hide-unauthorized",
+                                                                                                          "show-unauthenticated"
                                                                                                         ],
-                                                                                                        "default": "show"
+                                                                                                        "default": "auto"
+                                                                                                      },
+                                                                                                      "rolesAnyOf": {
+                                                                                                        "kind": "optional",
+                                                                                                        "inner": {
+                                                                                                          "kind": "array",
+                                                                                                          "items": {
+                                                                                                            "kind": "string",
+                                                                                                            "minLength": 1
+                                                                                                          }
+                                                                                                        }
                                                                                                       },
                                                                                                       "defaultExpanded": {
                                                                                                         "kind": "optional",
@@ -2337,11 +2555,23 @@
                                                                                                             "authStatus": {
                                                                                                               "kind": "enum",
                                                                                                               "values": [
+                                                                                                                "auto",
                                                                                                                 "show",
                                                                                                                 "hide-unauthenticated",
-                                                                                                                "hide-unauthorized"
+                                                                                                                "hide-unauthorized",
+                                                                                                                "show-unauthenticated"
                                                                                                               ],
-                                                                                                              "default": "show"
+                                                                                                              "default": "auto"
+                                                                                                            },
+                                                                                                            "rolesAnyOf": {
+                                                                                                              "kind": "optional",
+                                                                                                              "inner": {
+                                                                                                                "kind": "array",
+                                                                                                                "items": {
+                                                                                                                  "kind": "string",
+                                                                                                                  "minLength": 1
+                                                                                                                }
+                                                                                                              }
                                                                                                             },
                                                                                                             "defaultExpanded": {
                                                                                                               "kind": "optional",
@@ -2411,11 +2641,23 @@
                                                                                                                   "authStatus": {
                                                                                                                     "kind": "enum",
                                                                                                                     "values": [
+                                                                                                                      "auto",
                                                                                                                       "show",
                                                                                                                       "hide-unauthenticated",
-                                                                                                                      "hide-unauthorized"
+                                                                                                                      "hide-unauthorized",
+                                                                                                                      "show-unauthenticated"
                                                                                                                     ],
-                                                                                                                    "default": "show"
+                                                                                                                    "default": "auto"
+                                                                                                                  },
+                                                                                                                  "rolesAnyOf": {
+                                                                                                                    "kind": "optional",
+                                                                                                                    "inner": {
+                                                                                                                      "kind": "array",
+                                                                                                                      "items": {
+                                                                                                                        "kind": "string",
+                                                                                                                        "minLength": 1
+                                                                                                                      }
+                                                                                                                    }
                                                                                                                   },
                                                                                                                   "defaultExpanded": {
                                                                                                                     "kind": "optional",
@@ -2485,11 +2727,23 @@
                                                                                                                         "authStatus": {
                                                                                                                           "kind": "enum",
                                                                                                                           "values": [
+                                                                                                                            "auto",
                                                                                                                             "show",
                                                                                                                             "hide-unauthenticated",
-                                                                                                                            "hide-unauthorized"
+                                                                                                                            "hide-unauthorized",
+                                                                                                                            "show-unauthenticated"
                                                                                                                           ],
-                                                                                                                          "default": "show"
+                                                                                                                          "default": "auto"
+                                                                                                                        },
+                                                                                                                        "rolesAnyOf": {
+                                                                                                                          "kind": "optional",
+                                                                                                                          "inner": {
+                                                                                                                            "kind": "array",
+                                                                                                                            "items": {
+                                                                                                                              "kind": "string",
+                                                                                                                              "minLength": 1
+                                                                                                                            }
+                                                                                                                          }
                                                                                                                         },
                                                                                                                         "defaultExpanded": {
                                                                                                                           "kind": "optional",
@@ -2559,11 +2813,23 @@
                                                                                                                               "authStatus": {
                                                                                                                                 "kind": "enum",
                                                                                                                                 "values": [
+                                                                                                                                  "auto",
                                                                                                                                   "show",
                                                                                                                                   "hide-unauthenticated",
-                                                                                                                                  "hide-unauthorized"
+                                                                                                                                  "hide-unauthorized",
+                                                                                                                                  "show-unauthenticated"
                                                                                                                                 ],
-                                                                                                                                "default": "show"
+                                                                                                                                "default": "auto"
+                                                                                                                              },
+                                                                                                                              "rolesAnyOf": {
+                                                                                                                                "kind": "optional",
+                                                                                                                                "inner": {
+                                                                                                                                  "kind": "array",
+                                                                                                                                  "items": {
+                                                                                                                                    "kind": "string",
+                                                                                                                                    "minLength": 1
+                                                                                                                                  }
+                                                                                                                                }
                                                                                                                               },
                                                                                                                               "defaultExpanded": {
                                                                                                                                 "kind": "optional",
@@ -2633,11 +2899,23 @@
                                                                                                                                     "authStatus": {
                                                                                                                                       "kind": "enum",
                                                                                                                                       "values": [
+                                                                                                                                        "auto",
                                                                                                                                         "show",
                                                                                                                                         "hide-unauthenticated",
-                                                                                                                                        "hide-unauthorized"
+                                                                                                                                        "hide-unauthorized",
+                                                                                                                                        "show-unauthenticated"
                                                                                                                                       ],
-                                                                                                                                      "default": "show"
+                                                                                                                                      "default": "auto"
+                                                                                                                                    },
+                                                                                                                                    "rolesAnyOf": {
+                                                                                                                                      "kind": "optional",
+                                                                                                                                      "inner": {
+                                                                                                                                        "kind": "array",
+                                                                                                                                        "items": {
+                                                                                                                                          "kind": "string",
+                                                                                                                                          "minLength": 1
+                                                                                                                                        }
+                                                                                                                                      }
                                                                                                                                     },
                                                                                                                                     "defaultExpanded": {
                                                                                                                                       "kind": "optional",
@@ -2707,11 +2985,23 @@
                                                                                                                                           "authStatus": {
                                                                                                                                             "kind": "enum",
                                                                                                                                             "values": [
+                                                                                                                                              "auto",
                                                                                                                                               "show",
                                                                                                                                               "hide-unauthenticated",
-                                                                                                                                              "hide-unauthorized"
+                                                                                                                                              "hide-unauthorized",
+                                                                                                                                              "show-unauthenticated"
                                                                                                                                             ],
-                                                                                                                                            "default": "show"
+                                                                                                                                            "default": "auto"
+                                                                                                                                          },
+                                                                                                                                          "rolesAnyOf": {
+                                                                                                                                            "kind": "optional",
+                                                                                                                                            "inner": {
+                                                                                                                                              "kind": "array",
+                                                                                                                                              "items": {
+                                                                                                                                                "kind": "string",
+                                                                                                                                                "minLength": 1
+                                                                                                                                              }
+                                                                                                                                            }
                                                                                                                                           },
                                                                                                                                           "defaultExpanded": {
                                                                                                                                             "kind": "optional",
@@ -2781,11 +3071,23 @@
                                                                                                                                                 "authStatus": {
                                                                                                                                                   "kind": "enum",
                                                                                                                                                   "values": [
+                                                                                                                                                    "auto",
                                                                                                                                                     "show",
                                                                                                                                                     "hide-unauthenticated",
-                                                                                                                                                    "hide-unauthorized"
+                                                                                                                                                    "hide-unauthorized",
+                                                                                                                                                    "show-unauthenticated"
                                                                                                                                                   ],
-                                                                                                                                                  "default": "show"
+                                                                                                                                                  "default": "auto"
+                                                                                                                                                },
+                                                                                                                                                "rolesAnyOf": {
+                                                                                                                                                  "kind": "optional",
+                                                                                                                                                  "inner": {
+                                                                                                                                                    "kind": "array",
+                                                                                                                                                    "items": {
+                                                                                                                                                      "kind": "string",
+                                                                                                                                                      "minLength": 1
+                                                                                                                                                    }
+                                                                                                                                                  }
                                                                                                                                                 },
                                                                                                                                                 "defaultExpanded": {
                                                                                                                                                   "kind": "optional",
@@ -2855,11 +3157,23 @@
                                                                                                                                                       "authStatus": {
                                                                                                                                                         "kind": "enum",
                                                                                                                                                         "values": [
+                                                                                                                                                          "auto",
                                                                                                                                                           "show",
                                                                                                                                                           "hide-unauthenticated",
-                                                                                                                                                          "hide-unauthorized"
+                                                                                                                                                          "hide-unauthorized",
+                                                                                                                                                          "show-unauthenticated"
                                                                                                                                                         ],
-                                                                                                                                                        "default": "show"
+                                                                                                                                                        "default": "auto"
+                                                                                                                                                      },
+                                                                                                                                                      "rolesAnyOf": {
+                                                                                                                                                        "kind": "optional",
+                                                                                                                                                        "inner": {
+                                                                                                                                                          "kind": "array",
+                                                                                                                                                          "items": {
+                                                                                                                                                            "kind": "string",
+                                                                                                                                                            "minLength": 1
+                                                                                                                                                          }
+                                                                                                                                                        }
                                                                                                                                                       },
                                                                                                                                                       "defaultExpanded": {
                                                                                                                                                         "kind": "optional",
@@ -2929,11 +3243,23 @@
                                                                                                                                                             "authStatus": {
                                                                                                                                                               "kind": "enum",
                                                                                                                                                               "values": [
+                                                                                                                                                                "auto",
                                                                                                                                                                 "show",
                                                                                                                                                                 "hide-unauthenticated",
-                                                                                                                                                                "hide-unauthorized"
+                                                                                                                                                                "hide-unauthorized",
+                                                                                                                                                                "show-unauthenticated"
                                                                                                                                                               ],
-                                                                                                                                                              "default": "show"
+                                                                                                                                                              "default": "auto"
+                                                                                                                                                            },
+                                                                                                                                                            "rolesAnyOf": {
+                                                                                                                                                              "kind": "optional",
+                                                                                                                                                              "inner": {
+                                                                                                                                                                "kind": "array",
+                                                                                                                                                                "items": {
+                                                                                                                                                                  "kind": "string",
+                                                                                                                                                                  "minLength": 1
+                                                                                                                                                                }
+                                                                                                                                                              }
                                                                                                                                                             },
                                                                                                                                                             "defaultExpanded": {
                                                                                                                                                               "kind": "optional",
@@ -3003,11 +3329,23 @@
                                                                                                                                                                   "authStatus": {
                                                                                                                                                                     "kind": "enum",
                                                                                                                                                                     "values": [
+                                                                                                                                                                      "auto",
                                                                                                                                                                       "show",
                                                                                                                                                                       "hide-unauthenticated",
-                                                                                                                                                                      "hide-unauthorized"
+                                                                                                                                                                      "hide-unauthorized",
+                                                                                                                                                                      "show-unauthenticated"
                                                                                                                                                                     ],
-                                                                                                                                                                    "default": "show"
+                                                                                                                                                                    "default": "auto"
+                                                                                                                                                                  },
+                                                                                                                                                                  "rolesAnyOf": {
+                                                                                                                                                                    "kind": "optional",
+                                                                                                                                                                    "inner": {
+                                                                                                                                                                      "kind": "array",
+                                                                                                                                                                      "items": {
+                                                                                                                                                                        "kind": "string",
+                                                                                                                                                                        "minLength": 1
+                                                                                                                                                                      }
+                                                                                                                                                                    }
                                                                                                                                                                   },
                                                                                                                                                                   "defaultExpanded": {
                                                                                                                                                                     "kind": "optional",
@@ -3077,11 +3415,23 @@
                                                                                                                                                                         "authStatus": {
                                                                                                                                                                           "kind": "enum",
                                                                                                                                                                           "values": [
+                                                                                                                                                                            "auto",
                                                                                                                                                                             "show",
                                                                                                                                                                             "hide-unauthenticated",
-                                                                                                                                                                            "hide-unauthorized"
+                                                                                                                                                                            "hide-unauthorized",
+                                                                                                                                                                            "show-unauthenticated"
                                                                                                                                                                           ],
-                                                                                                                                                                          "default": "show"
+                                                                                                                                                                          "default": "auto"
+                                                                                                                                                                        },
+                                                                                                                                                                        "rolesAnyOf": {
+                                                                                                                                                                          "kind": "optional",
+                                                                                                                                                                          "inner": {
+                                                                                                                                                                            "kind": "array",
+                                                                                                                                                                            "items": {
+                                                                                                                                                                              "kind": "string",
+                                                                                                                                                                              "minLength": 1
+                                                                                                                                                                            }
+                                                                                                                                                                          }
                                                                                                                                                                         },
                                                                                                                                                                         "defaultExpanded": {
                                                                                                                                                                           "kind": "optional",
@@ -3151,11 +3501,23 @@
                                                                                                                                                                               "authStatus": {
                                                                                                                                                                                 "kind": "enum",
                                                                                                                                                                                 "values": [
+                                                                                                                                                                                  "auto",
                                                                                                                                                                                   "show",
                                                                                                                                                                                   "hide-unauthenticated",
-                                                                                                                                                                                  "hide-unauthorized"
+                                                                                                                                                                                  "hide-unauthorized",
+                                                                                                                                                                                  "show-unauthenticated"
                                                                                                                                                                                 ],
-                                                                                                                                                                                "default": "show"
+                                                                                                                                                                                "default": "auto"
+                                                                                                                                                                              },
+                                                                                                                                                                              "rolesAnyOf": {
+                                                                                                                                                                                "kind": "optional",
+                                                                                                                                                                                "inner": {
+                                                                                                                                                                                  "kind": "array",
+                                                                                                                                                                                  "items": {
+                                                                                                                                                                                    "kind": "string",
+                                                                                                                                                                                    "minLength": 1
+                                                                                                                                                                                  }
+                                                                                                                                                                                }
                                                                                                                                                                               },
                                                                                                                                                                               "defaultExpanded": {
                                                                                                                                                                                 "kind": "optional",
@@ -3225,11 +3587,23 @@
                                                                                                                                                                                     "authStatus": {
                                                                                                                                                                                       "kind": "enum",
                                                                                                                                                                                       "values": [
+                                                                                                                                                                                        "auto",
                                                                                                                                                                                         "show",
                                                                                                                                                                                         "hide-unauthenticated",
-                                                                                                                                                                                        "hide-unauthorized"
+                                                                                                                                                                                        "hide-unauthorized",
+                                                                                                                                                                                        "show-unauthenticated"
                                                                                                                                                                                       ],
-                                                                                                                                                                                      "default": "show"
+                                                                                                                                                                                      "default": "auto"
+                                                                                                                                                                                    },
+                                                                                                                                                                                    "rolesAnyOf": {
+                                                                                                                                                                                      "kind": "optional",
+                                                                                                                                                                                      "inner": {
+                                                                                                                                                                                        "kind": "array",
+                                                                                                                                                                                        "items": {
+                                                                                                                                                                                          "kind": "string",
+                                                                                                                                                                                          "minLength": 1
+                                                                                                                                                                                        }
+                                                                                                                                                                                      }
                                                                                                                                                                                     },
                                                                                                                                                                                     "defaultExpanded": {
                                                                                                                                                                                       "kind": "optional",
@@ -3299,11 +3673,23 @@
                                                                                                                                                                                           "authStatus": {
                                                                                                                                                                                             "kind": "enum",
                                                                                                                                                                                             "values": [
+                                                                                                                                                                                              "auto",
                                                                                                                                                                                               "show",
                                                                                                                                                                                               "hide-unauthenticated",
-                                                                                                                                                                                              "hide-unauthorized"
+                                                                                                                                                                                              "hide-unauthorized",
+                                                                                                                                                                                              "show-unauthenticated"
                                                                                                                                                                                             ],
-                                                                                                                                                                                            "default": "show"
+                                                                                                                                                                                            "default": "auto"
+                                                                                                                                                                                          },
+                                                                                                                                                                                          "rolesAnyOf": {
+                                                                                                                                                                                            "kind": "optional",
+                                                                                                                                                                                            "inner": {
+                                                                                                                                                                                              "kind": "array",
+                                                                                                                                                                                              "items": {
+                                                                                                                                                                                                "kind": "string",
+                                                                                                                                                                                                "minLength": 1
+                                                                                                                                                                                              }
+                                                                                                                                                                                            }
                                                                                                                                                                                           },
                                                                                                                                                                                           "defaultExpanded": {
                                                                                                                                                                                             "kind": "optional",
@@ -3373,11 +3759,23 @@
                                                                                                                                                                                                 "authStatus": {
                                                                                                                                                                                                   "kind": "enum",
                                                                                                                                                                                                   "values": [
+                                                                                                                                                                                                    "auto",
                                                                                                                                                                                                     "show",
                                                                                                                                                                                                     "hide-unauthenticated",
-                                                                                                                                                                                                    "hide-unauthorized"
+                                                                                                                                                                                                    "hide-unauthorized",
+                                                                                                                                                                                                    "show-unauthenticated"
                                                                                                                                                                                                   ],
-                                                                                                                                                                                                  "default": "show"
+                                                                                                                                                                                                  "default": "auto"
+                                                                                                                                                                                                },
+                                                                                                                                                                                                "rolesAnyOf": {
+                                                                                                                                                                                                  "kind": "optional",
+                                                                                                                                                                                                  "inner": {
+                                                                                                                                                                                                    "kind": "array",
+                                                                                                                                                                                                    "items": {
+                                                                                                                                                                                                      "kind": "string",
+                                                                                                                                                                                                      "minLength": 1
+                                                                                                                                                                                                    }
+                                                                                                                                                                                                  }
                                                                                                                                                                                                 },
                                                                                                                                                                                                 "defaultExpanded": {
                                                                                                                                                                                                   "kind": "optional",
@@ -3447,11 +3845,23 @@
                                                                                                                                                                                                       "authStatus": {
                                                                                                                                                                                                         "kind": "enum",
                                                                                                                                                                                                         "values": [
+                                                                                                                                                                                                          "auto",
                                                                                                                                                                                                           "show",
                                                                                                                                                                                                           "hide-unauthenticated",
-                                                                                                                                                                                                          "hide-unauthorized"
+                                                                                                                                                                                                          "hide-unauthorized",
+                                                                                                                                                                                                          "show-unauthenticated"
                                                                                                                                                                                                         ],
-                                                                                                                                                                                                        "default": "show"
+                                                                                                                                                                                                        "default": "auto"
+                                                                                                                                                                                                      },
+                                                                                                                                                                                                      "rolesAnyOf": {
+                                                                                                                                                                                                        "kind": "optional",
+                                                                                                                                                                                                        "inner": {
+                                                                                                                                                                                                          "kind": "array",
+                                                                                                                                                                                                          "items": {
+                                                                                                                                                                                                            "kind": "string",
+                                                                                                                                                                                                            "minLength": 1
+                                                                                                                                                                                                          }
+                                                                                                                                                                                                        }
                                                                                                                                                                                                       },
                                                                                                                                                                                                       "defaultExpanded": {
                                                                                                                                                                                                         "kind": "optional",
@@ -3521,11 +3931,23 @@
                                                                                                                                                                                                             "authStatus": {
                                                                                                                                                                                                               "kind": "enum",
                                                                                                                                                                                                               "values": [
+                                                                                                                                                                                                                "auto",
                                                                                                                                                                                                                 "show",
                                                                                                                                                                                                                 "hide-unauthenticated",
-                                                                                                                                                                                                                "hide-unauthorized"
+                                                                                                                                                                                                                "hide-unauthorized",
+                                                                                                                                                                                                                "show-unauthenticated"
                                                                                                                                                                                                               ],
-                                                                                                                                                                                                              "default": "show"
+                                                                                                                                                                                                              "default": "auto"
+                                                                                                                                                                                                            },
+                                                                                                                                                                                                            "rolesAnyOf": {
+                                                                                                                                                                                                              "kind": "optional",
+                                                                                                                                                                                                              "inner": {
+                                                                                                                                                                                                                "kind": "array",
+                                                                                                                                                                                                                "items": {
+                                                                                                                                                                                                                  "kind": "string",
+                                                                                                                                                                                                                  "minLength": 1
+                                                                                                                                                                                                                }
+                                                                                                                                                                                                              }
                                                                                                                                                                                                             },
                                                                                                                                                                                                             "defaultExpanded": {
                                                                                                                                                                                                               "kind": "optional",
@@ -5690,6 +6112,12 @@
                             "unknownKeys": "strip"
                           },
                           "default": []
+                        },
+                        "menu": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "bool"
+                          }
                         },
                         "chrome": {
                           "kind": "optional",

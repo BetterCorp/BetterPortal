@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 7290b4f5e7a6a2a16b41e6d17de52c4d45804da1cacbe0a058b64ec3037cbc93
+# Generated from AnyVali documents; do not edit. SHA256: 62209906c13f4444cd08e13d184399943b0e46ffbeeef15aad118c4dd2c4b02a
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -444,7 +444,8 @@ BetterPortalMenuItem = TypedDict('BetterPortalMenuItem', {
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItem]'],
 })
@@ -458,7 +459,8 @@ BetterPortalMenuItemChildrenItem = TypedDict('BetterPortalMenuItemChildrenItem',
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItem]'],
 })
@@ -472,7 +474,8 @@ BetterPortalMenuItemChildrenItemChildrenItem = TypedDict('BetterPortalMenuItemCh
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -486,7 +489,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItem = TypedDict('BetterPort
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -500,7 +504,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItem = TypedDict
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -514,7 +519,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -528,7 +534,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -542,7 +549,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -556,7 +564,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -570,7 +579,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -584,7 +594,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -598,7 +609,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -612,7 +624,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -626,7 +639,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -640,7 +654,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -654,7 +669,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -668,7 +684,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -682,7 +699,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -696,7 +714,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -710,7 +729,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -724,7 +744,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -738,7 +759,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -752,7 +774,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -766,7 +789,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -780,7 +804,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -794,7 +819,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -808,7 +834,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -822,7 +849,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -836,7 +864,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -850,7 +879,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -864,7 +894,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -878,7 +909,8 @@ BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[NoReturn]'],
 })
@@ -892,7 +924,8 @@ BetterPortalMenuItemInput = TypedDict('BetterPortalMenuItemInput', {
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItem]'],
 })
@@ -906,7 +939,8 @@ BetterPortalMenuItemInputChildrenItem = TypedDict('BetterPortalMenuItemInputChil
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItem]'],
 })
@@ -920,7 +954,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItem = TypedDict('BetterPortalMenuI
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItem]'],
 })
@@ -934,7 +969,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItem = TypedDict('Bette
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -948,7 +984,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItem = Type
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -962,7 +999,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -976,7 +1014,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -990,7 +1029,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1004,7 +1044,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1018,7 +1059,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1032,7 +1074,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1046,7 +1089,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1060,7 +1104,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1074,7 +1119,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1088,7 +1134,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1102,7 +1149,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1116,7 +1164,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1130,7 +1179,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1144,7 +1194,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1158,7 +1209,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1172,7 +1224,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1186,7 +1239,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1200,7 +1254,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1214,7 +1269,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1228,7 +1284,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1242,7 +1299,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1256,7 +1314,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1270,7 +1329,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1284,7 +1344,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1298,7 +1359,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1312,7 +1374,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -1326,7 +1389,8 @@ BetterPortalMenuItemInputChildrenItemChildrenItemChildrenItemChildrenItemChildre
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[NoReturn]'],
 })
@@ -1376,6 +1440,7 @@ BetterPortalRouteMount = TypedDict('BetterPortalRouteMount', {
     'servicePathVariant': NotRequired['str'],
     'fixedParams': NotRequired['dict[str, str]'],
     'authRequired': NotRequired['bool'],
+    'menuPermissions': NotRequired['list[BetterPortalRouteMountMenupermissionsItem]'],
     'sitemap': NotRequired['BetterPortalRouteMountSitemap'],
     'robots': NotRequired['list[BetterPortalRouteMountRobotsItem]'],
     'targetPath': NotRequired['str'],
@@ -1387,6 +1452,7 @@ BetterPortalRouteMount = TypedDict('BetterPortalRouteMount', {
     'enabled': Required['bool'],
     'enablement': NotRequired["Literal['auto', 'enabled', 'disabled']"],
     'operations': Required['list[str]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChrome'],
 })
 
@@ -1399,6 +1465,7 @@ BetterPortalRouteMountInput = TypedDict('BetterPortalRouteMountInput', {
     'servicePathVariant': NotRequired['str'],
     'fixedParams': NotRequired['dict[str, str]'],
     'authRequired': NotRequired['bool'],
+    'menuPermissions': NotRequired['list[BetterPortalRouteMountInputMenupermissionsItem]'],
     'sitemap': NotRequired['BetterPortalRouteMountInputSitemap'],
     'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
     'targetPath': NotRequired['str'],
@@ -1410,7 +1477,14 @@ BetterPortalRouteMountInput = TypedDict('BetterPortalRouteMountInput', {
     'enabled': NotRequired['bool'],
     'enablement': NotRequired["Literal['auto', 'enabled', 'disabled']"],
     'operations': Required['list[str]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChromeInput'],
+})
+
+BetterPortalRouteMountInputMenupermissionsItem = TypedDict('BetterPortalRouteMountInputMenupermissionsItem', {
+    'serviceId': Required['str'],
+    'viewId': Required['str'],
+    'permissions': Required['list[str]'],
 })
 
 BetterPortalRouteMountInputRobotsItem = TypedDict('BetterPortalRouteMountInputRobotsItem', {
@@ -1424,6 +1498,12 @@ BetterPortalRouteMountInputSitemap = TypedDict('BetterPortalRouteMountInputSitem
     'lastModified': NotRequired['str'],
     'changeFrequency': NotRequired["Literal['always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'never']"],
     'priority': NotRequired['float'],
+})
+
+BetterPortalRouteMountMenupermissionsItem = TypedDict('BetterPortalRouteMountMenupermissionsItem', {
+    'serviceId': Required['str'],
+    'viewId': Required['str'],
+    'permissions': Required['list[str]'],
 })
 
 BetterPortalRouteMountRobotsItem = TypedDict('BetterPortalRouteMountRobotsItem', {
@@ -1948,6 +2028,7 @@ ControlPlaneSubmissionInputViewindexItemOperationsItem = TypedDict('ControlPlane
     'authRequired': Required['bool'],
     'sitemap': NotRequired['BetterPortalRouteMountInputSitemap'],
     'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChromeInput'],
     'dependencies': NotRequired['list[OperationDependencyInput]'],
     'permissions': NotRequired['list[ControlPlaneSubmissionInputViewindexItemOperationsItemPermissionsItem]'],
@@ -2002,6 +2083,7 @@ ControlPlaneSubmissionViewindexItemOperationsItem = TypedDict('ControlPlaneSubmi
     'authRequired': Required['bool'],
     'sitemap': NotRequired['BetterPortalRouteMountSitemap'],
     'robots': Required['list[BetterPortalRouteMountRobotsItem]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChrome'],
     'dependencies': Required['list[OperationDependency]'],
     'permissions': Required['list[ControlPlaneSubmissionViewindexItemOperationsItemPermissionsItem]'],
@@ -2475,6 +2557,7 @@ OperationDeclaration = TypedDict('OperationDeclaration', {
     'robots': Required['list[BetterPortalRouteMountRobotsItem]'],
     'role': NotRequired['str'],
     'dependencies': Required['list[OperationDependency]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChrome'],
     'apiContracts': Required['list[OperationDeclarationApicontractsItem]'],
     'demoScenarios': Required['list[DemoScenario]'],
@@ -2506,6 +2589,7 @@ OperationDeclarationInput = TypedDict('OperationDeclarationInput', {
     'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
     'role': NotRequired['str'],
     'dependencies': NotRequired['list[OperationDependencyInput]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChromeInput'],
     'apiContracts': NotRequired['list[OperationDeclarationInputApicontractsItem]'],
     'demoScenarios': NotRequired['list[DemoScenarioInput]'],
@@ -3040,7 +3124,8 @@ ScopedAppInputMenuItem = TypedDict('ScopedAppInputMenuItem', {
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItem]'],
 })
@@ -3054,7 +3139,8 @@ ScopedAppInputMenuItemChildrenItem = TypedDict('ScopedAppInputMenuItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItem]'],
 })
@@ -3068,7 +3154,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItem = TypedDict('ScopedAppInputMenuIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3082,7 +3169,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItem = TypedDict('ScopedAp
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3096,7 +3184,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItem = TypedDi
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3110,7 +3199,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3124,7 +3214,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3138,7 +3229,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3152,7 +3244,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3166,7 +3259,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3180,7 +3274,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3194,7 +3289,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3208,7 +3304,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3222,7 +3319,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3236,7 +3334,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3250,7 +3349,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3264,7 +3364,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3278,7 +3379,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3292,7 +3394,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3306,7 +3409,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3320,7 +3424,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3334,7 +3439,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3348,7 +3454,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3362,7 +3469,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3376,7 +3484,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3390,7 +3499,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3404,7 +3514,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3418,7 +3529,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3432,7 +3544,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3446,7 +3559,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3460,7 +3574,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3474,7 +3589,8 @@ ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenIt
     'href': NotRequired['str'],
     'enabled': NotRequired['bool'],
     'serviceStatus': NotRequired["Literal['show', 'hide']"],
-    'authStatus': NotRequired["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': NotRequired["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': NotRequired['list[NoReturn]'],
 })
@@ -3488,6 +3604,7 @@ ScopedAppInputRoutesItem = TypedDict('ScopedAppInputRoutesItem', {
     'servicePathVariant': NotRequired['str'],
     'fixedParams': NotRequired['dict[str, str]'],
     'authRequired': NotRequired['bool'],
+    'menuPermissions': NotRequired['list[BetterPortalRouteMountInputMenupermissionsItem]'],
     'sitemap': NotRequired['ScopedAppInputRoutesItemSitemap'],
     'robots': NotRequired['list[ScopedAppInputRoutesItemRobotsItem]'],
     'targetPath': NotRequired['str'],
@@ -3499,6 +3616,7 @@ ScopedAppInputRoutesItem = TypedDict('ScopedAppInputRoutesItem', {
     'enabled': NotRequired['bool'],
     'enablement': NotRequired["Literal['auto', 'enabled', 'disabled']"],
     'operations': Required['list[str]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['dict[str, BetterPortalRouteChromeValueInput]'],
 })
 
@@ -3578,7 +3696,8 @@ ScopedAppMenuItem = TypedDict('ScopedAppMenuItem', {
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItem]'],
 })
@@ -3592,7 +3711,8 @@ ScopedAppMenuItemChildrenItem = TypedDict('ScopedAppMenuItemChildrenItem', {
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItem]'],
 })
@@ -3606,7 +3726,8 @@ ScopedAppMenuItemChildrenItemChildrenItem = TypedDict('ScopedAppMenuItemChildren
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3620,7 +3741,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItem = TypedDict('ScopedAppMenu
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3634,7 +3756,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItem = TypedDict('S
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3648,7 +3771,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem = 
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3662,7 +3786,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3676,7 +3801,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3690,7 +3816,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3704,7 +3831,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3718,7 +3846,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3732,7 +3861,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3746,7 +3876,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3760,7 +3891,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3774,7 +3906,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3788,7 +3921,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3802,7 +3936,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3816,7 +3951,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3830,7 +3966,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3844,7 +3981,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3858,7 +3996,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3872,7 +4011,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3886,7 +4026,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3900,7 +4041,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3914,7 +4056,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3928,7 +4071,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3942,7 +4086,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3956,7 +4101,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3970,7 +4116,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3984,7 +4131,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -3998,7 +4146,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItem]'],
 })
@@ -4012,7 +4161,8 @@ ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildrenItemChildrenItemChi
     'href': NotRequired['str'],
     'enabled': Required['bool'],
     'serviceStatus': Required["Literal['show', 'hide']"],
-    'authStatus': Required["Literal['show', 'hide-unauthenticated', 'hide-unauthorized']"],
+    'authStatus': Required["Literal['auto', 'show', 'hide-unauthenticated', 'hide-unauthorized', 'show-unauthenticated']"],
+    'rolesAnyOf': NotRequired['list[str]'],
     'defaultExpanded': NotRequired['bool'],
     'children': Required['list[NoReturn]'],
 })
@@ -4026,6 +4176,7 @@ ScopedAppRoutesItem = TypedDict('ScopedAppRoutesItem', {
     'servicePathVariant': NotRequired['str'],
     'fixedParams': NotRequired['dict[str, str]'],
     'authRequired': NotRequired['bool'],
+    'menuPermissions': NotRequired['list[BetterPortalRouteMountMenupermissionsItem]'],
     'sitemap': NotRequired['ScopedAppRoutesItemSitemap'],
     'robots': NotRequired['list[ScopedAppRoutesItemRobotsItem]'],
     'targetPath': NotRequired['str'],
@@ -4037,6 +4188,7 @@ ScopedAppRoutesItem = TypedDict('ScopedAppRoutesItem', {
     'enabled': Required['bool'],
     'enablement': NotRequired["Literal['auto', 'enabled', 'disabled']"],
     'operations': Required['list[str]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['dict[str, BetterPortalRouteChromeValue]'],
 })
 
@@ -4575,6 +4727,7 @@ ServiceManifestCacheEntryInputViewindexItemOperationsItem = TypedDict('ServiceMa
     'authRequired': Required['bool'],
     'sitemap': NotRequired['BetterPortalRouteMountInputSitemap'],
     'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChromeInput'],
     'dependencies': NotRequired['list[OperationDependencyInput]'],
     'permissions': NotRequired['list[ControlPlaneSubmissionInputViewindexItemOperationsItemPermissionsItem]'],
@@ -4615,6 +4768,7 @@ ServiceManifestCacheEntryViewindexItemOperationsItem = TypedDict('ServiceManifes
     'authRequired': Required['bool'],
     'sitemap': NotRequired['BetterPortalRouteMountSitemap'],
     'robots': Required['list[BetterPortalRouteMountRobotsItem]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChrome'],
     'dependencies': Required['list[OperationDependency]'],
     'permissions': Required['list[ControlPlaneSubmissionViewindexItemOperationsItemPermissionsItem]'],
@@ -5046,6 +5200,7 @@ ViewOperationMetadata = TypedDict('ViewOperationMetadata', {
     'robots': Required['list[BetterPortalRouteMountRobotsItem]'],
     'role': NotRequired['str'],
     'dependencies': Required['list[OperationDependency]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChrome'],
     'apiContracts': Required['list[ApiContractDescriptor]'],
     'demoScenarios': Required['list[DemoScenario]'],
@@ -5071,6 +5226,7 @@ ViewOperationMetadataInput = TypedDict('ViewOperationMetadataInput', {
     'robots': NotRequired['list[BetterPortalRouteMountInputRobotsItem]'],
     'role': NotRequired['str'],
     'dependencies': NotRequired['list[OperationDependencyInput]'],
+    'menu': NotRequired['bool'],
     'chrome': NotRequired['BetterPortalRouteChromeInput'],
     'apiContracts': NotRequired['list[ApiContractDescriptorInput]'],
     'demoScenarios': NotRequired['list[DemoScenarioInput]'],

@@ -36,3 +36,15 @@ export function pageRoutePath(serviceId: string, servicePath: string): string {
 export function isApiRoute(route: { kind?: "page" | "api"; path: string }, renderable?: boolean): boolean {
   return route.kind === "api" || renderable === false || route.path.startsWith("/_bp/service/");
 }
+
+/** Service declarations take precedence over stored app menu configuration. */
+export function isMenuRouteExcluded(
+  route: { serviceId?: string; viewId?: string; operations?: string[]; menu?: boolean },
+  cache: ReadonlyMap<string, { viewIndex: Record<string, { operations: Array<{ operationId: string; method: string; menu?: boolean; renderModes: string[] }> }> }>
+): boolean {
+  const operations = route.serviceId && route.viewId
+    ? cache.get(route.serviceId)?.viewIndex[route.viewId]?.operations : undefined;
+  const page = operations?.find(operation => route.operations?.includes(operation.operationId)
+    && operation.method === "GET" && operation.renderModes.includes("page"));
+  return page ? page.menu === false : route.menu === false;
+}

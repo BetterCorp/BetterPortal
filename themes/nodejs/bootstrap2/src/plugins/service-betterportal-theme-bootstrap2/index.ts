@@ -1,3 +1,4 @@
+import { resolveThemeAuth, filterThemeMenu } from "@betterportal/framework";
 import {
   type BSBServiceConstructor,
   createConfigSchema,
@@ -472,7 +473,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       ? new URL(event.req.headers.get("hx-current-url")!).pathname
       : requestContext.app.defaultRoute;
 
-    const navItems = this.buildAppNavItems(portalConfig, requestContext, currentPath, url.origin);
+    const auth = await resolveThemeAuth(requestContext.app, event.req.headers);
+    const aliases = Object.fromEntries(requestContext.tenant.services.map(service => [service.id, service.serviceId ?? service.id]));
+    const menu = filterThemeMenu(requestContext.app, auth, aliases,
+      portalConfig.configManagement?.managementAppId === requestContext.app.id && portalConfig.configManagement?.adminTenantId === requestContext.tenant.id);
+    const navItems = this.buildAppNavItems(portalConfig, { ...requestContext, app: { ...requestContext.app, menu } }, currentPath, url.origin);
     const rendered = renderNavItems(navItems, mobile);
     const html = Array.isArray(rendered) ? rendered.map((r) => toHtmlString(r as any)).join("") : toHtmlString(rendered as any);
     return htmlResponse(html, 200, "text/html; mode=fragment", { "cache-control": "no-store" });
@@ -646,40 +651,40 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     type MenuItem = {
       id: string; type: string; title?: string; routeId?: string; href?: string;
-        serviceStatus?: "show" | "hide"; authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
-      enabled?: boolean; children?: MenuItem[];
+        serviceStatus?: "show" | "hide"; authStatus?: "auto" | "show" | "hide-unauthenticated" | "hide-unauthorized" | "show-unauthenticated";
+      enabled?: boolean; defaultExpanded?: boolean; children?: MenuItem[];
     };
     const menu = ((requestContext.app as any).menu ?? []) as MenuItem[];
 
     const buildLeaf = (m: MenuItem): any => {
       if (m.type !== "link" || !m.routeId) return null;
       const r = routesById.get(m.routeId);
-      if (!r || !r.enabled || !isUserFacingRoute({ kind: r.kind, href: r.path })) return null;
+      if (!r || !r.enabled || r.menu === false || !isUserFacingRoute({ kind: r.kind, href: r.path })) return null;
       const link = buildLinkFromRoute(r, m.title);
       if (!link) return null;
         (link as any).serviceStatus = m.serviceStatus ?? "show";
-        (link as any).authStatus = m.authStatus ?? "show";
+        (link as any).authStatus = m.authStatus ?? "auto";
       return { kind: "route", route: link, breadcrumb: "" };
     };
 
-    const buildTree = (items: MenuItem[]): any[] => items
-      .filter((m) => m.enabled !== false)
-      .map((m): any => {
-        if (m.type === "group") {
-          const leaves = (m.children ?? [])
-            .filter((c) => c.enabled !== false)
-            .map((c) => {
-              const leaf = buildLeaf(c);
-              if (!leaf) return null;
-              return { kind: "route", route: leaf.route, breadcrumb: `${m.title ?? ""} / ${leaf.route.title}` };
-            })
-            .filter((x) => x !== null);
-          if (leaves.length === 0) return null;
-          return { kind: "group", id: m.id, title: m.title ?? "Group", items: leaves, active: leaves.some((x: any) => x.route.active) };
-        }
-        return buildLeaf(m);
-      })
-      .filter((x) => x !== null);
+    const buildTree = (items: MenuItem[], parents: string[] = []): any[] => items.flatMap((m): any[] => {
+      if (m.enabled === false) return [];
+      if (m.type === "group") {
+        const children = buildTree(m.children ?? [], [...parents, m.title ?? "Group"]);
+        return children.length ? [{ kind: "group", id: m.id, title: m.title ?? "Group", items: children,
+          active: children.some(child => child.kind === "route" ? child.route.active : child.active), defaultExpanded: m.defaultExpanded }] : [];
+      }
+      if (m.type === "external" && m.href) {
+        try {
+          const url = new URL(m.href, themeOrigin);
+          if (!["http:", "https:"].includes(url.protocol)) return [];
+          return [{ kind: "external", title: m.title ?? m.href, href: url.href }];
+        } catch { return []; }
+      }
+      const leaf = buildLeaf(m);
+      if (leaf && parents.length) leaf.breadcrumb = `${parents.join(" / ")} / ${leaf.route.title}`;
+      return leaf ? [leaf] : [];
+    });
 
     return buildTree(menu) as Bootstrap2NavItem[];
   }
@@ -1000,7 +1005,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const currentRoute = resolveAppRoute(requestContext.app, activeEvent.url.pathname);
       const routeNotFound = !currentRoute;
 
-      const routesById = new Map(requestContext.app.routes.map((r) => [r.id, r]));
       const enabledRoutes = requestContext.app.routes.filter((r) => r.enabled);
 
       const buildLinkFromRoute = (route: typeof enabledRoutes[number], displayTitle?: string) => {
@@ -1024,59 +1028,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         };
       };
 
-      // Nav is driven exclusively by app.menu. Empty menu -> empty nav.
-      type MenuItem = {
-        id: string; type: string; title?: string; routeId?: string; href?: string;
-        serviceStatus?: "show" | "hide"; authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
-        enabled?: boolean; defaultExpanded?: boolean; children?: MenuItem[];
-      };
-      const menu = ((requestContext.app as any).menu ?? []) as MenuItem[];
-
-      const buildLeafFromMenu = (m: MenuItem): { kind: "route"; route: ReturnType<typeof buildLinkFromRoute>; breadcrumb: string } | null => {
-        if (m.type !== "link" || !m.routeId) return null;
-        const r = routesById.get(m.routeId);
-        if (!r || !r.enabled || !isUserFacingRoute({ kind: r.kind, href: r.path })) return null;
-        const link = buildLinkFromRoute(r, m.title);
-        if (!link) return null;
-        (link as any).serviceStatus = m.serviceStatus ?? "show";
-        (link as any).authStatus = m.authStatus ?? "show";
-        return { kind: "route", route: link, breadcrumb: "" };
-      };
-
-      const buildNavTree = (items: MenuItem[]): Array<Record<string, unknown>> => {
-        return items
-          .filter((m) => m.enabled !== false)
-          .map((m) => {
-            if (m.type === "group") {
-              const leaves = (m.children ?? [])
-                .filter((c) => c.enabled !== false)
-                .map((c) => {
-                  const leaf = buildLeafFromMenu(c);
-                  if (!leaf || !leaf.route) return null;
-                  return {
-                    kind: "route" as const,
-                    route: leaf.route,
-                    breadcrumb: `${m.title ?? ""} / ${leaf.route.title}`
-                  };
-                })
-                .filter((x): x is NonNullable<typeof x> => x !== null);
-              if (leaves.length === 0) return null;
-              return {
-                kind: "group" as const,
-                id: m.id,
-                title: m.title ?? "Group",
-                items: leaves,
-                active: leaves.some((x) => x.route.active),
-                defaultExpanded: m.defaultExpanded === true
-              };
-            }
-            const leaf = buildLeafFromMenu(m);
-            return leaf && leaf.route ? leaf : null;
-          })
-          .filter((x): x is NonNullable<typeof x> => x !== null);
-      };
-
-      const navItems = buildNavTree(menu);
+      const auth = await resolveThemeAuth(requestContext.app, activeEvent.req.headers);
+      const aliases = Object.fromEntries(requestContext.tenant.services.map(service => [service.id, service.serviceId ?? service.id]));
+      const menu = filterThemeMenu(requestContext.app, auth, aliases,
+        portalConfig.configManagement?.managementAppId === requestContext.app.id && portalConfig.configManagement?.adminTenantId === requestContext.tenant.id);
+      const navItems = this.buildAppNavItems(portalConfig, { ...requestContext, app: { ...requestContext.app, menu } },
+        currentRoute?.path ?? requestContext.app.defaultRoute, themeOrigin);
 
       // Client route lookup also needs enabled routes absent from the menu.
       const routeLinks = enabledRoutes
@@ -1144,6 +1101,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
       return new Response(
         renderBootstrap2HostPage({
+          auth,
           title: typeof baseTheme.documentTitle === "string" && baseTheme.documentTitle.trim() !== ""
             ? baseTheme.documentTitle
             : requestContext.app.title,
@@ -1166,6 +1124,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           navItems: navItems as any,
           loginUrl,
           authServiceId: appAuth?.serviceId,
+          shellServiceId: requestContext.app.shell?.serviceId,
           tenantId: requestContext.tenant.id,
           appId: requestContext.app.id,
           chrome: currentRoute?.chrome,

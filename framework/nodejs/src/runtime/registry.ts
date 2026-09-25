@@ -456,6 +456,7 @@ function operationToMetadata(
         ? { operationId: dependency.operationId, method: dependency.method }
         : { ...dependency, serviceId };
     }),
+    ...(operation.menu !== undefined ? { menu: operation.menu } : {}),
     ...(operation.chrome ? { chrome: operation.chrome } : {}),
     apiContracts: (operation.apiContracts ?? []).map((contract) => ({
       ...contract,

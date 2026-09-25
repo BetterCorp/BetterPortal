@@ -21,7 +21,7 @@ export interface Bootstrap2RouteLink {
   active: boolean;
   error?: string;
   serviceStatus?: "show" | "hide";
-  authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
+  authStatus?: "auto" | "show" | "hide-unauthenticated" | "hide-unauthorized" | "show-unauthenticated";
 }
 
 export function isUserFacingRoute(route: Pick<Bootstrap2RouteLink, "kind" | "href">): boolean {
@@ -45,6 +45,7 @@ export interface Bootstrap2ShellContext {
 }
 
 export interface Bootstrap2HostPageContext {
+  auth?: import("@betterportal/framework").ThemeAuthContext;
   title: string;
   brandName: string;
   logoUrl?: string;
@@ -63,6 +64,7 @@ export interface Bootstrap2HostPageContext {
   navItems?: Bootstrap2NavItem[];
   loginUrl?: string;
   authServiceId?: string;
+  shellServiceId?: string;
   tenantId?: string;
   appId?: string;
   logoutUrl?: string;
@@ -110,12 +112,12 @@ export interface Bootstrap2NavGroup {
   kind: "group";
   id: string;
   title: string;
-  items: Bootstrap2NavLeaf[];
+  items: Bootstrap2NavItem[];
   active: boolean;
   defaultExpanded?: boolean;
 }
 
-export type Bootstrap2NavItem = Bootstrap2NavLeaf | Bootstrap2NavGroup;
+export type Bootstrap2NavItem = Bootstrap2NavLeaf | Bootstrap2NavGroup | { kind: "external"; title: string; href: string };
 
 function normalizeRoutePath(path: string): string {
   const normalized = path.replace(/\/+$/, "");
@@ -247,10 +249,8 @@ function activeBreadcrumb(navItems: Bootstrap2NavItem[]): string {
     }
 
     if (item.kind === "group") {
-      const activeItem = item.items.find((child) => child.route.active);
-      if (activeItem) {
-        return activeItem.breadcrumb;
-      }
+      const breadcrumb = activeBreadcrumb(item.items);
+      if (breadcrumb) return breadcrumb;
     }
   }
 
@@ -283,7 +283,7 @@ function renderRouteLink(item: Bootstrap2NavLeaf, dismissMobileMenu = false): Ht
       data-bp-route-breadcrumb={item.breadcrumb}
       data-bp-service={route.serviceId}
       data-bp-service-status={route.serviceStatus ?? "show"}
-      data-bp-auth-status={route.authStatus ?? "show"}
+      data-bp-auth-status={route.authStatus ?? "auto"}
       data-bs-dismiss={dismissMobileMenu ? "offcanvas" : undefined}
       {...routeAttrs}
     >
@@ -294,6 +294,7 @@ function renderRouteLink(item: Bootstrap2NavLeaf, dismissMobileMenu = false): Ht
 
 export function renderNavItems(navItems: Bootstrap2NavItem[], dismissMobileMenu = false): HtmlRenderable {
   return navItems.map((item) => {
+    if (item.kind === "external") return <a class="bp-admin__route" href={item.href} data-bp-route-link="" data-bp-no-route="">{item.title}</a>;
     if (item.kind === "route") {
       return renderRouteLink(item, dismissMobileMenu);
     }
@@ -305,7 +306,7 @@ export function renderNavItems(navItems: Bootstrap2NavItem[], dismissMobileMenu 
           <span class="bp-admin__nav-group-chevron"></span>
         </summary>
         <div class="bp-admin__nav-group-items">
-          {item.items.map((child) => renderRouteLink(child, dismissMobileMenu))}
+          {renderNavItems(item.items, dismissMobileMenu)}
         </div>
       </details>
     );
@@ -2204,6 +2205,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
       data-bp-dev-reload="auto"
       data-bp-login-url={context.loginUrl}
       data-bp-auth-service={context.authServiceId}
+      data-bp-shell-service={context.shellServiceId}
       data-bp-tenant-id={context.tenantId}
       data-bp-app-id={context.appId}
       data-bp-logout-url={context.logoutUrl}
@@ -2222,7 +2224,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
               class="bp-admin__nav"
               id="bp-nav-mobile"
               hx-get="/.well-known/bp/theme/nav?mobile=1"
-              hx-trigger="bp:menu-changed from:body, bp:fragments-changed from:body"
+              hx-trigger="load, bp:menu-changed from:body, bp:fragments-changed from:body"
               hx-swap="innerHTML"
               data-bp-no-route=""
             >{renderNavItems(navItems, true)}</nav>
@@ -2237,7 +2239,7 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
               class="bp-admin__nav"
               id="bp-nav-desktop"
               hx-get="/.well-known/bp/theme/nav"
-              hx-trigger="bp:menu-changed from:body, bp:fragments-changed from:body"
+              hx-trigger="load, bp:menu-changed from:body, bp:fragments-changed from:body"
               hx-swap="innerHTML"
               data-bp-no-route=""
             >{renderNavItems(navItems)}</nav>

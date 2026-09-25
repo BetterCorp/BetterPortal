@@ -1,3 +1,4 @@
+import { resolveThemeAuth } from "@betterportal/framework";
 import {
   BSBService,
   type BSBServiceConstructor,
@@ -411,12 +412,14 @@ export abstract class BPService<
         });
       }
       const app = requestContext.app;
+      const auth = await resolveThemeAuth(app, event.req.headers);
       const activeShellServiceId = app.shell!.serviceId;
       const settings = app.shellFragments?.[activeShellServiceId] ?? {};
       const setting = settings[id];
       if (setting?.mode === "none") return new Response(null, { status: 204 });
 
       const renderBuiltIn = (fragment: RegisteredShellFragment): string => toHtmlString(fragment.render({
+        auth,
         tenant: requestContext.tenant!,
         app,
         config: this.effectiveServiceConfig(requestContext.tenant!.id, app.id),
@@ -472,6 +475,7 @@ export abstract class BPService<
       else if (setting === undefined && legacySlots.length > 0) configuredItems = legacySlots;
       else configuredItems = (definition.defaultItems ?? []).map((fragmentId) => ({ source: "shell" as const, fragmentId }));
       const html = toHtmlString(definition.render({
+        auth,
         tenant: requestContext.tenant,
         app,
         config: this.effectiveServiceConfig(requestContext.tenant.id, app.id),
