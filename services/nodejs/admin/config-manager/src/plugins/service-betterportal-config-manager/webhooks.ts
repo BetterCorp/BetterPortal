@@ -30,6 +30,39 @@ async function readJson(event: BetterPortalEvent): Promise<Record<string, unknow
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
 }
 
+const MAX_EVENT_BYTES = 1024 * 1024;
+
+async function readEventJson(event: BetterPortalEvent): Promise<Record<string, unknown> | Response> {
+  const length = event.req.headers.get("content-length");
+  if (length !== null && (!/^[0-9]+$/.test(length) || Number(length) > MAX_EVENT_BYTES)) {
+    return /^[0-9]+$/.test(length)
+      ? jsonResponse({ error: "Webhook payload exceeds 1 MiB" }, 413)
+      : jsonResponse({ error: "Invalid Content-Length" }, 400);
+  }
+  const reader = event.req.body?.getReader();
+  if (!reader) return jsonResponse({ error: "JSON object required" }, 400);
+  // Bound memory even when Content-Length is absent or dishonest, including
+  // streams made of arbitrarily many tiny chunks.
+  const buffer = new Uint8Array(MAX_EVENT_BYTES);
+  let used = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > MAX_EVENT_BYTES - used) {
+        void reader.cancel().catch(() => undefined);
+        return jsonResponse({ error: "Webhook payload exceeds 1 MiB" }, 413);
+      }
+      buffer.set(value, used);
+      used += value.byteLength;
+    }
+    const parsed: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, used)));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+  } catch { /* Do not expose parser or transport details. */ }
+  finally { reader.releaseLock(); }
+  return jsonResponse({ error: "JSON object required" }, 400);
+}
+
 function stringValue(body: Record<string, unknown>, key: string): string | undefined {
   const value = body[key];
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -145,11 +178,37 @@ export function registerWebhookRoutes(
   owner = "single"
 ): { start(): void; stop(): void; drain(): Promise<void> } {
   const memoryQueue: DeliveryRecord[] = [];
+  // Keep bounded delivery IDs after successful drain, matching PostgreSQL's
+  // seven-day deduplication window without retaining delivered payloads.
+  const accepted = new Map<string, Map<string, number>>();
+  const publisher = (record: DeliveryRecord) => JSON.stringify([record.serviceId, record.tenantId]);
   let timer: ReturnType<typeof setInterval> | undefined;
   let draining: Promise<void> | undefined;
   const enqueue = async (records: DeliveryRecord[]) => {
-    if (postgres) await postgres.enqueueWebhookDeliveries(records);
-    else memoryQueue.push(...records.filter((record) => !memoryQueue.some((queued) => queued.id === record.id)));
+    if (postgres) { await postgres.enqueueWebhookDeliveries(records); return true; }
+    const now = Date.now();
+    const pending = new Set(memoryQueue.map(record => record.id));
+    for (const [scope, ids] of accepted) {
+      for (const [id, expires] of ids) if (expires <= now && !pending.has(id)) ids.delete(id);
+      if (!ids.size) accepted.delete(scope);
+    }
+    const fresh = records.filter(record => !accepted.get(publisher(record))?.has(record.id));
+    const additions = new Map<string, Set<string>>();
+    for (const record of fresh) {
+      const scope = publisher(record);
+      if (!additions.has(scope)) additions.set(scope, new Set());
+      additions.get(scope)!.add(record.id);
+    }
+    // Check the complete batch before mutation; one publisher cannot exhaust another.
+    for (const [scope, ids] of additions) {
+      if ((accepted.get(scope)?.size ?? 0) + ids.size > 10_000) return false;
+    }
+    for (const [scope, ids] of additions) {
+      if (!accepted.has(scope)) accepted.set(scope, new Map());
+      for (const id of ids) accepted.get(scope)!.set(id, now + 7 * 24 * 60 * 60 * 1000);
+    }
+    memoryQueue.push(...fresh);
+    return true;
   };
   const drain = () => draining ??= processDeliveries(store, postgres, owner, memoryQueue).finally(() => { draining = undefined; });
 
@@ -323,50 +382,60 @@ export function registerWebhookRoutes(
   });
 
   app.post(`${API_BASE}/webhooks/events`, async (event) => {
-    const obs = eventObservability(event);
-    const apiKey = readBearer(event);
-    if (!apiKey) return jsonResponse({ error: "Bearer token required" }, 401);
-    const validated = await store.validateApiKey(apiKey);
-    if (!validated?.serviceId) return jsonResponse({ error: "Invalid service token" }, 403);
+    try {
+      const obs = eventObservability(event);
+      const apiKey = readBearer(event);
+      if (!apiKey) return jsonResponse({ error: "Bearer token required" }, 401);
+      const validated = await store.validateApiKey(apiKey);
+      if (!validated?.serviceId) return jsonResponse({ error: "Invalid service token" }, 403);
 
-    const body = await readJson(event);
-    const eventId = stringValue(body, "eventId");
-    const tenantId = stringValue(body, "tenantId") ?? validated.tenantId;
-    const appId = stringValue(body, "appId");
-    const idempotencyKey = event.req.headers.get("idempotency-key")?.trim() || stringValue(body, "idempotencyKey");
-    if (!eventId || !tenantId) return jsonResponse({ error: "eventId and tenantId are required" }, 400);
-    if (!idempotencyKey) return jsonResponse({ error: "Idempotency-Key header or idempotencyKey is required" }, 400);
+      const body = await readEventJson(event);
+      if (body instanceof Response) return body;
+      const eventId = stringValue(body, "eventId");
+      const requestedTenant = stringValue(body, "tenantId");
+      if (validated.scope !== "platform" && (!validated.tenantId || (requestedTenant !== undefined && requestedTenant !== validated.tenantId))) {
+        return jsonResponse({ error: "Tenant scope mismatch" }, 403);
+      }
+      const tenantId = validated.scope === "platform" ? requestedTenant : validated.tenantId;
+      const appId = stringValue(body, "appId");
+      const idempotencyKey = event.req.headers.get("idempotency-key")?.trim() || stringValue(body, "idempotencyKey");
+      if (!eventId || !tenantId) return jsonResponse({ error: "eventId and tenantId are required" }, 400);
+      if (!idempotencyKey) return jsonResponse({ error: "Idempotency-Key header or idempotencyKey is required" }, 400);
 
-    const manifest = getManifestCache().get(validated.serviceId);
-    if (!manifest?.webhooks.some((entry) => entry.id === eventId)) return jsonResponse({ error: "Webhook event is not declared by service manifest" }, 400);
+      const manifest = getManifestCache().get(validated.serviceId);
+      if (!manifest?.webhooks.some((entry) => entry.id === eventId)) return jsonResponse({ error: "Webhook event is not declared by service manifest" }, 400);
 
-    const config = await store.loadConfig();
-    const targets = matchingTargets(config, validated.serviceId, eventId, tenantId, appId);
-    const createdAt = new Date().toISOString();
-    const records = targets.map((target): DeliveryRecord => ({
-      id: deterministicDeliveryId(validated.serviceId!, eventId, tenantId, appId, idempotencyKey, target.id),
-      targetId: target.id,
-      serviceId: validated.serviceId!,
-      eventId,
-      tenantId,
-      appId,
-      payload: (body.payload ?? null) as JsonValue,
-      attempts: 0,
-      maxAttempts: target.maxAttempts,
-      nextAttemptAt: createdAt,
-      createdAt,
-      status: "pending"
-    }));
-    await enqueue(records);
-    obs?.logger.info("BP WEBHOOK: queued service={serviceId} event={eventId} tenant={tenantId} app={appId} targets={targets}", {
-      serviceId: validated.serviceId,
-      eventId,
-      tenantId,
-      appId: appId ?? "",
-      targets: records.length
-    });
-    if (!postgres) await drain();
-    return jsonResponse({ queued: records.length } as JsonValue, 202);
+      const config = await store.loadConfig();
+      const targets = matchingTargets(config, validated.serviceId, eventId, tenantId, appId);
+      const createdAt = new Date().toISOString();
+      const records = targets.map((target): DeliveryRecord => ({
+        id: deterministicDeliveryId(validated.serviceId!, eventId, tenantId, appId, idempotencyKey, target.id),
+        targetId: target.id,
+        serviceId: validated.serviceId!,
+        eventId,
+        tenantId,
+        appId,
+        payload: (body.payload ?? null) as JsonValue,
+        attempts: 0,
+        maxAttempts: target.maxAttempts,
+        nextAttemptAt: createdAt,
+        createdAt,
+        status: "pending"
+      }));
+      if (!await enqueue(records)) return jsonResponse({ error: "Webhook queue is at capacity" }, 503);
+      obs?.logger.info("BP WEBHOOK: queued service={serviceId} event={eventId} tenant={tenantId} app={appId} targets={targets}", {
+        serviceId: validated.serviceId,
+        eventId,
+        tenantId,
+        appId: appId ?? "",
+        targets: records.length
+      });
+      if (!postgres) await drain();
+      return jsonResponse({ queued: records.length } as JsonValue, 202);
+    } finally {
+      // Close unread uploads on every exit, including credential/store failures.
+      void event.req.body?.cancel().catch(() => undefined);
+    }
   });
 
   return {

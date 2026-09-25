@@ -94,6 +94,14 @@ jobs:
 
       - name: Check generated types and executable documentation
         run: |
+          python framework/conformance/check_python_observability.py
+          python framework/conformance/check_python_resources.py
+          python framework/conformance/check_python_webhooks.py
+          python framework/conformance/check_python_health.py
+          python framework/conformance/check_python_client_streams.py
+          python framework/conformance/check_python_auth_helpers.py
+          python framework/conformance/check_python_themes.py
+          python framework/conformance/check_python_deployment.py
           python framework/conformance/check_elevation.py
           dotnet framework/dotnet/Conformance/bin/Debug/net10.0/Conformance.dll --elevation framework/conformance/elevation-cases.json
           python framework/conformance/check_types.py
@@ -112,6 +120,14 @@ jobs:
           python -m build framework/python --no-isolation --outdir ports-artifacts/packages
           python framework/conformance/check_packages.py ports-artifacts/packages
           python framework/conformance/check_scaffold.py ports-artifacts/packages
+
+      - name: Rehearse Python container installation and rollback
+        if: matrix.python == '3.14'
+        run: |
+          npm run build --workspace @betterportal/theme-runtime
+          npm run build --workspace @betterportal/theme-bootstrap1
+          npx playwright install --with-deps chromium
+          python framework/conformance/check_python_docker.py ports-artifacts/packages
 
       # SDK and BP regressions fail this gate without exemptions.
       - name: Run the full HTTP interoperability gate

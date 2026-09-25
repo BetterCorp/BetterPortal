@@ -1,23 +1,26 @@
-"""Scoped JSON dependency clients. BP owns credentials, policy and transport limits."""
+"""Scoped JSON, raw and finite-stream dependency clients. BP owns credentials, policy and transport limits."""
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from http.cookiejar import CookieJar, DefaultCookiePolicy
 import json
 import time
-from typing import Any, TYPE_CHECKING
+from typing import Any, AsyncIterator, TYPE_CHECKING
 from urllib.parse import urlencode
 
 import anyvali as av
 import httpx
 
 from .access import AppAccess
+from .client_streams import sse_messages, ndjson_lines
 from .context import ScopedContext, http_base_url, _origins
 from .contracts import document, object_document, parse
 from .jsoncodec import loads
 from .keys import secure_endpoint
+from .observability import current_trace
 from .response import RawResponse
 from .registry import _segments
 from .security import TokenPurpose, sign_token, uuid7
@@ -41,6 +44,13 @@ class ClientOperationSchemas:
     inputs: dict[str, dict[str, Any]]
     required_inputs: frozenset[str]
     output: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class RawClientResponse:
+    status: int
+    headers: tuple[tuple[str, str], ...]
+    body: AsyncIterator[bytes]
 
 
 class ClientContract:
@@ -77,29 +87,34 @@ class ClientContract:
 
     def schema(self) -> dict[str, Any]: return deepcopy(self._schema)
 
-    def json_operations(self) -> dict[str, ClientOperationSchemas]:
+    def json_operations(self, *, include_raw: bool = False) -> dict[str, ClientOperationSchemas]:
         """Owned documents for native authoring; AnyVali determines input presence."""
         result = {}
-        for identifier, (_, _, _, fields, output) in self._operations.items():
-            if output is None: continue
+        for identifier, (_, operation, _, fields, output) in self._operations.items():
+            if output is None and not (include_raw and operation.get("raw")): continue
             inputs = {}
             for name, field in fields.items():
                 exported = deepcopy(av.export_schema(field))
                 exported["root"] = exported["root"]["properties"][name]
                 inputs[name] = exported
-            result[identifier] = ClientOperationSchemas(inputs, frozenset(name for name, field in fields.items() if not field.safe_parse({}).success), deepcopy(av.export_schema(output)))
+            result[identifier] = ClientOperationSchemas(inputs, frozenset(name for name, field in fields.items() if not field.safe_parse({}).success), deepcopy(av.export_schema(output)) if output is not None else document("JsonValueSchema"))
         return result
 
-    def _prepare(self, identifier: str, values: Any) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str, str, Any]:
+    def _prepare(self, identifier: str, values: Any, *, mode: str = "json") -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str, str, Any]:
         if identifier not in self._operations: raise ValueError("Unknown dependency operation")
         view, operation, keys, fields, output = self._operations[identifier]
-        if output is None: raise ValueError("Dependency operation does not declare JSON output")
+        if mode == "json" and output is None: raise ValueError("Dependency operation does not declare JSON output")
+        if mode == "raw" and not operation.get("raw"): raise ValueError("Dependency operation does not declare raw output")
+        if mode in ("stream", "sse") and not operation.get("streaming"): raise ValueError("Dependency operation does not declare streaming output")
+        if mode in ("sse", "subscribe") and operation["method"] != "GET": raise ValueError("SSE requires a GET operation")
         source = keys.parse({} if values is None else values)
         parsed = {}
         for name, schema in fields.items():
             parsed.update(schema.parse({name: source[name]} if name in source else {}))
         if any(not isinstance(parsed.get(name), dict) for name in ("params", "query", "headers")):
             raise ValueError("Dependency params, query and headers must be objects")
+        if mode in ("stream", "sse", "subscribe") and any(key in parsed["query"] for key in ("_f", "_c")):
+            raise ValueError("Data streams cannot select HTML renderers")
         selected = next(((variant, path) for variant in [view["path"], *view["pathVariants"]] if (path := _fill(variant, parsed["params"])) is not None), None)
         if selected is None: raise ValueError("Dependency route parameters do not select a path")
         return view, operation, parsed, selected[1], selected[0], output
@@ -110,46 +125,60 @@ class ServiceClients:
     def __init__(self, service: Service):
         self._service = service
         self._http: httpx.AsyncClient | None = None
-        self._pending: set[asyncio.Task[Any]] = set()
+        self._pending: dict[asyncio.Task[Any], int] = {}
         self._closed = False
+
+    def _release(self, task: asyncio.Task[Any]) -> None:
+        if self._pending[task] == 1: del self._pending[task]
+        else: self._pending[task] -= 1
 
     def scope(self, tenant_id: str, app_id: str) -> RequestClients:
         """Background callers may use declared service-mode dependencies only."""
         return RequestClients(self, tenant_id, app_id)
 
-    async def _send(self, client: Client, identifier: str, values: Any) -> Any:
+    def _prepare_request(self, client: Client, identifier: str, values: Any, mode: str):
         if self._closed: raise ClientError(503, "Dependency client is closed")
+        view, operation, parsed, path, variant, output = client._contract._prepare(identifier, values, mode=mode)
+        state, scope = client._context._current()
+        origin, headers = client._authorize(state, scope, view, operation, variant)
+        if any(not isinstance(value, (str, int, float, bool)) for value in parsed["headers"].values()):
+            raise ValueError("Dependency header values must be strings, numbers or booleans")
+        custom = {name: _scalar(value) for name, value in parsed["headers"].items()}
+        RawResponse(headers=custom)
+        forbidden = {"authorization", "cookie", "set-cookie", "host", "origin", "referer", "accept", "accept-encoding", "content-type", "content-encoding", "traceparent", "tracestate", "baggage"}
+        if len({name.lower() for name in custom}) != len(custom) or any(name.lower() in forbidden or name.lower().startswith("x-bp-") for name in custom):
+            raise ValueError("Dependency headers cannot replace framework credentials or routing")
+        headers.update(custom)
+        trace = current_trace()
+        if trace is not None:
+            headers["traceparent"] = trace.traceparent
+            if trace.tracestate: headers["tracestate"] = trace.tracestate
+            if trace.baggage: headers["baggage"] = trace.baggage
+        pairs = []
+        for name, value in parsed["query"].items():
+            if value is None: continue
+            for item in value if isinstance(value, list) else [value]:
+                if item is None: continue
+                pairs.append((name, _scalar(item)))
+        if mode in ("sse", "subscribe"): path = path.rstrip("/") + "/__sse"
+        address = origin + path + ("?" + urlencode(pairs) if pairs else "")
+        data = json.dumps(parsed["body"], ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode() if "body" in parsed else None
+        if len(address) > 8192 or data is not None and len(data) > 16 * 1024 * 1024:
+            raise ValueError("Dependency request exceeds its size limit")
+        if data is not None and operation["method"] in ("GET", "HEAD"):
+            raise ValueError("Dependency GET/HEAD requests cannot carry a body")
+        if data is not None: headers["content-type"] = "application/json"
+        headers["accept"] = {"json": "application/json", "raw": "*/*", "stream": "application/x-ndjson", "sse": "text/event-stream", "subscribe": "text/event-stream"}[mode]
+        headers["accept-encoding"] = "identity"
+        if self._http is None:
+            self._http = httpx.AsyncClient(follow_redirects=False, trust_env=False, timeout=30, cookies=CookieJar(policy=_NoCookies()))
+        return state, operation, output, address, data, headers
+
+    async def _send(self, client: Client, identifier: str, values: Any) -> Any:
         task = asyncio.current_task(); assert task is not None
-        self._pending.add(task)
+        self._pending[task] = self._pending.get(task, 0) + 1
         try:
-            view, operation, parsed, path, variant, output = client._contract._prepare(identifier, values)
-            state, scope = client._context._current()
-            origin, headers = client._authorize(state, scope, view, operation, variant)
-            if any(not isinstance(value, (str, int, float, bool)) for value in parsed["headers"].values()):
-                raise ValueError("Dependency header values must be strings, numbers or booleans")
-            custom = {name: _scalar(value) for name, value in parsed["headers"].items()}
-            RawResponse(headers=custom)
-            forbidden = {"authorization", "cookie", "set-cookie", "host", "origin", "referer", "accept", "accept-encoding", "content-type", "content-encoding"}
-            if len({name.lower() for name in custom}) != len(custom) or any(name.lower() in forbidden or name.lower().startswith("x-bp-") for name in custom):
-                raise ValueError("Dependency headers cannot replace framework credentials or routing")
-            headers.update(custom)
-            pairs = []
-            for name, value in parsed["query"].items():
-                if value is None: continue
-                for item in value if isinstance(value, list) else [value]:
-                    if item is None: continue
-                    pairs.append((name, _scalar(item)))
-            address = origin + path + ("?" + urlencode(pairs) if pairs else "")
-            data = json.dumps(parsed["body"], ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode() if "body" in parsed else None
-            if len(address) > 8192 or data is not None and len(data) > 16 * 1024 * 1024:
-                raise ValueError("Dependency request exceeds its size limit")
-            if data is not None and operation["method"] in ("GET", "HEAD"):
-                raise ValueError("Dependency GET/HEAD requests cannot carry a body")
-            if data is not None: headers["content-type"] = "application/json"
-            headers["accept"] = "application/json"
-            headers["accept-encoding"] = "identity"
-            if self._http is None:
-                self._http = httpx.AsyncClient(follow_redirects=False, trust_env=False, timeout=30, cookies=CookieJar(policy=_NoCookies()))
+            state, operation, output, address, data, headers = self._prepare_request(client, identifier, values, "json")
             async def request():
                 async with self._http.stream(operation["method"], address, content=data, headers=headers) as response:
                     if not 200 <= response.status_code < 300:
@@ -167,11 +196,39 @@ class ServiceClients:
             try: return await asyncio.wait_for(request(), 30)
             except ClientError: raise
             except Exception: raise ClientError(502, "Dependency request or response validation failed") from None
-        finally: self._pending.discard(task)
+        finally: self._release(task)
+
+    @asynccontextmanager
+    async def _open(self, client: Client, identifier: str, values: Any, mode: str):
+        state, operation, _, address, data, headers = self._prepare_request(client, identifier, values, mode)
+        task = asyncio.current_task(); assert task is not None
+        self._pending[task] = self._pending.get(task, 0) + 1
+        async def retire():
+            await state.retired.wait()
+            task.cancel()
+        watcher = asyncio.create_task(retire())
+        try:
+            assert self._http is not None
+            async with self._http.stream(operation["method"], address, content=data, headers=headers) as response:
+                if not 200 <= response.status_code < 300:
+                    raise ClientError(response.status_code, "Dependency returned an unsuccessful status")
+                if response.headers.get("content-encoding", "identity").strip().lower() != "identity":
+                    raise ClientError(502, "Dependency returned unsupported content encoding")
+                expected_media = "application/x-ndjson" if mode == "stream" else "text/event-stream"
+                if mode in ("stream", "sse", "subscribe") and response.headers.get("content-type", "").split(";", 1)[0].strip().lower() != expected_media:
+                    raise ClientError(502, "Dependency returned an unexpected stream representation")
+                client._context._current(expected=state)
+                yield response, state, operation
+        except httpx.HTTPError:
+            raise ClientError(502, "Dependency transport failed") from None
+        finally:
+            watcher.cancel()
+            await asyncio.gather(watcher, return_exceptions=True)
+            self._release(task)
 
     async def aclose(self) -> None:
         self._closed = True
-        tasks = tuple(self._pending - {asyncio.current_task()})
+        tasks = tuple(self._pending.keys() - {asyncio.current_task()})
         for task in tasks: task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         if self._http is not None: await self._http.aclose()
@@ -194,6 +251,11 @@ class RequestClients:
         if scope is None: raise ClientError(403, "Dependency tenant/app is unavailable")
         return state, scope
 
+    async def webhook(self, event_id: str, payload: Any, *, idempotency_key: str | None = None) -> str:
+        publisher = self._owner._service._webhooks
+        if publisher is None: raise ClientError(503, "Control-plane webhook publisher is unavailable")
+        return await publisher.emit(self, event_id, payload, idempotency_key=idempotency_key)
+
     def user(self, contract: ClientContract, service_id: str | None = None) -> Client:
         if self._revision is None: raise ValueError("User clients require a service request context")
         return Client(self, contract, service_id=service_id or contract.plugin_id)
@@ -209,6 +271,85 @@ class Client:
 
     async def request(self, operation_id: str, values: Any = None) -> Any:
         return await self._context._owner._send(self, operation_id, values)
+
+    @asynccontextmanager
+    async def raw(self, operation_id: str, values: Any = None, *, max_bytes: int = 16 * 1024 * 1024):
+        """Consume a declared raw response inside an async with block."""
+        if max_bytes < 1: raise ValueError("Invalid response size limit")
+        async with self._context._owner._open(self, operation_id, values, "raw") as (response, state, _):
+            async def chunks():
+                size = 0
+                async for chunk in response.aiter_bytes(chunk_size=8192):
+                    self._context._current(expected=state)
+                    size += len(chunk)
+                    if size > max_bytes: raise ClientError(502, "Dependency response exceeds its size limit")
+                    yield chunk
+            iterator = chunks()
+            try: yield RawClientResponse(response.status_code, tuple(response.headers.multi_items()), iterator)
+            finally: await iterator.aclose()
+
+    @asynccontextmanager
+    async def stream(self, operation_id: str, values: Any = None, *, max_frame_bytes: int = 1024 * 1024, transport: str = "ndjson"):
+        """Read finite data frames. SSE requires an unthemed upstream context."""
+        if max_frame_bytes < 1 or transport not in ("ndjson", "sse"): raise ValueError("Invalid streaming options")
+        mode = "stream" if transport == "ndjson" else "sse"
+        async with self._context._owner._open(self, operation_id, values, mode) as (response, state, operation):
+            metadata = operation["streaming"]
+            item = av.import_schema(metadata["itemSchema"])
+            summary = av.import_schema(metadata["summarySchema"]) if metadata.get("summarySchema") else None
+            async def decoded():
+                if transport == "ndjson":
+                    async for line in ndjson_lines(response.aiter_bytes(), max_frame_bytes): yield None, loads(line)
+                else:
+                    async for message in sse_messages(response.aiter_bytes(), max_frame_bytes): yield message.event, loads(message.data)
+            async def frames():
+                count, summarized, ended = 0, False, False
+                try:
+                    async for event, frame in decoded():
+                        self._context._current(expected=state)
+                        if ended or not isinstance(frame, dict): raise ValueError()
+                        kind = frame.get("kind")
+                        if event is not None and event != kind: raise ValueError()
+                        if kind == "item" and not summarized and set(frame) == {"kind", "data"}:
+                            frame["data"] = item.parse(frame["data"]); count += 1
+                        elif kind == "summary" and not summarized and summary is not None and set(frame) == {"kind", "data"}:
+                            frame["data"] = summary.parse(frame["data"]); summarized = True
+                        elif kind == "end":
+                            if set(frame) != {"kind", "count"}: raise ValueError()
+                            frame = parse("StreamEndFrameSchema", frame)
+                            if frame["count"] != count: raise ValueError()
+                            ended = True
+                        elif kind == "error": raise ClientError(502, "Dependency stream failed")
+                        else: raise ValueError()
+                        yield frame
+                    if not ended: raise ClientError(502, "Dependency stream is incomplete")
+                except ClientError: raise
+                except (av.ValidationError, ValueError, TypeError, UnicodeError, RecursionError): raise ClientError(502, "Dependency frame validation failed") from None
+            iterator = frames()
+            try: yield iterator
+            finally: await iterator.aclose()
+
+    @asynccontextmanager
+    async def subscribe(self, operation_id: str, event_schema: av.BaseSchema[Any], values: Any = None, *,
+                        max_frame_bytes: int = 1024 * 1024, text: bool = False):
+        """Consume an owning GET's feed with an explicitly pinned event schema.
+
+        Reconnection is caller-owned; no event history or automatic replay is implied.
+        Use text=True for a producer whose event schema serializes strings directly.
+        """
+        if max_frame_bytes < 1: raise ValueError("Invalid frame limit")
+        async with self._context._owner._open(self, operation_id, values, "subscribe") as (response, state, _):
+            async def events():
+                try:
+                    async for message in sse_messages(response.aiter_bytes(), max_frame_bytes):
+                        self._context._current(expected=state)
+                        if message.event == "error": raise ClientError(502, "Dependency subscriber failed")
+                        yield event_schema.parse(message.data if text else loads(message.data))
+                except ClientError: raise
+                except (av.ValidationError, ValueError, TypeError, UnicodeError, RecursionError): raise ClientError(502, "Dependency event validation failed") from None
+            iterator = events()
+            try: yield iterator
+            finally: await iterator.aclose()
 
     def _authorize(self, state: _Snapshot, scope: ScopedContext, view: dict[str, Any], operation: dict[str, Any], path: str) -> tuple[str, dict[str, str]]:
         service = self._context._owner._service

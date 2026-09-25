@@ -9,11 +9,13 @@ from typing import Any, AsyncIterator, cast
 
 import httpx
 from .contracts import parse
+from .context import ScopedConfig
 from .generated_types import AuthProviderRuntimeMetadataInput, ControlPlaneSubmission, PluginManifest
 from .jsoncodec import loads
 from .keys import secure_endpoint
 from .security import KeyPair
 from .service import Service
+from .webhooks import Webhooks
 
 _LIMIT = 16 * 1024 * 1024
 
@@ -93,6 +95,7 @@ class ControlPlaneSync:
         self._phase = "idle"
         self._error: str | None = None
         self._attempts = self._updates = 0
+        self._webhooks = Webhooks(service, base_url, self._headers, request_timeout)
         service._signing_key = key_pair
 
     @property
@@ -104,6 +107,7 @@ class ControlPlaneSync:
 
     async def start(self) -> bool:
         if self._closed or self._task is not None: raise RuntimeError("Sync is closed or already started")
+        self.service._webhooks = self._webhooks
         self.service._suspend_sync()
         self._first = asyncio.get_running_loop().create_future()
         self._task = asyncio.create_task(self._run())
@@ -146,7 +150,11 @@ class ControlPlaneSync:
                     if name == "event": event = value
                     elif name == "data": lines.append(value)
                 if event == "config" and lines:
-                    try: await self.service.apply_snapshot(loads("\n".join(lines)))
+                    try:
+                        snapshot = ScopedConfig(loads("\n".join(lines))).document()
+                        # The initial SSE event commonly repeats the acknowledged
+                        # poll. It must not retire in-flight requests needlessly.
+                        if snapshot != self.service.snapshot(): await self.service.apply_snapshot(snapshot)
                     except Exception:
                         self._error = "invalid_update"
                     else: self._updates += 1; self._error = None
@@ -194,6 +202,8 @@ class ControlPlaneSync:
             self._task.cancel()
             await asyncio.gather(self._task, return_exceptions=True)
             self.service._suspend_sync()
+        if self.service._webhooks is self._webhooks: self.service._webhooks = None
+        await self._webhooks.aclose()
         await self._client.aclose()
         self._phase = "closed"
 

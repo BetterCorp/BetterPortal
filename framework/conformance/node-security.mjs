@@ -8,7 +8,7 @@ import { signServiceToken, authorizeServiceToken } from "../nodejs/lib/runtime/a
 import { signServiceConfigTicket, verifyServiceConfigTicket } from "../nodejs/lib/runtime/configTicket.js";
 import { createBpTokenIssuer } from "../nodejs/lib/runtime/auth/issuer.js";
 
-const key = generateKeyPair();
+export const key = generateKeyPair();
 export async function security(body) {
   const { action, purpose, claims } = body;
   if (action.startsWith("keys-")) return keyActions(body);

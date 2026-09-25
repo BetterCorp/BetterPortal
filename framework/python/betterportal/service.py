@@ -8,7 +8,7 @@ from typing import Any, Iterable, Mapping, TYPE_CHECKING, cast
 
 from .access import AppAccess
 from .elevation import ElevationRequired
-from .authorization import AuthContext, _bearer, authorize_request, is_machine_request
+from .authorization import AuthContext, _bearer, authorize_user, authorize_request, is_machine_request
 from .context import ScopedConfig, ScopedContext, OriginPolicy, http_origin
 from .config_api import ConfigApi
 from .encryption import decrypt_preview, preview_schema
@@ -20,10 +20,13 @@ from .jsoncodec import loads
 from .registry import Operation, Registry, Route
 from .security import KeyPair, TokenError
 from .settings import SettingsSchema
+from .rendering import Renderer, renderers as unique_renderers
+from .generated_types import ViewRenderError
 from .storage import StateStore
 from .urls import Urls
 if TYPE_CHECKING:
     from .clients import ServiceClients
+    from .webhooks import Webhooks
 
 
 class RequestError(Exception):
@@ -65,7 +68,10 @@ class _Snapshot:
 class Service:
     def __init__(self, registry: Registry, declaration: ManifestDeclarationInput, snapshot: ScopedConfig | None = None,
                  *, state_store: StateStore | None = None, managed: bool = False, preview_key: str | None = None, config_api: ConfigApi | None = None,
-                 signing_key: KeyPair | None = None):
+                 signing_key: KeyPair | None = None, status_renderers: Iterable[Renderer[ViewRenderError]] = ()):
+        self.status_renderers = unique_renderers(status_renderers)
+        if any(renderer.identity[3] < 400 for renderer in self.status_renderers): raise ValueError("Global status renderers require an error status")
+        self._webhooks: Webhooks | None = None
         self.registry = registry
         self._schema = registry.schema(declaration)
         self._config_api = config_api or ConfigApi()
@@ -193,6 +199,34 @@ class Service:
     @property
     def manifest(self) -> PluginManifest: return deepcopy(self._schema["manifest"])
 
+    async def health(self, headers: Mapping[str, str]) -> dict[str, Any]:
+        """Public readiness, with diagnostics only for a verified management-app user."""
+        public = {"ok": self.ready}
+        state = self._state
+        if state is None: return public
+        try:
+            token = _bearer(self._headers(headers).get("authorization"))
+            management = state.config.get("configManagement", {})
+            tenant_id, app_id = management.get("adminTenantId"), management.get("managementAppId")
+            if token is None or tenant_id is None or app_id is None: return public
+            scope = state.snapshot.by_id(tenant_id, app_id)
+            if scope is None or self._tenant_lock is not None and tenant_id != self._tenant_lock: return public
+            policy = scope.app.get("auth")
+            if policy is None: return public
+            keys = state.keys.get((policy["expectedIssuer"], secure_endpoint(policy["jwksUri"], allow_query=True)))
+            if keys is None: return public
+            await authorize_user(token, {"required": True}, AuthContext(tenant_id, app_id, policy, keys.resolve))
+            if self._state is not state or self._closed: return {"ok": self.ready}
+        except asyncio.CancelledError:
+            if self._state is not state or self._closed: return {"ok": self.ready}
+            raise
+        except Exception: return public
+        return {"ok": self.ready, "ready": self.ready, "pluginId": self._schema["manifest"]["pluginId"],
+                "version": self._schema["manifest"]["version"],
+                "config": {"synced": self._submitted, "localConfig": not self._managed,
+                           "tenants": len(state.config["tenants"]), "apps": len(state.config["apps"])},
+                "manifestSync": {"state": "synced" if self._submitted else "awaiting-sync" if self._managed else "local"}}
+
     def schema(self) -> dict[str, Any]: return cast(dict[str, Any], deepcopy(self._schema))
 
     def config_schema(self) -> dict[str, Any]: return deepcopy(self._config_schema)
@@ -310,13 +344,7 @@ class Service:
             raise RequestError(503, "Configuration changed during authentication")
         if caller.service is not None and not access.allows(route, method, path=matched_path, fragment=fragment, service_id=caller.service["aud"]):
             raise RequestError(403, "Access denied", response_headers, scope=scope)
-        values = deepcopy(state.preview) if state.preview_scope == (scope.tenant_id, scope.app_id) else {}
-        settings = self._config_api.settings
-        if settings is not None:
-            stored = settings.read(scope.tenant_id)
-            preview = state.preview_values if state.preview_scope == (scope.tenant_id, scope.app_id) else {"tenant": {}, "app": {}}
-            try: values = settings.schema.effective({**stored["tenant"], **preview["tenant"]}, {**stored["app"].get(scope.app_id, {}), **preview["app"]})
-            except Exception as error: raise RequestError(503, "Service settings are incomplete", response_headers, scope=scope) from error
+        values = self._effective_settings(state, scope, response_headers)
         from .clients import RequestClients
         clients = RequestClients(self.clients, scope.tenant_id, scope.app_id, revision=state,
                                  user_token=_bearer(normalized.get("authorization")) if caller.user is not None else None)
@@ -327,6 +355,16 @@ class Service:
         if hints["varyBy"]: response_headers["vary"] += ", " + ", ".join(hints["varyBy"])
         return RequestContext(scope, caller, cast(HttpMethod, method), path, config=values,
                               url_context=self.urls(scope, path, normalized, scheme), client_context=clients, _retired=state.retired), response_headers
+
+    def _effective_settings(self, state, scope, response_headers=None):
+        values = deepcopy(state.preview) if state.preview_scope == (scope.tenant_id, scope.app_id) else {}
+        settings = self._config_api.settings
+        if settings is not None:
+            stored = settings.read(scope.tenant_id)
+            preview = state.preview_values if state.preview_scope == (scope.tenant_id, scope.app_id) else {"tenant": {}, "app": {}}
+            try: values = settings.schema.effective({**stored["tenant"], **preview["tenant"]}, {**stored["app"].get(scope.app_id, {}), **preview["app"]})
+            except Exception as error: raise RequestError(503, "Service settings are incomplete", response_headers, scope=scope) from error
+        return values
 
     def urls(self, scope: ScopedContext, path: str, headers: Mapping[str, str] | None = None, scheme: str = "https") -> Urls:
         headers = headers or {}
@@ -346,6 +384,7 @@ class Service:
     async def aclose(self) -> None:
         self._closed = True
         self._stopping.set()
+        if self._webhooks is not None: await self._webhooks.aclose()
         if self._clients is not None: await self._clients.aclose()
         writers = tuple(self._writers - {asyncio.current_task()})
         for task in writers: task.cancel()

@@ -251,7 +251,9 @@ def run_installation(urls, labels):
                     for request, step in zip(requests, steps):
                         expected = (204 if request["method"] == "OPTIONS" else 503 if request["path"].endswith("/health") else 200) if supported else 400
                         assert step["status"] == expected, brief([step])
-                        assert step["headers"]["cache-control"] == "no-store", brief([step])
+                        health = label == "python" and request["path"].endswith("/health")
+                        assert step["headers"]["cache-control"] == ("private, no-store" if health else "no-store"), brief([step])
+                        if health: assert step["headers"]["vary"] == "Authorization", brief([step])
                         if request["method"] == "HEAD": assert step["body"] == "", brief([step])
                         elif not supported: assert json.loads(step["body"])["error"] == "unsupported_protocol_version", brief([step])
                         elif request["method"] == "OPTIONS": assert "bp-protocol-version" in step["headers"]["access-control-allow-headers"].lower(), step["headers"]

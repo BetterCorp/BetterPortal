@@ -28,6 +28,17 @@ dependencies = ["betterportal[asgi]=={runtime}", "uvicorn==0.52.4"]
 [tool.setuptools.packages.find]
 include = ["my_service*"]
 ''',
+        "Dockerfile": '''FROM python:3.12-slim
+WORKDIR /app
+COPY . /app
+RUN python -m pip install --no-cache-dir . && useradd --uid 10001 --create-home bp && mkdir -p /data && chown bp:bp /data
+ENV BP_STATE_DIRECTORY=/data PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+USER 10001:10001
+EXPOSE 8000
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/.well-known/bp/health', timeout=2)"
+CMD ["python", "-m", "uvicorn", "my_service.app:create_app", "--factory", "--no-proxy-headers", "--host", "0.0.0.0", "--port", "8000"]
+''',
+        ".dockerignore": ".git/\n.venv/\n.bp-state/\n.env\n__pycache__/\ndist/\n*.egg-info/\n",
         "my_service/__init__.py": "",
         "my_service/bp_routes/__init__.py": "",
         "my_service/bp_routes/hello/index.py": '''from betterportal.generated_types import RouteDeclarationInput
@@ -63,24 +74,11 @@ def registry() -> Registry:
 def contract() -> BpSchemaOutput:
     return registry().schema(declaration)
 ''',
-        "my_service/app.py": '''import os
-from pathlib import Path
-from betterportal.asgi import create_app as asgi_app
-from betterportal.bootstrap import BootstrapStateStore
-from betterportal.installation import ServiceInstallation
-from betterportal.service import Service
-from betterportal.storage import FileStateStore
+        "my_service/app.py": '''from betterportal.hosting import DeploymentConfig
 from .definition import declaration, registry
 
 def create_app():
-    directory = Path(os.environ.get("BP_STATE_DIRECTORY", ".bp-state"))
-    service = Service(registry(), declaration, managed=True,
-        state_store=FileStateStore(directory / "snapshot.json"))
-    installation = ServiceInstallation(service,
-        BootstrapStateStore(FileStateStore(directory / "bootstrap.json"), os.environ["BP_BOOTSTRAP_MASTER_KEY"]),
-        os.environ["BP_CP_URL"], os.environ["BP_PUBLIC_ORIGIN"],
-        settings_store=FileStateStore(directory / "settings.json"))
-    return asgi_app(service, installation=installation)
+    return DeploymentConfig.from_env().create_app(registry(), declaration)
 ''',
         "README.md": '''# Standalone BP service
 
@@ -100,10 +98,14 @@ Generate a master key once and retain it across restarts:
     python -c "from betterportal.bootstrap import BootstrapCipher; print(BootstrapCipher.generate_key())"
 
 BP_STATE_DIRECTORY defaults to .bp-state; mount persistent storage there in a
-container. Keep the master key separate from that directory. URLs require HTTPS
+container. Run one worker per state directory. BP_BOOTSTRAP_MASTER_KEY_FILE can
+read the key from a mounted secret instead of an environment value. Configure
+BP_TRUSTED_PROXIES with explicit IP addresses/CIDRs only; the proxy must overwrite
+X-Forwarded-Host and X-Forwarded-Proto. Keep --no-proxy-headers so the runtime can
+verify the actual socket peer. Keep the master key separate from that directory. URLs require HTTPS
 except the runtime's exact loopback development exceptions.
 
-    python -m uvicorn my_service.app:create_app --factory --host 127.0.0.1 --port 8000
+    python -m uvicorn my_service.app:create_app --factory --no-proxy-headers --host 127.0.0.1 --port 8000
 
 Install through the existing config manager using the configured public origin.
 Health at /.well-known/bp/health returns 503 until installation, manifest submission
