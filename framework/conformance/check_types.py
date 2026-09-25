@@ -15,6 +15,17 @@ from betterportal.contracts import document, object_document
 from betterportal.typegen import generate_types
 import anyvali as av
 
+# Author declarations must survive the native manifest and control-plane serializers.
+from betterportal.contracts import contract
+from betterportal.handler import Handler
+from betterportal.registry import Operation, Route, Registry
+from betterportal.sync import build_submission
+for menu in (False, True):
+    registry = Registry([Route("menu", "/menu", [Operation(Handler(contract("JsonObjectSchema"), lambda context: {}),
+        {"operationId": "menu.get", "method": "GET", "title": "Menu", "description": "Menu", "auth": {}, "menu": menu})])])
+    manifest = registry.manifest({"pluginId": "org.example.menu", "title": "Menu", "description": "Menu", "version": "1.0.0"})
+    assert build_submission(manifest)["viewIndex"]["menu"]["operations"][0]["menu"] is menu
+
 for declaration in vars(generated_types).values():
     if isinstance(declaration, type) and hasattr(declaration, "__required_keys__"):
         typing.get_type_hints(declaration, vars(generated_types), include_extras=True)

@@ -565,6 +565,7 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
         targetPath: view.path,
         title: operation.title,
         authRequired: operation.authRequired,
+        menu: operation.menu !== false,
         ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
         robots: [...operation.robots],
         ...(operation.chrome ? { chrome: operation.chrome } : {}),
@@ -594,7 +595,7 @@ function rebuildPreviewMenu(config: BetterPortalConfig, app: BetterPortalApp): v
     for (const item of group.children) if (item.routeId) previousItems.set(item.routeId, item);
   }
   const routes = app.routes
-    .filter((route) => route.enabled && (route.kind ?? "page") === "page")
+    .filter((route) => route.enabled && route.menu !== false && (route.kind ?? "page") === "page")
     .sort((left, right) => left.path.localeCompare(right.path));
   const byService = new Map<string, BetterPortalRouteMount[]>();
   for (const route of routes) byService.set(route.serviceId, [...(byService.get(route.serviceId) ?? []), route]);
@@ -606,7 +607,7 @@ function rebuildPreviewMenu(config: BetterPortalConfig, app: BetterPortalApp): v
       title: serviceTitle(config, app.tenantId, serviceId),
       enabled: true,
       serviceStatus: "show" as const,
-      authStatus: "show" as const,
+      authStatus: "auto" as const,
       defaultExpanded: true,
       children: serviceRoutes.map((route) => ({
         id: previousItems.get(route.id)?.id ?? uuidv7(),
@@ -615,7 +616,7 @@ function rebuildPreviewMenu(config: BetterPortalConfig, app: BetterPortalApp): v
         routeId: route.id,
         enabled: true,
         serviceStatus: "show" as const,
-        authStatus: "show" as const,
+        authStatus: "auto" as const,
         children: []
       }))
     }));

@@ -345,3 +345,26 @@ contract without changing it. No Node executable or BSB build hook is involved.
 files above, checks both export CLIs, and compares the native discovery corpus with
 Node's scanner. The HTTP runtime suites separately exercise the returned registry's
 authorization, renderer negotiation and streaming behavior.
+
+## Menu eligibility
+
+A page operation can prohibit menu entries while remaining mounted and directly
+accessible. Export `menu = false` from its method module (for example `GET.ts`):
+
+```ts
+export const menu = false;
+```
+
+The declaration is included in the manifest. Config Manager excludes the route
+from menu choices and automatic generation, rejects new menu references, and
+suppresses existing references when delivering the route policy to the theme.
+This applies to normal applications and preview environments. It does not change
+`chrome.hideMenu`, which controls the surrounding menu while a page is displayed.
+
+Menu items default to **Automatic (route permissions)**. Public routes are visible;
+routes requiring authentication or permissions are hidden until a verified user
+has access. Explicit alternatives are **Always show**, **Only signed out**,
+**Only signed in**, and **Only with permission**. `rolesAnyOf` optionally requires
+at least one named role, and parent group conditions also apply to descendants.
+An explicit **Always show** choice remains an override of automatic visibility.
+Menu visibility does not replace service-side authorization.

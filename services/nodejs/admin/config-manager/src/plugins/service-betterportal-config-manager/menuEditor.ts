@@ -9,7 +9,7 @@ import {
   uuidv7
 } from "@betterportal/framework";
 import { getManifestCache } from "./syncApi.js";
-import { isApiRoute } from "./routeMounts.js";
+import { isApiRoute, isMenuRouteExcluded } from "./routeMounts.js";
 
 const API_BASE = "/.well-known/bp/admin";
 // Parse-only base for relative request URLs. Never emit this origin.
@@ -26,7 +26,8 @@ interface MenuItem {
   href?: string;
   enabled: boolean;
   serviceStatus?: "show" | "hide";
-  authStatus?: "show" | "hide-unauthenticated" | "hide-unauthorized";
+  authStatus?: "auto" | "show" | "hide-unauthenticated" | "hide-unauthorized" | "show-unauthenticated";
+  rolesAnyOf?: string[];
   defaultExpanded?: boolean;
   children?: MenuItem[];
 }
@@ -95,7 +96,7 @@ function getRoutes(appDef: any): Route[] {
     const renderable = view?.operations.some((operation) =>
       route.operations?.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
     );
-    return !isApiRoute(route, renderable);
+    return !isMenuRouteExcluded(route, getManifestCache()) && !isApiRoute(route, renderable);
   });
 }
 
@@ -133,7 +134,7 @@ function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: s
   const entry = cache.get(serviceId);
   if (!entry) return [];
   return Object.values(entry.viewIndex)
-    .filter((v) => v.operations.some((operation) => operation.method === "GET" && operation.renderModes.includes("page")))
+    .filter((v) => v.operations.some((operation) => operation.menu !== false && operation.method === "GET" && operation.renderModes.includes("page")))
     .map((v) => ({
       viewId: v.viewId,
       title: v.viewId,
@@ -279,11 +280,15 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
           </select>
         </div>
         <div class="col-md-6">
+          <label class="form-label small mb-0">Required roles (any, comma separated)</label>
+          <input name="rolesAnyOf" class="form-control form-control-sm" value="${escapeHtml((item.rolesAnyOf ?? []).join(", "))}" />
           <label class="form-label small mb-0">Authorization</label>
           <select name="authStatus" class="form-select form-select-sm">
-            <option value="show"${!item.authStatus || item.authStatus === "show" ? " selected" : ""}>Always show</option>
+            <option value="auto"${!item.authStatus || item.authStatus === "auto" ? " selected" : ""}>Automatic (route permissions)</option>
+            <option value="show"${item.authStatus === "show" ? " selected" : ""}>Always show</option>
             <option value="hide-unauthenticated"${item.authStatus === "hide-unauthenticated" ? " selected" : ""}>Hide when signed out</option>
             <option value="hide-unauthorized"${item.authStatus === "hide-unauthorized" ? " selected" : ""}>Hide when unauthorized</option>
+            <option value="show-unauthenticated"${item.authStatus === "show-unauthenticated" ? " selected" : ""}>Show only when signed out</option>
           </select>
         </div>
       </div>
@@ -307,6 +312,21 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
           ${titleDisplayHtml(item, route, appId)}
         </div>
         ${subLineHtml(item, route, config, appId)}
+        <details><summary class="small">Visibility</summary>
+          <form hx-post="${API_BASE}/menu-editor/save-visibility" hx-target="#bp-menu-editor" hx-swap="outerHTML" class="d-flex gap-2 flex-wrap">
+            <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
+            <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
+            <label class="small">Audience
+              <select name="authStatus" class="form-select form-select-sm">
+                ${[["auto", "Automatic (route permissions)"], ["show", "Always show"], ["show-unauthenticated", "Only signed out"], ["hide-unauthenticated", "Only signed in"], ["hide-unauthorized", "Only with permission"]].map(([value, label]) => `<option value="${value}"${(item.authStatus ?? "auto") === value ? " selected" : ""}>${label}</option>`).join("")}
+              </select>
+            </label>
+            <label class="small">Required roles (any, comma separated)
+              <input name="rolesAnyOf" class="form-control form-control-sm" value="${escapeHtml((item.rolesAnyOf ?? []).join(", "))}" />
+            </label>
+            <button type="submit" class="btn btn-sm btn-primary">Save visibility</button>
+          </form>
+        </details>
       </div>
       ${actionButtons(item, appId)}
     </div>
@@ -395,11 +415,15 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
           </select>
         </div>
         <div class="col-md-6">
+          <label class="form-label small mb-0">Required roles (any, comma separated)</label>
+          <input name="rolesAnyOf" class="form-control form-control-sm" value="${escapeHtml((item.rolesAnyOf ?? []).join(", "))}" />
           <label class="form-label small mb-0">Authorization</label>
           <select name="authStatus" class="form-select form-select-sm">
-            <option value="show"${!item.authStatus || item.authStatus === "show" ? " selected" : ""}>Always show</option>
+            <option value="auto"${!item.authStatus || item.authStatus === "auto" ? " selected" : ""}>Automatic (route permissions)</option>
+            <option value="show"${item.authStatus === "show" ? " selected" : ""}>Always show</option>
             <option value="hide-unauthenticated"${item.authStatus === "hide-unauthenticated" ? " selected" : ""}>Hide when signed out</option>
             <option value="hide-unauthorized"${item.authStatus === "hide-unauthorized" ? " selected" : ""}>Hide when unauthorized</option>
+            <option value="show-unauthenticated"${item.authStatus === "show-unauthenticated" ? " selected" : ""}>Show only when signed out</option>
           </select>
         </div>
       </div>
@@ -608,6 +632,22 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     return respondRow(appId, itemId, mode);
   });
 
+  app.post(`${API_BASE}/menu-editor/save-visibility`, async (event) => {
+    const f = await readFormBody(event);
+    const config = await store.loadConfig();
+    const appDef = getApp(config, f.appId);
+    if (!appDef) return jsonResponse({ error: "App not found" }, 404);
+    const found = locate(getMenu(appDef), f.itemId);
+    if (!found) return jsonResponse({ error: "Menu item not found" }, 404);
+    if (!["auto", "show", "show-unauthenticated", "hide-unauthenticated", "hide-unauthorized"].includes(f.authStatus)) {
+      return jsonResponse({ error: "Invalid visibility" }, 400);
+    }
+    found.item.authStatus = f.authStatus as MenuItem["authStatus"];
+    found.item.rolesAnyOf = [...new Set((f.rolesAnyOf ?? "").split(",").map(role => role.trim()).filter(Boolean))];
+    await store.saveConfig(config);
+    return respondEditor(f.appId);
+  });
+
   app.post(`${API_BASE}/menu-editor/save-title`, async (event) => {
     const f = await readFormBody(event);
     const config = await store.loadConfig();
@@ -642,8 +682,9 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       return htmlResponse(`<div class="alert alert-danger">Item not found</div>`, 200, "text/html; mode=fragment");
     }
     found.item.title = f.title || undefined;
+    found.item.rolesAnyOf = (f.rolesAnyOf ?? "").split(",").map(role => role.trim()).filter(Boolean);
     found.item.serviceStatus = f.serviceStatus === "hide" ? "hide" : "show";
-    found.item.authStatus = ["hide-unauthenticated", "hide-unauthorized"].includes(f.authStatus) ? f.authStatus as MenuItem["authStatus"] : "show";
+    found.item.authStatus = ["auto", "show", "hide-unauthenticated", "hide-unauthorized", "show-unauthenticated"].includes(f.authStatus) ? f.authStatus as MenuItem["authStatus"] : "auto";
 
     const route = (appDef.routes ?? []).find((r: any) => r.id === found.item.routeId);
     if (route) {
@@ -653,6 +694,9 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       if (f.targetPath !== undefined) route.targetPath = f.targetPath;
     }
 
+    if (found?.item.routeId && !getRoutes(appDef).some(route => route.id === found.item.routeId)) {
+      return jsonResponse({ error: "Route cannot be added to the menu" }, 400);
+    }
     appDef.menu = menu;
     await store.saveConfig(config);
     return respondRow(f.appId, f.itemId, "display").then((r) => {
@@ -708,8 +752,13 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const menu = getMenu(appDef);
     const found = locate(menu, f.itemId);
     if (found) {
+      found.item.rolesAnyOf = (f.rolesAnyOf ?? "").split(",").map(role => role.trim()).filter(Boolean);
+      found.item.authStatus = ["auto", "show", "hide-unauthenticated", "hide-unauthorized", "show-unauthenticated"].includes(f.authStatus) ? f.authStatus as MenuItem["authStatus"] : "auto";
       found.item.href = f.href || "";
       if (f.title !== undefined && f.title !== "") found.item.title = f.title;
+    }
+    if (found?.item.routeId && !getRoutes(appDef).some(route => route.id === found.item.routeId)) {
+      return jsonResponse({ error: "Route cannot be added to the menu" }, 400);
     }
     appDef.menu = menu;
     await store.saveConfig(config);
@@ -727,6 +776,9 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
 
+    if (f.routeId && !getRoutes(appDef).some(route => route.id === f.routeId)) {
+      return jsonResponse({ error: "Route cannot be added to the menu" }, 400);
+    }
     const type = (f.type as MenuItem["type"]) ?? "link";
     const newItem: MenuItem = {
       id: uuidv7(),

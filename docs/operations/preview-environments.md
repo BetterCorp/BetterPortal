@@ -203,3 +203,12 @@ encrypted:bp-aes256gcm-v1:{base64url 12-byte IV}:{base64url ciphertext || 16-byt
 - `scope` is `tenant` or `app`; `fieldPath` is the dot-joined AnyVali transform path.
 
 The config manager calls AnyVali `safeParseEncrypted` and treats sensitive contents as opaque. Each service calls AnyVali `decrypt` locally, validates the plaintext schema, and replaces its local preview config. Non-preview scoped config never includes `previewConfig`.
+
+## Menu visibility
+
+Generated PVE menus use the same **Automatic (route permissions)** default as
+normal apps: public pages are visible, authenticated pages require sign-in, and
+permission-restricted pages require the user's effective grants (including the
+preview group's configured role elevation). A service operation with `menu: false`
+remains mounted but is excluded from the generated menu on every reconciliation.
+Fragment configuration continues to inherit from the source app when cloned.

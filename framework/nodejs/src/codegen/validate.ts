@@ -93,6 +93,7 @@ const OPERATION_EXPORTS = [
   "role",
   "dependencies",
   "chrome",
+  "menu",
   "apiContracts",
   "cacheHints",
   "demoScenarios"

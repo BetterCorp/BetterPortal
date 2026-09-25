@@ -329,3 +329,13 @@ test("unknown-key passthrough fails and redundant stripping warns", () => {
   assert.equal(issues.some((issue) => issue.severity === "warning"
     && issue.message.includes('ResponseSchema with unknownKeys: "strip"')), true);
 });
+
+test("menu eligibility is authored on the method and retained in generated registry code", () => {
+  const route = scannedRoute();
+  route.methodModules[0].exports.push("menu");
+  const scan = scanResult(route);
+  assert.equal(validateScanResult(scan).some(issue => issue.severity === "error"), false);
+  assert.match(emitRegistry(scan), /menu: \w+\.menu/);
+  route.metadataExports.push("menu");
+  assert.equal(validateScanResult(scan).some(issue => issue.message.includes('metadata "menu" belongs in each method file')), true);
+});

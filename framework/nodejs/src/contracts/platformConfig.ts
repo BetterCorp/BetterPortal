@@ -137,8 +137,11 @@ export const BetterPortalRouteMountSchema = av.object({
   servicePathVariant: av.optional(NonEmptyStringSchema),
   /** Values supplied to service path params that are not present in the app path. */
   fixedParams: av.optional(av.record(av.string().minLength(1).maxLength(100))),
-  /** Manifest-derived SEO metadata injected by the control plane. */
+  /** Manifest-derived access metadata injected by the control plane. */
   authRequired: av.optional(av.bool()),
+  menuPermissions: av.optional(av.array(av.object({
+    serviceId: NonEmptyStringSchema, viewId: NonEmptyStringSchema, permissions: av.array(NonEmptyStringSchema)
+  }))),
   sitemap: av.optional(av.object({
     kind: av.enum_(["default", "exclude", "metadata", "provider"] as const),
     lastModified: av.optional(av.string().format("date-time")),
@@ -163,6 +166,7 @@ export const BetterPortalRouteMountSchema = av.object({
   enabled: av.bool().default(true),
   enablement: av.optional(av.enum_(["auto", "enabled", "disabled"] as const)),
   operations: av.array(NonEmptyStringSchema).minItems(1),
+  menu: av.optional(av.bool()),
   chrome: av.optional(BetterPortalRouteChromeSchema)
 });
 export type BetterPortalRouteMount = Infer<typeof BetterPortalRouteMountSchema>;
@@ -190,7 +194,8 @@ export interface BetterPortalMenuItem {
   href?: string;
   enabled: boolean;
   serviceStatus: "show" | "hide";
-  authStatus: "show" | "hide-unauthenticated" | "hide-unauthorized";
+  authStatus: "auto" | "show" | "hide-unauthenticated" | "hide-unauthorized" | "show-unauthenticated";
+  rolesAnyOf?: string[];
   defaultExpanded?: boolean;
   children: BetterPortalMenuItem[];
 }
@@ -227,7 +232,8 @@ function menuItemSchema(depth: number): BaseSchema<unknown, BetterPortalMenuItem
     href: av.optional(av.string()),
     enabled: av.bool().default(true),
     serviceStatus: av.enum_(["show", "hide"] as const).default("show"),
-    authStatus: av.enum_(["show", "hide-unauthenticated", "hide-unauthorized"] as const).default("show"),
+    authStatus: av.enum_(["auto", "show", "hide-unauthenticated", "hide-unauthorized", "show-unauthenticated"] as const).default("auto"),
+    rolesAnyOf: av.optional(av.array(NonEmptyStringSchema)),
     defaultExpanded: av.optional(av.bool()),
     children: av.array(child).default([])
   }) as unknown as BaseSchema<unknown, BetterPortalMenuItem>;
@@ -442,6 +448,7 @@ export const ServiceManifestCacheEntrySchema = av.object({
         access: av.enum_(["allow", "disallow"] as const),
         crawlDelaySeconds: av.optional(av.int().min(0).max(86400))
       })).default([]),
+      menu: av.optional(av.bool()),
       chrome: av.optional(BetterPortalRouteChromeSchema),
       dependencies: av.array(OperationDependencySchema).default([]),
       permissions: av.array(av.object({

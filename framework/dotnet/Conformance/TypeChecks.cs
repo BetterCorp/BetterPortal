@@ -58,6 +58,16 @@ internal static class TypeChecks
         var prepared = handler.Prepare(context, inputs);
         var payload = new { @params = prepared.Params, query = prepared.Query, headers = prepared.Headers, request = prepared.Request };
         Check(Json.Write(Contracts.Parse(Contracts.Import(handler.InputDocument), payload)) == Json.Write(payload), "Handler type document differs from parsed inputs");
+        foreach (var menu in new[] { false, true })
+        {
+            var registry = new Registry([new BetterPortal.Route("menu", "/menu", [new Operation(handler,
+                new OperationDeclarationInput { OperationId = "menu.get", Method = HttpMethodInput.GET,
+                    Title = "Menu", Description = "Menu", Auth = new ApiAuthRequirementInput(), Menu = menu })])]);
+            var manifest = registry.Manifest(new ManifestDeclarationInput { PluginId = "org.example.menu", Title = "Menu", Description = "Menu", Version = "1.0.0" });
+            var submission = ControlPlaneSync.BuildSubmission(manifest);
+            using var operation = JsonDocument.Parse(Json.Write(submission.ViewIndex["menu"].Operations[0]));
+            Check(operation.RootElement.GetProperty("menu").GetBoolean() == menu, "Menu policy must survive native manifest submission");
+        }
         Console.WriteLine("Native C# generated types: defaults, presence, recursion, unions and open mappings passed");
     }
 }

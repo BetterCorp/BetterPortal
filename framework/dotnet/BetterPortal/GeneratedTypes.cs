@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: aa1a71231bc1bbf3ddd66309ca242e7af25f71324c593198e938525783d071dc
+// Generated from AnyVali documents; do not edit. SHA256: f27bc9c708270d4cf89ff66042a0c9e8e4d4dc11c0761874601d44cf0173ab99
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -1023,6 +1023,9 @@ public sealed record BetterPortalMenuItem
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1033,12 +1036,16 @@ public sealed record BetterPortalMenuItem
 [JsonConverter(typeof(JsonStringEnumConverter<BetterPortalMenuItemAuthStatus>))]
 public enum BetterPortalMenuItemAuthStatus
 {
+    [JsonStringEnumMemberName("auto")]
+    Auto,
     [JsonStringEnumMemberName("show")]
     Show,
     [JsonStringEnumMemberName("hide-unauthenticated")]
     HideUnauthenticated,
     [JsonStringEnumMemberName("hide-unauthorized")]
     HideUnauthorized,
+    [JsonStringEnumMemberName("show-unauthenticated")]
+    ShowUnauthenticated,
 }
 
 public sealed record BetterPortalMenuItemChildrenItem
@@ -1065,6 +1072,9 @@ public sealed record BetterPortalMenuItemChildrenItem
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1096,6 +1106,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItem
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1127,6 +1140,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItem
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1158,6 +1174,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1189,6 +1208,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1220,6 +1242,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1251,6 +1276,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1282,6 +1310,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1313,6 +1344,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1344,6 +1378,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1375,6 +1412,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1406,6 +1446,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1437,6 +1480,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1468,6 +1514,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1499,6 +1548,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1530,6 +1582,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1561,6 +1616,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1592,6 +1650,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1623,6 +1684,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1654,6 +1718,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1685,6 +1752,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1716,6 +1786,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1747,6 +1820,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1778,6 +1854,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1809,6 +1888,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1840,6 +1922,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1871,6 +1956,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1902,6 +1990,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1933,6 +2024,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1964,6 +2058,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -1995,6 +2092,9 @@ public sealed record BetterPortalMenuItemChildrenItemChildrenItemChildrenItemChi
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2030,6 +2130,9 @@ public sealed record BetterPortalMenuItemInput
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2041,12 +2144,16 @@ public sealed record BetterPortalMenuItemInput
 [JsonConverter(typeof(JsonStringEnumConverter<BetterPortalMenuItemInputAuthStatus>))]
 public enum BetterPortalMenuItemInputAuthStatus
 {
+    [JsonStringEnumMemberName("auto")]
+    Auto,
     [JsonStringEnumMemberName("show")]
     Show,
     [JsonStringEnumMemberName("hide-unauthenticated")]
     HideUnauthenticated,
     [JsonStringEnumMemberName("hide-unauthorized")]
     HideUnauthorized,
+    [JsonStringEnumMemberName("show-unauthenticated")]
+    ShowUnauthenticated,
 }
 
 public sealed record BetterPortalMenuItemInputChildrenItem
@@ -2077,6 +2184,9 @@ public sealed record BetterPortalMenuItemInputChildrenItem
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2113,6 +2223,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItem
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2149,6 +2262,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2185,6 +2301,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2221,6 +2340,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2257,6 +2379,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2293,6 +2418,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2329,6 +2457,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2365,6 +2496,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2401,6 +2535,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2437,6 +2574,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2473,6 +2613,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2509,6 +2652,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2545,6 +2691,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2581,6 +2730,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2617,6 +2769,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2653,6 +2808,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2689,6 +2847,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2725,6 +2886,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2761,6 +2925,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2797,6 +2964,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2833,6 +3003,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2869,6 +3042,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2905,6 +3081,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2941,6 +3120,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -2977,6 +3159,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -3013,6 +3198,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -3049,6 +3237,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -3085,6 +3276,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -3121,6 +3315,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -3157,6 +3354,9 @@ public sealed record BetterPortalMenuItemInputChildrenItemChildrenItemChildrenIt
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -3414,6 +3614,9 @@ public sealed record BetterPortalRouteMount
     [JsonPropertyName("authRequired")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AuthRequired { get; init; }
+    [JsonPropertyName("menuPermissions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<BetterPortalRouteMountMenuPermissionsItem>> MenuPermissions { get; init; }
     [JsonPropertyName("sitemap")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteMountSitemap> Sitemap { get; init; }
@@ -3445,6 +3648,9 @@ public sealed record BetterPortalRouteMount
     public Optional<BetterPortalRouteMountEnablement> Enablement { get; init; }
     [JsonPropertyName("operations")]
     public required IReadOnlyList<string> Operations { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChrome> Chrome { get; init; }
@@ -3483,6 +3689,9 @@ public sealed record BetterPortalRouteMountInput
     [JsonPropertyName("authRequired")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AuthRequired { get; init; }
+    [JsonPropertyName("menuPermissions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<BetterPortalRouteMountInputMenuPermissionsItem>> MenuPermissions { get; init; }
     [JsonPropertyName("sitemap")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteMountInputSitemap> Sitemap { get; init; }
@@ -3515,6 +3724,9 @@ public sealed record BetterPortalRouteMountInput
     public Optional<BetterPortalRouteMountInputEnablement> Enablement { get; init; }
     [JsonPropertyName("operations")]
     public required IReadOnlyList<string> Operations { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChromeInput> Chrome { get; init; }
@@ -3538,6 +3750,16 @@ public enum BetterPortalRouteMountInputKind
     Page,
     [JsonStringEnumMemberName("api")]
     Api,
+}
+
+public sealed record BetterPortalRouteMountInputMenuPermissionsItem
+{
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("permissions")]
+    public required IReadOnlyList<string> Permissions { get; init; }
 }
 
 public sealed record BetterPortalRouteMountInputRobotsItem
@@ -3614,6 +3836,16 @@ public enum BetterPortalRouteMountKind
     Page,
     [JsonStringEnumMemberName("api")]
     Api,
+}
+
+public sealed record BetterPortalRouteMountMenuPermissionsItem
+{
+    [JsonPropertyName("serviceId")]
+    public required string ServiceId { get; init; }
+    [JsonPropertyName("viewId")]
+    public required string ViewId { get; init; }
+    [JsonPropertyName("permissions")]
+    public required IReadOnlyList<string> Permissions { get; init; }
 }
 
 public sealed record BetterPortalRouteMountRobotsItem
@@ -5052,6 +5284,9 @@ public sealed record ControlPlaneSubmissionInputViewIndexItemOperationsItem
     [JsonPropertyName("robots")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<BetterPortalRouteMountInputRobotsItem>> Robots { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChromeInput> Chrome { get; init; }
@@ -5167,6 +5402,9 @@ public sealed record ControlPlaneSubmissionViewIndexItemOperationsItem
     public Optional<BetterPortalRouteMountSitemap> Sitemap { get; init; }
     [JsonPropertyName("robots")]
     public required IReadOnlyList<BetterPortalRouteMountRobotsItem> Robots { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChrome> Chrome { get; init; }
@@ -6414,6 +6652,9 @@ public sealed record OperationDeclaration
     public Optional<string> Role { get; init; }
     [JsonPropertyName("dependencies")]
     public required IReadOnlyList<OperationDependency> Dependencies { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChrome> Chrome { get; init; }
@@ -6476,6 +6717,9 @@ public sealed record OperationDeclarationInput
     [JsonPropertyName("dependencies")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<OperationDependencyInput>> Dependencies { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChromeInput> Chrome { get; init; }
@@ -7765,6 +8009,9 @@ public sealed record ScopedAppInputMenuItem
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -7801,6 +8048,9 @@ public sealed record ScopedAppInputMenuItemChildrenItem
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -7837,6 +8087,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItem
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -7873,6 +8126,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItem
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -7909,6 +8165,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -7945,6 +8204,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -7981,6 +8243,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8017,6 +8282,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8053,6 +8321,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8089,6 +8360,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8125,6 +8399,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8161,6 +8438,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8197,6 +8477,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8233,6 +8516,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8269,6 +8555,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8305,6 +8594,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8341,6 +8633,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8377,6 +8672,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8413,6 +8711,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8449,6 +8750,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8485,6 +8789,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8521,6 +8828,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8557,6 +8867,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8593,6 +8906,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8629,6 +8945,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8665,6 +8984,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8701,6 +9023,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8737,6 +9062,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8773,6 +9101,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8809,6 +9140,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8845,6 +9179,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8881,6 +9218,9 @@ public sealed record ScopedAppInputMenuItemChildrenItemChildrenItemChildrenItemC
     [JsonPropertyName("authStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalMenuItemInputAuthStatus> AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -8911,6 +9251,9 @@ public sealed record ScopedAppInputRoutesItem
     [JsonPropertyName("authRequired")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AuthRequired { get; init; }
+    [JsonPropertyName("menuPermissions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<BetterPortalRouteMountInputMenuPermissionsItem>> MenuPermissions { get; init; }
     [JsonPropertyName("sitemap")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedAppInputRoutesItemSitemap> Sitemap { get; init; }
@@ -8943,6 +9286,9 @@ public sealed record ScopedAppInputRoutesItem
     public Optional<BetterPortalRouteMountInputEnablement> Enablement { get; init; }
     [JsonPropertyName("operations")]
     public required IReadOnlyList<string> Operations { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedAppInputRoutesItemChromeFields> Chrome { get; init; }
@@ -9142,6 +9488,9 @@ public sealed record ScopedAppMenuItem
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9173,6 +9522,9 @@ public sealed record ScopedAppMenuItemChildrenItem
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9204,6 +9556,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItem
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9235,6 +9590,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItem
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9266,6 +9624,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9297,6 +9658,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9328,6 +9692,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9359,6 +9726,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9390,6 +9760,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9421,6 +9794,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9452,6 +9828,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9483,6 +9862,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9514,6 +9896,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9545,6 +9930,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9576,6 +9964,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9607,6 +9998,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9638,6 +10032,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9669,6 +10066,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9700,6 +10100,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9731,6 +10134,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9762,6 +10168,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9793,6 +10202,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9824,6 +10236,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9855,6 +10270,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9886,6 +10304,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9917,6 +10338,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9948,6 +10372,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -9979,6 +10406,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -10010,6 +10440,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -10041,6 +10474,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -10072,6 +10508,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -10103,6 +10542,9 @@ public sealed record ScopedAppMenuItemChildrenItemChildrenItemChildrenItemChildr
     public required BetterPortalMenuItemServiceStatus ServiceStatus { get; init; }
     [JsonPropertyName("authStatus")]
     public required BetterPortalMenuItemAuthStatus AuthStatus { get; init; }
+    [JsonPropertyName("rolesAnyOf")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> RolesAnyOf { get; init; }
     [JsonPropertyName("defaultExpanded")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> DefaultExpanded { get; init; }
@@ -10131,6 +10573,9 @@ public sealed record ScopedAppRoutesItem
     [JsonPropertyName("authRequired")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> AuthRequired { get; init; }
+    [JsonPropertyName("menuPermissions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<BetterPortalRouteMountMenuPermissionsItem>> MenuPermissions { get; init; }
     [JsonPropertyName("sitemap")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedAppRoutesItemSitemap> Sitemap { get; init; }
@@ -10162,6 +10607,9 @@ public sealed record ScopedAppRoutesItem
     public Optional<BetterPortalRouteMountEnablement> Enablement { get; init; }
     [JsonPropertyName("operations")]
     public required IReadOnlyList<string> Operations { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ScopedAppRoutesItemChromeFields> Chrome { get; init; }
@@ -11407,6 +11855,9 @@ public sealed record ServiceManifestCacheEntryInputViewIndexItemOperationsItem
     [JsonPropertyName("robots")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<BetterPortalRouteMountInputRobotsItem>> Robots { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChromeInput> Chrome { get; init; }
@@ -11496,6 +11947,9 @@ public sealed record ServiceManifestCacheEntryViewIndexItemOperationsItem
     public Optional<BetterPortalRouteMountSitemap> Sitemap { get; init; }
     [JsonPropertyName("robots")]
     public required IReadOnlyList<BetterPortalRouteMountRobotsItem> Robots { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChrome> Chrome { get; init; }
@@ -12533,6 +12987,9 @@ public sealed record ViewOperationMetadata
     public Optional<string> Role { get; init; }
     [JsonPropertyName("dependencies")]
     public required IReadOnlyList<OperationDependency> Dependencies { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChrome> Chrome { get; init; }
@@ -12589,6 +13046,9 @@ public sealed record ViewOperationMetadataInput
     [JsonPropertyName("dependencies")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<OperationDependencyInput>> Dependencies { get; init; }
+    [JsonPropertyName("menu")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Menu { get; init; }
     [JsonPropertyName("chrome")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<BetterPortalRouteChromeInput> Chrome { get; init; }

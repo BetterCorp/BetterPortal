@@ -106,6 +106,7 @@ export const ViewOperationMetadataSchema = av.object({
   })).default([]),
   role: av.optional(ViewRoleSchema),
   dependencies: av.array(OperationDependencySchema).default([]),
+  menu: av.optional(av.bool()),
   chrome: av.optional(BetterPortalRouteChromeSchema),
   apiContracts: av.array(ApiContractDescriptorSchema).default([]),
   demoScenarios: av.array(ViewDemoScenarioSchema).default([]),

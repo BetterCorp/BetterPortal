@@ -195,7 +195,7 @@ function emitMethodRoutes(route: ScannedRoute): string {
       `demoScenarios: ${module.exports.includes("demoScenarios") ? `${alias}.demoScenarios` : "[]"}`,
     ];
     if (module.isRaw) props.push("raw: true");
-    for (const metadata of ["sitemap", "robots", "role", "chrome", "apiContracts"] as const) {
+    for (const metadata of ["sitemap", "robots", "role", "chrome", "menu", "apiContracts"] as const) {
       if (module.exports.includes(metadata)) props.push(`${metadata}: ${alias}.${metadata}`);
     }
     if (module.exports.includes("dependencies")) props.push(`dependencies: ${alias}.dependencies`);
