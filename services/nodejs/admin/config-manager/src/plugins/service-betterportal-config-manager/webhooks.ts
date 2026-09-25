@@ -145,11 +145,22 @@ export function registerWebhookRoutes(
   owner = "single"
 ): { start(): void; stop(): void; drain(): Promise<void> } {
   const memoryQueue: DeliveryRecord[] = [];
+  // Keep bounded delivery IDs after successful drain, matching PostgreSQL's
+  // seven-day deduplication window without retaining delivered payloads.
+  const accepted = new Map<string, number>();
   let timer: ReturnType<typeof setInterval> | undefined;
   let draining: Promise<void> | undefined;
   const enqueue = async (records: DeliveryRecord[]) => {
-    if (postgres) await postgres.enqueueWebhookDeliveries(records);
-    else memoryQueue.push(...records.filter((record) => !memoryQueue.some((queued) => queued.id === record.id)));
+    if (postgres) { await postgres.enqueueWebhookDeliveries(records); return true; }
+    const now = Date.now();
+    const pending = new Set(memoryQueue.map(record => record.id));
+    for (const [id, expires] of accepted) if (expires <= now && !pending.has(id)) accepted.delete(id);
+    const fresh = records.filter(record => !accepted.has(record.id));
+    // Fail closed instead of evicting recent keys and permitting duplicate delivery.
+    if (accepted.size + fresh.length > 10_000) return false;
+    for (const record of fresh) accepted.set(record.id, now + 7 * 24 * 60 * 60 * 1000);
+    memoryQueue.push(...fresh);
+    return true;
   };
   const drain = () => draining ??= processDeliveries(store, postgres, owner, memoryQueue).finally(() => { draining = undefined; });
 
@@ -357,7 +368,7 @@ export function registerWebhookRoutes(
       createdAt,
       status: "pending"
     }));
-    await enqueue(records);
+    if (!await enqueue(records)) return jsonResponse({ error: "Webhook queue is at capacity" }, 503);
     obs?.logger.info("BP WEBHOOK: queued service={serviceId} event={eventId} tenant={tenantId} app={appId} targets={targets}", {
       serviceId: validated.serviceId,
       eventId,

@@ -10,6 +10,7 @@ import { BetterPortalConfigSchema } from "../nodejs/lib/contracts/platformConfig
 import { FileStorage } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/storage/file.js";
 import { hashApiKey } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/storage/core.js";
 import { registerSyncEndpoint } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/syncApi.js";
+import { registerWebhookRoutes } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/webhooks.js";
 import { registerSetupEndpoints } from "../../services/nodejs/admin/config-manager/lib/plugins/service-betterportal-config-manager/setupTokens.js";
 import { generateKeyPair, publicKeyToJwk } from "../nodejs/lib/runtime/auth/keypair.js";
 
@@ -25,6 +26,7 @@ export async function syncPeer(body) {
       await store.saveConfig(config);
       const app = createBetterPortalApp();
       registerSyncEndpoint(app, store);
+      registerWebhookRoutes(app, store);
       const calls = [];
       const handler = toNodeHandler(app);
       const server = createServer((request, response) => {
@@ -33,6 +35,22 @@ export async function syncPeer(body) {
       });
       await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
       const url = `http://127.0.0.1:${server.address().port}`;
+      if (body.shell) {
+        const { renderBootstrap1HostPage } = await import("../../themes/nodejs/bootstrap1/lib/plugins/service-betterportal-theme-bootstrap1/shell/index.js");
+        const { loadBootstrap1Asset } = await import("../../themes/nodejs/bootstrap1/lib/plugins/service-betterportal-theme-bootstrap1/assets.js");
+        config.apps[0].hostnames = [url];
+        await store.saveConfig(config);
+        app.get("/hello", () => new Response(renderBootstrap1HostPage({
+          title: "Python deployment", brandName: "Local BP", themeMode: "light", themeConfig: config.apps[0].themeConfig,
+          assetBaseUrl: "/_themes/bootstrap1/assets", currentPath: "/hello", initialRouteUrl: body.serviceUrl + "/hello",
+          initialServiceId: config.tenants[0].services[0].id, tenantId: config.tenants[0].id, appId: config.apps[0].id,
+          routeLinks: [], serviceOrigins: { [config.tenants[0].services[0].id]: body.serviceUrl }
+        }), { headers: { "content-type": "text/html" } }));
+        app.get("/_themes/bootstrap1/assets/**", async event => {
+          const asset = await loadBootstrap1Asset(new URL(event.req.url).pathname.split("/assets/")[1]);
+          return asset ? new Response(asset.body, { headers: { "content-type": asset.contentType } }) : new Response(null, { status: 404 });
+        });
+      }
       if (body.setup) {
         const keyPair = generateKeyPair();
         const jwk = publicKeyToJwk(keyPair.publicKeyPem, keyPair.kid);
