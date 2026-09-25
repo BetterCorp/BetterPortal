@@ -1228,6 +1228,7 @@ export abstract class BPService<
             authRequired: operation.auth.required,
             ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
             robots: [...operation.robots],
+            ...(operation.menu !== undefined ? { menu: operation.menu } : {}),
             ...(operation.chrome ? { chrome: operation.chrome } : {}),
             dependencies: [...operation.dependencies],
             permissions: operation.auth.permissions,

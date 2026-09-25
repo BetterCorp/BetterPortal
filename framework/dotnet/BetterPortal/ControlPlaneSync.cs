@@ -64,7 +64,7 @@ public sealed class ControlPlaneSync : IAsyncDisposable
                 item["authRequired"] = ((Node)operation["auth"]!)["required"]; item["permissions"] = ((Node)operation["auth"]!)["permissions"];
                 item["schemas"] = new[] { ("query", "querySchema"), ("headers", "headersSchema"), ("request", "bodySchema"), ("response", "jsonResponseSchema"), ("metadataResponse", "metadataResponseSchema") }
                     .ToDictionary(pair => pair.Item1, pair => operation[pair.Item2]);
-                foreach (var key in new[] { "role", "sitemap", "chrome", "raw" }) if (operation.TryGetValue(key, out var extra)) item[key] = extra;
+                foreach (var key in new[] { "role", "sitemap", "chrome", "menu", "raw" }) if (operation.TryGetValue(key, out var extra)) item[key] = extra;
                 operations.Add(item);
                 foreach (var theme in renderers.Values.Cast<Node>())
                     foreach (var renderer in ((List<object?>)theme["renderers"]!).Cast<Node>())

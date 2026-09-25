@@ -1,3 +1,4 @@
+import { PluginManifestSchema, ServiceManifestCacheEntrySchema } from "@betterportal/framework";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
@@ -81,4 +82,27 @@ test("disposal while a manifest submission is pending cannot open a stream", asy
   assert.equal(await pending, false);
   assert.equal(requests, 1);
   assert.equal(service.scopedConfig, undefined);
+});
+
+test("poll submission preserves false, true, and omitted operation menu policy", async t => {
+  const service = serviceFixture();
+  t.after(() => service.dispose());
+  service.manifest = PluginManifestSchema.parse({ protocolVersion: 2, pluginId: "org.example.test", title: "Menu", description: "Menu", version: "1.0.0", category: "service", deploymentModes: ["self-hosted"], views: [{
+    viewId: "menu", title: "Menu", description: "Menu", path: "/menu", paramsSchema: {}, operations: [false, true, undefined].map((menu, index) => ({
+      operationId: `menu.${index}`, method: ["GET", "POST", "PUT"][index], title: "Menu", description: "Menu", querySchema: {}, headersSchema: {}, bodySchema: {}, jsonResponseSchema: {}, metadataResponseSchema: {}, html: {}, auth: {}, cacheHints: {}, ...(menu !== undefined ? { menu } : {})
+    }))
+  }] });
+  let payload: any;
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    if (init.method === "POST") {
+      payload = ServiceManifestCacheEntrySchema.parse({ ...JSON.parse(String(init.body)), serviceId: "org.example.test", fetchedAt: new Date().toISOString() });
+      return Response.json({ tenants: [], apps: [], managementOrigins: [] });
+    }
+    return new Response(new ReadableStream({ start(controller) {
+      init.signal?.addEventListener("abort", () => controller.error(new DOMException("Disposed", "AbortError")), { once: true });
+    } }));
+  });
+  assert.equal(await service.connectToControlPlane(obs), true);
+  assert.deepEqual(payload.viewIndex.menu.operations.map((operation: { menu?: boolean }) => operation.menu), [false, true, undefined]);
+  assert.equal(Object.hasOwn(payload.viewIndex.menu.operations[2], "menu"), false);
 });
