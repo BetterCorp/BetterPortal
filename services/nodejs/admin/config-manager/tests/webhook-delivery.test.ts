@@ -91,7 +91,12 @@ test("webhook publication enforces credential tenant scope and streamed body lim
   assert.equal((await publish(event(), "platform")).status, 400);
   assert.equal(deliveries, 3);
   const limit = 1024 * 1024;
-  assert.equal((await publish(event(), "tenant", { "content-length": String(limit + 1) })).status, 413);
+  for (const [length, status] of [[String(limit + 1), 413], ["invalid", 400]] as const) {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({ cancel() { cancelled = true; } });
+    assert.equal((await publish(stream, "tenant", { "content-length": length })).status, status);
+    assert.ok(cancelled, "declared-oversize or malformed length must cancel the unread body");
+  }
   for (const headers of [{}, { "content-length": "1" }]) {
     let cancelled = false;
     let chunks = 0;

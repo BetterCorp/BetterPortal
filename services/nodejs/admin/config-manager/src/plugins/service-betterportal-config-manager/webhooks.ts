@@ -34,9 +34,11 @@ const MAX_EVENT_BYTES = 1024 * 1024;
 
 async function readEventJson(event: BetterPortalEvent): Promise<Record<string, unknown> | Response> {
   const length = event.req.headers.get("content-length");
-  if (length !== null) {
-    if (!/^[0-9]+$/.test(length)) return jsonResponse({ error: "Invalid Content-Length" }, 400);
-    if (Number(length) > MAX_EVENT_BYTES) return jsonResponse({ error: "Webhook payload exceeds 1 MiB" }, 413);
+  if (length !== null && (!/^[0-9]+$/.test(length) || Number(length) > MAX_EVENT_BYTES)) {
+    void event.req.body?.cancel().catch(() => undefined);
+    return /^[0-9]+$/.test(length)
+      ? jsonResponse({ error: "Webhook payload exceeds 1 MiB" }, 413)
+      : jsonResponse({ error: "Invalid Content-Length" }, 400);
   }
   const reader = event.req.body?.getReader();
   if (!reader) return jsonResponse({ error: "JSON object required" }, 400);
