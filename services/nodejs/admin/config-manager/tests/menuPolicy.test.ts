@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BetterPortalConfigSchema, ScopedServiceConfigSchema, createBetterPortalApp, uuidv7 } from "@betterportal/framework";
+import { BetterPortalConfigSchema, ScopedServiceConfigSchema, menuItemVisible, createBetterPortalApp, uuidv7 } from "@betterportal/framework";
 import { getManifestCache, injectResolvedServicePaths, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { registerMenuEditorRoutes } from "../src/plugins/service-betterportal-config-manager/menuEditor.js";
 import { isMenuRouteExcluded } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
@@ -96,4 +96,32 @@ test("scoped config carries authoritative menu requirements and updates them on 
     assert.equal(updated.menu, true);
     assert.deepEqual(updated.menuPermissions, []);
   } finally { getManifestCache().delete(serviceId); }
+});
+
+
+test("theme scopes include only activated enabled platform aliases and never service credentials", async () => {
+  const { BaseStorage } = await import("../src/plugins/service-betterportal-config-manager/storage/core.js");
+  const tenantId = uuidv7(), appId = uuidv7(), shellId = uuidv7(), platformId = uuidv7(), disabledId = uuidv7(), otherId = uuidv7();
+  const createdAt = new Date().toISOString();
+  const config = BetterPortalConfigSchema.parse({
+    platformServices: [platformId, disabledId, otherId].map((id, index) => ({ id, title: "Platform", serviceId: `org.example.platform${index}`, hostname: `https://platform${index}.test`, apiKeyHash: "DO-NOT-SYNC", enabled: id !== disabledId, createdAt })),
+    tenants: [{ id: tenantId, slug: "tenant", title: "Tenant", branding: {}, activatedPlatformServices: [platformId, disabledId], services: [
+      { id: shellId, serviceId: "org.example.shell", hostname: "https://shell.test", apiKeyHash: "DO-NOT-SYNC", createdAt }
+    ] }], apps: [{ id: appId, tenantId, slug: "app", title: "App", hostnames: ["app.test"], shell: { serviceId: shellId } }]
+  });
+  class Store extends BaseStorage {
+    async loadConfig() { return config; }
+    async saveConfig() {}
+  }
+  const scoped = await new Store().getScopedConfig(shellId, "tenant", tenantId);
+  const services = scoped.tenants[0].services;
+  const aliases = Object.fromEntries(services.map(service => [service.id, service.serviceId ?? service.id]));
+  assert.equal(aliases[platformId], "org.example.platform0");
+  assert.equal(aliases[disabledId], undefined);
+  assert.equal(aliases[otherId], undefined);
+  assert.equal(services.find(service => service.id === platformId)?.source, "platform");
+  assert.ok(!JSON.stringify(scoped).includes("DO-NOT-SYNC"));
+  const route = { id: routeId, kind: "page" as const, path: "/platform", serviceId: platformId, viewId: "platform", enabled: true, operations: ["platform.get"], authRequired: true,
+    menuPermissions: [{ serviceId: "org.example.platform0", viewId: "platform", permissions: ["read"] }] };
+  assert.equal(menuItemVisible({ authStatus: "auto" }, route, { status: "authenticated", permissions: [{ serviceId: platformId, viewId: "platform", permissions: ["read"] }] }, aliases), true);
 });

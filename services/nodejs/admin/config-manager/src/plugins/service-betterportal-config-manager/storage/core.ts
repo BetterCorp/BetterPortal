@@ -991,6 +991,9 @@ export abstract class BaseStorage implements PlatformConfigStore {
   }
 
   private scopeTenant(tenant: BetterPortalTenant, config?: BetterPortalConfig): ScopedTenant {
+    const platformServices = (config?.platformServices ?? [])
+      .filter(service => service.enabled && tenant.activatedPlatformServices.includes(service.id))
+      .map(({ apiKeyHash: _hash, ...service }) => ({ ...service, source: "platform" as const, deploymentMode: "bp-hosted" as const }));
     const sharedServices = (config?.sharedServiceActivations ?? [])
       .filter((activation) => activation.enabled && activation.tenantId === tenant.id)
       .map((activation) => {
@@ -1024,7 +1027,8 @@ export abstract class BaseStorage implements PlatformConfigStore {
       // apiKeyHash redacted - services know their own key, others have no need.
       services: [
         ...tenant.services.map(({ apiKeyHash: _hash, ...rest }) => ({ ...rest, source: "tenant" as const })),
-        ...sharedServices
+        ...sharedServices,
+        ...platformServices
       ],
       activatedPlatformServices: tenant.activatedPlatformServices
     };
