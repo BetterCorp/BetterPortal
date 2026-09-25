@@ -30,6 +30,38 @@ async function readJson(event: BetterPortalEvent): Promise<Record<string, unknow
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
 }
 
+const MAX_EVENT_BYTES = 1024 * 1024;
+
+async function readEventJson(event: BetterPortalEvent): Promise<Record<string, unknown> | Response> {
+  const length = event.req.headers.get("content-length");
+  if (length !== null) {
+    if (!/^[0-9]+$/.test(length)) return jsonResponse({ error: "Invalid Content-Length" }, 400);
+    if (Number(length) > MAX_EVENT_BYTES) return jsonResponse({ error: "Webhook payload exceeds 1 MiB" }, 413);
+  }
+  const reader = event.req.body?.getReader();
+  if (!reader) return jsonResponse({ error: "JSON object required" }, 400);
+  // Bound memory even when Content-Length is absent or dishonest, including
+  // streams made of arbitrarily many tiny chunks.
+  const buffer = new Uint8Array(MAX_EVENT_BYTES);
+  let used = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > MAX_EVENT_BYTES - used) {
+        void reader.cancel().catch(() => undefined);
+        return jsonResponse({ error: "Webhook payload exceeds 1 MiB" }, 413);
+      }
+      buffer.set(value, used);
+      used += value.byteLength;
+    }
+    const parsed: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, used)));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+  } catch { /* Do not expose parser or transport details. */ }
+  finally { reader.releaseLock(); }
+  return jsonResponse({ error: "JSON object required" }, 400);
+}
+
 function stringValue(body: Record<string, unknown>, key: string): string | undefined {
   const value = body[key];
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -355,9 +387,14 @@ export function registerWebhookRoutes(
     const validated = await store.validateApiKey(apiKey);
     if (!validated?.serviceId) return jsonResponse({ error: "Invalid service token" }, 403);
 
-    const body = await readJson(event);
+    const body = await readEventJson(event);
+    if (body instanceof Response) return body;
     const eventId = stringValue(body, "eventId");
-    const tenantId = stringValue(body, "tenantId") ?? validated.tenantId;
+    const requestedTenant = stringValue(body, "tenantId");
+    if (validated.scope !== "platform" && (!validated.tenantId || (requestedTenant !== undefined && requestedTenant !== validated.tenantId))) {
+      return jsonResponse({ error: "Tenant scope mismatch" }, 403);
+    }
+    const tenantId = validated.scope === "platform" ? requestedTenant : validated.tenantId;
     const appId = stringValue(body, "appId");
     const idempotencyKey = event.req.headers.get("idempotency-key")?.trim() || stringValue(body, "idempotencyKey");
     if (!eventId || !tenantId) return jsonResponse({ error: "eventId and tenantId are required" }, 400);

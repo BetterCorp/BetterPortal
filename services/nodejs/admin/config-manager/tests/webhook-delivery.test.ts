@@ -14,7 +14,7 @@ test("in-memory webhook idempotency survives successful delivery and rejects rev
   t.mock.method(globalThis, "fetch", async () => { deliveries++; return new Response(null, { status: 204 }); });
   const app = new H3();
   registerWebhookRoutes(app, {
-    validateApiKey: async () => revoked ? null : { serviceId, tenantId: "tenant" },
+    validateApiKey: async () => revoked ? null : { scope: "tenant", serviceId, tenantId: "tenant" },
     loadConfig: async () => ({ tenants: [{ id: "tenant", active: true }], webhooks: { targets: [{ id: "target", serviceId, eventId: "changed", tenantId: "tenant", enabled: true, secret: "test-only", url: "https://webhook.test", maxAttempts: 3 }] } })
   } as never);
   const publish = (key: string) => app.fetch(new Request("http://cp.test/.well-known/bp/webhooks/events", {
@@ -42,7 +42,7 @@ test("webhook capacity and seven-day deduplication are isolated per publisher", 
   let targets = Array.from({ length: 10_000 }, (_, i) => target(`target-${i}`, services[0]));
   const app = new H3();
   registerWebhookRoutes(app, {
-    validateApiKey: async (key: string) => ({ serviceId: key, tenantId: "tenant" }),
+    validateApiKey: async (key: string) => ({ scope: "tenant", serviceId: key, tenantId: "tenant" }),
     loadConfig: async () => ({ tenants: [{ id: "tenant", active: true }], webhooks: { targets } })
   } as never);
   const publish = (serviceId: string, key: string) => app.fetch(new Request("http://cp.test/.well-known/bp/webhooks/events", {
@@ -61,4 +61,52 @@ test("webhook capacity and seven-day deduplication are isolated per publisher", 
   t.mock.method(Date, "now", () => later);
   assert.equal((await publish(services[0], "two")).status, 202);
   assert.equal(deliveries, 10_002);
+});
+
+test("webhook publication enforces credential tenant scope and streamed body limits", async (t) => {
+  const serviceId = "scoped-source";
+  const cache = getManifestCache();
+  cache.set(serviceId, { webhooks: [{ id: "changed" }] } as never);
+  t.after(() => cache.delete(serviceId));
+  let deliveries = 0;
+  t.mock.method(globalThis, "fetch", async () => { deliveries++; return new Response(null, { status: 204 }); });
+  const app = new H3();
+  registerWebhookRoutes(app, {
+    validateApiKey: async (key: string) => key === "platform" ? { scope: "platform", serviceId } : { scope: "tenant", serviceId, tenantId: "a" },
+    loadConfig: async () => ({ tenants: [{ id: "a", active: true }, { id: "b", active: true }], webhooks: { targets: ["a", "b"].map(tenantId => ({
+      id: `target-${tenantId}`, tenantId, serviceId, eventId: "changed", enabled: true, secret: "test-only", url: "https://webhook.test", maxAttempts: 1
+    })) } })
+  } as never);
+  let sequence = 0;
+  const publish = (body: string | ReadableStream<Uint8Array>, key = "tenant", extra: Record<string, string> = {}) => app.fetch(new Request("http://cp.test/.well-known/bp/webhooks/events", {
+    method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "idempotency-key": String(++sequence), ...extra },
+    body, duplex: "half"
+  } as RequestInit));
+  const event = (tenantId?: string) => JSON.stringify({ eventId: "changed", tenantId, payload: "hello" });
+  assert.equal((await publish(event("b"))).status, 403);
+  assert.equal(deliveries, 0);
+  assert.equal((await publish(event())).status, 202);
+  assert.equal((await publish(event("a"))).status, 202);
+  assert.equal((await publish(event("b"), "platform")).status, 202);
+  assert.equal((await publish(event(), "platform")).status, 400);
+  assert.equal(deliveries, 3);
+  const limit = 1024 * 1024;
+  assert.equal((await publish(event(), "tenant", { "content-length": String(limit + 1) })).status, 413);
+  for (const headers of [{}, { "content-length": "1" }]) {
+    let cancelled = false;
+    let chunks = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) { chunks++; controller.enqueue(new Uint8Array(64 * 1024)); },
+      cancel() { cancelled = true; }
+    });
+    assert.equal((await publish(stream, "tenant", headers)).status, 413);
+    assert.ok(cancelled && chunks <= 18, "oversized stream must stop reading promptly");
+  }
+  const exact = JSON.stringify({ eventId: "changed", payload: "" });
+  const boundary = exact.replace('"payload":""', '"payload":"' + "x".repeat(limit - Buffer.byteLength(exact)) + '"');
+  assert.equal(Buffer.byteLength(boundary), limit);
+  assert.equal((await publish(boundary)).status, 202);
+  assert.equal((await publish(boundary + " ")).status, 413);
+  assert.equal((await publish("{not-json" )).status, 400);
+  assert.equal(deliveries, 4);
 });
