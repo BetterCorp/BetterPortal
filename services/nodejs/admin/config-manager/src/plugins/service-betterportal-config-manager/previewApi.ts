@@ -1,5 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { ConfigRevisionConflictError } from "./storage/core.js";
+import { credentialDiagnostics } from "./credentialDiagnostics.js";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import {
   jsonResponse,
@@ -15,7 +16,8 @@ import {
   authenticatePreviewGroup,
   deleteExpiredPreviewDeployments,
   deletePreviewDeployment,
-  provisionPreviewDeployment
+  provisionPreviewDeployment,
+  type IssuedPreviewCredential
 } from "./previewEnvironments.js";
 
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -72,6 +74,7 @@ export function registerPreviewDeploymentApi(input: {
       const replay = existing?.credentialReplay;
       if (replay?.requestHash === requestHash && Date.parse(replay.expiresAt) > Date.now()) {
         const payload = openReplay(replay.ciphertext, input.replayEncryptionKey, aad);
+        logPreviewCredentials(event, groupId, key, "replayed", (payload as unknown as { credentials: IssuedPreviewCredential[] }).credentials);
         return jsonResponse(payload, (payload as { created: boolean }).created ? 201 : 200, NO_STORE);
       }
       const result = provisionPreviewDeployment(config, groupId, request, input.controlPlaneUrl);
@@ -91,6 +94,7 @@ export function registerPreviewDeploymentApi(input: {
         expiresAt: new Date(Date.now() + 15 * 60_000).toISOString()
       };
       await input.storage.saveConfig(config);
+      logPreviewCredentials(event, groupId, key, result.created ? "created" : "updated", result.credentials);
       return jsonResponse(payload, result.created ? 201 : 200, NO_STORE);
     });
   });
@@ -106,9 +110,34 @@ export function registerPreviewDeploymentApi(input: {
     if (deployment) {
       deletePreviewDeployment(config, deployment.id);
       await input.storage.saveConfig(config);
+      eventObservability(event)?.logger.info("BP PREVIEW: deleted group={groupId} preview={previewKey} tenant={tenantId}", {
+        groupId, previewKey: key, tenantId: deployment.tenantId
+      });
     }
     return new Response(null, { status: 204, headers: NO_STORE });
   }));
+}
+
+function logPreviewCredentials(
+  event: BetterPortalEvent,
+  groupId: string,
+  previewKey: string,
+  action: string,
+  credentials: IssuedPreviewCredential[]
+): void {
+  const logger = eventObservability(event)?.logger;
+  logger?.info("BP PREVIEW: {action} group={groupId} preview={previewKey} credentialCount={credentialCount}", {
+    action, groupId, previewKey, credentialCount: credentials.length
+  });
+  for (const credential of credentials) {
+    logger?.info("BP PREVIEW: credential {action} group={groupId} preview={previewKey} service={serviceId} serviceInstance={serviceInstanceId} fingerprint={keyFingerprint} instance={configManagerInstance} controlPlane={controlPlaneUrl}", {
+      action, groupId, previewKey,
+      serviceId: credential.serviceId,
+      serviceInstanceId: credential.instanceId,
+      controlPlaneUrl: credential.environment.BP_CONTROL_PLANE_URL,
+      ...credentialDiagnostics(credential.environment.BP_SERVICE_API_KEY)
+    });
+  }
 }
 
 function sealReplay(value: JsonValue, secret: string, aad: string): string {

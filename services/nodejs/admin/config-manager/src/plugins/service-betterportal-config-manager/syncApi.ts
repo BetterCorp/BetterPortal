@@ -31,6 +31,7 @@ import { isDeepStrictEqual } from "node:util";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { applyServicePublicKey, ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
 import { isPreviewService } from "./previewEnvironments.js";
+import { credentialDiagnostics } from "./credentialDiagnostics.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
 const SERVICE_ACTIVITY_INTERVAL_MS = 60_000;
@@ -617,7 +618,7 @@ export function registerSyncEndpoint(
 
     const validated = await store.validateApiKey(apiKey);
     if (!validated) {
-      obs?.logger.warn("BP SYNC: rejected invalid API key");
+      obs?.logger.warn("BP SYNC: rejected invalid API key fingerprint={keyFingerprint} instance={configManagerInstance}", credentialDiagnostics(apiKey));
       return jsonResponse({ error: "Invalid API key" }, 403);
     }
 
@@ -728,7 +729,7 @@ export function registerSyncEndpoint(
 
     const validated = await store.validateApiKey(apiKey);
     if (!validated) {
-      obs?.logger.warn("BP SYNC POLL: rejected invalid API key");
+      obs?.logger.warn("BP SYNC POLL: rejected invalid API key fingerprint={keyFingerprint} instance={configManagerInstance}", credentialDiagnostics(apiKey));
       return jsonResponse({ error: "Invalid API key" }, 403);
     }
 

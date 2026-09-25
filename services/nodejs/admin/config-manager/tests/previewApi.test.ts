@@ -4,6 +4,8 @@ import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@bett
 import { BaseStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { createPreviewGroup } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { registerPreviewDeploymentApi } from "../src/plugins/service-betterportal-config-manager/previewApi.js";
+import { credentialDiagnostics } from "../src/plugins/service-betterportal-config-manager/credentialDiagnostics.js";
+import { registerSyncEndpoint } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 
 class ConflictStorage extends BaseStorage {
   cached?: BetterPortalConfig;
@@ -60,6 +62,7 @@ function fixture() {
     expiresInDays: 30
   });
   const storage = new ConflictStorage(config);
+  const logs: Array<{ message: string; fields: Record<string, unknown> }> = [];
   const handlers = new Map<string, (event: never) => Promise<Response>>();
   registerPreviewDeploymentApi({
     app: Object.fromEntries(["get", "post", "delete"].map(method => [method,
@@ -68,14 +71,66 @@ function fixture() {
     storage, controlPlaneUrl: "https://config.example", replayEncryptionKey: "test-key"
   });
   const call = (method = "post") => handlers.get(method)!({
+    __bpObservedEvent: { currentObservability: { logger: {
+      info(message: string, fields: Record<string, unknown>) { logs.push({ message, fields }); }
+    } } },
     req: new Request("https://config.example/preview", {
       method: method.toUpperCase(), headers: { authorization: `Bearer ${apiKey}` },
       ...(method === "post" ? { body: JSON.stringify({ hostname: "pr.example", services: { "org.example.service": "https://service-pr.example" } }) } : {})
     }),
     context: { params: { groupId: group.id, key: "123" } }
   } as never);
-  return { storage, call };
+  return { storage, call, logs };
 }
+
+test("preview logs correlate committed and replayed credentials without exposing secrets", async () => {
+  const { storage, call, logs } = fixture();
+  let rejectedKey = "";
+  storage.conflict = candidate => {
+    rejectedKey = candidate.tenants.at(-1)!.services[0].apiKeyHash!;
+    assert.equal(logs.length, 0, "must not log issuance before commit");
+    storage.conflict = undefined;
+  };
+  const payload = await (await call()).json();
+  await call();
+  const apiKey = payload.credentials[0].environment.BP_SERVICE_API_KEY;
+  const diagnostic = credentialDiagnostics(apiKey);
+  const credentialLogs = logs.filter(entry => entry.fields.keyFingerprint);
+  assert.equal(credentialLogs.length, 2);
+  assert.deepEqual(credentialLogs.map(entry => entry.fields.action), ["created", "replayed"]);
+  for (const entry of credentialLogs) {
+    assert.equal(entry.fields.keyFingerprint, diagnostic.keyFingerprint);
+    assert.equal(entry.fields.serviceInstanceId, payload.credentials[0].instanceId);
+    assert.equal(entry.fields.configManagerInstance, diagnostic.configManagerInstance);
+  }
+  assert.equal(JSON.stringify(logs).includes(apiKey), false);
+  assert.equal(JSON.stringify(logs).includes(rejectedKey.slice(0, 16)), false);
+});
+
+test("both sync transports log rejected credential fingerprints without exposing bearer tokens", async () => {
+  const { storage } = fixture();
+  const handlers = new Map<string, (event: never) => Promise<Response>>();
+  registerSyncEndpoint(Object.fromEntries(["get", "post"].map(method => [method,
+    (_path: string, handler: (event: never) => Promise<Response>) => handlers.set(method, handler)
+  ])) as never, storage);
+  const apiKey = "rejected-test-secret";
+  for (const method of ["get", "post"]) {
+    const logs: unknown[] = [];
+    const response = await handlers.get(method)!({
+      req: new Request("https://config.example/.well-known/bp/sync", {
+        method: method.toUpperCase(), headers: { authorization: `Bearer ${apiKey}` }
+      }),
+      __bpObservedEvent: { currentObservability: { logger: {
+        warn(message: string, fields: unknown) { logs.push({ message, fields }); }
+      } } }
+    } as never);
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { error: "Invalid API key" });
+    assert.equal(logs.length, 1);
+    assert.ok(JSON.stringify(logs).includes(credentialDiagnostics(apiKey).keyFingerprint));
+    assert.equal(JSON.stringify(logs).includes(apiKey), false);
+  }
+});
 
 test("preview retries discard stale cache and preserve unrelated writes and credential replay", async () => {
   const { storage, call } = fixture();
