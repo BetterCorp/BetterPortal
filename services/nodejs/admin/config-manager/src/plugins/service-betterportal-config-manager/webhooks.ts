@@ -35,7 +35,6 @@ const MAX_EVENT_BYTES = 1024 * 1024;
 async function readEventJson(event: BetterPortalEvent): Promise<Record<string, unknown> | Response> {
   const length = event.req.headers.get("content-length");
   if (length !== null && (!/^[0-9]+$/.test(length) || Number(length) > MAX_EVENT_BYTES)) {
-    void event.req.body?.cancel().catch(() => undefined);
     return /^[0-9]+$/.test(length)
       ? jsonResponse({ error: "Webhook payload exceeds 1 MiB" }, 413)
       : jsonResponse({ error: "Invalid Content-Length" }, 400);
@@ -383,55 +382,60 @@ export function registerWebhookRoutes(
   });
 
   app.post(`${API_BASE}/webhooks/events`, async (event) => {
-    const obs = eventObservability(event);
-    const apiKey = readBearer(event);
-    if (!apiKey) return jsonResponse({ error: "Bearer token required" }, 401);
-    const validated = await store.validateApiKey(apiKey);
-    if (!validated?.serviceId) return jsonResponse({ error: "Invalid service token" }, 403);
+    try {
+      const obs = eventObservability(event);
+      const apiKey = readBearer(event);
+      if (!apiKey) return jsonResponse({ error: "Bearer token required" }, 401);
+      const validated = await store.validateApiKey(apiKey);
+      if (!validated?.serviceId) return jsonResponse({ error: "Invalid service token" }, 403);
 
-    const body = await readEventJson(event);
-    if (body instanceof Response) return body;
-    const eventId = stringValue(body, "eventId");
-    const requestedTenant = stringValue(body, "tenantId");
-    if (validated.scope !== "platform" && (!validated.tenantId || (requestedTenant !== undefined && requestedTenant !== validated.tenantId))) {
-      return jsonResponse({ error: "Tenant scope mismatch" }, 403);
+      const body = await readEventJson(event);
+      if (body instanceof Response) return body;
+      const eventId = stringValue(body, "eventId");
+      const requestedTenant = stringValue(body, "tenantId");
+      if (validated.scope !== "platform" && (!validated.tenantId || (requestedTenant !== undefined && requestedTenant !== validated.tenantId))) {
+        return jsonResponse({ error: "Tenant scope mismatch" }, 403);
+      }
+      const tenantId = validated.scope === "platform" ? requestedTenant : validated.tenantId;
+      const appId = stringValue(body, "appId");
+      const idempotencyKey = event.req.headers.get("idempotency-key")?.trim() || stringValue(body, "idempotencyKey");
+      if (!eventId || !tenantId) return jsonResponse({ error: "eventId and tenantId are required" }, 400);
+      if (!idempotencyKey) return jsonResponse({ error: "Idempotency-Key header or idempotencyKey is required" }, 400);
+
+      const manifest = getManifestCache().get(validated.serviceId);
+      if (!manifest?.webhooks.some((entry) => entry.id === eventId)) return jsonResponse({ error: "Webhook event is not declared by service manifest" }, 400);
+
+      const config = await store.loadConfig();
+      const targets = matchingTargets(config, validated.serviceId, eventId, tenantId, appId);
+      const createdAt = new Date().toISOString();
+      const records = targets.map((target): DeliveryRecord => ({
+        id: deterministicDeliveryId(validated.serviceId!, eventId, tenantId, appId, idempotencyKey, target.id),
+        targetId: target.id,
+        serviceId: validated.serviceId!,
+        eventId,
+        tenantId,
+        appId,
+        payload: (body.payload ?? null) as JsonValue,
+        attempts: 0,
+        maxAttempts: target.maxAttempts,
+        nextAttemptAt: createdAt,
+        createdAt,
+        status: "pending"
+      }));
+      if (!await enqueue(records)) return jsonResponse({ error: "Webhook queue is at capacity" }, 503);
+      obs?.logger.info("BP WEBHOOK: queued service={serviceId} event={eventId} tenant={tenantId} app={appId} targets={targets}", {
+        serviceId: validated.serviceId,
+        eventId,
+        tenantId,
+        appId: appId ?? "",
+        targets: records.length
+      });
+      if (!postgres) await drain();
+      return jsonResponse({ queued: records.length } as JsonValue, 202);
+    } finally {
+      // Close unread uploads on every exit, including credential/store failures.
+      void event.req.body?.cancel().catch(() => undefined);
     }
-    const tenantId = validated.scope === "platform" ? requestedTenant : validated.tenantId;
-    const appId = stringValue(body, "appId");
-    const idempotencyKey = event.req.headers.get("idempotency-key")?.trim() || stringValue(body, "idempotencyKey");
-    if (!eventId || !tenantId) return jsonResponse({ error: "eventId and tenantId are required" }, 400);
-    if (!idempotencyKey) return jsonResponse({ error: "Idempotency-Key header or idempotencyKey is required" }, 400);
-
-    const manifest = getManifestCache().get(validated.serviceId);
-    if (!manifest?.webhooks.some((entry) => entry.id === eventId)) return jsonResponse({ error: "Webhook event is not declared by service manifest" }, 400);
-
-    const config = await store.loadConfig();
-    const targets = matchingTargets(config, validated.serviceId, eventId, tenantId, appId);
-    const createdAt = new Date().toISOString();
-    const records = targets.map((target): DeliveryRecord => ({
-      id: deterministicDeliveryId(validated.serviceId!, eventId, tenantId, appId, idempotencyKey, target.id),
-      targetId: target.id,
-      serviceId: validated.serviceId!,
-      eventId,
-      tenantId,
-      appId,
-      payload: (body.payload ?? null) as JsonValue,
-      attempts: 0,
-      maxAttempts: target.maxAttempts,
-      nextAttemptAt: createdAt,
-      createdAt,
-      status: "pending"
-    }));
-    if (!await enqueue(records)) return jsonResponse({ error: "Webhook queue is at capacity" }, 503);
-    obs?.logger.info("BP WEBHOOK: queued service={serviceId} event={eventId} tenant={tenantId} app={appId} targets={targets}", {
-      serviceId: validated.serviceId,
-      eventId,
-      tenantId,
-      appId: appId ?? "",
-      targets: records.length
-    });
-    if (!postgres) await drain();
-    return jsonResponse({ queued: records.length } as JsonValue, 202);
   });
 
   return {

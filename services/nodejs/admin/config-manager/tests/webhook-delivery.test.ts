@@ -72,17 +72,23 @@ test("webhook publication enforces credential tenant scope and streamed body lim
   t.mock.method(globalThis, "fetch", async () => { deliveries++; return new Response(null, { status: 204 }); });
   const app = new H3();
   registerWebhookRoutes(app, {
-    validateApiKey: async (key: string) => key === "platform" ? { scope: "platform", serviceId } : { scope: "tenant", serviceId, tenantId: "a" },
+    validateApiKey: async (key: string) => key === "invalid" ? null : key === "platform" ? { scope: "platform", serviceId } : { scope: "tenant", serviceId, tenantId: "a" },
     loadConfig: async () => ({ tenants: [{ id: "a", active: true }, { id: "b", active: true }], webhooks: { targets: ["a", "b"].map(tenantId => ({
       id: `target-${tenantId}`, tenantId, serviceId, eventId: "changed", enabled: true, secret: "test-only", url: "https://webhook.test", maxAttempts: 1
     })) } })
   } as never);
   let sequence = 0;
-  const publish = (body: string | ReadableStream<Uint8Array>, key = "tenant", extra: Record<string, string> = {}) => app.fetch(new Request("http://cp.test/.well-known/bp/webhooks/events", {
-    method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "idempotency-key": String(++sequence), ...extra },
+  const publish = (body: string | ReadableStream<Uint8Array>, key: string | null = "tenant", extra: Record<string, string> = {}) => app.fetch(new Request("http://cp.test/.well-known/bp/webhooks/events", {
+    method: "POST", headers: { ...(key ? { authorization: `Bearer ${key}` } : {}), "content-type": "application/json", "idempotency-key": String(++sequence), ...extra },
     body, duplex: "half"
   } as RequestInit));
   const event = (tenantId?: string) => JSON.stringify({ eventId: "changed", tenantId, payload: "hello" });
+  for (const [key, status] of [[null, 401], ["invalid", 403]] as const) {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({ cancel() { cancelled = true; } });
+    assert.equal((await publish(stream, key)).status, status);
+    assert.ok(cancelled, "unauthenticated rejection must cancel the unread upload");
+  }
   assert.equal((await publish(event("b"))).status, 403);
   assert.equal(deliveries, 0);
   assert.equal((await publish(event())).status, 202);
