@@ -256,13 +256,13 @@ def current_observability() -> Observability:
 
 
 def parse_tracestate(value: str) -> str | None:
-    if not value or len(value) > 512 or any(ord(char) < 32 or ord(char) > 126 for char in value): return None
-    members = [part.strip() for part in value.split(',')]
-    if len(members) > 32: return None
+    if not value or len(value) > 512 or any((ord(char) < 32 and char != '\t') or ord(char) > 126 for char in value): return None
+    members = [part.strip(' \t') for part in value.split(',') if part.strip(' \t')]
+    if not members or len(members) > 32: return None
     keys = set()
     for member in members:
         key, separator, content = member.partition('=')
-        if not separator or key in keys or not 0 < len(content) <= 256 or '=' in content or content.endswith(' '): return None
+        if '\t' in member or not separator or key in keys or not 0 < len(content) <= 256 or '=' in content or content.endswith(' '): return None
         if not re.fullmatch(r'(?:[a-z][a-z0-9_*/-]{0,255}|[a-z0-9][a-z0-9_*/-]{0,240}@[a-z][a-z0-9_*/-]{0,13})', key): return None
         keys.add(key)
     return ','.join(members)

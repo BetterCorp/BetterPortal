@@ -17,6 +17,20 @@ if TYPE_CHECKING:
     from .service import Service
 
 
+class WebhookError(ClientError):
+    """Publication failed; reuse idempotency_key after uncertain delivery."""
+    def __init__(self, status: int, message: str, idempotency_key: str):
+        super().__init__(status, message)
+        self.idempotency_key = idempotency_key
+
+
+class WebhookCancelled(asyncio.CancelledError):
+    """Cancellation preserves the key without changing cancellation semantics."""
+    def __init__(self, idempotency_key: str):
+        super().__init__('Webhook publication cancelled')
+        self.idempotency_key = idempotency_key
+
+
 class Webhooks:
     def __init__(self, service: Service, base_url: str, headers: dict[str, str], timeout: float):
         self._service = service
@@ -55,7 +69,9 @@ class Webhooks:
                     if not 200 <= response.status_code < 300: raise ClientError(response.status_code, 'Webhook publication failed')
                     context._current(expected=state)
             try: await asyncio.wait_for(send(), self._timeout)
-            except (httpx.HTTPError, asyncio.TimeoutError): raise ClientError(502, 'Webhook transport failed') from None
+            except (httpx.HTTPError, asyncio.TimeoutError): raise WebhookError(502, 'Webhook transport failed', key) from None
+            except ClientError as error: raise WebhookError(error.status, str(error), key) from None
+            except asyncio.CancelledError: raise WebhookCancelled(key) from None
             return key
         finally:
             watcher.cancel()

@@ -13,6 +13,7 @@ def documents(scope, origin):
     enabled = {item['id'] for item in scope.tenant['services'] if item['enabled']}
     urls: dict[str, Any] = {}
     rules: dict[tuple[str, str], tuple[str, float]] = {}
+    mandatory = set()
     def rule(agent, path, access, delay=0):
         if not re.fullmatch(r'[A-Za-z0-9_.*-]{1,128}', agent): raise ValueError('Invalid robots user agent')
         key = (agent, path)
@@ -25,8 +26,9 @@ def documents(scope, origin):
             path = _path(route['path'])
             parts = path.split('/')
             dynamic = next((index for index, part in enumerate(parts) if part.startswith(':')), None)
-            prefix = path if dynamic is None else '/'.join(parts[:dynamic]).rstrip('/') + '/'
+            prefix = path + '$' if dynamic is None else '/'.join(parts[:dynamic]).rstrip('/') + '/*'
             if route['serviceId'] not in enabled or route.get('authRequired') is not False:
+                mandatory.add(prefix)
                 rule('*', prefix, 'disallow'); continue
             for item in route.get('robots') or [{'userAgent': '*', 'access': 'allow'}]:
                 rule(item['userAgent'], prefix, item['access'], item.get('crawlDelaySeconds', 0))
@@ -35,6 +37,11 @@ def documents(scope, origin):
             # Dynamic providers must be resolved by the owning service; never guess
             # paths or issue network requests during public discovery.
             urls[origin + path] = metadata
+    # A named crawler does not inherit the wildcard group (RFC 9309).
+    defaults = {path: policy for (agent, path), policy in rules.items() if agent == '*'}
+    for agent in {key[0] for key in rules}:
+        for path, policy in defaults.items(): rules.setdefault((agent, path), policy)
+        for path in mandatory: rule(agent, path, 'disallow')
     lines = []
     for agent in sorted({key[0] for key in rules}):
         lines.append('User-agent: ' + agent)

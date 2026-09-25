@@ -10,7 +10,7 @@ from betterportal.clients import ClientError
 from betterportal.context import ScopedConfig
 from betterportal.contracts import export
 from betterportal.service import Service
-from betterportal.webhooks import Webhooks
+from betterportal.webhooks import Webhooks, WebhookError, WebhookCancelled
 from hosting_cases import fixture
 from python_registry import build_registry
 from security_cases import TENANT, APP
@@ -41,8 +41,42 @@ async def main():
         status = 302
         try: await scope.webhook('changed', 'hello')
         except ClientError as error:
-            assert error.status == 302 and 'secret' not in str(error)
+            assert isinstance(error, WebhookError) and error.status == 302 and 'secret' not in str(error)
+            assert error.idempotency_key == requests[-1].headers['idempotency-key']
         else: raise AssertionError('Redirect accepted')
+        status = 202
+        def disconnect(request):
+            requests.append(request)
+            raise httpx.ReadError('upstream secret', request=request)
+        await publisher._http.aclose()
+        publisher._http = httpx.AsyncClient(transport=httpx.MockTransport(disconnect))
+        try: await scope.webhook('changed', 'hello')
+        except WebhookError as error:
+            assert error.status == 502 and 'secret' not in str(error)
+            error_key = error.idempotency_key
+        else: raise AssertionError('Disconnect accepted')
+        assert error_key == requests[-1].headers['idempotency-key']
+        await publisher._http.aclose()
+        publisher._http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        assert await scope.webhook('changed', 'hello', idempotency_key=error_key) == error_key
+        assert requests[-1].headers['idempotency-key'] == error_key
+        class RetiredContext:
+            def _current(self, *, expected=None):
+                if expected is not None: raise ClientError(503, 'Request scope is no longer active')
+                return scope._current()
+        try: await publisher.emit(RetiredContext(), 'changed', 'hello')
+        except WebhookError as error:
+            assert error.status == 503 and error.idempotency_key == requests[-1].headers['idempotency-key']
+        else: raise AssertionError('Retired snapshot accepted')
+        async def cancelled(request):
+            requests.append(request)
+            raise asyncio.CancelledError()
+        await publisher._http.aclose()
+        publisher._http = httpx.AsyncClient(transport=httpx.MockTransport(cancelled))
+        try: await scope.webhook('changed', 'hello')
+        except WebhookCancelled as error:
+            assert error.idempotency_key == requests[-1].headers['idempotency-key']
+        else: raise AssertionError('Cancellation swallowed')
         await publisher.aclose()
         try: await scope.webhook('changed', 'hello')
         except ClientError as error: assert error.status == 503

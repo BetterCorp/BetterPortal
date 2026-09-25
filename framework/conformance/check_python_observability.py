@@ -48,6 +48,11 @@ async def main():
     assert current_trace() is None and 'secret' not in str(recorded)
     assert parse_tracestate('one=1,two=2') == 'one=1,two=2'
     assert parse_tracestate('one=1,one=2') is None
+    assert parse_tracestate(', \t,one=1,,two=2,') == 'one=1,two=2'
+    assert parse_tracestate(', \t,') is None
+    assert parse_tracestate('one=a\tb') is None
+    assert parse_tracestate(','.join(f'k{i}=v' for i in range(32)) + ',,') is not None
+    assert parse_tracestate(','.join(f'k{i}=v' for i in range(33))) is None
     assert parse_baggage('safe=value,bad=unsafe\rvalue') == 'safe=value'
     assert parse_traceparent('01-' + 'a' * 32 + '-' + 'b' * 16 + '-01-extra') is not None
     print('Python observability: trace propagation/isolation, secret-safe events, status and exporter failure passed')

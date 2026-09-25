@@ -147,18 +147,33 @@ export function registerWebhookRoutes(
   const memoryQueue: DeliveryRecord[] = [];
   // Keep bounded delivery IDs after successful drain, matching PostgreSQL's
   // seven-day deduplication window without retaining delivered payloads.
-  const accepted = new Map<string, number>();
+  const accepted = new Map<string, Map<string, number>>();
+  const publisher = (record: DeliveryRecord) => JSON.stringify([record.serviceId, record.tenantId]);
   let timer: ReturnType<typeof setInterval> | undefined;
   let draining: Promise<void> | undefined;
   const enqueue = async (records: DeliveryRecord[]) => {
     if (postgres) { await postgres.enqueueWebhookDeliveries(records); return true; }
     const now = Date.now();
     const pending = new Set(memoryQueue.map(record => record.id));
-    for (const [id, expires] of accepted) if (expires <= now && !pending.has(id)) accepted.delete(id);
-    const fresh = records.filter(record => !accepted.has(record.id));
-    // Fail closed instead of evicting recent keys and permitting duplicate delivery.
-    if (accepted.size + fresh.length > 10_000) return false;
-    for (const record of fresh) accepted.set(record.id, now + 7 * 24 * 60 * 60 * 1000);
+    for (const [scope, ids] of accepted) {
+      for (const [id, expires] of ids) if (expires <= now && !pending.has(id)) ids.delete(id);
+      if (!ids.size) accepted.delete(scope);
+    }
+    const fresh = records.filter(record => !accepted.get(publisher(record))?.has(record.id));
+    const additions = new Map<string, Set<string>>();
+    for (const record of fresh) {
+      const scope = publisher(record);
+      if (!additions.has(scope)) additions.set(scope, new Set());
+      additions.get(scope)!.add(record.id);
+    }
+    // Check the complete batch before mutation; one publisher cannot exhaust another.
+    for (const [scope, ids] of additions) {
+      if ((accepted.get(scope)?.size ?? 0) + ids.size > 10_000) return false;
+    }
+    for (const [scope, ids] of additions) {
+      if (!accepted.has(scope)) accepted.set(scope, new Map());
+      for (const id of ids) accepted.get(scope)!.set(id, now + 7 * 24 * 60 * 60 * 1000);
+    }
     memoryQueue.push(...fresh);
     return true;
   };

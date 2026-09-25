@@ -57,6 +57,35 @@ async def main():
             assert 'Disallow: /' in (await client.get('/robots.txt')).text
             assert '<url>' not in (await client.get('/sitemap.xml')).text
             assert (await client.get('/llms.txt', headers={'host': 'evil.test'})).status_code == 400
+    from types import SimpleNamespace
+    from betterportal.seo import documents
+    def route(path, **kwargs):
+        return {'path': path, 'enabled': True, 'serviceId': 'active', 'authRequired': False, **kwargs}
+    seo_scope = SimpleNamespace(
+        tenant={'services': [{'id': 'active', 'enabled': True}, {'id': 'disabled', 'enabled': False}]},
+        app={'routes': [route('/'), route('/administrator'), route('/:id', authRequired=True),
+            route('/admin', authRequired=True), route('/nested/:id', authRequired=True),
+            route('/disabled', serviceId='disabled'), route('/bot', robots=[{'userAgent': 'Googlebot', 'access': 'disallow'}])]})
+    docs = documents(seo_scope, 'https://app.test')
+    groups = {}
+    for line in docs['/robots.txt'].splitlines():
+        if line.startswith('User-agent: '): current = groups.setdefault(line[12:], [])
+        elif line.startswith(('Allow: ', 'Disallow: ')): current.append(tuple(line.split(': ', 1)))
+    # Independent RFC 9309 matcher: anchored glob, longest rule, allow on ties.
+    import re
+    def allowed(agent, path):
+        matches = []
+        for access, pattern in groups[agent]:
+            expression = re.escape(pattern).replace(r'\*', '.*').replace(r'\$', '$')
+            if re.match(expression, path): matches.append((len(pattern.encode()), access == 'Allow'))
+        return max(matches, default=(0, True))[1]
+    for agent in ('*', 'Googlebot'):
+        assert allowed(agent, '/') and allowed(agent, '/administrator')
+        assert not allowed(agent, '/admin') and not allowed(agent, '/someone')
+        assert not allowed(agent, '/nested/item') and not allowed(agent, '/disabled')
+    assert not allowed('Googlebot', '/bot')
+    assert '<loc>https://app.test/</loc>' in docs['/sitemap.xml']
+    assert '<loc>https://app.test/admin</loc>' not in docs['/sitemap.xml']
     print('Python deployment: explicit proxy trust, secret configuration and public shell discovery passed')
 
 asyncio.run(main())

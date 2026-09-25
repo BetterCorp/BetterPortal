@@ -1024,8 +1024,12 @@ uses `service.clients.scope(tenant_id, app_id).webhook(...)`. The active control
 connection owns publication credentials; callers cannot choose a destination or
 replace the request's tenant/app. AnyVali validates the declared payload, the
 serialized request is limited to 1 MiB, and redirects are rejected. Publication
-raises on failure and returns the idempotency key on success. Reuse an explicit
-key when retrying uncertain delivery; the publisher does not retry automatically.
+returns the idempotency key on success. After publication starts, failures raise
+`betterportal.webhooks.WebhookError` (a `ClientError`) with `idempotency_key`;
+cancellation raises `WebhookCancelled` (an `asyncio.CancelledError`) with the same
+attribute. Reuse that key when retrying uncertain delivery. Persist an explicit
+key before publication when recovery must survive process termination; the
+publisher does not retry automatically.
 
 Developer resources are served publicly at `/.well-known/bp/resources` and
 `/.well-known/bp/resources/<id>`. The index omits content and adds relative URLs;

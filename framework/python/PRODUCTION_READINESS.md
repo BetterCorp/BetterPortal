@@ -69,6 +69,7 @@ publish that schema. Dynamic/provider sitemap entries are conservatively omitted
 until concrete URLs are supplied. These are explicit transport/discovery limits.
 
 The control plane retains in-memory webhook idempotency IDs for seven days with a
-10,000-ID limit and rejects new events at capacity. That store resets on restart;
+10,000-ID limit per service/tenant publisher and rejects that publisher's new
+events at capacity without blocking other publishers. That store resets on restart;
 use PostgreSQL-backed delivery for durable deduplication across control-plane
 restarts. Python publishers do not automatically retry uncertain delivery.
