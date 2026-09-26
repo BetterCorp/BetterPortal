@@ -14,6 +14,14 @@ import {
   type PostgresStorageOptions
 } from "./core.js";
 
+import { assembleConfig, changedEntityKeys, entityClaims, entityReferences, keyOf, splitConfig, type ConfigEntity, type ConfigEntityRow } from "./entities.js";
+
+interface ConfigSnapshot {
+  config: BetterPortalConfig;
+  entities: Map<string, ConfigEntity>;
+  revisions: Map<string, number>;
+}
+
 function quotePgIdent(identifier: string): string {
   if (!/^[a-z_][a-z0-9_]*$/i.test(identifier)) throw new Error(`Invalid PostgreSQL identifier: ${identifier}`);
   return `"${identifier.replace(/"/g, "\"\"")}"`;
@@ -75,7 +83,7 @@ interface LegacyPaths {
   readonly webhookDeliveryPath?: string;
 }
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export class PostgresStorage extends BaseStorage {
   readonly backend = "postgres" as const;
@@ -89,14 +97,17 @@ export class PostgresStorage extends BaseStorage {
   private readonly deliveriesTable: string;
   private readonly outboxTable: string;
   private readonly activityTable: string;
+  private readonly entitiesTable: string;
+  private readonly referencesTable: string;
+  private readonly revisionSequence: string;
   private activityLoad?: Promise<Map<string, { lastSeenAt?: string; lastSyncAt?: string }>>;
   private activityLoadedAt = 0;
   private pool: Pool | null = null;
   private schemaReady: Promise<void> | null = null;
   private legacyPaths: LegacyPaths = {};
-  private readonly snapshots = new WeakMap<BetterPortalConfig, number>();
-  private cachedConfig: { config: BetterPortalConfig; revision: number } | null = null;
-  private configLoad: Promise<{ config: BetterPortalConfig; revision: number; generation: number }> | null = null;
+  private readonly snapshots = new WeakMap<BetterPortalConfig, ConfigSnapshot>();
+  private cachedConfig: ConfigSnapshot | null = null;
+  private configLoad: Promise<ConfigSnapshot & { generation: number }> | null = null;
   private configGeneration = 0;
   private credentialIndex?: { config: BetterPortalConfig; entries: Map<string, NonNullable<Awaited<ReturnType<BaseStorage["validateApiKey"]>>>> };
 
@@ -112,6 +123,9 @@ export class PostgresStorage extends BaseStorage {
     this.deliveriesTable = quotePgIdent(`${this.tableName}_webhook_deliveries`);
     this.outboxTable = quotePgIdent(`${this.tableName}_outbox`);
     this.activityTable = quotePgIdent(`${this.tableName}_activity`);
+    this.entitiesTable = quotePgIdent(`${this.tableName}_entities`);
+    this.referencesTable = quotePgIdent(`${this.tableName}_references`);
+    this.revisionSequence = quotePgIdent(`${this.tableName}_entity_revision`);
   }
 
   async initialize(paths: LegacyPaths = {}): Promise<void> {
@@ -130,7 +144,7 @@ export class PostgresStorage extends BaseStorage {
         if (this.configLoad === pending) this.configLoad = null;
         return this.loadConfig();
       }
-      this.cachedConfig = { config: loaded.config, revision: loaded.revision };
+      this.cachedConfig = loaded;
       return this.cloneSnapshot(this.cachedConfig);
     } finally {
       if (this.configLoad === pending) this.configLoad = null;
@@ -139,67 +153,127 @@ export class PostgresStorage extends BaseStorage {
 
   async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; completeAction?: PendingActionCompletion }): Promise<void> {
     await this.ensureSchema();
-    const validated = this.parseConfig(config);
-    this.validateConfigReferences(validated);
-    const expectedRevision = this.snapshots.get(config);
+    const baseline = this.snapshots.get(config);
+    if (!baseline) throw new Error("Config must be loaded from this store before saving; detached whole-platform replacements are not supported");
+    const proposed = splitConfig(this.parseConfig(config));
+    // Cached manifests belong to their concrete service registration. Deleting
+    // a registration also deletes its known cache, whichever API initiated it.
+    for (const [key, entity] of proposed) if (entity.kind === "manifestCache") {
+      if (entityReferences(entity, baseline.entities).some(ref => !proposed.has(ref))) proposed.delete(key);
+    }
+    const changed = changedEntityKeys(baseline.entities, proposed);
     const client = await this.getPool().connect();
     try {
       await client.query("begin");
       if (options?.completeAction) await this.finishAction(client, options.completeAction);
-      const current = await client.query<{ config: BetterPortalConfig; revision: string | number }>(
-        `select config, revision from ${this.quotedTableName} where id = $1 for update`, [this.rowId]
-      );
-      if (!current.rows[0]) throw new Error(`Platform config row ${this.rowId} was not initialized`);
-      const currentRevision = Number(current.rows[0].revision);
-      if (expectedRevision !== undefined && expectedRevision !== currentRevision) {
-        this.invalidate();
-        throw new ConfigRevisionConflictError(expectedRevision, currentRevision);
-      }
-      // Presence belongs to an installed identity, not merely its reusable service ID.
-      const services = new Map(validated.tenants.flatMap(tenant => tenant.services.map(service => [service.id, service] as const)));
-      const resetActivity: string[] = [];
-      for (const previous of current.rows[0].config.tenants.flatMap(tenant => tenant.services)) {
-        const next = services.get(previous.id);
-        if (!next || previous.apiKeyHash !== next.apiKeyHash || previous.hostname !== next.hostname
-          || (previous.lastSeenAt && !next.lastSeenAt) || (previous.lastSyncAt && !next.lastSyncAt)) {
-          resetActivity.push(previous.id);
-          if (next) { delete next.lastSeenAt; delete next.lastSyncAt; }
+      // Shared dependency locks allow two apps in a tenant to save concurrently.
+      // Exclusive locks cover only changed entities and their uniqueness claims.
+      const locks = new Map<string, boolean>();
+      const dependencies = new Set<string>();
+      for (const key of changed) {
+        locks.set(key, true);
+        for (const entities of [baseline.entities, proposed]) {
+          const entity = entities.get(key);
+          if (!entity) continue;
+          for (const claim of entityClaims(entity)) locks.set(claim, true);
+          for (const ref of entityReferences(entity, entities)) {
+            dependencies.add(ref);
+            if (!locks.has(ref)) locks.set(ref, false);
+          }
         }
+      }
+      for (const [key, exclusive] of [...locks].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
+        await client.query(`select ${exclusive ? "pg_advisory_xact_lock" : "pg_advisory_xact_lock_shared"}(hashtextextended($1, 0))`,
+          [JSON.stringify([this.tableName, this.rowId, key])]);
+      }
+      const current = await this.readSnapshot(client);
+      for (const key of new Set([...changed, ...dependencies])) {
+        const expected = baseline.revisions.get(key) ?? 0;
+        const actual = current.revisions.get(key) ?? 0;
+        if (expected !== actual) {
+          this.invalidate();
+          throw new ConfigRevisionConflictError(expected, actual, key);
+        }
+      }
+      const merged = new Map(current.entities);
+      for (const key of changed) {
+        const entity = proposed.get(key);
+        if (entity) merged.set(key, entity);
+        else merged.delete(key);
+      }
+      // A sync may have created a cache after the deletion snapshot was loaded.
+      // Reject that stale deletion before reaching the FK; a fresh retry includes
+      // the cache in its deletion set and locks both records in canonical order.
+      for (const entity of merged.values()) if (entity.kind === "manifestCache") {
+        const removed = entityReferences(entity, current.entities).find(ref => !merged.has(ref));
+        if (removed) {
+          this.invalidate();
+          throw new ConfigRevisionConflictError(baseline.revisions.get(keyOf(entity)) ?? 0,
+            current.revisions.get(keyOf(entity)) ?? 0, keyOf(entity));
+        }
+      }
+      const validated = this.parseConfig(assembleConfig(merged.values()));
+      this.validateConfigReferences(validated);
+      // Validate uniqueness against the current committed state, under claim locks.
+      const claims = new Set<string>();
+      for (const entity of merged.values()) for (const claim of entityClaims(entity)) {
+        if (claims.has(claim)) throw new Error(`Configuration uniqueness conflict: ${claim}`);
+        claims.add(claim);
+      }
+      const resetActivity: string[] = [];
+      const services = new Map(validated.tenants.flatMap(tenant => tenant.services.map(service => [service.id, service] as const)));
+      for (const previous of current.config.tenants.flatMap(tenant => tenant.services)) {
+        const next = services.get(previous.id);
+        if (!next || previous.apiKeyHash !== next.apiKeyHash || previous.hostname !== next.hostname) resetActivity.push(previous.id);
       }
       if (resetActivity.length) await client.query(
         `delete from ${this.activityTable} where scope_id = $1 and service_id = any($2::text[])`, [this.rowId, resetActivity]
       );
-      const previousManifests = new Map(current.rows[0].config.manifestCache.map(entry => [entry.serviceId, entry.fetchedAt]));
-      const refreshedManifests = validated.manifestCache.filter(entry => entry.fetchedAt !== previousManifests.get(entry.serviceId));
-      if (refreshedManifests.length) {
-        // Readiness compares manifest acceptance with delivery; both must use the DB clock.
+      const refreshed = changed.map(key => merged.get(key)).filter(entity => entity?.kind === "manifestCache");
+      if (refreshed.length) {
         const clock = await client.query<{ now: Date }>("select clock_timestamp() as now");
-        const fetchedAt = clock.rows[0].now.toISOString();
-        for (const entry of refreshedManifests) entry.fetchedAt = fetchedAt;
+        for (const entity of refreshed) entity!.value.fetchedAt = clock.rows[0].now.toISOString();
       }
-      const revision = currentRevision + 1;
-      await client.query(
-        `update ${this.quotedTableName} set config = $2::jsonb, revision = $3, updated_at = now() where id = $1`,
-        [this.rowId, JSON.stringify(validated), revision]
-      );
-      // Every persisted revision invalidates replica snapshots. Presence has its own table.
-      await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision });
+      for (const key of changed) {
+        const entity = merged.get(key) ?? baseline.entities.get(key)!;
+        await client.query(`delete from ${this.referencesTable} where scope_id = $1 and kind = $2 and entity_id = $3`,
+          [this.rowId, entity.kind, entity.id]);
+        if (merged.has(key)) {
+          await client.query(`insert into ${this.entitiesTable} (scope_id, kind, entity_id, value, revision)
+            values ($1, $2, $3, $4::jsonb, nextval('${this.revisionSequence}'))
+            on conflict (scope_id, kind, entity_id) do update set value = excluded.value, revision = excluded.revision`,
+          [this.rowId, entity.kind, entity.id, JSON.stringify(entity.value)]);
+        } else await client.query(`delete from ${this.entitiesTable} where scope_id = $1 and kind = $2 and entity_id = $3`,
+          [this.rowId, entity.kind, entity.id]);
+      }
+      for (const key of changed) {
+        const entity = merged.get(key);
+        if (entity) await this.writeReferences(client, entity, merged);
+      }
+      if (changed.length) {
+        const result = await client.query<{ revision: string }>(`select nextval('${this.revisionSequence}') as revision`);
+        await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision: Number(result.rows[0].revision) });
+      }
+      const committed = await this.readSnapshot(client);
       await client.query("commit");
-      for (const entry of refreshedManifests) {
-        const submitted = config.manifestCache.find(candidate => candidate.serviceId === entry.serviceId);
-        if (submitted) submitted.fetchedAt = entry.fetchedAt;
-      }
-      this.activityLoad = undefined;
-      this.snapshots.set(config, revision);
-      this.snapshots.set(validated, revision);
-      this.configGeneration++;
-      this.cachedConfig = { config: structuredClone(validated), revision };
-      super.invalidate();
+      // Update the caller's baseline as well as its value: subsequent saves must
+      // not mistake concurrent edits included in this commit for user deletions.
+      Object.assign(config, structuredClone(committed.config));
+      this.snapshots.set(config, committed);
+      this.invalidate();
     } catch (error) {
       await client.query("rollback").catch(() => undefined);
       throw error;
     } finally {
       client.release();
+    }
+  }
+
+  private async writeReferences(client: PoolClient, entity: ConfigEntity, entities: Map<string, ConfigEntity>): Promise<void> {
+    for (const ref of entityReferences(entity, entities)) {
+      const [kind, id] = JSON.parse(ref) as [string, string];
+      await client.query(`insert into ${this.referencesTable} (scope_id, kind, entity_id, target_kind, target_id)
+        values ($1, $2, $3, $4, $5)`, [this.rowId, entity.kind, entity.id, kind, id]);
     }
   }
 
@@ -228,27 +302,35 @@ export class PostgresStorage extends BaseStorage {
     return structuredClone(this.credentialIndex.entries.get(hashApiKey(apiKey)) ?? null);
   }
 
-  private async readConfig(generation: number): Promise<{ config: BetterPortalConfig; revision: number; generation: number }> {
-    const result = await this.getPool().query<{ config: unknown; revision: string | number }>(
-      `select config, revision from ${this.quotedTableName} where id = $1`, [this.rowId]
+  private async readSnapshot(connection: Pick<Pool, "query"> | PoolClient): Promise<ConfigSnapshot> {
+    const result = await connection.query<ConfigEntityRow & { entity_id: string }>(
+      `select kind, entity_id, value, revision from ${this.entitiesTable} where scope_id = $1 order by ordinal`, [this.rowId]
     );
-    if (!result.rows[0]) throw new Error(`Platform config row ${this.rowId} was not initialized`);
-    return {
-      config: this.parseConfig(result.rows[0].config),
-      revision: Number(result.rows[0].revision),
-      generation
-    };
+    if (!result.rows.some(row => row.kind === "settings")) throw new Error(`Config scope ${this.rowId} was not initialized`);
+    const rows = result.rows.map(row => ({ ...row, id: row.entity_id }));
+    const previewConfigs = new Set(rows.filter(row => row.kind === "previewConfigs").map(row => row.id));
+    for (const row of rows) if (row.kind === "previewEnvironmentDeployments" && !previewConfigs.has(row.id)) {
+      throw new Error(`Persisted preview ${row.id} is missing its effective configuration`);
+    }
+    const config = this.parseConfig(assembleConfig(rows));
+    return { config, entities: splitConfig(config), revisions: new Map(rows.map(row => [keyOf(row), Number(row.revision)])) };
   }
 
-  private async cloneSnapshot(snapshot: { config: BetterPortalConfig; revision: number }): Promise<BetterPortalConfig> {
+  private async readConfig(generation: number): Promise<ConfigSnapshot & { generation: number }> {
+    return { ...await this.readSnapshot(this.getPool()), generation };
+  }
+
+  private async cloneSnapshot(snapshot: ConfigSnapshot): Promise<BetterPortalConfig> {
     const config = structuredClone(snapshot.config);
-    this.snapshots.set(config, snapshot.revision);
+    this.snapshots.set(config, snapshot);
     const activity = await this.loadServiceActivity();
     for (const tenant of config.tenants) for (const service of tenant.services) {
       Object.assign(service, activity.get(service.id));
     }
     return config;
   }
+
+  async close(): Promise<void> { await this.pool?.end(); }
 
   async touchServiceActivity(serviceId: string, field: "lastSeenAt" | "lastSyncAt"): Promise<void> {
     await this.ensureSchema();
@@ -577,7 +659,7 @@ export class PostgresStorage extends BaseStorage {
 
   private async migrate(): Promise<void> {
     const client = await this.getPool().connect();
-    const lockName = `${this.tableName}:${this.rowId}:migrations`;
+    const lockName = `${this.tableName}:migrations`;
     try {
       await client.query("select pg_advisory_lock(hashtext($1))", [lockName]);
       await client.query("begin");
@@ -613,15 +695,16 @@ export class PostgresStorage extends BaseStorage {
         primary key (scope_id, id))`);
       const applied = await client.query(
         `select 1 from ${this.migrationsTable} where scope_id = $1 and version = $2`,
-        [this.rowId, SCHEMA_VERSION]
+        [this.rowId, 1]
       );
       if (applied.rows.length === 0) {
         await this.importLegacyFiles(client);
         await client.query(
           `insert into ${this.migrationsTable} (scope_id, version) values ($1, $2)`,
-          [this.rowId, SCHEMA_VERSION]
+          [this.rowId, 1]
         );
       }
+      await this.migrateEntities(client);
       await client.query("commit");
     } catch (error) {
       await client.query("rollback").catch(() => undefined);
@@ -630,6 +713,62 @@ export class PostgresStorage extends BaseStorage {
       await client.query("select pg_advisory_unlock(hashtext($1))", [lockName]).catch(() => undefined);
       client.release();
     }
+  }
+
+  private async migrateEntities(client: PoolClient): Promise<void> {
+    await client.query(`create sequence if not exists ${this.revisionSequence}`);
+    await client.query(`create table if not exists ${this.entitiesTable} (
+      scope_id text not null, kind text not null, entity_id text not null, value jsonb not null,
+      revision bigint not null, ordinal bigint generated always as identity,
+      primary key (scope_id, kind, entity_id), check (jsonb_typeof(value) = 'object'))`);
+    await client.query(`create table if not exists ${this.referencesTable} (
+      scope_id text not null, kind text not null, entity_id text not null, target_kind text not null, target_id text not null,
+      primary key (scope_id, kind, entity_id, target_kind, target_id),
+      foreign key (scope_id, kind, entity_id) references ${this.entitiesTable} (scope_id, kind, entity_id) deferrable initially deferred,
+      foreign key (scope_id, target_kind, target_id) references ${this.entitiesTable} (scope_id, kind, entity_id) deferrable initially deferred)`);
+    await client.query(`create index if not exists ${quotePgIdent(`${this.tableName}_ref_target_idx`)}
+      on ${this.referencesTable} (scope_id, target_kind, target_id)`);
+    const applied = await client.query(`select 1 from ${this.migrationsTable} where scope_id = $1 and version = $2`, [this.rowId, SCHEMA_VERSION]);
+    if (applied.rows.length) return;
+    // Row lock waits for in-flight legacy saves. The trigger below fences later
+    // old-binary writes; the frozen row is retained as a migration backup.
+    const source = await client.query<{ config: unknown }>(`select config from ${this.quotedTableName} where id = $1 for update`, [this.rowId]);
+    if (!source.rows[0]) throw new Error("Legacy configuration is missing");
+    const config = this.parseConfig(source.rows[0].config);
+    this.validateConfigReferences(config);
+    const entities = splitConfig(config);
+    const claims = new Set<string>();
+    for (const entity of entities.values()) for (const claim of entityClaims(entity)) {
+      if (claims.has(claim)) throw new Error(`Cannot migrate duplicate configuration claim: ${claim}`);
+      claims.add(claim);
+    }
+    for (const tenant of config.tenants) for (const service of tenant.services) {
+      if (!service.lastSeenAt && !service.lastSyncAt) continue;
+      await client.query(`insert into ${this.activityTable} (scope_id, service_id, last_seen_at, last_sync_at)
+        values ($1, $2, $3, $4) on conflict (scope_id, service_id) do update set
+        last_seen_at = greatest(${this.activityTable}.last_seen_at, excluded.last_seen_at),
+        last_sync_at = greatest(${this.activityTable}.last_sync_at, excluded.last_sync_at)`,
+      [this.rowId, service.id, service.lastSeenAt ?? null, service.lastSyncAt ?? null]);
+    }
+    for (const entity of entities.values()) await client.query(
+      `insert into ${this.entitiesTable} (scope_id, kind, entity_id, value, revision) values ($1, $2, $3, $4::jsonb, nextval('${this.revisionSequence}'))`,
+      [this.rowId, entity.kind, entity.id, JSON.stringify(entity.value)]);
+    for (const entity of entities.values()) await this.writeReferences(client, entity, entities);
+    const restored = await this.readSnapshot(client);
+    if (changedEntityKeys(entities, restored.entities).length) throw new Error("Config entity migration verification failed");
+    const fence = quotePgIdent(`${this.tableName}_legacy_write_fence`);
+    await client.query(`create or replace function ${fence}() returns trigger language plpgsql as $body$
+      begin
+        if exists (select 1 from ${this.migrationsTable} where scope_id = OLD.id and version = 2) then
+          raise exception 'Config storage migrated to independent entities; upgrade all config-manager replicas';
+        end if;
+        if TG_OP = 'DELETE' then return OLD; end if;
+        return NEW;
+      end $body$`);
+    await client.query(`drop trigger if exists legacy_write_fence on ${this.quotedTableName}`);
+    await client.query(`create trigger legacy_write_fence before update or delete on ${this.quotedTableName}
+      for each row execute function ${fence}()`);
+    await client.query(`insert into ${this.migrationsTable} (scope_id, version) values ($1, $2)`, [this.rowId, SCHEMA_VERSION]);
   }
 
   private async importLegacyFiles(client: PoolClient): Promise<void> {

@@ -1,4 +1,5 @@
 import { isMenuRouteExcluded } from "./routeMounts.js";
+import { setTimeout as delay } from "node:timers/promises";
 import type {
   BetterPortalH3App,
   BetterPortalEvent,
@@ -30,6 +31,7 @@ import {
   revokeM2MConnection,
   type M2MConnectionSelection
 } from "./m2mConnections.js";
+import { ConfigRevisionConflictError } from "./storage/core.js";
 import { isPreviewApp } from "./previewEnvironments.js";
 
 const API_BASE = "/.well-known/bp/admin";
@@ -97,6 +99,33 @@ function htmxError(message: string, status = 400): Response {
 
 function validationError(event: BetterPortalEvent, message: string): Response {
   return wantsHtmx(event) ? htmxError(message, 400) : jsonResponse({ error: message }, 400);
+}
+
+// Only wrap operations whose effects are confined to the config transaction.
+// The callback must reload and revalidate, never resave a rejected snapshot.
+async function withRouteConfigRetry(
+  event: BetterPortalEvent,
+  store: PlatformConfigStore,
+  action: () => Promise<Response>
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await action();
+    } catch (error) {
+      if (!(error instanceof ConfigRevisionConflictError)) throw error;
+      store.invalidate();
+      if (attempt < 4) {
+        await delay(25 * 2 ** attempt * (1 + Math.random()));
+        continue;
+      }
+      const message = "Route configuration is busy; retry submission";
+      const response = wantsHtmx(event)
+        ? htmxError(message, 503)
+        : jsonResponse({ error: message }, 503);
+      response.headers.set("Retry-After", "1");
+      return response;
+    }
+  }
 }
 
 function validateRoleId(value: unknown): string | undefined {
@@ -456,26 +485,6 @@ function parseRouteCreateBody(body: Record<string, unknown>): { route?: Omit<Bet
   return { route };
 }
 
-function serviceRouteTargetKey(route: Pick<BetterPortalRouteMount, "serviceId" | "viewId" | "operations" | "targetPath" | "servicePathVariant">): string | undefined {
-  const servicePath = route.servicePathVariant
-    ?? route.targetPath
-    ?? getManifestCache().get(route.serviceId)?.viewIndex[route.viewId]?.path;
-  return servicePath
-    ? `${route.serviceId}\u0000${route.viewId}\u0000${[...route.operations].sort().join(",")}\u0000${appRoutePatternKey(servicePath)}`
-    : undefined;
-}
-
-function hasDuplicateServiceRouteTarget(
-  appDef: BetterPortalApp,
-  route: Pick<BetterPortalRouteMount, "serviceId" | "viewId" | "operations" | "targetPath" | "servicePathVariant">,
-  excludeRouteId?: string
-): boolean {
-  const key = serviceRouteTargetKey(route);
-  return !!key && appDef.routes.some((candidate) =>
-    candidate.id !== excludeRouteId && serviceRouteTargetKey(candidate) === key
-  );
-}
-
 function countMenuRouteReferences(items: unknown, routeId: string): number {
   if (!Array.isArray(items)) return 0;
   let count = 0;
@@ -713,7 +722,7 @@ function duplicateTenantService(
   return null;
 }
 
-function collectServiceDeleteBlockers(config: BetterPortalConfig, tenantId: string, serviceId: string): string[] {
+export function collectServiceDeleteBlockers(config: BetterPortalConfig, tenantId: string, serviceId: string): string[] {
   const blockers: string[] = [];
   const apps = config.apps.filter((app) => app.tenantId === tenantId);
   const add = (app: BetterPortalApp, label: string, id: string) => {
@@ -731,6 +740,15 @@ function collectServiceDeleteBlockers(config: BetterPortalConfig, tenantId: stri
     for (const [location, fragments] of Object.entries(app.fragments)) {
       for (const fragment of fragments) {
         if (fragment.serviceId === serviceId) add(app, "fragment", `${location}.${fragment.fragmentId}`);
+      }
+    }
+    for (const [shellServiceId, settings] of Object.entries(app.shellFragments ?? {})) {
+      if (shellServiceId === serviceId) add(app, "shell fragments", shellServiceId);
+      for (const [fragmentId, setting] of Object.entries(settings)) {
+        const items = setting.mode === "override" ? [setting.item] : setting.mode === "items" ? setting.items : [];
+        if (items.some(item => item.source === "service" && item.serviceId === serviceId)) {
+          add(app, "shell fragment", `${shellServiceId}.${fragmentId}`);
+        }
       }
     }
     if (app.auth?.serviceId === serviceId) add(app, "auth provider", serviceId);
@@ -799,6 +817,25 @@ export function purgeServiceReferences(config: BetterPortalConfig, tenantId: str
         role.permissions = role.permissions.filter((grant) => grant.serviceId !== serviceId);
         summary.roleGrantsRemoved += before - role.permissions.length;
       }
+    }
+
+    for (const [shellServiceId, settings] of Object.entries(app.shellFragments ?? {})) {
+      if (shellServiceId === serviceId) {
+        summary.fragmentsRemoved += Object.keys(settings).length;
+        delete app.shellFragments[shellServiceId];
+        continue;
+      }
+      for (const [fragmentId, setting] of Object.entries(settings)) {
+        if (setting.mode === "override" && setting.item.source === "service" && setting.item.serviceId === serviceId) {
+          delete settings[fragmentId];
+          summary.fragmentsRemoved += 1;
+        } else if (setting.mode === "items") {
+          const before = setting.items.length;
+          setting.items = setting.items.filter(item => item.source !== "service" || item.serviceId !== serviceId);
+          summary.fragmentsRemoved += before - setting.items.length;
+        }
+      }
+      if (Object.keys(settings).length === 0) delete app.shellFragments[shellServiceId];
     }
 
     const routeIds = new Set(app.routes.filter((route) => route.serviceId === serviceId).map((route) => route.id));
@@ -1189,8 +1226,8 @@ export function registerAdminApiRoutes(
     const body = await readFormOrJsonBody(event);
     const parsed = parseRouteCreateBody(body);
     if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route");
-    if (hasDuplicateServiceRouteTarget(appDef, parsed.route)) {
-      return validationError(event, "This service view and path are already mounted in this app.");
+    if (appDef.routes.some((candidate) => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
+      return validationError(event, `A route already exists at ${parsed.route.path}.`);
     }
     const route = { id: uuidv7(), ...parsed.route };
     appDef.routes.push(route);
@@ -2135,26 +2172,26 @@ export function registerAdminApiRoutes(
     const appId = getParam(event, "appId");
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
     const body = await readFormOrJsonBody(event);
-    const config = await store.loadConfig();
-    const appDef = config.apps.find((a) => a.id === appId);
-    if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
-    const parsed = parseRouteCreateBody(body);
-    if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route.");
-    if (parsed.route.kind === "api") return validationError(event, "Service/API routes are created by service manifest sync.");
-    const serviceError = validateRegisteredRouteService(config, appDef, parsed.route.serviceId);
-    if (serviceError) return validationError(event, serviceError);
-    if (appDef.routes.some((candidate) => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
-      return validationError(event, `A route already exists at ${parsed.route.path}.`);
-    }
-    if (hasDuplicateServiceRouteTarget(appDef, parsed.route)) {
-      return validationError(event, "This service view and path are already mounted in this app.");
-    }
-    const route: BetterPortalRouteMount = { ...parsed.route, id: uuidv7() };
-    appDef.routes.push(route);
-    addRouteDependencies(appDef, route);
-    await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId));
-    return jsonResponse({ ok: true, id: route.id } as unknown as JsonValue, 201);
+    return withRouteConfigRetry(event, store, async () => {
+      const config = await store.loadConfig();
+      if (isPreviewApp(config, appId)) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
+      const appDef = config.apps.find((a) => a.id === appId);
+      if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
+      const parsed = parseRouteCreateBody(body);
+      if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route.");
+      if (parsed.route.kind === "api") return validationError(event, "Service/API routes are created by service manifest sync.");
+      const serviceError = validateRegisteredRouteService(config, appDef, parsed.route.serviceId);
+      if (serviceError) return validationError(event, serviceError);
+      if (appDef.routes.some((candidate) => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
+        return validationError(event, `A route already exists at ${parsed.route.path}.`);
+      }
+      const route: BetterPortalRouteMount = { ...parsed.route, id: uuidv7() };
+      appDef.routes.push(route);
+      addRouteDependencies(appDef, route);
+      await store.saveConfig(config);
+      if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId));
+      return jsonResponse({ ok: true, id: route.id } as unknown as JsonValue, 201);
+    });
   });
 
   app.put(`${API_BASE}/apps/:appId/routes/:routeId`, async (event) => {
@@ -2162,151 +2199,152 @@ export function registerAdminApiRoutes(
     const routeId = getParam(event, "routeId");
     if (!appId || !routeId) return jsonResponse({ error: "appId and routeId required" }, 400);
     const body = await readFormOrJsonBody(event);
-    const config = await store.loadConfig();
-    const appDef = config.apps.find((a) => a.id === appId);
-    if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
-    const route = appDef.routes.find((r) => r.id === routeId);
-    if (!route) return wantsHtmx(event) ? htmxError("Route not found", 404) : jsonResponse({ error: "Route not found" }, 404);
-    if (route.kind === "api" && Object.keys(body).some((key) => key !== "enabled")) {
-      return validationError(event, "Service/API route identity and metadata are managed by service manifest sync.");
-    }
-    const originalServiceTargetKey = serviceRouteTargetKey(route);
-
-    if (body.path !== undefined) {
-      const path = trimmedString(body, "path");
-      if (!path) return validationError(event, "Mount path is required.");
-      const pathError = validateCanonicalRoutePath(path, "Mount path");
-      if (pathError) return validationError(event, pathError);
-      if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(path))) {
-        return validationError(event, `A route already exists at ${path}.`);
+    return withRouteConfigRetry(event, store, async () => {
+      const config = await store.loadConfig();
+      if (isPreviewApp(config, appId)) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
+      const appDef = config.apps.find((a) => a.id === appId);
+      if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
+      const route = appDef.routes.find((r) => r.id === routeId);
+      if (!route) return wantsHtmx(event) ? htmxError("Route not found", 404) : jsonResponse({ error: "Route not found" }, 404);
+      if (route.kind === "api" && Object.keys(body).some((key) => key !== "enabled")) {
+        return validationError(event, "Service/API route identity and metadata are managed by service manifest sync.");
       }
-      route.path = path;
-    }
-    if (body.serviceId !== undefined) {
-      const serviceId = trimmedString(body, "serviceId");
-      if (!serviceId) return validationError(event, "Service is required.");
-      const serviceError = validateRegisteredRouteService(config, appDef, serviceId);
-      if (serviceError) return validationError(event, serviceError);
-      route.serviceId = serviceId;
-    }
-    if (body.viewId !== undefined) {
-      const viewId = trimmedString(body, "viewId");
-      if (!viewId) return validationError(event, "View is required.");
-      route.viewId = viewId;
-    }
-    if (body.operationId !== undefined) {
-      const operationId = trimmedString(body, "operationId");
-      if (!operationId) return validationError(event, "Operation is required.");
-      route.operations = [operationId];
-    }
-    const manifest = getManifestCache().get(route.serviceId);
-    const manifestView = manifest?.viewIndex[route.viewId];
-    if (manifestView) {
-      const manifestOperation = manifestView.operations.find((operation) => route.operations.includes(operation.operationId));
-      if (!manifestOperation) return validationError(event, "Selected operation is not available for this view.");
-      const routeIdentityChanged = body.serviceId !== undefined || body.viewId !== undefined || body.operationId !== undefined;
-      const requestedServicePath = trimmedString(body, "servicePathVariant")
-        ?? (routeIdentityChanged ? undefined : route.servicePathVariant)
-        ?? manifestView.path;
-      if (![manifestView.path, ...manifestView.pathVariants].includes(requestedServicePath)) {
-        return validationError(event, "Selected service path is not available for this view.");
-      }
-      const servicePathError = validateCanonicalRoutePath(requestedServicePath, "Service path");
-      if (servicePathError) return validationError(event, servicePathError);
-      const submittedFixed = fixedParamsFromBody(body);
-      const pageRenderable = manifestOperation.method === "GET" && manifestOperation.renderModes.includes("page");
-      const mappedAppPath = !pageRenderable
-        ? apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath)
-        : route.path;
-      const appParams = new Set(routeParamNames(mappedAppPath));
-      const fixedParams = Object.fromEntries(Object.entries(submittedFixed).filter(([name]) =>
-        routeParamNames(requestedServicePath).includes(name) && !appParams.has(name)
-      ));
-      const mappingError = validateRouteParamMapping(mappedAppPath, requestedServicePath, fixedParams, manifestView.paramsSchema);
-      if (mappingError) return validationError(event, mappingError);
-      if (requestedServicePath === manifestView.path) delete route.servicePathVariant;
-      else route.servicePathVariant = requestedServicePath;
-      if (Object.keys(fixedParams).length > 0) route.fixedParams = fixedParams;
-      else delete route.fixedParams;
-      route.targetPath = requestedServicePath;
-      if (!pageRenderable) {
-        route.kind = "api";
-        route.path = apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath);
-        route.title = manifestOperation.title;
-        delete route.query;
-      } else {
-        route.kind = "page";
-      }
-    }
-    if (body.targetPath !== undefined) {
-      const targetPath = trimmedString(body, "targetPath");
-      if (targetPath) route.targetPath = targetPath;
-      else delete route.targetPath;
-    }
-    if (body.query !== undefined) {
-      const query = trimmedString(body, "query");
-      const renderable = manifestView?.operations.some((operation) =>
-        route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
-      );
-      if (isApiRoute(route, renderable)) delete route.query;
-      else if (query) route.query = query.replace(/^\?+/, "");
-      else delete route.query;
-    }
-    if (body.title !== undefined) {
-      const title = trimmedString(body, "title");
-      if (!title) return validationError(event, "Display title is required.");
-      const renderable = manifestView?.operations.some((operation) =>
-        route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
-      );
-      if (!isApiRoute(route, renderable)) route.title = title;
-    }
-    if (body.enabled !== undefined) {
-      route.enabled = body.enabled === true || body.enabled === "true" || body.enabled === "on";
-      route.enablement = route.enabled ? "enabled" : "disabled";
-    }
 
-    if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(route.path))) {
-      return validationError(event, `A route already exists at ${route.path}.`);
-    }
-    const updatedServiceTargetKey = serviceRouteTargetKey(route);
-    if (updatedServiceTargetKey !== originalServiceTargetKey && hasDuplicateServiceRouteTarget(appDef, route, route.id)) {
-      return validationError(event, "This service view and path are already mounted in this app.");
-    }
+      if (body.path !== undefined) {
+        const path = trimmedString(body, "path");
+        if (!path) return validationError(event, "Mount path is required.");
+        const pathError = validateCanonicalRoutePath(path, "Mount path");
+        if (pathError) return validationError(event, pathError);
+        if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(path))) {
+          return validationError(event, `A route already exists at ${path}.`);
+        }
+        route.path = path;
+      }
+      if (body.serviceId !== undefined) {
+        const serviceId = trimmedString(body, "serviceId");
+        if (!serviceId) return validationError(event, "Service is required.");
+        const serviceError = validateRegisteredRouteService(config, appDef, serviceId);
+        if (serviceError) return validationError(event, serviceError);
+        route.serviceId = serviceId;
+      }
+      if (body.viewId !== undefined) {
+        const viewId = trimmedString(body, "viewId");
+        if (!viewId) return validationError(event, "View is required.");
+        route.viewId = viewId;
+      }
+      if (body.operationId !== undefined) {
+        const operationId = trimmedString(body, "operationId");
+        if (!operationId) return validationError(event, "Operation is required.");
+        route.operations = [operationId];
+      }
+      const manifest = getManifestCache().get(route.serviceId);
+      const manifestView = manifest?.viewIndex[route.viewId];
+      if (manifestView) {
+        const manifestOperation = manifestView.operations.find((operation) => route.operations.includes(operation.operationId));
+        if (!manifestOperation) return validationError(event, "Selected operation is not available for this view.");
+        const routeIdentityChanged = body.serviceId !== undefined || body.viewId !== undefined || body.operationId !== undefined;
+        const requestedServicePath = trimmedString(body, "servicePathVariant")
+          ?? (routeIdentityChanged ? undefined : route.servicePathVariant)
+          ?? manifestView.path;
+        if (![manifestView.path, ...manifestView.pathVariants].includes(requestedServicePath)) {
+          return validationError(event, "Selected service path is not available for this view.");
+        }
+        const servicePathError = validateCanonicalRoutePath(requestedServicePath, "Service path");
+        if (servicePathError) return validationError(event, servicePathError);
+        const submittedFixed = fixedParamsFromBody(body);
+        const pageRenderable = manifestOperation.method === "GET" && manifestOperation.renderModes.includes("page");
+        const mappedAppPath = !pageRenderable
+          ? apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath)
+          : route.path;
+        const appParams = new Set(routeParamNames(mappedAppPath));
+        const fixedParams = Object.fromEntries(Object.entries(submittedFixed).filter(([name]) =>
+          routeParamNames(requestedServicePath).includes(name) && !appParams.has(name)
+        ));
+        const mappingError = validateRouteParamMapping(mappedAppPath, requestedServicePath, fixedParams, manifestView.paramsSchema);
+        if (mappingError) return validationError(event, mappingError);
+        if (requestedServicePath === manifestView.path) delete route.servicePathVariant;
+        else route.servicePathVariant = requestedServicePath;
+        if (Object.keys(fixedParams).length > 0) route.fixedParams = fixedParams;
+        else delete route.fixedParams;
+        route.targetPath = requestedServicePath;
+        if (!pageRenderable) {
+          route.kind = "api";
+          route.path = apiRoutePath(manifest?.serviceId ?? route.serviceId, requestedServicePath);
+          route.title = manifestOperation.title;
+          delete route.query;
+        } else {
+          route.kind = "page";
+        }
+      }
+      if (body.targetPath !== undefined) {
+        const targetPath = trimmedString(body, "targetPath");
+        if (targetPath) route.targetPath = targetPath;
+        else delete route.targetPath;
+      }
+      if (body.query !== undefined) {
+        const query = trimmedString(body, "query");
+        const renderable = manifestView?.operations.some((operation) =>
+          route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
+        );
+        if (isApiRoute(route, renderable)) delete route.query;
+        else if (query) route.query = query.replace(/^\?+/, "");
+        else delete route.query;
+      }
+      if (body.title !== undefined) {
+        const title = trimmedString(body, "title");
+        if (!title) return validationError(event, "Display title is required.");
+        const renderable = manifestView?.operations.some((operation) =>
+          route.operations.includes(operation.operationId) && operation.method === "GET" && operation.renderModes.includes("page")
+        );
+        if (!isApiRoute(route, renderable)) route.title = title;
+      }
+      if (body.enabled !== undefined) {
+        route.enabled = body.enabled === true || body.enabled === "true" || body.enabled === "on";
+        route.enablement = route.enabled ? "enabled" : "disabled";
+      }
 
-    await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId, route.kind === "api" ? route.serviceId : undefined));
-    return jsonResponse({ ok: true });
+      if (appDef.routes.some((candidate) => candidate.id !== route.id && appRoutePatternKey(candidate.path) === appRoutePatternKey(route.path))) {
+        return validationError(event, `A route already exists at ${route.path}.`);
+      }
+
+      await store.saveConfig(config);
+      if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId, route.kind === "api" ? route.serviceId : undefined));
+      return jsonResponse({ ok: true });
+    });
   });
 
   app.delete(`${API_BASE}/apps/:appId/routes/:routeId`, async (event) => {
     const appId = getParam(event, "appId");
     const routeId = getParam(event, "routeId");
     if (!appId || !routeId) return jsonResponse({ error: "appId and routeId required" }, 400);
-    const config = await store.loadConfig();
-    const appDef = config.apps.find((a) => a.id === appId);
-    if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
-    const route = appDef.routes.find((r) => r.id === routeId);
-    if (!route) return wantsHtmx(event) ? htmxAlert("Route not found.") : jsonResponse({ error: "Route not found" }, 404);
-    if (route.kind === "api") {
-      const message = "Service/API routes are managed by service manifest sync and cannot be deleted manually.";
-      return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
-    }
-    const menuReferenceCount = countMenuRouteReferences((appDef as unknown as { menu?: unknown }).menu, routeId);
-    if (menuReferenceCount > 0) {
-      const message = `Cannot delete route "${route.title ?? route.path}" because ${menuReferenceCount} menu item${menuReferenceCount === 1 ? "" : "s"} reference it. Remove the menu reference first.`;
-      return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
-    }
-    const redirectReference = Object.entries(appDef.auth?.redirects ?? {}).find(([, target]) =>
-      target?.serviceId === route.serviceId && target.viewId === route.viewId
-    );
-    if (redirectReference) {
-      const message = `Cannot delete route "${route.title ?? route.path}" because the app uses it for auth ${redirectReference[0]} navigation.`;
-      return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
-    }
-    appDef.routes = appDef.routes.filter((r) => r.id !== routeId);
-    await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(`/routes?appId=${encodeURIComponent(appId)}`);
-    return jsonResponse({ ok: true });
+    return withRouteConfigRetry(event, store, async () => {
+      const config = await store.loadConfig();
+      if (isPreviewApp(config, appId)) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
+      const appDef = config.apps.find((a) => a.id === appId);
+      if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
+      const route = appDef.routes.find((r) => r.id === routeId);
+      if (!route) return wantsHtmx(event) ? htmxAlert("Route not found.") : jsonResponse({ error: "Route not found" }, 404);
+      if (route.kind === "api") {
+        const message = "Service/API routes are managed by service manifest sync and cannot be deleted manually.";
+        return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
+      }
+      const menuReferenceCount = countMenuRouteReferences((appDef as unknown as { menu?: unknown }).menu, routeId);
+      if (menuReferenceCount > 0) {
+        const message = `Cannot delete route "${route.title ?? route.path}" because ${menuReferenceCount} menu item${menuReferenceCount === 1 ? "" : "s"} reference it. Remove the menu reference first.`;
+        return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
+      }
+      const redirectReference = Object.entries(appDef.auth?.redirects ?? {}).find(([, target]) =>
+        target?.serviceId === route.serviceId && target.viewId === route.viewId
+      );
+      if (redirectReference) {
+        const message = `Cannot delete route "${route.title ?? route.path}" because the app uses it for auth ${redirectReference[0]} navigation.`;
+        return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
+      }
+      appDef.routes = appDef.routes.filter((r) => r.id !== routeId);
+      await store.saveConfig(config);
+      if (wantsHtmx(event)) return htmxReload(`/routes?appId=${encodeURIComponent(appId)}`);
+      return jsonResponse({ ok: true });
+    });
   });
 
   // Menu (per app)
