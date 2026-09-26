@@ -5,7 +5,7 @@ import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@bett
 import { PostgresStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { entityKey, splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
 import { createPreviewGroup, provisionPreviewDeployment } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
-import { purgeServiceReferences, registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
+import { collectServiceDeleteBlockers, purgeServiceReferences, registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 
 const connectionString = process.env.BP_CONFIG_TEST_POSTGRES;
 const pgTest = (name: string, fn: (t: TestContext) => Promise<void>) => test(name, { skip: !connectionString, timeout: 20000 }, fn);
@@ -254,4 +254,41 @@ for (const firstWriter of ["manifest", "purge"] as const) pgTest(`manifest-only 
   const latest = await makeStore().loadConfig();
   assert.equal(latest.manifestCache.some(entry => entry.serviceId === serviceId), false);
   assert.equal(latest.tenants[0].services.some(service => service.id === serviceId), false);
+});
+
+pgTest("service purge removes shell fragment dependencies while preserving unrelated settings", async t => {
+  const config = fixture();
+  const app = config.apps[0];
+  const [removed, retained] = config.tenants[0].services;
+  const removedItem = { source: "service" as const, serviceId: removed.id, fragmentId: "removed", targetPath: "/" };
+  const retainedItem = { source: "service" as const, serviceId: retained.id, fragmentId: "retained", targetPath: "/" };
+  app.shellFragments = {
+    [removed.id]: { owned: { mode: "none" } },
+    [retained.id]: {
+      override: { mode: "override", item: removedItem },
+      list: { mode: "items", items: [removedItem, retainedItem, { source: "shell", fragmentId: "local" }] },
+      empty: { mode: "items", items: [removedItem] },
+      disabled: { mode: "none" },
+      kept: { mode: "override", item: retainedItem }
+    }
+  };
+  const { makeStore } = await database(t, config);
+  const store = makeStore();
+  const loaded = await store.loadConfig();
+  const blockers = collectServiceDeleteBlockers(loaded, app.tenantId, removed.id);
+  assert.ok(blockers.some(value => value.includes(`shell fragments ${removed.id}`)));
+  for (const name of ["override", "list", "empty"]) {
+    assert.ok(blockers.some(value => value.includes(`shell fragment ${retained.id}.${name}`)));
+  }
+  purgeServiceReferences(loaded, app.tenantId, removed.id);
+  assert.deepEqual(collectServiceDeleteBlockers(loaded, app.tenantId, removed.id), []);
+  loaded.tenants[0].services = loaded.tenants[0].services.filter(service => service.id !== removed.id);
+  await store.saveConfig(loaded);
+  assert.deepEqual((await makeStore().loadConfig()).apps[0].shellFragments, {
+    [retained.id]: {
+      list: { mode: "items", items: [retainedItem, { source: "shell", fragmentId: "local" }] },
+      empty: { mode: "items", items: [] }, disabled: { mode: "none" },
+      kept: { mode: "override", item: retainedItem }
+    }
+  });
 });

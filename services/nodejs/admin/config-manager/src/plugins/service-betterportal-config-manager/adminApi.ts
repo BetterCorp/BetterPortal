@@ -722,7 +722,7 @@ function duplicateTenantService(
   return null;
 }
 
-function collectServiceDeleteBlockers(config: BetterPortalConfig, tenantId: string, serviceId: string): string[] {
+export function collectServiceDeleteBlockers(config: BetterPortalConfig, tenantId: string, serviceId: string): string[] {
   const blockers: string[] = [];
   const apps = config.apps.filter((app) => app.tenantId === tenantId);
   const add = (app: BetterPortalApp, label: string, id: string) => {
@@ -740,6 +740,15 @@ function collectServiceDeleteBlockers(config: BetterPortalConfig, tenantId: stri
     for (const [location, fragments] of Object.entries(app.fragments)) {
       for (const fragment of fragments) {
         if (fragment.serviceId === serviceId) add(app, "fragment", `${location}.${fragment.fragmentId}`);
+      }
+    }
+    for (const [shellServiceId, settings] of Object.entries(app.shellFragments ?? {})) {
+      if (shellServiceId === serviceId) add(app, "shell fragments", shellServiceId);
+      for (const [fragmentId, setting] of Object.entries(settings)) {
+        const items = setting.mode === "override" ? [setting.item] : setting.mode === "items" ? setting.items : [];
+        if (items.some(item => item.source === "service" && item.serviceId === serviceId)) {
+          add(app, "shell fragment", `${shellServiceId}.${fragmentId}`);
+        }
       }
     }
     if (app.auth?.serviceId === serviceId) add(app, "auth provider", serviceId);
@@ -808,6 +817,25 @@ export function purgeServiceReferences(config: BetterPortalConfig, tenantId: str
         role.permissions = role.permissions.filter((grant) => grant.serviceId !== serviceId);
         summary.roleGrantsRemoved += before - role.permissions.length;
       }
+    }
+
+    for (const [shellServiceId, settings] of Object.entries(app.shellFragments ?? {})) {
+      if (shellServiceId === serviceId) {
+        summary.fragmentsRemoved += Object.keys(settings).length;
+        delete app.shellFragments[shellServiceId];
+        continue;
+      }
+      for (const [fragmentId, setting] of Object.entries(settings)) {
+        if (setting.mode === "override" && setting.item.source === "service" && setting.item.serviceId === serviceId) {
+          delete settings[fragmentId];
+          summary.fragmentsRemoved += 1;
+        } else if (setting.mode === "items") {
+          const before = setting.items.length;
+          setting.items = setting.items.filter(item => item.source !== "service" || item.serviceId !== serviceId);
+          summary.fragmentsRemoved += before - setting.items.length;
+        }
+      }
+      if (Object.keys(settings).length === 0) delete app.shellFragments[shellServiceId];
     }
 
     const routeIds = new Set(app.routes.filter((route) => route.serviceId === serviceId).map((route) => route.id));
