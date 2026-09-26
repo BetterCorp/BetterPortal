@@ -469,6 +469,12 @@ export abstract class BaseStorage implements PlatformConfigStore {
       if (!tenant || !tenant.active) {
         errors.push(`webhook target ${target.id} references missing or disabled tenant: ${target.tenantId}`);
       }
+      const serviceExists = tenant?.services.some(service => service.id === target.serviceId)
+        || config.platformServices.some(service => service.id === target.serviceId)
+        || config.sharedServiceCatalog.some(service => service.id === target.serviceId)
+        || config.sharedServiceActivations.some(activation => activation.id === target.serviceId
+          && activation.tenantId === target.tenantId && (!activation.appId || activation.appId === target.appId));
+      if (!serviceExists) errors.push(`webhook target ${target.id} references missing service: ${target.serviceId}`);
       if (target.appId) {
         const app = appsById.get(target.appId);
         if (!app) {

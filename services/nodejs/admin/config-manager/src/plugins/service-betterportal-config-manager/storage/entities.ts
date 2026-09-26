@@ -99,6 +99,7 @@ export function entityReferences(entity: ConfigEntity, entities: Map<string, Con
     add("tenants", value.tenantId); add("apps", value.appId);
   }
   if (kind === "sharedServiceActivations") add("sharedServiceCatalog", value.sharedServiceId);
+  if (kind === "webhookTargets") service(value.serviceId);
   if (kind === "bindings") { service(value.sourceServiceId); service(value.targetServiceId); }
   if (kind === "grants") add("bindings", value.bindingId);
   if (kind === "previewEnvironmentGroups") { add("tenants", value.sourceTenantId); add("apps", value.sourceAppId); }

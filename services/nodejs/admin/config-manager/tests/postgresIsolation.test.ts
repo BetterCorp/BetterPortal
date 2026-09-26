@@ -5,7 +5,7 @@ import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@bett
 import { PostgresStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { entityKey, splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
 import { createPreviewGroup, provisionPreviewDeployment } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
-import { registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
+import { purgeServiceReferences, registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 
 const connectionString = process.env.BP_CONFIG_TEST_POSTGRES;
 const pgTest = (name: string, fn: (t: TestContext) => Promise<void>) => test(name, { skip: !connectionString, timeout: 20000 }, fn);
@@ -194,4 +194,37 @@ pgTest("migration failure rolls back the cutover and preserves the original conf
   assert.deepEqual((await pool.query("select config from bp_platform_config")).rows[0].config, JSON.parse(JSON.stringify(invalid)));
   assert.equal((await pool.query("select to_regclass('bp_platform_config_entities') as name")).rows[0].name, null);
   await pool.query("update bp_platform_config set revision = revision + 1");
+});
+
+
+for (const firstWriter of ["target", "purge"] as const) pgTest(`webhook creation versus service purge preserves references when ${firstWriter} commits first`, async t => {
+  const { makeStore, pool } = await database(t);
+  const targetStore = makeStore(), purgeStore = makeStore();
+  const targetConfig = await targetStore.loadConfig(), purgeConfig = await purgeStore.loadConfig();
+  const tenantId = targetConfig.tenants[0].id, serviceId = targetConfig.tenants[0].services[0].id;
+  targetConfig.webhooks.targets.push({ id: uuidv7(), tenantId, serviceId, eventId: "changed",
+    url: "https://receiver.example/events", secret: "test-only", createdAt: new Date().toISOString(), enabled: true, maxAttempts: 3 });
+  purgeServiceReferences(purgeConfig, tenantId, serviceId);
+  purgeConfig.tenants[0].services = purgeConfig.tenants[0].services.filter(service => service.id !== serviceId);
+  if (firstWriter === "target") {
+    await targetStore.saveConfig(targetConfig);
+    const refs = await pool.query("select target_kind, target_id from bp_platform_config_references where kind = 'webhookTargets'");
+    assert.ok(refs.rows.some(row => row.target_kind === "tenantServices" && row.target_id === serviceId));
+    await assert.rejects(purgeStore.saveConfig(purgeConfig), /references missing service/);
+    // Reloading and purging again removes both target and service atomically.
+    purgeStore.invalidate();
+    const retry = await purgeStore.loadConfig();
+    purgeServiceReferences(retry, tenantId, serviceId);
+    retry.tenants[0].services = retry.tenants[0].services.filter(service => service.id !== serviceId);
+    await purgeStore.saveConfig(retry);
+  } else {
+    await purgeStore.saveConfig(purgeConfig);
+    await assert.rejects(targetStore.saveConfig(targetConfig), ConfigRevisionConflictError);
+    const retry = await targetStore.loadConfig();
+    retry.webhooks.targets.push(targetConfig.webhooks.targets[0]);
+    await assert.rejects(targetStore.saveConfig(retry), /references missing service/);
+  }
+  const latest = await makeStore().loadConfig();
+  assert.equal(latest.webhooks.targets.length, 0);
+  assert.equal(latest.tenants[0].services.some(service => service.id === serviceId), false);
 });
