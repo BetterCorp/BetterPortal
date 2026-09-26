@@ -228,3 +228,30 @@ for (const firstWriter of ["target", "purge"] as const) pgTest(`webhook creation
   assert.equal(latest.webhooks.targets.length, 0);
   assert.equal(latest.tenants[0].services.some(service => service.id === serviceId), false);
 });
+
+
+for (const firstWriter of ["manifest", "purge"] as const) pgTest(`manifest-only sync versus service purge is fenced when ${firstWriter} commits first`, async t => {
+  const { makeStore, pool } = await database(t);
+  const syncStore = makeStore(), purgeStore = makeStore();
+  const syncConfig = await syncStore.loadConfig(), purgeConfig = await purgeStore.loadConfig();
+  const tenantId = syncConfig.tenants[0].id, serviceId = syncConfig.tenants[0].services[0].id;
+  syncConfig.manifestCache.push({ serviceId, manifestVersion: "1", fetchedAt: new Date().toISOString(), viewIndex: {} } as never);
+  purgeServiceReferences(purgeConfig, tenantId, serviceId);
+  purgeConfig.tenants[0].services = purgeConfig.tenants[0].services.filter(service => service.id !== serviceId);
+  if (firstWriter === "manifest") {
+    await syncStore.saveConfig(syncConfig);
+    const refs = await pool.query("select target_kind, target_id from bp_platform_config_references where kind = 'manifestCache'");
+    assert.ok(refs.rows.some(row => row.target_kind === "tenantServices" && row.target_id === serviceId));
+    await assert.rejects(purgeStore.saveConfig(purgeConfig), ConfigRevisionConflictError);
+    const retry = await purgeStore.loadConfig();
+    purgeServiceReferences(retry, tenantId, serviceId);
+    retry.tenants[0].services = retry.tenants[0].services.filter(service => service.id !== serviceId);
+    await purgeStore.saveConfig(retry);
+  } else {
+    await purgeStore.saveConfig(purgeConfig);
+    await assert.rejects(syncStore.saveConfig(syncConfig), ConfigRevisionConflictError);
+  }
+  const latest = await makeStore().loadConfig();
+  assert.equal(latest.manifestCache.some(entry => entry.serviceId === serviceId), false);
+  assert.equal(latest.tenants[0].services.some(service => service.id === serviceId), false);
+});

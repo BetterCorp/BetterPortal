@@ -156,6 +156,11 @@ export class PostgresStorage extends BaseStorage {
     const baseline = this.snapshots.get(config);
     if (!baseline) throw new Error("Config must be loaded from this store before saving; detached whole-platform replacements are not supported");
     const proposed = splitConfig(this.parseConfig(config));
+    // Cached manifests belong to their concrete service registration. Deleting
+    // a registration also deletes its known cache, whichever API initiated it.
+    for (const [key, entity] of proposed) if (entity.kind === "manifestCache") {
+      if (entityReferences(entity, baseline.entities).some(ref => !proposed.has(ref))) proposed.delete(key);
+    }
     const changed = changedEntityKeys(baseline.entities, proposed);
     const client = await this.getPool().connect();
     try {
@@ -195,6 +200,17 @@ export class PostgresStorage extends BaseStorage {
         const entity = proposed.get(key);
         if (entity) merged.set(key, entity);
         else merged.delete(key);
+      }
+      // A sync may have created a cache after the deletion snapshot was loaded.
+      // Reject that stale deletion before reaching the FK; a fresh retry includes
+      // the cache in its deletion set and locks both records in canonical order.
+      for (const entity of merged.values()) if (entity.kind === "manifestCache") {
+        const removed = entityReferences(entity, current.entities).find(ref => !merged.has(ref));
+        if (removed) {
+          this.invalidate();
+          throw new ConfigRevisionConflictError(baseline.revisions.get(keyOf(entity)) ?? 0,
+            current.revisions.get(keyOf(entity)) ?? 0, keyOf(entity));
+        }
       }
       const validated = this.parseConfig(assembleConfig(merged.values()));
       this.validateConfigReferences(validated);
