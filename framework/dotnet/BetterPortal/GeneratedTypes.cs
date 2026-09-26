@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: f27bc9c708270d4cf89ff66042a0c9e8e4d4dc11c0761874601d44cf0173ab99
+// Generated from AnyVali documents; do not edit. SHA256: 0a8d4d619e365fde21860ae39d63624fd0dd8c4986a794018f91e90eb6a28ffa
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -7036,6 +7036,9 @@ public sealed record PluginManifestInput
 
 public sealed record PreviewEnvironmentDeployment
 {
+    [JsonPropertyName("effectiveConfig")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<PreviewEnvironmentDeploymentEffectiveConfig> EffectiveConfig { get; init; }
     [JsonPropertyName("credentialReplay")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<PreviewEnvironmentDeploymentCredentialReplay> CredentialReplay { get; init; }
@@ -7076,8 +7079,19 @@ public sealed record PreviewEnvironmentDeploymentCredentialReplay
     public required string ExpiresAt { get; init; }
 }
 
+public sealed record PreviewEnvironmentDeploymentEffectiveConfig
+{
+    [JsonPropertyName("services")]
+    public required IReadOnlyList<PreviewEnvironmentGroupService> Services { get; init; }
+    [JsonPropertyName("elevatedRoleIds")]
+    public required IReadOnlyList<string> ElevatedRoleIds { get; init; }
+}
+
 public sealed record PreviewEnvironmentDeploymentInput
 {
+    [JsonPropertyName("effectiveConfig")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<PreviewEnvironmentDeploymentInputEffectiveConfig> EffectiveConfig { get; init; }
     [JsonPropertyName("credentialReplay")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<PreviewEnvironmentDeploymentInputCredentialReplay> CredentialReplay { get; init; }
@@ -7116,6 +7130,16 @@ public sealed record PreviewEnvironmentDeploymentInputCredentialReplay
     public required string Ciphertext { get; init; }
     [JsonPropertyName("expiresAt")]
     public required string ExpiresAt { get; init; }
+}
+
+public sealed record PreviewEnvironmentDeploymentInputEffectiveConfig
+{
+    [JsonPropertyName("services")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<PreviewEnvironmentGroupServiceInput>> Services { get; init; }
+    [JsonPropertyName("elevatedRoleIds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> ElevatedRoleIds { get; init; }
 }
 
 public sealed record PreviewEnvironmentDeploymentService
