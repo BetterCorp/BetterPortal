@@ -1,3 +1,5 @@
+import { deleteApp, deleteTenant } from "../src/plugins/service-betterportal-config-manager/tenantManagement.js";
+import { setConfigManagerRouteContext } from "../src/plugins/service-betterportal-config-manager/routeContext.js";
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { Pool } from "pg";
@@ -291,4 +293,35 @@ pgTest("service purge removes shell fragment dependencies while preserving unrel
       kept: { mode: "override", item: retainedItem }
     }
   });
+});
+
+for (const entity of ["app", "tenant"] as const) pgTest(`deleting a preview source ${entity} is explicitly blocked before saving`, async t => {
+  const config = fixture();
+  const source = config.apps[0];
+  const { group } = createPreviewGroup(config, { name: "Dependent previews", expiresInDays: 7, sourceTenantId: source.tenantId, sourceAppId: source.id });
+  const { makeStore } = await database(t, config);
+  const store = makeStore();
+  let saves = 0;
+  setConfigManagerRouteContext({
+    storage: { loadConfig: () => store.loadConfig(), saveConfig: async value => { saves++; await store.saveConfig(value); } },
+    serviceBaseUrl: "https://config.example"
+  } as Parameters<typeof setConfigManagerRouteContext>[0]);
+  const remove = entity === "app" ? deleteApp : deleteTenant;
+  const id = entity === "app" ? source.id : source.tenantId;
+  await assert.rejects(remove(id), error => {
+    assert.equal((error as { statusCode: number }).statusCode, 409);
+    assert.match((error as Error).message, /Dependent previews.*Delete those preview groups first/);
+    return true;
+  });
+  assert.equal(saves, 0);
+  const unchanged = await store.loadConfig();
+  assert.ok(unchanged.apps.some(app => app.id === source.id));
+  assert.ok(unchanged.tenants.some(tenant => tenant.id === source.tenantId));
+  assert.ok(unchanged.previewEnvironmentGroups.some(candidate => candidate.id === group.id));
+  unchanged.previewEnvironmentGroups = [];
+  await store.saveConfig(unchanged);
+  await remove(id);
+  const latest = await store.loadConfig();
+  assert.equal(latest.apps.some(app => app.id === source.id), false);
+  if (entity === "tenant") assert.equal(latest.tenants.some(tenant => tenant.id === source.tenantId), false);
 });
