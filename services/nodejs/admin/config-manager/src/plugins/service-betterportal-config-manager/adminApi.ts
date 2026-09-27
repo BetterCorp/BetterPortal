@@ -3099,7 +3099,7 @@ export function renderConfigClientShell(d: {
     const control = fieldControl(field);
     const input = form.querySelector('[name="' + CSS.escape(field.key) + '"]');
     if (!input) return undefined;
-    if (control === "checkbox") return input.checked ? "true" : "false";
+    if (control === "checkbox") return input.checked;
     if (control === "multiselect") return Array.from(input.selectedOptions || []).map((option) => option.value).join(",");
     return input.value;
   };
@@ -3111,7 +3111,13 @@ export function renderConfigClientShell(d: {
         if (group && typeof group.id === "string" && !groupsById.has(group.id)) groupsById.set(group.id, group);
       }
       for (const field of entry.fields || []) {
-        if (field && typeof field.key === "string" && !byKey.has(field.key)) byKey.set(field.key, field);
+        if (!field || typeof field.key !== "string" || byKey.has(field.key)) continue;
+        const property = entry.jsonSchema?.properties?.[field.key] ?? entry.jsonSchema?.[field.key];
+        const type = typeof property === "string" ? property : property?.type;
+        const boolean = type === "boolean" || (!type && typeof field.defaultValue === "boolean");
+        byKey.set(field.key, boolean && !field.ui?.control
+          ? { ...field, ui: { ...field.ui, control: "checkbox" } }
+          : field);
       }
     }
     const fields = Array.from(byKey.values()).sort(compareOrder);
