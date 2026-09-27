@@ -6,6 +6,12 @@ import { appRoutePatternKey } from "../routeMounts.js";
 type Row = Record<string, any>;
 type App = BetterPortalApp;
 
+export class AppDataConflictError extends Error {
+  readonly status = 409;
+  readonly statusCode = 409;
+  constructor() { super("App data changed concurrently; reload before replacing the same record"); }
+}
+
 /** The versioned app document contains settings, not operational collections. */
 export function appSettings(app: App): Row {
   const { routes: _routes, menu: _menu, ...settings } = structuredClone(app);
@@ -107,9 +113,7 @@ export class AppData {
         if (isDeepStrictEqual(a, b)) continue;
         // Legacy snapshot writers must never erase a concurrent edit to the same record.
         if (!isDeepStrictEqual(a, latest.get(table)!.get(key))) {
-          const error = new Error("App data changed concurrently; reload before replacing the same record");
-          Object.assign(error, { status: 409, statusCode: 409 });
-          throw error;
+          throw new AppDataConflictError();
         }
         const identity = table === this.grants ? ["role_id", "service_id", "view_id", "action"] : ["id"];
         if (!b) {
@@ -127,23 +131,31 @@ export class AppData {
     }
   }
 
-  async hydrate(client: PoolClient, apps: Row[]): Promise<void> {
+  /** One statement keeps app settings and all child collections on the same MVCC snapshot. */
+  async read(client: PoolClient, entitiesTable: string): Promise<{ entities: Row[]; roles: Row[]; grants: Row[]; routes: Row[]; menus: Row[] }> {
+    const tables = { entities: entitiesTable, roles: this.roles, grants: this.grants, routes: this.routes, menus: this.menus };
+    const result = await client.query(`select ${Object.entries(tables).map(([name, table]) =>
+      `coalesce((select json_agg(r${name === "entities" ? " order by ordinal" : ""}) from ${table} r where scope_id=$1),'[]'::json) as ${name}`).join(",")}`, [this.scope]);
+    return result.rows[0];
+  }
+
+  hydrate(apps: Row[], data: { roles: Row[]; grants: Row[]; routes: Row[]; menus: Row[] }): void {
     const byId = new Map(apps.map(app => [app.id, app]));
     for (const app of apps) { app.routes = []; app.menu = []; if (app.auth) app.auth.roles = []; }
     const roles = new Map<string, Row>();
-    for (const row of (await client.query(`select * from ${this.roles} where scope_id=$1 order by position,id`, [this.scope])).rows) {
+    for (const row of data.roles.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))) {
       const app = byId.get(row.app_id);
       if (!app?.auth) throw new Error("Role references an app without auth");
       const role = { id: row.id, title: row.title, ...(row.description !== null ? { description: row.description } : {}), permissions: [] as Row[] };
       app.auth.roles.push(role); roles.set(JSON.stringify([row.app_id, row.id]), role);
     }
-    for (const row of (await client.query(`select * from ${this.grants} where scope_id=$1 order by grant_position,action_position`, [this.scope])).rows) {
+    for (const row of data.grants.sort((a, b) => a.grant_position - b.grant_position || a.action_position - b.action_position)) {
       const role = roles.get(JSON.stringify([row.app_id, row.role_id]))!;
       let grant = role.permissions.find((g: Row) => g.serviceId === row.service_id && g.viewId === row.view_id);
       if (!grant) { grant = { serviceId: row.service_id, viewId: row.view_id, permissions: [] }; role.permissions.push(grant); }
       grant.permissions.push(row.action);
     }
-    for (const row of (await client.query(`select * from ${this.routes} where scope_id=$1 order by position,id`, [this.scope])).rows) {
+    for (const row of data.routes.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))) {
       const route: BetterPortalRouteMount = { ...row.options, id: row.id, kind: row.kind, path: row.path,
         serviceId: row.service_id, viewId: row.view_id, enabled: row.enabled, operations: row.operations };
       if (row.title !== null) route.title = row.title;
@@ -151,7 +163,7 @@ export class AppData {
       byId.get(row.app_id)!.routes.push(route);
     }
     const menus = new Map<string, BetterPortalMenuItem>();
-    const rows = (await client.query(`select * from ${this.menus} where scope_id=$1 order by position,id`, [this.scope])).rows;
+    const rows = data.menus.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
     for (const row of rows) {
       const item: BetterPortalMenuItem = { id: row.id, type: row.type, enabled: row.enabled,
         serviceStatus: row.service_status, authStatus: row.auth_status, children: [] };

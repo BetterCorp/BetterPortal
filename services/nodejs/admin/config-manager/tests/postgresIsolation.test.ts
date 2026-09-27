@@ -409,3 +409,26 @@ pgTest("menu foreign keys prevent dangling routes and failed app transactions ro
   }), /cancel/);
   assert.equal((await store.loadConfig()).apps[0].auth!.roles.length, 0);
 });
+
+pgTest("stale snapshot replacement cannot delete newly committed app data", async t => {
+  const { makeStore, config } = await database(t); const a = makeStore(), b = makeStore();
+  const stale = await a.loadConfig();
+  await b.mutateApp(config.apps[0].id, async data => {
+    data.apps[0].auth!.roles.push({ id: "new-role", title: "New", permissions: [] });
+  });
+  stale.apps.shift();
+  await assert.rejects(a.saveConfig(stale), /App data changed concurrently/);
+  assert.equal((await b.loadConfig()).apps[0].auth!.roles[0].id, "new-role");
+});
+
+pgTest("failed relational constraints roll back all app row changes", async t => {
+  const { makeStore, config } = await database(t); const store = makeStore();
+  await store.initialize();
+  await assert.rejects(store.mutateApp(config.apps[0].id, async data => {
+    data.apps[0].auth!.roles.push({ id: "not-saved", title: "No", permissions: [] });
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: uuidv7() });
+  }));
+  const app = (await store.loadConfig()).apps[0];
+  assert.equal(app.auth!.roles.length, 0);
+  assert.equal(app.routes.length, 1);
+});

@@ -269,9 +269,9 @@ test("Postgres reads isolated current snapshots in repeatable-read transactions 
   let reads = 0, transactions = 0, releases = 0;
   const query = async (sql: string) => {
     if (sql.startsWith("begin isolation level repeatable read")) transactions++;
-    if (!sql.includes("select kind, entity_id")) return { rows: [] };
+    if (!sql.includes("json_agg")) return { rows: [] };
     reads++;
-    return { rows: [...splitConfig(config).values()].map(entity => ({ ...entity, entity_id: entity.id, revision: 1 })) };
+    return { rows: [{ entities: [...splitConfig(config).values()].map(entity => ({ ...entity, entity_id: entity.id, revision: 1 })), roles: [], grants: [], routes: [], menus: [] }] };
   };
   const storage = new PostgresStorage({ connectionString: "postgres://unused" });
   Object.assign(storage as object, { schemaReady: Promise.resolve(), pool: {

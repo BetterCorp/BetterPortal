@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { AppData, appSettings } from "./appData.js";
+import { AppData, AppDataConflictError, appSettings } from "./appData.js";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -226,26 +226,13 @@ export class PostgresStorage extends BaseStorage {
             current.revisions.get(keyOf(entity)) ?? 0, keyOf(entity));
         }
       }
-      for (const appId of appChanges) await this.appData.save(client, appId, oldApps.get(appId), nextApps.get(appId), current.config.apps.find(app => app.id === appId));
-      const assembled = assembleConfig(merged.values()) as BetterPortalConfig;
-      await this.appData.hydrate(client, assembled.apps);
-      const validated = this.parseConfig(assembled);
-      this.validateConfigReferences(validated);
-      // Validate uniqueness against the current committed state, under claim locks.
-      const claims = new Set<string>();
-      for (const entity of merged.values()) for (const claim of entityClaims(entity)) {
-        if (claims.has(claim)) throw new Error(`Configuration uniqueness conflict: ${claim}`);
-        claims.add(claim);
+      for (const appId of appChanges) {
+        const latest = current.config.apps.find(app => app.id === appId);
+        if (!nextApps.has(appId) && this.appData.changed(oldApps.get(appId), latest)) {
+          throw new AppDataConflictError();
+        }
+        await this.appData.save(client, appId, oldApps.get(appId), nextApps.get(appId), latest);
       }
-      const resetActivity: string[] = [];
-      const services = new Map(validated.tenants.flatMap(tenant => tenant.services.map(service => [service.id, service] as const)));
-      for (const previous of current.config.tenants.flatMap(tenant => tenant.services)) {
-        const next = services.get(previous.id);
-        if (!next || previous.apiKeyHash !== next.apiKeyHash || previous.hostname !== next.hostname) resetActivity.push(previous.id);
-      }
-      if (resetActivity.length) await client.query(
-        `delete from ${this.activityTable} where scope_id = $1 and service_id = any($2::text[])`, [this.rowId, resetActivity]
-      );
       const refreshed = changed.map(key => merged.get(key)).filter(entity => entity?.kind === "manifestCache");
       if (refreshed.length) {
         const clock = await client.query<{ now: Date }>("select clock_timestamp() as now");
@@ -263,6 +250,23 @@ export class PostgresStorage extends BaseStorage {
         } else await client.query(`delete from ${this.entitiesTable} where scope_id = $1 and kind = $2 and entity_id = $3`,
           [this.rowId, entity.kind, entity.id]);
       }
+      const validated = (await this.readSnapshot(client)).config;
+      this.validateConfigReferences(validated);
+      // Validate uniqueness against the current committed state, under claim locks.
+      const claims = new Set<string>();
+      for (const entity of merged.values()) for (const claim of entityClaims(entity)) {
+        if (claims.has(claim)) throw new Error(`Configuration uniqueness conflict: ${claim}`);
+        claims.add(claim);
+      }
+      const resetActivity: string[] = [];
+      const services = new Map(validated.tenants.flatMap(tenant => tenant.services.map(service => [service.id, service] as const)));
+      for (const previous of current.config.tenants.flatMap(tenant => tenant.services)) {
+        const next = services.get(previous.id);
+        if (!next || previous.apiKeyHash !== next.apiKeyHash || previous.hostname !== next.hostname) resetActivity.push(previous.id);
+      }
+      if (resetActivity.length) await client.query(
+        `delete from ${this.activityTable} where scope_id = $1 and service_id = any($2::text[])`, [this.rowId, resetActivity]
+      );
       for (const key of new Set([...changed, ...appChanges.map(id => JSON.stringify(["apps", id]))])) {
         const entity = merged.get(key);
         if (entity) {
@@ -347,16 +351,17 @@ export class PostgresStorage extends BaseStorage {
   }
 
   private async readSnapshot(connection: PoolClient, relational = true): Promise<ConfigSnapshot> {
-    const result = await connection.query<ConfigEntityRow & { entity_id: string }>(
+    const data = relational ? await this.appData.read(connection, this.entitiesTable) : undefined;
+    const records = data ? data.entities as (ConfigEntityRow & { entity_id: string })[] : (await connection.query<ConfigEntityRow & { entity_id: string }>(
       `select kind, entity_id, value, revision from ${this.entitiesTable} where scope_id = $1 order by ordinal`, [this.rowId]
-    );
-    if (!result.rows.some(row => row.kind === "settings")) throw new Error(`Config scope ${this.rowId} was not initialized`);
-    const rows = result.rows.map(row => ({ ...row, id: row.entity_id }));
+    )).rows;
+    if (!records.some(row => row.kind === "settings")) throw new Error(`Config scope ${this.rowId} was not initialized`);
+    const rows = records.map(row => ({ ...row, id: row.entity_id }));
     const previewConfigs = new Set(rows.filter(row => row.kind === "previewConfigs").map(row => row.id));
     for (const row of rows) if (row.kind === "previewEnvironmentDeployments" && !previewConfigs.has(row.id)) {
       throw new Error(`Persisted preview ${row.id} is missing its effective configuration`);
     }
-    if (relational) await this.appData.hydrate(connection, rows.filter(row => row.kind === "apps").map(row => row.value));
+    if (data) this.appData.hydrate(rows.filter(row => row.kind === "apps").map(row => row.value), data);
     const config = this.parseConfig(assembleConfig(rows));
     return { config, entities: relational ? splitSettings(config) : splitConfig(config), revisions: new Map(rows.map(row => [keyOf(row), Number(row.revision)])) };
   }
