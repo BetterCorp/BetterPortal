@@ -494,14 +494,12 @@ pgTest("credential lookup reads only services and sees rotation, disablement and
 pgTest("app edits revalidate service enablement after taking dependency locks", async t => {
   const config = fixture();
   const serviceId = uuidv7(), routeId = uuidv7(), appId = config.apps[0].id;
-  config.platformServices.push({ id: serviceId, title: "New service", hostname: "https://new.example",
-    createdAt: new Date().toISOString(), enabled: true, capabilities: [], apiKeyHash: "unused" });
-  config.tenants[0].activatedPlatformServices.push(serviceId);
+  config.tenants[0].services.push({ ...config.tenants[0].services[0], id: serviceId, hostname: "https://new.example" });
   const { makeStore, pool } = await database(t, config);
   const editor = makeStore(), disabler = makeStore();
   await Promise.all([editor.initialize(), disabler.initialize()]);
   const disabled = await disabler.loadConfig();
-  disabled.platformServices[0].enabled = false;
+  disabled.tenants[0].services[2].enabled = false;
   const reached = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
   const edit = editor.mutateApp(appId, async data => {
     data.apps[0].routes.push({ ...data.apps[0].routes[0], id: routeId, path: "/new", serviceId });
@@ -516,7 +514,7 @@ pgTest("app edits revalidate service enablement after taking dependency locks", 
   await rejected;
   assert.equal((await editor.loadConfig()).apps[0].routes.some(route => route.id === routeId), false);
   assert.equal((await pool.query("select count(*)::int as n from bp_platform_config_outbox")).rows[0].n, 1);
-  const enabled = await disabler.loadConfig(); enabled.platformServices[0].enabled = true;
+  const enabled = await disabler.loadConfig(); enabled.tenants[0].services[2].enabled = true;
   await disabler.saveConfig(enabled);
   await editor.mutateApp(appId, async data => {
     data.apps[0].routes.push({ ...data.apps[0].routes[0], id: routeId, path: "/new", serviceId });
