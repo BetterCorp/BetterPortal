@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 62209906c13f4444cd08e13d184399943b0e46ffbeeef15aad118c4dd2c4b02a
+# Generated from AnyVali documents; do not edit. SHA256: 22e8cab76d101d553f469e5793a0398e2d17f076e85ce3eddfd4b50fc2f3f75b
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -2720,6 +2720,7 @@ PluginManifestInput = TypedDict('PluginManifestInput', {
 })
 
 PreviewEnvironmentDeployment = TypedDict('PreviewEnvironmentDeployment', {
+    'effectiveConfig': NotRequired['PreviewEnvironmentDeploymentEffectiveconfig'],
     'credentialReplay': NotRequired['PreviewEnvironmentDeploymentCredentialreplay'],
     'id': Required['str'],
     'groupId': Required['str'],
@@ -2741,7 +2742,13 @@ PreviewEnvironmentDeploymentCredentialreplay = TypedDict('PreviewEnvironmentDepl
     'expiresAt': Required['str'],
 })
 
+PreviewEnvironmentDeploymentEffectiveconfig = TypedDict('PreviewEnvironmentDeploymentEffectiveconfig', {
+    'services': Required['list[PreviewEnvironmentGroupService]'],
+    'elevatedRoleIds': Required['list[str]'],
+})
+
 PreviewEnvironmentDeploymentInput = TypedDict('PreviewEnvironmentDeploymentInput', {
+    'effectiveConfig': NotRequired['PreviewEnvironmentDeploymentInputEffectiveconfig'],
     'credentialReplay': NotRequired['PreviewEnvironmentDeploymentInputCredentialreplay'],
     'id': Required['str'],
     'groupId': Required['str'],
@@ -2761,6 +2768,11 @@ PreviewEnvironmentDeploymentInputCredentialreplay = TypedDict('PreviewEnvironmen
     'requestHash': Required['str'],
     'ciphertext': Required['str'],
     'expiresAt': Required['str'],
+})
+
+PreviewEnvironmentDeploymentInputEffectiveconfig = TypedDict('PreviewEnvironmentDeploymentInputEffectiveconfig', {
+    'services': NotRequired['list[PreviewEnvironmentGroupServiceInput]'],
+    'elevatedRoleIds': NotRequired['list[str]'],
 })
 
 PreviewEnvironmentDeploymentService = TypedDict('PreviewEnvironmentDeploymentService', {

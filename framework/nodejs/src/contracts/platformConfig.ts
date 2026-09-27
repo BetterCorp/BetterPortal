@@ -539,6 +539,12 @@ export const PreviewEnvironmentDeploymentServiceSchema = av.object({
 export type PreviewEnvironmentDeploymentService = Infer<typeof PreviewEnvironmentDeploymentServiceSchema>;
 
 export const PreviewEnvironmentDeploymentSchema = av.object({
+  // Optional only for reading pre-migration configurations. Storage materializes
+  // this snapshot once; running deployments never inherit live template edits.
+  effectiveConfig: av.optional(av.object({
+    services: av.array(PreviewEnvironmentGroupServiceSchema).default([]),
+    elevatedRoleIds: av.array(av.string().minLength(1).maxLength(128)).maxItems(100).default([])
+  })),
   credentialReplay: av.optional(av.object({
     requestHash: av.string(),
     ciphertext: av.string(),

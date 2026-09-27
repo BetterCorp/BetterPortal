@@ -376,7 +376,7 @@ export function configEditor(group: ResponseData["groups"][number], path: string
             <button class="btn btn-outline-secondary" type="button" data-bp-generate-key="">Generate</button>
             <button class="btn btn-outline-secondary" type="button" data-bp-copy-target={`bp-preview-key-${group.id}`}>Copy</button>
           </div>
-          <div class="form-text mb-3">Set this exact value as <code>BP_PREVIEW_CONFIG_KEY</code> on every configured preview service. Keep it outside BetterPortal.</div>
+          <div class="form-text mb-3">Template changes apply to newly created previews. Existing previews keep their own settings. Set this exact value as <code>BP_PREVIEW_CONFIG_KEY</code> on every configured preview service. Keep it outside BetterPortal.</div>
           <button class="btn btn-sm btn-outline-secondary mb-3" type="button" data-bp-decrypt-config="">Decrypt stored secrets</button>
           {group.services.map((service) => (
             <fieldset class="border rounded p-3 mb-3">
@@ -502,7 +502,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   <div class="mb-3">
                     <label class="form-label" for={`bp-elevated-roles-${group.id}`}>Preview admin role IDs</label>
                     <textarea id={`bp-elevated-roles-${group.id}`} class="form-control" name="elevatedRoleIds" rows="3" maxlength="12900" aria-describedby={`bp-elevated-roles-help-${group.id}`}>{(group.elevatedRoleIds ?? []).join("\n")}</textarea>
-                    <div class="form-text" id={`bp-elevated-roles-help-${group.id}`}>One exact role ID per line (or comma-separated), e.g. admin, staff, client. Users with any listed role get full access within this group's previews only. Empty keeps normal permissions. Changes apply to existing previews on config sync.</div>
+                    <div class="form-text" id={`bp-elevated-roles-help-${group.id}`}>Defaults for newly created previews; existing previews keep their own role settings. One exact role ID per line (or comma-separated), e.g. admin, staff, client. Users with any listed role get full access within this group's previews only. Empty keeps normal permissions. Changes apply to existing previews on config sync.</div>
                   </div>
                   {oidcFields(`bp-group-${group.id}`, group.oidc)}
                   <button class="btn btn-primary" type="submit">Save settings</button>

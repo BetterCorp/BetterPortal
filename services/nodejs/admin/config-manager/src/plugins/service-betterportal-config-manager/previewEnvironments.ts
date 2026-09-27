@@ -278,6 +278,7 @@ export function provisionPreviewDeployment(
   const app = clonePreviewApp(sourceApp, appId, tenantId, input.name?.trim() || key, hostname, serviceMap);
   const expiresInDays = effectiveExpiry(group.expiresInDays, input.expiresInDays);
   const deployment: PreviewEnvironmentDeployment = {
+    effectiveConfig: structuredClone({ services: [...group.services, ...discovered], elevatedRoleIds: group.elevatedRoleIds }),
     id: uuidv7(),
     groupId: group.id,
     key,

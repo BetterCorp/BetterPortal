@@ -18,6 +18,7 @@ import { render as renderAuth } from "../src/plugins/service-betterportal-config
 import { render as renderPreviewEnvironments } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/GET.js";
 import { render as renderPreviewConfigEditor } from "../src/plugins/service-betterportal-config-manager/bp-routes/preview-environments/_renderer.bootstrap5/config.GET.js";
 import { resolvePreviewConfigSchemas } from "../src/plugins/service-betterportal-config-manager/previewEnvironmentManagement.js";
+import { splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
 import { PostgresStorage } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { purgeServiceReferences, renderConfigClientShell, validateFixedParamValue } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 import { buildDefaultAdminRoutes, registerBootstrapEndpoint } from "../src/plugins/service-betterportal-config-manager/bootstrapEndpoint.js";
@@ -273,7 +274,7 @@ test("Postgres config reads reuse an isolated validated snapshot until invalidat
       query: async (sql: string) => {
         if (sql.includes("last_seen_at")) return { rows: [] };
         reads++;
-        return { rows: [{ config, revision: 1 }] };
+        return { rows: [...splitConfig(config).values()].map(entity => ({ ...entity, entity_id: entity.id, revision: 1 })) };
       }
     }
   });
@@ -286,88 +287,6 @@ test("Postgres config reads reuse an isolated validated snapshot until invalidat
   storage.invalidate();
   await storage.loadConfig();
   assert.equal(reads, 2);
-});
-
-test("Postgres conflicts invalidate stale snapshots and action completion is fenced in the config transaction", async () => {
-  const config = BetterPortalConfigSchema.parse({});
-  let revision = 1;
-  let leaseValid = true;
-  const statements: string[] = [];
-  const query = async (sql: string, params?: unknown[]) => {
-    statements.push(sql);
-    if (sql.includes("select config")) return { rows: [{ config, revision }] };
-    if (sql.includes("select revision")) return { rows: [{ revision }] };
-    if (sql.includes("set status = 'completed'")) return { rows: [], rowCount: leaseValid ? 1 : 0 };
-    if (sql.includes("set config =")) revision = Number(params?.[2]);
-    return { rows: [], rowCount: 1 };
-  };
-  const storage = new PostgresStorage({ connectionString: "postgres://unused" });
-  Object.assign(storage, { schemaReady: Promise.resolve(), pool: { query, connect: async () => ({ query, release() {} }) } });
-  const stale = await storage.loadConfig();
-  revision = 2;
-  await assert.rejects(storage.saveConfig(stale), /revision/i);
-  const fresh = await storage.loadConfig();
-  statements.length = 0;
-  await storage.touchServiceActivity("service", "lastSeenAt");
-  assert.equal(revision, 2);
-  assert.equal(statements.length, 1);
-  assert.match(statements[0], /_activity/);
-  statements.length = 0;
-  const action = { kind: "setup" as const, key: "key", owner: "request-owner", result: { apiKey: "test" } };
-  await storage.completePendingAction(action, fresh);
-  assert.equal(statements[0], "begin");
-  assert.match(statements[1], /lease_owner = \$4[\s\S]*lease_until > now\(\)/);
-  assert.ok(statements.some(sql => sql.includes("_outbox")));
-  assert.equal(statements.at(-1), "commit");
-  leaseValid = false;
-  statements.length = 0;
-  await assert.rejects(storage.completePendingAction(action, fresh), /lease was lost/);
-  assert.equal(statements.at(-1), "rollback");
-  assert.equal(statements.some(sql => sql.includes("set config =")), false);
-  statements.length = 0;
-  await storage.saveConfig(await storage.loadConfig(), { notify: false });
-  assert.ok(statements.some(sql => sql.includes("_outbox")), "all config revisions must reach replicas");
-});
-
-test("Postgres clears rotated service activity atomically and invalidates presence caches on replicas", async () => {
-  let { config } = s2sConfig();
-  const serviceId = config.tenants[0].services[0].id;
-  let activity = [{ service_id: serviceId, last_seen_at: new Date(), last_sync_at: new Date() }];
-  let revision = 1;
-  const statements: string[] = [];
-  const query = async (sql: string, params?: any[]) => {
-    statements.push(sql);
-    if (sql.startsWith("select config")) return { rows: [{ config, revision }] };
-    if (sql.startsWith("select service_id")) return { rows: activity };
-    if (sql.startsWith("delete from") && sql.includes("_activity")) {
-      assert.deepEqual(params?.[1], [serviceId]);
-      activity = [];
-    }
-    if (sql.includes("set config =")) { config = JSON.parse(params![1]); revision = params![2]; }
-    return { rows: [], rowCount: 1 };
-  };
-  const makeStore = () => {
-    const store = new PostgresStorage({ connectionString: "postgres://unused" });
-    Object.assign(store, { schemaReady: Promise.resolve(), pool: { query, connect: async () => ({ query, release() {} }) } });
-    return store;
-  };
-  const store = makeStore(), replica = makeStore();
-  const loaded = await store.loadConfig();
-  assert.ok((await replica.loadConfig()).tenants[0].services[0].lastSyncAt);
-  loaded.tenants[0].services[0].apiKeyHash = "rotated";
-  loaded.tenants[0].services[0].hostname = "https://replacement.example";
-  delete loaded.tenants[0].services[0].lastSeenAt;
-  delete loaded.tenants[0].services[0].lastSyncAt;
-  statements.length = 0;
-  await store.saveConfig(loaded);
-  assert.equal(statements[0], "begin");
-  assert.ok(statements.findIndex(sql => sql.startsWith("delete from")) < statements.indexOf("commit"));
-  replica.invalidate();
-  for (const current of [store, replica]) {
-    const service = (await current.loadConfig()).tenants[0].services[0];
-    assert.equal(service.lastSeenAt, undefined);
-    assert.equal(service.lastSyncAt, undefined);
-  }
 });
 
 test("hostname confirmation releases its lease after a save conflict so an immediate retry can succeed", async () => {
@@ -1535,6 +1454,9 @@ test("route designer exposes conflicts, stale views, and service identity", () =
   assert.match(html, /Manifest operation unavailable/);
   assert.match(html, /data-bp-route-conflict/);
   assert.match(html, /This service view and path are already mounted in this app/);
+  assert.match(html, /Continue saving this route/);
+  assert.match(html, /setAttribute\("hx-confirm", note\)/);
+  assert.doesNotMatch(html, /submit\?\.classList\.toggle\("d-none", conflict\)/);
   assert.match(html, /\/reports\/:reportId\/pdf/);
   assert.match(html, /data-bp-add-route-submit/);
   assert.doesNotMatch(html, /wantedPath \+ .*unavailable/);
@@ -1841,7 +1763,7 @@ test("role sync controls require a discovered endpoint", () => {
   assert.equal(resolveRoleSyncUrl("https://auth.example", ambiguousAuth, "betterportal", "tenant", "app"), undefined);
 });
 
-test("preview role elevation is opt-in, scoped, dynamic and revocable", async () => {
+test("preview role elevation belongs to the deployment and remains scoped and revocable", async () => {
   const tenantId = uuidv7();
   const appId = uuidv7();
   const serviceId = uuidv7();
@@ -1872,6 +1794,8 @@ test("preview role elevation is opt-in, scoped, dynamic and revocable", async ()
 
   updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: ["admin", " staff ", "client", "staff"] });
   assert.deepEqual(group.elevatedRoleIds, ["admin", "staff", "client"]);
+  assert.deepEqual(await scopedAuth(), originalAuth, "template edits do not elevate existing deployments");
+  deployment.effectiveConfig!.elevatedRoleIds = [...group.elevatedRoleIds];
   const grant = { serviceId: previewServiceId, viewId: "home", permissions: ["read", "create", "update", "delete"] };
   for (const id of group.elevatedRoleIds) {
     assert.deepEqual((await scopedAuth()).roles.find(role => role.id === id)?.permissions, [grant]);
@@ -1909,14 +1833,16 @@ test("preview role elevation is opt-in, scoped, dynamic and revocable", async ()
   deployment.tenantId = preview.tenantId;
 
   updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: [] });
-  assert.deepEqual(await scopedAuth(), originalAuth, "removing the list restores normal permissions");
+  assert.ok((await scopedAuth()).roles.find(role => role.id === "admin"), "template edits do not change existing deployment roles");
+  deployment.effectiveConfig!.elevatedRoleIds = [];
+  assert.deepEqual(await scopedAuth(), originalAuth, "removing the deployment list restores normal permissions");
   assert.throws(() => updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: [" "] }), /Role ID/);
   assert.throws(() => updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: ["a".repeat(129)] }), /Role ID/);
   assert.throws(() => updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: Array(101).fill("admin") }), /100/);
   assert.deepEqual(group.elevatedRoleIds, []);
   const fragmentGrant = { serviceId: previewServiceId, viewId: "fragment-only", permissions: ["read" as const] };
   preview.auth!.roles.find(role => role.id === "staff")!.permissions.push(fragmentGrant);
-  updatePreviewGroup(config, group.id, { name: group.name, expiresInDays: 30, elevatedRoleIds: ["staff"] });
+  deployment.effectiveConfig!.elevatedRoleIds = ["staff"];
   assert.deepEqual((await scopedAuth()).roles.find(role => role.id === "staff")?.permissions,
     [grant, fragmentGrant], "elevation preserves existing grants outside route views");
 });

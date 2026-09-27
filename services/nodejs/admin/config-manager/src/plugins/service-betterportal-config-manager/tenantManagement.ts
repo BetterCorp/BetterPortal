@@ -239,11 +239,22 @@ async function updateTenant(body: Record<string, unknown>): Promise<void> {
   await routeContext.storage.saveConfig(config);
 }
 
-async function deleteTenant(id: string): Promise<void> {
+function assertNoSourcePreviewGroups(config: BetterPortalConfig, entity: "tenant" | "app", id: string): void {
+  const groups = config.previewEnvironmentGroups.filter(group =>
+    entity === "tenant" ? group.sourceTenantId === id : group.sourceAppId === id);
+  if (groups.length === 0) return;
+  throw Object.assign(new Error(`Cannot delete this ${entity}: it is the source of preview groups ${groups.map(group => group.name).join(", ")}. Delete those preview groups first.`), {
+    status: 409,
+    statusCode: 409
+  });
+}
+
+export async function deleteTenant(id: string): Promise<void> {
   if (!id) return;
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
   if (isPreviewTenant(config, id)) return;
+  assertNoSourcePreviewGroups(config, "tenant", id);
   config.tenants = config.tenants.filter((tenant) => tenant.id !== id);
   config.apps = config.apps.filter((app) => app.tenantId !== id);
   await routeContext.storage.saveConfig(config);
@@ -341,11 +352,12 @@ async function updateApp(body: Record<string, unknown>): Promise<void> {
   await routeContext.storage.saveConfig(config);
 }
 
-async function deleteApp(id: string): Promise<void> {
+export async function deleteApp(id: string): Promise<void> {
   if (!id) return;
   const routeContext = getConfigManagerRouteContext();
   const config = await routeContext.storage.loadConfig();
   if (isPreviewApp(config, id)) return;
+  assertNoSourcePreviewGroups(config, "app", id);
   config.apps = config.apps.filter((app) => app.id !== id);
   await routeContext.storage.saveConfig(config);
 }

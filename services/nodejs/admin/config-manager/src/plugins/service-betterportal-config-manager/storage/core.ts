@@ -21,8 +21,10 @@ export type StorageBackend = "file" | "postgres";
 
 /** A stale snapshot must be reloaded and its mutation reapplied, never saved over newer config. */
 export class ConfigRevisionConflictError extends Error {
-  constructor(expected: number, actual: number) {
-    super(`Platform config changed concurrently (loaded revision ${expected}, current revision ${actual})`);
+  readonly status = 409;
+  readonly statusCode = 409;
+  constructor(expected: number, actual: number, entity = "platform") {
+    super(`Config ${entity} changed concurrently (loaded revision ${expected}, current revision ${actual})`);
     this.name = "ConfigRevisionConflictError";
   }
 }
@@ -357,6 +359,12 @@ export abstract class BaseStorage implements PlatformConfigStore {
   protected canonicalizeConfig(config: BetterPortalConfig): BetterPortalConfig {
     config = migrateOfficialPluginIds(config);
     migrateAuthViewIds(config);
+    for (const deployment of config.previewEnvironmentDeployments ?? []) {
+      if (deployment.effectiveConfig) continue;
+      const group = config.previewEnvironmentGroups.find(candidate => candidate.id === deployment.groupId);
+      if (!group) throw new Error(`Preview deployment ${deployment.id} has no template to migrate`);
+      deployment.effectiveConfig = structuredClone({ services: group.services, elevatedRoleIds: group.elevatedRoleIds });
+    }
     this.ensurePlatformRootRole(config);
     for (const app of config.apps) {
       if (app.auth) {
@@ -461,6 +469,12 @@ export abstract class BaseStorage implements PlatformConfigStore {
       if (!tenant || !tenant.active) {
         errors.push(`webhook target ${target.id} references missing or disabled tenant: ${target.tenantId}`);
       }
+      const serviceExists = tenant?.services.some(service => service.id === target.serviceId)
+        || config.platformServices.some(service => service.id === target.serviceId)
+        || config.sharedServiceCatalog.some(service => service.id === target.serviceId)
+        || config.sharedServiceActivations.some(activation => activation.id === target.serviceId
+          && activation.tenantId === target.tenantId && (!activation.appId || activation.appId === target.appId));
+      if (!serviceExists) errors.push(`webhook target ${target.id} references missing service: ${target.serviceId}`);
       if (target.appId) {
         const app = appsById.get(target.appId);
         if (!app) {
@@ -763,13 +777,10 @@ export abstract class BaseStorage implements PlatformConfigStore {
     const previewDeployment = (config.previewEnvironmentDeployments ?? []).find((deployment) =>
       deployment.services.some((binding) => binding.instanceId === service?.id)
     );
-    const previewGroup = previewDeployment
-      ? (config.previewEnvironmentGroups ?? []).find((group) => group.id === previewDeployment.groupId)
-      : undefined;
-    const previewService = previewGroup?.services.find((candidate) => candidate.serviceId === service?.serviceId);
-    const previewConfig = previewGroup && previewService
+    const previewService = previewDeployment?.effectiveConfig?.services.find((candidate) => candidate.serviceId === service?.serviceId);
+    const previewConfig = previewDeployment && previewService
       && (Object.keys(previewService.config.tenant).length > 0 || Object.keys(previewService.config.app).length > 0)
-      ? { revision: previewGroup.updatedAt, ...previewService.config }
+      ? { revision: createHash("sha256").update(JSON.stringify(previewService.config)).digest("hex"), ...previewService.config }
       : undefined;
 
     return {
@@ -1059,7 +1070,7 @@ export abstract class BaseStorage implements PlatformConfigStore {
     if (!auth || app.tenantId === config.configManagement.adminTenantId) return auth;
     const deployment = config.previewEnvironmentDeployments.find(value => value.appId === app.id && value.tenantId === app.tenantId);
     const group = deployment && config.previewEnvironmentGroups.find(value => value.id === deployment.groupId);
-    const roleIds = group?.elevatedRoleIds ?? [];
+    const roleIds = deployment?.effectiveConfig?.elevatedRoleIds ?? [];
     if (!group || !roleIds.length || group.sourceAppId === app.id || group.sourceTenantId === app.tenantId) return auth;
     const available = getAvailableServiceInstanceIdsForApp(config, app);
     const grants = new Map<string, { serviceId: string; viewId: string; permissions: Array<"read" | "create" | "update" | "delete"> }>();

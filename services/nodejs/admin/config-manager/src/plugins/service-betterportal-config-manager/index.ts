@@ -155,7 +155,6 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private outboxTimer?: NodeJS.Timeout;
   private outboxDrain?: Promise<void>;
   private readonly workerId = uuidv7();
-  private lastConfigRevision = -1;
   private fileConfigRevision = 0;
   private postgresStorage?: PostgresStorage;
   private readonly selfClient: BetterportalConfigManagerClient;
@@ -380,9 +379,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       cpId: this.cpState.cpId
     });
 
-    await this.selfClient.onPlatformConfigChanged(_obs, async (eventObs, event) => {
-      if (event.revision <= this.lastConfigRevision) return;
-      this.lastConfigRevision = event.revision;
+    await this.selfClient.onPlatformConfigChanged(_obs, async (eventObs) => {
+      // Independent transactions may commit out of sequence. Never discard an
+      // invalidation merely because a higher sequence was delivered first.
       await this.refreshConfigCaches(eventObs);
     });
     await this.selfClient.onWebhookDeliveryAvailable(_obs, async () => {

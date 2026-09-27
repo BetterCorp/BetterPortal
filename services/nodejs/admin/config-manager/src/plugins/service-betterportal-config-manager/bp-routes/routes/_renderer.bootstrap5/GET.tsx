@@ -145,25 +145,26 @@ function manifestLoaderScript(
     return byServiceId.get(serviceId)?.views.find((candidate) => candidate.operationId === operationId);
   };
 
-  const syncCreateConflict = (form, servicePath) => {
-    if (form.dataset.bpRouteMode !== "create") return false;
+  const syncRouteAliasWarning = (form, servicePath) => {
     const serviceId = form.querySelector("[data-bp-route-service]")?.value || "";
     const operationId = form.querySelector("[data-bp-route-view]")?.value || "";
-    const conflict = !!serviceId && !!operationId && !!servicePath && mountedRoutes.some((route) =>
-      route.serviceId === serviceId
+    const aliases = serviceId && operationId && servicePath ? mountedRoutes.filter((route) =>
+      route.id !== form.dataset.bpRouteId
+        && route.serviceId === serviceId
         && Array.isArray(route.operations) && route.operations.includes(operationId)
-        && (route.servicePathVariant || route.targetPath || "") === servicePath
-    );
-    const submit = form.closest("form")?.querySelector("[data-bp-add-route-submit]");
-    const message = form.closest("form")?.querySelector("[data-bp-route-conflict]");
-    submit?.classList.toggle("d-none", conflict);
-    message?.classList.toggle("d-none", !conflict);
-    if (message) {
-      message.textContent = conflict
-        ? "This service view and path are already mounted in this app. Select another view or service path."
-        : "";
-    }
-    return conflict;
+        && (route.servicePathVariant || route.targetPath
+          || byServiceId.get(route.serviceId)?.views.find((view) => view.operationId === operationId)?.path || "") === servicePath
+    ) : [];
+    const owner = form.closest("form");
+    const message = owner?.querySelector("[data-bp-route-conflict]");
+    const note = aliases.length
+      ? "This service view and path are already mounted in this app at " + aliases.map((route) => route.path).join(", ")
+        + ". You can use another frontend path for the same view. Continue saving this route?"
+      : "";
+    message?.classList.toggle("d-none", !aliases.length);
+    if (message) message.textContent = note;
+    if (note) owner?.setAttribute("hx-confirm", note);
+    else owner?.removeAttribute("hx-confirm");
   };
 
   const syncParamFields = (form, renderable = true) => {
@@ -190,9 +191,9 @@ function manifestLoaderScript(
     if (!servicePathSelect.value && variants.length) servicePathSelect.value = variants[0];
     servicePathSelect.dataset.selectedPath = servicePathSelect.value;
     servicePathSelect.disabled = !view;
+    syncRouteAliasWarning(form, servicePathSelect.value);
     const pathWarning = form.querySelector("[data-bp-service-path-warning]");
     pathWarning?.classList.toggle("d-none", !stalePath);
-    syncCreateConflict(form, servicePathSelect.value);
 
     if (!renderable) {
       container.replaceChildren();
@@ -845,6 +846,7 @@ export function render(data: ResponseData): HtmlRenderable {
               <div data-bp-route-form="" data-bp-route-mode="edit" data-bp-route-id={route.id}>
               {routeFormFields(`bp-edit-route-${route.id}`, data.availableServices, route)}
               </div>
+              <div class="alert alert-warning d-none" data-bp-route-conflict="" role="status"></div>
               <button type="submit" class="btn btn-primary w-100">Save Changes</button>
             </form>
           </div>
