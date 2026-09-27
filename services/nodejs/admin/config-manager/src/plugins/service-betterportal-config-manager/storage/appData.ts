@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import type { PoolClient } from "pg";
 import type { BetterPortalApp, BetterPortalMenuItem, BetterPortalRouteMount } from "@betterportal/framework";
-import { appRoutePatternKey } from "../routeMounts.js";
+import { appRoutePatternKey, isApiRoute } from "../routeMounts.js";
 
 type Row = Record<string, any>;
 type App = BetterPortalApp;
@@ -53,12 +53,16 @@ export class AppData {
       on delete cascade deferrable initially deferred)`);
     await client.query(`create table if not exists ${this.routes} (
       scope_id text not null, app_id text not null, id text not null,
-      kind text not null check (kind in ('page','api')), path text not null, path_key text not null,
+      kind text not null check (kind in ('page','api')), path text not null, path_key text,
       service_id text not null, view_id text not null, title text, icon text,
       enabled boolean not null, operations text[] not null check (cardinality(operations) > 0),
       position integer not null, options jsonb not null,
       primary key (scope_id, app_id, id),
       unique (scope_id, app_id, path_key) deferrable initially deferred, ${parent})`);
+    // API operations may share a path. NULL keeps page paths unique without merging API records.
+    await client.query(`alter table ${this.routes} alter column path_key drop not null`);
+    await client.query(`update ${this.routes} set path_key=null
+      where path_key is not null and (kind='api' or left(path,13)='/_bp/service/')`);
     await client.query(`create table if not exists ${this.menus} (
       scope_id text not null, app_id text not null, id text not null, parent_id text,
       position integer not null, type text not null check (type in ('link','group','section','divider','external')),
@@ -86,7 +90,7 @@ export class AppData {
     });
     app?.routes.forEach((route, position) => {
       const { id, kind, path, serviceId, viewId, title, icon, enabled, operations, ...options } = route;
-      add(routes, id, { id, kind, path, path_key: appRoutePatternKey(path), service_id: serviceId, view_id: viewId,
+      add(routes, id, { id, kind, path, path_key: isApiRoute(route) ? null : appRoutePatternKey(path), service_id: serviceId, view_id: viewId,
         title: title ?? null, icon: icon ?? null, enabled, operations, position, options });
     });
     const visit = (items: BetterPortalMenuItem[], parent_id: string | null) => items.forEach((item, position) => {

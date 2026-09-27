@@ -9,6 +9,8 @@ Roles, individual permission grants, routes, and menu items live in dedicated ta
 The prefix follows tableName. Primary keys include scope and app ID.
 Each role grant preserves its entry position and ordered action array, including repeated targets/actions.
 Menu parent/route relationships and role grant ownership have foreign keys.
+Page route patterns are unique within each app. API routes may share a path for different operations;
+each route retains its own ID, view and operations. Existing schema-3 installations receive this correction on startup.
 Route options (SEO, fixed parameters, chrome) remain JSON configuration on their own route.
 App settings retain revisions. Operational edits do not increment the app settings revision.
 The outbox sequence signals service snapshot updates; it is not a CRUD concurrency token.
