@@ -28,7 +28,8 @@ test("boolean config controls save typed values and preserve app inheritance", a
     return route.fulfill({ json: { values } });
   });
   const editor = renderConfigClientShell({ hostname: "https://service.test", tenantId: "tenant", serviceId: "auth", serviceTitle: "Auth", adminApiBase: "/admin", tenantApps: [{ id: "app", title: "App" }] });
-  await page.route("https://editor.test/**", route => route.fulfill({ contentType: "text/html", body: `<script>window.BetterPortalAuth = { fetch: async () => new Response(JSON.stringify({token: "test-ticket"}), {headers: {"Content-Type": "application/json"}}) };</script>${editor}` }));
+  await page.addInitScript({ content: 'window.BetterPortalAuth = { fetch: async () => new Response(JSON.stringify({token: "test-ticket"}), {headers: {"Content-Type": "application/json"}}) };' });
+  await page.route("https://editor.test/**", route => route.fulfill({ contentType: "text/html", body: editor }));
   await page.goto("https://editor.test/");
   const mfa = page.locator('[name="requireMfa"]');
   await mfa.waitFor();
