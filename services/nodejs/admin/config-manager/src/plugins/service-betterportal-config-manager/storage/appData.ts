@@ -142,9 +142,16 @@ export class AppData {
 
   /** One statement keeps app settings and all child collections on the same MVCC snapshot. */
   async read(client: PoolClient, entitiesTable: string): Promise<{ entities: Row[]; roles: Row[]; grants: Row[]; routes: Row[]; menus: Row[] }> {
-    const tables = { entities: entitiesTable, roles: this.roles, grants: this.grants, routes: this.routes, menus: this.menus };
-    const result = await client.query(`select ${Object.entries(tables).map(([name, table]) =>
-      `coalesce((select json_agg(r${name === "entities" ? " order by ordinal" : ""}) from ${table} r where scope_id=$1),'[]'::json) as ${name}`).join(",")}`, [this.scope]);
+    const tables = {
+      entities: [entitiesTable, "kind, entity_id, value, revision, ordinal"],
+      roles: [this.roles, "app_id, id, title, description, position"],
+      grants: [this.grants, "app_id, role_id, service_id, view_id, actions, grant_position"],
+      routes: [this.routes, "app_id, id, kind, path, service_id, view_id, title, icon, enabled, operations, position, options"],
+      menus: [this.menus, "app_id, id, parent_id, position, type, title, icon, route_id, href, enabled, service_status, auth_status, roles_any_of, default_expanded"]
+    };
+    const result = await client.query(`select ${Object.entries(tables).map(([name, [table, columns]]) =>
+      `coalesce((select json_agg(r${name === "entities" ? " order by ordinal" : ""}) from
+        (select ${columns} from ${table} where scope_id=$1) r),'[]'::json) as ${name}`).join(",")}`, [this.scope]);
     return result.rows[0];
   }
 
