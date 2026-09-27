@@ -526,7 +526,7 @@ export function groupVisualRoutes(routes: VisualRoute[]): PathGroup[] {
   }
   return Array.from(groups.values())
     .map((group) => ({ ...group, routes: group.routes.sort((left, right) => left.path.localeCompare(right.path) || left.id.localeCompare(right.id)) }))
-    .sort((left, right) => left.pathPrefix.localeCompare(right.pathPrefix));
+    .sort((left, right) => Number(left.synthetic) - Number(right.synthetic) || left.pathPrefix.localeCompare(right.pathPrefix));
 }
 
 function pathWithinGroup(group: PathGroup, path: string): string {
