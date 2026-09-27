@@ -2279,6 +2279,7 @@ function Bootstrap1LandingBody(context: Bootstrap1HostPageContext): HtmlRenderab
                 id="bp-main"
                 hx-history-elt={true}
                 data-bp-main-outlet=""
+                data-bp-loaded={hasInitialRouteError ? "yes" : undefined}
                 data-bp-service={context.initialServiceId}
                 hx-get={context.initialRouteUrl ?? ""}
                 hx-trigger={context.initialRouteUrl && !hasInitialRouteError ? "load" : undefined}
