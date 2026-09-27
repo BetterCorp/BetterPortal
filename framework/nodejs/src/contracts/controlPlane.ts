@@ -119,7 +119,7 @@ export interface ScopedConfigApp {
 
 export interface PlatformConfigStore {
   loadConfig(): Promise<BetterPortalConfig>;
-  /** Edit one app against current database state in a transaction. Callback must not perform external effects. */
+  /** Edit one app's roles, routes and menu against current database state in a transaction. Callback must not perform external effects. */
   mutateApp?<T>(appId: string, update: (config: BetterPortalConfig) => Promise<T>): Promise<T>;
   saveConfig(config: BetterPortalConfig, options?: { notify?: boolean }): Promise<void>;
   /** Optional separate presence storage; must not advance the platform config revision. */

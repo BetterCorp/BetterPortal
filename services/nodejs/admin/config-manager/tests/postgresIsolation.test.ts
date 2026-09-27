@@ -411,7 +411,8 @@ pgTest("menu foreign keys prevent dangling routes and failed app transactions ro
 });
 
 pgTest("stale snapshot replacement cannot delete newly committed app data", async t => {
-  const { makeStore, config } = await database(t); const a = makeStore(), b = makeStore();
+  const source = fixture(); source.apps[0].routes = [];
+  const { makeStore, config } = await database(t, source); const a = makeStore(), b = makeStore();
   const stale = await a.loadConfig();
   await b.mutateApp(config.apps[0].id, async data => {
     data.apps[0].auth!.roles.push({ id: "new-role", title: "New", permissions: [] });
@@ -431,4 +432,24 @@ pgTest("failed relational constraints roll back all app row changes", async t =>
   const app = (await store.loadConfig()).apps[0];
   assert.equal(app.auth!.roles.length, 0);
   assert.equal(app.routes.length, 1);
+});
+
+pgTest("operational transactions cannot bypass versioned settings", async t => {
+  const { makeStore, config } = await database(t); const store = makeStore();
+  await assert.rejects(store.mutateApp(config.apps[0].id, async data => { data.apps[0].hostnames = ["other.example"]; }),
+    /cannot change versioned app settings/);
+  assert.deepEqual((await store.loadConfig()).apps[0].hostnames, config.apps[0].hostnames);
+});
+
+pgTest("stale role deletion cannot cascade away newly committed grants", async t => {
+  const source = fixture();
+  source.apps[0].auth!.roles.push({ id: "reader", title: "Reader", permissions: [] });
+  const { makeStore, config } = await database(t, source); const a = makeStore(), b = makeStore();
+  const stale = await a.loadConfig();
+  await b.mutateApp(config.apps[0].id, async data => {
+    data.apps[0].auth!.roles[0].permissions.push({ serviceId: data.apps[0].routes[0].serviceId, viewId: "home", permissions: ["read"] });
+  });
+  stale.apps[0].auth!.roles = [];
+  await assert.rejects(a.saveConfig(stale), /App data changed concurrently/);
+  assert.deepEqual((await b.loadConfig()).apps[0].auth!.roles[0].permissions[0].permissions, ["read"]);
 });

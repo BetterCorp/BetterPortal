@@ -106,6 +106,11 @@ export class AppData {
   /** Apply only changed rows; unrelated collections never get replaced. Caller holds the app lock. */
   async save(client: PoolClient, appId: string, before: App | undefined, after: App | undefined, current = before): Promise<void> {
     const previous = this.rows(before), next = this.rows(after), latest = this.rows(current);
+    for (const roleId of previous.get(this.roles)!.keys()) {
+      if (next.get(this.roles)!.has(roleId)) continue;
+      const grants = (rows: Map<string, Row>) => [...rows].filter(([, row]) => row.role_id === roleId);
+      if (!isDeepStrictEqual(grants(previous.get(this.grants)!), grants(latest.get(this.grants)!))) throw new AppDataConflictError();
+    }
     for (const [table, rows] of next) {
       const old = previous.get(table)!;
       for (const key of new Set([...old.keys(), ...rows.keys()])) {

@@ -159,7 +159,7 @@ export class PostgresStorage extends BaseStorage {
     const proposed = splitSettings(parsed);
     const oldApps = new Map(baseline.config.apps.map(app => [app.id, app]));
     const nextApps = new Map(parsed.apps.map(app => [app.id, app]));
-    const appChanges = [...new Set([...oldApps.keys(), ...nextApps.keys()])].filter(id => this.appData.changed(oldApps.get(id), nextApps.get(id)));
+    const appChanges = [...new Set([...oldApps.keys(), ...nextApps.keys()])].filter(id => !oldApps.has(id) || !nextApps.has(id) || this.appData.changed(oldApps.get(id), nextApps.get(id)));
     // Cached manifests belong to their concrete service registration. Deleting
     // a registration also deletes its known cache, whichever API initiated it.
     for (const [key, entity] of proposed) if (entity.kind === "manifestCache") {
@@ -312,17 +312,14 @@ export class PostgresStorage extends BaseStorage {
         throw new Error("App transaction may only edit its existing target app");
       }
       this.validateConfigReferences(parsed);
-      const settingsChanged = !isDeepStrictEqual(appSettings(before), appSettings(after));
-      if (settingsChanged || this.appData.changed(before, after)) {
+      if (!isDeepStrictEqual(appSettings(before), appSettings(after))) throw new Error("App data transaction cannot change versioned app settings");
+      if (this.appData.changed(before, after)) {
         const entities = splitSettings(parsed);
         const entity = { kind: "apps", id: appId, value: after };
         const refs = entityReferences(entity, entities).sort();
         for (const ref of refs) await client.query("select pg_advisory_xact_lock_shared(hashtextextended($1,0))",
           [JSON.stringify([this.tableName, this.rowId, ref])]);
         await this.appData.save(client, appId, before, after);
-        if (settingsChanged) await client.query(`update ${this.entitiesTable}
-          set value=$3::jsonb, revision=nextval('${this.revisionSequence}') where scope_id=$1 and kind='apps' and entity_id=$2`,
-        [this.rowId, appId, JSON.stringify(appSettings(after))]);
         await client.query(`delete from ${this.referencesTable} where scope_id=$1 and kind='apps' and entity_id=$2`, [this.rowId, appId]);
         await this.writeReferences(client, entity, entities);
         const revision = await client.query(`select nextval('${this.revisionSequence}') as revision`);

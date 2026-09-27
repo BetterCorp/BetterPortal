@@ -1991,6 +1991,16 @@ export function registerAdminApiRoutes(
     if (!parsed.success) return jsonResponse({ error: "Invalid self-mutation request", issues: parsed.issues as unknown as JsonValue }, 400);
     const { tenantId, appId, type, mutation } = parsed.data;
 
+    if (type === "theme") {
+      const { config, appDef } = await getAppOr404(appId);
+      if (!appDef || appDef.tenantId !== tenantId) return jsonResponse({ error: "App not found" }, 404);
+      const serviceError = await requireServiceIdentityForAuthoritativeService(event, config, appDef, type);
+      if (serviceError) return serviceError;
+      appDef.themeConfig = mutation.themeConfig;
+      await store.saveConfig(config);
+      return jsonResponse({ ok: true, type });
+    }
+
     return editApp(store, appId, async (config) => {
       const appDef = config.apps.find(app => app.id === appId);
       if (!appDef || appDef.tenantId !== tenantId) return jsonResponse({ error: "App not found" }, 404);
@@ -1998,17 +2008,12 @@ export function registerAdminApiRoutes(
       const serviceError = await requireServiceIdentityForAuthoritativeService(event, config, appDef, type);
       if (serviceError) return serviceError;
 
-      if (type === "auth") {
-        const authResult = requireAuthBlock(event, appDef);
-        if (authResult.response) return authResult.response;
-        const parsedRoles = parseSyncedRoles(appDef, mutation.roles);
-        if (parsedRoles instanceof Response) return parsedRoles;
-        authResult.auth!.roles = parsedRoles;
-        return jsonResponse({ ok: true, type, roles: parsedRoles.length });
-      }
-
-      appDef.themeConfig = mutation.themeConfig;
-      return jsonResponse({ ok: true, type });
+      const authResult = requireAuthBlock(event, appDef);
+      if (authResult.response) return authResult.response;
+      const parsedRoles = parseSyncedRoles(appDef, mutation.roles);
+      if (parsedRoles instanceof Response) return parsedRoles;
+      authResult.auth!.roles = parsedRoles;
+      return jsonResponse({ ok: true, type, roles: parsedRoles.length });
     });
   });
 
