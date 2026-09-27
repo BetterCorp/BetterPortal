@@ -242,6 +242,8 @@ jobs:
           exit 1
 
   publish-bp-contracts:
+    # BP registry setup is deferred; enable this job once the registry is configured.
+    if: false
     runs-on: ubuntu-latest
     needs:
       - publish-plugin-packages
