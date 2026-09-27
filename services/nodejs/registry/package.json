@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/registry",
-  "version": "10.6.29",
+  "version": "10.6.30",
   "private": true,
   "description": "BetterPortal service-contract registry",
   "type": "module",
@@ -24,7 +24,7 @@
     "orgId": "betterportal"
   },
   "dependencies": {
-    "@betterportal/framework": "10.6.29",
+    "@betterportal/framework": "10.6.30",
     "@bsb/base": "^9.7.3",
     "anyvali": "^1.1.6"
   },

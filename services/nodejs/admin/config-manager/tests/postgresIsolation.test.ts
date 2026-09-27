@@ -521,3 +521,41 @@ pgTest("app edits revalidate service enablement after taking dependency locks", 
   });
   assert.equal((await editor.loadConfig()).apps[0].routes.some(route => route.id === routeId), true);
 });
+
+pgTest("API routes sharing a path migrate without losing operations and survive restart", async t => {
+  const config = fixture(), app = config.apps[0];
+  const path = "/_bp/service/org.betterportal.config-manager/tenants";
+  app.routes.push(...(["api", "page"] as const).map((kind, i) => ({ ...app.routes[0],
+    id: uuidv7(), kind, path, viewId: `tenants-${i}`, operations: [i ? "tenants.create" : "tenants.list"] })));
+  const { makeStore, pool } = await database(t, config);
+  const store = makeStore(); await store.initialize();
+  const loaded = (await store.loadConfig()).apps[0];
+  assert.deepEqual(loaded.routes.map(({ id, kind, path, viewId, operations }) => ({ id, kind, path, viewId, operations })),
+    app.routes.map(({ id, kind, path, viewId, operations }) => ({ id, kind, path, viewId, operations })));
+  const backup = (await pool.query("select value from bp_platform_config_app_data_backup where app_id=$1", [app.id])).rows[0].value;
+  assert.deepEqual(JSON.parse(JSON.stringify(loaded.routes)), backup.routes);
+  await makeStore().initialize();
+  assert.deepEqual((await makeStore().loadConfig()).apps[0].routes, loaded.routes);
+  await store.mutateApp(app.id, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[1], id: uuidv7(), operations: ["tenants.delete"] });
+  });
+  assert.equal((await store.loadConfig()).apps[0].routes.length, 4);
+});
+
+pgTest("existing schema 3 drops API path uniqueness while preserving page uniqueness", async t => {
+  const config = fixture(), app = config.apps[0];
+  app.routes.push({ ...app.routes[0], id: uuidv7(), kind: "api", path: "/api/tenants", operations: ["tenants.list"] });
+  const { makeStore, pool } = await database(t, config);
+  await makeStore().initialize();
+  // Reproduce the 10.6.29 schema after a successful migration without duplicate API paths.
+  await pool.query("update bp_platform_config_routes set path_key=path where path_key is null");
+  await pool.query("alter table bp_platform_config_routes alter column path_key set not null");
+  const store = makeStore(); await store.initialize();
+  await store.mutateApp(app.id, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[1], id: uuidv7(), operations: ["tenants.create"] });
+  });
+  assert.equal((await store.loadConfig()).apps[0].routes.length, 3);
+  await assert.rejects(store.mutateApp(app.id, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: uuidv7() });
+  }), /unique constraint/);
+});
