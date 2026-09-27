@@ -47,7 +47,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
     const ticket = await identity.challengeInTransaction(tx, scope, purpose, { version: user.refreshVersion }, user.id, 1800);
     const link = accountLink(ctx, purpose, ticket);
     if (!link) throw new AuthError("Mount the account page in this app before enabling email delivery.", 503);
-    await runtime.mail.enqueue(tx, scope, user.email!, "BetterPortal account verification", `Open this link to ${purpose === "reset" ? "reset your password" : "verify your email"}: ${link}\nThis link expires in 30 minutes. If you did not request it, ignore this email.`);
+    await runtime.mail.enqueue(tx, scope, user.email!, "BetterPortal account verification", `Open this link to ${purpose === "reset" ? "reset your password" : "verify your email"}: ${link}\nThis link expires in 30 minutes. If you did not request it, ignore this email.`, ctx.obs);
   });
   if (["signup", "request-reset", "resend"].includes(action)) {
     const email = String(body.email ?? "").trim().toLowerCase();
@@ -63,11 +63,14 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
         const ticket = await identity.challengeInTransaction(tx, scope, "verify", { version: created.refreshVersion }, created.id, 1800);
         const link = accountLink(ctx, "verify", ticket);
         if (!link) throw new AuthError("Mount the account page in this app before enabling registration.", 503);
-        await runtime.mail.enqueue(tx, scope, email, "Verify your email", `Verify your email address: ${link}\nThis link expires in 30 minutes.`);
+        await runtime.mail.enqueue(tx, scope, email, "Verify your email", `Verify your email address: ${link}\nThis link expires in 30 minutes.`, ctx.obs);
       }); } catch (error) { if (!(error instanceof AuthError && error.status === 409 && error.message === "This account cannot be registered.")) throw error; }
     } else {
       const user = await identity.findUser(scope, policy, email);
-      if (user?.enabled && user.email && (action !== "resend" || !user.emailVerified)) await sendLink(user, action === "resend" ? "verify" : "reset");
+      if (user?.enabled && user.email && (action !== "resend" || !user.emailVerified)) {
+        await sendLink(user, action === "resend" ? "verify" : "reset");
+        ctx.obs?.logger.info("Auth account email queued", { action });
+      } else ctx.obs?.logger.info("Auth account email skipped", { action, reason: "account_ineligible" });
     }
     return { status: "ok", message: "If the account is eligible, an email will arrive shortly.", accountUrl };
   }
@@ -78,7 +81,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
       if (!user?.enabled || challenge.data.version !== user.refreshVersion) throw new AuthError("Verification unavailable.");
       if (action === "reset") {
         user.passwordHash = passwordHash; user.emailVerified = true; user.refreshVersion++;
-        if (user.email) await runtime.mail.enqueue(tx, scope, user.email, "Password reset completed", "Your password was reset and existing sessions were revoked. If this was not you, contact your administrator immediately.");
+        if (user.email) await runtime.mail.enqueue(tx, scope, user.email, "Password reset completed", "Your password was reset and existing sessions were revoked. If this was not you, contact your administrator immediately.", ctx.obs);
       }
       else if (action === "email.verify") {
         const email = String(challenge.data.email);
@@ -161,8 +164,8 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
       const ticket = await identity.challengeInTransaction(tx, scope, "email.verify", { email, version: user.refreshVersion }, user.id, 1800);
       const link = accountLink(ctx, "email.verify", ticket);
       if (!link) throw new AuthError("Account page is not mounted.", 503);
-      await runtime.mail.enqueue(tx, scope, email, "Verify your new email address", `Confirm your new email address: ${link}`);
-      if (user.email) await runtime.mail.enqueue(tx, scope, user.email, "Email change requested", "A change to your email address was requested. If this was not you, reset your password and contact your administrator.");
+      await runtime.mail.enqueue(tx, scope, email, "Verify your new email address", `Confirm your new email address: ${link}`, ctx.obs);
+      if (user.email) await runtime.mail.enqueue(tx, scope, user.email, "Email change requested", "A change to your email address was requested. If this was not you, reset your password and contact your administrator.", ctx.obs);
     });
   } else if (action === "factor.start") {
     if (await runtime.factors.hasFactors(user)) requireElevation(ctx.user, { minimum: "mfa", maxAgeSeconds: 300 });

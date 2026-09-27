@@ -1,3 +1,4 @@
+import { createNoopObservability } from "@betterportal/framework";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -46,4 +47,36 @@ test("queued mail revalidates changed delivery configuration before exposing sec
   config.url = "https://mail.test";
   await storage.transaction(scope, tx => tx.put("mail", scope, { ...job, nextAttempt: 0 }));
   await queue.drain(); assert.equal(calls, 1);
+});
+
+test("mail resumes request trace and logs safe retry and terminal outcomes", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-mail-trace-")); const storage = new JsonAuthStorage(join(dir, "users.json"));
+  t.after(async () => { await storage.close(); rmSync(dir, { recursive: true, force: true }); });
+  const identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  const scope = { tenantId: "tenant", appId: "app" };
+  const obs = createNoopObservability();
+  const events: unknown[] = [];
+  let ended = 0;
+  t.mock.method(obs, "startSpan", () => obs);
+  t.mock.method(obs, "setAttributes", attributes => { events.push(attributes); return obs; });
+  t.mock.method(obs, "end", () => { ended++; });
+  t.mock.method(obs, "error", (error, attributes) => events.push({ error: error.message, attributes }));
+  for (const level of ["info", "warn", "error"] as const) t.mock.method(obs.logger, level, (...args: unknown[]) => { events.push(args); });
+  const config = () => ({ transport: "postal" as const, url: "https://mail.test", from: "sender@example.com", apiKey: "private-key" });
+  await storage.transaction(scope, tx => new MailQueue(identity, config).enqueue(tx, scope, "private@example.com", "Private subject", "private verification token", obs));
+  const queue = new MailQueue(identity, config, parent => { assert.deepEqual(parent, obs.trace); return obs; });
+  t.mock.method(globalThis, "fetch", async () => new Response("private provider response", { status: 401 }));
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    await queue.drain();
+    const [row] = await storage.transaction(scope, tx => tx.list("mail", scope));
+    assert.equal(row.attempts, attempt);
+    assert.equal(row.state, attempt === 5 ? "failed" : "pending");
+    await storage.transaction(scope, tx => tx.put("mail", scope, { ...row, nextAttempt: 0 }));
+  }
+  assert.equal(ended, 6);
+  const output = JSON.stringify(events);
+  assert.match(output, /exhausted retries/);
+  assert.match(output, /http_error/);
+  assert.match(output, /401/);
+  for (const secret of ["private", "sender@example.com", "Private subject"]) assert.ok(!output.includes(secret));
 });
