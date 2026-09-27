@@ -461,6 +461,7 @@ pgTest("stale role deletion cannot cascade away newly committed grants", async t
 
 pgTest("credential lookup reads only services and sees rotation, disablement and tenant state across replicas", async t => {
   const config = fixture();
+  config.apps = []; // Credential disablement must not leave mounted app dependencies.
   config.tenants[0].services[0].apiKeyHash = hashApiKey("tenant-key");
   config.platformServices.push({ id: uuidv7(), title: "Platform", hostname: "https://platform.example",
     createdAt: new Date().toISOString(), enabled: true, capabilities: [], apiKeyHash: hashApiKey("platform-key") });
