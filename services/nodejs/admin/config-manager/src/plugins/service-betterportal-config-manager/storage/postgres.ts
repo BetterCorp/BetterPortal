@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import * as yaml from "yaml";
-import { BetterPortalConfigSchema, PlatformServiceSchema, SharedServiceDefinitionSchema, TenantServiceRegistrationSchema, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
+import { BetterPortalConfigSchema, PlatformServiceSchema, SharedServiceDefinitionSchema, TenantServiceRegistrationSchema, type BetterPortalConfig, type BetterPortalObservability, type JsonValue } from "@betterportal/framework";
 import {
   BaseStorage,
   ConfigRevisionConflictError,
@@ -138,18 +138,32 @@ export class PostgresStorage extends BaseStorage {
     await this.ensureSchema();
   }
 
-  async loadConfig(): Promise<BetterPortalConfig> {
-    await this.ensureSchema();
-    const client = await this.getPool().connect();
+  async loadConfig(options: { readOnly?: boolean; obs?: BetterPortalObservability } = {}): Promise<BetterPortalConfig> {
+    const span = options.obs?.startSpan("bp.config.load", { "config.read_only": options.readOnly === true });
+    let client: PoolClient | undefined;
     try {
+      await this.ensureSchema();
+      const wait = span?.startSpan("bp.config.pool_wait");
+      try { client = await this.getPool().connect(); } finally { wait?.end(); }
       await client.query("begin isolation level repeatable read read only");
-      const snapshot = await this.readSnapshot(client);
+      const snapshot = await this.readSnapshot(client, true, span, !options.readOnly);
       await client.query("commit");
-      return this.cloneSnapshot(snapshot);
+      client.release(); client = undefined;
+      // Page reads never become writable snapshots. Avoid copying the whole platform again.
+      if (options.readOnly) {
+        const activitySpan = span?.startSpan("bp.config.activity");
+        try {
+          const activity = await this.loadServiceActivity();
+          for (const tenant of snapshot.config.tenants) for (const service of tenant.services) Object.assign(service, activity.get(service.id));
+        } finally { activitySpan?.end(); }
+        return snapshot.config;
+      }
+      return await this.cloneSnapshot(snapshot);
     } catch (error) {
-      await client.query("rollback").catch(() => undefined);
+      if (client) await client.query("rollback").catch(() => undefined);
+      span?.setAttribute("error", true);
       throw error;
-    } finally { client.release(); }
+    } finally { client?.release(); span?.end(); }
   }
 
   /** Read only the matching credential; revocation is visible without replica cache invalidation. */
@@ -375,20 +389,27 @@ export class PostgresStorage extends BaseStorage {
     super.invalidate();
   }
 
-  private async readSnapshot(connection: PoolClient, relational = true): Promise<ConfigSnapshot> {
-    const data = relational ? await this.appData.read(connection, this.entitiesTable) : undefined;
-    const records = data ? data.entities as (ConfigEntityRow & { entity_id: string })[] : (await connection.query<ConfigEntityRow & { entity_id: string }>(
-      `select kind, entity_id, value, revision from ${this.entitiesTable} where scope_id = $1 order by ordinal`, [this.rowId]
-    )).rows;
-    if (!records.some(row => row.kind === "settings")) throw new Error(`Config scope ${this.rowId} was not initialized`);
-    const rows = records.map(row => ({ ...row, id: row.entity_id }));
-    const previewConfigs = new Set(rows.filter(row => row.kind === "previewConfigs").map(row => row.id));
-    for (const row of rows) if (row.kind === "previewEnvironmentDeployments" && !previewConfigs.has(row.id)) {
-      throw new Error(`Persisted preview ${row.id} is missing its effective configuration`);
-    }
-    if (data) this.appData.hydrate(rows.filter(row => row.kind === "apps").map(row => row.value), data);
-    const config = this.parseConfig(assembleConfig(rows));
-    return { config, entities: relational ? splitSettings(config) : splitConfig(config), revisions: new Map(rows.map(row => [keyOf(row), Number(row.revision)])) };
+  private async readSnapshot(connection: PoolClient, relational = true, obs?: BetterPortalObservability, trackChanges = true): Promise<ConfigSnapshot> {
+    const querySpan = obs?.startSpan("bp.config.query");
+    let data: Awaited<ReturnType<AppData["read"]>> | undefined;
+    try { data = relational ? await this.appData.read(connection, this.entitiesTable) : undefined; }
+    finally { querySpan?.end(); }
+    const rebuildSpan = obs?.startSpan("bp.config.reconstruct");
+    try {
+      const records = data ? data.entities as (ConfigEntityRow & { entity_id: string })[] : (await connection.query<ConfigEntityRow & { entity_id: string }>(
+        `select kind, entity_id, value, revision from ${this.entitiesTable} where scope_id = $1 order by ordinal`, [this.rowId]
+      )).rows;
+      if (!records.some(row => row.kind === "settings")) throw new Error(`Config scope ${this.rowId} was not initialized`);
+      const rows = records.map(row => ({ ...row, id: row.entity_id }));
+      const previewConfigs = new Set(rows.filter(row => row.kind === "previewConfigs").map(row => row.id));
+      for (const row of rows) if (row.kind === "previewEnvironmentDeployments" && !previewConfigs.has(row.id)) {
+        throw new Error(`Persisted preview ${row.id} is missing its effective configuration`);
+      }
+      if (data) this.appData.hydrate(rows.filter(row => row.kind === "apps").map(row => row.value), data);
+      const config = this.parseConfig(assembleConfig(rows));
+      return { config, entities: trackChanges ? (relational ? splitSettings(config) : splitConfig(config)) : new Map(),
+        revisions: trackChanges ? new Map(rows.map(row => [keyOf(row), Number(row.revision)])) : new Map() };
+    } finally { rebuildSpan?.end(); }
   }
 
   private async cloneSnapshot(snapshot: ConfigSnapshot): Promise<BetterPortalConfig> {

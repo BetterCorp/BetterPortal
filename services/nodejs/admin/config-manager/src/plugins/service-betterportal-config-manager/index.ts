@@ -35,6 +35,7 @@ import { resolveRoleAuthority, resolveRoleSyncUrl } from "./roleAuthority.js";
 import {
   describeEmbeddedContextResolution,
   eventHeaders,
+  eventObservability,
   resolveEmbeddedRequestContext,
   type BetterPortalEvent,
   type BetterPortalResolvedRequestContext,
@@ -150,6 +151,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   static EventSchemas = EventSchemas;
   protected readonly requireBetterPortalConfigSource = false;
   private storage!: PlatformConfigStore;
+  private readonly requestConfigs = new WeakMap<BetterPortalEvent, ReturnType<PlatformConfigStore["loadConfig"]>>();
   private webhookRuntime?: { start(): void; stop(): void; drain(): Promise<void> };
   private previewExpiryTimer?: NodeJS.Timeout;
   private outboxTimer?: NodeJS.Timeout;
@@ -318,8 +320,20 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     }
   }
 
+  private loadRequestConfig(event: BetterPortalEvent): ReturnType<PlatformConfigStore["loadConfig"]> {
+    let pending = this.requestConfigs.get(event);
+    if (!pending) {
+      pending = this.postgresStorage
+        ? this.postgresStorage.loadConfig({ readOnly: true, obs: eventObservability(event) })
+        : this.storage.loadConfig();
+      this.requestConfigs.set(event, pending);
+      void pending.catch(() => this.requestConfigs.delete(event));
+    }
+    return pending;
+  }
+
   protected override async resolveRequestContext(event: BetterPortalEvent): Promise<BetterPortalResolvedRequestContext | null> {
-    const config = await this.storage.loadConfig();
+    const config = await this.loadRequestConfig(event);
     const context = resolveEmbeddedRequestContext(config, eventHeaders(event));
     if (!context) {
       return null;
@@ -334,7 +348,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   protected async describeCorsContextFailure(event: BetterPortalEvent): Promise<{ candidateHosts: string; configuredAppHosts: string } | undefined> {
-    const config = await this.storage.loadConfig();
+    const config = await this.loadRequestConfig(event);
     const details = describeEmbeddedContextResolution(config, eventHeaders(event));
     return {
       candidateHosts: details.candidates.join(","),
@@ -558,7 +572,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateConfigAdminContext(event: BetterPortalEvent): Promise<void> {
-    const portalConfig = visibleAdminConfig(await this.storage.loadConfig());
+    const portalConfig = visibleAdminConfig(await this.loadRequestConfig(event));
     const requestContext = resolveEmbeddedRequestContext(portalConfig, eventHeaders(event));
 
     if (requestContext) {
@@ -618,7 +632,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateServicesContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.storage.loadConfig());
+    const config = visibleAdminConfig(await this.loadRequestConfig(event));
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const requestedTenantId = url.searchParams.get("tenantId") ?? undefined;
     const selectedTenantId = config.tenants.some((tenant) => tenant.id === requestedTenantId)
@@ -723,7 +737,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateRoutesContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.storage.loadConfig());
+    const config = visibleAdminConfig(await this.loadRequestConfig(event));
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const openApiServiceId = url.searchParams.get("apiServiceId") ?? undefined;
@@ -838,7 +852,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateMenuContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.storage.loadConfig());
+    const config = visibleAdminConfig(await this.loadRequestConfig(event));
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId ? config.apps.find((a) => a.id === selectedAppId) : undefined;
@@ -868,7 +882,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateFragmentsContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.storage.loadConfig());
+    const config = visibleAdminConfig(await this.loadRequestConfig(event));
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
 
@@ -882,7 +896,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populatePreviewContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.storage.loadConfig());
+    const config = visibleAdminConfig(await this.loadRequestConfig(event));
     const services: Array<{
       serviceId: string;
       endpointBaseUrl: string;
@@ -921,7 +935,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateAdminAuthContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.storage.loadConfig());
+    const config = visibleAdminConfig(await this.loadRequestConfig(event));
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const selectedAppId = url.searchParams.get("appId") ?? undefined;
     const selectedApp = selectedAppId
@@ -1053,7 +1067,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateSettingsContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.storage.loadConfig());
+    const config = visibleAdminConfig(await this.loadRequestConfig(event));
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const requestContext = resolveEmbeddedRequestContext(config, eventHeaders(event));
     const requestedAppId = url.searchParams.get("appId") ?? undefined;

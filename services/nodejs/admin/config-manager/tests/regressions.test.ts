@@ -2172,3 +2172,21 @@ test("preview environment editor keeps config crypto in the browser", () => {
   assert.ok(script);
   assert.doesNotThrow(() => new Function(script));
 });
+
+test("page configuration is shared only within a request and failed reads can retry", async () => {
+  const plugin = Object.create(ConfigManagerPlugin.prototype) as any;
+  plugin.requestConfigs = new WeakMap();
+  let reads = 0;
+  plugin.postgresStorage = { loadConfig: async (options: { readOnly: boolean }) => {
+    assert.equal(options.readOnly, true); return { revision: ++reads };
+  } };
+  const first = { context: {} }, next = { context: {} };
+  const [a, b] = await Promise.all([plugin.loadRequestConfig(first), plugin.loadRequestConfig(first)]);
+  assert.equal(a, b); assert.equal(reads, 1);
+  assert.deepEqual(await plugin.loadRequestConfig(next), { revision: 2 });
+  plugin.postgresStorage.loadConfig = async () => { throw new Error("read failed"); };
+  const failed = { context: {} };
+  await assert.rejects(plugin.loadRequestConfig(failed), /read failed/);
+  plugin.postgresStorage.loadConfig = async () => ({ revision: 3 });
+  assert.deepEqual(await plugin.loadRequestConfig(failed), { revision: 3 });
+});
