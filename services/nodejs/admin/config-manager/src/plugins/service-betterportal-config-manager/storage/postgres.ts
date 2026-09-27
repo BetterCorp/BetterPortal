@@ -343,6 +343,10 @@ export class PostgresStorage extends BaseStorage {
         const refs = entityReferences(entity, entities).sort();
         for (const ref of refs) await client.query("select pg_advisory_xact_lock_shared(hashtextextended($1,0))",
           [JSON.stringify([this.tableName, this.rowId, ref])]);
+        // A dependency may have changed while we waited for its lock.
+        const current = (await this.readSnapshot(client)).config;
+        current.apps = current.apps.map(app => app.id === appId ? after : app);
+        this.validateConfigReferences(current);
         await this.appData.save(client, appId, before, after);
         await client.query(`delete from ${this.referencesTable} where scope_id=$1 and kind='apps' and entity_id=$2`, [this.rowId, appId]);
         await this.writeReferences(client, entity, entities);

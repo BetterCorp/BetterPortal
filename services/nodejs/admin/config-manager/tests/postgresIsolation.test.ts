@@ -490,3 +490,36 @@ pgTest("credential lookup reads only services and sees rotation, disablement and
   current.tenants[0].services[0].enabled = false; await writer.saveConfig(current);
   assert.equal(await reader.validateApiKey("rotated-key"), null);
 });
+
+pgTest("app edits revalidate service enablement after taking dependency locks", async t => {
+  const config = fixture();
+  const serviceId = uuidv7(), routeId = uuidv7(), appId = config.apps[0].id;
+  config.platformServices.push({ id: serviceId, title: "New service", hostname: "https://new.example",
+    createdAt: new Date().toISOString(), enabled: true, capabilities: [], apiKeyHash: "unused" });
+  config.tenants[0].activatedPlatformServices.push(serviceId);
+  const { makeStore, pool } = await database(t, config);
+  const editor = makeStore(), disabler = makeStore();
+  await Promise.all([editor.initialize(), disabler.initialize()]);
+  const disabled = await disabler.loadConfig();
+  disabled.platformServices[0].enabled = false;
+  const reached = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+  const edit = editor.mutateApp(appId, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: routeId, path: "/new", serviceId });
+    reached.resolve();
+    await resume.promise;
+  });
+  const rejected = assert.rejects(edit, /unavailable service instance/);
+  try {
+    await reached.promise;
+    await disabler.saveConfig(disabled);
+  } finally { resume.resolve(); }
+  await rejected;
+  assert.equal((await editor.loadConfig()).apps[0].routes.some(route => route.id === routeId), false);
+  assert.equal((await pool.query("select count(*)::int as n from bp_platform_config_outbox")).rows[0].n, 1);
+  const enabled = await disabler.loadConfig(); enabled.platformServices[0].enabled = true;
+  await disabler.saveConfig(enabled);
+  await editor.mutateApp(appId, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: routeId, path: "/new", serviceId });
+  });
+  assert.equal((await editor.loadConfig()).apps[0].routes.some(route => route.id === routeId), true);
+});
