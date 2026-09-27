@@ -559,3 +559,17 @@ pgTest("existing schema 3 drops API path uniqueness while preserving page unique
     data.apps[0].routes.push({ ...data.apps[0].routes[0], id: uuidv7() });
   }), /unique constraint/);
 });
+
+pgTest("read-only page snapshots stay fresh and cannot be submitted as writable snapshots", async t => {
+  const { makeStore, config } = await database(t);
+  const reader = makeStore(), writer = makeStore();
+  const original = await reader.loadConfig({ readOnly: true });
+  assert.deepEqual(original, await reader.loadConfig());
+  await assert.rejects(reader.saveConfig(original), /must be loaded/);
+  await writer.mutateApp(config.apps[0].id, async current => {
+    current.apps[0].auth!.roles.push({ id: "fresh-role", title: "Fresh role", permissions: [] });
+  });
+  const current = await reader.loadConfig({ readOnly: true });
+  assert.equal(current.apps[0].auth!.roles[0].id, "fresh-role");
+  assert.equal(original.apps[0].auth!.roles.length, 0);
+});
