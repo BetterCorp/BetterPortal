@@ -1298,6 +1298,11 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       fontSize: "0.9rem",
       transition: "border-color 160ms ease, box-shadow 160ms ease"
     },
+    // Native popups may use an OS light background even when the control inherits light text.
+    "select option, select optgroup": {
+      backgroundColor: "var(--bp-surface)",
+      color: "var(--bp-text)"
+    },
     ".bp-shell__main .form-control:focus, .bp-shell__main .form-select:focus": {
       borderColor: "var(--bp-accent)",
       boxShadow: "0 0 0 3px var(--bp-accent-soft)",
@@ -1367,7 +1372,7 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
     },
 
     /* -- Dropdowns -- */
-    ".bp-shell__main .dropdown-menu": {
+    ".dropdown-menu": {
       borderRadius: "0.8rem",
       border: mode === "dark"
         ? "1px solid rgba(255,255,255,0.08)"
@@ -1381,23 +1386,23 @@ export function shellStyles(mode: "light" | "dark", themeConfig: BetterPortalThe
       padding: "0.4rem",
       fontSize: "0.88rem"
     },
-    ".bp-shell__main .dropdown-item": {
+    ".dropdown-item": {
       borderRadius: "0.45rem",
       padding: "0.45rem 0.75rem",
       color: "var(--bp-text)",
       transition: "background 120ms ease"
     },
-    ".bp-shell__main .dropdown-item:hover, .bp-shell__main .dropdown-item:focus": {
+    ".dropdown-item:hover, .dropdown-item:focus": {
       background: mode === "dark"
         ? "rgba(255,255,255,0.08)"
         : "rgba(0,0,0,0.04)",
       color: "var(--bp-text)"
     },
-    ".bp-shell__main .dropdown-item.active, .bp-shell__main .dropdown-item:active": {
+    ".dropdown-item.active, .dropdown-item:active": {
       background: "var(--bp-accent)",
       color: "#ffffff"
     },
-    ".bp-shell__main .dropdown-divider": {
+    ".dropdown-divider": {
       borderColor: mode === "dark"
         ? "rgba(255,255,255,0.06)"
         : "rgba(0,0,0,0.05)",

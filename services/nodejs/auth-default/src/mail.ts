@@ -4,6 +4,8 @@ import { AuthError, type IdentityService } from "./identity.js";
 import type { AuthTransaction, RecordValue, Scope } from "./storage.js";
 
 export interface MailConfig { transport: "postal" | "http"; url: string; from: string; apiKey?: string; headers?: Record<string, string> }
+// Only documented codes are safe to expose; arbitrary provider text may contain secrets.
+const postalErrorCodes = new Set(["AccessDenied", "ValidationError", "NoRecipients", "NoContent", "TooManyToAddresses", "TooManyCCAddresses", "TooManyBCCAddresses", "FromAddressMissing", "UnauthenticatedFromAddress", "AttachmentMissingName", "AttachmentMissingData"]);
 const MailHeadersSchema = av.record(av.string());
 export function parseMailHeaders(configured: unknown): Record<string, string> | undefined {
   if (configured === undefined || configured === "") return undefined;
@@ -67,6 +69,7 @@ export class MailQueue {
       let success = false;
       let reason = "configuration_invalid";
       let status = 0;
+      let providerCode = "none";
       let transport = "unknown";
       const started = Date.now();
       try {
@@ -88,7 +91,18 @@ export class MailQueue {
           });
           status = response.status;
           reason = response.ok ? "provider_rejected" : "http_error";
-          success = response.ok && (config.transport !== "postal" || (await response.json() as { status?: string }).status === "success");
+          success = response.ok;
+          if (config.transport === "postal") {
+            success = false;
+            providerCode = "invalid_response";
+            const result: unknown = await response.json();
+            if (result && typeof result === "object") {
+              const { status: outcome, data } = result as { status?: unknown; data?: unknown };
+              success = response.ok && outcome === "success";
+              const code = data && typeof data === "object" ? (data as { code?: unknown }).code : undefined;
+              providerCode = success ? "none" : typeof code === "string" && postalErrorCodes.has(code) ? code : "unknown";
+            }
+          }
           if (!response.bodyUsed) await response.body?.cancel();
         } catch (error) {
           if (error instanceof Error && error.name === "TimeoutError") reason = "timeout";
@@ -100,15 +114,15 @@ export class MailQueue {
           const attempts = current.attempts + 1;
           const state = success ? "sent" : attempts >= 5 ? "failed" : "pending";
           await tx.put("mail", row.scope, { ...current, encrypted: success ? "" : current.encrypted, attempts, state, nextAttempt: Date.now() + Math.min(3600000, 30000 * 2 ** attempts), updatedAt: Date.now() });
-          return { transport, status, attempts, state, reason: success ? "accepted" : reason, durationMs: Date.now() - started, retryScheduled: state === "pending" };
+          return { transport, status, providerCode, attempts, state, reason: success ? "accepted" : reason, durationMs: Date.now() - started, retryScheduled: state === "pending" };
         });
         if (attributes) {
           span = span?.setAttributes(attributes);
           if (success) span?.logger.info("Auth mail accepted by provider", attributes);
           else {
             span?.error(new Error("Auth mail delivery failed"), attributes);
-            if (attributes.state === "failed") span?.logger.error("Auth mail delivery exhausted retries", attributes);
-            else span?.logger.warn("Auth mail delivery failed; retry scheduled", attributes);
+            if (attributes.state === "failed") span?.logger.error("Auth mail delivery exhausted retries: transport={transport} status={status} reason={reason} providerCode={providerCode} attempts={attempts}", attributes);
+            else span?.logger.warn("Auth mail delivery failed; retry scheduled: transport={transport} status={status} reason={reason} providerCode={providerCode} attempts={attempts}", attributes);
           }
           span?.metrics.counter("auth_mail_delivery_total", "Auth mail delivery attempts", "Provider delivery outcomes", ["transport", "state", "reason"]).increment(1, { transport, state: attributes.state, reason: attributes.reason });
         }

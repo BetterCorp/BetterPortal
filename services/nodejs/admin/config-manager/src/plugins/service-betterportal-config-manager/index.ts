@@ -503,6 +503,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   ): PlatformConfigStore {
     return {
       loadConfig: () => store.loadConfig(),
+      ...(store.mutateApp ? { mutateApp: store.mutateApp.bind(store) } : {}),
       ...(store.touchServiceActivity ? { touchServiceActivity: store.touchServiceActivity.bind(store) } : {}),
       saveConfig: async (config, options) => {
         await store.saveConfig(config, metadata.backend === "file" && options?.notify !== false

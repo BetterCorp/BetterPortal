@@ -1,9 +1,11 @@
+import { isDeepStrictEqual } from "node:util";
+import { AppData, AppDataConflictError, appSettings } from "./appData.js";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import * as yaml from "yaml";
-import { BetterPortalConfigSchema, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
+import { BetterPortalConfigSchema, PlatformServiceSchema, SharedServiceDefinitionSchema, TenantServiceRegistrationSchema, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import {
   BaseStorage,
   ConfigRevisionConflictError,
@@ -84,6 +86,11 @@ interface LegacyPaths {
 }
 
 const SCHEMA_VERSION = 2;
+function splitSettings(config: BetterPortalConfig): Map<string, ConfigEntity> {
+  const entities = splitConfig(config);
+  for (const app of config.apps) entities.get(JSON.stringify(["apps", app.id]))!.value = appSettings(app);
+  return entities;
+}
 
 export class PostgresStorage extends BaseStorage {
   readonly backend = "postgres" as const;
@@ -106,10 +113,7 @@ export class PostgresStorage extends BaseStorage {
   private schemaReady: Promise<void> | null = null;
   private legacyPaths: LegacyPaths = {};
   private readonly snapshots = new WeakMap<BetterPortalConfig, ConfigSnapshot>();
-  private cachedConfig: ConfigSnapshot | null = null;
-  private configLoad: Promise<ConfigSnapshot & { generation: number }> | null = null;
-  private configGeneration = 0;
-  private credentialIndex?: { config: BetterPortalConfig; entries: Map<string, NonNullable<Awaited<ReturnType<BaseStorage["validateApiKey"]>>>> };
+  private readonly appData: AppData;
 
   constructor(options: PostgresStorageOptions) {
     super();
@@ -117,6 +121,7 @@ export class PostgresStorage extends BaseStorage {
     this.tableName = options.tableName ?? "bp_platform_config";
     this.quotedTableName = quotePgIdent(this.tableName);
     this.rowId = options.rowId ?? "default";
+    this.appData = new AppData(this.tableName, this.rowId);
     this.migrationsTable = quotePgIdent(`${this.tableName}_migrations`);
     this.identityTable = quotePgIdent(`${this.tableName}_identity`);
     this.actionsTable = quotePgIdent(`${this.tableName}_actions`);
@@ -135,27 +140,50 @@ export class PostgresStorage extends BaseStorage {
 
   async loadConfig(): Promise<BetterPortalConfig> {
     await this.ensureSchema();
-    if (this.cachedConfig) return this.cloneSnapshot(this.cachedConfig);
-
-    const pending = this.configLoad ??= this.readConfig(this.configGeneration);
+    const client = await this.getPool().connect();
     try {
-      const loaded = await pending;
-      if (loaded.generation !== this.configGeneration) {
-        if (this.configLoad === pending) this.configLoad = null;
-        return this.loadConfig();
-      }
-      this.cachedConfig = loaded;
-      return this.cloneSnapshot(this.cachedConfig);
-    } finally {
-      if (this.configLoad === pending) this.configLoad = null;
+      await client.query("begin isolation level repeatable read read only");
+      const snapshot = await this.readSnapshot(client);
+      await client.query("commit");
+      return this.cloneSnapshot(snapshot);
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally { client.release(); }
+  }
+
+  /** Read only the matching credential; revocation is visible without replica cache invalidation. */
+  override async validateApiKey(apiKey: string): ReturnType<BaseStorage["validateApiKey"]> {
+    await this.ensureSchema();
+    const result = await this.getPool().query(`select service.kind, service.value from ${this.entitiesTable} service
+      where service.scope_id=$1 and service.kind in ('platformServices','sharedServiceCatalog','tenantServices')
+        and service.value->>'apiKeyHash'=$2 and service.value->>'enabled'='true'
+        and (service.kind <> 'tenantServices' or exists (
+          select 1 from ${this.entitiesTable} tenant where tenant.scope_id=service.scope_id and tenant.kind='tenants'
+            and tenant.entity_id=service.value->>'tenantId' and tenant.value->>'active'='true'))
+      order by case service.kind when 'platformServices' then 0 when 'sharedServiceCatalog' then 1 else 2 end, service.ordinal
+      limit 1`, [this.rowId, hashApiKey(apiKey)]);
+    const row = result.rows[0];
+    if (!row) return null;
+    if (row.kind === "tenantServices") {
+      const { tenantId, ...value } = row.value;
+      const service = TenantServiceRegistrationSchema.parse(value);
+      return { scope: "tenant", serviceId: service.id, tenantId, service };
     }
+    const service = row.kind === "platformServices"
+      ? PlatformServiceSchema.parse(row.value) : SharedServiceDefinitionSchema.parse(row.value);
+    return { scope: "platform", serviceId: service.id, service };
   }
 
   async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; completeAction?: PendingActionCompletion }): Promise<void> {
     await this.ensureSchema();
     const baseline = this.snapshots.get(config);
     if (!baseline) throw new Error("Config must be loaded from this store before saving; detached whole-platform replacements are not supported");
-    const proposed = splitConfig(this.parseConfig(config));
+    const parsed = this.parseConfig(config);
+    const proposed = splitSettings(parsed);
+    const oldApps = new Map(baseline.config.apps.map(app => [app.id, app]));
+    const nextApps = new Map(parsed.apps.map(app => [app.id, app]));
+    const appChanges = [...new Set([...oldApps.keys(), ...nextApps.keys()])].filter(id => !oldApps.has(id) || !nextApps.has(id) || this.appData.changed(oldApps.get(id), nextApps.get(id)));
     // Cached manifests belong to their concrete service registration. Deleting
     // a registration also deletes its known cache, whichever API initiated it.
     for (const [key, entity] of proposed) if (entity.kind === "manifestCache") {
@@ -165,6 +193,7 @@ export class PostgresStorage extends BaseStorage {
     const client = await this.getPool().connect();
     try {
       await client.query("begin");
+      await client.query("set local betterportal.app_data_writer = '3'");
       if (options?.completeAction) await this.finishAction(client, options.completeAction);
       // Shared dependency locks allow two apps in a tenant to save concurrently.
       // Exclusive locks cover only changed entities and their uniqueness claims.
@@ -177,6 +206,15 @@ export class PostgresStorage extends BaseStorage {
           if (!entity) continue;
           for (const claim of entityClaims(entity)) locks.set(claim, true);
           for (const ref of entityReferences(entity, entities)) {
+            dependencies.add(ref);
+            if (!locks.has(ref)) locks.set(ref, false);
+          }
+        }
+      }
+      for (const appId of appChanges) {
+        locks.set(JSON.stringify(["apps", appId]), true);
+        for (const app of [oldApps.get(appId), nextApps.get(appId)]) if (app) {
+          for (const ref of entityReferences({ kind: "apps", id: app.id, value: app }, proposed)) {
             dependencies.add(ref);
             if (!locks.has(ref)) locks.set(ref, false);
           }
@@ -212,23 +250,13 @@ export class PostgresStorage extends BaseStorage {
             current.revisions.get(keyOf(entity)) ?? 0, keyOf(entity));
         }
       }
-      const validated = this.parseConfig(assembleConfig(merged.values()));
-      this.validateConfigReferences(validated);
-      // Validate uniqueness against the current committed state, under claim locks.
-      const claims = new Set<string>();
-      for (const entity of merged.values()) for (const claim of entityClaims(entity)) {
-        if (claims.has(claim)) throw new Error(`Configuration uniqueness conflict: ${claim}`);
-        claims.add(claim);
+      for (const appId of appChanges) {
+        const latest = current.config.apps.find(app => app.id === appId);
+        if (!nextApps.has(appId) && this.appData.changed(oldApps.get(appId), latest)) {
+          throw new AppDataConflictError();
+        }
+        await this.appData.save(client, appId, oldApps.get(appId), nextApps.get(appId), latest);
       }
-      const resetActivity: string[] = [];
-      const services = new Map(validated.tenants.flatMap(tenant => tenant.services.map(service => [service.id, service] as const)));
-      for (const previous of current.config.tenants.flatMap(tenant => tenant.services)) {
-        const next = services.get(previous.id);
-        if (!next || previous.apiKeyHash !== next.apiKeyHash || previous.hostname !== next.hostname) resetActivity.push(previous.id);
-      }
-      if (resetActivity.length) await client.query(
-        `delete from ${this.activityTable} where scope_id = $1 and service_id = any($2::text[])`, [this.rowId, resetActivity]
-      );
       const refreshed = changed.map(key => merged.get(key)).filter(entity => entity?.kind === "manifestCache");
       if (refreshed.length) {
         const clock = await client.query<{ now: Date }>("select clock_timestamp() as now");
@@ -246,11 +274,31 @@ export class PostgresStorage extends BaseStorage {
         } else await client.query(`delete from ${this.entitiesTable} where scope_id = $1 and kind = $2 and entity_id = $3`,
           [this.rowId, entity.kind, entity.id]);
       }
-      for (const key of changed) {
-        const entity = merged.get(key);
-        if (entity) await this.writeReferences(client, entity, merged);
+      const validated = (await this.readSnapshot(client)).config;
+      this.validateConfigReferences(validated);
+      // Validate uniqueness against the current committed state, under claim locks.
+      const claims = new Set<string>();
+      for (const entity of merged.values()) for (const claim of entityClaims(entity)) {
+        if (claims.has(claim)) throw new Error(`Configuration uniqueness conflict: ${claim}`);
+        claims.add(claim);
       }
-      if (changed.length) {
+      const resetActivity: string[] = [];
+      const services = new Map(validated.tenants.flatMap(tenant => tenant.services.map(service => [service.id, service] as const)));
+      for (const previous of current.config.tenants.flatMap(tenant => tenant.services)) {
+        const next = services.get(previous.id);
+        if (!next || previous.apiKeyHash !== next.apiKeyHash || previous.hostname !== next.hostname) resetActivity.push(previous.id);
+      }
+      if (resetActivity.length) await client.query(
+        `delete from ${this.activityTable} where scope_id = $1 and service_id = any($2::text[])`, [this.rowId, resetActivity]
+      );
+      for (const key of new Set([...changed, ...appChanges.map(id => JSON.stringify(["apps", id]))])) {
+        const entity = merged.get(key);
+        if (entity) {
+          await client.query(`delete from ${this.referencesTable} where scope_id=$1 and kind=$2 and entity_id=$3`, [this.rowId, entity.kind, entity.id]);
+          await this.writeReferences(client, entity.kind === "apps" ? { ...entity, value: validated.apps.find(app => app.id === entity.id)! } : entity, merged);
+        }
+      }
+      if (changed.length || appChanges.length) {
         const result = await client.query<{ revision: string }>(`select nextval('${this.revisionSequence}') as revision`);
         await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision: Number(result.rows[0].revision) });
       }
@@ -269,6 +317,51 @@ export class PostgresStorage extends BaseStorage {
     }
   }
 
+  async mutateApp<T>(appId: string, update: (config: BetterPortalConfig) => Promise<T>): Promise<T> {
+    await this.ensureSchema();
+    const client = await this.getPool().connect();
+    try {
+      await client.query("begin");
+      await client.query("set local betterportal.app_data_writer = '3'");
+      // A short app-scoped transaction serializes its edits; unrelated apps proceed independently.
+      await client.query("select pg_advisory_xact_lock(hashtextextended($1,0))",
+        [JSON.stringify([this.tableName, this.rowId, JSON.stringify(["apps", appId])])]);
+      const snapshot = await this.readSnapshot(client);
+      const config = structuredClone(snapshot.config);
+      const result = await update(config);
+      const parsed = this.parseConfig(config);
+      const before = snapshot.config.apps.find(app => app.id === appId), after = parsed.apps.find(app => app.id === appId);
+      const withoutApp = (value: BetterPortalConfig) => ({ ...value, apps: value.apps.filter(app => app.id !== appId) });
+      if (!before || !after || !isDeepStrictEqual(withoutApp(snapshot.config), withoutApp(parsed))) {
+        throw new Error("App transaction may only edit its existing target app");
+      }
+      this.validateConfigReferences(parsed);
+      if (!isDeepStrictEqual(appSettings(before), appSettings(after))) throw new Error("App data transaction cannot change versioned app settings");
+      if (this.appData.changed(before, after)) {
+        const entities = splitSettings(parsed);
+        const entity = { kind: "apps", id: appId, value: after };
+        const refs = entityReferences(entity, entities).sort();
+        for (const ref of refs) await client.query("select pg_advisory_xact_lock_shared(hashtextextended($1,0))",
+          [JSON.stringify([this.tableName, this.rowId, ref])]);
+        // A dependency may have changed while we waited for its lock.
+        const current = (await this.readSnapshot(client)).config;
+        current.apps = current.apps.map(app => app.id === appId ? after : app);
+        this.validateConfigReferences(current);
+        await this.appData.save(client, appId, before, after);
+        await client.query(`delete from ${this.referencesTable} where scope_id=$1 and kind='apps' and entity_id=$2`, [this.rowId, appId]);
+        await this.writeReferences(client, entity, entities);
+        const revision = await client.query(`select nextval('${this.revisionSequence}') as revision`);
+        await this.insertOutbox(client, "broadcast", "platform-config.changed", { revision: Number(revision.rows[0].revision) });
+      }
+      await client.query("commit");
+      this.invalidate();
+      return result;
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally { client.release(); }
+  }
+
   private async writeReferences(client: PoolClient, entity: ConfigEntity, entities: Map<string, ConfigEntity>): Promise<void> {
     for (const ref of entityReferences(entity, entities)) {
       const [kind, id] = JSON.parse(ref) as [string, string];
@@ -278,46 +371,24 @@ export class PostgresStorage extends BaseStorage {
   }
 
   override invalidate(): void {
-    this.configGeneration++;
-    this.cachedConfig = null;
     this.activityLoad = undefined;
     super.invalidate();
   }
 
-  override async validateApiKey(apiKey: string): ReturnType<BaseStorage["validateApiKey"]> {
-    await this.ensureSchema();
-    if (!this.cachedConfig) await this.loadConfig();
-    if (!this.cachedConfig) return this.validateApiKey(apiKey);
-    const config = this.cachedConfig.config;
-    if (this.credentialIndex?.config !== config) {
-      const entries: NonNullable<PostgresStorage["credentialIndex"]>["entries"] = new Map();
-      for (const service of [...config.platformServices, ...config.sharedServiceCatalog]) {
-        if (service.enabled && service.apiKeyHash) entries.set(service.apiKeyHash, { scope: "platform", serviceId: service.id, service });
-      }
-      for (const tenant of config.tenants.filter(tenant => tenant.active)) for (const service of tenant.services) {
-        if (service.enabled && service.apiKeyHash) entries.set(service.apiKeyHash, { scope: "tenant", tenantId: tenant.id, serviceId: service.id, service });
-      }
-      this.credentialIndex = { config, entries };
-    }
-    return structuredClone(this.credentialIndex.entries.get(hashApiKey(apiKey)) ?? null);
-  }
-
-  private async readSnapshot(connection: Pick<Pool, "query"> | PoolClient): Promise<ConfigSnapshot> {
-    const result = await connection.query<ConfigEntityRow & { entity_id: string }>(
+  private async readSnapshot(connection: PoolClient, relational = true): Promise<ConfigSnapshot> {
+    const data = relational ? await this.appData.read(connection, this.entitiesTable) : undefined;
+    const records = data ? data.entities as (ConfigEntityRow & { entity_id: string })[] : (await connection.query<ConfigEntityRow & { entity_id: string }>(
       `select kind, entity_id, value, revision from ${this.entitiesTable} where scope_id = $1 order by ordinal`, [this.rowId]
-    );
-    if (!result.rows.some(row => row.kind === "settings")) throw new Error(`Config scope ${this.rowId} was not initialized`);
-    const rows = result.rows.map(row => ({ ...row, id: row.entity_id }));
+    )).rows;
+    if (!records.some(row => row.kind === "settings")) throw new Error(`Config scope ${this.rowId} was not initialized`);
+    const rows = records.map(row => ({ ...row, id: row.entity_id }));
     const previewConfigs = new Set(rows.filter(row => row.kind === "previewConfigs").map(row => row.id));
     for (const row of rows) if (row.kind === "previewEnvironmentDeployments" && !previewConfigs.has(row.id)) {
       throw new Error(`Persisted preview ${row.id} is missing its effective configuration`);
     }
+    if (data) this.appData.hydrate(rows.filter(row => row.kind === "apps").map(row => row.value), data);
     const config = this.parseConfig(assembleConfig(rows));
-    return { config, entities: splitConfig(config), revisions: new Map(rows.map(row => [keyOf(row), Number(row.revision)])) };
-  }
-
-  private async readConfig(generation: number): Promise<ConfigSnapshot & { generation: number }> {
-    return { ...await this.readSnapshot(this.getPool()), generation };
+    return { config, entities: relational ? splitSettings(config) : splitConfig(config), revisions: new Map(rows.map(row => [keyOf(row), Number(row.revision)])) };
   }
 
   private async cloneSnapshot(snapshot: ConfigSnapshot): Promise<BetterPortalConfig> {
@@ -705,6 +776,7 @@ export class PostgresStorage extends BaseStorage {
         );
       }
       await this.migrateEntities(client);
+      await this.migrateAppData(client);
       await client.query("commit");
     } catch (error) {
       await client.query("rollback").catch(() => undefined);
@@ -754,7 +826,7 @@ export class PostgresStorage extends BaseStorage {
       `insert into ${this.entitiesTable} (scope_id, kind, entity_id, value, revision) values ($1, $2, $3, $4::jsonb, nextval('${this.revisionSequence}'))`,
       [this.rowId, entity.kind, entity.id, JSON.stringify(entity.value)]);
     for (const entity of entities.values()) await this.writeReferences(client, entity, entities);
-    const restored = await this.readSnapshot(client);
+    const restored = await this.readSnapshot(client, false);
     if (changedEntityKeys(entities, restored.entities).length) throw new Error("Config entity migration verification failed");
     const fence = quotePgIdent(`${this.tableName}_legacy_write_fence`);
     await client.query(`create or replace function ${fence}() returns trigger language plpgsql as $body$
@@ -769,6 +841,42 @@ export class PostgresStorage extends BaseStorage {
     await client.query(`create trigger legacy_write_fence before update or delete on ${this.quotedTableName}
       for each row execute function ${fence}()`);
     await client.query(`insert into ${this.migrationsTable} (scope_id, version) values ($1, $2)`, [this.rowId, SCHEMA_VERSION]);
+  }
+
+  private async migrateAppData(client: PoolClient): Promise<void> {
+    await client.query(`create index if not exists ${quotePgIdent(`${this.tableName}_credential_idx`)}
+      on ${this.entitiesTable} (scope_id, (value->>'apiKeyHash'))
+      where kind in ('platformServices','sharedServiceCatalog','tenantServices')`);
+    await this.appData.create(client);
+    const applied = await client.query(`select 1 from ${this.migrationsTable} where scope_id=$1 and version=3`, [this.rowId]);
+    if (applied.rows.length) return;
+    await client.query(`select entity_id from ${this.entitiesTable} where scope_id=$1 and kind='apps' for update`, [this.rowId]);
+    const source = await this.readSnapshot(client, false);
+    const backup = quotePgIdent(`${this.tableName}_app_data_backup`);
+    await client.query(`create table if not exists ${backup} (scope_id text not null, app_id text not null, value jsonb not null,
+      primary key (scope_id,app_id))`);
+    for (const app of source.config.apps) {
+      await client.query(`insert into ${backup} values ($1,$2,$3::jsonb)`, [this.rowId, app.id, JSON.stringify(app)]);
+      await this.appData.save(client, app.id, undefined, app);
+      await client.query(`update ${this.entitiesTable} set value=$3::jsonb where scope_id=$1 and kind='apps' and entity_id=$2`,
+        [this.rowId, app.id, JSON.stringify(appSettings(app))]);
+    }
+    const restored = await this.readSnapshot(client);
+    if (!isDeepStrictEqual(source.config, restored.config)) throw new Error("Relational app data migration verification failed");
+    const fence = quotePgIdent(`${this.tableName}_app_data_fence`);
+    await client.query(`create or replace function ${fence}() returns trigger language plpgsql as $body$
+      begin
+        if coalesce(NEW.kind,OLD.kind)='apps' and exists (select 1 from ${this.migrationsTable} where scope_id=coalesce(NEW.scope_id,OLD.scope_id) and version=3)
+          and current_setting('betterportal.app_data_writer',true) is distinct from '3' then
+          raise exception 'App data migrated to relational tables; upgrade all config-manager replicas';
+        end if;
+        if TG_OP='DELETE' then return OLD; end if;
+        return NEW;
+      end $body$`);
+    await client.query(`drop trigger if exists app_data_fence on ${this.entitiesTable}`);
+    await client.query(`create trigger app_data_fence before insert or update or delete on ${this.entitiesTable}
+      for each row execute function ${fence}()`);
+    await client.query(`insert into ${this.migrationsTable} (scope_id,version) values ($1,3)`, [this.rowId]);
   }
 
   private async importLegacyFiles(client: PoolClient): Promise<void> {

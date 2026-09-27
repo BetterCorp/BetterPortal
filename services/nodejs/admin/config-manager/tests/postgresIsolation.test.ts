@@ -5,6 +5,7 @@ import { test, type TestContext } from "node:test";
 import { Pool } from "pg";
 import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { PostgresStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
+import { hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { entityKey, splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
 import { createPreviewGroup, provisionPreviewDeployment } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { collectServiceDeleteBlockers, purgeServiceReferences, registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
@@ -52,7 +53,7 @@ pgTest("migration preserves independent records, fences legacy writers and resum
   loaded.apps[0].title = "After migration"; await a.saveConfig(loaded);
   assert.equal((await makeStore().loadConfig()).apps[0].title, "After migration");
   assert.equal((await pool.query("select revision from bp_platform_config")).rows[0].revision, "4197");
-  assert.deepEqual((await pool.query("select version from bp_platform_config_migrations order by version")).rows.map(row => row.version), [1, 2]);
+  assert.deepEqual((await pool.query("select version from bp_platform_config_migrations order by version")).rows.map(row => row.version), [1, 2, 3]);
   await assert.rejects(a.saveConfig(structuredClone(loaded)), /must be loaded/);
 });
 pgTest("stale snapshots of apps in the same and different tenants save without lost updates", async t => {
@@ -324,4 +325,199 @@ for (const entity of ["app", "tenant"] as const) pgTest(`deleting a preview sour
   const latest = await store.loadConfig();
   assert.equal(latest.apps.some(app => app.id === source.id), false);
   if (entity === "tenant") assert.equal(latest.tenants.some(tenant => tenant.id === source.tenantId), false);
+});
+
+pgTest("relational app data migrates losslessly and old app-document writes are fenced", async t => {
+  const config = fixture(); const app = config.apps[0];
+  app.auth!.roles = [{ id: "user-pbx-archiver", title: "PBX Archiver User", description: "",
+    permissions: [
+      { serviceId: app.routes[0].serviceId, viewId: "home", permissions: ["read", "read"] },
+      { serviceId: app.routes[0].serviceId, viewId: "home", permissions: ["update"] },
+      { serviceId: app.routes[0].serviceId, viewId: "home", permissions: ["read"] }
+    ] }];
+  app.menu = [{ id: uuidv7(), type: "group", title: "Group", enabled: true, serviceStatus: "show", authStatus: "auto",
+    children: [{ id: uuidv7(), type: "link", title: "Home", routeId: app.routes[0].id,
+      enabled: true, serviceStatus: "show", authStatus: "auto", children: [] }] }];
+  // Existing schema-2 canonicalization already adds these legacy route/auth defaults.
+  Object.assign(app.auth!, { loginViewId: "login.index", logoutViewId: "logout.index", refreshViewId: "refresh.index" });
+  Object.assign(app.routes[0], { enablement: "enabled", resolvedServicePath: undefined, servicePathVariant: undefined, targetPath: undefined });
+  const { makeStore, pool } = await database(t, config);
+  const store = makeStore(); await store.initialize();
+  const loaded = await store.loadConfig();
+  assert.deepEqual(loaded.apps[0], app);
+  const row = (await pool.query("select value from bp_platform_config_entities where kind='apps' and entity_id=$1", [app.id])).rows[0].value;
+  assert.equal(row.routes, undefined); assert.equal(row.menu, undefined); assert.equal(row.auth.roles, undefined);
+  assert.equal((await pool.query("select count(*)::int as n from bp_platform_config_role_grants")).rows[0].n, 3);
+  assert.deepEqual((await pool.query("select value from bp_platform_config_app_data_backup where app_id=$1", [app.id])).rows[0].value, JSON.parse(JSON.stringify(app)));
+  await assert.rejects(pool.query("update bp_platform_config_entities set value=value where kind='apps'"), /upgrade all config-manager replicas/);
+  await makeStore().initialize();
+  assert.deepEqual((await makeStore().loadConfig()).apps[0], app);
+});
+
+pgTest("replicas read committed roles and grants without broadcasts, and unrelated edits survive", async t => {
+  const { makeStore, pool, config } = await database(t);
+  const a = makeStore(), b = makeStore(); await Promise.all([a.initialize(), b.initialize()]);
+  const appId = config.apps[0].id;
+  await b.loadConfig();
+  const revision = (await pool.query("select revision from bp_platform_config_entities where kind='apps' and entity_id=$1", [appId])).rows[0].revision;
+  await Promise.all([
+    a.mutateApp(appId, async data => { data.apps[0].auth!.roles.push({ id: "reader", title: "Reader",
+      permissions: [{ serviceId: data.apps[0].routes[0].serviceId, viewId: "home", permissions: ["read"] }] }); }),
+    b.mutateApp(appId, async data => { data.apps[0].routes[0].title = "Updated route"; })
+  ]);
+  for (const store of [a, b, makeStore(), a, b]) {
+    const app = (await store.loadConfig()).apps[0];
+    assert.equal(app.auth!.roles[0].id, "reader");
+    assert.deepEqual(app.auth!.roles[0].permissions[0].permissions, ["read"]);
+    assert.equal(app.routes[0].title, "Updated route");
+  }
+  assert.equal((await pool.query("select revision from bp_platform_config_entities where kind='apps' and entity_id=$1", [appId])).rows[0].revision, revision);
+  const stale = await a.loadConfig();
+  await b.mutateApp(appId, async data => { data.apps[0].auth!.roles[0].permissions[0].permissions.push("update"); });
+  stale.apps[0].routes[0].title = "Background route sync";
+  await a.saveConfig(stale);
+  assert.deepEqual((await b.loadConfig()).apps[0].auth!.roles[0].permissions[0].permissions, ["read", "update"]);
+});
+
+pgTest("role POST transactions preserve concurrent roles and reject duplicates", async t => {
+  const { makeStore, config } = await database(t);
+  const stores = [makeStore(), makeStore()];
+  await Promise.all(stores.map(store => store.initialize()));
+  const handlers = stores.map(store => {
+    const routes = new Map<string, (event: never) => Promise<Response>>();
+    registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
+      (path: string, handler: (event: never) => Promise<Response>) => routes.set(method + " " + path, handler)
+    ])) as never, store, {} as never);
+    return routes.get("post /.well-known/bp/admin/apps/:appId/auth/roles")!;
+  });
+  const call = (index: number, id: string) => handlers[index]({
+    context: { params: { appId: config.apps[0].id } },
+    req: new Request("https://config.example/roles", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ id, title: "PBX Archiver User", description: "" }) })
+  } as never);
+  const responses = await Promise.all([call(0, "user-pbx-archiver"), call(1, "reader")]);
+  assert.deepEqual(responses.map(response => response.status), [201, 201]);
+  assert.equal((await call(1, "user-pbx-archiver")).status, 409);
+  assert.deepEqual((await makeStore().loadConfig()).apps[0].auth!.roles.map(role => role.id).sort(), ["reader", "user-pbx-archiver"]);
+});
+
+pgTest("menu foreign keys prevent dangling routes and failed app transactions roll back", async t => {
+  const { makeStore, config } = await database(t); const store = makeStore(); await store.initialize();
+  const appId = config.apps[0].id;
+  await store.mutateApp(appId, async data => { data.apps[0].menu.push({ id: uuidv7(), type: "link", routeId: data.apps[0].routes[0].id,
+    enabled: true, serviceStatus: "show", authStatus: "auto", children: [] }); });
+  await assert.rejects(store.mutateApp(appId, async data => { data.apps[0].routes = []; }));
+  assert.equal((await store.loadConfig()).apps[0].routes.length, 1);
+  await assert.rejects(store.mutateApp(appId, async data => {
+    data.apps[0].auth!.roles.push({ id: "never-committed", title: "No", permissions: [] });
+    throw new Error("cancel");
+  }), /cancel/);
+  assert.equal((await store.loadConfig()).apps[0].auth!.roles.length, 0);
+});
+
+pgTest("stale snapshot replacement cannot delete newly committed app data", async t => {
+  const source = fixture(); source.apps[0].routes = [];
+  const { makeStore, config } = await database(t, source); const a = makeStore(), b = makeStore();
+  const stale = await a.loadConfig();
+  await b.mutateApp(config.apps[0].id, async data => {
+    data.apps[0].auth!.roles.push({ id: "new-role", title: "New", permissions: [] });
+  });
+  stale.apps.shift();
+  await assert.rejects(a.saveConfig(stale), /App data changed concurrently/);
+  assert.equal((await b.loadConfig()).apps[0].auth!.roles[0].id, "new-role");
+});
+
+pgTest("failed relational constraints roll back all app row changes", async t => {
+  const { makeStore, config } = await database(t); const store = makeStore();
+  await store.initialize();
+  await assert.rejects(store.mutateApp(config.apps[0].id, async data => {
+    data.apps[0].auth!.roles.push({ id: "not-saved", title: "No", permissions: [] });
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: uuidv7() });
+  }));
+  const app = (await store.loadConfig()).apps[0];
+  assert.equal(app.auth!.roles.length, 0);
+  assert.equal(app.routes.length, 1);
+});
+
+pgTest("operational transactions cannot bypass versioned settings", async t => {
+  const { makeStore, config } = await database(t); const store = makeStore();
+  await assert.rejects(store.mutateApp(config.apps[0].id, async data => { data.apps[0].hostnames = ["other.example"]; }),
+    /cannot change versioned app settings/);
+  assert.deepEqual((await store.loadConfig()).apps[0].hostnames, config.apps[0].hostnames);
+});
+
+pgTest("stale role deletion cannot cascade away newly committed grants", async t => {
+  const source = fixture();
+  source.apps[0].auth!.roles.push({ id: "reader", title: "Reader", permissions: [] });
+  const { makeStore, config } = await database(t, source); const a = makeStore(), b = makeStore();
+  const stale = await a.loadConfig();
+  await b.mutateApp(config.apps[0].id, async data => {
+    data.apps[0].auth!.roles[0].permissions.push({ serviceId: data.apps[0].routes[0].serviceId, viewId: "home", permissions: ["read"] });
+  });
+  stale.apps[0].auth!.roles = [];
+  await assert.rejects(a.saveConfig(stale), /App data changed concurrently/);
+  assert.deepEqual((await b.loadConfig()).apps[0].auth!.roles[0].permissions[0].permissions, ["read"]);
+});
+
+pgTest("credential lookup reads only services and sees rotation, disablement and tenant state across replicas", async t => {
+  const config = fixture();
+  config.apps = []; // Credential disablement must not leave mounted app dependencies.
+  config.tenants[0].services[0].apiKeyHash = hashApiKey("tenant-key");
+  config.platformServices.push({ id: uuidv7(), title: "Platform", hostname: "https://platform.example",
+    createdAt: new Date().toISOString(), enabled: true, capabilities: [], apiKeyHash: hashApiKey("platform-key") });
+  config.sharedServiceCatalog.push({ id: uuidv7(), title: "Shared", baseUrl: "https://shared.example",
+    supportedDeploymentModes: [], owner: "bp", tags: [], enabled: true, apiKeyHash: hashApiKey("shared-key") });
+  const { makeStore } = await database(t, config);
+  const reader = makeStore(), writer = makeStore();
+  await Promise.all([reader.initialize(), writer.initialize()]);
+  reader.loadConfig = async () => { throw new Error("Credential lookup must not load the full config"); };
+  assert.equal((await reader.validateApiKey("tenant-key"))?.tenantId, config.tenants[0].id);
+  assert.equal((await reader.validateApiKey("platform-key"))?.serviceId, config.platformServices[0].id);
+  assert.equal((await reader.validateApiKey("shared-key"))?.serviceId, config.sharedServiceCatalog[0].id);
+  assert.equal(await reader.validateApiKey("unknown-key"), null);
+  let current = await writer.loadConfig();
+  current.tenants[0].services[0].apiKeyHash = hashApiKey("rotated-key");
+  current.platformServices[0].enabled = false;
+  current.sharedServiceCatalog[0].enabled = false;
+  await writer.saveConfig(current);
+  assert.equal(await reader.validateApiKey("tenant-key"), null);
+  assert.equal(await reader.validateApiKey("platform-key"), null);
+  assert.equal(await reader.validateApiKey("shared-key"), null);
+  assert.equal((await reader.validateApiKey("rotated-key"))?.serviceId, config.tenants[0].services[0].id);
+  current = await writer.loadConfig(); current.tenants[0].active = false; await writer.saveConfig(current);
+  assert.equal(await reader.validateApiKey("rotated-key"), null);
+  current = await writer.loadConfig(); current.tenants[0].active = true;
+  current.tenants[0].services[0].enabled = false; await writer.saveConfig(current);
+  assert.equal(await reader.validateApiKey("rotated-key"), null);
+});
+
+pgTest("app edits revalidate service enablement after taking dependency locks", async t => {
+  const config = fixture();
+  const serviceId = uuidv7(), routeId = uuidv7(), appId = config.apps[0].id;
+  config.tenants[0].services.push({ ...config.tenants[0].services[0], id: serviceId, hostname: "https://new.example" });
+  const { makeStore, pool } = await database(t, config);
+  const editor = makeStore(), disabler = makeStore();
+  await Promise.all([editor.initialize(), disabler.initialize()]);
+  const disabled = await disabler.loadConfig();
+  disabled.tenants[0].services[2].enabled = false;
+  const reached = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+  const edit = editor.mutateApp(appId, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: routeId, path: "/new", serviceId });
+    reached.resolve();
+    await resume.promise;
+  });
+  const rejected = assert.rejects(edit, /unavailable service instance/);
+  try {
+    await reached.promise;
+    await disabler.saveConfig(disabled);
+  } finally { resume.resolve(); }
+  await rejected;
+  assert.equal((await editor.loadConfig()).apps[0].routes.some(route => route.id === routeId), false);
+  assert.equal((await pool.query("select count(*)::int as n from bp_platform_config_outbox")).rows[0].n, 1);
+  const enabled = await disabler.loadConfig(); enabled.tenants[0].services[2].enabled = true;
+  await disabler.saveConfig(enabled);
+  await editor.mutateApp(appId, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: routeId, path: "/new", serviceId });
+  });
+  assert.equal((await editor.loadConfig()).apps[0].routes.some(route => route.id === routeId), true);
 });

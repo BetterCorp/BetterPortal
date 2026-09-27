@@ -71,3 +71,45 @@ test("open card dropdowns rise above later cards", () => {
   });
   assert.match(html, /\.bp-shell__main \.card:has\(\.dropdown-menu\.show\)/);
 });
+
+test("open dropdowns and native options follow both palettes outside main content", async t => {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.route("**/*", route => route.abort());
+  const html = renderBootstrap1Shell({
+    title: "Theme test", brandName: "Test", themeMode: "dark",
+    themeConfig: { mode: "dark", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets", bodyHtml: ""
+  });
+  await page.setContent(html);
+  await page.evaluate(() => {
+    const fixture = document.createElement("div");
+    fixture.innerHTML = '<div class="dropdown-menu show"><button class="dropdown-item">Menu item</button></div><select><option>Choice</option></select>';
+    document.body.append(fixture);
+  });
+  for (const mode of ["dark", "light"] as const) {
+    await page.evaluate(value => document.documentElement.dataset.bsTheme = value, mode);
+    const colors = await page.evaluate(() => {
+      return {
+        menu: getComputedStyle(document.querySelector(".dropdown-menu")!).backgroundColor,
+        item: getComputedStyle(document.querySelector(".dropdown-item")!).color,
+        option: getComputedStyle(document.querySelector("option")!).backgroundColor,
+        optionText: getComputedStyle(document.querySelector("option")!).color
+      };
+    });
+    const channel = (value: string) => Number(value.match(/\d+/)![0]);
+    if (mode === "dark") {
+      assert.ok(channel(colors.menu) < 100);
+      assert.ok(channel(colors.option) < 100);
+      assert.ok(channel(colors.item) > 200);
+      assert.ok(channel(colors.optionText) > 200);
+    } else {
+      assert.ok(channel(colors.menu) > 200);
+      assert.ok(channel(colors.option) > 200);
+      assert.ok(channel(colors.item) < 100);
+      assert.ok(channel(colors.optionText) < 100);
+    }
+  }
+});

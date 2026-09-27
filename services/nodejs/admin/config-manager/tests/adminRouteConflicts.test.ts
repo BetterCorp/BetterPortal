@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BetterPortalConfigSchema, createBetterPortalApp, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
-import { BaseStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BaseStorage, ConfigRevisionConflictError, hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 
 import { getManifestCache, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
@@ -14,12 +14,15 @@ class ConflictStorage extends BaseStorage {
   async loadConfig() { return structuredClone(this.cached ??= structuredClone(this.current)); }
   async saveConfig(candidate: BetterPortalConfig) {
     this.saves++;
-    if (this.conflict) {
-      this.conflict();
-      throw new ConfigRevisionConflictError(1, 2);
-    }
     this.current = structuredClone(candidate);
     this.cached = undefined;
+  }
+  async mutateApp<T>(_appId: string, update: (config: BetterPortalConfig) => Promise<T>): Promise<T> {
+    this.conflict?.();
+    const config = structuredClone(this.current);
+    const result = await update(config);
+    await this.saveConfig(config);
+    return result;
   }
   override invalidate() { this.cached = undefined; super.invalidate(); }
 }
@@ -47,10 +50,10 @@ function fixture() {
       }, ...(body ? { body: JSON.stringify(body) } : {}) })
     } as never);
   }
-  return { storage, call, serviceId };
+  return { storage, call, serviceId, handlers, appId, tenantId };
 }
 
-test("route update reloads stale snapshots and preserves concurrent config edits", async () => {
+test("route update reads current rows inside its transaction and preserves concurrent config edits", async () => {
   const { storage, call } = fixture();
   storage.conflict = () => {
     storage.current.tenants[0].title = "Concurrent tenant edit";
@@ -58,7 +61,7 @@ test("route update reloads stale snapshots and preserves concurrent config edits
     storage.conflict = undefined;
   };
   assert.equal((await call("put", { title: "Updated" })).status, 200);
-  assert.equal(storage.saves, 2);
+  assert.equal(storage.saves, 1);
   assert.equal(storage.current.tenants[0].title, "Concurrent tenant edit");
   assert.equal(storage.current.apps[0].routes[0].path, "/concurrent");
   assert.equal(storage.current.apps[0].routes[0].title, "Updated");
@@ -68,7 +71,7 @@ test("route update does not resurrect a concurrently deleted route", async () =>
   const { storage, call } = fixture();
   storage.conflict = () => { storage.current.apps[0].routes = []; storage.conflict = undefined; };
   assert.equal((await call("put", { title: "Updated" })).status, 404);
-  assert.equal(storage.saves, 1);
+  assert.equal(storage.saves, 0);
 });
 
 test("route deletion rechecks newly added menu references", async () => {
@@ -79,10 +82,10 @@ test("route deletion rechecks newly added menu references", async () => {
   };
   assert.equal((await call("delete")).status, 409);
   assert.equal(storage.current.apps[0].routes.length, 1);
-  assert.equal(storage.saves, 1);
+  assert.equal(storage.saves, 0);
 });
 
-test("route creation retries without duplicates and reads the request body once", async () => {
+test("route creation uses one transaction without duplicates and reads the request body once", async () => {
   const { storage, call, serviceId } = fixture();
   storage.conflict = () => { storage.current.tenants[0].title = "Concurrent"; storage.conflict = undefined; };
   (getManifestCache() as Map<string, CachedManifest>).set(serviceId, {
@@ -96,24 +99,14 @@ test("route creation retries without duplicates and reads the request body once"
   assert.equal(storage.current.tenants[0].title, "Concurrent");
 });
 
-for (const html of [false, true]) test(`persistent route contention returns bounded retry response (html=${html})`, async () => {
-  const { storage, call } = fixture();
-  storage.conflict = () => {};
-  const response = await call("put", { title: "Updated" }, html);
-  assert.equal(response.status, 503);
-  assert.equal(response.headers.get("Retry-After"), "1");
-  assert.equal(storage.saves, 5);
-  assert.equal(storage.current.apps[0].routes[0].title, "Home");
-});
-
 test("unrelated storage errors are not retried", async () => {
   const { storage, call } = fixture();
   storage.conflict = () => { throw new Error("database unavailable"); };
   await assert.rejects(call("put", { title: "Updated" }), /database unavailable/);
-  assert.equal(storage.saves, 1);
+  assert.equal(storage.saves, 0);
 });
 
-test("changing /login to an already mounted service view succeeds after a conflict", async () => {
+test("changing /login to an already mounted service view uses the current transaction state", async () => {
   const { storage, call } = fixture();
   const serviceId = uuidv7();
   storage.current.tenants[0].services.push({ ...storage.current.tenants[0].services[0], id: serviceId });
@@ -135,7 +128,7 @@ test("changing /login to an already mounted service view succeeds after a confli
   assert.equal(login.viewId, alias.viewId);
   assert.equal(login.targetPath, alias.targetPath);
   assert.equal(alias.path, "/sign-in");
-  assert.equal(storage.saves, 2);
+  assert.equal(storage.saves, 1);
 });
 
 test("creating another frontend path for an existing view succeeds", async () => {
@@ -163,4 +156,37 @@ test("unrecovered same-entity conflicts are HTTP 409 through the framework", asy
   const app = createBetterPortalApp();
   app.get("/conflict", () => { throw new ConfigRevisionConflictError(1, 2, "app/test"); });
   assert.equal((await app.fetch(new Request("https://config.example/conflict"))).status, 409);
+});
+
+for (const endpoint of ["roles/sync", "self-mutation"]) test(`${endpoint} authenticates before its transaction and checks current ownership`, async () => {
+  const { storage, handlers, appId, tenantId, serviceId } = fixture();
+  storage.current.tenants[0].services[0].apiKeyHash = hashApiKey("test-key");
+  storage.current.apps[0].auth = { serviceId, expectedIssuer: "issuer", expectedAudience: "app",
+    jwksUri: "https://service.example/jwks", roles: [] };
+  let inTransaction = false, validations = 0;
+  const validate = storage.validateApiKey.bind(storage), mutate = storage.mutateApp.bind(storage);
+  storage.validateApiKey = async key => {
+    assert.equal(inTransaction, false, "authentication must not acquire a second client inside the transaction");
+    validations++;
+    return validate(key);
+  };
+  storage.mutateApp = async (id, update) => {
+    inTransaction = true;
+    try { return await mutate(id, update); } finally { inTransaction = false; }
+  };
+  const path = endpoint === "roles/sync" ? "apps/:appId/auth/roles/sync" : "services/self-mutation";
+  const roles = [{ id: "reader", title: "Reader", permissions: [{ serviceId, viewId: "home", permissions: ["read"] }] }];
+  const call = (key = "test-key") => handlers.get(`put /.well-known/bp/admin/${path}`)!({
+    context: { params: { appId } }, req: new Request("https://config.example/sync", {
+      method: "PUT", headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify(endpoint === "roles/sync" ? { roles } : { tenantId, appId, type: "auth", mutation: { roles } })
+    })
+  } as never);
+  assert.equal((await call()).status, 200);
+  assert.equal(validations, 1);
+  assert.equal(storage.saves, 1);
+  storage.conflict = () => { storage.current.apps[0].auth!.serviceId = uuidv7(); };
+  assert.equal((await call()).status, 403, "ownership must use the fresh transaction snapshot");
+  assert.equal((await call("invalid-key")).status, 403);
+  assert.equal(storage.saves, 1);
 });

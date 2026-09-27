@@ -1,5 +1,4 @@
 import { isMenuRouteExcluded } from "./routeMounts.js";
-import { setTimeout as delay } from "node:timers/promises";
 import type {
   BetterPortalH3App,
   BetterPortalEvent,
@@ -31,7 +30,6 @@ import {
   revokeM2MConnection,
   type M2MConnectionSelection
 } from "./m2mConnections.js";
-import { ConfigRevisionConflictError } from "./storage/core.js";
 import { isPreviewApp } from "./previewEnvironments.js";
 
 const API_BASE = "/.well-known/bp/admin";
@@ -101,30 +99,27 @@ function validationError(event: BetterPortalEvent, message: string): Response {
   return wantsHtmx(event) ? htmxError(message, 400) : jsonResponse({ error: message }, 400);
 }
 
-// Only wrap operations whose effects are confined to the config transaction.
-// The callback must reload and revalidate, never resave a rejected snapshot.
-async function withRouteConfigRetry(
-  event: BetterPortalEvent,
+// PostgreSQL edits read current rows under an app-scoped transaction.
+// File stores retain their existing single-process save semantics.
+async function editApp(
   store: PlatformConfigStore,
-  action: () => Promise<Response>
+  appId: string,
+  action: (config: BetterPortalConfig) => Promise<Response>
 ): Promise<Response> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await action();
-    } catch (error) {
-      if (!(error instanceof ConfigRevisionConflictError)) throw error;
-      store.invalidate();
-      if (attempt < 4) {
-        await delay(25 * 2 ** attempt * (1 + Math.random()));
-        continue;
-      }
-      const message = "Route configuration is busy; retry submission";
-      const response = wantsHtmx(event)
-        ? htmxError(message, 503)
-        : jsonResponse({ error: message }, 503);
-      response.headers.set("Retry-After", "1");
-      return response;
-    }
+  const apply = async (config: BetterPortalConfig) => {
+    const response = await action(config);
+    if (!response.ok) throw response;
+    return response;
+  };
+  try {
+    if (store.mutateApp) return await store.mutateApp(appId, apply);
+    const config = await store.loadConfig();
+    const response = await apply(config);
+    await store.saveConfig(config);
+    return response;
+  } catch (error) {
+    if (error instanceof Response) return error;
+    throw error;
   }
 }
 
@@ -1866,14 +1861,12 @@ export function registerAdminApiRoutes(
     );
   };
 
-  const requireServiceIdentityForAuthoritativeService = async (
-    event: BetterPortalEvent,
+  const requireServiceIdentityForAuthoritativeService = (
+    identity: ServiceIdentity,
     config: BetterPortalConfig,
     appDef: BetterPortalApp,
     type: AuthoritativeServiceType
-  ): Promise<Response | undefined> => {
-    const identity = await readServiceIdentity(event);
-    if (identity instanceof Response) return identity;
+  ): Response | undefined => {
     const mountedServiceId = appMountedServiceId(appDef, type);
     if (!serviceIdentityOwnsMountedService(config, appDef, identity, mountedServiceId)) {
       return jsonResponse({
@@ -1885,13 +1878,6 @@ export function registerAdminApiRoutes(
     }
     return undefined;
   };
-
-  const requireServiceIdentityForAppAuth = async (
-    event: BetterPortalEvent,
-    config: BetterPortalConfig,
-    appDef: BetterPortalApp
-  ): Promise<Response | undefined> =>
-    requireServiceIdentityForAuthoritativeService(event, config, appDef, "auth");
 
   const parseSyncedRoles = (
     appDef: BetterPortalApp,
@@ -1974,46 +1960,56 @@ export function registerAdminApiRoutes(
     const body = await readJsonBody(event);
     const roles = Array.isArray(body.roles) ? body.roles : undefined;
     if (!roles) return jsonResponse({ error: "roles array required" }, 400);
+    const identity = await readServiceIdentity(event);
+    if (identity instanceof Response) return identity;
 
-    const { config, appDef } = await getAppOr404(appId);
-    if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-    const serviceError = await requireServiceIdentityForAppAuth(event, config, appDef as BetterPortalApp);
-    if (serviceError) return serviceError;
-    const authResult = requireAuthBlock(event, appDef);
-    if (authResult.response) return authResult.response;
+    return editApp(store, appId, async (config) => {
+      const appDef = config.apps.find(app => app.id === appId);
+      if (!appDef) return jsonResponse({ error: "App not found" }, 404);
+      const serviceError = requireServiceIdentityForAuthoritativeService(identity, config, appDef, "auth");
+      if (serviceError) return serviceError;
+      const authResult = requireAuthBlock(event, appDef);
+      if (authResult.response) return authResult.response;
 
-    const parsedRoles = parseSyncedRoles(appDef as BetterPortalApp, roles);
-    if (parsedRoles instanceof Response) return parsedRoles;
+      const parsedRoles = parseSyncedRoles(appDef as BetterPortalApp, roles);
+      if (parsedRoles instanceof Response) return parsedRoles;
 
-    authResult.auth!.roles = parsedRoles;
-    await store.saveConfig(config);
-    return jsonResponse({ ok: true, roles: parsedRoles.length });
+      authResult.auth!.roles = parsedRoles;
+      return jsonResponse({ ok: true, roles: parsedRoles.length });
+    });
   });
 
   app.put(`${API_BASE}/services/self-mutation`, async (event) => {
     const parsed = SelfMutationRequestSchema.safeParse(await readJsonBody(event));
     if (!parsed.success) return jsonResponse({ error: "Invalid self-mutation request", issues: parsed.issues as unknown as JsonValue }, 400);
     const { tenantId, appId, type, mutation } = parsed.data;
+    const identity = await readServiceIdentity(event);
+    if (identity instanceof Response) return identity;
 
-    const { config, appDef } = await getAppOr404(appId);
-    if (!appDef || appDef.tenantId !== tenantId) return jsonResponse({ error: "App not found" }, 404);
+    if (type === "theme") {
+      const { config, appDef } = await getAppOr404(appId);
+      if (!appDef || appDef.tenantId !== tenantId) return jsonResponse({ error: "App not found" }, 404);
+      const serviceError = requireServiceIdentityForAuthoritativeService(identity, config, appDef, type);
+      if (serviceError) return serviceError;
+      appDef.themeConfig = mutation.themeConfig;
+      await store.saveConfig(config);
+      return jsonResponse({ ok: true, type });
+    }
 
-    const serviceError = await requireServiceIdentityForAuthoritativeService(event, config, appDef, type);
-    if (serviceError) return serviceError;
+    return editApp(store, appId, async (config) => {
+      const appDef = config.apps.find(app => app.id === appId);
+      if (!appDef || appDef.tenantId !== tenantId) return jsonResponse({ error: "App not found" }, 404);
 
-    if (type === "auth") {
+      const serviceError = requireServiceIdentityForAuthoritativeService(identity, config, appDef, type);
+      if (serviceError) return serviceError;
+
       const authResult = requireAuthBlock(event, appDef);
       if (authResult.response) return authResult.response;
       const parsedRoles = parseSyncedRoles(appDef, mutation.roles);
       if (parsedRoles instanceof Response) return parsedRoles;
       authResult.auth!.roles = parsedRoles;
-      await store.saveConfig(config);
       return jsonResponse({ ok: true, type, roles: parsedRoles.length });
-    }
-
-    appDef.themeConfig = mutation.themeConfig;
-    await store.saveConfig(config);
-    return jsonResponse({ ok: true, type });
+    });
   });
 
   app.post(`${API_BASE}/apps/:appId/auth/roles`, async (event) => {
@@ -2027,24 +2023,25 @@ export function registerAdminApiRoutes(
       const message = "role id must start with a letter or number, may contain letters, numbers, dot, underscore, colon, or dash, and cannot be reserved";
       return wantsHtmx(event) ? htmxError(message) : jsonResponse({ error: message }, 400);
     }
-    const { config, appDef } = await getAppOr404(appId);
-    if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
-    const authResult = requireAuthBlock(event, appDef);
-    if (authResult.response) return authResult.response;
-    const auth = authResult.auth!;
-    const role: AppAuthRoleEntry = {
-      id: roleId,
-      title,
-      description: body.description as string | undefined,
-      permissions: Array.isArray(body.permissions) ? body.permissions as AppAuthRoleEntry["permissions"] : []
-    };
-    if (auth.roles.some((r) => r.id === role.id)) {
-      return wantsHtmx(event) ? htmxError("role id already exists", 409) : jsonResponse({ error: "role id already exists" }, 409);
-    }
-    auth.roles.push(role);
-    await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(`/auth?appId=${encodeURIComponent(appId)}`);
-    return jsonResponse(role as unknown as JsonValue, 201);
+    return editApp(store, appId, async (config) => {
+      const appDef = config.apps.find(app => app.id === appId);
+      if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
+      const authResult = requireAuthBlock(event, appDef);
+      if (authResult.response) return authResult.response;
+      const auth = authResult.auth!;
+      const role: AppAuthRoleEntry = {
+        id: roleId,
+        title,
+        description: body.description as string | undefined,
+        permissions: Array.isArray(body.permissions) ? body.permissions as AppAuthRoleEntry["permissions"] : []
+      };
+      if (auth.roles.some((r) => r.id === role.id)) {
+        return wantsHtmx(event) ? htmxError("role id already exists", 409) : jsonResponse({ error: "role id already exists" }, 409);
+      }
+      auth.roles.push(role);
+      if (wantsHtmx(event)) return htmxReload(`/auth?appId=${encodeURIComponent(appId)}`);
+      return jsonResponse(role as unknown as JsonValue, 201);
+    });
   });
 
   app.put(`${API_BASE}/apps/:appId/auth/roles/:roleId`, async (event) => {
@@ -2052,49 +2049,51 @@ export function registerAdminApiRoutes(
     const roleId = getParam(event, "roleId");
     if (!appId || !roleId) return jsonResponse({ error: "appId + roleId required" }, 400);
     const body = await readFormOrJsonBody(event);
-    const { config, appDef } = await getAppOr404(appId);
-    if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
-    const authResult = requireAuthBlock(event, appDef);
-    if (authResult.response) return authResult.response;
-    const auth = authResult.auth!;
-    const role = auth.roles.find((r) => r.id === roleId);
-    if (!role) return wantsHtmx(event) ? htmxError("Role not found", 404) : jsonResponse({ error: "Role not found" }, 404);
-    if (typeof body.title === "string") role.title = body.title;
-    if (typeof body.description === "string" || body.description === null) role.description = body.description ?? undefined;
-    if (Array.isArray(body.permissions)) {
-      role.permissions = body.permissions as AppAuthRoleEntry["permissions"];
-    } else if (typeof body.grant === "string" || Array.isArray(body.grant)) {
-      const grants = Array.isArray(body.grant) ? body.grant : [body.grant];
-      const byView = new Map<string, AppAuthRoleEntry["permissions"][number]>();
-      for (const grant of grants) {
-        const [serviceId, viewId, action] = String(grant).split("|");
-        if (!serviceId || !viewId || !["read", "create", "update", "delete"].includes(action)) continue;
-        const key = `${serviceId}::${viewId}`;
-        if (!byView.has(key)) byView.set(key, { serviceId, viewId, permissions: [] });
-        byView.get(key)!.permissions.push(action as "read" | "create" | "update" | "delete");
+    return editApp(store, appId, async (config) => {
+      const appDef = config.apps.find(app => app.id === appId);
+      if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
+      const authResult = requireAuthBlock(event, appDef);
+      if (authResult.response) return authResult.response;
+      const auth = authResult.auth!;
+      const role = auth.roles.find((r) => r.id === roleId);
+      if (!role) return wantsHtmx(event) ? htmxError("Role not found", 404) : jsonResponse({ error: "Role not found" }, 404);
+      if (typeof body.title === "string") role.title = body.title;
+      if (typeof body.description === "string" || body.description === null) role.description = body.description ?? undefined;
+      if (Array.isArray(body.permissions)) {
+        role.permissions = body.permissions as AppAuthRoleEntry["permissions"];
+      } else if (typeof body.grant === "string" || Array.isArray(body.grant)) {
+        const grants = Array.isArray(body.grant) ? body.grant : [body.grant];
+        const byView = new Map<string, AppAuthRoleEntry["permissions"][number]>();
+        for (const grant of grants) {
+          const [serviceId, viewId, action] = String(grant).split("|");
+          if (!serviceId || !viewId || !["read", "create", "update", "delete"].includes(action)) continue;
+          const key = `${serviceId}::${viewId}`;
+          if (!byView.has(key)) byView.set(key, { serviceId, viewId, permissions: [] });
+          byView.get(key)!.permissions.push(action as "read" | "create" | "update" | "delete");
+        }
+        role.permissions = Array.from(byView.values());
       }
-      role.permissions = Array.from(byView.values());
-    }
-    await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(`/auth?appId=${encodeURIComponent(appId)}`);
-    return jsonResponse(role as unknown as JsonValue);
+      if (wantsHtmx(event)) return htmxReload(`/auth?appId=${encodeURIComponent(appId)}`);
+      return jsonResponse(role as unknown as JsonValue);
+    });
   });
 
   app.delete(`${API_BASE}/apps/:appId/auth/roles/:roleId`, async (event) => {
     const appId = getParam(event, "appId");
     const roleId = getParam(event, "roleId");
     if (!appId || !roleId) return jsonResponse({ error: "appId + roleId required" }, 400);
-    const { config, appDef } = await getAppOr404(appId);
-    if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
-    const authResult = requireAuthBlock(event, appDef);
-    if (authResult.response) return authResult.response;
-    const auth = authResult.auth!;
-    const before = auth.roles.length;
-    auth.roles = auth.roles.filter((r) => r.id !== roleId);
-    if (auth.roles.length === before) return wantsHtmx(event) ? htmxError("Role not found", 404) : jsonResponse({ error: "Role not found" }, 404);
-    await store.saveConfig(config);
-    if (wantsHtmx(event)) return htmxReload(`/auth?appId=${encodeURIComponent(appId)}`);
-    return jsonResponse({ ok: true });
+    return editApp(store, appId, async (config) => {
+      const appDef = config.apps.find(app => app.id === appId);
+      if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
+      const authResult = requireAuthBlock(event, appDef);
+      if (authResult.response) return authResult.response;
+      const auth = authResult.auth!;
+      const before = auth.roles.length;
+      auth.roles = auth.roles.filter((r) => r.id !== roleId);
+      if (auth.roles.length === before) return wantsHtmx(event) ? htmxError("Role not found", 404) : jsonResponse({ error: "Role not found" }, 404);
+      if (wantsHtmx(event)) return htmxReload(`/auth?appId=${encodeURIComponent(appId)}`);
+      return jsonResponse({ ok: true });
+    });
   });
 
   // Service connections (per app)
@@ -2172,8 +2171,7 @@ export function registerAdminApiRoutes(
     const appId = getParam(event, "appId");
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
     const body = await readFormOrJsonBody(event);
-    return withRouteConfigRetry(event, store, async () => {
-      const config = await store.loadConfig();
+    return editApp(store, appId, async (config) => {
       if (isPreviewApp(config, appId)) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
       const appDef = config.apps.find((a) => a.id === appId);
       if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
@@ -2188,7 +2186,6 @@ export function registerAdminApiRoutes(
       const route: BetterPortalRouteMount = { ...parsed.route, id: uuidv7() };
       appDef.routes.push(route);
       addRouteDependencies(appDef, route);
-      await store.saveConfig(config);
       if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId));
       return jsonResponse({ ok: true, id: route.id } as unknown as JsonValue, 201);
     });
@@ -2199,8 +2196,7 @@ export function registerAdminApiRoutes(
     const routeId = getParam(event, "routeId");
     if (!appId || !routeId) return jsonResponse({ error: "appId and routeId required" }, 400);
     const body = await readFormOrJsonBody(event);
-    return withRouteConfigRetry(event, store, async () => {
-      const config = await store.loadConfig();
+    return editApp(store, appId, async (config) => {
       if (isPreviewApp(config, appId)) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
       const appDef = config.apps.find((a) => a.id === appId);
       if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
@@ -2307,7 +2303,6 @@ export function registerAdminApiRoutes(
         return validationError(event, `A route already exists at ${route.path}.`);
       }
 
-      await store.saveConfig(config);
       if (wantsHtmx(event)) return htmxReload(routesReloadPath(appId, route.kind === "api" ? route.serviceId : undefined));
       return jsonResponse({ ok: true });
     });
@@ -2317,8 +2312,7 @@ export function registerAdminApiRoutes(
     const appId = getParam(event, "appId");
     const routeId = getParam(event, "routeId");
     if (!appId || !routeId) return jsonResponse({ error: "appId and routeId required" }, 400);
-    return withRouteConfigRetry(event, store, async () => {
-      const config = await store.loadConfig();
+    return editApp(store, appId, async (config) => {
       if (isPreviewApp(config, appId)) return jsonResponse({ error: "Preview resources are managed through Preview Environments" }, 404);
       const appDef = config.apps.find((a) => a.id === appId);
       if (!appDef) return wantsHtmx(event) ? htmxError("App not found", 404) : jsonResponse({ error: "App not found" }, 404);
@@ -2341,7 +2335,6 @@ export function registerAdminApiRoutes(
         return wantsHtmx(event) ? htmxAlert(message, "warning") : jsonResponse({ error: message }, 409);
       }
       appDef.routes = appDef.routes.filter((r) => r.id !== routeId);
-      await store.saveConfig(config);
       if (wantsHtmx(event)) return htmxReload(`/routes?appId=${encodeURIComponent(appId)}`);
       return jsonResponse({ ok: true });
     });
@@ -2363,18 +2356,18 @@ export function registerAdminApiRoutes(
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
     const body = await readJsonBody(event);
     const items = Array.isArray(body.items) ? body.items : [];
-    const config = await store.loadConfig();
-    const appDef = config.apps.find((a) => a.id === appId);
-    if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-    const menu = items.map(normalizeMenuItem);
-    const invalid = (entries: BetterPortalMenuItem[]): boolean => entries.some(item => {
-      const route = item.routeId ? appDef.routes.find(route => route.id === item.routeId) : undefined;
-      return (Boolean(item.routeId) && (!route || isMenuRouteExcluded(route, getManifestCache()))) || invalid(item.children);
+    return editApp(store, appId, async (config) => {
+      const appDef = config.apps.find((a) => a.id === appId);
+      if (!appDef) return jsonResponse({ error: "App not found" }, 404);
+      const menu = items.map(normalizeMenuItem);
+      const invalid = (entries: BetterPortalMenuItem[]): boolean => entries.some(item => {
+        const route = item.routeId ? appDef.routes.find(route => route.id === item.routeId) : undefined;
+        return (Boolean(item.routeId) && (!route || isMenuRouteExcluded(route, getManifestCache()))) || invalid(item.children);
+      });
+      if (invalid(menu)) return jsonResponse({ error: "Menu contains a missing or excluded route" }, 400);
+      appDef.menu = menu;
+      return jsonResponse({ ok: true });
     });
-    if (invalid(menu)) return jsonResponse({ error: "Menu contains a missing or excluded route" }, 400);
-    appDef.menu = menu;
-    await store.saveConfig(config);
-    return jsonResponse({ ok: true });
   });
 
   // Full config (read-only)

@@ -65,7 +65,14 @@ test("mail resumes request trace and logs safe retry and terminal outcomes", asy
   const config = () => ({ transport: "postal" as const, url: "https://mail.test", from: "sender@example.com", apiKey: "private-key" });
   await storage.transaction(scope, tx => new MailQueue(identity, config).enqueue(tx, scope, "private@example.com", "Private subject", "private verification token", obs));
   const queue = new MailQueue(identity, config, parent => { assert.deepEqual(parent, obs.trace); return obs; });
-  t.mock.method(globalThis, "fetch", async () => new Response("private provider response", { status: 401 }));
+  const responses = [
+    new Response("private provider response", { status: 401 }),
+    Response.json({ status: "error", data: { code: "AccessDenied", message: "private-key" } }),
+    Response.json({ status: "error", data: { code: "UnauthenticatedFromAddress", message: "sender@example.com" } }),
+    Response.json({ status: "error", data: { code: "private verification token" } }),
+    Response.json(null)
+  ];
+  t.mock.method(globalThis, "fetch", async () => responses.shift()!);
   for (let attempt = 1; attempt <= 5; attempt++) {
     await queue.drain();
     const [row] = await storage.transaction(scope, tx => tx.list("mail", scope));
@@ -78,5 +85,10 @@ test("mail resumes request trace and logs safe retry and terminal outcomes", asy
   assert.match(output, /exhausted retries/);
   assert.match(output, /http_error/);
   assert.match(output, /401/);
+  assert.match(output, /AccessDenied/);
+  assert.match(output, /UnauthenticatedFromAddress/);
+  assert.match(output, /invalid_response/);
+  assert.match(output, /unknown/);
+  assert.match(output, /providerCode=\{providerCode\}/);
   for (const secret of ["private", "sender@example.com", "Private subject"]) assert.ok(!output.includes(secret));
 });
