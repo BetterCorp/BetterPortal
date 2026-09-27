@@ -631,6 +631,11 @@ export function betterPortalShellRuntimeSource(): string {
         for (const [id, origin] of Object.entries(serviceOrigins)) {
           try { map[new URL(origin).origin] = id; } catch { /* skip invalid */ }
         }
+        // Tenant activations can share an origin; prefer this app's assigned auth service.
+        const authService = shellRoot()?.getAttribute("data-bp-auth-service");
+        if (authService && serviceOrigins[authService]) {
+          try { map[new URL(serviceOrigins[authService]).origin] = authService; } catch { /* skip invalid */ }
+        }
         const shellService = shellRoot()?.getAttribute("data-bp-shell-service");
         if (shellService && serviceOrigins[shellService]) map[window.location.origin] = shellService;
         return map;

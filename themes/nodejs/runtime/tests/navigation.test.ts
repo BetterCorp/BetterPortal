@@ -14,7 +14,7 @@ import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 
-async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard") {
+async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false) {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -27,8 +27,8 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
   await page.route("https://auth.test/**", respond);
   await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html>
     <html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
-    <div data-bp-shell-root data-bp-menu-health="false" data-bp-login-url="https://auth.test/login"
-      data-bp-services='{"service":"https://service.test","auth":"https://auth.test"}'
+    <div data-bp-shell-root data-bp-menu-health="false" data-bp-auth-service="auth" data-bp-login-url="https://auth.test/login"
+      data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test" } : {}) })}'
       data-bp-routes='[{"href":"/tools/dashboard","requestUrl":"https://service.test/dashboard","serviceId":"service","kind":"page"},{"href":"/auth/login","requestUrl":"https://auth.test/login","serviceId":"auth","kind":"page"}]'>
       <a id="menu" href="/tools/dashboard" data-bp-route-link data-bp-service="service" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
       <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
@@ -292,7 +292,7 @@ test("cancelling elevation leaves the session and submitted action untouched", a
 const passwordLoginForm = '<form id="bp-login-form" hx-post="this" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="alice"><input name="password" value="password"><input name="next" value="/tools/dashboard"><button type="submit">Sign in</button></form><p id="bp-login-error" class="d-none"></p>';
 const loginJson = (route: Route, body: unknown, status = 200, headers = {}) => route.fulfill({ status, json: body, headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true", "access-control-expose-headers": "BP-SetHeader,HX-Trigger", ...headers } });
 
-for (const enroll of [false, true]) test(`password login completes ${enroll ? "factor enrollment" : "MFA"} before navigation`, async t => {
+for (const enroll of [false, true]) test(`password login completes ${enroll ? "factor enrollment" : "MFA"} before navigation with a shared auth origin`, async t => {
   const completions: unknown[] = []; let dashboards = 0; let logins = 0;
   const { page, errors } = await shell(t, async route => {
     const request = route.request();
@@ -303,7 +303,7 @@ for (const enroll of [false, true]) test(`password login completes ${enroll ? "f
     }
     if (request.url().endsWith("/account")) {
       completions.push(request.postDataJSON());
-      return loginJson(route, { status: "ok", recoveryCodes: enroll ? ["recovery-one", "recovery-two"] : [] }, 200, { "BP-SetHeader": "Authorization=Bearer verified-session; locked=true" });
+      return loginJson(route, { status: "ok", recoveryCodes: enroll ? ["recovery-one", "recovery-two"] : [] }, 200, { "BP-SetHeader": "Authorization=Bearer verified-session; locked=true, X-Refresh=test-refresh; locked=true; scope=true" });
     }
     if (request.method() === "POST") {
       logins++;
@@ -311,7 +311,7 @@ for (const enroll of [false, true]) test(`password login completes ${enroll ? "f
       return loginJson(route, { status: "ok", accountUrl: "https://auth.test/account", challenge: { id: "login-ticket", secret: "login-proof", methods: ["totp"], enroll, ...(enroll ? { totpSecret: "enrollment-secret" } : {}) } });
     }
     return html(route, passwordLoginForm);
-  }, {}, "https://auth.test/login", "/auth/login");
+  }, {}, "https://auth.test/login", "/auth/login", true);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.locator("dialog[open]").waitFor();
   assert.equal(dashboards, 0); assert.equal(completions.length, 0);
@@ -332,6 +332,8 @@ for (const enroll of [false, true]) test(`password login completes ${enroll ? "f
   assert.equal(new URL(page.url()).pathname, "/tools/dashboard");
   const stored = await page.evaluate(() => localStorage.getItem("bp.headers"));
   assert.ok(stored?.includes("verified-session")); assert.ok(!stored?.includes("recovery-one"));
+  assert.equal(JSON.parse(stored!)["authorization"].owner, "auth");
+  assert.equal(JSON.parse(stored!)["x-refresh"].scope, "auth");
   assert.deepEqual(errors, []);
 });
 
