@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/plugin-bsb",
-  "version": "10.6.26",
+  "version": "10.6.27",
   "description": "BetterPortal BSB integration for Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -24,7 +24,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@betterportal/framework": "10.6.26",
+    "@betterportal/framework": "10.6.27",
     "@bsb/base": "^9.7.3",
     "anyvali": "^1.1.6"
   },
