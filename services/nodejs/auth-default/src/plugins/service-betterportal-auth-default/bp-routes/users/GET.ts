@@ -22,11 +22,11 @@ export default createHandler({ response: ResponseSchema, query: QuerySchema }, a
     return {
     nextUrl: page.length > 100 ? ctx.routeUrl?.("users.index", { absolute: true, query: { after: users.at(-1)!.id, ...(query?.mailAfter ? { mailAfter: query.mailAfter } : {}) } }) ?? "" : "",
     mailNextUrl: mailPage.length > 100 ? ctx.routeUrl?.("users.index", { absolute: true, query: { mailAfter: mailPage[99].id, ...(query?.after ? { after: query.after } : {}) } }) ?? "" : "",
-    status: "ok", endpoint: ctx.routeUrl?.("users.index", { absolute: true }) ?? "/users", isolation: policy.isolation, mode: runtime.identity.storage.mode, roleIds: policy.allowedRoleIds, canManageDirectory: policy.isolation === "app" || policy.canManageDirectory === true,
+    registration: policy.registration, status: "ok", endpoint: ctx.routeUrl?.("users.index", { absolute: true }) ?? "/users", isolation: policy.isolation, mode: runtime.identity.storage.mode, roleIds: policy.allowedRoleIds, canManageDirectory: policy.isolation === "app" || policy.canManageDirectory === true,
     users: await Promise.all(users.map(async u => {
       const roles = (await tx.get("roles", u.id, scope))?.roles as string[] ?? [];
       const groupRoles = groups.filter(g => (g.members as string[]).includes(u.id)).flatMap(g => (g.appRoles as Record<string, string[]>)[scope.appId] ?? []);
-      return { id: u.id, username: u.username, email: u.email ?? "", name: u.name ?? "", enabled: u.enabled, emailVerified: u.emailVerified, roles, effectiveRoles: [...new Set([...roles, ...groupRoles])].filter(id => policy.allowedRoleIds.includes(id) || id === "*") };
+      return { protected: u.bootstrapAdmin === true || roles.includes("*"), id: u.id, username: u.username, email: u.email ?? "", name: u.name ?? "", enabled: u.enabled, emailVerified: u.emailVerified, roles, effectiveRoles: [...new Set([...roles, ...groupRoles])].filter(id => policy.allowedRoleIds.includes(id) || id === "*") };
     })),
     invitations: (await tx.list("challenge", scope)).filter(c => c.purpose === "invite" && Number(c.expiresAt) > Date.now()).map(c => ({ id: c.id, email: String((c.data as Record<string, unknown>).email), expiresAt: Number(c.expiresAt) })),
     groups: groups.map(g => ({ id: g.id, name: String(g.name), members: g.members as string[], roles: (g.appRoles as Record<string, string[]>)[scope.appId] ?? [] })),
