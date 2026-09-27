@@ -5,6 +5,7 @@ import { test, type TestContext } from "node:test";
 import { Pool } from "pg";
 import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { PostgresStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
+import { hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { entityKey, splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
 import { createPreviewGroup, provisionPreviewDeployment } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { collectServiceDeleteBlockers, purgeServiceReferences, registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
@@ -329,7 +330,11 @@ for (const entity of ["app", "tenant"] as const) pgTest(`deleting a preview sour
 pgTest("relational app data migrates losslessly and old app-document writes are fenced", async t => {
   const config = fixture(); const app = config.apps[0];
   app.auth!.roles = [{ id: "user-pbx-archiver", title: "PBX Archiver User", description: "",
-    permissions: [{ serviceId: app.routes[0].serviceId, viewId: "home", permissions: ["read", "update"] }] }];
+    permissions: [
+      { serviceId: app.routes[0].serviceId, viewId: "home", permissions: ["read", "read"] },
+      { serviceId: app.routes[0].serviceId, viewId: "home", permissions: ["update"] },
+      { serviceId: app.routes[0].serviceId, viewId: "home", permissions: ["read"] }
+    ] }];
   app.menu = [{ id: uuidv7(), type: "group", title: "Group", enabled: true, serviceStatus: "show", authStatus: "auto",
     children: [{ id: uuidv7(), type: "link", title: "Home", routeId: app.routes[0].id,
       enabled: true, serviceStatus: "show", authStatus: "auto", children: [] }] }];
@@ -342,7 +347,7 @@ pgTest("relational app data migrates losslessly and old app-document writes are 
   assert.deepEqual(loaded.apps[0], app);
   const row = (await pool.query("select value from bp_platform_config_entities where kind='apps' and entity_id=$1", [app.id])).rows[0].value;
   assert.equal(row.routes, undefined); assert.equal(row.menu, undefined); assert.equal(row.auth.roles, undefined);
-  assert.equal((await pool.query("select count(*)::int as n from bp_platform_config_role_grants")).rows[0].n, 2);
+  assert.equal((await pool.query("select count(*)::int as n from bp_platform_config_role_grants")).rows[0].n, 3);
   assert.deepEqual((await pool.query("select value from bp_platform_config_app_data_backup where app_id=$1", [app.id])).rows[0].value, JSON.parse(JSON.stringify(app)));
   await assert.rejects(pool.query("update bp_platform_config_entities set value=value where kind='apps'"), /upgrade all config-manager replicas/);
   await makeStore().initialize();
@@ -452,4 +457,35 @@ pgTest("stale role deletion cannot cascade away newly committed grants", async t
   stale.apps[0].auth!.roles = [];
   await assert.rejects(a.saveConfig(stale), /App data changed concurrently/);
   assert.deepEqual((await b.loadConfig()).apps[0].auth!.roles[0].permissions[0].permissions, ["read"]);
+});
+
+pgTest("credential lookup reads only services and sees rotation, disablement and tenant state across replicas", async t => {
+  const config = fixture();
+  config.tenants[0].services[0].apiKeyHash = hashApiKey("tenant-key");
+  config.platformServices.push({ id: uuidv7(), title: "Platform", hostname: "https://platform.example",
+    createdAt: new Date().toISOString(), enabled: true, capabilities: [], apiKeyHash: hashApiKey("platform-key") });
+  config.sharedServiceCatalog.push({ id: uuidv7(), title: "Shared", baseUrl: "https://shared.example",
+    supportedDeploymentModes: [], owner: "bp", tags: [], enabled: true, apiKeyHash: hashApiKey("shared-key") });
+  const { makeStore } = await database(t, config);
+  const reader = makeStore(), writer = makeStore();
+  await Promise.all([reader.initialize(), writer.initialize()]);
+  reader.loadConfig = async () => { throw new Error("Credential lookup must not load the full config"); };
+  assert.equal((await reader.validateApiKey("tenant-key"))?.tenantId, config.tenants[0].id);
+  assert.equal((await reader.validateApiKey("platform-key"))?.serviceId, config.platformServices[0].id);
+  assert.equal((await reader.validateApiKey("shared-key"))?.serviceId, config.sharedServiceCatalog[0].id);
+  assert.equal(await reader.validateApiKey("unknown-key"), null);
+  let current = await writer.loadConfig();
+  current.tenants[0].services[0].apiKeyHash = hashApiKey("rotated-key");
+  current.platformServices[0].enabled = false;
+  current.sharedServiceCatalog[0].enabled = false;
+  await writer.saveConfig(current);
+  assert.equal(await reader.validateApiKey("tenant-key"), null);
+  assert.equal(await reader.validateApiKey("platform-key"), null);
+  assert.equal(await reader.validateApiKey("shared-key"), null);
+  assert.equal((await reader.validateApiKey("rotated-key"))?.serviceId, config.tenants[0].services[0].id);
+  current = await writer.loadConfig(); current.tenants[0].active = false; await writer.saveConfig(current);
+  assert.equal(await reader.validateApiKey("rotated-key"), null);
+  current = await writer.loadConfig(); current.tenants[0].active = true;
+  current.tenants[0].services[0].enabled = false; await writer.saveConfig(current);
+  assert.equal(await reader.validateApiKey("rotated-key"), null);
 });

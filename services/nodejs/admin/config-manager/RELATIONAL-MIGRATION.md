@@ -7,6 +7,7 @@ Roles, individual permission grants, routes, and menu items live in dedicated ta
 - bp_platform_config_menu_items
 
 The prefix follows tableName. Primary keys include scope and app ID.
+Each role grant preserves its entry position and ordered action array, including repeated targets/actions.
 Menu parent/route relationships and role grant ownership have foreign keys.
 Route options (SEO, fixed parameters, chrome) remain JSON configuration on their own route.
 App settings retain revisions. Operational edits do not increment the app settings revision.

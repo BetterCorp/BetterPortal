@@ -45,10 +45,10 @@ export class AppData {
       description text, position integer not null, primary key (scope_id, app_id, id), ${parent})`);
     await client.query(`create table if not exists ${this.grants} (
       scope_id text not null, app_id text not null, role_id text not null,
-      service_id text not null, view_id text not null, action text not null
-      check (action in ('read', 'create', 'update', 'delete')),
-      grant_position integer not null, action_position integer not null,
-      primary key (scope_id, app_id, role_id, service_id, view_id, action),
+      service_id text not null, view_id text not null, actions text[] not null
+      check (cardinality(actions) > 0 and actions <@ array['read', 'create', 'update', 'delete']::text[]),
+      grant_position integer not null,
+      primary key (scope_id, app_id, role_id, grant_position),
       foreign key (scope_id, app_id, role_id) references ${this.roles} (scope_id, app_id, id)
       on delete cascade deferrable initially deferred)`);
     await client.query(`create table if not exists ${this.routes} (
@@ -79,10 +79,10 @@ export class AppData {
     };
     app?.auth?.roles.forEach((role, position) => {
       add(roles, role.id, { id: role.id, title: role.title, description: role.description ?? null, position });
-      role.permissions.forEach((grant, grant_position) => grant.permissions.forEach((action, action_position) => {
-        const row = { role_id: role.id, service_id: grant.serviceId, view_id: grant.viewId, action, grant_position, action_position };
-        add(grants, JSON.stringify([role.id, grant.serviceId, grant.viewId, action]), row);
-      }));
+      role.permissions.forEach((grant, grant_position) => {
+        const row = { role_id: role.id, service_id: grant.serviceId, view_id: grant.viewId, actions: grant.permissions, grant_position };
+        add(grants, JSON.stringify([role.id, grant_position]), row);
+      });
     });
     app?.routes.forEach((route, position) => {
       const { id, kind, path, serviceId, viewId, title, icon, enabled, operations, ...options } = route;
@@ -120,7 +120,7 @@ export class AppData {
         if (!isDeepStrictEqual(a, latest.get(table)!.get(key))) {
           throw new AppDataConflictError();
         }
-        const identity = table === this.grants ? ["role_id", "service_id", "view_id", "action"] : ["id"];
+        const identity = table === this.grants ? ["role_id", "grant_position"] : ["id"];
         if (!b) {
           await client.query(`delete from ${table} where scope_id=$1 and app_id=$2 and ${identity.map((column, i) => `${column}=$${i + 3}`).join(" and ")}`,
             [this.scope, appId, ...identity.map(column => a![column])]);
@@ -154,11 +154,9 @@ export class AppData {
       const role = { id: row.id, title: row.title, ...(row.description !== null ? { description: row.description } : {}), permissions: [] as Row[] };
       app.auth.roles.push(role); roles.set(JSON.stringify([row.app_id, row.id]), role);
     }
-    for (const row of data.grants.sort((a, b) => a.grant_position - b.grant_position || a.action_position - b.action_position)) {
+    for (const row of data.grants.sort((a, b) => a.grant_position - b.grant_position)) {
       const role = roles.get(JSON.stringify([row.app_id, row.role_id]))!;
-      let grant = role.permissions.find((g: Row) => g.serviceId === row.service_id && g.viewId === row.view_id);
-      if (!grant) { grant = { serviceId: row.service_id, viewId: row.view_id, permissions: [] }; role.permissions.push(grant); }
-      grant.permissions.push(row.action);
+      role.permissions.push({ serviceId: row.service_id, viewId: row.view_id, permissions: row.actions });
     }
     for (const row of data.routes.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))) {
       const route: BetterPortalRouteMount = { ...row.options, id: row.id, kind: row.kind, path: row.path,

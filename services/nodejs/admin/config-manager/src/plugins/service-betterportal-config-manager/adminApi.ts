@@ -1861,14 +1861,12 @@ export function registerAdminApiRoutes(
     );
   };
 
-  const requireServiceIdentityForAuthoritativeService = async (
-    event: BetterPortalEvent,
+  const requireServiceIdentityForAuthoritativeService = (
+    identity: ServiceIdentity,
     config: BetterPortalConfig,
     appDef: BetterPortalApp,
     type: AuthoritativeServiceType
-  ): Promise<Response | undefined> => {
-    const identity = await readServiceIdentity(event);
-    if (identity instanceof Response) return identity;
+  ): Response | undefined => {
     const mountedServiceId = appMountedServiceId(appDef, type);
     if (!serviceIdentityOwnsMountedService(config, appDef, identity, mountedServiceId)) {
       return jsonResponse({
@@ -1880,13 +1878,6 @@ export function registerAdminApiRoutes(
     }
     return undefined;
   };
-
-  const requireServiceIdentityForAppAuth = async (
-    event: BetterPortalEvent,
-    config: BetterPortalConfig,
-    appDef: BetterPortalApp
-  ): Promise<Response | undefined> =>
-    requireServiceIdentityForAuthoritativeService(event, config, appDef, "auth");
 
   const parseSyncedRoles = (
     appDef: BetterPortalApp,
@@ -1969,11 +1960,13 @@ export function registerAdminApiRoutes(
     const body = await readJsonBody(event);
     const roles = Array.isArray(body.roles) ? body.roles : undefined;
     if (!roles) return jsonResponse({ error: "roles array required" }, 400);
+    const identity = await readServiceIdentity(event);
+    if (identity instanceof Response) return identity;
 
     return editApp(store, appId, async (config) => {
       const appDef = config.apps.find(app => app.id === appId);
       if (!appDef) return jsonResponse({ error: "App not found" }, 404);
-      const serviceError = await requireServiceIdentityForAppAuth(event, config, appDef as BetterPortalApp);
+      const serviceError = requireServiceIdentityForAuthoritativeService(identity, config, appDef, "auth");
       if (serviceError) return serviceError;
       const authResult = requireAuthBlock(event, appDef);
       if (authResult.response) return authResult.response;
@@ -1990,11 +1983,13 @@ export function registerAdminApiRoutes(
     const parsed = SelfMutationRequestSchema.safeParse(await readJsonBody(event));
     if (!parsed.success) return jsonResponse({ error: "Invalid self-mutation request", issues: parsed.issues as unknown as JsonValue }, 400);
     const { tenantId, appId, type, mutation } = parsed.data;
+    const identity = await readServiceIdentity(event);
+    if (identity instanceof Response) return identity;
 
     if (type === "theme") {
       const { config, appDef } = await getAppOr404(appId);
       if (!appDef || appDef.tenantId !== tenantId) return jsonResponse({ error: "App not found" }, 404);
-      const serviceError = await requireServiceIdentityForAuthoritativeService(event, config, appDef, type);
+      const serviceError = requireServiceIdentityForAuthoritativeService(identity, config, appDef, type);
       if (serviceError) return serviceError;
       appDef.themeConfig = mutation.themeConfig;
       await store.saveConfig(config);
@@ -2005,7 +2000,7 @@ export function registerAdminApiRoutes(
       const appDef = config.apps.find(app => app.id === appId);
       if (!appDef || appDef.tenantId !== tenantId) return jsonResponse({ error: "App not found" }, 404);
 
-      const serviceError = await requireServiceIdentityForAuthoritativeService(event, config, appDef, type);
+      const serviceError = requireServiceIdentityForAuthoritativeService(identity, config, appDef, type);
       if (serviceError) return serviceError;
 
       const authResult = requireAuthBlock(event, appDef);

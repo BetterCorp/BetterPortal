@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BetterPortalConfigSchema, createBetterPortalApp, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
-import { BaseStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
+import { BaseStorage, ConfigRevisionConflictError, hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
 
 import { getManifestCache, type CachedManifest } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
@@ -50,7 +50,7 @@ function fixture() {
       }, ...(body ? { body: JSON.stringify(body) } : {}) })
     } as never);
   }
-  return { storage, call, serviceId };
+  return { storage, call, serviceId, handlers, appId, tenantId };
 }
 
 test("route update reads current rows inside its transaction and preserves concurrent config edits", async () => {
@@ -156,4 +156,37 @@ test("unrecovered same-entity conflicts are HTTP 409 through the framework", asy
   const app = createBetterPortalApp();
   app.get("/conflict", () => { throw new ConfigRevisionConflictError(1, 2, "app/test"); });
   assert.equal((await app.fetch(new Request("https://config.example/conflict"))).status, 409);
+});
+
+for (const endpoint of ["roles/sync", "self-mutation"]) test(`${endpoint} authenticates before its transaction and checks current ownership`, async () => {
+  const { storage, handlers, appId, tenantId, serviceId } = fixture();
+  storage.current.tenants[0].services[0].apiKeyHash = hashApiKey("test-key");
+  storage.current.apps[0].auth = { serviceId, expectedIssuer: "issuer", expectedAudience: "app",
+    jwksUri: "https://service.example/jwks", roles: [] };
+  let inTransaction = false, validations = 0;
+  const validate = storage.validateApiKey.bind(storage), mutate = storage.mutateApp.bind(storage);
+  storage.validateApiKey = async key => {
+    assert.equal(inTransaction, false, "authentication must not acquire a second client inside the transaction");
+    validations++;
+    return validate(key);
+  };
+  storage.mutateApp = async (id, update) => {
+    inTransaction = true;
+    try { return await mutate(id, update); } finally { inTransaction = false; }
+  };
+  const path = endpoint === "roles/sync" ? "apps/:appId/auth/roles/sync" : "services/self-mutation";
+  const roles = [{ id: "reader", title: "Reader", permissions: [{ serviceId, viewId: "home", permissions: ["read"] }] }];
+  const call = (key = "test-key") => handlers.get(`put /.well-known/bp/admin/${path}`)!({
+    context: { params: { appId } }, req: new Request("https://config.example/sync", {
+      method: "PUT", headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify(endpoint === "roles/sync" ? { roles } : { tenantId, appId, type: "auth", mutation: { roles } })
+    })
+  } as never);
+  assert.equal((await call()).status, 200);
+  assert.equal(validations, 1);
+  assert.equal(storage.saves, 1);
+  storage.conflict = () => { storage.current.apps[0].auth!.serviceId = uuidv7(); };
+  assert.equal((await call()).status, 403, "ownership must use the fresh transaction snapshot");
+  assert.equal((await call("invalid-key")).status, 403);
+  assert.equal(storage.saves, 1);
 });

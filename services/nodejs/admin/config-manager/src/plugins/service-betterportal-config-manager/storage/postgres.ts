@@ -5,10 +5,11 @@ import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import * as yaml from "yaml";
-import { BetterPortalConfigSchema, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
+import { BetterPortalConfigSchema, PlatformServiceSchema, SharedServiceDefinitionSchema, TenantServiceRegistrationSchema, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
 import {
   BaseStorage,
   ConfigRevisionConflictError,
+  hashApiKey,
   migrateOfficialPluginIds,
   migrateRouteOperations,
   migrateRouteParamSyntax,
@@ -149,6 +150,29 @@ export class PostgresStorage extends BaseStorage {
       await client.query("rollback").catch(() => undefined);
       throw error;
     } finally { client.release(); }
+  }
+
+  /** Read only the matching credential; revocation is visible without replica cache invalidation. */
+  override async validateApiKey(apiKey: string): ReturnType<BaseStorage["validateApiKey"]> {
+    await this.ensureSchema();
+    const result = await this.getPool().query(`select service.kind, service.value from ${this.entitiesTable} service
+      where service.scope_id=$1 and service.kind in ('platformServices','sharedServiceCatalog','tenantServices')
+        and service.value->>'apiKeyHash'=$2 and service.value->>'enabled'='true'
+        and (service.kind <> 'tenantServices' or exists (
+          select 1 from ${this.entitiesTable} tenant where tenant.scope_id=service.scope_id and tenant.kind='tenants'
+            and tenant.entity_id=service.value->>'tenantId' and tenant.value->>'active'='true'))
+      order by case service.kind when 'platformServices' then 0 when 'sharedServiceCatalog' then 1 else 2 end, service.ordinal
+      limit 1`, [this.rowId, hashApiKey(apiKey)]);
+    const row = result.rows[0];
+    if (!row) return null;
+    if (row.kind === "tenantServices") {
+      const { tenantId, ...value } = row.value;
+      const service = TenantServiceRegistrationSchema.parse(value);
+      return { scope: "tenant", serviceId: service.id, tenantId, service };
+    }
+    const service = row.kind === "platformServices"
+      ? PlatformServiceSchema.parse(row.value) : SharedServiceDefinitionSchema.parse(row.value);
+    return { scope: "platform", serviceId: service.id, service };
   }
 
   async saveConfig(config: BetterPortalConfig, options?: { notify?: boolean; completeAction?: PendingActionCompletion }): Promise<void> {
@@ -816,6 +840,9 @@ export class PostgresStorage extends BaseStorage {
   }
 
   private async migrateAppData(client: PoolClient): Promise<void> {
+    await client.query(`create index if not exists ${quotePgIdent(`${this.tableName}_credential_idx`)}
+      on ${this.entitiesTable} (scope_id, (value->>'apiKeyHash'))
+      where kind in ('platformServices','sharedServiceCatalog','tenantServices')`);
     await this.appData.create(client);
     const applied = await client.query(`select 1 from ${this.migrationsTable} where scope_id=$1 and version=3`, [this.rowId]);
     if (applied.rows.length) return;
