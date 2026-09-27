@@ -26,7 +26,7 @@ test("user management submits multiple and empty role arrays and preserves off-p
   await form.getByRole("checkbox", { name: "editor", exact: true }).check();
   await form.getByRole("button", { name: "Save roles" }).click();
   assert.deepEqual(errors, []);
-  assert.equal(await page.locator('[role="status"]').textContent(), "Saved.");
+  await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent === "Saved.");
   await page.waitForFunction(() => (window as any).submitted.length === 1);
   let payload = await page.evaluate(() => (window as any).submitted[0]);
   assert.deepEqual(payload.roles, ["reader", "editor"]);
