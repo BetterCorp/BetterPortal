@@ -333,6 +333,9 @@ pgTest("relational app data migrates losslessly and old app-document writes are 
   app.menu = [{ id: uuidv7(), type: "group", title: "Group", enabled: true, serviceStatus: "show", authStatus: "auto",
     children: [{ id: uuidv7(), type: "link", title: "Home", routeId: app.routes[0].id,
       enabled: true, serviceStatus: "show", authStatus: "auto", children: [] }] }];
+  // Existing schema-2 canonicalization already adds these legacy route/auth defaults.
+  Object.assign(app.auth!, { loginViewId: "login.index", logoutViewId: "logout.index", refreshViewId: "refresh.index" });
+  Object.assign(app.routes[0], { enablement: "enabled", resolvedServicePath: undefined, servicePathVariant: undefined, targetPath: undefined });
   const { makeStore, pool } = await database(t, config);
   const store = makeStore(); await store.initialize();
   const loaded = await store.loadConfig();
@@ -340,7 +343,7 @@ pgTest("relational app data migrates losslessly and old app-document writes are 
   const row = (await pool.query("select value from bp_platform_config_entities where kind='apps' and entity_id=$1", [app.id])).rows[0].value;
   assert.equal(row.routes, undefined); assert.equal(row.menu, undefined); assert.equal(row.auth.roles, undefined);
   assert.equal((await pool.query("select count(*)::int as n from bp_platform_config_role_grants")).rows[0].n, 2);
-  assert.deepEqual((await pool.query("select value from bp_platform_config_app_data_backup where app_id=$1", [app.id])).rows[0].value, app);
+  assert.deepEqual((await pool.query("select value from bp_platform_config_app_data_backup where app_id=$1", [app.id])).rows[0].value, JSON.parse(JSON.stringify(app)));
   await assert.rejects(pool.query("update bp_platform_config_entities set value=value where kind='apps'"), /upgrade all config-manager replicas/);
   await makeStore().initialize();
   assert.deepEqual((await makeStore().loadConfig()).apps[0], app);
@@ -390,7 +393,7 @@ pgTest("role POST transactions preserve concurrent roles and reject duplicates",
   const responses = await Promise.all([call(0, "user-pbx-archiver"), call(1, "reader")]);
   assert.deepEqual(responses.map(response => response.status), [201, 201]);
   assert.equal((await call(1, "user-pbx-archiver")).status, 409);
-  assert.deepEqual((await makeStore().loadConfig()).apps[0].auth!.roles.map(role => role.id), ["user-pbx-archiver", "reader"]);
+  assert.deepEqual((await makeStore().loadConfig()).apps[0].auth!.roles.map(role => role.id).sort(), ["reader", "user-pbx-archiver"]);
 });
 
 pgTest("menu foreign keys prevent dangling routes and failed app transactions roll back", async t => {
