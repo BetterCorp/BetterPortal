@@ -14,12 +14,15 @@ class ConflictStorage extends BaseStorage {
   async loadConfig() { return structuredClone(this.cached ??= structuredClone(this.current)); }
   async saveConfig(candidate: BetterPortalConfig) {
     this.saves++;
-    if (this.conflict) {
-      this.conflict();
-      throw new ConfigRevisionConflictError(1, 2);
-    }
     this.current = structuredClone(candidate);
     this.cached = undefined;
+  }
+  async mutateApp<T>(_appId: string, update: (config: BetterPortalConfig) => Promise<T>): Promise<T> {
+    this.conflict?.();
+    const config = structuredClone(this.current);
+    const result = await update(config);
+    await this.saveConfig(config);
+    return result;
   }
   override invalidate() { this.cached = undefined; super.invalidate(); }
 }
@@ -50,7 +53,7 @@ function fixture() {
   return { storage, call, serviceId };
 }
 
-test("route update reloads stale snapshots and preserves concurrent config edits", async () => {
+test("route update reads current rows inside its transaction and preserves concurrent config edits", async () => {
   const { storage, call } = fixture();
   storage.conflict = () => {
     storage.current.tenants[0].title = "Concurrent tenant edit";
@@ -58,7 +61,7 @@ test("route update reloads stale snapshots and preserves concurrent config edits
     storage.conflict = undefined;
   };
   assert.equal((await call("put", { title: "Updated" })).status, 200);
-  assert.equal(storage.saves, 2);
+  assert.equal(storage.saves, 1);
   assert.equal(storage.current.tenants[0].title, "Concurrent tenant edit");
   assert.equal(storage.current.apps[0].routes[0].path, "/concurrent");
   assert.equal(storage.current.apps[0].routes[0].title, "Updated");
@@ -68,7 +71,7 @@ test("route update does not resurrect a concurrently deleted route", async () =>
   const { storage, call } = fixture();
   storage.conflict = () => { storage.current.apps[0].routes = []; storage.conflict = undefined; };
   assert.equal((await call("put", { title: "Updated" })).status, 404);
-  assert.equal(storage.saves, 1);
+  assert.equal(storage.saves, 0);
 });
 
 test("route deletion rechecks newly added menu references", async () => {
@@ -79,10 +82,10 @@ test("route deletion rechecks newly added menu references", async () => {
   };
   assert.equal((await call("delete")).status, 409);
   assert.equal(storage.current.apps[0].routes.length, 1);
-  assert.equal(storage.saves, 1);
+  assert.equal(storage.saves, 0);
 });
 
-test("route creation retries without duplicates and reads the request body once", async () => {
+test("route creation uses one transaction without duplicates and reads the request body once", async () => {
   const { storage, call, serviceId } = fixture();
   storage.conflict = () => { storage.current.tenants[0].title = "Concurrent"; storage.conflict = undefined; };
   (getManifestCache() as Map<string, CachedManifest>).set(serviceId, {
@@ -96,24 +99,14 @@ test("route creation retries without duplicates and reads the request body once"
   assert.equal(storage.current.tenants[0].title, "Concurrent");
 });
 
-for (const html of [false, true]) test(`persistent route contention returns bounded retry response (html=${html})`, async () => {
-  const { storage, call } = fixture();
-  storage.conflict = () => {};
-  const response = await call("put", { title: "Updated" }, html);
-  assert.equal(response.status, 503);
-  assert.equal(response.headers.get("Retry-After"), "1");
-  assert.equal(storage.saves, 5);
-  assert.equal(storage.current.apps[0].routes[0].title, "Home");
-});
-
 test("unrelated storage errors are not retried", async () => {
   const { storage, call } = fixture();
   storage.conflict = () => { throw new Error("database unavailable"); };
   await assert.rejects(call("put", { title: "Updated" }), /database unavailable/);
-  assert.equal(storage.saves, 1);
+  assert.equal(storage.saves, 0);
 });
 
-test("changing /login to an already mounted service view succeeds after a conflict", async () => {
+test("changing /login to an already mounted service view uses the current transaction state", async () => {
   const { storage, call } = fixture();
   const serviceId = uuidv7();
   storage.current.tenants[0].services.push({ ...storage.current.tenants[0].services[0], id: serviceId });
@@ -135,7 +128,7 @@ test("changing /login to an already mounted service view succeeds after a confli
   assert.equal(login.viewId, alias.viewId);
   assert.equal(login.targetPath, alias.targetPath);
   assert.equal(alias.path, "/sign-in");
-  assert.equal(storage.saves, 2);
+  assert.equal(storage.saves, 1);
 });
 
 test("creating another frontend path for an existing view succeeds", async () => {

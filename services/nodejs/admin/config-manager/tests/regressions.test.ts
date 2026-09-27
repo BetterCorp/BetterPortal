@@ -264,29 +264,27 @@ function assertScopedAuthFetch(html: string): void {
   assert.doesNotMatch(html, /localStorage\.getItem/);
 }
 
-test("Postgres config reads reuse an isolated validated snapshot until invalidated", async () => {
+test("Postgres reads isolated current snapshots in repeatable-read transactions without invalidation", async () => {
   const config = BetterPortalConfigSchema.parse({});
-  let reads = 0;
+  let reads = 0, transactions = 0, releases = 0;
+  const query = async (sql: string) => {
+    if (sql.startsWith("begin isolation level repeatable read")) transactions++;
+    if (!sql.includes("select kind, entity_id")) return { rows: [] };
+    reads++;
+    return { rows: [...splitConfig(config).values()].map(entity => ({ ...entity, entity_id: entity.id, revision: 1 })) };
+  };
   const storage = new PostgresStorage({ connectionString: "postgres://unused" });
-  Object.assign(storage as object, {
-    schemaReady: Promise.resolve(),
-    pool: {
-      query: async (sql: string) => {
-        if (sql.includes("last_seen_at")) return { rows: [] };
-        reads++;
-        return { rows: [...splitConfig(config).values()].map(entity => ({ ...entity, entity_id: entity.id, revision: 1 })) };
-      }
-    }
-  });
-
+  Object.assign(storage as object, { schemaReady: Promise.resolve(), pool: {
+    query, connect: async () => ({ query, release: () => { releases++; } })
+  } });
   const [first, second] = await Promise.all([storage.loadConfig(), storage.loadConfig()]);
   first.apps.push({} as never);
   assert.equal(second.apps.length, 0);
-  assert.equal(reads, 1);
-
-  storage.invalidate();
-  await storage.loadConfig();
   assert.equal(reads, 2);
+  await storage.loadConfig();
+  assert.equal(reads, 3);
+  assert.equal(transactions, 3);
+  assert.equal(releases, 3);
 });
 
 test("hostname confirmation releases its lease after a save conflict so an immediate retry can succeed", async () => {

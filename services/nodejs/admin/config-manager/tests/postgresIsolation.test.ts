@@ -52,7 +52,7 @@ pgTest("migration preserves independent records, fences legacy writers and resum
   loaded.apps[0].title = "After migration"; await a.saveConfig(loaded);
   assert.equal((await makeStore().loadConfig()).apps[0].title, "After migration");
   assert.equal((await pool.query("select revision from bp_platform_config")).rows[0].revision, "4197");
-  assert.deepEqual((await pool.query("select version from bp_platform_config_migrations order by version")).rows.map(row => row.version), [1, 2]);
+  assert.deepEqual((await pool.query("select version from bp_platform_config_migrations order by version")).rows.map(row => row.version), [1, 2, 3]);
   await assert.rejects(a.saveConfig(structuredClone(loaded)), /must be loaded/);
 });
 pgTest("stale snapshots of apps in the same and different tenants save without lost updates", async t => {
@@ -324,4 +324,85 @@ for (const entity of ["app", "tenant"] as const) pgTest(`deleting a preview sour
   const latest = await store.loadConfig();
   assert.equal(latest.apps.some(app => app.id === source.id), false);
   if (entity === "tenant") assert.equal(latest.tenants.some(tenant => tenant.id === source.tenantId), false);
+});
+
+pgTest("relational app data migrates losslessly and old app-document writes are fenced", async t => {
+  const config = fixture(); const app = config.apps[0];
+  app.auth!.roles = [{ id: "user-pbx-archiver", title: "PBX Archiver User", description: "",
+    permissions: [{ serviceId: app.routes[0].serviceId, viewId: "home", permissions: ["read", "update"] }] }];
+  app.menu = [{ id: uuidv7(), type: "group", title: "Group", enabled: true, serviceStatus: "show", authStatus: "auto",
+    children: [{ id: uuidv7(), type: "link", title: "Home", routeId: app.routes[0].id,
+      enabled: true, serviceStatus: "show", authStatus: "auto", children: [] }] }];
+  const { makeStore, pool } = await database(t, config);
+  const store = makeStore(); await store.initialize();
+  const loaded = await store.loadConfig();
+  assert.deepEqual(loaded.apps[0], app);
+  const row = (await pool.query("select value from bp_platform_config_entities where kind='apps' and entity_id=$1", [app.id])).rows[0].value;
+  assert.equal(row.routes, undefined); assert.equal(row.menu, undefined); assert.equal(row.auth.roles, undefined);
+  assert.equal((await pool.query("select count(*)::int as n from bp_platform_config_role_grants")).rows[0].n, 2);
+  assert.deepEqual((await pool.query("select value from bp_platform_config_app_data_backup where app_id=$1", [app.id])).rows[0].value, app);
+  await assert.rejects(pool.query("update bp_platform_config_entities set value=value where kind='apps'"), /upgrade all config-manager replicas/);
+  await makeStore().initialize();
+  assert.deepEqual((await makeStore().loadConfig()).apps[0], app);
+});
+
+pgTest("replicas read committed roles and grants without broadcasts, and unrelated edits survive", async t => {
+  const { makeStore, pool, config } = await database(t);
+  const a = makeStore(), b = makeStore(); await Promise.all([a.initialize(), b.initialize()]);
+  const appId = config.apps[0].id;
+  await b.loadConfig();
+  const revision = (await pool.query("select revision from bp_platform_config_entities where kind='apps' and entity_id=$1", [appId])).rows[0].revision;
+  await Promise.all([
+    a.mutateApp(appId, async data => { data.apps[0].auth!.roles.push({ id: "reader", title: "Reader",
+      permissions: [{ serviceId: data.apps[0].routes[0].serviceId, viewId: "home", permissions: ["read"] }] }); }),
+    b.mutateApp(appId, async data => { data.apps[0].routes[0].title = "Updated route"; })
+  ]);
+  for (const store of [a, b, makeStore(), a, b]) {
+    const app = (await store.loadConfig()).apps[0];
+    assert.equal(app.auth!.roles[0].id, "reader");
+    assert.deepEqual(app.auth!.roles[0].permissions[0].permissions, ["read"]);
+    assert.equal(app.routes[0].title, "Updated route");
+  }
+  assert.equal((await pool.query("select revision from bp_platform_config_entities where kind='apps' and entity_id=$1", [appId])).rows[0].revision, revision);
+  const stale = await a.loadConfig();
+  await b.mutateApp(appId, async data => { data.apps[0].auth!.roles[0].permissions[0].permissions.push("update"); });
+  stale.apps[0].routes[0].title = "Background route sync";
+  await a.saveConfig(stale);
+  assert.deepEqual((await b.loadConfig()).apps[0].auth!.roles[0].permissions[0].permissions, ["read", "update"]);
+});
+
+pgTest("role POST transactions preserve concurrent roles and reject duplicates", async t => {
+  const { makeStore, config } = await database(t);
+  const stores = [makeStore(), makeStore()];
+  await Promise.all(stores.map(store => store.initialize()));
+  const handlers = stores.map(store => {
+    const routes = new Map<string, (event: never) => Promise<Response>>();
+    registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
+      (path: string, handler: (event: never) => Promise<Response>) => routes.set(method + " " + path, handler)
+    ])) as never, store, {} as never);
+    return routes.get("post /.well-known/bp/admin/apps/:appId/auth/roles")!;
+  });
+  const call = (index: number, id: string) => handlers[index]({
+    context: { params: { appId: config.apps[0].id } },
+    req: new Request("https://config.example/roles", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ id, title: "PBX Archiver User", description: "" }) })
+  } as never);
+  const responses = await Promise.all([call(0, "user-pbx-archiver"), call(1, "reader")]);
+  assert.deepEqual(responses.map(response => response.status), [201, 201]);
+  assert.equal((await call(1, "user-pbx-archiver")).status, 409);
+  assert.deepEqual((await makeStore().loadConfig()).apps[0].auth!.roles.map(role => role.id), ["user-pbx-archiver", "reader"]);
+});
+
+pgTest("menu foreign keys prevent dangling routes and failed app transactions roll back", async t => {
+  const { makeStore, config } = await database(t); const store = makeStore(); await store.initialize();
+  const appId = config.apps[0].id;
+  await store.mutateApp(appId, async data => { data.apps[0].menu.push({ id: uuidv7(), type: "link", routeId: data.apps[0].routes[0].id,
+    enabled: true, serviceStatus: "show", authStatus: "auto", children: [] }); });
+  await assert.rejects(store.mutateApp(appId, async data => { data.apps[0].routes = []; }));
+  assert.equal((await store.loadConfig()).apps[0].routes.length, 1);
+  await assert.rejects(store.mutateApp(appId, async data => {
+    data.apps[0].auth!.roles.push({ id: "never-committed", title: "No", permissions: [] });
+    throw new Error("cancel");
+  }), /cancel/);
+  assert.equal((await store.loadConfig()).apps[0].auth!.roles.length, 0);
 });
