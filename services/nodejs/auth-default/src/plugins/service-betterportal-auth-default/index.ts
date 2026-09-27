@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import {
   BetterPortalConfigSchema,
   BPService,
+  createBsbObservability,
   type BPServiceDefinition
 } from "@betterportal/plugin-bsb";
 import {
@@ -133,7 +134,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const storage = await openAuthStorage({ mode: cfg.mode, path: cfg.userStorePath, connectionString: cfg.postgresUrl, installationId: createHash("sha256").update(cfg.issuer).digest("hex"), appIds });
     this.identity = new IdentityService(storage, new SecretCipher(Buffer.from(encryptionKey, "base64")));
     this.factors = new Factors(this.identity);
-    this.mail = new MailQueue(this.identity, scope => this.mailConfiguration(scope));
+    this.mail = new MailQueue(this.identity, scope => this.mailConfiguration(scope), parent => parent
+      ? createBsbObservability(this.createObservable({ t: parent.traceId, s: parent.spanId }).startSpan("auth.mail.deliver"))
+      : this.observability.startSpan("auth.mail.deliver"));
     const setupPath = `${resolve(cfg.userStorePath)}.setup.json`;
     if (cfg.setupToken) this.setupSecret = cfg.setupToken;
     else if (existsSync(setupPath)) this.setupSecret = JSON.parse(readFileSync(setupPath, "utf8")).token;

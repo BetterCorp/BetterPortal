@@ -27,7 +27,7 @@ export default createHandler({ response: ResponseSchema, request: RequestSchema 
         const ticket = await identity.challengeInTransaction(tx, scope, "invite", { email, roles }, undefined, 86400);
         const link = accountLink(ctx, "invite.accept", ticket);
         if (!link) throw new AuthError("Mount the account page before inviting users.");
-        await runtime.mail.enqueue(tx, scope, email, `Invitation to ${ctx.app.title}`, `Accept your invitation: ${link}\nThis invitation expires in 24 hours.`);
+        await runtime.mail.enqueue(tx, scope, email, `Invitation to ${ctx.app.title}`, `Accept your invitation: ${link}\nThis invitation expires in 24 hours.`, ctx.obs);
       } else if (body.action === "invite.revoke") {
         const challenge = await tx.get("challenge", body.id ?? "", scope);
         if (!challenge || challenge.purpose !== "invite") throw new AuthError("Invitation unavailable.", 404);
