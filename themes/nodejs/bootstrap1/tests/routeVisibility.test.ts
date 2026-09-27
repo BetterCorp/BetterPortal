@@ -113,3 +113,36 @@ test("open dropdowns and native options follow both palettes outside main conten
     }
   }
 });
+
+test("initial 404 stays visible after Bootstrap1 runtime initialization", async t => {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const html = renderBootstrap1HostPage({
+    title: "Test", brandName: "Test", themeMode: "dark",
+    themeConfig: { mode: "dark", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets", currentPath: "/users", routeLinks: [], serviceOrigins: {},
+    initialRouteStatus: 404, initialRouteError: "No enabled route matches this path."
+  });
+  await page.route("**/*", async route => {
+    const url = new URL(route.request().url());
+    if (url.href === "https://app.test/users") {
+      return route.fulfill({ status: 404, contentType: "text/html", body: html });
+    }
+    if (url.origin === "https://app.test" && url.pathname.startsWith("/assets/") && url.pathname.endsWith(".js")) {
+      const asset = await loadBootstrap1Asset(url.pathname.slice("/assets/".length));
+      assert.ok(asset);
+      return route.fulfill({ contentType: asset.contentType, body: String(asset.body) });
+    }
+    return route.fulfill({ status: 200, body: "" });
+  });
+  await page.goto("https://app.test/users");
+  await page.waitForLoadState("load");
+  assert.deepEqual(errors, []);
+  assert.match(await page.locator("#bp-main").innerText(), /Route Not Found/);
+  assert.equal(await page.locator(".bp-admin__content-frame").evaluate(el => el.classList.contains("is-loading")), false);
+  assert.equal(await page.locator("#bp-main").getAttribute("hx-trigger"), null);
+});
