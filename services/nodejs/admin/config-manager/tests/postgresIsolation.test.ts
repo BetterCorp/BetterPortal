@@ -665,7 +665,8 @@ pgTest("request resolution retains shared shell catalog and plugin manifest alia
 
 pgTest("an allocation added during an app edit cannot bypass dependency locks", async t => {
   const { makeStore, config, pool } = await database(t);
-  const editor = makeStore(), registry = makeStore(); await editor.initialize();
+  const editor = makeStore(), registry = makeStore();
+  await editor.initialize(); await registry.initialize();
   const appId = config.apps[0].id, serviceId = uuidv7();
   await assert.rejects(editAppRows(editor.database, appId, undefined, async data => {
     const registration = await registry.loadConfig();
