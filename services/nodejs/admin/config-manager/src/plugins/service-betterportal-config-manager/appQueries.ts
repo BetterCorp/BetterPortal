@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { BetterPortalAppSchema, BetterPortalTenantSchema, BetterPortalConfigSchema, resolveEmbeddedRequestContext, type HeaderMap, type BetterPortalConfig, type BetterPortalObservability } from "@betterportal/framework";
 import type { PostgresStorage } from "./storage/postgres.js";
-import { resolveAuthProviderRuntimeMetadata } from "./storage/core.js";
+import { getAvailableServiceInstanceIdsForApp, resolveAuthProviderRuntimeMetadata } from "./storage/core.js";
 import { appSettings } from "./storage/appData.js";
 
 export type AppDatabase = PostgresStorage["database"];
@@ -86,12 +86,7 @@ export async function editAppRows<T>(db: AppDatabase, appId: string, obs: Better
         await client.query(`select pg_advisory_xact_lock_shared(hashtextextended(k,0)) from unnest($1::text[]) k order by k`,
           [refs.map(ref => JSON.stringify([db.tableName, db.scope, JSON.stringify(ref)])).sort()]);
         const current = await readAppEditor(client, db, appId);
-        const tenant = current.tenants[0];
-        const allowed = new Set([
-          ...tenant.services.filter(service => service.enabled).map(service => service.id),
-          ...current.platformServices.filter(service => service.enabled).map(service => service.id),
-          ...current.sharedServiceActivations.filter(activation => activation.enabled && current.sharedServiceCatalog.some(service => service.id === activation.sharedServiceId && service.enabled)).map(activation => activation.id)
-        ]);
+        const allowed = getAvailableServiceInstanceIdsForApp(current, after);
         for (const serviceId of [
           ...after.routes.map(route => route.serviceId),
           ...(after.auth?.roles ?? []).flatMap(role => role.permissions.map(grant => grant.serviceId))
