@@ -13,6 +13,8 @@ from .context import ScopedContext
 from .contracts import contract, export, object_document
 from .generated_types import HttpMethod, MultipartRequest
 from .urls import Urls
+from .bp_headers import BpHeaders
+from .observability import TraceContext, current_trace, current_observability
 if TYPE_CHECKING:
     from .rendering import Renderer
     from .clients import RequestClients
@@ -37,7 +39,7 @@ class HandlerOutputError(ValueError):
 
 class ResponseState:
     """Per-request status and application headers; transport/CORS stay host-owned."""
-    def __init__(self) -> None: self._status = 200; self._headers: list[tuple[str, str]] = []
+    def __init__(self) -> None: self._status = 200; self._headers: list[tuple[str, str]] = []; self.bp_headers = BpHeaders()
     @property
     def status(self) -> int: return self._status
     @status.setter
@@ -46,7 +48,7 @@ class ResponseState:
         RawResponse(status=value)
         self._status = value
     @property
-    def headers(self) -> tuple[tuple[str, str], ...]: return tuple(self._headers)
+    def headers(self) -> tuple[tuple[str, str], ...]: return (*self._headers, *self.bp_headers.emit())
     def set_header(self, name: str, value: str, *, append: bool = False) -> None:
         from .response import RawResponse
         RawResponse(headers=[(name, value)])
@@ -69,6 +71,9 @@ class RequestContext:
     url_context: Urls | None = None
     client_context: RequestClients | None = field(default=None, repr=False, compare=False)
     _retired: asyncio.Event | None = field(default=None, repr=False, compare=False)
+    @property
+    def trace(self) -> TraceContext | None: return current_trace()
+
     def require_elevation(self, requirement: Mapping[str, Any]) -> None:
         from .elevation import require_elevation, ElevationRequired
         from .security import TokenError
@@ -93,6 +98,37 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     headers: Headers
     request: Body
     def require_elevation(self, requirement: Mapping[str, Any]) -> None: self.request_context.require_elevation(requirement)
+    async def webhook(self, event_id: str, payload: Any, *, idempotency_key: str | None = None) -> str:
+        return await self.request_context.clients.webhook(event_id, payload, idempotency_key=idempotency_key)
+    @property
+    def tenant(self): return self.request_context.scope.tenant
+    @property
+    def app(self): return self.request_context.scope.app
+    @property
+    def user(self): return self.request_context.caller.user
+    @property
+    def service_caller(self): return self.request_context.caller.service
+    @property
+    def caller_mode(self): return self.request_context.caller.mode
+    @property
+    def config(self): return self.request_context.config
+    @property
+    def method(self): return self.request_context.method
+    @property
+    def path(self): return self.request_context.path
+    @property
+    def multipart(self): return self.request_context.multipart
+    @property
+    def clients(self): return self.request_context.clients
+    @property
+    def bp_headers(self): return self.response.bp_headers
+    @property
+    def trace(self): return self.request_context.trace
+    @property
+    def obs(self): return current_observability()
+    def require_permission(self, service_id: str, view_id: str, action: str) -> str:
+        from .auth_helpers import require_permission
+        return require_permission(self.request_context, service_id, view_id, action)
     @property
     def response(self) -> ResponseState: return self.request_context.response
     @property

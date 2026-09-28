@@ -51,6 +51,12 @@ createServer(async (request, response) => {
       response.end(JSON.stringify(await settingsStore(body)));
       return;
     }
+    if (body.action === "generated-clients") {
+      const { generatedClientRequest } = await import("./node-clients.mjs");
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify(await generatedClientRequest(body)));
+      return;
+    }
     if (body.action === "sync-peer") {
       const { syncPeer } = await import("./node-sync.mjs");
       response.setHeader("Content-Type", "application/json");

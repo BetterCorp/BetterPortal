@@ -31,7 +31,20 @@ async def clients_request(body):
                     if "snapshot" in step: await service.apply_snapshot(step["snapshot"])
                     if step.get("close"): await service.aclose()
                     values = step.get("values", {"params": {"key": "item"}})
-                    pending = asyncio.create_task(generated.check_get(values) if body.get("generated") else client.request(step.get("operation", "check.get"), values))
+                    async def invoke():
+                        operation = step.get("operation", "check.get")
+                        if step.get("transport") == "raw":
+                            async with client.raw(operation, values) as response:
+                                return b"".join([chunk async for chunk in response.body]).decode("utf-8")
+                        if step.get("transport") == "subscribe":
+                            from betterportal.contracts import contract
+                            async with client.subscribe(operation, contract("JsonValueSchema"), values) as events:
+                                return [event async for event in events]
+                        if step.get("transport") in ("ndjson", "sse"):
+                            async with client.stream(operation, values, transport=step["transport"]) as frames:
+                                return [frame async for frame in frames]
+                        return await (generated.check_get(values) if body.get("generated") else client.request(operation, values))
+                    pending = asyncio.create_task(invoke())
                     if "during" in step:
                         control = step["during"]
                         async with httpx.AsyncClient(trust_env=False) as http:

@@ -42,10 +42,10 @@ class Operation:
             raise ValueError("Operation method does not match the request context")
         return await self.handler.execute(context, values)
 
-    async def render_error(self, context: RenderContext, message: str) -> RawResponse | None:
+    async def render_error(self, context: RenderContext, message: str, fallback: Iterable[Renderer[ViewRenderError]] = ()) -> RawResponse | None:
         route = context.route
         identity = (route["renderer"], route["kind"], route.get("key"), route["status"])
-        renderer = next((item for item in self.error_renderers if item.identity == identity), None)
+        renderer = next((item for item in (*self.error_renderers, *fallback) if item.identity == identity), None)
         if renderer is None and not any(item.identity[:3] == identity[:3] for item in self.handler.renderers): return None
         html = await renderer.render(parse("ViewRenderErrorSchema", {"error": message, "status": route["status"]}), context) if renderer is not None else ""
         mode = route["mode"] if route["kind"] == "page" else "fragment"
@@ -155,6 +155,10 @@ class Registry:
 
     def manifest(self, declaration: ManifestDeclarationInput) -> PluginManifest:
         result = parse("ManifestDeclarationSchema", declaration)
+        resources = result["developerResources"]
+        if len({resource["id"] for resource in resources}) != len(resources): raise ValueError("Duplicate developer resource ID")
+        if any(len(resource["content"].encode("utf-8")) > 512 * 1024 for resource in resources):
+            raise ValueError("Developer resource exceeds 512 KiB")
         plugin_id = result["pluginId"]
         local = {(operation.id, operation.method) for route in self.routes for operation in route.operations}
         views, contracts = [], list(result["apiContracts"])

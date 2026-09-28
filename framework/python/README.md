@@ -1,9 +1,8 @@
 # BetterPortal Python port
 
-Python 3.10+. This is an in-progress framework with prototype Starlette/ASGI
-hosting for JSON, HTML, raw, finite streams and subscriber feeds. It is **not ready for production**:
-full theme helpers and streaming dependency clients
-remain in the [capability ledger](../conformance/CAPABILITIES.md).
+Python 3.10+ native runtime with Starlette/ASGI hosting for JSON, HTML, raw
+responses, finite streams and subscriber feeds. Production acceptance evidence and
+release gates are tracked in [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 
 Start a standalone service with the [native init commands](../../docs/building/route-authoring.md#create-a-standalone-service).
 
@@ -12,7 +11,9 @@ in `betterportal.asgi` owns the `Service` lifespan. A service combines a registr
 manifest declaration and optional validated `ScopedConfig`. With no snapshot its
 public health endpoint returns only `{"ok": false}` with status 503; a local
 snapshot enables request handling. `ControlPlaneSync` supplies automatic managed
-synchronization, described below. Authorized health diagnostics remain pending.
+synchronization, described below. Health diagnostics require a verified access-token user in the configured
+management tenant/app; ordinary and invalid credentials receive only public readiness.
+Health responses use `Cache-Control: private, no-store` and `Vary: Authorization`.
 
 The host resolves scope, checks local operation mounts and CORS, and verifies user
 or delegated/service credentials before invoking handlers. It preserves repeated
@@ -107,8 +108,9 @@ HTML status needs an exact status renderer; otherwise the response is empty.
 callbacks for errors, separately from successful handler results. Their canonical
 data contains only `error` and `status`; declarations require status 400–599.
 The selected fragment/component is preserved on errors. Callback failures return
-a generic 500. Disconnects cancel async callbacks. Theme resources and global
-status renderers remain pending.
+a generic 500. Disconnects cancel async callbacks. Pass shared error renderers as `Service(..., status_renderers=[...])`; exact
+operation-local error renderers take precedence. Global renderers also cover
+unmatched routes after resolving a valid app scope.
 
 Handlers and renderers receive `context.urls`. `route(view_id, options)` builds
 service request URLs; `ui_route(...)` builds navigation links only for enabled
@@ -199,8 +201,10 @@ representation selection. Well-known routes use their own declared auth policy.
 Raw proxy and HTMX context headers are ignored. `resolve(..., trusted_addresses=...)`
 accepts only addresses already verified by host proxy middleware; the host also
 supplies the effective scheme. `OriginPolicy` normalizes configured HTTP origins
-and preserves exact path/query restrictions on referer overrides. Atomic
-persistent replacement and host proxy middleware remain pending.
+and preserves exact path/query restrictions on referer overrides. Atomic snapshot persistence is described below. `betterportal.hosting.TrustedProxyMiddleware`
+accepts only configured peer IPs/CIDRs and a single forwarded host/protocol pair;
+it strips untrusted forwarding headers. Disable Uvicorn proxy-header handling so
+the middleware sees the actual socket peer.
 
 AnyVali 1.1.2 treats explicit null as present and applies defaults only to omitted
 input. Snapshot validation therefore rejects `active: null`; BP still uses AnyVali
@@ -383,7 +387,7 @@ assert registry.routes[0].operations[0].handler is handler
 
 Mount this registry with `Service` and `create_app` as above. The consuming shell
 loads BP's existing HTMX/SSE browser assets; the runtime does not add a template
-engine. Global theme helpers remain pending.
+engine. Native shell fragment helpers are described below.
 
 `betterportal.media.negotiate` selects JSON, HTML (page/fragment/embed), metadata,
 or NDJSON from Accept and the operation's available representations. It honors
@@ -842,8 +846,32 @@ and transport waits to 30 seconds; unsolicited compressed responses are rejected
 Snapshot replacement invalidates captured request clients and pending responses;
 background clients resolve policy again on each call. Cancellation and service
 shutdown stop pending HTTP work. `ClientError` exposes the upstream status with a
-generic message; upstream error bodies are never included. Raw/streaming dependency
-responses remain delivery work.
+generic message; upstream error bodies are never included.
+
+`async with client.raw(operation_id, values) as response` opens an explicitly
+raw operation. `response.status`, `response.headers` (repeated pairs) and
+`response.body` (async byte iterator) expose the response without buffering it.
+The default total limit is 16 MiB; pass `max_bytes` to select another positive
+limit. The context manager closes the response even when consumption stops early.
+
+`async with client.stream(operation_id, values) as frames` opens a finite operation
+using NDJSON. Each item and summary is validated against the declared schema.
+Invalid ordering/counts, oversized frames, upstream errors and missing terminal
+frames raise `ClientError`; consume the iterator to completion before treating a
+stream as successful. The default frame limit is 1 MiB (`max_frame_bytes`). Raw
+and finite connections have a 30-second transport inactivity timeout, reject
+redirects/compression, and close on caller cancellation, snapshot retirement or
+service shutdown. Pass `transport="sse"` for a finite SSE data stream (the upstream
+app must have no HTML theme renderer selected). NDJSON always requests typed data.
+`client.subscribe(operation_id, event_schema, values)` consumes an open-ended SSE
+feed with a caller-pinned AnyVali event schema; use `text=True` for plain-text events.
+The manifest does not currently publish subscriber event schemas. The context
+manager owns cleanup; reconnect and replay policy belong to the caller.
+
+Generated clients expose raw operations as context-manager methods and add
+`<method>_stream` for finite operations alongside their buffered JSON method.
+Inputs and discriminated item/summary/end frames are typed; streamed payloads
+also validate at runtime.
 
 Generate a typed JSON client from the dependency's exported BP schema:
 
@@ -971,3 +999,90 @@ limits the document to 16 MiB and atomically replaces the output. `--check` dete
 drift without writing. Output paths are relative to `--project`. No request handler
 or host lifecycle is invoked by the exporter. Use [native route discovery](../../docs/building/route-authoring.md) to build this registry from
 index, method and SSE modules.
+
+
+## Production integration additions
+
+Pass `observability=Observability(logger=..., tracer=..., metrics=...)` to
+`create_app`, importing `Observability` from `betterportal.observability`. Each
+nonblocking callback receives an immutable `HttpObservation` at request completion,
+including trace/span IDs, method, route template, HTTP status, outcome and duration.
+Callback failures do not change request handling. Core events exclude request
+bodies, query strings, credentials and exception text. Valid `traceparent`, bounded
+`tracestate` and `baggage` propagate to dependency calls. `context.trace` exposes
+the active trace. Use `with context.obs.start_span(name, attributes):` around sync
+or awaited work; child spans restore the parent context and report cancellation.
+`context.obs.logger` offers debug/info/warn/error, and `context.obs.metrics` offers
+counter, gauge, histogram and timer instruments. Instrument callbacks receive
+`SpanObservation`, `LogObservation` or `MetricObservation`, respectively. Attribute
+keys associated with credentials/payloads are removed and scalar values bounded;
+application-supplied log messages must themselves be safe for export.
+
+Managed services can publish manifest-declared webhooks with
+`await context.webhook(event_id, payload, idempotency_key=key)`. Background work
+uses `service.clients.scope(tenant_id, app_id).webhook(...)`. The active control-plane
+connection owns publication credentials; callers cannot choose a destination or
+replace the request's tenant/app. AnyVali validates the declared payload, the
+serialized request is limited to 1 MiB, and redirects are rejected. Publication
+returns the idempotency key on success. After publication starts, failures raise
+`betterportal.webhooks.WebhookError` (a `ClientError`) with `idempotency_key`;
+cancellation raises `WebhookCancelled` (an `asyncio.CancelledError`) with the same
+attribute. Reuse that key when retrying uncertain delivery. Persist an explicit
+key before publication when recovery must survive process termination; the
+publisher does not retry automatically.
+
+Developer resources are served publicly at `/.well-known/bp/resources` and
+`/.well-known/bp/resources/<id>`. The index omits content and adds relative URLs;
+individual responses preserve the declared content and media type. Registration
+rejects duplicate IDs and content exceeding 512 KiB of UTF-8. Publish only content
+intended for public discovery. An active `create_app(..., mode="theme")` also serves
+`/llms.txt`, API/development/UI guides, `/.well-known/bp/ai.json` and `/llms-drop.txt`.
+The drop includes complete local resources and contracts, source URLs, separate
+framework/theme versions and a bounded expiry. No remote discovery URL is fetched.
+Only explicit public metadata is projected from the app; service configuration and
+installation credentials are excluded. `/sitemap.xml` and `/robots.txt` respect
+private visibility, enabled public page mounts and route exclusions. Dynamic or
+provider-generated sitemap paths are omitted until their owning service supplies
+concrete URLs; discovery never guesses parameter values.
+
+
+## Hosting and native helper APIs
+
+`DeploymentConfig.from_env().create_app(registry, declaration)` reads `BP_CP_URL`,
+`BP_PUBLIC_ORIGIN`, `BP_STATE_DIRECTORY`, and exactly one of
+`BP_BOOTSTRAP_MASTER_KEY` or `BP_BOOTSTRAP_MASTER_KEY_FILE`. The secret is excluded
+from the configuration's repr. `BP_TRUSTED_PROXIES` is an optional comma-separated
+list of IP addresses/CIDRs; your proxy must overwrite `X-Forwarded-Host` and
+`X-Forwarded-Proto`. Never configure arbitrary peers as trusted.
+
+`bp-python init` includes a Dockerfile with a non-root user, readiness probe and
+single Uvicorn worker. Mount persistent storage at `/data` and the bootstrap key
+as a separate read-only secret. Run one process per state directory; independent
+replicas require separate installations/state or an application-owned coordinated
+store. See the [deployment acceptance procedure](PRODUCTION_READINESS.md).
+
+Handlers expose `tenant`, `app`, `config`, `user`, `service_caller`, `caller_mode`,
+`method`, `path`, `multipart`, `clients`, `urls`, `response`, `bp_headers`, `trace`
+and `obs`. `context.require_permission(service_id, view_id, action)` resolves an
+enabled target and checks the current user's app role grants. It fails after the
+captured snapshot is retired. The scoped platform schema can be authored with the
+canonical generated types and validated with `contracts.parse`; environment
+configuration never replaces authenticated control-plane scope.
+
+`betterportal.auth_helpers.ExternalOidc` verifies RS256 external JWTs against an
+explicit issuer, audience and HTTPS JWKS URI, including optional nonce matching.
+Application code maps verified external claims to a BP user and issues its own BP
+tokens; external roles are never automatically granted BP permissions. Close the
+verifier at shutdown. `auth_redirect` restricts redirects to the current app, and
+`auth_cookie` emits host-only Secure/HttpOnly cookies with explicit lifetime and
+SameSite. `context.bp_headers.set/remove` emits validated BP browser directives.
+
+`betterportal.themes.ShellFragment` combines a canonical declaration and sync/async
+HTML callback; `ShellFragments` validates defaults and renders app overrides with
+cycle/depth/output bounds. Pass the same declarations in the manifest's shell
+metadata and the collection as `create_app(..., shell_fragments=fragments)`.
+Callbacks receive safe presentation fields, scoped service `config`, `urls`,
+`request`, `fragment_id` and rendered `items`. `themes.element` creates escaped
+BP element attributes for service fragments or shell chrome; its child HTML is
+trusted application output. Shell fragment endpoints require this service to be
+the active shell for the resolved app, with normal origin restrictions.

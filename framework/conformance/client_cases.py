@@ -33,7 +33,7 @@ def client_peer():
                 if "upstream" in reply:
                     upstream = deepcopy(reply["host"]); upstream["request"] = record
                     result = post(reply["upstream"], upstream)
-                    status, data, media = result["status"], result["body"].encode(), "application/json"
+                    status, data, media = result["status"], result["body"].encode(), result.get("headers", {}).get("content-type", "application/json")
                 else:
                     status, data, media = reply.get("status", 200), reply.get("raw", json.dumps(reply.get("body", record)).encode()), reply.get("type", "application/json")
                 self.send_response(status); self.send_header("content-type", media)
@@ -281,6 +281,62 @@ def run_clients(urls, labels):
                         assert output["user"] == (None if mode == "service" else "user-1"), output
                     case("host-" + other + "-" + mode, change, reply={"upstream": other_url, "host": target}, validate=validate, count=1)
                     case("generated-host-" + other + "-" + mode, lambda item: (change(item), item.update(generated=True)), reply={"upstream": other_url, "host": target}, validate=validate, count=1)
+            if label == "python":
+                from finite_cases import fixture as finite_fixture
+                from feed_cases import fixture as feed_fixture
+                import base64
+                for other_url, other in zip(urls, labels):
+                    if other == label: continue  # The adapter serves one request at a time.
+                    for transport in ("raw", "ndjson", "sse", "subscribe"):
+                        target = target_fixture() if transport == "raw" else finite_fixture("sse" if transport == "sse" else "ndjson")
+                        if transport == "subscribe":
+                            target = feed_fixture()
+                            target["routes"][0]["feed"]["publications"] = [{"value": {"sequence": index}} for index in range(3)]
+                        target["snapshot"] = deepcopy(snapshot)
+                        target["snapshot"]["serviceIdentity"] = {"id": TARGET}
+                        target["snapshot"]["m2m"]["localServiceIds"] = [TARGET]
+                        target["snapshot"]["apps"][0].pop("shell", None)
+                        spec = target["routes"][0]["operations"][0]
+                        if transport == "raw":
+                            spec["raw"] = {"body": base64.b64encode(b"live-download").decode(), "headers": [["content-type", "application/octet-stream"]]}
+                        else:
+                            # Use the same mounted operation for all three live hosts.
+                            target["routes"][0].update(viewId="check", path="/check/:key")
+                            spec["declaration"].update(operationId="check.get")
+                        declaration = deepcopy(target)
+                        if transport == "raw": declaration["routes"][0]["operations"][0]["raw"] = True
+                        exported = post(other_url, {**declaration, "action": "registry"})
+                        def change(item, exported=exported, transport=transport):
+                            item.update(contract=exported["schema"], steps=[{"transport": transport}])
+                            item["snapshot"]["apps"][0].pop("shell", None)
+                        def validate_stream(values, transport=transport):
+                            output = values[0]["output"]
+                            if transport == "raw": assert output == "live-download", output
+                            elif transport == "subscribe": assert output == [{"sequence": index} for index in range(3)], output
+                            else: assert output[-1]["kind"] == "end" and output[-1]["count"] == 3, output
+                        case("live-" + transport + "-" + other, change, reply={"upstream": other_url, "host": target}, validate=validate_stream, count=1)
+        node_url = urls[labels.index("node")]
+        for target_url, target_label in zip(urls, labels):
+            if target_label == "node": continue
+            for mode in ("user", "service", "delegated"):
+                target = target_fixture()
+                target["snapshot"] = deepcopy(snapshot)
+                target["snapshot"]["serviceIdentity"] = {"id": TARGET}
+                policy = target["snapshot"]["m2m"]
+                policy["localServiceIds"] = [TARGET]
+                policy["services"][0].update(publicKeyPem=keys["node"]["publicKeyPem"], keyId=keys["node"]["kid"])
+                policy["bindings"][0]["mode"] = "delegated" if mode == "delegated" else "service"
+                caller = deepcopy(target["snapshot"])
+                caller["m2m"]["localServiceIds"] = [SOURCE]
+                peer["reply"] = {"upstream": target_url, "host": target}
+                def generated_pair():
+                    result = post(node_url, {"action": "generated-clients", "contract": contracts[target_label]["schema"],
+                        "mode": mode, "baseUrl": base, "snapshot": caller, "tenantId": TENANT, "appId": APP,
+                        "headers": {"authorization": "Bearer " + token, "origin": "https://app.test"}})
+                    assert result["status"] == 200, result
+                    assert result["output"]["caller"] == mode, result
+                    assert result["output"]["user"] == (None if mode == "service" else "user-1"), result
+                check("node", "generated-host-" + target_label + "-" + mode, generated_pair)
     return results
 
 

@@ -21,7 +21,7 @@ from starlette.types import Scope
 from .contracts import parse
 from .authorization import AuthorizedCaller
 from .generated_types import HttpMethod
-from .cors import CorsDenied
+from .cors import Cors, CorsDenied
 from .handler import HandlerInputError, RequestContext
 from .jsoncodec import loads
 from .media import NotAcceptable, negotiate
@@ -32,6 +32,8 @@ from .service import RequestError, Service
 from .sync import ControlPlaneSync
 from .installation import ServiceInstallation
 from .finite import FiniteHandler
+from .observability import Observability, ObservabilityMiddleware
+from .themes import ShellFragments
 
 _SINGLE = {"host", "origin", "referer", "authorization", "content-type", "content-length", "x-bp-service-id", "x-bp-tenant-id", "x-bp-app-id", "x-bp-service-authorization"}
 
@@ -181,8 +183,9 @@ class _RawReply(Response):
             self.reply = Response(b"" if head else raw.body, status_code=raw.status)
             if isinstance(raw.body, bytes) and raw.status not in (204, 304): pairs.append((b"content-length", str(len(raw.body)).encode("ascii")))
         else:
+            stream_body = raw.body
             async def chunks():
-                async for chunk in raw.body:
+                async for chunk in stream_body:
                     if retired is not None and retired.is_set(): raise asyncio.CancelledError
                     if not isinstance(chunk, bytes): raise TypeError("Raw stream chunks must be bytes")
                     yield chunk
@@ -203,11 +206,15 @@ class _RawReply(Response):
 
 
 def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str = "service", sync: ControlPlaneSync | None = None,
-               installation: ServiceInstallation | None = None) -> Starlette:
-    """One owned service lifetime. Configure trusted proxies in the ASGI server."""
+               installation: ServiceInstallation | None = None, observability: Observability | None = None, shell_fragments: ShellFragments | None = None) -> Starlette:
+    """One owned service lifetime. Use hosting.TrustedProxyMiddleware for proxy trust."""
     if max_body_bytes < 1 or mode not in ("service", "theme"): raise ValueError("Invalid hosting options")
     if sync is not None and sync.service is not service: raise ValueError("Sync belongs to a different service")
     if installation is not None and (installation.service is not service or sync is not None): raise ValueError("Installation must own this service's synchronization")
+    if shell_fragments is not None:
+        declared = service.manifest.get("shell", {}).get("fragments", [])
+        if sorted(declared, key=lambda item: item["id"]) != sorted(shell_fragments.declarations(), key=lambda item: item["id"]):
+            raise ValueError("Shell fragment definitions must match the manifest")
     control = installation or sync
     @asynccontextmanager
     async def lifespan(app):
@@ -218,6 +225,24 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
 
     async def error(request: Request, exception: Exception) -> Response:
         status = exception.status_code if isinstance(exception, HTTPException) else 500
+        if service.status_renderers:
+            try:
+                headers = _headers(request)
+                representation = negotiate(headers.get("accept"), ["json", "html"])
+                if representation.kind == "html":
+                    state = service._state
+                    scope = service._resolve(state, headers, request.url.scheme, mode, (), preflight=True)
+                    assert state is not None
+                    cors_headers = Cors(scope.origin_policy, ["GET"]).headers(headers.get("origin"))
+                    theme = scope.app.get("shell", {}).get("renderer")
+                    renderer = select_renderer(service.status_renderers, theme, "page", None, status)
+                    context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), "GET", _request_path(request),
+                        url_context=service.urls(scope, _request_path(request), headers, request.url.scheme)),
+                        "status", _request_path(request), theme, representation.mode or "page", "page", None, status, {}, {})
+                    html = await _connected(request, renderer.render(parse("ViewRenderErrorSchema", {"status": status, "error": "Request failed"}), context), service, state.retired)
+                    return _RawReply(RawResponse(html.encode(), status=status, headers={"content-type": html_content_type(representation.mode or "page")}),
+                        {**cors_headers, "cache-control": "no-store", "vary": "Origin, Accept"}, head=request.method == "HEAD", service=service)
+            except Exception: pass
         return JSONResponse({"error": "Route not found" if status == 404 else "Method not allowed" if status == 405 else "Request failed"}, status_code=status,
                             headers={**(exception.headers or {} if isinstance(exception, HTTPException) else {}), "cache-control": "no-store"})
 
@@ -238,7 +263,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                         context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), cast(HttpMethod, requested), request_path,
                             url_context=service.urls(scope, request_path, headers, request.url.scheme)),
                             route.view_id, matched, theme, representation.mode or "page", kind, key, status, params, query)
-                        value = await operation.render_error(context, message)
+                        value = await operation.render_error(context, message, service.status_renderers)
                         return _RawReply(value, response_headers, head=request.method == "HEAD", service=service) if value is not None else None
                     try:
                         rendered = await _connected(request, render(), service if service.ready else None)
@@ -316,7 +341,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 try:
                     if not operation.handler.is_raw and not sse:
                         offers = ["json", "metadata"]
-                        if operation.handler.renderers or operation.error_renderers or isinstance(operation.handler, FiniteHandler) and operation.handler.stream_renderers: offers.append("html")
+                        if operation.handler.renderers or operation.error_renderers or service.status_renderers or isinstance(operation.handler, FiniteHandler) and operation.handler.stream_renderers: offers.append("html")
                         if isinstance(operation.handler, FiniteHandler): offers.append("ndjson")
                         representation = negotiate(headers.get("accept"), offers)
                 except NotAcceptable as error: negotiation_error = error
@@ -343,24 +368,92 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                 return await failure(500, "Request failed")
         return handle
 
+    resources = {resource["id"]: resource for resource in service.manifest["developerResources"]}
+    resource_path = "/.well-known/bp/resources"
     async def discovery(request: Request, *, path: str) -> Response:
         headers = {"access-control-allow-origin": "*", "cache-control": "no-store"}
+        if path == "/.well-known/bp/health": headers.update({"cache-control": "private, no-store", "vary": "Authorization"})
         try: _headers(request)
         except RequestError as error: return JSONResponse({"error": str(error)}, status_code=error.status, headers=headers)
         if request.method == "OPTIONS":
             if request.headers.get("access-control-request-method") not in ("GET", "HEAD"):
                 return JSONResponse({"error": "Method not allowed"}, status_code=403, headers=headers)
-            return Response(status_code=204, headers={**headers, "access-control-allow-methods": "GET, HEAD, OPTIONS", "access-control-allow-headers": "Accept, BP-Protocol-Version"})
-        if path == "/.well-known/bp/health": return JSONResponse({"ok": service.ready}, status_code=200 if service.ready else 503, headers=headers)
+            return Response(status_code=204, headers={**headers, "access-control-allow-methods": "GET, HEAD, OPTIONS", "access-control-allow-headers": "Accept, BP-Protocol-Version" + (", Authorization" if path == "/.well-known/bp/health" else "")})
+        if path == "/.well-known/bp/health":
+            health = await _connected(request, service.health(dict(request.headers)))
+            return JSONResponse(health, status_code=200 if health["ok"] else 503,
+                                headers={**headers, "cache-control": "private, no-store", "vary": "Authorization"})
+        if path == resource_path or path.startswith(resource_path + "/"):
+            headers.update({"cache-control": f"public, max-age={service.manifest['cacheHints']['metadataTtlSeconds']}",
+                            "x-content-type-options": "nosniff"})
+            if path == resource_path:
+                return JSONResponse([{**{key: value for key, value in resource.items() if key != "content"},
+                                      "url": resource_path + "/" + quote(identifier, safe="")}
+                                     for identifier, resource in resources.items()], headers=headers)
+            resource = resources.get(request.path_params.get("resource_id", ""))
+            if resource is None: return JSONResponse({"error": "Resource not found"}, status_code=404, headers=headers)
+            return Response(resource["content"].encode("utf-8"), headers={**headers, "content-type": resource["mediaType"]})
         if path == "/.well-known/bp/manifest": return JSONResponse(service.manifest, headers=headers)
         if path == "/.well-known/jwks.json" and installation is not None:
             try: return JSONResponse(installation.jwks(), headers=headers)
             except RuntimeError: return JSONResponse({"error": "Signing identity is not available"}, status_code=503, headers=headers)
         return JSONResponse(service.config_schema() if path == "/.well-known/bp/config/schema" else service.schema(), headers=headers)
 
-    paths = ["/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"]
+    paths = [resource_path, resource_path + "/{resource_id}", "/.well-known/bp/health", "/.well-known/bp/manifest", "/.well-known/bp/schema.json", "/.well-known/bp/config/schema"]
     if installation is not None: paths.append("/.well-known/jwks.json")
     routes = [HttpRoute(path, partial(discovery, path=path), methods=["GET", "OPTIONS"]) for path in paths]
+    if mode == "theme":
+        from . import ai, seo
+        async def public_shell_document(request: Request):
+            response_headers = {"cache-control": "no-store", "x-content-type-options": "nosniff", "vary": "Origin"}
+            try:
+                headers = _headers(request)
+                state = service._state
+                scope = service._resolve(state, headers, request.url.scheme, "theme", (), preflight=True)
+                assert state is not None
+                if scope.app.get("shell", {}).get("serviceId") not in state.snapshot.local_service_ids:
+                    raise RequestError(404, "Shell is not active")
+                cors = Cors(scope.origin_policy, ["GET"])
+                if request.method == "OPTIONS":
+                    return Response(status_code=204, headers={**response_headers, **cors.preflight(headers.get("origin"), headers.get("access-control-request-method"), headers.get("access-control-request-headers"))})
+                response_headers.update(cors.headers(headers.get("origin")))
+                from .context import http_origin
+                # The configured hostname, never an unchecked Host header, is canonical.
+                hostname = scope.app["hostnames"][0]
+                origin = http_origin(hostname if "://" in hostname else "https://" + hostname)
+                path = request.url.path
+                documents = seo.documents(scope, origin) if path in ("/robots.txt", "/sitemap.xml") else ai.documents(scope, service.manifest, service.schema(), origin)
+                media = "application/json" if path.endswith(".json") else "application/xml" if path.endswith(".xml") else "text/plain"
+                return Response(documents[path], media_type=media, headers=response_headers)
+            except RequestError as error: return JSONResponse({"error": str(error)}, status_code=error.status, headers=response_headers)
+            except CorsDenied: return JSONResponse({"error": "Origin is not allowed"}, status_code=403, headers=response_headers)
+            except ValueError: return JSONResponse({"error": "Discovery is unavailable"}, status_code=503, headers=response_headers)
+        for path in (*ai.PATHS, "/robots.txt", "/sitemap.xml"):
+            paths.append(path)
+            routes.append(HttpRoute(path, public_shell_document, methods=["GET", "OPTIONS"]))
+    if shell_fragments is not None:
+        async def shell_endpoint(request: Request):
+            response_headers = {"cache-control": "no-store"}
+            try:
+                headers = _headers(request)
+                state = service._state
+                scope = service._resolve(state, headers, request.url.scheme, "theme", (), preflight=True)
+                assert state is not None
+                shell = scope.app.get("shell", {})
+                if shell.get("serviceId") not in state.snapshot.local_service_ids: raise RequestError(404, "Shell is not active")
+                cors = Cors(scope.origin_policy, ["GET"])
+                if request.method == "OPTIONS":
+                    return Response(status_code=204, headers=cors.preflight(headers.get("origin"), headers.get("access-control-request-method"), headers.get("access-control-request-headers")))
+                response_headers.update(cors.headers(headers.get("origin")))
+                context = RequestContext(scope, AuthorizedCaller(), "GET", _request_path(request), config=service._effective_settings(state, scope), url_context=service.urls(scope, _request_path(request), headers, request.url.scheme), _retired=state.retired)
+                assert shell_fragments is not None
+                html = await _connected(request, shell_fragments.render(request.path_params["fragment_id"], context), service, state.retired)
+                return Response(html, media_type="text/html", headers=response_headers)
+            except RequestError as error: return JSONResponse({"error": str(error)}, status_code=error.status, headers=response_headers)
+            except CorsDenied: return JSONResponse({"error": "Origin is not allowed"}, status_code=403, headers=response_headers)
+            except ValueError: return JSONResponse({"error": "Shell fragment is unavailable"}, status_code=404, headers=response_headers)
+        paths.append("/.well-known/bp/shell/fragment/{fragment_id}")
+        routes.append(HttpRoute(paths[-1], shell_endpoint, methods=["GET", "OPTIONS"]))
     if installation is not None:
         async def install_endpoint(request: Request) -> Response:
             response_headers = {"access-control-allow-origin": "*", "cache-control": "no-store"}
@@ -423,5 +516,7 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
     # Include generated SSE paths in Starlette's static-before-parameter ordering.
     routes.sort(key=lambda route: tuple(part.startswith("{") for part in route.path.split("/")))
     app = Starlette(routes=routes, lifespan=lifespan, exception_handlers={HTTPException: error, Exception: error})
+    telemetry_routes = {route.endpoint: tuple(item.path for item in routes if item.endpoint is route.endpoint) for route in routes}
+    app.add_middleware(ObservabilityMiddleware, observer=observability or Observability(), routes=telemetry_routes)
     app.router.redirect_slashes = False
     return app
