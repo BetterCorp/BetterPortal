@@ -682,3 +682,22 @@ pgTest("an allocation added during an app edit cannot bypass dependency locks", 
   assert.equal((await pool.query(`select count(*)::int as count from bp_platform_config_references
     where kind='apps' and entity_id=$1 and target_kind='tenantServices' and target_id=$2`, [appId, serviceId])).rows[0].count, 1);
 });
+
+pgTest("menu edits preserve unavailable auth and shell dependency protections", async t => {
+  for (const dependency of ["auth", "shell"] as const) {
+    const config = fixture(), app = config.apps[0], serviceId = config.tenants[0].services[1].id;
+    if (dependency === "auth") app.auth!.serviceId = serviceId;
+    else app.shell = { serviceId };
+    const { makeStore, pool } = await database(t, config);
+    const editor = makeStore(); await editor.initialize();
+    await pool.query(`update bp_platform_config_entities set value=jsonb_set(value,'{enabled}','false')
+      where kind='tenantServices' and entity_id=$1`, [serviceId]);
+    await assert.rejects(editAppRows(editor.database, app.id, undefined, async data => {
+      data.apps[0].menu.push({ id: uuidv7(), type: "group", title: "Menu", enabled: true,
+        serviceStatus: "show", authStatus: "auto", children: [] });
+    }), /App references an unavailable service/);
+    assert.equal((await pool.query("select count(*)::int as count from bp_platform_config_menu_items where app_id=$1", [app.id])).rows[0].count, 0);
+    assert.equal((await pool.query(`select count(*)::int as count from bp_platform_config_references
+      where kind='apps' and entity_id=$1 and target_kind='tenantServices' and target_id=$2`, [app.id, serviceId])).rows[0].count, 1);
+  }
+});

@@ -90,10 +90,15 @@ export async function editAppRows<T>(db: AppDatabase, appId: string, obs: Better
         const allowed = getAvailableServiceInstanceIdsForApp(current, after);
         for (const serviceId of [
           ...after.routes.map(route => route.serviceId),
-          ...(after.auth?.roles ?? []).flatMap(role => role.permissions.map(grant => grant.serviceId))
+          ...(after.auth?.roles ?? []).flatMap(role => role.permissions.map(grant => grant.serviceId)),
+          ...(after.auth?.serviceId ? [after.auth.serviceId] : []),
+          ...(after.shell?.serviceId ? [after.shell.serviceId] : []),
+          ...after.slots.map(slot => slot.serviceId),
+          ...Object.values(after.fragments).flatMap(fragments => fragments.map(fragment => fragment.serviceId)),
+          ...Object.values(after.auth?.redirects ?? {}).flatMap(target => target ? [target.serviceId] : [])
         ]) {
           // A dependency absent from the original read has no lock/reference in this transaction.
-          if (!allowed.has(serviceId)) throw new Error("Route or permission references an unavailable service");
+          if (!allowed.has(serviceId)) throw new Error("App references an unavailable service");
           if (!availableAtRead.has(serviceId)) throw new AppDataConflictError();
         }
         await db.appData.save(client, appId, before, after);
