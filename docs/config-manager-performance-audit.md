@@ -1,6 +1,24 @@
 # Config-manager structured-data performance audit
 
-Prepared 2026-09-28. This is the preparation/inventory for implementation, not a claim that the optimisations below have shipped.
+Prepared 2026-09-28 against 10.6.31. The inventory below records the baseline; implementation status is recorded separately. These changes are not deployed.
+
+## Implementation status — PR #94
+
+Implemented:
+
+- PostgreSQL menu, route, role and grant edits use one app transaction and changed relational rows, shared by the editor and alternate APIs. No platform snapshot load/save or config document revision is involved. Existing dependency locks, foreign keys, rollback and change outbox remain.
+- Request context resolves management app settings and then the matched app. Routes/menu/auth page models and app selectors use scoped reads. The tenant/app list reads route choices without route options or grants. Services/config/settings/preview-service pages use registration directories without operational collections or preview snapshots.
+- Auth/manifest caches read their own datasets without routes, menus or effective preview configs. Empty webhook polls and no-expiry maintenance avoid platform reads.
+- Menu access comes from linked-route permissions. Audience options are visible radio controls; legacy non-route restrictions are preserved. Menu projection is computed once per response.
+- App settings cloning excludes operational collections before copying. Retained aggregate assembly uses keyed tenant/deployment lookups.
+
+Remaining from this inventory:
+
+- Tenant/app settings mutations, fragment settings, service registration/reconciliation, M2M and webhook target CRUD still use the legacy versioned aggregate paths. Preview-environment detail pages still need dedicated projections.
+- Service sync still constructs its projection from the platform snapshot, and change events still invalidate broadly. Auth cache refresh is a smaller read but still global.
+- Actual expired-preview graph cleanup, bootstrap and aggregate export retain full configuration reads.
+
+Validation: focused browser checks cover live HTMX audience selection and readable light/dark controls; PostgreSQL CI checks scoped isolation, concurrent edits, rollback and no snapshot fallback. Production latency must be measured after release/deployment; local test durations are not production benchmarks.
 
 ## Verified baseline and scope
 

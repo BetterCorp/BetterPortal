@@ -14,12 +14,12 @@ export class AppDataConflictError extends Error {
 
 /** The versioned app document contains settings, not operational collections. */
 export function appSettings(app: App): Row {
-  const { routes: _routes, menu: _menu, ...settings } = structuredClone(app);
+  const { routes: _routes, menu: _menu, ...settings } = app;
   if (settings.auth) {
     const { roles: _roles, ...auth } = settings.auth;
     settings.auth = auth as App["auth"];
   }
-  return settings;
+  return structuredClone(settings);
 }
 
 /** Real columns for identity and relationships; route options remain typed configuration. */

@@ -27,7 +27,7 @@ export async function readAppEditor(client: PoolClient, db: AppDatabase, appId: 
       or (kind='tenantServices' and value->>'tenantId'=$2)
       or (kind='platformServices' and entity_id in (select jsonb_array_elements_text(value->'activatedPlatformServices') from tenant))
       or (kind='sharedServiceActivations' and value in (select value from activations))
-      or (kind='sharedServiceCatalog' and entity_id in (select value->>'sharedServiceId' from activations)))`,
+      or (kind='sharedServiceCatalog' and entity_id in (select value->>'sharedServiceId' from activations))) order by ordinal`,
     [db.scope, app.tenantId, appId]);
   const values = (kind: string) => result.rows.filter(row => row.kind === kind).map(row => row.value);
   const tenant = values("tenants")[0];
@@ -127,7 +127,8 @@ export async function editAppRows<T>(db: AppDatabase, appId: string, obs: Better
 /** Management request resolution reads app settings first, then only the matched app's rows. */
 export async function readRequestConfig(db: AppDatabase, headers: HeaderMap, obs?: BetterPortalObservability) {
   const span = obs?.startSpan("bp.request_context.read");
-  const client = await db.pool.connect();
+  let client: PoolClient;
+  try { client = await db.pool.connect(); } catch (error) { span?.end(); throw error; }
   try {
     await client.query("begin isolation level repeatable read read only");
     const result = await client.query(`with settings as (
@@ -210,4 +211,53 @@ export async function readCacheData(db: AppDatabase): Promise<CacheData> {
     return data;
   } catch (error) { await client.query("rollback").catch(() => undefined); throw error; }
   finally { client.release(); }
+}
+
+export async function readApp(db: AppDatabase, appId: string): Promise<AppEditorData> {
+  const client = await db.pool.connect();
+  try {
+    await client.query("begin isolation level repeatable read read only");
+    const data = await readAppEditor(client, db, appId);
+    await client.query("commit");
+    return data;
+  } catch (error) { await client.query("rollback").catch(() => undefined); throw error; }
+  finally { client.release(); }
+}
+
+export type DirectoryData = Pick<BetterPortalConfig, "apps" | "tenants" | "platformServices" | "sharedServiceCatalog" | "sharedServiceActivations" | "configManagement" | "m2m">;
+/** Service/settings pages need registration summaries, not app operational collections. */
+export async function readDirectory(db: AppDatabase): Promise<DirectoryData> {
+  const result = await db.pool.query(`with previews as (
+    select value->>'tenantId' as tenant_id,value->>'appId' as app_id from ${db.entities}
+      where scope_id=$1 and kind='previewEnvironmentDeployments'
+  ) select kind,value from ${db.entities} e where scope_id=$1
+    and kind in ('settings','apps','tenants','tenantServices','platformServices','sharedServiceCatalog','sharedServiceActivations','bindings','grants')
+    and not exists (select 1 from previews p where
+      (e.kind='apps' and e.entity_id=p.app_id) or (e.kind='tenants' and e.entity_id=p.tenant_id)
+      or (e.kind in ('tenantServices','sharedServiceActivations','bindings','grants') and e.value->>'tenantId'=p.tenant_id))
+    order by ordinal`, [db.scope]);
+  const values = (kind: string) => result.rows.filter(row => row.kind === kind).map(row => row.value);
+  const tenants = values("tenants");
+  const byId = new Map(tenants.map(tenant => [tenant.id, tenant]));
+  for (const { tenantId, ...service } of values("tenantServices")) byId.get(tenantId)?.services.push(service);
+  const activity = await db.pool.query(`select service_id,last_seen_at,last_sync_at from ${db.activity} where scope_id=$1`, [db.scope]);
+  const activityById = new Map(activity.rows.map(row => [row.service_id, row]));
+  for (const tenant of tenants) for (const service of tenant.services) {
+    const row = activityById.get(service.id);
+    if (row?.last_seen_at) service.lastSeenAt = row.last_seen_at.toISOString();
+    if (row?.last_sync_at) service.lastSyncAt = row.last_sync_at.toISOString();
+  }
+  return { apps: values("apps").map(app => BetterPortalAppSchema.parse(app)), tenants,
+    platformServices: values("platformServices"), sharedServiceCatalog: values("sharedServiceCatalog"),
+    sharedServiceActivations: values("sharedServiceActivations"), configManagement: values("settings")[0],
+    m2m: { bindings: values("bindings"), grants: values("grants") } };
+}
+
+/** Tenant editor needs route choices/counts, but no route options, menus or grants. */
+export async function readTenantPage(db: AppDatabase): Promise<DirectoryData> {
+  const data = await readDirectory(db);
+  const routes = await db.pool.query(`select app_id,id,kind,path,service_id,view_id,title,icon,enabled,operations,position
+    from ${db.appData.routes} where scope_id=$1 and app_id=any($2::text[])`, [db.scope, data.apps.map(app => app.id)]);
+  db.appData.hydrate(data.apps, { roles: [], grants: [], routes: routes.rows, menus: [] });
+  return data;
 }

@@ -63,13 +63,15 @@ export function assembleConfig(entities: Iterable<ConfigEntity>): unknown {
     else if (Array.isArray(result[kind])) result[kind].push(structuredClone(value));
     else throw new Error(`Unknown config entity kind: ${kind}`);
   }
+  const tenantsById = new Map<string, any>(result.tenants.map((tenant: any) => [tenant.id, tenant]));
   for (const { tenantId, ...service } of services) {
-    const tenant = result.tenants.find((candidate: any) => candidate.id === tenantId);
+    const tenant = tenantsById.get(tenantId);
     if (!tenant) throw new Error(`Service ${service.id} references missing tenant ${tenantId}`);
     tenant.services.push(structuredClone(service));
   }
+  const previewsById = new Map<string, any>(result.previewEnvironmentDeployments.map((deployment: any) => [deployment.id, deployment]));
   for (const { id, ...effectiveConfig } of previews) {
-    const deployment = result.previewEnvironmentDeployments.find((candidate: any) => candidate.id === id);
+    const deployment = previewsById.get(id);
     if (!deployment) throw new Error(`Preview config ${id} references missing deployment`);
     deployment.effectiveConfig = structuredClone(effectiveConfig);
   }

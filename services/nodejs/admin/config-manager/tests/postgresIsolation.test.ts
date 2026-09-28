@@ -1,4 +1,4 @@
-import { editAppRows, readAppEditor, readRequestConfig, readCacheData } from "../src/plugins/service-betterportal-config-manager/appQueries.js";
+import { editAppRows, readAppEditor, readRequestConfig, readCacheData, readDirectory, readTenantPage } from "../src/plugins/service-betterportal-config-manager/appQueries.js";
 import { deleteApp, deleteTenant } from "../src/plugins/service-betterportal-config-manager/tenantManagement.js";
 import { setConfigManagerRouteContext } from "../src/plugins/service-betterportal-config-manager/routeContext.js";
 import assert from "node:assert/strict";
@@ -625,6 +625,14 @@ pgTest("request resolution and auth cache reads exclude unrelated operational co
   assert.equal(request.apps[0].routes[0].id, selected.routes[0].id);
   assert.equal(request.apps[0].auth!.roles.some(role => role.id === "*"), true);
   assert.equal(request.previewEnvironmentDeployments.length, 0);
+  const directory = await readDirectory(owner.database);
+  assert.equal(directory.apps.length, config.apps.length);
+  assert.equal(directory.apps.every(app => !app.routes.length && !app.menu.length), true);
+  assert.equal(directory.tenants[0].services.length, config.tenants[0].services.length);
+  const tenantPage = await readTenantPage(owner.database);
+  assert.equal(tenantPage.apps[0].routes.length, selected.routes.length);
+  assert.equal(tenantPage.apps[0].routes[0].path, selected.routes[0].path);
+  assert.equal(tenantPage.apps.every(app => !app.menu.length && !app.auth?.roles.length), true);
   const cache = await readCacheData(owner.database);
   assert.equal(cache.apps.length, config.apps.length);
   assert.equal(cache.apps.every(app => !app.routes.length && !app.menu.length), true);

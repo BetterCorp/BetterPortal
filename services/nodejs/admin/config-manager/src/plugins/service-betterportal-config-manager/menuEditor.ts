@@ -13,7 +13,7 @@ import {
 import { getManifestCache, injectResolvedServicePaths } from "./syncApi.js";
 import { isApiRoute, isMenuRouteExcluded } from "./routeMounts.js";
 
-import { editAppRows, readAppEditor, type AppDatabase, type AppEditorData } from "./appQueries.js";
+import { editAppRows, readApp, type AppDatabase, type AppEditorData } from "./appQueries.js";
 
 const API_BASE = "/.well-known/bp/admin";
 // Parse-only base for relative request URLs. Never emit this origin.
@@ -176,13 +176,13 @@ function titleDisplayHtml(item: MenuItem, route: Route | null, appId: string): s
     style="border:1px solid var(--bs-border-color); border-radius:0.375rem; padding:0.25rem 0.6rem; background:transparent; cursor:text; text-align:left; min-width:200px; font-weight:500;"
     hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-title"
     hx-target="#bp-menu-title-${item.id}"
-    hx-swap="outerHTML"
+    hx-swap="outerHTML settle:0"
     title="Click to rename">${escapeHtml(titleText)}</button>`;
 }
 
 function titleEditorHtml(item: MenuItem, route: Route | null, appId: string): string {
   return `<form id="bp-menu-title-${item.id}" data-bp-menu-editing
-    hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML"
+    hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML settle:0"
     class="d-flex align-items-center gap-1 flex-grow-1 m-0">
     <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
     <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
@@ -190,7 +190,7 @@ function titleEditorHtml(item: MenuItem, route: Route | null, appId: string): st
     <button type="submit" class="btn btn-sm btn-success" title="Save">OK</button>
     <button type="button" class="btn btn-sm btn-outline-secondary" title="Cancel"
       hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display-title"
-      hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML">X</button>
+      hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML settle:0">X</button>
   </form>`;
 }
 
@@ -208,7 +208,7 @@ function subLineHtml(item: MenuItem, route: Route | null, config: any, appId: st
       <button type="button" class="btn btn-sm btn-link p-0"
         hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-external"
         hx-target="#bp-menu-row-${item.id}"
-        hx-swap="outerHTML"
+        hx-swap="outerHTML settle:0"
         title="Edit URL">Edit</button>
     </div>`;
   }
@@ -229,14 +229,14 @@ function subLineHtml(item: MenuItem, route: Route | null, config: any, appId: st
     <button type="button" class="btn btn-sm btn-link p-0 ms-1"
       hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-link"
       hx-target="#bp-menu-row-${item.id}"
-      hx-swap="outerHTML"
+      hx-swap="outerHTML settle:0"
       title="Edit URL & paths">Edit</button>
   </div>`;
 }
 
 function actionButtons(item: MenuItem, appId: string): string {
   const btn = (action: string, label: string, btnClass: string, title: string) =>
-    `<form hx-post="${API_BASE}/menu-editor/${action}" hx-target="#bp-menu-editor" hx-swap="outerHTML" class="d-inline m-0">
+    `<form hx-post="${API_BASE}/menu-editor/${action}" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0" class="d-inline m-0">
       <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
       <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
       <button type="submit" class="btn btn-sm ${btnClass}" title="${escapeHtml(title)}">${label}</button>
@@ -265,7 +265,7 @@ function visibilityControls(item: MenuItem): string {
     <div class="d-flex flex-wrap gap-1">${options.map(([value, label]) => {
       const id = `bp-audience-${item.id}-${value}`;
       return `<input type="radio" class="btn-check" name="authStatus" id="${id}" value="${value}"${(item.authStatus ?? "auto") === value ? " checked" : ""} />
-        <label class="btn btn-sm btn-outline-primary" for="${id}">${label}</label>`;
+        <label class="btn btn-sm btn-outline-primary" style="--bs-btn-color:var(--bs-body-color)" for="${id}">${label}</label>`;
     }).join("")}</div></fieldset>
     ${item.type === "link" ? `<fieldset class="mb-0"><legend class="small mb-1">When service is unavailable</legend>
       ${[["show", "Show warning"], ["hide", "Hide"]].map(([value, label]) => `<label class="form-check form-check-inline small mb-0">
@@ -300,7 +300,7 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
 
   if (mode === "edit-external" && item.type === "external") {
     return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
-      <form hx-post="${API_BASE}/menu-editor/save-external" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML"
+      <form hx-post="${API_BASE}/menu-editor/save-external" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0"
         class="d-flex flex-column gap-2">
         <div class="d-flex align-items-center gap-2">
           <span class="badge ${typeBadgeClass}">${escapeHtml(item.type)}</span>
@@ -315,7 +315,7 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
           <button type="submit" class="btn btn-sm btn-success">OK Save</button>
           <button type="button" class="btn btn-sm btn-outline-secondary"
             hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
-            hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">X Cancel</button>
+            hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0">X Cancel</button>
         </div>
       </form>
     </li>`;
@@ -331,8 +331,8 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
           ${titleDisplayHtml(item, route, appId)}
         </div>
         ${subLineHtml(item, route, config, appId)}
-        <div class="small text-secondary">${accessSummary(config, appDef, item, accessApp)}</div>
-        <form hx-post="${API_BASE}/menu-editor/save-visibility" hx-target="#bp-menu-editor" hx-swap="outerHTML" class="d-flex flex-column gap-2 mt-2">
+        <div class="small text-body-secondary">${accessSummary(config, appDef, item, accessApp)}</div>
+        <form hx-post="${API_BASE}/menu-editor/save-visibility" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0" class="d-flex flex-column gap-2 mt-2">
           <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
           <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
           ${visibilityControls(item)}
@@ -375,7 +375,7 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
   const viewOpts = renderViewOptions(views, route?.viewId ?? "");
 
   return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
-    <form hx-post="${API_BASE}/menu-editor/save-link" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML"
+    <form hx-post="${API_BASE}/menu-editor/save-link" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0"
       class="d-flex flex-column gap-2">
       <div class="d-flex align-items-center gap-2">
         <span class="badge ${typeBadgeClass}">link</span>
@@ -399,7 +399,7 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
           <select id="bp-views-${item.id}" name="viewId" class="form-select form-select-sm" required
             hx-get="${API_BASE}/menu-editor/default-target"
             hx-target="#bp-paths-${item.id}"
-            hx-swap="outerHTML"
+            hx-swap="outerHTML settle:0"
             hx-trigger="change"
             hx-include="closest form">${viewOpts}</select>
         </div>
@@ -422,7 +422,7 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
         <button type="submit" class="btn btn-sm btn-success">OK Save</button>
         <button type="button" class="btn btn-sm btn-outline-secondary"
           hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
-          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">X Cancel</button>
+          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0">X Cancel</button>
       </div>
       <div class="small text-secondary">Path/target/service/view edits update the underlying route - affects any other menu items referencing it.</div>
     </form>
@@ -463,7 +463,7 @@ function renderAddForms(appId: string, routes: Route[], groups: { id: string; ti
       <div class="card">
         <div class="card-header"><strong>Add View Link</strong></div>
         <div class="card-body">
-          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML">
+          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0">
             <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
             <input type="hidden" name="type" value="link" />
             <div class="mb-2">
@@ -490,7 +490,7 @@ function renderAddForms(appId: string, routes: Route[], groups: { id: string; ti
       <div class="card">
         <div class="card-header"><strong>Add External Link</strong></div>
         <div class="card-body">
-          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML">
+          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0">
             <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
             <input type="hidden" name="type" value="external" />
             <div class="mb-2">
@@ -514,7 +514,7 @@ function renderAddForms(appId: string, routes: Route[], groups: { id: string; ti
       <div class="card">
         <div class="card-header"><strong>Add Group</strong></div>
         <div class="card-body">
-          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML">
+          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0">
             <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
             <input type="hidden" name="type" value="group" />
             <div class="mb-2">
@@ -545,7 +545,7 @@ function renderEditor(config: any, appDef: any, appId: string): string {
     <form id="bp-drag-move-form" style="display:none"
       hx-post="${API_BASE}/menu-editor/move-after"
       hx-target="#bp-menu-editor"
-      hx-swap="outerHTML">
+      hx-swap="outerHTML settle:0">
       <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
       <input type="hidden" name="itemId" />
       <input type="hidden" name="anchorId" />
@@ -562,14 +562,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
 
   const read = async (appId: string): Promise<AppEditorData> => {
     if (!database) return store.loadConfig();
-    const client = await database.pool.connect();
-    try {
-      await client.query("begin isolation level repeatable read read only");
-      const data = await readAppEditor(client, database, appId);
-      await client.query("commit");
-      return data;
-    } catch (error) { await client.query("rollback").catch(() => undefined); throw error; }
-    finally { client.release(); }
+    return readApp(database, appId);
   };
   const post = (path: string, action: (form: Record<string, string>, data: AppEditorData) => Promise<Response>) => {
     app.post(`${API_BASE}/menu-editor/${path}`, async event => {

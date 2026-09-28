@@ -9,6 +9,7 @@ import {
   type RouteHandlerContext
 } from "@betterportal/framework";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, AuthRoleAuthority, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
+import { readTenantPage, type DirectoryData } from "./appQueries.js";
 import { getConfigManagerRouteContext } from "./routeContext.js";
 import { getCachedManifestForService } from "./syncApi.js";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
@@ -153,7 +154,8 @@ function tenantsPathFromContext(ctx: Pick<RouteHandlerContext, "routeUrl">): str
 
 async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseData> {
   const routeContext = getConfigManagerRouteContext();
-  const config = visibleAdminConfig(await routeContext.storage.loadConfig());
+  const config = routeContext.database ? await readTenantPage(routeContext.database)
+    : visibleAdminConfig(await routeContext.storage.loadConfig());
   const authServices = config.tenants.flatMap((tenant) => authServicesForTenant(config, tenant.id));
   return {
     title: "Tenants & Apps",
@@ -362,7 +364,7 @@ export async function deleteApp(id: string): Promise<void> {
   await routeContext.storage.saveConfig(config);
 }
 
-function shellServicesForTenant(config: BetterPortalConfig, tenantId: string): Array<{
+function shellServicesForTenant(config: DirectoryData, tenantId: string): Array<{
   id: string;
   tenantId: string;
   title: string;
@@ -410,7 +412,7 @@ function isShellServiceForTenant(config: BetterPortalConfig, tenantId: string, s
   return shellServicesForTenant(config, tenantId).some((service) => service.id === shellServiceId);
 }
 
-function authServicesForTenant(config: BetterPortalConfig, tenantId: string): Array<{
+function authServicesForTenant(config: DirectoryData, tenantId: string): Array<{
   id: string;
   tenantId: string;
   title: string;
@@ -504,7 +506,7 @@ function buildAppAuthConfig(
   };
 }
 
-function selectableAppPageViews(config: BetterPortalConfig, app: BetterPortalApp): Array<{
+function selectableAppPageViews(config: DirectoryData, app: BetterPortalApp): Array<{
   serviceId: string;
   serviceTitle: string;
   viewId: string;
@@ -538,7 +540,7 @@ function uniqueEnabledPageViews(app: BetterPortalApp): BetterPortalRouteMount[] 
   );
 }
 
-function serviceTitle(config: BetterPortalConfig, tenantId: string, serviceId: string): string {
+function serviceTitle(config: DirectoryData, tenantId: string, serviceId: string): string {
   const tenantService = config.tenants
     .find((tenant) => tenant.id === tenantId)
     ?.services.find((service) => service.id === serviceId);

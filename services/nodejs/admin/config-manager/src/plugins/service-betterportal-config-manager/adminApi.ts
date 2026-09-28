@@ -1,5 +1,5 @@
 import { eventObservability } from "@betterportal/framework";
-import { editAppRows, type AppDatabase, type AppEditorData } from "./appQueries.js";
+import { editAppRows, readApp, readRequestConfig, type AppDatabase, type AppEditorData } from "./appQueries.js";
 import { isMenuRouteExcluded } from "./routeMounts.js";
 import type {
   BetterPortalH3App,
@@ -322,7 +322,7 @@ function managementDiscovery(config: BetterPortalConfig, cpState: CpBootstrapSta
   } as JsonValue;
 }
 
-function automationServiceCatalog(config: BetterPortalConfig, appDef: BetterPortalApp) {
+function automationServiceCatalog(config: AppEditorData, appDef: BetterPortalApp) {
   const tenant = config.tenants.find((entry) => entry.id === appDef.tenantId);
   const manifestCache = getManifestCache();
   const sharedById = new Map(config.sharedServiceCatalog.map((service) => [service.id, service]));
@@ -1122,6 +1122,21 @@ export function registerAdminApiRoutes(
   cpState: CpBootstrapState,
   database?: AppDatabase
 ): void {
+  const readCurrentApp = async (event: BetterPortalEvent) => {
+    if (!database) {
+      const config = await store.loadConfig();
+      return { config, appDef: currentAppFromRequest(config, event) };
+    }
+    const appId = new URL(event.req.url, RELATIVE_URL_PARSE_BASE).searchParams.get("appId") ?? event.req.headers.get("x-bp-app-id");
+    if (appId) {
+      const config = await readApp(database, appId);
+      const appDef = config.apps[0];
+      return { config, appDef: appDef && !isPreviewApp(config, appDef.id) ? appDef : undefined };
+    }
+    const config = await readRequestConfig(database, eventHeaders(event), eventObservability(event));
+    return { config, appDef: currentAppFromRequest(config, event) };
+  };
+
   app.use(`${API_BASE}/**`, async (event) => {
     const deployments = database
       ? (await database.pool.query(`select value->>'tenantId' as "tenantId", value->>'appId' as "appId"
@@ -1157,8 +1172,7 @@ export function registerAdminApiRoutes(
   });
 
   app.get("/.well-known/bp/manage/current", async (event) => {
-    const config = await store.loadConfig();
-    const appDef = currentAppFromRequest(config, event);
+    const { config, appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     const tenant = config.tenants.find((entry) => entry.id === appDef.tenantId);
     return jsonResponse({
@@ -1182,8 +1196,7 @@ export function registerAdminApiRoutes(
   });
 
   app.get("/.well-known/bp/manage/services", async (event) => {
-    const config = await store.loadConfig();
-    const appDef = currentAppFromRequest(config, event);
+    const { config, appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     return jsonResponse(automationServiceCatalog(config, appDef) as unknown as JsonValue);
   });
@@ -1216,39 +1229,40 @@ export function registerAdminApiRoutes(
   });
 
   app.get("/.well-known/bp/manage/routes", async (event) => {
-    const config = await store.loadConfig();
-    const appDef = currentAppFromRequest(config, event);
+    const { config, appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     return jsonResponse({ appId: appDef.id, routes: appDef.routes } as unknown as JsonValue);
   });
 
   app.post("/.well-known/bp/manage/routes", async (event) => {
-    const config = await store.loadConfig();
-    const appDef = currentAppFromRequest(config, event);
+    const { appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     const body = await readFormOrJsonBody(event);
     const parsed = parseRouteCreateBody(body);
     if (parsed.error || !parsed.route) return validationError(event, parsed.error ?? "Invalid route");
-    if (appDef.routes.some((candidate) => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
-      return validationError(event, `A route already exists at ${parsed.route.path}.`);
-    }
-    const route = { id: uuidv7(), ...parsed.route };
-    appDef.routes.push(route);
-    addRouteDependencies(appDef, route);
-    await store.saveConfig(config);
-    return jsonResponse({ ok: true } as JsonValue, 201);
+    return editApp(store, appDef.id, async data => {
+      const current = data.apps.find(app => app.id === appDef.id);
+      if (!current || isPreviewApp(data, current.id)) return jsonResponse({ error: "App not found" }, 404);
+      const serviceError = validateRegisteredRouteService(data, current, parsed.route!.serviceId);
+      if (serviceError) return validationError(event, serviceError);
+      if (current.routes.some(candidate => appRoutePatternKey(candidate.path) === appRoutePatternKey(parsed.route!.path))) {
+        return validationError(event, `A route already exists at ${parsed.route!.path}.`);
+      }
+      const route = { id: uuidv7(), ...parsed.route! };
+      current.routes.push(route);
+      addRouteDependencies(current, route);
+      return jsonResponse({ ok: true } as JsonValue, 201);
+    }, database, event);
   });
 
   app.get("/.well-known/bp/manage/fragments", async (event) => {
-    const config = await store.loadConfig();
-    const appDef = currentAppFromRequest(config, event);
+    const { config, appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     return jsonResponse({ appId: appDef.id, fragments: appDef.fragments } as unknown as JsonValue);
   });
 
   app.get("/.well-known/bp/manage/theme", async (event) => {
-    const config = await store.loadConfig();
-    const appDef = currentAppFromRequest(config, event);
+    const { config, appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     return jsonResponse({ appId: appDef.id, themeConfig: appDef.themeConfig } as unknown as JsonValue);
   });
@@ -1956,7 +1970,7 @@ export function registerAdminApiRoutes(
   app.get(`${API_BASE}/apps/:appId/auth/roles`, async (event) => {
     const appId = getParam(event, "appId");
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
-    const { appDef } = await getAppOr404(appId);
+    const appDef = database ? (await readApp(database, appId)).apps[0] : (await getAppOr404(appId)).appDef;
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const auth = (appDef as { auth?: { roles?: AppAuthRoleEntry[] } }).auth;
     return jsonResponse((auth?.roles ?? []) as unknown as JsonValue);
@@ -2169,7 +2183,7 @@ export function registerAdminApiRoutes(
   app.get(`${API_BASE}/apps/:appId/routes`, async (event) => {
     const appId = getParam(event, "appId");
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
-    const config = await store.loadConfig();
+    const config = database ? await readApp(database, appId) : await store.loadConfig();
     const appDef = config.apps.find((a) => a.id === appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     return jsonResponse(appDef.routes as unknown as JsonValue);
@@ -2353,7 +2367,7 @@ export function registerAdminApiRoutes(
   app.get(`${API_BASE}/apps/:appId/menu`, async (event) => {
     const appId = getParam(event, "appId");
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
-    const config = await store.loadConfig();
+    const config = database ? await readApp(database, appId) : await store.loadConfig();
     const appDef = config.apps.find((a) => a.id === appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     return jsonResponse((appDef.menu ?? []) as unknown as JsonValue);

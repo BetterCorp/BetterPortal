@@ -18,7 +18,7 @@ import {
 import { registerSetupEndpoints } from "./setupTokens.js";
 import { registerBootstrapEndpoint } from "./bootstrapEndpoint.js";
 import { registerAdminApiRoutes } from "./adminApi.js";
-import { readAppPage, readCacheData, readRequestConfig, type CacheData } from "./appQueries.js";
+import { readAppPage, readCacheData, readDirectory, readRequestConfig, type CacheData } from "./appQueries.js";
 import { registerMenuEditorRoutes } from "./menuEditor.js";
 import { registerFragmentsEditorRoutes } from "./fragmentsEditor.js";
 import { registerWebhookRoutes } from "./webhooks.js";
@@ -333,10 +333,28 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     return pending;
   }
 
+  private readonly contextConfigs = new WeakMap<BetterPortalEvent, ReturnType<typeof readRequestConfig>>();
+  private loadContextConfig(event: BetterPortalEvent) {
+    if (!this.postgresStorage) return this.loadRequestConfig(event);
+    let pending = this.contextConfigs.get(event);
+    if (!pending) {
+      pending = readRequestConfig(this.postgresStorage.database, eventHeaders(event), eventObservability(event));
+      this.contextConfigs.set(event, pending);
+      void pending.catch(() => this.contextConfigs.delete(event));
+    }
+    return pending;
+  }
+
+  private async loadDirectory(event: BetterPortalEvent) {
+    const span = eventObservability(event)?.startSpan("bp.directory.read");
+    try {
+      return this.postgresStorage ? await readDirectory(this.postgresStorage.database)
+        : visibleAdminConfig(await this.loadRequestConfig(event));
+    } finally { span?.end(); }
+  }
+
   protected override async resolveRequestContext(event: BetterPortalEvent): Promise<BetterPortalResolvedRequestContext | null> {
-    const config = this.postgresStorage
-      ? await readRequestConfig(this.postgresStorage.database, eventHeaders(event), eventObservability(event))
-      : await this.loadRequestConfig(event);
+    const config = await this.loadContextConfig(event);
     const context = resolveEmbeddedRequestContext(config, eventHeaders(event));
     if (!context) {
       return null;
@@ -351,7 +369,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   protected async describeCorsContextFailure(event: BetterPortalEvent): Promise<{ candidateHosts: string; configuredAppHosts: string } | undefined> {
-    const config = await this.loadRequestConfig(event);
+    const config = await this.loadContextConfig(event);
     const details = describeEmbeddedContextResolution(config, eventHeaders(event));
     return {
       candidateHosts: details.candidates.join(","),
@@ -407,6 +425,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
     setConfigManagerRouteContext({
       storage: this.storage,
+      database: this.postgresStorage?.database,
       cpState: this.cpState,
       serviceBaseUrl: this.cpState.issuer
     });
@@ -491,6 +510,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
   private async removeExpiredPreviews(): Promise<void> {
     const cleanup = async () => {
+      if (this.postgresStorage) {
+        const { pool, entities, scope } = this.postgresStorage.database;
+        const due = await pool.query(`select 1 from ${entities} where scope_id=$1 and kind='previewEnvironmentDeployments'
+          and ((value->>'expiresAt')::timestamptz <= now()
+            or (value->'credentialReplay'->>'expiresAt')::timestamptz <= now()) limit 1`, [scope]);
+        if (!due.rows.length) { await this.postgresStorage.cleanupExpiredActions(); return; }
+      }
+
       const config = await this.storage.loadConfig();
       let changed = deleteExpiredPreviewDeployments(config).length > 0;
       for (const deployment of config.previewEnvironmentDeployments) {
@@ -575,8 +602,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateConfigAdminContext(event: BetterPortalEvent): Promise<void> {
-    const portalConfig = visibleAdminConfig(await this.loadRequestConfig(event));
-    const requestContext = resolveEmbeddedRequestContext(portalConfig, eventHeaders(event));
+    const portalConfig = await this.loadDirectory(event);
+    const requestContext = resolveEmbeddedRequestContext(await this.loadContextConfig(event), eventHeaders(event));
 
     if (requestContext) {
       const tenant = requestContext.tenant;
@@ -635,7 +662,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateServicesContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.loadRequestConfig(event));
+    const config = await this.loadDirectory(event);
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const requestedTenantId = url.searchParams.get("tenantId") ?? undefined;
     const selectedTenantId = config.tenants.some((tenant) => tenant.id === requestedTenantId)
@@ -742,7 +769,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private async loadEditorPage(event: BetterPortalEvent, chooseFirst = false) {
     if (this.postgresStorage) {
       const appId = new URL(event.req.url, RELATIVE_URL_PARSE_BASE).searchParams.get("appId") ?? undefined;
-      return readAppPage(this.postgresStorage.database, appId, chooseFirst);
+      const span = eventObservability(event)?.startSpan("bp.app.read");
+      try { return await readAppPage(this.postgresStorage.database, appId, chooseFirst); }
+      finally { span?.end(); }
     }
     const config = visibleAdminConfig(await this.loadRequestConfig(event));
     return { ...config, appChoices: config.apps };
@@ -908,7 +937,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populatePreviewContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.loadRequestConfig(event));
+    const config = await this.loadDirectory(event);
     const services: Array<{
       serviceId: string;
       endpointBaseUrl: string;
@@ -1079,9 +1108,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async populateSettingsContext(event: BetterPortalEvent): Promise<void> {
-    const config = visibleAdminConfig(await this.loadRequestConfig(event));
+    const config = await this.loadDirectory(event);
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
-    const requestContext = resolveEmbeddedRequestContext(config, eventHeaders(event));
+    const requestContext = resolveEmbeddedRequestContext(await this.loadContextConfig(event), eventHeaders(event));
     const requestedAppId = url.searchParams.get("appId") ?? undefined;
     const app = requestContext?.app
       ?? (requestedAppId ? config.apps.find((candidate) => candidate.id === requestedAppId) : undefined)
