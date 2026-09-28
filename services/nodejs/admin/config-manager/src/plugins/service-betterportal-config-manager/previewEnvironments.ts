@@ -67,7 +67,7 @@ export function isPreviewTenant(config: BetterPortalConfig, tenantId: string): b
   return config.previewEnvironmentDeployments.some((deployment) => deployment.tenantId === tenantId);
 }
 
-export function isPreviewApp(config: BetterPortalConfig, appId: string): boolean {
+export function isPreviewApp(config: Pick<BetterPortalConfig, "previewEnvironmentDeployments">, appId: string): boolean {
   return config.previewEnvironmentDeployments.some((deployment) => deployment.appId === appId);
 }
 

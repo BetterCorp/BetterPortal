@@ -291,8 +291,10 @@ export function migrateRouteParamSyntax(config: BetterPortalConfig): BetterPorta
   return config;
 }
 
+export type ServiceRegistryContext = Pick<BetterPortalConfig, "tenants" | "platformServices" | "sharedServiceCatalog" | "sharedServiceActivations">;
+
 export function getAvailableServiceInstanceIdsForApp(
-  config: BetterPortalConfig,
+  config: ServiceRegistryContext,
   app: Pick<BetterPortalApp, "id" | "tenantId">
 ): Set<string> {
   const tenant = config.tenants.find((candidate) => candidate.id === app.tenantId);
@@ -313,7 +315,7 @@ export function getAvailableServiceInstanceIdsForApp(
   ]);
 }
 
-export function getServicePluginId(config: BetterPortalConfig, serviceInstanceId: string): string | undefined {
+export function getServicePluginId(config: ServiceRegistryContext, serviceInstanceId: string): string | undefined {
   const tenantService = config.tenants
     .flatMap((tenant) => tenant.services)
     .find((service) => service.id === serviceInstanceId);
@@ -1155,8 +1157,8 @@ export abstract class BaseStorage implements PlatformConfigStore {
   }
 }
 
-function resolveAuthProviderRuntimeMetadata(
-  config: BetterPortalConfig,
+export function resolveAuthProviderRuntimeMetadata(
+  config: ServiceRegistryContext,
   serviceId: string
 ): AuthProviderRuntimeMetadata | undefined {
   const tenantService = config.tenants

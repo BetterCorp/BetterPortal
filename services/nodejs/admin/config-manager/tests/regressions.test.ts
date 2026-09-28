@@ -409,8 +409,12 @@ test("webhooks claim only the next delivery and bound fetch lifetime", async (t)
     return new Response(new ReadableStream({ cancel() { order.push("cancel"); } }));
   });
   const runtime = registerWebhookRoutes(new H3(), {
-    loadConfig: async () => ({ tenants: [{ id: "tenant", active: true }], webhooks: { targets: [{ id: "target", tenantId: "tenant", enabled: true, secret: "secret", url: "https://webhook.test" }] } })
+    loadConfig: async () => { throw new Error("Webhook polling must not load config"); }
   } as never, {
+    database: { scope: "default", entities: '"entities"', pool: { query: async (_sql: string, params: unknown[]) => {
+      assert.deepEqual(params, ["default", "target"]);
+      return { rows: [{ value: { id: "target", tenantId: "tenant", enabled: true, secret: "secret", url: "https://webhook.test" } }] };
+    } } },
     claimWebhookDeliveries: async (_owner: string, count: number) => {
       assert.equal(count, 1);
       order.push("claim");

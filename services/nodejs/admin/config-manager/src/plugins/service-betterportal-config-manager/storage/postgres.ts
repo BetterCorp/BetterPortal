@@ -138,6 +138,13 @@ export class PostgresStorage extends BaseStorage {
     await this.ensureSchema();
   }
 
+  /** Direct SQL access for scoped operations; initialize() runs before routes/workers start. */
+  get database() {
+    return { pool: this.getPool(), scope: this.rowId, entities: this.entitiesTable,
+      tableName: this.tableName, appData: this.appData, references: this.referencesTable,
+      outbox: this.outboxTable, revisions: this.revisionSequence };
+  }
+
   async loadConfig(options: { readOnly?: boolean; obs?: BetterPortalObservability } = {}): Promise<BetterPortalConfig> {
     const span = options.obs?.startSpan("bp.config.load", { "config.read_only": options.readOnly === true });
     let client: PoolClient | undefined;

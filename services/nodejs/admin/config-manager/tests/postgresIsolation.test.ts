@@ -1,3 +1,4 @@
+import { editAppRows, readAppEditor, readRequestConfig, readCacheData } from "../src/plugins/service-betterportal-config-manager/appQueries.js";
 import { deleteApp, deleteTenant } from "../src/plugins/service-betterportal-config-manager/tenantManagement.js";
 import { setConfigManagerRouteContext } from "../src/plugins/service-betterportal-config-manager/routeContext.js";
 import assert from "node:assert/strict";
@@ -75,7 +76,7 @@ pgTest("locking one app does not block adding a role in another app of the same 
     const handlers = new Map<string, (event: never) => Promise<Response>>();
     registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
       (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`${method} ${path}`, handler)
-    ])) as never, store, {} as never);
+    ])) as never, store, {} as never, store.database);
     const response = await handlers.get("post /.well-known/bp/admin/apps/:appId/auth/roles")!({
       context: { params: { appId: config.apps[1].id } }, req: new Request("https://config.example/roles", {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "editor", title: "Editor" })
@@ -387,7 +388,7 @@ pgTest("role POST transactions preserve concurrent roles and reject duplicates",
     const routes = new Map<string, (event: never) => Promise<Response>>();
     registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
       (path: string, handler: (event: never) => Promise<Response>) => routes.set(method + " " + path, handler)
-    ])) as never, store, {} as never);
+    ])) as never, store, {} as never, store.database);
     return routes.get("post /.well-known/bp/admin/apps/:appId/auth/roles")!;
   });
   const call = (index: number, id: string) => handlers[index]({
@@ -572,4 +573,60 @@ pgTest("read-only page snapshots stay fresh and cannot be submitted as writable 
   const current = await reader.loadConfig({ readOnly: true });
   assert.equal(current.apps[0].auth!.roles[0].id, "fresh-role");
   assert.equal(original.apps[0].auth!.roles.length, 0);
+});
+
+pgTest("direct app operations isolate rows, roll back invalid references and never load a platform snapshot", async t => {
+  const { pool, makeStore, config } = await database(t);
+  const databaseOwner = makeStore();
+  await databaseOwner.initialize();
+  databaseOwner.loadConfig = async () => { throw new Error("Unexpected whole-platform read"); };
+  databaseOwner.saveConfig = async () => { throw new Error("Unexpected whole-platform write"); };
+  const db = databaseOwner.database;
+  const [first, second] = config.apps;
+  const menuId = uuidv7();
+  await Promise.all([
+    editAppRows(db, first.id, undefined, async data => {
+      assert.deepEqual(data.apps.map(app => app.id), [first.id]);
+      assert.equal(data.tenants.length, 1);
+      data.apps[0].menu.push({ id: menuId, type: "link", routeId: first.routes[0].id,
+        enabled: true, authStatus: "auto", serviceStatus: "show", children: [] });
+    }),
+    editAppRows(db, second.id, undefined, async data => {
+      data.apps[0].auth!.roles.push({ id: "reader", title: "Reader", permissions: [] });
+    })
+  ]);
+  const client = await db.pool.connect();
+  try {
+    assert.equal((await readAppEditor(client, db, first.id)).apps[0].menu[0].id, menuId);
+    assert.equal((await readAppEditor(client, db, second.id)).apps[0].auth!.roles[0].id, "reader");
+  } finally { client.release(); }
+  const count = async () => (await pool.query("select count(*)::int as n from bp_platform_config_outbox")).rows[0].n;
+  const notified = await count();
+  await assert.rejects(editAppRows(db, first.id, undefined, async data => {
+    data.apps[0].menu[0].routeId = second.routes[0].id;
+  }), /foreign key/i);
+  assert.equal(await count(), notified, "rollback must not notify");
+  await editAppRows(db, first.id, undefined, async data => { data.apps[0].menu[0].title = "Renamed"; });
+  const result = await pool.query("select title,route_id from bp_platform_config_menu_items where app_id=$1 and id=$2", [first.id, menuId]);
+  assert.equal(result.rows[0].title, "Renamed");
+  assert.equal(result.rows[0].route_id, first.routes[0].id);
+});
+
+pgTest("request resolution and auth cache reads exclude unrelated operational collections", async t => {
+  const config = fixture();
+  const selected = config.apps[0];
+  config.configManagement.adminTenantId = selected.tenantId;
+  config.configManagement.managementAppId = selected.id;
+  const { makeStore } = await database(t, config);
+  const owner = makeStore(); await owner.initialize();
+  owner.loadConfig = async () => { throw new Error("Unexpected full snapshot"); };
+  const request = await readRequestConfig(owner.database, new Headers({ host: selected.hostnames[0] }));
+  assert.deepEqual(request.apps.map(app => app.id), [selected.id]);
+  assert.equal(request.apps[0].routes[0].id, selected.routes[0].id);
+  assert.equal(request.apps[0].auth!.roles.some(role => role.id === "*"), true);
+  assert.equal(request.previewEnvironmentDeployments.length, 0);
+  const cache = await readCacheData(owner.database);
+  assert.equal(cache.apps.length, config.apps.length);
+  assert.equal(cache.apps.every(app => !app.routes.length && !app.menu.length), true);
+  assert.equal(cache.apps[0].auth!.roles.some(role => role.id === "*"), true);
 });
