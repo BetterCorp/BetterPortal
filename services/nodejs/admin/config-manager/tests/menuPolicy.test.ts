@@ -8,8 +8,8 @@ import { isMenuRouteExcluded } from "../src/plugins/service-betterportal-config-
 const serviceId = uuidv7();
 const routeId = uuidv7();
 const cached = {
-  serviceId: "org.example.auth", viewIndex: { login: { viewId: "login", title: "Login", path: "/login", operations: [
-    { operationId: "login.get", method: "GET", renderModes: ["page"], menu: false }
+  serviceId: "org.example.auth", viewIndex: { login: { viewId: "login", title: "Login", path: "/login", pathVariants: [], operations: [
+    { operationId: "login.get", method: "GET", renderModes: ["page"], menu: false, authRequired: false, robots: [], permissions: [], dependencies: [] }
   ] } }
 } as unknown as CachedManifest;
 
@@ -21,7 +21,7 @@ test("service menu exclusion overrides app configuration and changes with the ma
   assert.equal(isMenuRouteExcluded({ ...route, menu: false }, new Map([[serviceId, allowed]])), false);
 });
 
-test("menu editor rejects excluded routes and persists public-only and role visibility", async () => {
+test("menu editor rejects excluded routes and offers visible audience controls without manual role input", async () => {
   const tenantId = uuidv7(), appId = uuidv7(), groupId = uuidv7();
   let config = BetterPortalConfigSchema.parse({
     tenants: [{ id: tenantId, slug: "t", title: "Tenant", branding: {}, services: [] }],
@@ -42,9 +42,12 @@ test("menu editor rejects excluded routes and persists public-only and role visi
     const response = await post("save-visibility", { itemId: groupId, authStatus: "show-unauthenticated", rolesAnyOf: "" });
     assert.equal(response.status, 200);
     assert.equal(config.apps[0].menu[0].authStatus, "show-unauthenticated");
-    assert.match(await response.text(), /Only signed out/);
+    const html = await response.text();
+    assert.match(html, /Only signed out/);
+    assert.match(html, /type="radio"[^>]*name="authStatus"/);
+    assert.doesNotMatch(html, /name="rolesAnyOf"|<details><summary[^>]*>Visibility/);
     assert.equal((await post("save-visibility", { itemId: groupId, authStatus: "hide-unauthorized", rolesAnyOf: "staff, manager,staff" })).status, 200);
-    assert.deepEqual(config.apps[0].menu[0].rolesAnyOf, ["staff", "manager"]);
+    assert.equal(config.apps[0].menu[0].rolesAnyOf, undefined, "manual roles are not accepted by the editor");
   } finally { getManifestCache().delete(serviceId); }
 });
 

@@ -138,6 +138,13 @@ export class PostgresStorage extends BaseStorage {
     await this.ensureSchema();
   }
 
+  /** Direct SQL access for scoped operations; initialize() runs before routes/workers start. */
+  get database() {
+    return { pool: this.getPool(), scope: this.rowId, entities: this.entitiesTable,
+      tableName: this.tableName, appData: this.appData, references: this.referencesTable,
+      outbox: this.outboxTable, activity: this.activityTable, revisions: this.revisionSequence };
+  }
+
   async loadConfig(options: { readOnly?: boolean; obs?: BetterPortalObservability } = {}): Promise<BetterPortalConfig> {
     const span = options.obs?.startSpan("bp.config.load", { "config.read_only": options.readOnly === true });
     let client: PoolClient | undefined;
@@ -798,6 +805,11 @@ export class PostgresStorage extends BaseStorage {
       }
       await this.migrateEntities(client);
       await this.migrateAppData(client);
+      await client.query(`create index if not exists ${quotePgIdent(`${this.tableName}_entity_tenant_idx`)}
+        on ${this.entitiesTable} (scope_id,kind,(value->>'tenantId'))
+        where kind in ('apps','tenantServices','sharedServiceActivations')`);
+      await client.query(`create index if not exists ${quotePgIdent(`${this.tableName}_preview_app_idx`)}
+        on ${this.entitiesTable} (scope_id,(value->>'appId')) where kind='previewEnvironmentDeployments'`);
       await client.query("commit");
     } catch (error) {
       await client.query("rollback").catch(() => undefined);

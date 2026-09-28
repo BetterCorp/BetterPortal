@@ -1,9 +1,10 @@
+import { editAppRows, readAppEditor, readRequestConfig, readCacheData, readDirectory, readTenantPage } from "../src/plugins/service-betterportal-config-manager/appQueries.js";
 import { deleteApp, deleteTenant } from "../src/plugins/service-betterportal-config-manager/tenantManagement.js";
 import { setConfigManagerRouteContext } from "../src/plugins/service-betterportal-config-manager/routeContext.js";
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { Pool } from "pg";
-import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { BetterPortalConfigSchema, resolveEmbeddedRequestContext, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { PostgresStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { entityKey, splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
@@ -75,7 +76,7 @@ pgTest("locking one app does not block adding a role in another app of the same 
     const handlers = new Map<string, (event: never) => Promise<Response>>();
     registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
       (path: string, handler: (event: never) => Promise<Response>) => handlers.set(`${method} ${path}`, handler)
-    ])) as never, store, {} as never);
+    ])) as never, store, {} as never, store.database);
     const response = await handlers.get("post /.well-known/bp/admin/apps/:appId/auth/roles")!({
       context: { params: { appId: config.apps[1].id } }, req: new Request("https://config.example/roles", {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "editor", title: "Editor" })
@@ -387,7 +388,7 @@ pgTest("role POST transactions preserve concurrent roles and reject duplicates",
     const routes = new Map<string, (event: never) => Promise<Response>>();
     registerAdminApiRoutes(Object.fromEntries(["use", "get", "post", "put", "delete"].map(method => [method,
       (path: string, handler: (event: never) => Promise<Response>) => routes.set(method + " " + path, handler)
-    ])) as never, store, {} as never);
+    ])) as never, store, {} as never, store.database);
     return routes.get("post /.well-known/bp/admin/apps/:appId/auth/roles")!;
   });
   const call = (index: number, id: string) => handlers[index]({
@@ -572,4 +573,131 @@ pgTest("read-only page snapshots stay fresh and cannot be submitted as writable 
   const current = await reader.loadConfig({ readOnly: true });
   assert.equal(current.apps[0].auth!.roles[0].id, "fresh-role");
   assert.equal(original.apps[0].auth!.roles.length, 0);
+});
+
+pgTest("direct app operations isolate rows, roll back invalid references and never load a platform snapshot", async t => {
+  const { pool, makeStore, config } = await database(t);
+  const databaseOwner = makeStore();
+  await databaseOwner.initialize();
+  databaseOwner.loadConfig = async () => { throw new Error("Unexpected whole-platform read"); };
+  databaseOwner.saveConfig = async () => { throw new Error("Unexpected whole-platform write"); };
+  const db = databaseOwner.database;
+  const [first, second] = config.apps;
+  const menuId = uuidv7();
+  await Promise.all([
+    editAppRows(db, first.id, undefined, async data => {
+      assert.deepEqual(data.apps.map(app => app.id), [first.id]);
+      assert.equal(data.tenants.length, 1);
+      data.apps[0].menu.push({ id: menuId, type: "link", routeId: first.routes[0].id,
+        enabled: true, authStatus: "auto", serviceStatus: "show", children: [] });
+    }),
+    editAppRows(db, second.id, undefined, async data => {
+      data.apps[0].auth!.roles.push({ id: "reader", title: "Reader", permissions: [] });
+    })
+  ]);
+  const client = await db.pool.connect();
+  try {
+    assert.equal((await readAppEditor(client, db, first.id)).apps[0].menu[0].id, menuId);
+    assert.equal((await readAppEditor(client, db, second.id)).apps[0].auth!.roles[0].id, "reader");
+  } finally { client.release(); }
+  const count = async () => (await pool.query("select count(*)::int as n from bp_platform_config_outbox")).rows[0].n;
+  const notified = await count();
+  await assert.rejects(editAppRows(db, first.id, undefined, async data => {
+    data.apps[0].menu[0].routeId = second.routes[0].id;
+  }), /foreign key/i);
+  assert.equal(await count(), notified, "rollback must not notify");
+  await editAppRows(db, first.id, undefined, async data => { data.apps[0].menu[0].title = "Renamed"; });
+  const result = await pool.query("select title,route_id from bp_platform_config_menu_items where app_id=$1 and id=$2", [first.id, menuId]);
+  assert.equal(result.rows[0].title, "Renamed");
+  assert.equal(result.rows[0].route_id, first.routes[0].id);
+});
+
+pgTest("request resolution and auth cache reads exclude unrelated operational collections", async t => {
+  const config = fixture();
+  const selected = config.apps[0];
+  config.configManagement.adminTenantId = selected.tenantId;
+  config.configManagement.managementAppId = selected.id;
+  const { makeStore } = await database(t, config);
+  const owner = makeStore(); await owner.initialize();
+  owner.loadConfig = async () => { throw new Error("Unexpected full snapshot"); };
+  const request = await readRequestConfig(owner.database, new Headers({ host: selected.hostnames[0] }));
+  assert.deepEqual(request.apps.map(app => app.id), [selected.id]);
+  assert.equal(request.apps[0].routes[0].id, selected.routes[0].id);
+  assert.equal(request.apps[0].auth!.roles.some(role => role.id === "*"), true);
+  assert.equal(request.previewEnvironmentDeployments.length, 0);
+  const directory = await readDirectory(owner.database);
+  assert.equal(directory.apps.length, config.apps.length);
+  assert.equal(directory.apps.every(app => !app.routes.length && !app.menu.length), true);
+  assert.equal(directory.tenants[0].services.length, config.tenants[0].services.length);
+  const tenantPage = await readTenantPage(owner.database);
+  assert.equal(tenantPage.apps[0].routes.length, selected.routes.length);
+  assert.equal(tenantPage.apps[0].routes[0].path, selected.routes[0].path);
+  assert.equal(tenantPage.apps.every(app => !app.menu.length && !app.auth?.roles.length), true);
+  const cache = await readCacheData(owner.database);
+  assert.equal(cache.apps.length, config.apps.length);
+  assert.equal(cache.apps.every(app => !app.routes.length && !app.menu.length), true);
+  assert.equal(cache.apps[0].auth!.roles.some(role => role.id === "*"), true);
+});
+
+pgTest("request resolution retains shared shell catalog and plugin manifest aliases", async t => {
+  for (const manifestAlias of ["catalog", "plugin"]) {
+    const config = fixture();
+    const app = config.apps[0], sharedId = uuidv7(), activationId = uuidv7();
+    config.configManagement.adminTenantId = app.tenantId;
+    config.configManagement.managementAppId = app.id;
+    config.sharedServiceCatalog.push({ id: sharedId, serviceId: "org.example.shell", title: "Shared shell",
+      baseUrl: "https://shell.example", apiKeyHash: "test-only", enabled: true, tags: [] });
+    config.sharedServiceActivations.push({ id: activationId, sharedServiceId: sharedId, tenantId: app.tenantId,
+      appId: app.id, enabled: true, activatedAt: new Date().toISOString() });
+    app.shell = { serviceId: activationId };
+    config.manifestCache.push({ serviceId: manifestAlias === "catalog" ? sharedId : "org.example.shell",
+      manifestVersion: "1", fetchedAt: new Date().toISOString(), viewIndex: {},
+      shell: { service: "org.example.shell", renderer: "bootstrap1" } } as never);
+    const { makeStore } = await database(t, BetterPortalConfigSchema.parse(config));
+    const owner = makeStore(); await owner.initialize();
+    owner.loadConfig = async () => { throw new Error("Unexpected full snapshot"); };
+    const headers = new Headers({ host: app.hostnames[0] });
+    const data = await readRequestConfig(owner.database, headers);
+    assert.deepEqual(resolveEmbeddedRequestContext(data, headers)?.app.shell,
+      { serviceId: activationId, service: "org.example.shell", renderer: "bootstrap1" });
+  }
+});
+
+pgTest("an allocation added during an app edit cannot bypass dependency locks", async t => {
+  const { makeStore, config, pool } = await database(t);
+  const editor = makeStore(), registry = makeStore();
+  await editor.initialize(); await registry.initialize();
+  const appId = config.apps[0].id, serviceId = uuidv7();
+  await assert.rejects(editAppRows(editor.database, appId, undefined, async data => {
+    const registration = await registry.loadConfig();
+    registration.tenants[0].services.push({ ...registration.tenants[0].services[0], id: serviceId,
+      serviceId: "org.example.new", hostname: "https://new.example", apiKeyHash: "new-test-only" });
+    await registry.saveConfig(registration);
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: uuidv7(), serviceId, path: "/new" });
+  }), /App data changed concurrently/);
+  assert.equal((await pool.query("select count(*)::int as count from bp_platform_config_routes where service_id=$1", [serviceId])).rows[0].count, 0);
+  await editAppRows(editor.database, appId, undefined, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: uuidv7(), serviceId, path: "/new" });
+  });
+  assert.equal((await pool.query(`select count(*)::int as count from bp_platform_config_references
+    where kind='apps' and entity_id=$1 and target_kind='tenantServices' and target_id=$2`, [appId, serviceId])).rows[0].count, 1);
+});
+
+pgTest("menu edits preserve unavailable auth and shell dependency protections", async t => {
+  for (const dependency of ["auth", "shell"] as const) {
+    const config = fixture(), app = config.apps[0], serviceId = config.tenants[0].services[1].id;
+    if (dependency === "auth") app.auth!.serviceId = serviceId;
+    else app.shell = { serviceId };
+    const { makeStore, pool } = await database(t, config);
+    const editor = makeStore(); await editor.initialize();
+    await pool.query(`update bp_platform_config_entities set value=jsonb_set(value,'{enabled}','false')
+      where kind='tenantServices' and entity_id=$1`, [serviceId]);
+    await assert.rejects(editAppRows(editor.database, app.id, undefined, async data => {
+      data.apps[0].menu.push({ id: uuidv7(), type: "group", title: "Menu", enabled: true,
+        serviceStatus: "show", authStatus: "auto", children: [] });
+    }), /App references an unavailable service/);
+    assert.equal((await pool.query("select count(*)::int as count from bp_platform_config_menu_items where app_id=$1", [app.id])).rows[0].count, 0);
+    assert.equal((await pool.query(`select count(*)::int as count from bp_platform_config_references
+      where kind='apps' and entity_id=$1 and target_kind='tenantServices' and target_id=$2`, [app.id, serviceId])).rows[0].count, 1);
+  }
 });

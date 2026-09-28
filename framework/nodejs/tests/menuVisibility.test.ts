@@ -39,7 +39,8 @@ test("public, authenticated, and permission audiences are distinct before any se
     assert.equal(menuItemVisible({ authStatus: "show-unauthenticated" }, route, state), state === anonymous);
     assert.equal(menuItemVisible({ authStatus: "hide-unauthenticated" }, route, state), state === staff || state === client);
     assert.equal(menuItemVisible({ authStatus: "hide-unauthorized" }, route, state, { [serviceId]: "org.example.service" }), state === staff);
-    assert.equal(menuItemVisible({ authStatus: "show", rolesAnyOf: ["staff"] }, route, state), state === staff);
+    assert.equal(menuItemVisible({ authStatus: "show", rolesAnyOf: ["staff"] }, route, state), true, "linked routes do not have a second manual role gate");
+    assert.equal(menuItemVisible({ authStatus: "show", rolesAnyOf: ["staff"] }, undefined, state), state === staff);
   }
   assert.equal(menuItemVisible({ authStatus: "hide-unauthorized" }, { ...route, menuPermissions: undefined }, staff), false);
   assert.equal(menuItemVisible({ authStatus: "hide-unauthorized" }, { ...route, menuPermissions: [] }, staff), true);

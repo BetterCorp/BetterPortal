@@ -1,3 +1,4 @@
+import type { ServiceRegistryContext } from "./storage/core.js";
 import { createEventStream } from "h3";
 import type {
   ConfigSchemaDescriptor,
@@ -240,7 +241,7 @@ export function getManifestCache(): ReadonlyMap<string, CachedManifest> {
 }
 
 /** Rebuild this replica's hot cache from the shared persisted cache. */
-export function hydrateManifestCache(config: BetterPortalConfig): void {
+export function hydrateManifestCache(config: ServiceRegistryContext & Pick<BetterPortalConfig, "manifestCache">): void {
   manifestCache.clear();
   for (const stored of config.manifestCache ?? []) {
     const manifest = normalizeManifest(stored as unknown as Parameters<typeof normalizeManifest>[0]);
@@ -266,7 +267,7 @@ export function hydrateManifestCache(config: BetterPortalConfig): void {
 
 /** Resolve manifests for service instances, including shared-service activation aliases. */
 export function getCachedManifestForService(
-  config: BetterPortalConfig,
+  config: ServiceRegistryContext & Partial<Pick<BetterPortalConfig, "manifestCache">>,
   serviceInstanceId: string,
   cache: ReadonlyMap<string, CachedManifest> = manifestCache
 ): CachedManifest | undefined {
@@ -881,7 +882,7 @@ export interface OperationDependencyIssue {
 }
 
 export function analyzeOperationDependencies(
-  config: BetterPortalConfig,
+  config: ServiceRegistryContext & Partial<Pick<BetterPortalConfig, "manifestCache">>,
   app: BetterPortalApp
 ): OperationDependencyIssue[] {
   const availableServiceIds = getAvailableServiceInstanceIdsForApp(config, app);

@@ -100,8 +100,8 @@ async function processDeliveries(
   owner: string,
   memoryQueue: DeliveryRecord[]
 ): Promise<void> {
-  const config = await store.loadConfig();
-  const targets = new Map(config.webhooks.targets.map((target) => [target.id, target]));
+  const config = postgres ? undefined : await store.loadConfig();
+  const targets = new Map(config?.webhooks.targets.map((target) => [target.id, target]));
   const now = Date.now();
   const records = postgres
     ? (async function* () {
@@ -114,8 +114,17 @@ async function processDeliveries(
     : memoryQueue.filter((record) => record.status === "pending" && Date.parse(record.nextAttemptAt) <= now);
 
   for await (const record of records) {
-    const target = targets.get(record.targetId);
-    if (!target?.enabled || !config.tenants.some((tenant) => tenant.id === target.tenantId && tenant.active)) {
+    let target = targets.get(record.targetId);
+    if (postgres) {
+      const { pool, scope, entities } = postgres.database;
+      const result = await pool.query<{ value: WebhookTarget }>(`select target.value from ${entities} target
+        join ${entities} tenant on tenant.scope_id=target.scope_id and tenant.kind='tenants'
+          and tenant.entity_id=target.value->>'tenantId'
+        where target.scope_id=$1 and target.kind='webhookTargets' and target.entity_id=$2
+          and target.value->>'enabled'='true' and tenant.value->>'active'='true'`, [scope, record.targetId]);
+      target = result.rows[0]?.value;
+    }
+    if (!target?.enabled || (config && !config.tenants.some((tenant) => tenant.id === target!.tenantId && tenant.active))) {
       record.status = "failed";
       record.lastError = "target disabled or tenant inactive";
       if (postgres) await postgres.finishWebhookDelivery(owner, record);

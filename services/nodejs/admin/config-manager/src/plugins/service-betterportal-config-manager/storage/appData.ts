@@ -14,12 +14,12 @@ export class AppDataConflictError extends Error {
 
 /** The versioned app document contains settings, not operational collections. */
 export function appSettings(app: App): Row {
-  const { routes: _routes, menu: _menu, ...settings } = structuredClone(app);
+  const { routes: _routes, menu: _menu, ...settings } = app;
   if (settings.auth) {
     const { roles: _roles, ...auth } = settings.auth;
     settings.auth = auth as App["auth"];
   }
-  return settings;
+  return structuredClone(settings);
 }
 
 /** Real columns for identity and relationships; route options remain typed configuration. */
@@ -141,7 +141,7 @@ export class AppData {
   }
 
   /** One statement keeps app settings and all child collections on the same MVCC snapshot. */
-  async read(client: PoolClient, entitiesTable: string): Promise<{ entities: Row[]; roles: Row[]; grants: Row[]; routes: Row[]; menus: Row[] }> {
+  async read(client: PoolClient, entitiesTable: string, appId?: string): Promise<{ entities: Row[]; roles: Row[]; grants: Row[]; routes: Row[]; menus: Row[] }> {
     const tables = {
       entities: [entitiesTable, "kind, entity_id, value, revision, ordinal"],
       roles: [this.roles, "app_id, id, title, description, position"],
@@ -151,7 +151,7 @@ export class AppData {
     };
     const result = await client.query(`select ${Object.entries(tables).map(([name, [table, columns]]) =>
       `coalesce((select json_agg(r${name === "entities" ? " order by ordinal" : ""}) from
-        (select ${columns} from ${table} where scope_id=$1) r),'[]'::json) as ${name}`).join(",")}`, [this.scope]);
+        (select ${columns} from ${table} where scope_id=$1${appId === undefined ? '' : name === 'entities' ? " and kind='apps' and entity_id=$2" : ' and app_id=$2'}) r),'[]'::json) as ${name}`).join(",")}`, appId === undefined ? [this.scope] : [this.scope, appId]);
     return result.rows[0];
   }
 

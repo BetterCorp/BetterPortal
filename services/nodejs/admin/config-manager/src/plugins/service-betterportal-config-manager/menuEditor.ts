@@ -4,12 +4,16 @@ import type {
   PlatformConfigStore
 } from "@betterportal/framework";
 import {
+  eventObservability,
+  menuItemVisible,
   htmlResponse,
   jsonResponse,
   uuidv7
 } from "@betterportal/framework";
-import { getManifestCache } from "./syncApi.js";
+import { getManifestCache, injectResolvedServicePaths } from "./syncApi.js";
 import { isApiRoute, isMenuRouteExcluded } from "./routeMounts.js";
+
+import { editAppRows, readApp, type AppDatabase, type AppEditorData } from "./appQueries.js";
 
 const API_BASE = "/.well-known/bp/admin";
 // Parse-only base for relative request URLs. Never emit this origin.
@@ -172,13 +176,13 @@ function titleDisplayHtml(item: MenuItem, route: Route | null, appId: string): s
     style="border:1px solid var(--bs-border-color); border-radius:0.375rem; padding:0.25rem 0.6rem; background:transparent; cursor:text; text-align:left; min-width:200px; font-weight:500;"
     hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-title"
     hx-target="#bp-menu-title-${item.id}"
-    hx-swap="outerHTML"
+    hx-swap="outerHTML settle:0"
     title="Click to rename">${escapeHtml(titleText)}</button>`;
 }
 
 function titleEditorHtml(item: MenuItem, route: Route | null, appId: string): string {
   return `<form id="bp-menu-title-${item.id}" data-bp-menu-editing
-    hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML"
+    hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML settle:0"
     class="d-flex align-items-center gap-1 flex-grow-1 m-0">
     <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
     <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
@@ -186,7 +190,7 @@ function titleEditorHtml(item: MenuItem, route: Route | null, appId: string): st
     <button type="submit" class="btn btn-sm btn-success" title="Save">OK</button>
     <button type="button" class="btn btn-sm btn-outline-secondary" title="Cancel"
       hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display-title"
-      hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML">X</button>
+      hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML settle:0">X</button>
   </form>`;
 }
 
@@ -204,7 +208,7 @@ function subLineHtml(item: MenuItem, route: Route | null, config: any, appId: st
       <button type="button" class="btn btn-sm btn-link p-0"
         hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-external"
         hx-target="#bp-menu-row-${item.id}"
-        hx-swap="outerHTML"
+        hx-swap="outerHTML settle:0"
         title="Edit URL">Edit</button>
     </div>`;
   }
@@ -225,14 +229,14 @@ function subLineHtml(item: MenuItem, route: Route | null, config: any, appId: st
     <button type="button" class="btn btn-sm btn-link p-0 ms-1"
       hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=edit-link"
       hx-target="#bp-menu-row-${item.id}"
-      hx-swap="outerHTML"
+      hx-swap="outerHTML settle:0"
       title="Edit URL & paths">Edit</button>
   </div>`;
 }
 
 function actionButtons(item: MenuItem, appId: string): string {
   const btn = (action: string, label: string, btnClass: string, title: string) =>
-    `<form hx-post="${API_BASE}/menu-editor/${action}" hx-target="#bp-menu-editor" hx-swap="outerHTML" class="d-inline m-0">
+    `<form hx-post="${API_BASE}/menu-editor/${action}" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0" class="d-inline m-0">
       <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
       <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
       <button type="submit" class="btn btn-sm ${btnClass}" title="${escapeHtml(title)}">${label}</button>
@@ -254,14 +258,49 @@ function actionButtons(item: MenuItem, appId: string): string {
   </div>`;
 }
 
-function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, appDef: any, appId: string): string {
+function visibilityControls(item: MenuItem): string {
+  const options = [["auto", "Automatic"], ["show", "Everyone"], ["hide-unauthenticated", "Signed in"],
+    ["show-unauthenticated", "Only signed out"], ["hide-unauthorized", "Has permission"]];
+  return `<fieldset class="mb-0"><legend class="small mb-1">Audience</legend>
+    <div class="d-flex flex-wrap gap-1">${options.map(([value, label]) => {
+      const id = `bp-audience-${item.id}-${value}`;
+      return `<input type="radio" class="btn-check" name="authStatus" id="${id}" value="${value}"${(item.authStatus ?? "auto") === value ? " checked" : ""} />
+        <label class="btn btn-sm btn-outline-primary" style="--bs-btn-color:var(--bs-body-color)" for="${id}">${label}</label>`;
+    }).join("")}</div></fieldset>
+    ${item.type === "link" ? `<fieldset class="mb-0"><legend class="small mb-1">When service is unavailable</legend>
+      ${[["show", "Show warning"], ["hide", "Hide"]].map(([value, label]) => `<label class="form-check form-check-inline small mb-0">
+        <input type="radio" class="form-check-input" name="serviceStatus" value="${value}"${(item.serviceStatus ?? "show") === value ? " checked" : ""} />${label}</label>`).join("")}</fieldset>` : ""}
+    ${item.type !== "link" && item.rolesAnyOf?.length ? `<div class="small text-warning">Legacy role restriction: ${escapeHtml(item.rolesAnyOf.join(", "))}.
+      <label><input type="checkbox" name="clearRoleRestriction" value="true" /> Remove this restriction</label></div>` : ""}`;
+}
+
+function accessSummary(config: any, appDef: any, item: MenuItem, accessApp?: ReturnType<typeof injectResolvedServicePaths>["apps"][number]): string {
+  if (item.type !== "link") return item.type === "group" ? "Hidden when it has no visible children." : "Audience controls visibility; no linked route permissions.";
+  const app = accessApp ?? injectResolvedServicePaths({ tenants: config.tenants, apps: [appDef], managementOrigins: [] }).apps[0];
+  const route = app.routes.find(route => route.id === item.routeId);
+  if (!route || route.authRequired === undefined || route.menuPermissions === undefined) return "Route access unknown until its service syncs. Automatic visibility stays hidden.";
+  if (!route.authRequired) return "Public route. Access is derived automatically.";
+  if (!route.menuPermissions.length) return "Requires sign-in. No additional route permissions.";
+  const aliases = Object.fromEntries(config.tenants.flatMap((tenant: any) => tenant.services.map((service: any) => [service.id, service.serviceId ?? service.id])));
+  for (const service of config.platformServices ?? []) aliases[service.id] = service.serviceId ?? service.id;
+  for (const activation of config.sharedServiceActivations ?? []) {
+    const service = config.sharedServiceCatalog?.find((candidate: any) => candidate.id === activation.sharedServiceId);
+    if (service) aliases[activation.id] = service.serviceId ?? service.id;
+  }
+  const roles = (app.auth?.roles ?? []).filter(role => role.id !== "*" && menuItemVisible({ authStatus: "hide-unauthorized" }, route,
+    { status: "authenticated", permissions: role.permissions }, aliases));
+  const requirements = route.menuPermissions.map(requirement => `${requirement.viewId}: ${requirement.permissions.join(", ")}`).join("; ");
+  return `Route permissions: ${escapeHtml(requirements)}. ${roles.length ? `Roles with access: ${escapeHtml(roles.map(role => role.title).join(", "))}.` : "Access may require a combination of assigned roles."}`;
+}
+
+function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, appDef: any, appId: string, accessApp?: ReturnType<typeof injectResolvedServicePaths>["apps"][number]): string {
   const routes = getRoutes(appDef);
   const route = item.routeId ? routes.find((r) => r.id === item.routeId) ?? null : null;
   const typeBadgeClass = item.type === "group" ? "text-bg-warning" : item.type === "external" ? "text-bg-info" : item.type === "link" ? "text-bg-primary" : "text-bg-secondary";
 
   if (mode === "edit-external" && item.type === "external") {
     return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
-      <form hx-post="${API_BASE}/menu-editor/save-external" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML"
+      <form hx-post="${API_BASE}/menu-editor/save-external" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0"
         class="d-flex flex-column gap-2">
         <div class="d-flex align-items-center gap-2">
           <span class="badge ${typeBadgeClass}">${escapeHtml(item.type)}</span>
@@ -271,32 +310,12 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
         <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
         <label class="form-label small mb-0">URL</label>
         <input type="url" name="href" class="form-control form-control-sm" value="${escapeHtml(item.href ?? "")}" placeholder="https://..." required />
-        <div class="row g-2">
-        <div class="col-md-6">
-          <label class="form-label small mb-0">Unavailable service</label>
-          <select name="serviceStatus" class="form-select form-select-sm">
-            <option value="show"${item.serviceStatus !== "hide" ? " selected" : ""}>Show with warning</option>
-            <option value="hide"${item.serviceStatus === "hide" ? " selected" : ""}>Hide</option>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label small mb-0">Required roles (any, comma separated)</label>
-          <input name="rolesAnyOf" class="form-control form-control-sm" value="${escapeHtml((item.rolesAnyOf ?? []).join(", "))}" />
-          <label class="form-label small mb-0">Authorization</label>
-          <select name="authStatus" class="form-select form-select-sm">
-            <option value="auto"${!item.authStatus || item.authStatus === "auto" ? " selected" : ""}>Automatic (route permissions)</option>
-            <option value="show"${item.authStatus === "show" ? " selected" : ""}>Always show</option>
-            <option value="hide-unauthenticated"${item.authStatus === "hide-unauthenticated" ? " selected" : ""}>Hide when signed out</option>
-            <option value="hide-unauthorized"${item.authStatus === "hide-unauthorized" ? " selected" : ""}>Hide when unauthorized</option>
-            <option value="show-unauthenticated"${item.authStatus === "show-unauthenticated" ? " selected" : ""}>Show only when signed out</option>
-          </select>
-        </div>
-      </div>
+        ${visibilityControls(item)}
       <div class="d-flex gap-2 justify-content-end">
           <button type="submit" class="btn btn-sm btn-success">OK Save</button>
           <button type="button" class="btn btn-sm btn-outline-secondary"
             hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
-            hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">X Cancel</button>
+            hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0">X Cancel</button>
         </div>
       </form>
     </li>`;
@@ -312,21 +331,13 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
           ${titleDisplayHtml(item, route, appId)}
         </div>
         ${subLineHtml(item, route, config, appId)}
-        <details><summary class="small">Visibility</summary>
-          <form hx-post="${API_BASE}/menu-editor/save-visibility" hx-target="#bp-menu-editor" hx-swap="outerHTML" class="d-flex gap-2 flex-wrap">
-            <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
-            <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
-            <label class="small">Audience
-              <select name="authStatus" class="form-select form-select-sm">
-                ${[["auto", "Automatic (route permissions)"], ["show", "Always show"], ["show-unauthenticated", "Only signed out"], ["hide-unauthenticated", "Only signed in"], ["hide-unauthorized", "Only with permission"]].map(([value, label]) => `<option value="${value}"${(item.authStatus ?? "auto") === value ? " selected" : ""}>${label}</option>`).join("")}
-              </select>
-            </label>
-            <label class="small">Required roles (any, comma separated)
-              <input name="rolesAnyOf" class="form-control form-control-sm" value="${escapeHtml((item.rolesAnyOf ?? []).join(", "))}" />
-            </label>
-            <button type="submit" class="btn btn-sm btn-primary">Save visibility</button>
-          </form>
-        </details>
+        <div class="small text-body-secondary">${accessSummary(config, appDef, item, accessApp)}</div>
+        <form hx-post="${API_BASE}/menu-editor/save-visibility" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0" class="d-flex flex-column gap-2 mt-2">
+          <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
+          <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
+          ${visibilityControls(item)}
+          <div><button type="submit" class="btn btn-sm btn-primary">Save visibility</button></div>
+        </form>
       </div>
       ${actionButtons(item, appId)}
     </div>
@@ -364,7 +375,7 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
   const viewOpts = renderViewOptions(views, route?.viewId ?? "");
 
   return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
-    <form hx-post="${API_BASE}/menu-editor/save-link" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML"
+    <form hx-post="${API_BASE}/menu-editor/save-link" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0"
       class="d-flex flex-column gap-2">
       <div class="d-flex align-items-center gap-2">
         <span class="badge ${typeBadgeClass}">link</span>
@@ -388,7 +399,7 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
           <select id="bp-views-${item.id}" name="viewId" class="form-select form-select-sm" required
             hx-get="${API_BASE}/menu-editor/default-target"
             hx-target="#bp-paths-${item.id}"
-            hx-swap="outerHTML"
+            hx-swap="outerHTML settle:0"
             hx-trigger="change"
             hx-include="closest form">${viewOpts}</select>
         </div>
@@ -406,43 +417,23 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
         </div>
       </div>
       ${renderPathFields(item.id, route?.path ?? "", route?.targetPath ?? "")}
-      <div class="row g-2">
-        <div class="col-md-6">
-          <label class="form-label small mb-0">Unavailable service</label>
-          <select name="serviceStatus" class="form-select form-select-sm">
-            <option value="show"${item.serviceStatus !== "hide" ? " selected" : ""}>Show with warning</option>
-            <option value="hide"${item.serviceStatus === "hide" ? " selected" : ""}>Hide</option>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label small mb-0">Required roles (any, comma separated)</label>
-          <input name="rolesAnyOf" class="form-control form-control-sm" value="${escapeHtml((item.rolesAnyOf ?? []).join(", "))}" />
-          <label class="form-label small mb-0">Authorization</label>
-          <select name="authStatus" class="form-select form-select-sm">
-            <option value="auto"${!item.authStatus || item.authStatus === "auto" ? " selected" : ""}>Automatic (route permissions)</option>
-            <option value="show"${item.authStatus === "show" ? " selected" : ""}>Always show</option>
-            <option value="hide-unauthenticated"${item.authStatus === "hide-unauthenticated" ? " selected" : ""}>Hide when signed out</option>
-            <option value="hide-unauthorized"${item.authStatus === "hide-unauthorized" ? " selected" : ""}>Hide when unauthorized</option>
-            <option value="show-unauthenticated"${item.authStatus === "show-unauthenticated" ? " selected" : ""}>Show only when signed out</option>
-          </select>
-        </div>
-      </div>
+      ${visibilityControls(item)}
       <div class="d-flex gap-2 justify-content-end">
         <button type="submit" class="btn btn-sm btn-success">OK Save</button>
         <button type="button" class="btn btn-sm btn-outline-secondary"
           hx-get="${API_BASE}/menu-editor/item?appId=${encodeURIComponent(appId)}&itemId=${encodeURIComponent(item.id)}&mode=display"
-          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML">X Cancel</button>
+          hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0">X Cancel</button>
       </div>
       <div class="small text-secondary">Path/target/service/view edits update the underlying route - affects any other menu items referencing it.</div>
     </form>
   </li>`;
 }
 
-function renderTree(items: MenuItem[], depth: number, config: any, appDef: any, appId: string): string {
+function renderTree(items: MenuItem[], depth: number, config: any, appDef: any, appId: string, accessApp = injectResolvedServicePaths({ tenants: config.tenants, apps: [appDef], managementOrigins: [] }).apps[0]): string {
   return items.map((item) => {
-    const row = renderRow(item, depth, "display", config, appDef, appId);
+    const row = renderRow(item, depth, "display", config, appDef, appId, accessApp);
     const children = item.type === "group" && item.children && item.children.length > 0
-      ? renderTree(item.children, depth + 1, config, appDef, appId)
+      ? renderTree(item.children, depth + 1, config, appDef, appId, accessApp)
       : "";
     return row + children;
   }).join("");
@@ -472,7 +463,7 @@ function renderAddForms(appId: string, routes: Route[], groups: { id: string; ti
       <div class="card">
         <div class="card-header"><strong>Add View Link</strong></div>
         <div class="card-body">
-          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML">
+          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0">
             <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
             <input type="hidden" name="type" value="link" />
             <div class="mb-2">
@@ -499,7 +490,7 @@ function renderAddForms(appId: string, routes: Route[], groups: { id: string; ti
       <div class="card">
         <div class="card-header"><strong>Add External Link</strong></div>
         <div class="card-body">
-          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML">
+          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0">
             <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
             <input type="hidden" name="type" value="external" />
             <div class="mb-2">
@@ -523,7 +514,7 @@ function renderAddForms(appId: string, routes: Route[], groups: { id: string; ti
       <div class="card">
         <div class="card-header"><strong>Add Group</strong></div>
         <div class="card-body">
-          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML">
+          <form hx-post="${API_BASE}/menu-editor/add" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0">
             <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
             <input type="hidden" name="type" value="group" />
             <div class="mb-2">
@@ -554,7 +545,7 @@ function renderEditor(config: any, appDef: any, appId: string): string {
     <form id="bp-drag-move-form" style="display:none"
       hx-post="${API_BASE}/menu-editor/move-after"
       hx-target="#bp-menu-editor"
-      hx-swap="outerHTML">
+      hx-swap="outerHTML settle:0">
       <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
       <input type="hidden" name="itemId" />
       <input type="hidden" name="anchorId" />
@@ -567,10 +558,24 @@ function renderEditor(config: any, appDef: any, appId: string): string {
 
 // -- Endpoint registration --------------------------------------------
 
-export function registerMenuEditorRoutes(app: BetterPortalH3App, store: PlatformConfigStore): void {
+export function registerMenuEditorRoutes(app: BetterPortalH3App, store: PlatformConfigStore, database?: AppDatabase): void {
 
-  const respondEditor = async (appId: string): Promise<Response> => {
-    const config = await store.loadConfig();
+  const read = async (appId: string): Promise<AppEditorData> => {
+    if (!database) return store.loadConfig();
+    return readApp(database, appId);
+  };
+  const post = (path: string, action: (form: Record<string, string>, data: AppEditorData) => Promise<Response>) => {
+    app.post(`${API_BASE}/menu-editor/${path}`, async event => {
+      const form = await readFormBody(event);
+      if (database) return editAppRows(database, form.appId, eventObservability(event), data => action(form, data));
+      const config = await store.loadConfig();
+      const response = await action(form, config);
+      if (response.ok) await store.saveConfig(config);
+      return response;
+    });
+  };
+
+  const respondEditor = async (config: AppEditorData, appId: string): Promise<Response> => {
     const appDef = getApp(config, appId);
     if (!appDef) return htmlResponse(`<div class="alert alert-danger">App not found</div>`, 200, "text/html; mode=fragment");
     return htmlResponse(renderEditor(config, appDef, appId), 200, "text/html; mode=fragment", {
@@ -578,8 +583,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     });
   };
 
-  const respondRow = async (appId: string, itemId: string, mode: RowMode): Promise<Response> => {
-    const config = await store.loadConfig();
+  const respondRow = async (config: AppEditorData, appId: string, itemId: string, mode: RowMode): Promise<Response> => {
     const appDef = getApp(config, appId);
     if (!appDef) return htmlResponse("", 200, "text/html; mode=fragment");
     const menu = getMenu(appDef);
@@ -621,7 +625,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const appId = url.searchParams.get("appId") ?? "";
     if (!appId) return htmlResponse(`<div class="alert alert-secondary">Select an app</div>`, 200, "text/html; mode=fragment");
-    return respondEditor(appId);
+    return respondEditor(await read(appId), appId);
   });
 
   app.get(`${API_BASE}/menu-editor/item`, async (event) => {
@@ -629,12 +633,10 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const appId = url.searchParams.get("appId") ?? "";
     const itemId = url.searchParams.get("itemId") ?? "";
     const mode = (url.searchParams.get("mode") ?? "display") as RowMode;
-    return respondRow(appId, itemId, mode);
+    return respondRow(await read(appId), appId, itemId, mode);
   });
 
-  app.post(`${API_BASE}/menu-editor/save-visibility`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("save-visibility", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const found = locate(getMenu(appDef), f.itemId);
@@ -643,23 +645,20 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       return jsonResponse({ error: "Invalid visibility" }, 400);
     }
     found.item.authStatus = f.authStatus as MenuItem["authStatus"];
-    found.item.rolesAnyOf = [...new Set((f.rolesAnyOf ?? "").split(",").map(role => role.trim()).filter(Boolean))];
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    if (found.item.type === "link") found.item.serviceStatus = f.serviceStatus === "hide" ? "hide" : "show";
+    if (found.item.type === "link" || f.clearRoleRestriction === "true") delete found.item.rolesAnyOf;
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/save-title`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("save-title", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
     const found = locate(menu, f.itemId);
     if (found) found.item.title = f.title || undefined;
     appDef.menu = menu;
-    await store.saveConfig(config);
     // Return single row + HX-Trigger to refresh sidebar nav
-    const config2 = await store.loadConfig();
+    const config2 = config;
     const appDef2 = getApp(config2, f.appId);
     const found2 = appDef2 ? locate(getMenu(appDef2), f.itemId) : null;
     if (!appDef2 || !found2) return htmlResponse("", 200, "text/html; mode=fragment");
@@ -671,9 +670,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     });
   });
 
-  app.post(`${API_BASE}/menu-editor/save-link`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("save-link", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
@@ -682,7 +679,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       return htmlResponse(`<div class="alert alert-danger">Item not found</div>`, 200, "text/html; mode=fragment");
     }
     found.item.title = f.title || undefined;
-    found.item.rolesAnyOf = (f.rolesAnyOf ?? "").split(",").map(role => role.trim()).filter(Boolean);
+    if (found.item.type === "link" || f.clearRoleRestriction === "true") delete found.item.rolesAnyOf;
     found.item.serviceStatus = f.serviceStatus === "hide" ? "hide" : "show";
     found.item.authStatus = ["auto", "show", "hide-unauthenticated", "hide-unauthorized", "show-unauthenticated"].includes(f.authStatus) ? f.authStatus as MenuItem["authStatus"] : "auto";
 
@@ -698,8 +695,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       return jsonResponse({ error: "Route cannot be added to the menu" }, 400);
     }
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondRow(f.appId, f.itemId, "display").then((r) => {
+    return respondRow(config, f.appId, f.itemId, "display").then((r) => {
       const headers = new Headers(r.headers);
       headers.set("HX-Trigger", "bp:menu-changed");
       return new Response(r.body, { status: r.status, headers });
@@ -727,7 +723,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     if (url.searchParams.get("autoSetPaths") === "true" && serviceId && viewId) {
       const views = lookupServiceViews(serviceId);
       targetPath = views.find((v) => v.viewId === viewId)?.path ?? "";
-      const config = await store.loadConfig();
+      const config = await read(appId);
       const appDef = getApp(config, appId);
       const assignedRoute = (appDef?.routes ?? []).find((route: Route) =>
         route.kind !== "api" && route.serviceId === serviceId && route.viewId === viewId
@@ -744,15 +740,13 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     );
   });
 
-  app.post(`${API_BASE}/menu-editor/save-external`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("save-external", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
     const found = locate(menu, f.itemId);
     if (found) {
-      found.item.rolesAnyOf = (f.rolesAnyOf ?? "").split(",").map(role => role.trim()).filter(Boolean);
+      if (found.item.type === "link" || f.clearRoleRestriction === "true") delete found.item.rolesAnyOf;
       found.item.authStatus = ["auto", "show", "hide-unauthenticated", "hide-unauthorized", "show-unauthenticated"].includes(f.authStatus) ? f.authStatus as MenuItem["authStatus"] : "auto";
       found.item.href = f.href || "";
       if (f.title !== undefined && f.title !== "") found.item.title = f.title;
@@ -761,8 +755,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       return jsonResponse({ error: "Route cannot be added to the menu" }, 400);
     }
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondRow(f.appId, f.itemId, "display").then((r) => {
+    return respondRow(config, f.appId, f.itemId, "display").then((r) => {
       // Add HX-Trigger to existing response
       const headers = new Headers(r.headers);
       headers.set("HX-Trigger", "bp:menu-changed");
@@ -770,9 +763,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     });
   });
 
-  app.post(`${API_BASE}/menu-editor/add`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("add", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
 
@@ -803,39 +794,30 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       menu.push(newItem);
     }
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/remove`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("remove", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
     const found = locate(menu, f.itemId);
     if (found) found.parent.splice(found.index, 1);
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/toggle`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("toggle", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
     const found = locate(menu, f.itemId);
     if (found) found.item.enabled = !found.item.enabled;
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/toggle-expanded`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("toggle-expanded", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
@@ -844,13 +826,10 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       found.item.defaultExpanded = !found.item.defaultExpanded;
     }
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/move-up`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("move-up", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
@@ -860,13 +839,10 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       found.parent.splice(found.index - 1, 0, it);
     }
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/move-down`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("move-down", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
@@ -876,13 +852,10 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       found.parent.splice(found.index + 1, 0, it);
     }
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/move-in`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("move-in", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
@@ -896,13 +869,10 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       }
     }
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/move-after`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("move-after", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
@@ -910,10 +880,10 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const anchorId = f.anchorId || "";
     const targetDepth = Math.max(0, parseInt(f.targetDepth ?? "0", 10) || 0);
 
-    if (!srcId || srcId === anchorId) return respondEditor(f.appId);
+    if (!srcId || srcId === anchorId) return respondEditor(config, f.appId);
 
     const src = locate(menu, srcId);
-    if (!src) return respondEditor(f.appId);
+    if (!src) return respondEditor(config, f.appId);
 
     // Prevent dropping into own descendant
     const isDescendant = (items: MenuItem[], id: string): boolean => {
@@ -924,7 +894,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       return false;
     };
     if (anchorId && src.item.type === "group" && src.item.children && isDescendant(src.item.children, anchorId)) {
-      return respondEditor(f.appId);
+      return respondEditor(config, f.appId);
     }
 
     // Remove src
@@ -934,8 +904,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       // Insert at start of root
       menu.unshift(srcItem);
       appDef.menu = menu;
-      await store.saveConfig(config);
-      return respondEditor(f.appId);
+        return respondEditor(config, f.appId);
     }
 
     // Build ancestor chain to anchor
@@ -958,7 +927,7 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const chain = ancestorChain(menu, anchorId);
     if (!chain) {
       src.parent.splice(src.index, 0, srcItem);
-      return respondEditor(f.appId);
+      return respondEditor(config, f.appId);
     }
 
     const anchor = chain[chain.length - 1];
@@ -983,13 +952,10 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     }
 
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 
-  app.post(`${API_BASE}/menu-editor/move-out`, async (event) => {
-    const f = await readFormBody(event);
-    const config = await store.loadConfig();
+  post("move-out", async (f, config) => {
     const appDef = getApp(config, f.appId);
     if (!appDef) return jsonResponse({ error: "App not found" }, 404);
     const menu = getMenu(appDef);
@@ -1003,7 +969,6 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
       }
     }
     appDef.menu = menu;
-    await store.saveConfig(config);
-    return respondEditor(f.appId);
+    return respondEditor(config, f.appId);
   });
 }

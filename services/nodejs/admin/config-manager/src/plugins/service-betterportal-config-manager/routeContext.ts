@@ -1,8 +1,10 @@
 import type { PlatformConfigStore } from "@betterportal/framework";
+import type { AppDatabase } from "./appQueries.js";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 
 export interface ConfigManagerRouteContext {
   storage: PlatformConfigStore;
+  database?: AppDatabase;
   cpState: CpBootstrapState;
   serviceBaseUrl: string;
 }

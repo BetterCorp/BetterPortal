@@ -1,3 +1,4 @@
+import type { ServiceRegistryContext } from "./storage/core.js";
 import {
   ApiContractDescriptorSchema,
   M2MRequestDescriptorSchema,
@@ -46,6 +47,8 @@ export interface M2MConnectionSelection {
   targetViewId?: string;
 }
 
+type M2MContext = ServiceRegistryContext & Pick<BetterPortalConfig, "apps" | "m2m">;
+
 export class M2MConnectionError extends Error {
   constructor(message: string, readonly status: 400 | 404 | 409 = 409) {
     super(message);
@@ -53,7 +56,7 @@ export class M2MConnectionError extends Error {
   }
 }
 
-function serviceDetails(config: BetterPortalConfig, serviceId: string): { title: string; serviceId: string } {
+function serviceDetails(config: M2MContext, serviceId: string): { title: string; serviceId: string } {
   for (const tenant of config.tenants) {
     const service = tenant.services.find((candidate) => candidate.id === serviceId);
     if (service) return { title: service.title ?? service.serviceId ?? service.id, serviceId: service.serviceId ?? service.id };
@@ -77,7 +80,7 @@ function requestsForManifest(manifest: CachedManifest | undefined): M2MRequestDe
 }
 
 function candidatesForRequest(
-  config: BetterPortalConfig,
+  config: M2MContext,
   app: BetterPortalApp,
   request: M2MRequestDescriptor,
   cache: ReadonlyMap<string, CachedManifest>
@@ -113,7 +116,7 @@ function candidatesForRequest(
 }
 
 export function buildM2MConnectionModel(
-  config: BetterPortalConfig,
+  config: M2MContext,
   appId: string,
   cache: ReadonlyMap<string, CachedManifest> = getManifestCache()
 ): M2MConnectionView[] {
@@ -217,7 +220,7 @@ export function buildM2MConnectionModel(
 }
 
 export function approveM2MConnections(
-  config: BetterPortalConfig,
+  config: M2MContext,
   appId: string,
   selections: readonly M2MConnectionSelection[],
   cache: ReadonlyMap<string, CachedManifest> = getManifestCache()
@@ -285,7 +288,7 @@ export function approveM2MConnections(
   return { created, existing };
 }
 
-export function revokeM2MConnection(config: BetterPortalConfig, appId: string, bindingId: string): boolean {
+export function revokeM2MConnection(config: M2MContext, appId: string, bindingId: string): boolean {
   const app = config.apps.find((candidate) => candidate.id === appId);
   const binding = config.m2m.bindings.find((candidate) => candidate.id === bindingId);
   if (!app || !binding || binding.appId !== app.id || binding.tenantId !== app.tenantId) return false;

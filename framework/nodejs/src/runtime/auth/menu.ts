@@ -45,7 +45,7 @@ export function menuItemVisible(
   platformRoot = false
 ): boolean {
   if (route?.menu === false) return false;
-  if (item.rolesAnyOf?.length && (!auth.user || !item.rolesAnyOf.some(role => auth.user!.roles.includes(role)))) return false;
+  if (!route && item.rolesAnyOf?.length && (!auth.user || !item.rolesAnyOf.some(role => auth.user!.roles.includes(role)))) return false;
   if (item.authStatus === "show-unauthenticated") return auth.status === "anonymous";
   if (item.authStatus === "hide-unauthenticated") return auth.status === "authenticated";
   const automatic = !item.authStatus || item.authStatus === "auto";
