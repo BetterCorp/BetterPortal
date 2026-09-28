@@ -2,7 +2,7 @@
 
 Prepared 2026-09-28 against 10.6.31. The inventory below records the baseline; implementation status is recorded separately. These changes are not deployed.
 
-## Implementation status — PR #94
+## Implementation status â€” PR #94
 
 Implemented:
 

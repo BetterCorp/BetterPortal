@@ -279,8 +279,8 @@ function accessSummary(config: any, appDef: any, item: MenuItem, accessApp?: Ret
   const app = accessApp ?? injectResolvedServicePaths({ tenants: config.tenants, apps: [appDef], managementOrigins: [] }).apps[0];
   const route = app.routes.find(route => route.id === item.routeId);
   if (!route || route.authRequired === undefined || route.menuPermissions === undefined) return "Route access unknown until its service syncs. Automatic visibility stays hidden.";
-  if (!route.authRequired) return "Public route · access is derived automatically.";
-  if (!route.menuPermissions.length) return "Requires sign-in · no additional route permissions.";
+  if (!route.authRequired) return "Public route. Access is derived automatically.";
+  if (!route.menuPermissions.length) return "Requires sign-in. No additional route permissions.";
   const aliases = Object.fromEntries(config.tenants.flatMap((tenant: any) => tenant.services.map((service: any) => [service.id, service.serviceId ?? service.id])));
   for (const service of config.platformServices ?? []) aliases[service.id] = service.serviceId ?? service.id;
   for (const activation of config.sharedServiceActivations ?? []) {

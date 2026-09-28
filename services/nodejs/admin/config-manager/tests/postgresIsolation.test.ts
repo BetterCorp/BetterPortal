@@ -4,7 +4,7 @@ import { setConfigManagerRouteContext } from "../src/plugins/service-betterporta
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { Pool } from "pg";
-import { BetterPortalConfigSchema, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
+import { BetterPortalConfigSchema, resolveEmbeddedRequestContext, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { PostgresStorage, ConfigRevisionConflictError } from "../src/plugins/service-betterportal-config-manager/storage/postgres.js";
 import { hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { entityKey, splitConfig } from "../src/plugins/service-betterportal-config-manager/storage/entities.js";
@@ -637,4 +637,47 @@ pgTest("request resolution and auth cache reads exclude unrelated operational co
   assert.equal(cache.apps.length, config.apps.length);
   assert.equal(cache.apps.every(app => !app.routes.length && !app.menu.length), true);
   assert.equal(cache.apps[0].auth!.roles.some(role => role.id === "*"), true);
+});
+
+pgTest("request resolution retains shared shell catalog and plugin manifest aliases", async t => {
+  for (const manifestAlias of ["catalog", "plugin"]) {
+    const config = fixture();
+    const app = config.apps[0], sharedId = uuidv7(), activationId = uuidv7();
+    config.configManagement.adminTenantId = app.tenantId;
+    config.configManagement.managementAppId = app.id;
+    config.sharedServiceCatalog.push({ id: sharedId, serviceId: "org.example.shell", title: "Shared shell",
+      baseUrl: "https://shell.example", apiKeyHash: "test-only", enabled: true, tags: [] });
+    config.sharedServiceActivations.push({ id: activationId, sharedServiceId: sharedId, tenantId: app.tenantId,
+      appId: app.id, enabled: true, activatedAt: new Date().toISOString() });
+    app.shell = { serviceId: activationId };
+    config.manifestCache.push({ serviceId: manifestAlias === "catalog" ? sharedId : "org.example.shell",
+      manifestVersion: "1", fetchedAt: new Date().toISOString(), viewIndex: {},
+      shell: { service: "org.example.shell", renderer: "bootstrap1" } } as never);
+    const { makeStore } = await database(t, BetterPortalConfigSchema.parse(config));
+    const owner = makeStore(); await owner.initialize();
+    owner.loadConfig = async () => { throw new Error("Unexpected full snapshot"); };
+    const headers = new Headers({ host: app.hostnames[0] });
+    const data = await readRequestConfig(owner.database, headers);
+    assert.deepEqual(resolveEmbeddedRequestContext(data, headers)?.app.shell,
+      { serviceId: activationId, service: "org.example.shell", renderer: "bootstrap1" });
+  }
+});
+
+pgTest("an allocation added during an app edit cannot bypass dependency locks", async t => {
+  const { makeStore, config, pool } = await database(t);
+  const editor = makeStore(), registry = makeStore(); await editor.initialize();
+  const appId = config.apps[0].id, serviceId = uuidv7();
+  await assert.rejects(editAppRows(editor.database, appId, undefined, async data => {
+    const registration = await registry.loadConfig();
+    registration.tenants[0].services.push({ ...registration.tenants[0].services[0], id: serviceId,
+      serviceId: "org.example.new", hostname: "https://new.example", apiKeyHash: "new-test-only" });
+    await registry.saveConfig(registration);
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: uuidv7(), serviceId, path: "/new" });
+  }), /App data changed concurrently/);
+  assert.equal((await pool.query("select count(*)::int as count from bp_platform_config_routes where service_id=$1", [serviceId])).rows[0].count, 0);
+  await editAppRows(editor.database, appId, undefined, async data => {
+    data.apps[0].routes.push({ ...data.apps[0].routes[0], id: uuidv7(), serviceId, path: "/new" });
+  });
+  assert.equal((await pool.query(`select count(*)::int as count from bp_platform_config_references
+    where kind='apps' and entity_id=$1 and target_kind='tenantServices' and target_id=$2`, [appId, serviceId])).rows[0].count, 1);
 });

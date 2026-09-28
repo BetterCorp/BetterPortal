@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { BetterPortalAppSchema, BetterPortalTenantSchema, BetterPortalConfigSchema, resolveEmbeddedRequestContext, type HeaderMap, type BetterPortalConfig, type BetterPortalObservability } from "@betterportal/framework";
 import type { PostgresStorage } from "./storage/postgres.js";
-import { getAvailableServiceInstanceIdsForApp, resolveAuthProviderRuntimeMetadata } from "./storage/core.js";
-import { appSettings } from "./storage/appData.js";
+import { getAvailableServiceInstanceIdsForApp, getServicePluginId, resolveAuthProviderRuntimeMetadata } from "./storage/core.js";
+import { AppDataConflictError, appSettings } from "./storage/appData.js";
 
 export type AppDatabase = PostgresStorage["database"];
 /** Editor data, not a complete platform configuration and never passed to saveConfig. */
@@ -56,6 +56,7 @@ export async function editAppRows<T>(db: AppDatabase, appId: string, obs: Better
     let data: AppEditorData;
     try { data = await readAppEditor(client, db, appId); } finally { reading?.end(); }
     const before = data.apps[0] && structuredClone(data.apps[0]);
+    const availableAtRead = before ? getAvailableServiceInstanceIdsForApp(data, before) : new Set<string>();
     const result = await change(data);
     if (result instanceof Response && !result.ok) { await client.query("rollback"); return result; }
     if (!before) { await client.query("rollback"); return result; }
@@ -90,7 +91,11 @@ export async function editAppRows<T>(db: AppDatabase, appId: string, obs: Better
         for (const serviceId of [
           ...after.routes.map(route => route.serviceId),
           ...(after.auth?.roles ?? []).flatMap(role => role.permissions.map(grant => grant.serviceId))
-        ]) if (!allowed.has(serviceId)) throw new Error("Route or permission references an unavailable service");
+        ]) {
+          // A dependency absent from the original read has no lock/reference in this transaction.
+          if (!allowed.has(serviceId)) throw new Error("Route or permission references an unavailable service");
+          if (!availableAtRead.has(serviceId)) throw new AppDataConflictError();
+        }
         await db.appData.save(client, appId, before, after);
         const used = new Set<string>();
         const visit = (value: unknown): void => {
@@ -148,10 +153,9 @@ export async function readRequestConfig(db: AppDatabase, headers: HeaderMap, obs
         jwksUri: provider.jwksUri, ...(provider.publicKeys ? { publicKeys: provider.publicKeys } : {}) });
     }
     if (app.shell) {
-      const service = data.tenants[0].services.find(service => service.id === app.shell!.serviceId)
-        ?? data.platformServices.find(service => service.id === app.shell!.serviceId);
+      const activation = data.sharedServiceActivations.find(candidate => candidate.id === app.shell!.serviceId);
       const manifests = await client.query(`select value from ${db.entities} where scope_id=$1 and kind='manifestCache'
-        and entity_id=any($2::text[])`, [db.scope, [app.shell.serviceId, service?.serviceId].filter(Boolean)]);
+        and entity_id=any($2::text[]) order by ordinal`, [db.scope, [app.shell.serviceId, activation?.sharedServiceId, getServicePluginId(data, app.shell.serviceId)].filter(Boolean)]);
       config.manifestCache = manifests.rows.map(row => row.value);
     }
     await client.query("commit");
