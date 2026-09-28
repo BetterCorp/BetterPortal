@@ -1229,7 +1229,7 @@ export function registerAdminApiRoutes(
   });
 
   app.get("/.well-known/bp/manage/routes", async (event) => {
-    const { config, appDef } = await readCurrentApp(event);
+    const { appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     return jsonResponse({ appId: appDef.id, routes: appDef.routes } as unknown as JsonValue);
   });
@@ -1256,13 +1256,13 @@ export function registerAdminApiRoutes(
   });
 
   app.get("/.well-known/bp/manage/fragments", async (event) => {
-    const { config, appDef } = await readCurrentApp(event);
+    const { appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     return jsonResponse({ appId: appDef.id, fragments: appDef.fragments } as unknown as JsonValue);
   });
 
   app.get("/.well-known/bp/manage/theme", async (event) => {
-    const { config, appDef } = await readCurrentApp(event);
+    const { appDef } = await readCurrentApp(event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     return jsonResponse({ appId: appDef.id, themeConfig: appDef.themeConfig } as unknown as JsonValue);
   });
