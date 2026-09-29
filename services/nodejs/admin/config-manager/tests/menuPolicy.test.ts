@@ -128,3 +128,47 @@ test("theme scopes include only activated enabled platform aliases and never ser
     menuPermissions: [{ serviceId: "org.example.platform0", viewId: "platform", permissions: ["read"] }] };
   assert.equal(menuItemVisible({ authStatus: "auto" }, route, { status: "authenticated", permissions: [{ serviceId: platformId, viewId: "platform", permissions: ["read"] }] }, aliases), true);
 });
+
+test("saving a group audience cascades through all descendants and enforces route permissions", async () => {
+  const tenantId = uuidv7(), appId = uuidv7(), groupId = uuidv7();
+  const { filterThemeMenu } = await import("@betterportal/framework");
+  let config = BetterPortalConfigSchema.parse({
+    tenants: [{ id: tenantId, slug: "t", title: "Tenant" }],
+    apps: [{ id: appId, tenantId, slug: "a", title: "App", hostnames: ["app.test"], routes: [
+      { id: routeId, serviceId, viewId: "accounts", path: "/accounts", operations: ["accounts.get"], authRequired: true,
+        menuPermissions: [{ serviceId, viewId: "accounts", permissions: ["read"] }] }
+    ], menu: [{ id: groupId, type: "group", authStatus: "hide-unauthorized", children: [
+      { id: uuidv7(), type: "group", children: [
+        { id: uuidv7(), type: "link", routeId, authStatus: "show", serviceStatus: "hide", enabled: false },
+        { id: uuidv7(), type: "link", routeId, authStatus: "show" }
+      ] }, { id: uuidv7(), type: "external", href: "https://example.com", authStatus: "show" }
+    ] }, { id: uuidv7(), type: "external", href: "https://example.com", authStatus: "show" }] }]
+  });
+  const app = createBetterPortalApp();
+  registerMenuEditorRoutes(app, { loadConfig: async () => structuredClone(config), saveConfig: async next => { config = next; } });
+  const routes = structuredClone(config.apps[0].routes);
+  for (const authStatus of ["hide-unauthorized", "show-unauthenticated", "show", "hide-unauthenticated", "auto"]) {
+    const response = await app.fetch(new Request("https://config.test/.well-known/bp/admin/menu-editor/save-visibility", {
+      method: "POST", body: new URLSearchParams({ appId, itemId: groupId, authStatus })
+    }));
+    assert.equal(response.status, 200);
+    const group = config.apps[0].menu[0];
+    assert.equal(group.authStatus, authStatus);
+    assert.equal(group.children[0].authStatus, authStatus);
+    assert.ok(group.children[0].children.every(child => child.authStatus === authStatus));
+    assert.equal(group.children[1].authStatus, authStatus);
+    assert.equal(config.apps[0].menu[1].authStatus, "show");
+    assert.equal(group.children[0].children[0].enabled, false);
+    assert.equal(group.children[0].children[0].serviceStatus, "hide");
+    assert.deepEqual(config.apps[0].routes, routes);
+    if (authStatus === "hide-unauthorized") {
+      for (const status of ["anonymous", "unknown"] as const) {
+        assert.deepEqual(filterThemeMenu(config.apps[0], { status, permissions: [] }).map(item => item.id), [config.apps[0].menu[1].id]);
+      }
+      const denied = filterThemeMenu(config.apps[0], { status: "authenticated", permissions: [] });
+      assert.equal(denied[0].children.length, 1, "nested group disappears when all route children are unauthorized");
+      const allowed = filterThemeMenu(config.apps[0], { status: "authenticated", permissions: [{ serviceId, viewId: "accounts", permissions: ["read"] }] });
+      assert.equal(allowed[0].children[0].children.length, 1);
+    }
+  }
+});
