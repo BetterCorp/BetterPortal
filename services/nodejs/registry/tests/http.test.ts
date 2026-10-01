@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { BpSchemaOutputSchema } from "@betterportal/framework";
 import { Plugin } from "../src/plugins/service-betterportal-registry/index.js";
+import { ContractRegistryStore } from "../src/plugins/service-betterportal-registry/store.js";
 
 test("registry rejects unauthorized publishers before reading their body and honors ETags", async () => {
   const plugin = Object.create(Plugin.prototype) as any;
@@ -27,4 +32,32 @@ test("registry rejects unauthorized publishers before reading their body and hon
   await plugin.handle({ method: "POST", url: "/v1/packages/example/service", headers: { authorization: "Bearer publisher-secret" } }, reply);
   assert.equal(status, 403);
   assert.match(payload!, /Publisher cannot publish/);
+});
+
+test("encoded version traversal cannot disclose a neighboring registry JSON file", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-registry-http-traversal-"));
+  try {
+    const store = new ContractRegistryStore(dir);
+    store.publish("betterportal/test", BpSchemaOutputSchema.parse({
+      manifest: { protocolVersion: 2, pluginId: "org.betterportal.test", title: "Test", description: "Test", version: "1.0.0", category: "service", deploymentModes: ["self-hosted"], views: [] },
+      routes: []
+    }));
+    const secret = "private-contract-canary";
+    writeFileSync(join(dir, "private.json"), JSON.stringify({ digest: "private", registryRef: "private", contract: { secret } }));
+    const plugin = Object.create(Plugin.prototype) as any;
+    plugin.store = store;
+    let status = 0;
+    let payload = "";
+    const reply = { writeHead(code: number) { status = code; }, end(body?: string) { payload = body ?? ""; } };
+    for (const route of [
+      "/v1/packages/betterportal/test/..%2F..%2F..%2Fprivate/schema.json",
+      "/v1/plugin-ids/org.betterportal.test/..%2F..%2F..%2Fprivate/schema.json"
+    ]) {
+      await plugin.handle({ method: "GET", url: route, headers: {} }, reply);
+      assert.equal(status, 404, route);
+      assert.doesNotMatch(payload, /private-contract-canary/);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
