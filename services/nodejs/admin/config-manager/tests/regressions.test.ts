@@ -827,7 +827,7 @@ test("preview config schema falls back from an unsynced preview to its shared pr
       { serviceId: "shared-crm", configSchemas: [{ id: "crm", title: "CRM", description: "CRM", scope: "tenant", jsonSchema: {}, fields: [{ key: "region", title: "Region", description: "Region", scope: "tenant", visibility: "public", ownership: "bp", sourceOfTruth: "bp", defaultValue: "za", required: false }] }] }
     ]
   };
-  const group = { id: groupId, sourceTenantId: tenantId, sourceAppId: appId };
+  const group = { id: groupId, sourceTenantId: tenantId, sourceAppId: appId, services: [] };
   assert.equal(resolvePreviewConfigSchemas(config as never, group as never, "za.co.robertgroup.one.crm")?.[0]?.fields[0]?.key, "region");
 });
 
@@ -1995,7 +1995,7 @@ test("preview groups clone, reconcile, refresh and expire in isolation", () => {
     key: "123",
     hostname: "ignored.example",
     services: [{ serviceId: "org.example.other", url: "https://other-pr-123.example" }]
-  }, "https://config.example", now), /exactly match the existing preview/);
+  }, "https://config.example", now), /Existing preview services must be retained/);
 
   const other = provisionPreviewDeployment(config, group.id, {
     key: "456",

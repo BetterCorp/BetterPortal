@@ -512,6 +512,7 @@ export type PreviewEnvironmentServiceConfig = Infer<typeof PreviewEnvironmentSer
 export const PreviewEnvironmentGroupServiceSchema = av.object({
   serviceId: PluginIdSchema,
   title: av.optional(NonEmptyStringSchema),
+  configSchemas: av.optional(av.array(ConfigSchemaDescriptorSchema)),
   config: PreviewEnvironmentServiceConfigSchema
 });
 export type PreviewEnvironmentGroupService = Infer<typeof PreviewEnvironmentGroupServiceSchema>;
