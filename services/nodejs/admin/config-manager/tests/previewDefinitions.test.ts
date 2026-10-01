@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  BetterPortalConfigSchema, createBetterPortalApp, encryptPreviewConfigValue,
+  BetterPortalConfigSchema, ServiceManifestCacheEntrySchema, createBetterPortalApp, encryptPreviewConfigValue,
   generatePreviewConfigKey, uuidv7, type ConfigSchemaDescriptor
 } from "@betterportal/framework";
 import { FileStorage } from "../src/plugins/service-betterportal-config-manager/storage/file.js";
@@ -161,6 +161,104 @@ test("CI adds declared BP plugins without changing existing preview credentials 
   assert.equal(provisionPreviewDeployment(config, groupId, { key: "ci", hostname: "ci.example", services: expanded }, "https://config.example").credentials.length, 0);
   assert.throws(() => provisionPreviewDeployment(config, groupId, { key: "ci", hostname: "ci.example", services }, "https://config.example"), /must be retained/);
 });
+
+for (const delayedProviders of [true, false]) {
+  test(`CI restores delayed source-app bindings with ${delayedProviders ? "late" : "existing"} shell and auth services`, async t => {
+    const { storage, create, instanceId } = await fixture(t);
+    const groupId = (await create()).groups[0].id;
+    let config = await storage.loadConfig();
+    const [shellId, authId, contentId] = [uuidv7(), uuidv7(), uuidv7()];
+    config.tenants[0].services.push(...[shellId, authId, contentId].map((id, index) => ({
+      ...config.tenants[0].services[0], id, serviceId: "org.example." + ["shell", "auth", "content"][index]
+    })));
+    const source = config.apps[0];
+    source.shell = { serviceId: shellId };
+    source.routes = [instanceId, contentId].map((serviceId, index) => ({
+      id: uuidv7(), serviceId, viewId: index ? "content" : "known", operations: [index ? "content.read" : "known.read"],
+      path: index ? "/custom-content" : "/known", enabled: true
+    }));
+    source.slots = ["available", "occupied"].map(slotId => ({ slotId, serviceId: contentId, viewId: "content", enabled: true }));
+    source.fragments = { header: [{ serviceId: contentId, fragmentId: "banner", targetPath: "/banner", enabled: true }] };
+    const item = { source: "service" as const, serviceId: contentId, fragmentId: "banner", targetPath: "/banner" };
+    source.shellFragments = { [shellId]: {
+      header: { mode: "override", item },
+      blocked: { mode: "override", item },
+      footer: { mode: "items", items: [{ source: "shell", fragmentId: "footer" }, { ...item, serviceId: instanceId }, item] }
+    } };
+    source.auth = {
+      serviceId: authId, expectedIssuer: "source", expectedAudience: "source", jwksUri: "https://auth.source.example/jwks",
+      publicKeys: { keys: [{ kty: "RSA", use: "sig", alg: "RS256", kid: "source", n: "modulus", e: "AQAB" }] },
+      redirects: { afterLogin: { serviceId: contentId, viewId: "content" }, afterLogout: { serviceId: instanceId, viewId: "known" } },
+      roles: [{ id: "reader", title: "Reader", permissions: [instanceId, contentId].map((serviceId, index) => ({ serviceId, viewId: index ? "content" : "known", permissions: ["read"] })) }]
+    };
+    config = BetterPortalConfigSchema.parse(config);
+    const originalSource = structuredClone(config.apps[0]);
+    const requested = ["known", ...(!delayedProviders ? ["shell", "auth"] : [])].map(name => ({ serviceId: "org.example." + name, url: `https://${name}.preview.example` }));
+    const deploy = () => provisionPreviewDeployment(config, groupId, { key: "bindings", hostname: "bindings.example", services: requested }, "https://config.example");
+    const first = deploy();
+    const app = config.apps.find(candidate => candidate.id === first.deployment.appId)!;
+    const idFor = (name: string) => first.deployment.services.find(service => service.serviceId === "org.example." + name)!.instanceId;
+    if (delayedProviders) {
+      assert.equal(app.shell, undefined);
+      assert.equal(app.auth, undefined);
+      requested.push(...["shell", "auth"].map(name => ({ serviceId: "org.example." + name, url: `https://${name}.preview.example` })));
+      assert.deepEqual(deploy().credentials.map(credential => credential.serviceId), ["org.example.shell", "org.example.auth"]);
+    }
+    assert.deepEqual(app.shell, { serviceId: idFor("shell") });
+    assert.equal(app.auth!.serviceId, idFor("auth"));
+    assert.equal(app.auth!.publicKeys, undefined);
+    assert.deepEqual(app.auth!.redirects, { afterLogout: { serviceId: idFor("known"), viewId: "known" } });
+    assert.equal(app.auth!.roles[0].permissions.length, 1);
+    assert.deepEqual(app.shellFragments[idFor("shell")].footer, {
+      mode: "items", items: [{ source: "shell", fragmentId: "footer" }, { ...item, serviceId: idFor("known") }]
+    });
+    app.title = "Edited preview";
+    app.routes[0].path = "/edited-known";
+    app.slots.push({ slotId: "occupied", serviceId: idFor("known"), viewId: "known", enabled: true });
+    app.fragments.header = [{ serviceId: idFor("known"), fragmentId: "custom", targetPath: "/custom", enabled: true }];
+    app.shellFragments[idFor("shell")].blocked = { mode: "none" };
+    app.auth!.roles[0].title = "Edited role";
+    app.auth!.redirects!.afterLogout!.viewId = "edited-logout";
+    const existingServices = structuredClone(config.tenants.find(tenant => tenant.id === first.deployment.tenantId)!.services);
+    requested.push({ serviceId: "org.example.content", url: "https://content.preview.example" });
+    assert.deepEqual(deploy().credentials.map(credential => credential.serviceId), ["org.example.content"]);
+    assert.deepEqual(config.tenants.find(tenant => tenant.id === first.deployment.tenantId)!.services.slice(0, existingServices.length), existingServices);
+    assert.equal(app.title, "Edited preview");
+    assert.equal(app.routes[0].path, "/edited-known");
+    const route = app.routes.find(candidate => candidate.serviceId === idFor("content"))!;
+    assert.equal(route.path, "/custom-content");
+    assert.equal(route.enabled, false);
+    assert.deepEqual(app.slots.map(slot => [slot.slotId, slot.serviceId]), [["occupied", idFor("known")], ["available", idFor("content")]]);
+    assert.deepEqual(app.fragments.header.map(fragment => fragment.serviceId), [idFor("known"), idFor("content")]);
+    assert.deepEqual(app.shellFragments[idFor("shell")].header, { mode: "override", item: { ...item, serviceId: idFor("content") } });
+    assert.deepEqual(app.shellFragments[idFor("shell")].blocked, { mode: "none" });
+    assert.deepEqual(app.shellFragments[idFor("shell")].footer, {
+      mode: "items", items: [{ source: "shell", fragmentId: "footer" }, { ...item, serviceId: idFor("known") }, { ...item, serviceId: idFor("content") }]
+    });
+    assert.equal(app.auth!.roles[0].title, "Edited role");
+    assert.deepEqual(app.auth!.roles[0].permissions.map(permission => permission.serviceId), [idFor("known"), idFor("content")]);
+    assert.deepEqual(app.auth!.redirects, { afterLogin: { serviceId: idFor("content"), viewId: "content" }, afterLogout: { serviceId: idFor("known"), viewId: "edited-logout" } });
+    const beforeRetry = structuredClone(app);
+    assert.equal(deploy().credentials.length, 0);
+    assert.deepEqual(app, beforeRetry);
+    reconcilePreviewService(config, idFor("content"), ServiceManifestCacheEntrySchema.parse({
+      serviceId: "org.example.content", manifestVersion: "1", fetchedAt: new Date().toISOString(),
+      viewIndex: { content: { viewId: "content", title: "Content", description: "Content", path: "/content", operations: [{
+        operationId: "content.read", method: "GET", title: "Content", description: "Content", renderable: true, renderModes: ["page"], authRequired: false
+      }] } }
+    }));
+    assert.equal(app.routes.find(candidate => candidate.id === route.id)!.path, "/custom-content");
+    assert.equal(app.routes.find(candidate => candidate.id === route.id)!.enabled, true);
+    assert.deepEqual(config.apps[0], originalSource);
+    await storage.saveConfig(config);
+    const saved = (await storage.loadConfig()).apps.find(candidate => candidate.id === app.id)!;
+    for (const key of ["shell", "slots", "fragments", "shellFragments"] as const) assert.deepEqual(saved[key], app[key]);
+    assert.deepEqual(saved.auth!.redirects, app.auth!.redirects);
+    assert.deepEqual(saved.auth!.roles, app.auth!.roles);
+    assert.equal(saved.auth!.publicKeys, undefined);
+    assert.equal(saved.routes.find(candidate => candidate.id === route.id)!.path, "/custom-content");
+  });
+}
 
 test("BP schema file upload populates JSON before submission on desktop and mobile", async t => {
   const { create, post, editor } = await fixture(t);

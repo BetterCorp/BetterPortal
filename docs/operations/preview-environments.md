@@ -59,6 +59,8 @@ Content-Type: application/json
 
 Repeating a request for the same deployment key must retain all existing services and may add new service IDs and URLs. Additions capture only the new service's current group settings and receive fresh credentials; unchanged services retain their credentials and configuration. Omitting an existing service is rejected. The request refreshes the stored lifetime; changed service URLs rotate only those service credentials. `setupMode` may be omitted and defaults to `pull`; other modes are rejected.
 
+When an added BP plugin exists in the source app, its newly available shell, slots, fragments, auth references and configured routes are mapped into the preview. Existing preview settings and occupied slots are preserved; copied routes remain disabled until the added service syncs its manifest. This uses the source app's current bindings at the time of addition, without recloning the running preview app.
+
 On first creation, copy each returned `BP_CONTROL_PLANE_URL` and `BP_SERVICE_API_KEY` into the matching service deployment. `DELETE` on the same URL removes the preview immediately and is safe to repeat. Expired previews are deleted automatically.
 
 ## GitHub Actions

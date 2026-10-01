@@ -1,4 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import {
   PluginIdSchema,
   PreviewEnvironmentGroupSchema,
@@ -416,6 +417,7 @@ function updateDeployment(
     credentials.push(issuedCredential(binding.serviceId, binding.instanceId, nextUrl, apiKey, controlPlaneUrl));
   }
   if (additions.length) {
+    const addedInstanceIds = new Set<string>();
     deployment.effectiveConfig ??= structuredClone({ services: group.services, elevatedRoleIds: group.elevatedRoleIds });
     for (const [serviceId, url] of additions) {
       const source = sourceServiceForPreview(sourceTenant!, sourceApp!, serviceId);
@@ -428,18 +430,88 @@ function updateDeployment(
       const { service, credential } = createPreviewService(source, configured, url, controlPlaneUrl, now.toISOString());
       tenant.services.push(service);
       deployment.services.push({ serviceId, instanceId: service.id, url });
+      addedInstanceIds.add(service.id);
       // Capture only the addition's current defaults, preserving the running preview's config.
       const previous = deployment.effectiveConfig.services.findIndex((service) => service.serviceId === serviceId);
       if (previous === -1) deployment.effectiveConfig.services.push(structuredClone(configured));
       else deployment.effectiveConfig.services[previous] = structuredClone(configured);
       credentials.push(credential);
     }
+    restoreAddedServiceBindings(config, deployment, sourceTenant!, sourceApp!, addedInstanceIds);
   }
   const expiresAt = expiryDate(now, deployment.expiresInDays);
   if (expiresAt) deployment.expiresAt = expiresAt;
   else delete deployment.expiresAt;
   deployment.updatedAt = now.toISOString();
   return { deployment, credentials, created: false };
+}
+
+function restoreAddedServiceBindings(
+  config: BetterPortalConfig,
+  deployment: PreviewEnvironmentDeployment,
+  sourceTenant: BetterPortalConfig["tenants"][number],
+  sourceApp: BetterPortalApp,
+  addedInstanceIds: Set<string>
+): void {
+  const app = config.apps.find((candidate) => candidate.id === deployment.appId)!;
+  const tenant = config.tenants.find((candidate) => candidate.id === deployment.tenantId)!;
+  const serviceMap = new Map<string, string>();
+  for (const binding of deployment.services) {
+    const source = sourceServiceForPreview(sourceTenant, sourceApp, binding.serviceId);
+    if (source) serviceMap.set(source.id, binding.instanceId);
+  }
+  for (const id of sourceTenant.activatedPlatformServices) {
+    if (tenant.activatedPlatformServices.includes(id)) serviceMap.set(id, id);
+  }
+  const referenced = collectAppServiceReferences(sourceApp);
+  const clonedActivations = config.sharedServiceActivations.filter((activation) => activation.tenantId === tenant.id && activation.appId === app.id);
+  for (const source of config.sharedServiceActivations.filter((activation) =>
+    activation.enabled && activation.tenantId === sourceTenant.id && referenced.has(activation.id) && (!activation.appId || activation.appId === sourceApp.id)
+  )) {
+    const index = clonedActivations.findIndex((activation) => activation.sharedServiceId === source.sharedServiceId);
+    if (index !== -1) serviceMap.set(source.id, clonedActivations.splice(index, 1)[0]!.id);
+  }
+  // Project source references through every deployed service, but merge only newly available bindings.
+  const mapped = clonePreviewApp(sourceApp, app.id, tenant.id, app.title, app.hostnames[0]!, serviceMap);
+  if (!app.shell && mapped.shell && addedInstanceIds.has(mapped.shell.serviceId)) app.shell = mapped.shell;
+  app.routes.push(...mapped.routes.filter((route) => addedInstanceIds.has(route.serviceId)));
+  app.slots.push(...mapped.slots.filter((slot) => addedInstanceIds.has(slot.serviceId) && !app.slots.some((current) => current.slotId === slot.slotId)));
+  for (const [location, fragments] of Object.entries(mapped.fragments)) {
+    const additions = fragments.filter((fragment) => addedInstanceIds.has(fragment.serviceId));
+    if (additions.length) (app.fragments[location] ??= []).push(...additions);
+  }
+  for (const [shellId, settings] of Object.entries(mapped.shellFragments)) {
+    for (const [fragmentId, setting] of Object.entries(settings)) {
+      const current = app.shellFragments[shellId]?.[fragmentId];
+      const isAddedItem = (item: BetterPortalShellFragmentItem) => item.source === "service" && addedInstanceIds.has(item.serviceId);
+      if (!current) {
+        if (addedInstanceIds.has(shellId) || (setting.mode === "override" && isAddedItem(setting.item))) {
+          (app.shellFragments[shellId] ??= {})[fragmentId] = setting;
+        } else if (setting.mode === "items") {
+          const items = setting.items.filter(isAddedItem);
+          if (items.length) (app.shellFragments[shellId] ??= {})[fragmentId] = { mode: "items", items };
+        }
+      } else if (current.mode === "items" && setting.mode === "items") {
+        current.items.push(...setting.items.filter((item) => isAddedItem(item) && !current.items.some((existing) => isDeepStrictEqual(existing, item))));
+      }
+    }
+  }
+  if (!app.auth && mapped.auth && addedInstanceIds.has(mapped.auth.serviceId)) {
+    app.auth = mapped.auth;
+  } else if (app.auth && mapped.auth && app.auth.serviceId === mapped.auth.serviceId) {
+    for (const key of ["afterLogin", "afterLogout"] as const) {
+      const target = mapped.auth.redirects?.[key];
+      if (target && addedInstanceIds.has(target.serviceId) && !app.auth.redirects?.[key]) {
+        (app.auth.redirects ??= {})[key] = target;
+      }
+    }
+    for (const role of app.auth.roles) {
+      const sourceRole = mapped.auth.roles.find((candidate) => candidate.id === role.id);
+      role.permissions.push(...(sourceRole?.permissions ?? []).filter((permission) =>
+        addedInstanceIds.has(permission.serviceId) && !role.permissions.some((current) => current.serviceId === permission.serviceId && current.viewId === permission.viewId)
+      ));
+    }
+  }
 }
 
 function createPreviewService(
