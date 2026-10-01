@@ -1,9 +1,13 @@
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
+import { isDeepStrictEqual } from "node:util";
 import {
   createHandler,
   buildPreviewConfigSchema,
   JsonValueSchema,
+  PluginIdSchema,
+  ConfigSchemaDescriptorSchema,
+  PreviewEnvironmentGroupServiceSchema,
   type CacheHints,
   type BetterPortalConfig,
   type BetterPortalEvent,
@@ -57,6 +61,8 @@ const GroupServiceSchema = av.object({
   serviceId: av.string().minLength(1),
   title: av.string().minLength(1),
   fields: av.array(PreviewConfigFieldSchema).default([]),
+  schemaSource: av.optional(av.enum_(["uploaded", "synced", "unavailable"] as const)),
+  schemaWarning: av.optional(av.string()),
   source: av.optional(SourceServiceSchema),
   encryptedTenantConfig: av.string(),
   encryptedAppConfig: av.string()
@@ -180,6 +186,9 @@ export const handlePost = createHandler(
         elevatedRoleIds: stringValue(ctx.request.elevatedRoleIds).split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean),
         oidc: oidcValue(ctx.request)
       });
+      for (const serviceId of new Set(stringValue(ctx.request.pluginIds).split(/[,\s]+/).filter(Boolean))) {
+        saveServiceDefinition(config, result.group.id, serviceId, "");
+      }
       await routeContext.storage.saveConfig(config);
       return { notice: "Preview group created.", issuedApiKey: result.apiKey };
     }
@@ -192,6 +201,12 @@ export const handlePost = createHandler(
       saveGroupConfig(config, stringValue(ctx.request.groupId), stringValue(ctx.request.configs));
       await routeContext.storage.saveConfig(config);
       return { notice: "Encrypted preview config saved." };
+    }
+    if (action === "save-service") {
+      const groupId = stringValue(ctx.request.groupId);
+      saveServiceDefinition(config, groupId, stringValue(ctx.request.serviceId), stringValue(ctx.request.schemas));
+      await routeContext.storage.saveConfig(config);
+      return { notice: "BP plugin definition saved." };
     }
     if (action === "create-deployment") {
       const groupId = stringValue(ctx.request.groupId);
@@ -328,6 +343,7 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup, 
     } : undefined,
     services: group.services.map((service) => {
       const descriptors = includeConfig ? resolvePreviewConfigSchemas(config, group, service.serviceId) ?? [] : [];
+      const synced = includeConfig ? syncedPreviewConfigSchemas(config, group, service.serviceId) : undefined;
       const source = sourceConfigService(config, group, service.serviceId);
       const fields = [...new Map(descriptors.flatMap((descriptor) => descriptor.fields).map((field) => [
         `${field.scope}:${field.key}`,
@@ -347,6 +363,10 @@ function groupModel(config: BetterPortalConfig, group: PreviewEnvironmentGroup, 
         serviceId: service.serviceId,
         title: service.title ?? service.serviceId,
         fields,
+        schemaSource: service.configSchemas?.length ? "uploaded" as const : descriptors.length ? "synced" as const : "unavailable" as const,
+        ...(service.configSchemas?.length && synced?.length && !isDeepStrictEqual(service.configSchemas, synced)
+          ? { schemaWarning: "Synced BP config schemas differ from the uploaded definitions. Uploaded schemas and saved values are preserved." }
+          : {}),
         ...(source ? { source: { instanceId: source.instanceId, hostname: source.hostname } } : {}),
         encryptedTenantConfig: includeConfig ? JSON.stringify(service.config.tenant) : "{}",
         encryptedAppConfig: includeConfig ? JSON.stringify(service.config.app) : "{}"
@@ -393,6 +413,58 @@ function saveGroupConfig(config: BetterPortalConfig, groupId: string, raw: strin
       tenant: parseEncryptedScope(buildPreviewConfigSchema(descriptors, "tenant"), scopes.tenant, descriptors, "tenant"),
       app: parseEncryptedScope(buildPreviewConfigSchema(descriptors, "app"), scopes.app, descriptors, "app")
     };
+  }
+  group.updatedAt = new Date().toISOString();
+}
+
+function saveServiceDefinition(config: BetterPortalConfig, groupId: string, serviceId: string, raw: string): void {
+  const group = config.previewEnvironmentGroups.find((candidate) => candidate.id === groupId);
+  if (!group) throw new PreviewEnvironmentError("Preview group was not found", 404);
+  if (!PluginIdSchema.safeParse(serviceId).success) throw new PreviewEnvironmentError("A valid BP plugin ID is required");
+  let service = group.services.find((candidate) => candidate.serviceId === serviceId);
+  if (raw) {
+    if (Buffer.byteLength(raw, "utf8") > 1024 * 1024) throw new PreviewEnvironmentError("BP config schema upload exceeds 1 MiB");
+    let input: unknown;
+    try { input = JSON.parse(raw); } catch { throw new PreviewEnvironmentError("BP config schemas must be valid JSON"); }
+    if (input && typeof input === "object" && !Array.isArray(input)) {
+      const artifact = input as Record<string, unknown>;
+      for (const id of [artifact.pluginId, artifact.serviceId]) {
+        if (id !== undefined && id !== serviceId) throw new PreviewEnvironmentError("Uploaded BP schemas belong to a different plugin ID");
+      }
+      input = artifact.configSchemas;
+    }
+    const parsed = av.array(ConfigSchemaDescriptorSchema).minItems(1).safeParse(input);
+    if (!parsed.success) throw new PreviewEnvironmentError("Upload BP configSchemas descriptors or a BP manifest containing configSchemas");
+    const keys = new Set<string>();
+    for (const descriptor of parsed.data) for (const field of descriptor.fields) {
+      const key = field.scope + ":" + field.key;
+      if (field.scope !== descriptor.scope || keys.has(key)) throw new PreviewEnvironmentError("BP config fields must have matching scopes and unique keys");
+      keys.add(key);
+    }
+    if (service) {
+      // Do not let a schema replacement drop saved fields or change their secret classification.
+      const previous = resolvePreviewConfigSchemas(config, group, serviceId) ?? [];
+      for (const scope of ["tenant", "app"] as const) {
+        const stored = service.config[scope];
+        if (Object.keys(stored).length === 0) continue;
+        for (const key of Object.keys(stored)) {
+          const oldField = previous.flatMap(schema => schema.fields).find(field => field.scope === scope && field.key === key);
+          const nextField = parsed.data.flatMap(schema => schema.fields).find(field => field.scope === scope && field.key === key);
+          if (!nextField || (oldField?.visibility === "secret") !== (nextField.visibility === "secret")) {
+            throw new PreviewEnvironmentError("Schema replacement would remove or change a configured field: " + scope + "." + key);
+          }
+        }
+        const partial = parsed.data.map(schema => ({ ...schema, fields: schema.fields.map(field => ({ ...field, required: false })) }));
+        parseEncryptedScope(buildPreviewConfigSchema(partial, scope), stored, partial, scope);
+      }
+      service.configSchemas = parsed.data;
+    } else {
+      service = PreviewEnvironmentGroupServiceSchema.parse({ serviceId, title: serviceId, configSchemas: parsed.data });
+      group.services.push(service);
+    }
+  } else if (!service) {
+    service = PreviewEnvironmentGroupServiceSchema.parse({ serviceId, title: serviceId });
+    group.services.push(service);
   }
   group.updatedAt = new Date().toISOString();
 }
@@ -465,6 +537,12 @@ function serviceUrls(value: unknown): Array<{ serviceId: string; url: string }> 
 }
 
 export function resolvePreviewConfigSchemas(config: BetterPortalConfig, group: PreviewEnvironmentGroup, serviceId: string) {
+  const uploaded = group.services.find((service) => service.serviceId === serviceId)?.configSchemas;
+  if (uploaded?.length) return uploaded;
+  return syncedPreviewConfigSchemas(config, group, serviceId);
+}
+
+function syncedPreviewConfigSchemas(config: BetterPortalConfig, group: PreviewEnvironmentGroup, serviceId: string) {
   for (const service of config.previewEnvironmentDeployments
     .filter((deployment) => deployment.groupId === group.id)
     .flatMap((deployment) => deployment.services)

@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
+  PluginIdSchema,
   PreviewEnvironmentGroupSchema,
   PreviewEnvironmentGroupServiceSchema,
   uuidv7,
@@ -196,7 +197,7 @@ export function provisionPreviewDeployment(
     deployment.groupId === group.id && deployment.key === key
   );
   if (existing) {
-    requireExactServiceSet(existing, requestedServices);
+    requireExistingServices(existing, requestedServices);
     return updateDeployment(config, existing, requestedServices, controlPlaneUrl, now);
   }
 
@@ -224,22 +225,10 @@ export function provisionPreviewDeployment(
   const services = [...requestedServices].map(([serviceId, requested]) => {
     const configured = group.services.find((service) => service.serviceId === serviceId) ?? discovered.find((service) => service.serviceId === serviceId)!;
     const source = sourceServiceForPreview(sourceTenant, sourceApp, serviceId);
-    const instanceId = uuidv7();
-    const apiKey = generateApiKey();
-    if (source) serviceMap.set(source.id, instanceId);
-    credentials.push(issuedCredential(serviceId, instanceId, requested, apiKey, controlPlaneUrl));
-    return {
-      id: instanceId,
-      hostname: requested,
-      apiKeyHash: hashApiKey(apiKey),
-      serviceId,
-      capabilities: source?.capabilities ?? [],
-      title: configured.title ?? source?.title ?? serviceId,
-      ...(source?.description ? { description: source.description } : {}),
-      deploymentMode: "self-hosted" as const,
-      createdAt: timestamp,
-      enabled: true
-    };
+    const { service, credential } = createPreviewService(source, configured, requested, controlPlaneUrl, timestamp);
+    if (source) serviceMap.set(source.id, service.id);
+    credentials.push(credential);
+    return service;
   });
 
   const referenced = collectAppServiceReferences(sourceApp);
@@ -393,6 +382,16 @@ function updateDeployment(
 ): { deployment: PreviewEnvironmentDeployment; credentials: IssuedPreviewCredential[]; created: false } {
   const tenant = config.tenants.find((candidate) => candidate.id === deployment.tenantId);
   if (!tenant) throw new PreviewEnvironmentError("Preview deployment tenant is missing", 409);
+  const additions = [...requestedServices].filter(([serviceId]) => !deployment.services.some((binding) => binding.serviceId === serviceId));
+  const group = requireGroup(config, deployment.groupId);
+  const sourceTenant = config.tenants.find((candidate) => candidate.id === group.sourceTenantId);
+  const sourceApp = config.apps.find((candidate) => candidate.id === group.sourceAppId && candidate.tenantId === group.sourceTenantId);
+  if (additions.length) {
+    if (!sourceTenant || !sourceApp || !config.apps.some((app) => app.id === deployment.appId && app.tenantId === tenant.id)) {
+      throw new PreviewEnvironmentError("Preview source or application is unavailable", 409);
+    }
+    requireUnambiguousSourceServices(sourceTenant, sourceApp, new Map(additions));
+  }
   delete deployment.credentialReplay;
   const credentials: IssuedPreviewCredential[] = [];
   for (const binding of deployment.services) {
@@ -416,11 +415,57 @@ function updateDeployment(
     }
     credentials.push(issuedCredential(binding.serviceId, binding.instanceId, nextUrl, apiKey, controlPlaneUrl));
   }
+  if (additions.length) {
+    deployment.effectiveConfig ??= structuredClone({ services: group.services, elevatedRoleIds: group.elevatedRoleIds });
+    for (const [serviceId, url] of additions) {
+      const source = sourceServiceForPreview(sourceTenant!, sourceApp!, serviceId);
+      let configured = group.services.find((service) => service.serviceId === serviceId);
+      if (!configured) {
+        configured = PreviewEnvironmentGroupServiceSchema.parse({ serviceId, title: source?.title ?? serviceId });
+        group.services.push(configured);
+        group.updatedAt = now.toISOString();
+      }
+      const { service, credential } = createPreviewService(source, configured, url, controlPlaneUrl, now.toISOString());
+      tenant.services.push(service);
+      deployment.services.push({ serviceId, instanceId: service.id, url });
+      // Capture only the addition's current defaults, preserving the running preview's config.
+      const previous = deployment.effectiveConfig.services.findIndex((service) => service.serviceId === serviceId);
+      if (previous === -1) deployment.effectiveConfig.services.push(structuredClone(configured));
+      else deployment.effectiveConfig.services[previous] = structuredClone(configured);
+      credentials.push(credential);
+    }
+  }
   const expiresAt = expiryDate(now, deployment.expiresInDays);
   if (expiresAt) deployment.expiresAt = expiresAt;
   else delete deployment.expiresAt;
   deployment.updatedAt = now.toISOString();
   return { deployment, credentials, created: false };
+}
+
+function createPreviewService(
+  source: BetterPortalConfig["tenants"][number]["services"][number] | undefined,
+  configured: PreviewEnvironmentGroup["services"][number],
+  url: string,
+  controlPlaneUrl: string,
+  timestamp: string
+) {
+  const instanceId = uuidv7();
+  const apiKey = generateApiKey();
+  return {
+    service: {
+      id: instanceId,
+      hostname: url,
+      apiKeyHash: hashApiKey(apiKey),
+      serviceId: configured.serviceId,
+      capabilities: source?.capabilities ?? [],
+      title: configured.title ?? source?.title ?? configured.serviceId,
+      ...(source?.description ? { description: source.description } : {}),
+      deploymentMode: "self-hosted" as const,
+      createdAt: timestamp,
+      enabled: true
+    },
+    credential: issuedCredential(configured.serviceId, instanceId, url, apiKey, controlPlaneUrl)
+  };
 }
 
 function clonePreviewApp(
@@ -705,17 +750,17 @@ function normalizeRequestedServices(values: Array<{ serviceId: string; url: stri
   for (const value of values) {
     const serviceId = value.serviceId.trim();
     if (!serviceId || result.has(serviceId)) throw new PreviewEnvironmentError("Service plugin IDs must be present and unique");
+    if (!PluginIdSchema.safeParse(serviceId).success) throw new PreviewEnvironmentError("Invalid BP plugin ID: " + serviceId);
     result.set(serviceId, normalizeServiceOrigin(value.url));
   }
   if (result.size === 0) throw new PreviewEnvironmentError("At least one service is required");
   return result;
 }
 
-function requireExactServiceSet(deployment: PreviewEnvironmentDeployment, requested: Map<string, string>): void {
-  const expected = deployment.services.map((service) => service.serviceId).sort();
-  const received = [...requested.keys()].sort();
-  if (expected.length !== received.length || expected.some((serviceId, index) => serviceId !== received[index])) {
-    throw new PreviewEnvironmentError(`Services must exactly match the existing preview: ${expected.join(", ")}`, 409);
+function requireExistingServices(deployment: PreviewEnvironmentDeployment, requested: Map<string, string>): void {
+  const missing = deployment.services.filter((service) => !requested.has(service.serviceId));
+  if (missing.length) {
+    throw new PreviewEnvironmentError(`Existing preview services must be retained: ${missing.map(service => service.serviceId).join(", ")}`, 409);
   }
 }
 
