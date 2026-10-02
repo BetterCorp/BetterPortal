@@ -315,14 +315,20 @@ test("hostname confirmation releases its lease after a save conflict so an immed
 
 test("bootstrap completion releases failed leases on both initial setup and existing-config recovery", async () => {
   for (const existing of [false, true]) {
+    const cpKey = generateKeyPair();
     const config = existing ? s2sConfig().config : BetterPortalConfigSchema.parse({});
+    if (existing) {
+      config.configManagement.adminTenantId = config.tenants[0].id;
+      config.configManagement.managementAppId = config.apps[0].id;
+    }
     const handlers = new Map<string, (event: any) => Promise<Response>>();
     let busy = false, fail = true, released = 0;
     const postgres = {
       async createPendingAction() { return false; },
       async claimPendingAction() { if (busy) return { state: "busy" }; busy = true; return { state: "claimed" }; },
-      async completePendingAction(_action: unknown, snapshot: unknown) {
+      async completePendingAction(action: { result: Record<string, unknown> }, snapshot: unknown) {
         assert.equal(Boolean(snapshot), !existing);
+        assert.equal(action.result.bootstrapAdminToken, undefined);
         if (fail) throw new Error("atomic completion failed");
         busy = false;
       },
@@ -330,7 +336,7 @@ test("bootstrap completion releases failed leases on both initial setup and exis
     };
     await registerBootstrapEndpoint({ app: { get() {}, post: (path: string, handler: any) => handlers.set(path, handler) },
       storage: { loadConfig: async () => structuredClone(config) }, postgres,
-      cpState: { issuer: "https://config.example" }, logger: { log: { info() {}, warn() {} } } } as never);
+      cpState: { issuer: "https://config.example", keyPair: cpKey }, logger: { log: { info() {}, warn() {} } } } as never);
     const commit = () => handlers.get("/.well-known/bp/bootstrap/commit")!({ req: new Request("https://config.example/commit", {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bootstrapKey: "test",
         adminTenant: { title: "Admin" }, adminApp: { title: "Admin", hostname: "admin.example" },
@@ -340,7 +346,10 @@ test("bootstrap completion releases failed leases on both initial setup and exis
     await assert.rejects(commit(), /atomic completion failed/);
     assert.equal(released, 1);
     fail = false;
-    assert.equal((await commit()).status, 200);
+    const response = await commit();
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.equal(typeof (await response.json()).bootstrapAdminToken, "string");
   }
 });
 

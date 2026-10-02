@@ -25,6 +25,7 @@ import { registerWebhookRoutes } from "./webhooks.js";
 import { analyzeOperationDependencies, deriveRolePermissions, getCachedManifestForService, getManifestCache, hydrateManifestCache, reconcileServiceRegistry, registerSyncEndpoint } from "./syncApi.js";
 import { approveM2MConnections, buildM2MConnectionModel } from "./m2mConnections.js";
 import { registerPreviewDeploymentApi } from "./previewApi.js";
+import { registerRawManagementAccessControl } from "./accessControl.js";
 import {
   deleteExpiredPreviewDeployments,
   reconcilePreviewService,
@@ -445,6 +446,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     this.app.use("/auth", (event) => this.populateAdminAuthContext(event));
     this.app.use("/settings", (event) => this.populateSettingsContext(event));
     this.app.use("/.well-known/bp", (event) => applyWellKnownCors(event));
+    registerRawManagementAccessControl(this.app, this.storage, this.cpState);
 
     registerAdminApiRoutes(this.app, this.storage, this.cpState, this.postgresStorage?.database);
     registerMenuEditorRoutes(this.app, this.storage, this.postgresStorage?.database);
