@@ -1,0 +1,100 @@
+name: Python package
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/publish-python.yml'
+      - 'framework/python/**'
+      - 'framework/conformance/contracts/**'
+      - 'scripts/release/**'
+      - 'package.json'
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-package-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Verify release metadata and versioning
+        run: |
+          node --test scripts/release/set-workspace-version.test.mjs
+          python scripts/release/check-python-release.test.py
+          python scripts/release/check-python-release.py
+      - name: Build and inspect distributions
+        run: |
+          python -m pip install build==1.6.0 twine==6.2.0
+          python -m build framework/python --outdir dist
+          python -m twine check --strict dist/*
+          python scripts/release/check-python-release.py --dist dist
+      - name: Install the built wheel outside the checkout
+        run: |
+          python -m venv "$RUNNER_TEMP/python-package-smoke"
+          "$RUNNER_TEMP/python-package-smoke/bin/python" -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/python-package-smoke/bin/python" -c 'from betterportal.service import Service; from betterportal.contracts import document; assert document("JsonValueSchema")'
+          "$RUNNER_TEMP/python-package-smoke/bin/bp-python" --help
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+
+  release-gate:
+    if: startsWith(github.ref, 'refs/tags/') && github.repository == 'BetterCorp/BetterPortal'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      actions: read
+    steps:
+      - name: Require successful master CI for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          for attempt in $(seq 1 30); do
+            status=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$RELEASE_SHA&event=push&per_page=100" --jq '[.workflow_runs[] | select(.head_branch == "master")] | sort_by(.run_number) | last | if . == null then "missing" elif .status != "completed" then "pending" else .conclusion end')
+            if [ "$status" = success ]; then exit 0; fi
+            if [ "$status" != pending ]; then
+              echo "::error::Release commit needs successful master Build CI (found: $status)."
+              exit 1
+            fi
+            sleep 60
+          done
+          echo '::error::Timed out waiting for master Build CI.'
+          exit 1
+
+  publish:
+    needs: [build, release-gate]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/betterportal/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: python-distributions
+          path: dist/
+      - name: Publish to PyPI with OIDC and attestations
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1 (v1.14.2)
