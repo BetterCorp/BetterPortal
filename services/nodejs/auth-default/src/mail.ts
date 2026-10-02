@@ -4,6 +4,17 @@ import { AuthError, type IdentityService } from "./identity.js";
 import type { AuthTransaction, RecordValue, Scope } from "./storage.js";
 
 export interface MailConfig { transport: "postal" | "http"; url: string; from: string; apiKey?: string; headers?: Record<string, string> }
+function deliveryHeaders(config: MailConfig): Headers {
+  const headers = new Headers(config.headers);
+  headers.set("Content-Type", "application/json");
+  if (config.transport === "postal") {
+    const key = config.apiKey?.trim();
+    if (!key) throw new AuthError("Postal email delivery requires a server API key in mailApiKey.", 503);
+    try { headers.set("X-Server-API-Key", key); }
+    catch { throw new AuthError("Postal server API key contains invalid HTTP header characters.", 503); }
+  }
+  return headers;
+}
 // Only documented codes are safe to expose; arbitrary provider text may contain secrets.
 const postalErrorCodes = new Set(["AccessDenied", "ValidationError", "NoRecipients", "NoContent", "TooManyToAddresses", "TooManyCCAddresses", "TooManyBCCAddresses", "FromAddressMissing", "UnauthenticatedFromAddress", "AttachmentMissingName", "AttachmentMissingData"]);
 const MailHeadersSchema = av.record(av.string());
@@ -35,6 +46,7 @@ export class MailQueue {
       const config = this.config(scope);
       if (!config) { reason = "not_configured"; throw new AuthError("Email delivery has not been configured.", 503); }
       validateMailUrl(config.url);
+      deliveryHeaders(config);
       reason = "queue_write_failed";
       if (this.identity.storage.mode === "simple") {
         const rows = await tx.list<Mail>("mail", scope);
@@ -79,6 +91,7 @@ export class MailQueue {
           if (!config) { reason = "not_configured"; throw new Error("Mail not configured"); }
           transport = config.transport;
           validateMailUrl(config.url);
+          const headers = deliveryHeaders(config);
           reason = "payload_invalid";
           const payload = JSON.parse(this.identity.cipher.decrypt(row.encrypted)) as { to: string; subject: string; text: string };
           const body = { from: config.from, to: payload.to, subject: payload.subject, text: payload.text, html: "" };
@@ -86,7 +99,7 @@ export class MailQueue {
           reason = "network_error";
           const response = await fetch(url, {
             method: "POST", redirect: "error", signal: AbortSignal.timeout(15000),
-            headers: { ...config.headers, "Content-Type": "application/json", ...(config.transport === "postal" ? { "X-Server-API-Key": config.apiKey ?? "" } : {}) },
+            headers,
             body: JSON.stringify(config.transport === "postal" ? { from: body.from, to: [body.to], subject: body.subject, plain_body: body.text, html_body: body.html } : body)
           });
           status = response.status;
@@ -101,6 +114,7 @@ export class MailQueue {
               success = response.ok && outcome === "success";
               const code = data && typeof data === "object" ? (data as { code?: unknown }).code : undefined;
               providerCode = success ? "none" : typeof code === "string" && postalErrorCodes.has(code) ? code : "unknown";
+              if (providerCode === "AccessDenied") reason = "provider_access_denied";
             }
           }
           if (!response.bodyUsed) await response.body?.cancel();
@@ -121,6 +135,7 @@ export class MailQueue {
           if (success) span?.logger.info("Auth mail accepted by provider", attributes);
           else {
             span?.error(new Error("Auth mail delivery failed"), attributes);
+            if (providerCode === "AccessDenied") span?.logger.warn("Postal rejected the server API key; check mailApiKey against the API credential for the configured Postal server.");
             if (attributes.state === "failed") span?.logger.error("Auth mail delivery exhausted retries: transport={transport} status={status} reason={reason} providerCode={providerCode} attempts={attempts}", attributes);
             else span?.logger.warn("Auth mail delivery failed; retry scheduled: transport={transport} status={status} reason={reason} providerCode={providerCode} attempts={attempts}", attributes);
           }

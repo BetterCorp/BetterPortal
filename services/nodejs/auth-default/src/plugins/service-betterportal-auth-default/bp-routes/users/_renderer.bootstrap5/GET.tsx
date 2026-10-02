@@ -22,7 +22,17 @@ export function render(data: Record<string, any>): HtmlRenderable {
     <div class="row g-4">
       <div class="col-12 col-xl-8"><section class="card h-100"><div class="card-header"><h2 class="h5 mb-0">Users</h2></div><div class="card-body">
         {!users.length ? <p class="text-body-secondary">No users in this directory yet.</p> : <div class="table-responsive"><table class="table align-middle"><thead><tr><th scope="col">User</th><th scope="col">Access</th><th scope="col">Account</th></tr></thead><tbody>{users.map((u: any) => <tr>
-          <td><strong>{u.name || u.email || u.username}</strong>{u.name ? <small class="d-block text-body-secondary">{u.email || u.username}</small> : null}<small class="d-block text-body-secondary">{u.emailVerified ? "Email verified" : "Email not verified"}</small></td>
+          <td><strong>{u.name || u.email || u.username}</strong>{u.name ? <small class="d-block text-body-secondary">{u.email || u.username}</small> : null}<small class="d-block text-body-secondary">{u.emailVerified ? "Email verified" : "Email not verified"}</small>
+            {data.canManageDirectory && !u.protected && u.enabled && u.email && !u.emailVerified ? <form class="mt-2" data-bp-no-route="">
+              <input type="hidden" name="action" value="verification.link" /><input type="hidden" name="id" value={u.id} />
+              <button class="btn btn-sm btn-outline-primary" type="submit">Generate verification link</button>
+              <div class="mt-2" data-verification-output="" hidden>
+                <label class="form-label d-block">Verification link<input class="form-control form-control-sm mt-1" data-verification-value="" type="text" readonly /></label>
+                <div class="d-flex flex-wrap gap-2"><button class="btn btn-sm btn-outline-secondary" data-copy-verification="" type="button">Copy link</button><a class="btn btn-sm btn-outline-primary" data-verification-link="" target="_blank" rel="noopener noreferrer">Open verification link</a></div>
+                <small class="d-block text-body-secondary mt-1">Expires in 30 minutes. Open it to verify this user, or share it with them.</small>
+              </div>
+            </form> : null}
+          </td>
           <td>{u.protected ? <span class="badge text-bg-secondary">Bootstrap administrator</span> : <form data-bp-no-route=""><input type="hidden" name="action" value="roles" /><input type="hidden" name="id" value={u.id} />{rolePicker(u.roles)}<button class="btn btn-sm btn-primary" type="submit">Save roles</button></form>}
             {u.effectiveRoles?.filter((id: string) => !u.roles.includes(id)).length ? <small class="d-block text-body-secondary mt-2">From groups: {u.effectiveRoles.filter((id: string) => !u.roles.includes(id)).join(", ")}</small> : null}</td>
           <td><span class={`badge mb-2 ${u.enabled ? "text-bg-success" : "text-bg-secondary"}`}>{u.enabled ? "Enabled" : "Disabled"}</span>{data.canManageDirectory && !u.protected ? <form data-bp-no-route=""><input type="hidden" name="action" value="disable" /><input type="hidden" name="id" value={u.id} /><input type="hidden" name="enabled" value={String(!u.enabled)} /><button class="btn btn-sm btn-outline-secondary" type="submit">{u.enabled ? "Disable" : "Enable"}</button></form> : null}</td>
@@ -56,6 +66,11 @@ export function render(data: Record<string, any>): HtmlRenderable {
     </div>
     <script>{js(`(() => {
       const root = document.getElementById("bp-users-ui"); if (!root) return;
+      root.querySelectorAll('[data-copy-verification]').forEach(button => button.addEventListener('click', async () => {
+        const input = button.closest('form').querySelector('[data-verification-value]');
+        try { await navigator.clipboard.writeText(input.value); button.textContent = 'Copied'; }
+        catch { input.focus(); input.select(); button.textContent = 'Select and copy'; }
+      }));
       root.querySelectorAll("form").forEach(form => form.addEventListener("submit", async event => {
         event.preventDefault(); event.stopPropagation(); const button = form.querySelector("button"); button.disabled = true;
         const status = root.querySelector('[role="status"]');
@@ -67,6 +82,12 @@ export function render(data: Record<string, any>): HtmlRenderable {
           const endpoint = new URL(root.dataset.endpoint, location.href).href;
           const result = await window.BetterPortalAuth.fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(data) });
           const body = await result.json();
+          if (data.action === 'verification.link' && result.ok && body.verificationLink) {
+            form.querySelector('[data-verification-value]').value = body.verificationLink;
+            form.querySelector('[data-verification-link]').href = body.verificationLink;
+            form.querySelector('[data-copy-verification]').textContent = 'Copy link';
+            form.querySelector('[data-verification-output]').hidden = false;
+          }
           status.className = "alert " + (result.ok ? "alert-success" : "alert-danger");
           status.textContent = body.message || body.error || (result.ok ? "Saved. Reload this page to see changes." : "Request failed.");
         } catch (error) { status.className = "alert alert-danger"; status.textContent = error.message; } finally { button.disabled = false; }

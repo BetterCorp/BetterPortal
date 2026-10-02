@@ -86,9 +86,37 @@ test("mail resumes request trace and logs safe retry and terminal outcomes", asy
   assert.match(output, /http_error/);
   assert.match(output, /401/);
   assert.match(output, /AccessDenied/);
+  assert.match(output, /provider_access_denied/);
   assert.match(output, /UnauthenticatedFromAddress/);
   assert.match(output, /invalid_response/);
   assert.match(output, /unknown/);
   assert.match(output, /providerCode=\{providerCode\}/);
   for (const secret of ["private", "sender@example.com", "Private subject"]) assert.ok(!output.includes(secret));
+});
+
+test("Postal rejects missing keys before queueing and revalidates keys at delivery", async t => {
+  const dir = mkdtempSync(join(tmpdir(), "bp-mail-key-")); const storage = new JsonAuthStorage(join(dir, "users.json"));
+  t.after(async () => { await storage.close(); rmSync(dir, { recursive: true, force: true }); });
+  const identity = new IdentityService(storage, new SecretCipher(Buffer.alloc(32, 7)));
+  const config = { transport: "postal" as const, url: "https://postal.test", from: "auth@example.com", apiKey: "", headers: { "x-server-api-key": "wrong-key", "content-type": "text/plain" } };
+  const queue = new MailQueue(identity, () => config); const scope = { tenantId: "tenant", appId: "app" };
+  const enqueue = () => storage.transaction(scope, tx => queue.enqueue(tx, scope, "alice@example.com", "Verify", "private proof"));
+  for (const key of ["", " \t ", "private-key\r\nInjected: yes"]) {
+    config.apiKey = key;
+    await assert.rejects(enqueue(), (error: any) => error.status === 503 && !error.message.includes("private-key"));
+  }
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("mail", scope)), []);
+  config.apiKey = "  correct-key  "; await enqueue();
+  const fetch = t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    const headers = new Headers(init.headers);
+    assert.equal(headers.get("X-Server-API-Key"), "correct-key");
+    assert.equal(headers.get("Content-Type"), "application/json");
+    return Response.json({ status: "success" });
+  });
+  config.apiKey = ""; await queue.drain(); assert.equal(fetch.mock.callCount(), 0);
+  const [job] = await storage.transaction(scope, tx => tx.list("mail", scope));
+  assert.equal(job.state, "pending");
+  config.apiKey = "  correct-key  ";
+  await storage.transaction(scope, tx => tx.put("mail", scope, { ...job, nextAttempt: 0 }));
+  await queue.drain(); assert.equal(fetch.mock.callCount(), 1);
 });
