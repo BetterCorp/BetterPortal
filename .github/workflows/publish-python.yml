@@ -71,7 +71,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             status=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$RELEASE_SHA&event=push&per_page=100" --jq '[.workflow_runs[] | select(.head_branch == "master")] | sort_by(.run_number) | last | if . == null then "missing" elif .status != "completed" then "pending" else .conclusion end')
             if [ "$status" = success ]; then exit 0; fi
             if [ "$status" != pending ]; then

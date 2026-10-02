@@ -38,8 +38,12 @@ if args.dist:
         else:
             with tarfile.open(archive) as package:
                 names = set(package.getnames())
-                member = package.extractfile(f'betterportal-{version}/PKG-INFO')
-                assert member is not None
+                try:
+                    member = package.extractfile(f'betterportal-{version}/PKG-INFO')
+                except KeyError:
+                    member = None
+                if member is None:
+                    raise SystemExit(f'Missing PKG-INFO in {archive.name}')
                 metadata = member.read()
                 prefix = f'betterportal-{version}/'
         headers = BytesParser().parsebytes(metadata)

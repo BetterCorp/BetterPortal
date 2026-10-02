@@ -34,7 +34,7 @@ class ReleaseChecks(unittest.TestCase):
     def run_check(self, *args, ref='refs/tags/v1.2.3'):
         return subprocess.run([sys.executable, str(self.script), *args], env={**os.environ, 'GITHUB_REF': ref}, capture_output=True, text=True)
 
-    def archives(self, *, typed=True, metadata_version='1.2.3'):
+    def archives(self, *, typed=True, metadata_version='1.2.3', sdist_metadata=True):
         files = {'betterportal/cli.py': b'', 'betterportal/_contracts/JsonValueSchema.json': b'{}'}
         if typed: files['betterportal/py.typed'] = b''
         metadata = f'Name: betterportal\nVersion: {metadata_version}\n'.encode()
@@ -42,7 +42,8 @@ class ReleaseChecks(unittest.TestCase):
             for path, content in files.items(): package.writestr(path, content)
             package.writestr('betterportal-1.2.3.dist-info/METADATA', metadata)
         with tarfile.open(self.dist / 'betterportal-1.2.3.tar.gz', 'w:gz') as package:
-            for path, content in {**files, 'PKG-INFO': metadata}.items():
+            source_files = {**files, **({'PKG-INFO': metadata} if sdist_metadata else {})}
+            for path, content in source_files.items():
                 info = tarfile.TarInfo('betterportal-1.2.3/' + path)
                 info.size = len(content)
                 package.addfile(info, BytesIO(content))
@@ -60,6 +61,11 @@ class ReleaseChecks(unittest.TestCase):
         self.assertNotEqual(self.run_check('--dist', str(self.dist)).returncode, 0)
         self.archives(metadata_version='9.9.9')
         self.assertNotEqual(self.run_check('--dist', str(self.dist)).returncode, 0)
+        self.archives(sdist_metadata=False)
+        result = self.run_check('--dist', str(self.dist))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Missing PKG-INFO', result.stderr)
+        self.assertNotIn('Traceback', result.stderr)
         self.archives()
         (self.dist / 'unrelated.whl').write_bytes(b'')
         self.assertNotEqual(self.run_check('--dist', str(self.dist)).returncode, 0)
