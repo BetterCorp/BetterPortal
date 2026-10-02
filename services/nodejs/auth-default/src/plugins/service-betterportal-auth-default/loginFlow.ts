@@ -147,16 +147,22 @@ export const handlePost = createHandler(
 
     const body = ctx.request as Infer<typeof RequestSchema>;
     const scope = { tenantId, appId };
-    const policy = await runtime.policy(scope);
     try {
+    const policy = await runtime.policy(scope);
     await runtime.identity.rateLimit(scope, "login-peer", runtime.clientAddress?.(ctx.rawEvent as BetterPortalEvent) ?? getEventPeerIp(ctx.rawEvent as BetterPortalEvent) ?? "unknown", 100, 600);
     const directoryScope = { tenantId, appId: policy.isolation === "tenant" ? "" : appId };
     await runtime.identity.rateLimit(directoryScope, "login", normalizeAccountIdentifier(body.username));
     const user = await runtime.identity.authenticate(scope, policy, body.username, body.password);
-    if (!user) { ctx.setStatus?.(401); return { status: "error" as const, message: "Invalid username or password." }; }
+    if (!user) {
+      ctx.diagnostic?.({ code: "auth.login.invalid_credentials", reason: "Invalid username or password." });
+      ctx.setStatus?.(401); return { status: "error" as const, message: "Invalid username or password." };
+    }
     const roles = await runtime.identity.storage.transaction(scope, tx => runtime.identity.roles(tx, scope, user, policy));
     const root = runtime.isManagement(scope) && roles.includes("*");
-    if (!user.emailVerified && !root && user.legacyUsernameLogin !== true) { ctx.setStatus?.(403); return { status: "error" as const, message: "Verify your email address before signing in. Use account recovery to resend the verification email." }; }
+    if (!user.emailVerified && !root && user.legacyUsernameLogin !== true) {
+      ctx.diagnostic?.({ code: "auth.login.email_unverified", reason: "Email verification is required before signing in." });
+      ctx.setStatus?.(403); return { status: "error" as const, message: "Verify your email address before signing in. Use account recovery to resend the verification email." };
+    }
     const hasFactors = await runtime.factors.hasFactors(user);
     if (hasFactors || policy.requireMfa || root) {
       const event = ctx.rawEvent as { req: Request; url: URL };
@@ -209,6 +215,7 @@ export const handlePost = createHandler(
     };
     } catch (error) {
       if (!(error instanceof AuthError)) throw error;
+      ctx.diagnostic?.({ code: error.status === 429 ? "auth.login.rate_limited" : "auth.login.rejected", reason: error.message });
       ctx.setStatus?.(error.status);
       return { status: "error" as const, message: error.message };
     }

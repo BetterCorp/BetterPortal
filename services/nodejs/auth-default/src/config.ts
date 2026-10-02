@@ -19,9 +19,9 @@ export const AuthConfigSchemas: ConfigSchemaDescriptor[] = [
       { key: "defaultRoleIds", title: "Default role IDs", description: "JSON array of existing app role IDs. Applied once at first completed login. Empty by default.", defaultValue: "[]" },
       { key: "requireMfa", title: "Require multi-factor authentication", defaultValue: false },
       { key: "mailTransport", title: "Email delivery", ui: { control: "select", options: [{ value: "postal", label: "Postal HTTP API" }, { value: "http", label: "Custom HTTP API" }] } },
-      { key: "mailUrl", title: "Email API URL" },
+      { key: "mailUrl", title: "Email API URL", description: "For Postal, use the server base URL, without /api/v1/send/message." },
       { key: "mailFrom", title: "Sender email" },
-      { key: "mailApiKey", title: "Postal API key", visibility: "secret" },
+      { key: "mailApiKey", title: "Postal API key", description: "Required for Postal: the server API credential from Postal's Credentials page, sent as X-Server-API-Key.", visibility: "secret" },
       { key: "mailHeaders", title: "Custom HTTP headers", description: "JSON object of server-side headers.", visibility: "secret" },
       { key: "socialConnections", title: "Social connections", description: "JSON array of Google, Microsoft or GitHub connections. Each app requires its own registered redirect URL.", visibility: "secret" }
     ].map(field => ({ description: field.title, scope: "app" as const, visibility: "protected" as const, ownership: "bp" as const, sourceOfTruth: "bp" as const, required: false, ...field })) as ConfigSchemaDescriptor["fields"]
