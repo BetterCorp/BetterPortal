@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { H3 } from "h3";
+import { EventStream, H3 } from "h3";
 import { setImmediate } from "node:timers/promises";
 import { registerWebhookRoutes } from "../src/plugins/service-betterportal-config-manager/webhooks.js";
 import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
@@ -372,7 +372,9 @@ test("config sync shares projections, suppresses duplicates and closes revoked s
   assert.ok((await Promise.all(pending)).every(result => result.done), "no duplicate or revoked config frame");
 });
 
-test("idle config sync sends heartbeat comments and releases timers when disconnected", { timeout: 5000 }, async t => {
+test("idle config sync uses compatible heartbeat events and releases timers when disconnected", { timeout: 5000 }, async t => {
+  // Production service-base can resolve a stream implementation without pushComment.
+  const comment = t.mock.method(EventStream.prototype, "pushComment", () => { throw new TypeError("stream.pushComment is not a function"); });
   const intervals = new Map<ReturnType<typeof setInterval>, { callback: () => void; ms: number }>();
   t.mock.method(globalThis, "setInterval", (callback: () => void, ms: number) => {
     const timer = {} as ReturnType<typeof setInterval>;
@@ -392,10 +394,11 @@ test("idle config sync sends heartbeat comments and releases timers when disconn
   assert.ok(heartbeat);
   // A slow client must receive only one pending heartbeat across repeated ticks.
   heartbeat.callback(); heartbeat.callback(); heartbeat.callback();
-  assert.equal(new TextDecoder().decode((await reader.read()).value), ": keepalive\n\n");
+  assert.equal(new TextDecoder().decode((await reader.read()).value), "event: heartbeat\ndata: keepalive\n\n");
   await setImmediate();
   heartbeat.callback();
-  assert.equal(new TextDecoder().decode((await reader.read()).value), ": keepalive\n\n");
+  assert.equal(new TextDecoder().decode((await reader.read()).value), "event: heartbeat\ndata: keepalive\n\n");
+  assert.equal(comment.mock.callCount(), 0);
   assert.equal(projections, 1, "heartbeats do not project or resend configuration");
   await reader.cancel(); await setImmediate();
   assert.equal(intervals.size, 0); assert.equal(listeners.size, 1, "only the endpoint's projection cache listener remains");

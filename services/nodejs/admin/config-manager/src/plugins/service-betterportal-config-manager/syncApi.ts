@@ -698,13 +698,14 @@ export function registerSyncEndpoint(
       });
     });
 
-    // Comments keep idle HTTP clients and proxies connected without resending config.
+    // Named events work with both h3 stream implementations used by service-base.
+    // Sync clients ignore heartbeat events while idle HTTP connections stay active.
     // Bound writes to one pending heartbeat when a client stops consuming the stream.
     let heartbeatPending = false;
     const heartbeatTimer = setInterval(() => {
       if (closed || heartbeatPending) return;
       heartbeatPending = true;
-      void stream.pushComment("keepalive").catch(() => {
+      void Promise.resolve().then(() => stream.push({ event: "heartbeat", data: "keepalive" })).catch(() => {
         closed = true;
         return stream.close();
       }).catch(() => {}).finally(() => { heartbeatPending = false; });
