@@ -38,6 +38,31 @@ import { dirname, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 
 const SERVICE_ID = "org.betterportal.auth.workos";
+const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
+
+async function readWebhookBody(request: Request): Promise<string | null> {
+  const declared = request.headers.get("content-length");
+  if (declared && /^\d+$/.test(declared) && Number(declared) > MAX_WEBHOOK_BODY_BYTES) return null;
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_WEBHOOK_BODY_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size).toString("utf8");
+}
 
 const PluginConfigSchema = av.object({
   host: av.string().minLength(1).default("0.0.0.0"),
@@ -864,12 +889,16 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   private async handleWorkOSWebhook(event: BetterPortalEvent): Promise<Response> {
     const obs = eventObservability(event);
     const span = obs?.startSpan("workos.webhook");
-    const payload = await event.req.text();
     const sigHeader = event.req.headers.get("workos-signature");
     if (!sigHeader) {
       span?.end({ "workos.webhook.rejected": true });
       obs?.logger.warn("WorkOS webhook rejected: missing signature");
       return jsonResponse({ error: "Missing WorkOS signature" }, 401);
+    }
+    const payload = await readWebhookBody(event.req);
+    if (payload === null) {
+      span?.end({ "workos.webhook.rejected": true });
+      return jsonResponse({ error: "WorkOS webhook payload too large" }, 413);
     }
     let configuredSecrets = 0;
     for (const candidate of this.matchingConfiguredApps()) {
