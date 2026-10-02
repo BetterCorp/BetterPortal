@@ -6,6 +6,7 @@ import {
 } from "@betterportal/framework";
 import { registerRawManagementAccessControl } from "../src/plugins/service-betterportal-config-manager/accessControl.js";
 import { registerAdminApiRoutes } from "../src/plugins/service-betterportal-config-manager/adminApi.js";
+import { registerMenuEditorRoutes } from "../src/plugins/service-betterportal-config-manager/menuEditor.js";
 import { issueBootstrapAdminToken } from "../src/plugins/service-betterportal-config-manager/bootstrapAccess.js";
 import type { CpBootstrapState } from "../src/plugins/service-betterportal-config-manager/cpBootstrap.js";
 import { registerSetupEndpoints } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
@@ -28,7 +29,12 @@ function fixture() {
     expectedAudience: "betterportal-runtime",
     jwksUri: "https://auth.example/.well-known/jwks.json",
     publicKeys: { keys: [publicKeyToJwk(authKey.publicKeyPem, authKey.kid)] },
-    roles: [{ id: "editor", title: "Editor", permissions: [{ serviceId, viewId: "config.index", permissions: ["read", "update"] }] }]
+    roles: [
+      { id: "editor", title: "Editor", permissions: [{ serviceId, viewId: "config.index", permissions: ["read", "update"] }] },
+      { id: "menu-reader", title: "Menu reader", permissions: [{ serviceId, viewId: "menu.index", permissions: ["read"] }] },
+      { id: "menu-editor", title: "Menu editor", permissions: [{ serviceId, viewId: "menu.index", permissions: ["read", "create", "update", "delete"] }] },
+      { id: "routes-reader", title: "Routes reader", permissions: [{ serviceId, viewId: "routes.index", permissions: ["read"] }] }
+    ]
   };
   const config = BetterPortalConfigSchema.parse({
     configManagement: { adminTenantId: tenantId, managementAppId: appId },
@@ -54,6 +60,7 @@ function fixture() {
   const app = createBetterPortalApp();
   registerRawManagementAccessControl(app, storage, cpState);
   registerAdminApiRoutes(app, storage, cpState);
+  registerMenuEditorRoutes(app, storage);
   registerSetupEndpoints({ app, storage, cpState });
   const token = (scopeAppId: string, scopeTenantId: string, roles: string[] = ["*"]) => signJwt({
     privateKeyPem: authKey.privateKeyPem, kid: authKey.kid,
@@ -67,7 +74,11 @@ function fixture() {
         ...(authorization ? { Authorization: `Bearer ${authorization}` } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {})
     }));
-  return { appId, tenantId, otherAppId, otherTenantId, storage, cpState, token, send };
+  const sendForm = (path: string, fields: Record<string, string>, authorization: string) =>
+    app.fetch(new Request(`https://config.example${path}`, {
+      method: "POST", headers: { Authorization: `Bearer ${authorization}` }, body: new URLSearchParams(fields)
+    }));
+  return { appId, tenantId, otherAppId, otherTenantId, storage, cpState, token, send, sendForm };
 }
 
 test("anonymous raw admin API cannot disclose config or mint platform service keys", async () => {
@@ -108,6 +119,28 @@ test("verified management JWT authorizes root admin and app-scoped role grants",
   const changed = await send(`/.well-known/bp/manage/theme?appId=${appId}`, "POST", { mode: "dark" }, token(appId, tenantId, ["editor"]));
   assert.equal(changed.status, 200, await changed.text());
   assert.equal(storage.config.apps[0].themeConfig.mode, "dark");
+});
+
+test("delegated menu editor can use raw editor APIs only for granted actions", async () => {
+  const { send, sendForm, storage, appId, tenantId, token } = fixture();
+  const reader = token(appId, tenantId, ["menu-reader"]);
+  const editor = token(appId, tenantId, ["menu-editor"]);
+  assert.equal((await send(`/.well-known/bp/admin/menu-editor?appId=${appId}`, "GET", undefined, reader)).status, 200);
+  assert.equal((await sendForm("/.well-known/bp/admin/menu-editor/add", { appId, type: "group", title: "Group" }, reader)).status, 403);
+  assert.equal(storage.config.apps[0].menu.length, 0);
+  assert.equal((await sendForm("/.well-known/bp/admin/menu-editor/add", { appId, type: "group", title: "Group" }, editor)).status, 200);
+  assert.equal(storage.config.apps[0].menu.length, 1);
+  assert.equal((await sendForm("/.well-known/bp/admin/menu-editor/remove", { appId, itemId: storage.config.apps[0].menu[0].id }, editor)).status, 200);
+  assert.equal(storage.config.apps[0].menu.length, 0);
+  assert.equal((await send("/.well-known/bp/admin/config", "GET", undefined, editor)).status, 403);
+  assert.equal((await send("/.well-known/bp/admin/platform-services", "POST", { hostname: "https://attacker.example" }, editor)).status, 403);
+});
+
+test("delegated route reader cannot mutate routes", async () => {
+  const { send, appId, tenantId, token } = fixture();
+  const reader = token(appId, tenantId, ["routes-reader"]);
+  assert.equal((await send(`/.well-known/bp/admin/apps/${appId}/routes`, "GET", undefined, reader)).status, 200);
+  assert.equal((await send(`/.well-known/bp/admin/apps/${appId}/routes`, "POST", { path: "/evil" }, reader)).status, 403);
 });
 
 test("bootstrap capability permits only first-install and admin role creation", async () => {

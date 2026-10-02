@@ -76,6 +76,45 @@ function permissionForManage(path: string, method: string): { viewId: string; ac
   return { viewId, action };
 }
 
+async function permissionForAdmin(path: string, method: string, event: BetterPortalEvent): Promise<{ viewId: string; action: Action } | undefined> {
+  const suffix = path.slice(ADMIN.length + 1);
+  const action: Action | undefined = method === "GET" ? "read" : method === "POST" ? "create"
+    : method === "PUT" || method === "PATCH" ? "update" : method === "DELETE" ? "delete" : undefined;
+  if (!action) return undefined;
+
+  const menuReads = ["menu-editor", "menu-editor/item", "menu-editor/views", "menu-editor/default-target"];
+  if (method === "GET" && menuReads.includes(suffix)) return { viewId: "menu.index", action: "read" };
+  const menuAction = /^menu-editor\/(save-visibility|save-title|save-link|save-external|add|remove|toggle|toggle-expanded|move-up|move-down|move-in|move-after|move-out)$/.exec(suffix)?.[1];
+  if (method === "POST" && menuAction) return { viewId: "menu.index", action: menuAction === "add" ? "create" : menuAction === "remove" ? "delete" : "update" };
+
+  if (method === "GET" && suffix === "fragments-editor") return { viewId: "fragments.index", action: "read" };
+  const fragmentAction = /^fragments-editor\/(set-mode|set-override|add|remove|move-up|move-down)$/.exec(suffix)?.[1];
+  if (method === "POST" && fragmentAction) return { viewId: "fragments.index", action: fragmentAction === "add" ? "create" : fragmentAction === "remove" ? "delete" : "update" };
+
+  const appResource = /^apps\/[^/]+\/(routes(?:\/[^/]+)?|menu|auth\/roles(?:\/[^/]+)?|m2m\/connections(?:\/[^/]+)?|theme-config\/bootstrap1)$/.exec(suffix)?.[1];
+  if (appResource) return { viewId: appResource.startsWith("routes") ? "routes.index"
+    : appResource === "menu" ? "menu.index"
+      : appResource.startsWith("auth/") ? "auth.index"
+        : appResource.startsWith("m2m/") ? "services.index" : "config.index",
+    action: appResource === "theme-config/bootstrap1" ? "update" : action };
+
+  if (suffix === "platform-services" || /^shared-services(?:\/[^/]+(?:\/activations(?:\/purge)?)?)?$/.test(suffix)
+    || /^tenants\/[^/]+\/(?:services(?:\/[^/]+(?:\/(?:purge|migrate-to-shared(?:\/preview)?))?)?|activate\/[^/]+)$/.test(suffix)) {
+    return { viewId: "services.index", action: suffix.endsWith("/purge") ? "delete" : suffix.endsWith("/migrate-to-shared") ? "update" : action };
+  }
+  if (suffix === "services/begin-install" && method === "POST") return { viewId: "services.index", action: "create" };
+  if (suffix === "services/begin-hostname-change" && method === "POST") return { viewId: "services.index", action: "update" };
+  if ((suffix === "wizard/step1" || suffix === "configure") && method === "GET"
+    || suffix === "wizard/verify" && method === "POST") return { viewId: "services.index", action: "read" };
+  if (suffix === "wizard/register" && method === "POST") return { viewId: "services.index", action: "create" };
+  if (suffix === "wizard/cleanup-provisional-service" && method === "POST") return { viewId: "services.index", action: "delete" };
+  if (suffix === "config-ticket" && method === "POST") {
+    const body = await event.req.clone().json().catch(() => null) as { actions?: unknown } | null;
+    return { viewId: "services.index", action: Array.isArray(body?.actions) && body.actions.includes("config.write") ? "update" : "read" };
+  }
+  return undefined;
+}
+
 function hasPermission(config: BetterPortalConfig, app: BetterPortalApp, roleIds: string[], viewId: string, action: Action): boolean {
   const ids = new Set([CONFIG_MANAGER_ID]);
   const tenant = config.tenants.find(candidate => candidate.id === app.tenantId);
@@ -140,7 +179,12 @@ export function registerRawManagementAccessControl(app: BetterPortalH3App, store
     }
     const root = target.id === config.configManagement.managementAppId
       && target.tenantId === config.configManagement.adminTenantId && claims.roles.includes("*");
-    if (admin) return root ? undefined : jsonResponse({ error: "Platform administrator required" }, 403);
+    if (admin) {
+      if (root) return;
+      const policy = await permissionForAdmin(path, method, event);
+      return policy && hasPermission(config, target, claims.roles, policy.viewId, policy.action)
+        ? undefined : jsonResponse({ error: "Platform management permission required" }, 403);
+    }
     if (root) return;
     if (path === `${MANAGE}/current`) return;
     const policy = permissionForManage(path, method);
