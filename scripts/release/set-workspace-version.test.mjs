@@ -24,3 +24,24 @@ test("release versioning updates and checks Python alongside workspace packages"
   assert.equal(run("1.1.0+private").status, 1);
   assert.equal(readFileSync(pythonFile, "utf8"), before, "unsupported releases must not partially update files");
 });
+
+
+test("release check rejects stale workspace versions and internal dependency pins", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "bp-workspace-release-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  mkdirSync(join(directory, "framework/python"), { recursive: true });
+  mkdirSync(join(directory, "packages/peer"), { recursive: true });
+  writeFileSync(join(directory, "framework/python/pyproject.toml"), '[project]\nname = "betterportal"\nversion = "1.0.0"\n');
+  const rootFile = join(directory, "package.json");
+  const root = { version: "1.0.0", workspaces: ["packages/peer"], dependencies: { "@betterportal/peer": "1.0.0" } };
+  writeFileSync(rootFile, JSON.stringify(root));
+  const peerFile = join(directory, "packages/peer/package.json");
+  writeFileSync(peerFile, JSON.stringify({ name: "@betterportal/peer", version: "0.9.0" }));
+  const check = () => spawnSync(process.execPath, [script.pathname, "1.0.0", "--check"], { cwd: directory, encoding: "utf8" });
+  assert.equal(check().status, 1);
+  writeFileSync(peerFile, JSON.stringify({ name: "@betterportal/peer", version: "1.0.0" }));
+  assert.equal(check().status, 0);
+  root.dependencies["@betterportal/peer"] = "0.9.0";
+  writeFileSync(rootFile, JSON.stringify(root));
+  assert.equal(check().status, 1);
+});

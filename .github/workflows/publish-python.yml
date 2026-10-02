@@ -36,6 +36,9 @@ jobs:
       - name: Verify release metadata and versioning
         run: |
           node --test scripts/release/set-workspace-version.test.mjs
+          release_version=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then release_version="${GITHUB_REF_NAME#v}"; fi
+          node scripts/release/set-workspace-version.mjs "$release_version" --check
           python scripts/release/check-python-release.test.py
           python scripts/release/check-python-release.py
       - name: Build and inspect distributions
