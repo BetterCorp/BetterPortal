@@ -41,6 +41,7 @@ test("unsigned WorkOS webhooks are rejected without reading their body", async (
   const response = await webhookApp().fetch(request);
   assert.equal(response.status, 401);
   assert.equal(stream.reads, 0);
+  assert.equal(stream.cancelled, true);
 });
 
 test("declared oversized WorkOS webhooks are rejected before streaming", async () => {
@@ -52,6 +53,7 @@ test("declared oversized WorkOS webhooks are rejected before streaming", async (
   const response = await webhookApp().fetch(request);
   assert.equal(response.status, 413);
   assert.equal(stream.reads, 0);
+  assert.equal(stream.cancelled, true);
 });
 
 test("chunked WorkOS webhooks stop reading at the byte limit", async () => {
