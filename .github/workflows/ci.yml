@@ -40,6 +40,7 @@ jobs:
 
       - run: node --test .github/actions/preview-environment/index.test.mjs
       - run: npm ci --workspaces --include-workspace-root
+      - run: npm audit --audit-level=low
       - run: npm run build
       - run: npm run lint
       - run: npx playwright install --with-deps chromium
