@@ -34,7 +34,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@authress/sdk": "^3.2.280",
+    "@authress/sdk": "^3.2.289",
     "@betterportal/framework": "10.6.35",
     "@betterportal/plugin-bsb": "10.6.35",
     "@bsb/base": "^9.7.3",
