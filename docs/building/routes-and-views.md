@@ -757,3 +757,5 @@ Renderer selection uses the explicit `component` or `fragment` option. Reserved 
 `routeUi.current()` resolves GET by default, matching its emitted link and htmx attributes; pass `method` explicitly for another operation. `routeUrl()` itself continues to inherit the current method for self.
 
 `sse: true` resolves only a known registered GET SSE/finite-stream endpoint on the current service. Ordinary routes, non-GET methods and dependency mounts without streaming capability return null instead of a guessed stream URL.
+
+Embedded query values may contain raw question marks, for example `/items?q=what?x&next=/a?b`; the resolver preserves and encodes the complete values before applying query overrides.

@@ -90,7 +90,7 @@ native factories use the conventions below.
 
 Node packages run `bp run check-routes` before building. The check scans `.ts`, `.tsx`, `.mts` and `.cts` files in `src`, including helper folders named `lib` and `dist`; package build output remains outside that source root. Import handler factories from `@betterportal/framework` or the generated route runtime so their context ownership remains explicit.
 
-Removed URL helpers/options and literal route tokens are build errors. API responses contain domain data, state, IDs and cursors; renderers resolve destinations with `ctx.routeUrl`. The authoring gate follows statically traceable response construction through context destructuring, aliases, local helper functions, named callbacks, promises, reductions, string transformations and transparent object/collection serialization. Named callbacks retain their caller-input provenance.
+Removed URL helpers/options and literal route tokens are build errors. API responses contain domain data, state, IDs and cursors; renderers resolve destinations with `ctx.routeUrl`. The authoring gate follows statically traceable response construction through context destructuring, aliases, local helper functions, named callbacks, standard promise combinators, reductions, string transformations and replacement values and transparent object/collection serialization. Named callbacks retain their caller-input provenance.
 
 Public links, scalar state such as string/array lengths and collection sizes, and domain clients that consume service destinations remain valid. Framework auth redirect helpers are identified by imports and aliases, so unrelated provider helpers may use the same names. See [the routing contract and migration examples](routes-and-views.md).
 
