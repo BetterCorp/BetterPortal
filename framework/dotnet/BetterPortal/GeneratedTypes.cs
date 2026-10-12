@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 1539e11100ab709c5e78075896e5b86b9a3d8e9c5c947e4c04174895d660d2f7
+// Generated from AnyVali documents; do not edit. SHA256: 81ece17b9821aadf1fce7c293735474f6d205b5ff4123f82641b6e1ab44a93df
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -602,7 +602,7 @@ public sealed record BPRouteReference
 public sealed record BPRouteReferenceArgs
 {
     [JsonPropertyName("params")]
-    public required IReadOnlyDictionary<string, UrlScalar> Params { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar?> Params { get; init; }
     [JsonPropertyName("query")]
     public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
 }
@@ -625,7 +625,7 @@ public sealed record BPRouteReferenceInputArgs
 {
     [JsonPropertyName("params")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, UrlScalarInput>> Params { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Params { get; init; }
     [JsonPropertyName("query")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }

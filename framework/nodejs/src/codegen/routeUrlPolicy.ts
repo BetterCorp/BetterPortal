@@ -701,7 +701,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     : ts.isPropertyAccessExpression(expression) ? factoryNames.has(expression.name.text) && factoryImport(expression.expression, true, seen)
       || expression.name.text === "forContext" && factory(expression.expression, seen)
         : ts.isCallExpression(expression) ? factory(expression.expression, seen) : false;
-  const routeHandlerFile = /(?:^|[/])bp-routes[/](?:.*[/])?(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|SSE|STREAM)\.(?:[cm]?ts|tsx)$/.test(file.replace(/\\/g, "/"));
+  const pathSegments = file.replace(/\\/g, "/").split("/");
+  const routeHandlerFile = pathSegments.slice(0, -1).includes("bp-routes")
+    && /^(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|SSE|STREAM)\.(?:[cm]?ts|tsx)$/.test(pathSegments.at(-1) ?? "");
   const isReturnedValue = (node: ts.Node): boolean => {
     let current = node.parent;
     while (current && !ts.isFunctionLike(current)) {

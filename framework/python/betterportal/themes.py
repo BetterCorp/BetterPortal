@@ -1,4 +1,4 @@
-"""Native shell fragments and browser-runtime-compatible BP elements."""
+"""Native shell fragments and browser-runtime-compatible BPRoute controls."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -127,7 +127,7 @@ class ShellFragments:
         visited = 0
         async def item(reference, stack):
             if reference['source'] == 'shell': return await render(reference['fragmentId'], stack)
-            return element(context, {'service': reference['serviceId'], 'path': reference['targetPath'], 'fragment': reference['fragmentId']})
+            return bp_route(context, {'service': reference['serviceId'], 'path': reference['targetPath'], 'fragment': reference['fragmentId']})
         async def render(name, stack):
             nonlocal visited
             visited += 1

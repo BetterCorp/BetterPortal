@@ -945,3 +945,13 @@ test("new routing contract rejects removed names, UI hrefs and conflicting BPRou
   const explicit = 'export function render(data, ctx) { return <a href={ctx.route()}>Item</a>; }';
   assert.deepEqual(inspectRouteUrlSource("bp-routes/items/_renderer.bootstrap5/GET.tsx", explicit), []);
 });
+
+test("handler classification handles deep repeated route directories and Windows separators", () => {
+  const source = 'export function handler(ctx) { return { endpoint: ctx.route()?.apiPath }; }';
+  for (const file of ["bp-routes/GET.ts", "src\\bp-routes\\users\\POST.tsx", "bp-routes/" + "a/bp-routes/".repeat(10000) + "GET.ts"]) {
+    assert.ok(inspectRouteUrlSource(file, source).length, file.slice(0, 120));
+  }
+  for (const file of ["not-bp-routes/users/GET.ts", "bp-routes/users/GET.ts.backup", "bp-routes/users/helper.ts"]) {
+    assert.deepEqual(inspectRouteUrlSource(file, source), []);
+  }
+});

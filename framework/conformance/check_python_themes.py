@@ -33,6 +33,14 @@ async def main():
             changed['apps'][0]['shellFragments'] = {TARGET: {'nav': {'mode': 'override', 'item': {'source': 'shell', 'fragmentId': 'brand'}}}}
             await service.apply_snapshot(changed)
             assert (await client.get(url)).text.startswith('<nav><b>')
+            # Service-provided shell items must use the renamed BPRoute helper.
+            changed = deepcopy(source['snapshot'])
+            changed['apps'][0]['shellFragments'] = {TARGET: {'nav': {'mode': 'items', 'items': [
+                {'source': 'service', 'serviceId': TARGET, 'targetPath': '/check/item', 'fragmentId': 'menu.badge'}]}}}
+            await service.apply_snapshot(changed)
+            response = await client.get(url)
+            assert response.status_code == 200 and '<bp-route ' in response.text, response.text
+            assert 'data-bp-mode="embed"' in response.text and 'data-bp-service="' + TARGET + '"' in response.text
             changed = deepcopy(source['snapshot'])
             changed['apps'][0]['shellFragments'] = {TARGET: {'brand': {'mode': 'none'}}}
             await service.apply_snapshot(changed)
