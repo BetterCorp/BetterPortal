@@ -288,7 +288,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       let internal = false;
       const returned = (node: ts.Node): void => {
         if (node !== callback.body && ts.isFunctionLike(node)) return;
-        if (!fulfillOnly && ts.isReturnStatement(node) && node.expression && internalValue(node.expression, seen)) internal = true;
+        if (!fulfillOnly && (ts.isReturnStatement(node) || ts.isYieldExpression(node)) && node.expression && internalValue(node.expression, seen)) internal = true;
         if (fulfillOnly && ts.isCallExpression(node)) {
           if (isPromiseResolver(node.expression)) {
             if (node.arguments[0] && internalValue(node.arguments[0], seen)) internal = true;
@@ -473,7 +473,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const isReturnedValue = (node: ts.Node): boolean => {
     let current = node.parent;
     while (current && !ts.isFunctionLike(current)) {
-      if (ts.isReturnStatement(current)) return true;
+      if ((ts.isReturnStatement(current) || ts.isYieldExpression(current))) return true;
       if (ts.isCallExpression(current) || ts.isNewExpression(current) || ts.isVariableDeclaration(current)) return false;
       current = current.parent;
     }
@@ -508,7 +508,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     let current = node.parent;
     while (current && !ts.isFunctionLike(current)) {
       if (ts.isCallExpression(current) || ts.isNewExpression(current) || ts.isJsxAttribute(current) || ts.isJsxSpreadAttribute(current)) return false;
-      if (ts.isReturnStatement(current)) return belongsToHandler(current.parent);
+      if ((ts.isReturnStatement(current) || ts.isYieldExpression(current))) return belongsToHandler(current.parent);
       current = current.parent;
     }
     return Boolean(current && ts.isArrowFunction(current) && !ts.isBlock(current.body) && belongsToHandler(current));
@@ -649,7 +649,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       && ts.isParameter(node.parent.parent) && rendererFunctions.has(node.parent.parent.parent)
       && ts.isFunctionLike(node.parent.parent.parent) && node.parent.parent.parent.parameters[0] === node.parent.parent;
     if (field && legacyFields.has(field) && (payloadAccess || payloadBinding || payloadParameter)) report(node, `Legacy internal URL field '${field}' was removed. Return domain data/cursors and resolve destinations in the renderer.`);
-    const returned = ts.isReturnStatement(node) && node.expression && belongsToHandler(node.parent) ? node.expression
+    const returned = (ts.isReturnStatement(node) || ts.isYieldExpression(node)) && node.expression && belongsToHandler(node.parent) ? node.expression
       : ts.isArrowFunction(node) && !ts.isBlock(node.body) && belongsToHandler(node) ? node.body : undefined;
     if (returned && internalValue(returned)) report(node, "Do not return internal route destinations from API handlers. Return domain data and resolve destinations at the point of use.");
     if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node) || ts.isSpreadAssignment(node)) && inReturnedObject(node) && internalValue(ts.isSpreadAssignment(node) ? node.expression : ts.isPropertyAssignment(node) ? node.initializer : node.name)) {

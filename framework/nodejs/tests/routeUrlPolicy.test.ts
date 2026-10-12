@@ -713,3 +713,18 @@ test("numeric string indexing remains character state while array indexing retai
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
   assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return { endpoint: [ctx.routeUrl()?.apiPath][0] }; }').length);
 });
+
+
+test("streamed yield items retain API response destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'import { createStreamHandler } from "@betterportal/framework"; export default createStreamHandler({}, async function* (ctx) { yield { endpoint: ctx.routeUrl()?.apiPath }; });',
+    'import { createStreamHandler } from "@betterportal/framework"; export default createStreamHandler({}, async function* (ctx) { const item = { endpoint: ctx.routeUrl()?.apiPath }; yield item; });',
+    'import { createStreamHandler } from "@betterportal/framework"; export default createStreamHandler({}, async function* (ctx) { yield* [{ endpoint: ctx.routeUrl()?.apiPath }]; });'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'import { createStreamHandler } from "@betterportal/framework"; export default createStreamHandler({}, async function* (ctx) { yield { publicLink: ctx.routeUrl()?.absoluteUiPath }; });',
+    'import { createStreamHandler } from "@betterportal/framework"; export default createStreamHandler({}, async function* (ctx) { yield await client(ctx.routeUrl()?.apiPath); });',
+    'import { createStreamHandler } from "provider"; export default createStreamHandler({}, async function* (ctx) { yield { endpoint: ctx.routeUrl("provider") }; });'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
