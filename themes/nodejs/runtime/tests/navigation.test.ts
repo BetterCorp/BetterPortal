@@ -593,3 +593,28 @@ test("template-only routes rejected by the host cannot target the theme origin",
   assert.equal(await page.getAttribute("#theme-http-target", "hx-get"), null);
   assert.deepEqual(errors, []);
 });
+
+
+test("shared-origin history replay keeps credentials scoped to the matched service", async t => {
+  let authorization: string | undefined;
+  let wrongScope: string | undefined;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/items/1") {
+      authorization = route.request().headers().authorization;
+      wrongScope = route.request().headers()["x-auth-only"];
+      return html(route, '<p id="replayed">Replayed</p>');
+    }
+    return html(route, '<p id="initial">Initial</p>');
+  }, { Authorization: { value: "Bearer other-service", owner: "otherTenantAuth", scope: "otherTenantAuth" },
+       "X-Auth-Only": { value: "wrong-service", owner: "auth", scope: "auth" } }, "https://auth.test/login", "/auth/login", true, [
+    { href: "/other/items/:id", servicePath: "/items/:id", serviceId: "otherTenantAuth", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#initial");
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("htmx:before:history:restore", {
+    cancelable: true, detail: { path: "/other/items/1" }
+  })));
+  await page.waitForSelector("#replayed");
+  assert.equal(authorization, "Bearer other-service");
+  assert.equal(wrongScope, undefined);
+  assert.deepEqual(errors, []);
+});

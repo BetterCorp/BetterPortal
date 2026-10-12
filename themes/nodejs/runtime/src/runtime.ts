@@ -1305,6 +1305,14 @@ export function betterPortalShellRuntimeSource(): string {
         const link = document.createElement("a");
         link.href = tenantUrl;
         link.setAttribute("hx-get", serviceUrl);
+        const match = matchTenantRoute(new URL(tenantUrl, window.location.origin).pathname);
+        if (match) {
+          const target = new URL(serviceUrl, window.location.origin);
+          const matchedTarget = new URL(serviceUrlForTenantUrl(tenantUrl), window.location.origin);
+          if (target.origin === matchedTarget.origin && target.pathname === matchedTarget.pathname) {
+            link.setAttribute("data-bp-service", match.route.serviceId);
+          }
+        }
         link.setAttribute("hx-trigger", "load");
         link.setAttribute("hx-target", "#bp-main");
         link.setAttribute("hx-swap", "innerHTML");
@@ -2447,7 +2455,7 @@ export function betterPortalShellRuntimeSource(): string {
             const action = ctx.request?.action || "";
             if (!action) return;
             if (source?.closest?.(NO_ROUTE_SELECTOR)) {
-              attachBpHeaders(ctx.request.headers, action);
+              attachBpHeaders(ctx.request.headers, action, serviceContextFor(source).id);
               return;
             }
             const themeOrigin = window.location.origin;
