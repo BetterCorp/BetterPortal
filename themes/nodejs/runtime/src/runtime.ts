@@ -233,6 +233,7 @@ export function betterPortalShellRuntimeSource(): string {
         href?: string;
         requestUrl?: string;
         servicePath?: string;
+        serviceBaseUrl?: string;
         methods?: string[];
         fixedParams?: Record<string, string>;
         serviceId?: string;
@@ -479,6 +480,7 @@ export function betterPortalShellRuntimeSource(): string {
       interface ServiceRoute {
         tenantPath: string;
         servicePath: string;
+        serviceRelativePath?: string;
         serviceOrigin: string;
         serviceId: string;
         kind?: "page" | "api";
@@ -1176,19 +1178,35 @@ export function betterPortalShellRuntimeSource(): string {
 
       const buildServiceRouteMap = (): ServiceRoute[] => {
         const routes: ServiceRoute[] = [];
-        const addRoute = (tenantPathRaw: string, requestUrl: string, serviceId: string, kind?: "page" | "api", template?: string, methods?: string[], fixedParams?: Record<string, string>) => {
+        const addRoute = (tenantPathRaw: string, requestUrl: string, serviceId: string, kind?: "page" | "api", template?: string, methods?: string[], fixedParams?: Record<string, string>, baseUrl?: string) => {
           if ((!requestUrl && !template) || !serviceId) return;
           const origin = serviceOrigins[serviceId];
           if (!origin) return;
           try {
-            // Hosts reject service targets on the theme origin, including template-only routes.
-            if (new URL(origin).host.toLowerCase() === window.location.host.toLowerCase()) return;
+            const registered = new URL(origin);
+            // Hosts reject service targets on the theme host, including template-only routes.
+            if (registered.host.toLowerCase() === window.location.host.toLowerCase()) return;
             const tenantPath = normalizePath(tenantPathRaw || "/");
-            const servicePath = normalizePath(template ?? new URL(requestUrl).pathname);
-            routes.push({ tenantPath, servicePath, serviceOrigin: origin, serviceId, kind, methods, fixedParams });
+            let prefix = registered.pathname.replace(/\/+$/, "");
+            if (baseUrl) {
+              const base = new URL(baseUrl);
+              if (base.origin !== registered.origin || base.username || base.password || base.search || base.hash) return;
+              prefix = base.pathname.replace(/\/+$/, "");
+            } else if (requestUrl && template) {
+              const request = new URL(requestUrl);
+              if (request.origin !== registered.origin) return;
+              const count = template.split("/").filter(Boolean).length;
+              const segments = request.pathname.split("/").filter(Boolean);
+              const suffix = count ? "/" + segments.slice(-count).join("/") : "/";
+              if (!patternValues(template, suffix)) return;
+              prefix = "/" + segments.slice(0, segments.length - count).join("/");
+              prefix = prefix.replace(/\/+$/, "");
+            }
+            const servicePath = normalizePath(template ? prefix + template : new URL(requestUrl).pathname);
+            routes.push({ tenantPath, servicePath, serviceRelativePath: template, serviceOrigin: registered.origin, serviceId, kind, methods, fixedParams });
           } catch { /* skip invalid */ }
         };
-        configuredRoutes().forEach((route) => addRoute(route.href || "/", route.requestUrl || "", route.serviceId || "", route.kind, route.servicePath, route.methods, route.fixedParams));
+        configuredRoutes().forEach((route) => addRoute(route.href || "/", route.requestUrl || "", route.serviceId || "", route.kind, route.servicePath, route.methods, route.fixedParams, route.serviceBaseUrl));
         routeLinks().forEach((link) => {
           const href = link.getAttribute("href") || "/";
           const serviceId = link.getAttribute("data-bp-service") || "";
@@ -1233,8 +1251,9 @@ export function betterPortalShellRuntimeSource(): string {
         }).join("/");
         return missing ? null : normalizePath(path);
       };
-      const resolveRoutePattern = (route: ServiceRoute, path: string, fromService: boolean) => {
-        const params = patternValues(fromService ? route.servicePath : route.tenantPath, path);
+      const resolveRoutePattern = (route: ServiceRoute, path: string, fromService: boolean, relativeService = false) => {
+        const template = fromService ? relativeService ? route.serviceRelativePath ?? route.servicePath : route.servicePath : route.tenantPath;
+        const params = patternValues(template, path);
         if (!params) return null;
         const uiParams = new Set(route.tenantPath.split("/").flatMap(part => part.startsWith(":") ? [part.slice(1)] : /^\{[^}]+\}$/.test(part) ? [part.slice(1, -1)] : []));
         if (fromService && Object.entries(route.fixedParams ?? {}).some(([name, value]) =>
@@ -1242,7 +1261,7 @@ export function betterPortalShellRuntimeSource(): string {
         const values = { ...route.fixedParams, ...params };
         const servicePath = fillPattern(route.servicePath, values);
         const tenantPath = fillPattern(route.tenantPath, values);
-        const specificity = (fromService ? route.servicePath : route.tenantPath).split("/").map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 1 : 0);
+        const specificity = template.split("/").map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 1 : 0);
         return servicePath && tenantPath ? { route: { ...route, servicePath, tenantPath }, suffix: "", specificity } : null;
       };
       const mostSpecificMatches = <T extends { specificity: number[] }>(matches: T[]): T[] => {
@@ -1262,7 +1281,7 @@ export function betterPortalShellRuntimeSource(): string {
           && (!origin || new URL(route.serviceOrigin).origin === origin)
           && (route.kind ?? (route.tenantPath.startsWith("/_bp/") ? "api" : "page")) === kind
           && (kind !== "page" || !route.methods || route.methods.includes("GET")))
-          .flatMap(route => { const resolved = resolveRoutePattern(route, path, true); return resolved ? [resolved] : []; });
+          .flatMap(route => { const resolved = resolveRoutePattern(route, path, true, !origin) ?? (!origin ? resolveRoutePattern(route, path, true) : null); return resolved ? [resolved] : []; });
         const unique = new Map(mostSpecificMatches(matches).map(match => [`${match.route.serviceId}\0${match.route.tenantPath}`, match]));
         return unique.size === 1 ? [...unique.values()][0] : null;
       };

@@ -618,3 +618,32 @@ test("shared-origin history replay keeps credentials scoped to the matched servi
   assert.equal(wrongScope, undefined);
   assert.deepEqual(errors, []);
 });
+
+
+for (const metadata of [true, false]) test(`service base prefixes survive template navigation and history (${metadata ? "base metadata" : "request URL fallback"})`, async t => {
+  const requests: string[] = [];
+  let reports = 0;
+  const { page, errors } = await shell(t, route => {
+    requests.push(new URL(route.request().url()).pathname);
+    if (route.request().url().includes("/prefix/reports/1")) return html(route, `<p id="report">Report ${++reports}</p>`);
+    return html(route, '<a id="report-link" href="/preview/reports/1?tab=rows">Report</a>');
+  }, {}, "https://service.test/prefix/dashboard", "/tools/dashboard", false, [
+    { href: "/preview/reports/:id", servicePath: "/reports/:id", serviceId: "service", kind: "page", methods: ["GET"],
+      ...(metadata ? { serviceBaseUrl: "https://service.test/prefix///" } : { requestUrl: "https://service.test/prefix/reports/seed" }) }
+  ]);
+  await page.waitForSelector("#report-link");
+  assert.equal(await page.getAttribute("#report-link", "hx-get"), "https://service.test/prefix/reports/1?tab=rows");
+  const historyPath = await page.evaluate(() => {
+    const detail = { history: { path: "https://service.test/prefix/reports/1?tab=rows" } };
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update", { detail }));
+    return detail.history.path;
+  });
+  assert.equal(historyPath, "/preview/reports/1?tab=rows");
+  await page.locator("#report-link").click();
+  await page.waitForSelector("#report");
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("htmx:before:history:restore", { cancelable: true, detail: { path: "/preview/reports/1?tab=rows" } })));
+  await page.waitForFunction(() => document.querySelector("#report")?.textContent === "Report 2");
+  assert.ok(requests.filter(path => path === "/prefix/reports/1").length >= 2);
+  assert.ok(!requests.includes("/reports/1"));
+  assert.deepEqual(errors, []);
+});
