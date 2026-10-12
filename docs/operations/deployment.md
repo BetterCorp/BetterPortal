@@ -75,6 +75,23 @@ image: "./betterportal-logo.png"
 
 Keep that PNG at the package root and include it in `package.json` `files`. The BSB registry image upload path accepts PNG assets. `bsb-plugin.json` is generated during build, so do not hand-edit it to add registry imagery.
 
+## Easypanel
+
+For inline Dockerfile deployments, pin BetterPortal and BSB packages to the release being deployed. Rebuild after npm publication has completed; a successful publish job can precede public registry availability by a few minutes.
+
+```dockerfile
+FROM code.bettercorp.dev/bettercorp/service-base:node-latest
+WORKDIR /home/bsb
+ENV BSB_PLUGIN_DIRS=""
+RUN npm install --omit=dev --save-exact \
+    @bsb/base@9.7.4 @bsb/config-vault@9.7.4 @bsb/observable-axiom@9.7.4 \
+    @betterportal/config-manager@10.7.1
+```
+
+Retain the deployment's existing entrypoint adjustments and health check. Keep `BSB_CONFIG_PLUGIN_PACKAGE=@bsb/config-vault` as an unversioned package name; the installed dependency carries the version. Preserve service-specific Vault credentials, volumes, ports and replica/update settings when replacing the Dockerfile. Rebuild matching auth, admin, theme and example services together for a breaking routing upgrade; APIs return domain data and views resolve their own destinations.
+
+The private registry workspace must be built from an immutable release commit. Download its archive with `gh api repos/BetterCorp/BetterPortal/tarball/<commit>`, verify its version, calculate SHA-256 and use `ADD --checksum=sha256:<digest>` for the matching archive URL in the builder stage. Copy the built registry into the runtime image. Confirm public BP manifests report the expected release and health returns `ok: true`, and wait for the configured replica counts to converge before completing deployment.
+
 ## Coolify
 
 Use `docker-compose.coolify.yaml` for repo-sync deployments. It runs the BSB runtime image directly and uses a dedicated BSB plugin watcher container to install/update BetterPortal plugin packages into a shared plugin volume. Runtime service containers mount that shared plugin volume read-only and do not run package installation on startup. The compose does not build the local workspace inside Coolify. The default BSB image is `code.bettercorp.dev/bettercorp/service-base:node-latest`; set `BSB_IMAGE` to override it.
