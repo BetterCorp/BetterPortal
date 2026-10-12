@@ -248,7 +248,10 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       const initializer = initializers.get(scope)?.get(expression.text);
       if (initializer) return arrayValues(initializer, new Set([...seen, expression.text]));
       if (declarations.get(scope)?.has(expression.text) || selections.get(scope)?.has(expression.text)) return undefined;
-      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return undefined;
+      if (ts.isFunctionLike(scope)) {
+        const parameter = scope.parameters.find(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text);
+        if (parameter) { const input = parameterInputs.get(parameter); return input ? arrayValues(input, new Set([...seen, expression.text])) : undefined; }
+      }
       scope = scope.parent;
     }
     return undefined;
@@ -286,6 +289,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       const handler = expression.arguments[operation === "then" ? 1 : 0];
       if (operation === "finally" || ["then", "catch"].includes(operation)
         && (!handler || handler.kind === ts.SyntaxKind.NullKeyword || isGlobal(handler, "undefined"))) return rejectedValue(expression.expression.expression, next);
+      if (["then", "catch"].includes(operation) && handler) return callbackRejection(handler, rejectedValue(expression.expression.expression, next), next);
     }
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return rejectedValue(expression.expression, next);
     if (ts.isIdentifier(expression)) {
@@ -377,12 +381,14 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     return false;
   };
   const evaluatingFunctions = new Set<ts.Node>();
+  const parameterValue = (parameter: ts.ParameterDeclaration, index: number, inputs: readonly (ts.Node | undefined)[]): ts.Node | undefined =>
+    parameter.dotDotDotToken ? ts.factory.createArrayLiteralExpression(inputs.slice(index).map(input => input as ts.Expression ?? ts.factory.createIdentifier("undefined"))) : inputs[index];
   const callbackInternal = (callback: ReturnType<typeof resolveCallback>, seen: Set<string>, inputs: readonly (ts.Node | undefined)[] = [], elements: readonly number[] = [], fulfillOnly = false): boolean => {
     if (!callback?.body || evaluatingFunctions.has(callback)) return false;
     evaluatingFunctions.add(callback);
     const previous = callback.parameters.map(parameter => ({ parameter, input: parameterInputs.get(parameter), element: elementParameters.has(parameter) }));
     for (const [index, parameter] of callback.parameters.entries()) {
-      const input = inputs[index];
+      const input = parameterValue(parameter, index, inputs);
       if (input) parameterInputs.set(parameter, input); else parameterInputs.delete(parameter);
       if (elements.includes(index)) elementParameters.add(parameter); else elementParameters.delete(parameter);
     }
@@ -419,6 +425,50 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     const offset = combined.length - expanded.length;
     return callbackInternal(resolveCallback(expression), seen, combined, elements.map(index => index + offset), fulfillOnly);
   };
+  const rejectionOrigin = (expression: ts.Node, seen = new Set<ts.Node>()): ts.Node => {
+    if (seen.has(expression) || !ts.isIdentifier(expression)) return expression;
+    const next = new Set([...seen, expression]);
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return rejectionOrigin(initializer, next);
+      if (declarations.get(scope)?.has(expression.text)) break;
+      if (ts.isFunctionLike(scope)) {
+        const parameter = scope.parameters.find(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text);
+        if (parameter) { const input = parameterInputs.get(parameter); return input ? rejectionOrigin(input, next) : expression; }
+      }
+      scope = scope.parent;
+    }
+    return expression;
+  };
+  const callbackRejection = (expression: ts.Node, input: ts.Node | undefined, seen: Set<ts.Node>): ts.Node | undefined => {
+    const callback = resolveCallback(expression);
+    if (!callback?.body || evaluatingFunctions.has(callback)) return undefined;
+    evaluatingFunctions.add(callback);
+    const inputs = boundInputs(expression, input ? [input] : []);
+    const previous = callback.parameters.map(parameter => ({ parameter, input: parameterInputs.get(parameter) }));
+    for (const [index, parameter] of callback.parameters.entries()) {
+      const value = parameterValue(parameter, index, inputs);
+      if (value) parameterInputs.set(parameter, value); else parameterInputs.delete(parameter);
+    }
+    try {
+      const reasons: ts.Expression[] = [];
+      const returned = (node: ts.Node): void => {
+        if (node !== callback.body && ts.isFunctionLike(node)) return;
+        const value = ts.isThrowStatement(node) ? node.expression : ts.isReturnStatement(node) ? node.expression : node === callback.body && !ts.isBlock(node) ? node : undefined;
+        const reason = value && (ts.isThrowStatement(node) ? value : rejectedValue(value, seen));
+        if (reason) reasons.push(rejectionOrigin(reason) as ts.Expression);
+        ts.forEachChild(node, returned);
+      };
+      returned(callback.body);
+      return reasons.length === 1 ? reasons[0] : reasons.length ? ts.factory.createArrayLiteralExpression(reasons) : undefined;
+    } finally {
+      for (const { parameter, input: previousInput } of previous) {
+        if (previousInput) parameterInputs.set(parameter, previousInput); else parameterInputs.delete(parameter);
+      }
+      evaluatingFunctions.delete(callback);
+    }
+  };
   const selectedProperty = (expression: ts.Node, field: string, seen = new Set<ts.Node>()): ts.Node | undefined => {
     if (seen.has(expression)) return undefined;
     const next = new Set([...seen, expression]);
@@ -440,6 +490,15 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     return undefined;
   };
   const internalValue = (expression: ts.Node, seen = new Set<string>()): boolean => {
+    if (ts.isArrayLiteralExpression(expression)) return expression.elements.some(value => internalValue(value, seen));
+    if (ts.isElementAccessExpression(expression) && ts.isNumericLiteral(expression.argumentExpression)) {
+      const values = arrayValues(expression.expression);
+      const binding = reference(expression.expression);
+      if (values && (!binding || !mutations.get(binding.scope)?.get(binding.name)?.length)) {
+        const value = values[Number(expression.argumentExpression.text)];
+        return !!value && internalValue(value, seen);
+      }
+    }
     if (ts.isElementAccessExpression(expression) && isStringValue(expression.expression)) {
       const index = expression.argumentExpression;
       if (ts.isNumericLiteral(index) || ts.isStringLiteralLike(index) && /^\d+$/.test(index.text)
@@ -578,8 +637,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
             ? callbackValue(replacement, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
         }
         if (operation === "finally") return internalValue(expression.expression.expression, seen);
-        for (const argument of expression.arguments) {
-          const input = operation === "then" && argument === expression.arguments[0] ? expression.expression.expression : rejectedValue(expression.expression.expression);
+        for (const [index, argument] of expression.arguments.slice(0, operation === "then" ? 2 : 1).entries()) {
+          const input = operation === "then" && index === 0 ? expression.expression.expression : rejectedValue(expression.expression.expression);
           if (callbackValue(argument, seen, input ? [input] : [])) return true;
         }
         return (operation === "catch" || !expression.arguments[0]) && internalValue(expression.expression.expression, seen);

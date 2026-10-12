@@ -33,3 +33,5 @@ Bound callback arguments precede caller-supplied promise/collection inputs durin
 Statically known spread arguments are expanded before call/apply/bind parameter mapping, including bound callbacks stored in known object fields.
 
 Rejection provenance passes through `then` calls without rejection handlers and through `finally`, stopping when a rejection handler recovers.
+
+Rest parameters retain the remaining argument array. Explicit rethrows and rejections retain their reason until recovery; native promise operations ignore extra callback arguments.

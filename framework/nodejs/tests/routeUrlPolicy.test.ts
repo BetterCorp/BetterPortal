@@ -909,3 +909,24 @@ test("pass-through then and finally retain rejection reasons until recovery", ()
     'return Promise.reject(ctx.routeUrl()?.apiPath).catch(() => ({ status: "ready" })).catch(endpoint => ({ endpoint }));'
   ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
 });
+
+
+test("rest parameters receive all remaining arguments with selected element provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { const payload = (...values) => ({ endpoint: values[1] }); return payload(...["safe", ctx.routeUrl()?.apiPath]); }').length);
+  assert.deepEqual(inspectRouteUrlSource(file, 'export function handler(ctx) { const payload = (...values) => ({ status: values[0] }); return payload(...["safe", ctx.routeUrl()?.apiPath]); }'), []);
+});
+
+test("rethrow and explicit re-reject preserve reasons until recovery", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const recovery of ['endpoint => Promise.reject(endpoint)', 'endpoint => { throw endpoint; }', 'endpoint => { const alias = endpoint; return Promise.reject(alias); }'])
+    assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { return Promise.reject(ctx.routeUrl()?.apiPath).catch(${recovery}).catch(endpoint => ({ endpoint })); }`).length, recovery);
+  assert.deepEqual(inspectRouteUrlSource(file, 'export function handler(ctx) { return Promise.reject(ctx.routeUrl()?.apiPath).catch(() => Promise.reject("failed")).catch(status => ({ status })); }'), []);
+});
+
+test("native promise operations ignore unsupported extra callback arguments", () => {
+  for (const body of [
+    'const failure: any = Promise.reject(ctx.routeUrl()?.apiPath); return failure.catch(() => ({ status: "failed" }), endpoint => ({ endpoint }));',
+    'const failure: any = Promise.reject(ctx.routeUrl()?.apiPath); return failure.then(null, () => ({ status: "failed" }), endpoint => ({ endpoint }));'
+  ]) assert.deepEqual(inspectRouteUrlSource("bp-routes/users/GET.ts", `export function handler(ctx) { ${body} }`), [], body);
+});
