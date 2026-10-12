@@ -691,3 +691,25 @@ test("prebuild and generation inspect configured roots outside src", () => {
     }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+
+test("standard reversible URI encoders retain destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const encoder of ["encodeURI", "encodeURIComponent", "decodeURI", "decodeURIComponent", "escape", "unescape", "btoa", "atob"])
+    assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { return { endpoint: ${encoder}(ctx.routeUrl()?.apiPath ?? "") }; }`).length, encoder);
+  for (const source of [
+    'export function handler(ctx) { return { publicLink: encodeURIComponent(ctx.routeUrl()?.absoluteUiPath ?? "") }; }',
+    'import { encodeURIComponent } from "provider"; export function handler(ctx) { return encodeURIComponent(ctx.routeUrl()?.apiPath); }',
+    'export function handler(ctx) { return client(encodeURIComponent(ctx.routeUrl()?.apiPath ?? "")); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("numeric string indexing remains character state while array indexing retains URLs", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return { leading: ctx.routeUrl()?.apiPath[0] }; }',
+    'export function handler(ctx) { return { leading: ctx.routeUrl()?.apiPath["0"] }; }',
+    'export function handler(ctx) { const path = ctx.routeUrl()?.apiPath; return { leading: path[0] }; }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return { endpoint: [ctx.routeUrl()?.apiPath][0] }; }').length);
+});
