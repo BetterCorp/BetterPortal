@@ -1,3 +1,5 @@
+import type { RouteUrlResolver } from "./routeUrl.js";
+export type { RouteUrlInput, RouteUrlOptions, RouteUrlResolver, ResolvedRouteUrl } from "./routeUrl.js";
 import * as av from "anyvali";
 import type { Infer, ParseContext, SchemaNode } from "anyvali";
 import { PluginIdSchema, type HttpMethod } from "./common.js";
@@ -140,23 +142,6 @@ export const MultipartRequestSchema: av.BaseSchema<unknown, MultipartRequest> = 
   files: av.record(av.union([UploadedFileSchema, av.array(UploadedFileSchema)]))
 });
 
-export interface RouteUrlOptions {
-  /** Defaults to this handler's service id. Accepts a declared dependency alias, plugin id, or service-instance UUID. */
-  serviceId?: string;
-  params?: Record<string, string | number | boolean | null | undefined>;
-  query?: Record<string, string | number | boolean | null | undefined>;
-  /** Defaults to false, returning a root-relative path. */
-  absolute?: boolean;
-  /** Overrides the resolved origin when absolute is true. */
-  origin?: string;
-  /** Request a named component renderer (`?_c=`) from the resolved service route. */
-  component?: string;
-  /** Request a named fragment renderer (`?_f=`) from the resolved service route. */
-  fragment?: string;
-  /** Resolve the route's SSE endpoint (`/__sse`). */
-  sse?: boolean;
-}
-
 export interface WebhookEmitOptions {
   tenantId?: string;
   appId?: string;
@@ -213,16 +198,11 @@ export interface RouteHandlerContextBase<
   /** The service id this handler belongs to. Always present when adapter wires it. */
   readonly serviceId?: string;
   /**
-   * Build a URL to the service route that owns the view.
-   * Use for service requests: HTMX requests, form actions, fetch, SSE, and downloads.
+   * Resolve self, a service path, or a view id using the same function as renderers.
+   * Select apiPath/viewPath/uiPath or their absolute counterparts at the point of use.
+   * Do not pass internal renderer navigation URLs through an API response.
    */
-  readonly routeUrl?: (viewId: string, options?: RouteUrlOptions) => string | null;
-  /**
-   * Build a GET navigation URL for a page mounted in the app shell.
-   * Do not use for HTMX requests, form actions, fetch, SSE, or downloads; those
-   * must use routeUrl or they can target the theme/app origin and return 404.
-   */
-  readonly uiRouteUrl?: (viewId: string, options?: RouteUrlOptions) => string | null;
+  readonly routeUrl?: RouteUrlResolver;
   /** Emit a dev-declared webhook event through the control plane. */
   readonly webhook?: (eventId: string, payload: JsonValue, options?: WebhookEmitOptions) => Promise<void>;
   readonly response: (body?: RawResponseBody, init?: ResponseInit) => Response;
@@ -328,7 +308,6 @@ export type SseMapperContext<
   readonly callerMode?: ApiCallerMode;
   readonly serviceId?: string;
   readonly routeUrl?: RouteHandlerContext["routeUrl"];
-  readonly uiRouteUrl?: RouteHandlerContext["uiRouteUrl"];
   readonly obs?: BetterPortalObservability;
   readonly config?: TServiceConfig;
   /** Aborted when the browser closes the SSE connection. */

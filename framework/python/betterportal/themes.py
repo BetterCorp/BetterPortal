@@ -101,5 +101,5 @@ class ShellFragments:
             result = definition.render(ShellContext(context, name, items, MappingProxyType(deepcopy(dict(request.config)))))
             if inspect.isawaitable(result): result = await result
             if not isinstance(result, str) or len(result.encode('utf-8')) > 1024 * 1024: raise ValueError('Invalid shell fragment output')
-            return request.urls.rewrite(result)
+            return result
         return await render(identifier, ())

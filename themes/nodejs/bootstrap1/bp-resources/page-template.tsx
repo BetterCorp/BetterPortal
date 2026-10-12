@@ -8,7 +8,7 @@ export const render: RegisteredViewRenderer["render"] = (data, ctx) => (
         <h1 class="h3 mb-1">Page title</h1>
         <p class="text-body-secondary mb-0">Explain the task in one sentence.</p>
       </div>
-      <a class="btn btn-primary" href={ctx.url.uiRoute("example.create") ?? "#"}>Create</a>
+      <a class="btn btn-primary" href={ctx.routeUrl({ viewId: "example.create" })?.uiPath ?? undefined}>Create</a>
     </div>
     <div class="card shadow-sm">
       <div class="card-body">{JSON.stringify(data)}</div>

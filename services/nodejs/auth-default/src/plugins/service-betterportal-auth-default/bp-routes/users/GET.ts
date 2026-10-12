@@ -20,9 +20,9 @@ export default createHandler({ response: ResponseSchema, query: QuerySchema }, a
     const users = page.slice(0, 100);
     const groups = await tx.list("group", dir);
     return {
-    nextUrl: page.length > 100 ? ctx.routeUrl?.("users.index", { absolute: true, query: { after: users.at(-1)!.id, ...(query?.mailAfter ? { mailAfter: query.mailAfter } : {}) } }) ?? "" : "",
-    mailNextUrl: mailPage.length > 100 ? ctx.routeUrl?.("users.index", { absolute: true, query: { mailAfter: mailPage[99].id, ...(query?.after ? { after: query.after } : {}) } }) ?? "" : "",
-    registration: policy.registration, status: "ok", endpoint: ctx.routeUrl?.("users.index", { absolute: true }) ?? "/users", isolation: policy.isolation, mode: runtime.identity.storage.mode, roleIds: policy.allowedRoleIds, canManageDirectory: policy.isolation === "app" || policy.canManageDirectory === true,
+    nextCursor: page.length > 100 ? users.at(-1)!.id : "",
+    mailNextCursor: mailPage.length > 100 ? mailPage[99].id : "",
+    status: "ok", registration: policy.registration, isolation: policy.isolation, mode: runtime.identity.storage.mode, roleIds: policy.allowedRoleIds, canManageDirectory: policy.isolation === "app" || policy.canManageDirectory === true,
     users: await Promise.all(users.map(async u => {
       const roles = (await tx.get("roles", u.id, scope))?.roles as string[] ?? [];
       const groupRoles = groups.filter(g => (g.members as string[]).includes(u.id)).flatMap(g => (g.appRoles as Record<string, string[]>)[scope.appId] ?? []);

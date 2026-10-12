@@ -13,6 +13,7 @@ from .context import ScopedContext
 from .contracts import contract, export, object_document
 from .generated_types import HttpMethod, MultipartRequest
 from .urls import Urls
+from .generated_types import RouteUrlOptionsInput, ResolvedRouteUrl
 from .bp_headers import BpHeaders
 from .observability import TraceContext, current_trace, current_observability
 if TYPE_CHECKING:
@@ -133,6 +134,8 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     def response(self) -> ResponseState: return self.request_context.response
     @property
     def urls(self) -> Urls: return self.request_context.urls
+    def route_url(self, input: "RouteUrlOptionsInput | None" = None) -> "ResolvedRouteUrl | None":
+        return self.urls._resolve(input, self.request_context.method, cast(Mapping[str, Any], self.params), cast(Mapping[str, Any], self.query))
 
 
 @dataclass(frozen=True)

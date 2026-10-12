@@ -7,7 +7,7 @@ The Embedded theme renders BetterPortal service content inside a lightweight hos
 - Return service content only; the theme owns the host document and main outlet.
 - Use semantic HTML, visible labels, keyboard-operable controls and responsive wrapping.
 - Prefer one column. Avoid persistent navigation, wide tables, fixed positioning and viewport-sized panels.
-- In renderers, use `ctx.url.route()` for service requests. Use `ctx.url.uiRoute()` only for GET page navigation. Pass a declared dependency alias as `serviceId` when resolving another app-mounted service. Handler equivalents are `ctx.routeUrl()` and `ctx.uiRouteUrl()`.
+- Use the same `ctx.routeUrl(input?)` in API handlers and renderers. Omit the target for self. Select `apiPath`/`absoluteApiPath` for API requests, `viewPath`/`absoluteViewPath` for HTML requests, and `uiPath`/`absoluteUiPath` for theme navigation/public links. Pass a declared dependency alias in `serviceId`; renderers resolve links from domain data and cursors. API handlers must not add internal URL fields to their response for views. Resolve POST/PUT/DELETE destinations with the corresponding method in the renderer, and use `sse: true` with `absoluteViewPath` for HTML streams.
 - Plain internal `<a href="/route">` links and GET/POST forms are automatically upgraded to HTMX and routed through the owning service. A bare `<form>` posts to the current service view. Use `bp-no-override` or `data-bp-no-override` on an element or ancestor only when native browser behavior is intentional.
 - Use normal forms and HTMX swaps. Provide loading, empty, validation and error states.
 - Use `hx-download` for authenticated files and `HX-Trigger` events for passive refresh.

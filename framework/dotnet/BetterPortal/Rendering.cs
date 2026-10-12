@@ -9,6 +9,9 @@ public sealed record RenderContext(Generated.ViewRenderData Data, Urls Urls, Can
     public Generated.ViewAppContext App => Data.App;
     public Generated.ViewRenderDataRequest Request => Data.Request;
     public Generated.ViewRenderDataRoute Route => Data.Route;
+    /// <summary>The same route resolver as API handlers; omit the target to resolve self.</summary>
+    public Generated.ResolvedRouteUrl? RouteUrl(Generated.RouteUrlOptionsInput? input = null)
+        => Urls.Resolve(input, Request.Method.ToString().ToUpperInvariant(), Request.Params, Request.Query);
     public static RenderContext Create(RequestContext request, string viewId, string matchedPath, string renderer, string mode, string kind,
         string? key, int status, object? @params, object? query, CancellationToken cancellation = default)
     {
@@ -96,7 +99,7 @@ public sealed class Renderer<TResult> : Renderer
     {
         context.Cancellation.ThrowIfCancellationRequested();
         var html = await render(data, context).AsTask().WaitAsync(context.Cancellation) ?? throw new InvalidOperationException("Renderers must return HTML strings");
-        return context.Urls.Rewrite(html);
+        return html;
     }
     internal override ValueTask<string> RenderBoxed(object? data, RenderContext context) => Render((TResult)data!, context);
 }

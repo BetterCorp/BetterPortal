@@ -803,7 +803,6 @@
     "output": {
       "params": {},
       "query": {},
-      "absolute": false,
       "sse": false
     }
   },

@@ -467,10 +467,10 @@ test("builds service and app route URLs for the current plugin service", async (
         "/self",
         "self.index",
         (ctx) => ({
-          serviceUrl: ctx.routeUrl?.("reports.detail.index", { absolute: true, params: { reportId: "r1" }, query: { token: "t1" } }) ?? null,
-          componentUrl: ctx.routeUrl?.("reports.detail.index", { params: { reportId: "r1" }, component: "active" }) ?? null,
-          sseUrl: ctx.routeUrl?.("reports.detail.index", { params: { reportId: "r1" }, sse: true, fragment: "body.live" }) ?? null,
-          uiUrl: ctx.uiRouteUrl?.("reports.detail.index", { absolute: true, params: { reportId: "r1" }, query: { token: "t1" } }) ?? null
+          serviceUrl: ctx.routeUrl?.({ viewId: "reports.detail.index", params: { reportId: "r1" }, query: { token: "t1" } })?.absoluteApiPath ?? null,
+          componentUrl: ctx.routeUrl?.({ viewId: "reports.detail.index", params: { reportId: "r1" }, component: "active" })?.viewPath ?? null,
+          sseUrl: ctx.routeUrl?.({ viewId: "reports.detail.index", params: { reportId: "r1" }, sse: true, fragment: "body.live" })?.viewPath ?? null,
+          uiUrl: ctx.routeUrl?.({ viewId: "reports.detail.index", params: { reportId: "r1" }, query: { token: "t1" } })?.absoluteUiPath ?? null
         }),
         av.object({ serviceUrl: av.string(), componentUrl: av.string(), sseUrl: av.string(), uiUrl: av.string() })
       )
@@ -531,7 +531,7 @@ test("absolute app route URLs prefer the matched request origin", async () => {
       route(
         "/login",
         "login.index",
-        (ctx) => ({ uiUrl: ctx.uiRouteUrl?.("login.index", { absolute: true }) ?? null }),
+        (ctx) => ({ uiUrl: ctx.routeUrl?.({ viewId: "login.index" })?.absoluteUiPath ?? null }),
         av.object({ uiUrl: av.string() })
       )
     ]
@@ -546,7 +546,7 @@ test("absolute app route URLs prefer the matched request origin", async () => {
   }, { tenant: scopedTenant, serviceId: pluginId });
 });
 
-test("uiRouteUrl only resolves GET page mounts", async () => {
+test("routeUrl UI fields only resolve GET page mounts", async () => {
   const pluginId = "service.test.routes";
   const serviceInstanceId = uuidv7();
   const scopedTenant: BetterPortalTenant = {
@@ -588,11 +588,11 @@ test("uiRouteUrl only resolves GET page mounts", async () => {
       route("/api", "api.index"),
       route("/mutate", "mutation.index"),
       route("/self", "self.index", (ctx) => ({
-        uiPage: ctx.uiRouteUrl?.("page.index") ?? null,
-        uiApi: ctx.uiRouteUrl?.("api.index") ?? null,
-        uiMutation: ctx.uiRouteUrl?.("mutation.index") ?? null,
-        serviceApi: ctx.routeUrl?.("api.index") ?? null,
-        serviceMutation: ctx.routeUrl?.("mutation.index") ?? null
+        uiPage: ctx.routeUrl?.({ viewId: "page.index" })?.uiPath ?? null,
+        uiApi: ctx.routeUrl?.({ viewId: "api.index" })?.uiPath ?? null,
+        uiMutation: ctx.routeUrl?.({ viewId: "mutation.index" })?.uiPath ?? null,
+        serviceApi: ctx.routeUrl?.({ viewId: "api.index" })?.apiPath ?? null,
+        serviceMutation: ctx.routeUrl?.({ viewId: "mutation.index" })?.apiPath ?? null
       }), av.object({
         uiPage: av.nullable(av.string()),
         uiApi: av.nullable(av.string()),
@@ -669,10 +669,10 @@ test("route helpers resolve dependency services from the application route index
 
   const sourceRoute = {
     ...route("/self", "self.index", (ctx) => ({
-      aliasService: ctx.routeUrl?.("auth.exchange", { serviceId: "auth", absolute: true }) ?? null,
-      instanceService: ctx.routeUrl?.("auth.exchange", { serviceId: authServiceId }) ?? null,
-      aliasUi: ctx.uiRouteUrl?.("login.index", { serviceId: "auth" }) ?? null,
-      localCollision: ctx.routeUrl?.("auth.exchange") ?? null
+      aliasService: ctx.routeUrl?.({ viewId: "auth.exchange", method: "POST", serviceId: "auth" })?.absoluteApiPath ?? null,
+      instanceService: ctx.routeUrl?.({ viewId: "auth.exchange", method: "POST", serviceId: authServiceId })?.apiPath ?? null,
+      aliasUi: ctx.routeUrl?.({ viewId: "login.index", serviceId: "auth" })?.uiPath ?? null,
+      localCollision: ctx.routeUrl?.({ viewId: "auth.exchange" })?.apiPath ?? null
     }), av.object({
       aliasService: av.nullable(av.string()),
       instanceService: av.nullable(av.string()),
@@ -686,8 +686,8 @@ test("route helpers resolve dependency services from the application route index
           type: "page" as const,
           method: "GET" as const,
           render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => JSON.stringify({
-            service: ctx.url.route("auth.exchange", { serviceId: "auth", absolute: true }),
-            ui: ctx.url.uiRoute("login.index", { serviceId: "auth" })
+            service: ctx.routeUrl({ viewId: "auth.exchange", method: "POST", serviceId: "auth" })?.absoluteApiPath,
+            ui: ctx.routeUrl({ viewId: "login.index", serviceId: "auth" })?.uiPath
           })
         }],
         components: [],
@@ -847,10 +847,8 @@ test("elevation is enforced before effects; root and conditional handlers cannot
   }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, managementScope: { tenantId: tenant.id, appId: app.id } }) } });
 });
 
-test("renderer service URLs encode queries and route tokens require a whole supported attribute", async () => {
-  const warnings: string[] = [];
+test("renderer destinations encode queries and expose both service and mounted UI paths", async () => {
   const observability = createNoopObservability();
-  observability.logger.warn = message => { warnings.push(message); };
   observability.startSpan = () => observability;
   const serviceId = uuidv7();
   const app = {
@@ -870,13 +868,12 @@ test("renderer service URLs encode queries and route tokens require a whole supp
         pages: [{
           rendererId: "default", type: "page" as const, method: "GET" as const,
           render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
-            assert.equal(ctx.url.route("archive.call", { query: { id: "call 42&x" } }), "/call?id=call+42%26x");
-            assert.equal(ctx.url.uiRoute("archive.call", { query: { id: "call 42&x" } }), "/archive/call?id=call+42%26x");
-            assert.equal(ctx.url.route("missing.page"), null);
-            return `<a href="{archive.call}">Call</a><form action='{archive.call}'></form>`
-              + ["get", "post", "put", "patch", "delete", "download"].map(method => `<button hx-${method}="{archive.call}"></button>`).join("")
-              + '<a href="{archive.call}?id=123">Invalid query</a><a href="{missing.page}">Missing</a>'
-              + '<a data-href="{archive.call}" title="{archive.call}">Unsupported</a>';
+            assert.equal(ctx.routeUrl({ viewId: "archive.call", query: { id: "call 42&x" } })?.apiPath, "/call?id=call+42%26x");
+            assert.equal(ctx.routeUrl({ viewId: "archive.call", query: { id: "call 42&x" } })?.uiPath, "/archive/call?id=call+42%26x");
+            assert.equal(ctx.routeUrl({ viewId: "missing.page" }), null);
+            const target = ctx.routeUrl({ viewId: "archive.call" })!;
+            return `<a href="${target.uiPath}">Call</a><form action="${target.apiPath}"></form>`;
+
           }
         }],
         components: [], fragments: []
@@ -887,17 +884,60 @@ test("renderer service URLs encode queries and route tokens require a whole supp
     const response = await fetch(`${baseUrl}/call`, { headers: { accept: "text/html" } });
     assert.equal(response.status, 200);
     const body = await response.text();
-    assert.match(body, /href="\/call"/);
-    assert.match(body, /action='\/call'/);
-    for (const method of ["get", "post", "put", "patch", "delete", "download"]) {
-      assert.ok(body.includes(`hx-${method}="/call"`));
+    assert.match(body, /href="\/archive\/call"/);
+    assert.match(body, /action="\/call"/);
+
+  }, { serviceId, router: { createRequestObservability: () => observability } });
+});
+
+test("routeUi.current defaults to GET in a POST renderer and honors explicit POST", async () => {
+  const observability = createNoopObservability();
+  observability.startSpan = () => observability;
+  const serviceId = uuidv7();
+  const app = {
+    id: uuidv7(), tenantId: tenant.id, slug: "navigation", title: "Navigation",
+    hostnames: ["app.local"], originOverrides: [], refererOverrides: [],
+    shell: { serviceId, service: "test", renderer: "bootstrap5" },
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/archive/call", menu: [], slots: [], fragments: {},
+    routes: [{ id: uuidv7(), kind: "page", path: "/archive/call", serviceId,
+      viewId: "archive.call", resolvedServicePath: "/call", enabled: true,
+      operations: ["archive.call", "archive.post"], resolvedMethods: ["GET", "POST"] }]
+  } as BetterPortalApp;
+  const pageRoute = {
+    ...route("/call", "archive.call"),
+    methods: ["GET", "POST"],
+    handlers: { GET: () => ({ ok: true }), POST: () => ({ ok: true }) },
+    methodRoutes: { ...route("/call", "archive.call").methodRoutes, POST: { ...route("/call", "archive.call").methodRoutes!.GET!, method: "POST", operationId: "archive.post" } },
+    renderers: {
+      bootstrap5: {
+        pages: [{
+          rendererId: "default", type: "page" as const, method: "POST" as const,
+          render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
+            assert.equal(ctx.request.method, "POST");
+            const get = ctx.routeUi.current();
+            assert.equal(get.href, "/archive/call");
+            assert.equal(get["hx-push-url"], "/archive/call");
+            assert.ok(get["hx-get"]?.endsWith("/call"));
+            const post = ctx.routeUi.current({ method: "POST" });
+            assert.ok(post["hx-post"]?.endsWith("/call"));
+            assert.equal(post["hx-get"], undefined);
+            assert.equal(post["hx-push-url"], undefined);
+            return `<a href="${get.href}">Call</a>`;
+
+          }
+        }],
+        components: [], fragments: []
+      }
     }
-    assert.ok(body.includes('href="{archive.call}?id=123"'));
-    assert.ok(body.includes('href="{missing.page}"'));
-    assert.ok(body.includes('data-href="{archive.call}" title="{archive.call}"'));
-    assert.ok(warnings.some(message => message.includes("must occupy the whole attribute")));
-    assert.ok(warnings.some(message => message.includes("BP route token unresolved")));
-    assert.ok(warnings.every(message => !message.includes("id=123")));
+  } satisfies RegisteredRoute;
+  await withServer(app, { routes: [pageRoute] }, async baseUrl => {
+    const response = await fetch(`${baseUrl}/call`, { method: "POST", headers: { accept: "text/html" } });
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    assert.match(body, /href="\/archive\/call"/);
+
+
   }, { serviceId, router: { createRequestObservability: () => observability } });
 });
 
@@ -923,9 +963,9 @@ test("renderer app URLs resolve parameterized mounts and reject missing or ambig
         pages: [{ rendererId: "default", type: "page" as const, method: "GET" as const,
           render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
             const options = { params: { id: "call 42" }, query: { tab: "recording" } };
-            return JSON.stringify({ service: ctx.url.route("archive.call", options),
-              app: ctx.url.uiRoute("archive.call", options),
-              missingParams: ctx.url.uiRoute("archive.call") });
+            return JSON.stringify({ service: ctx.routeUrl({ viewId: "archive.call", ...options })?.apiPath,
+              app: ctx.routeUrl({ viewId: "archive.call", ...options })?.uiPath,
+              missingParams: ctx.routeUrl({ viewId: "archive.call" }) });
           }
         }], components: [], fragments: []
       } }

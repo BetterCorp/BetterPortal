@@ -1,7 +1,7 @@
 import type { BaseSchema } from "anyvali";
 import type { HttpMethod, RenderMode } from "./common.js";
 import type { CacheHints, OperationDependency } from "./view.js";
-import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteUrlOptions } from "./route.js";
+import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteUrlOptions, RouteUrlResolver, ResolvedRouteUrl } from "./route.js";
 import type { BetterPortalApp, BetterPortalRouteChrome, BetterPortalTenant } from "./platformConfig.js";
 import type { ApiContractDescriptor } from "./m2m.js";
 import type { BpStreamHandler, StreamRendererSet } from "./streaming.js";
@@ -66,6 +66,7 @@ export interface ViewAppContext {
     readonly serviceId: string;
     readonly loginViewId?: string;
     readonly logoutViewId?: string;
+    readonly redirects?: import("./auth.js").AppAuthConfig["redirects"];
   };
 }
 
@@ -89,17 +90,13 @@ export interface ViewRenderContext {
     readonly key?: string;
     readonly status: number;
   };
-  readonly url: {
-    current(options?: RouteUrlOptions): string;
-    path(path: string, options?: RouteUrlOptions): string;
-    route(viewId: string, options?: RouteUrlOptions): string | null;
-    uiRoute(viewId: string, options?: RouteUrlOptions): string | null;
-  };
+  /** Resolve self, a service path or a view id. Identical to the API handler resolver. */
+  readonly routeUrl: RouteUrlResolver;
   readonly routeUi: {
-    link(url: string, options?: RouteUiOptions): RouteUiAttributes;
+    link(route: ResolvedRouteUrl, options?: RouteUiOptions): RouteUiAttributes;
     current(options?: RouteUiOptions): RouteUiAttributes;
-    fragment(url: string, options?: RouteUiOptions): RouteUiAttributes;
-    form(url: string, options?: RouteUiOptions): RouteUiAttributes;
+    fragment(route: ResolvedRouteUrl, options?: RouteUiOptions): RouteUiAttributes;
+    form(route: ResolvedRouteUrl, options?: RouteUiOptions): RouteUiAttributes;
   };
   /** Resolve an app-allowlisted fragment request. Context is consumed server-side. */
   readonly element: (reference: BPElementReference) => ResolvedBPElementReference;
@@ -151,8 +148,8 @@ export type SseRendererFor<TContract> = (
 export type StreamRendererSetFor<THandler> = THandler extends BpStreamHandler<infer TItem, infer TSummary, infer _TParams, infer _TQuery, infer _THeaders>
   ? {
       readonly renderShell: StreamRendererSet["renderShell"];
-      readonly renderItem: (item: TItem) => HtmlRenderable;
-      readonly renderSummary?: (summary: Exclude<TSummary, void>) => HtmlRenderable;
+      readonly renderItem: (item: TItem, ctx: ViewRenderContext) => HtmlRenderable;
+      readonly renderSummary?: (summary: Exclude<TSummary, void>, ctx: ViewRenderContext) => HtmlRenderable;
       readonly renderError?: StreamRendererSet["renderError"];
     }
   : never;

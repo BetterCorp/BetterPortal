@@ -36,7 +36,6 @@ export const ResponseSchema = av.object({
   scopes: av.array(av.string()).default([]),
   alreadyLoggedIn: av.optional(av.bool()),
   loggedOut: av.optional(av.bool()),
-  nextUrl: av.optional(av.string()),
   expiresInSeconds: av.optional(av.int().min(1)),
   user: av.optional(av.object({
     id: av.optional(av.string()),
@@ -86,10 +85,8 @@ export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema, headers: HeadersSchema },
   async (ctx) => {
     const appConfig = resolveAuthressAppConfig(ctx.config);
-    const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", (ctx.query as Infer<typeof QuerySchema>).next ?? (ctx.query as Infer<typeof QuerySchema>).redirect);
     const browserConfig = resolveAuthressBrowserConfig(ctx.config);
     if ((ctx.query as Infer<typeof QuerySchema>).action === "logout") {
-      const loggedOutUrl = resolveAppAuthRedirect(ctx, "afterLogout");
       ctx.bpHeaders?.remove("Authorization");
       ctx.bpHeaders?.remove("X-BP-Refresh");
       if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
@@ -101,7 +98,6 @@ export const handleGet = createHandler(
         loginUI: appConfig?.loginUI ?? "default",
         loggedOut: true,
         scopes: [],
-        nextUrl: loggedOutUrl
       };
     }
     if (ctx.user) {
@@ -113,8 +109,7 @@ export const handleGet = createHandler(
         loginUI: appConfig?.loginUI ?? "default",
         alreadyLoggedIn: true,
         scopes: [],
-        nextUrl,
-        user: {
+          user: {
           id: ctx.user.sub,
           name: ctx.user.name,
           email: ctx.user.email,
@@ -125,7 +120,7 @@ export const handleGet = createHandler(
 
     const config = browserConfig;
     if (!config) {
-      return { status: "error" as const, message: "Authress browser config is missing authressApiUrl or applicationId.", loginUI: appConfig?.loginUI ?? "default", scopes: [], nextUrl };
+      return { status: "error" as const, message: "Authress browser config is missing authressApiUrl or applicationId.", loginUI: appConfig?.loginUI ?? "default", scopes: [] };
     }
 
     return {
@@ -135,7 +130,6 @@ export const handleGet = createHandler(
       authressApplicationId: config.applicationId,
       loginUI: appConfig?.loginUI ?? "default",
       scopes: splitScopes(config.scopes),
-      nextUrl
     };
   }
 );
@@ -148,7 +142,7 @@ export const handlePost = createHandler(
     const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", request.next ?? (ctx.query as Infer<typeof QuerySchema>).next);
     const loginUI = config?.loginUI ?? "default";
     if (!config) {
-      return { status: "error" as const, message: "Authress config is missing authressApiUrl or applicationId.", loginUI, scopes: [], nextUrl };
+      return { status: "error" as const, message: "Authress config is missing authressApiUrl or applicationId.", loginUI, scopes: [] };
     }
 
     const plugin = ctx.plugin;
@@ -157,11 +151,11 @@ export const handlePost = createHandler(
       user = await plugin.verifyAuthressToken(request.accessToken, config, { tenantId: ctx.tenant.id, appId: ctx.app.id });
     } catch (error: any) {
       ctx.obs?.error(error);
-      return { status: "error" as const, message: `Authress token verification failed: ${(error as Error).message}`, loginUI, scopes: [], nextUrl };
+      return { status: "error" as const, message: `Authress token verification failed: ${(error as Error).message}`, loginUI, scopes: [] };
     }
 
     if (request.userId && request.userId !== user.sub) {
-      return { status: "error" as const, message: "Authress profile subject does not match token subject.", loginUI, scopes: [], nextUrl };
+      return { status: "error" as const, message: "Authress profile subject does not match token subject.", loginUI, scopes: [] };
     }
 
     const roles = await plugin.resolveAuthressRoles(user.sub, ctx.tenant.id, ctx.app.id, config, user.roles);
@@ -201,7 +195,6 @@ export const handlePost = createHandler(
       message: "Signed in.",
       loginUI,
       scopes: [],
-      nextUrl,
       expiresInSeconds: issued.accessTokenExpiresInSeconds,
       user: {
         id: user.sub,

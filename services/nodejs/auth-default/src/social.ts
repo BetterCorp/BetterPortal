@@ -73,7 +73,7 @@ export async function socialPost(ctx: Context): Promise<JsonObject> {
     const connection = connections.find(c => c.id === body.connection);
     if (!connection) throw new AuthError("Connection unavailable.");
     if (body.action === "link") requireElevation(ctx.user, { minimum: "confirm", maxAgeSeconds: 300 });
-    const redirectUri = ctx.uiRouteUrl?.("social.index", { absolute: true });
+    const redirectUri = ctx.routeUrl?.({ path: "/social" })?.absoluteUiPath;
     if (!redirectUri || new URL(redirectUri).origin !== origin) throw new AuthError("Mount the social sign-in page in this app and register its redirect URL.", 503);
     await identity.rateLimit(scope, "social", "app", 100, 600);
     const verifier = oidc.randomPKCECodeVerifier(); const nonce = oidc.randomNonce();
@@ -142,8 +142,8 @@ export async function socialPost(ctx: Context): Promise<JsonObject> {
   if (hasFactors || policy.requireMfa || roles.includes("*")) {
     const prepared = await runtime.factors.prepare(result.user, origin, !hasFactors);
     const ticket = await identity.challenge(scope, "login", { version: result.user.refreshVersion, factor: prepared.private }, result.user.id);
-    return { status: "ok", challenge: { ...ticket, ...prepared.public }, accountUrl: ctx.routeUrl?.("account.index", { absolute: true }) ?? "/account" } as JsonObject;
+    return { status: "ok", challenge: { ...ticket, ...prepared.public } } as JsonObject;
   }
   publishSession(ctx, await identity.issueSession(scope, policy, result.user, runtime.tokenIssuer, runtime.refreshTokenSeconds));
-  return { status: "ok", message: "Signed in.", next: "/" };
+  return { status: "ok", message: "Signed in.", authenticated: true };
 }

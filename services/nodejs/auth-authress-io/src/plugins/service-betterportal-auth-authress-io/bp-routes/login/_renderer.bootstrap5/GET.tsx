@@ -1,12 +1,14 @@
 /** @jsxImportSource jsx-htmx */
 
-import type { HtmlRenderable } from "@betterportal/framework";
+import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 import { css, js } from "jsx-htmx";
 import type { ResponseData } from "../../../loginFlow.js";
 
-export function render(data: ResponseData): HtmlRenderable {
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const query = ctx.request.query;
+  const requested = query.next ?? query.redirect;
+  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", typeof requested === "string" ? requested : undefined);
   if (data.loggedOut) {
-    const next = data.nextUrl || "/";
     return (
       <div class="container py-5" style="max-width: 420px;">
         <div class="card border-0 shadow-sm">
@@ -20,7 +22,13 @@ export function render(data: ResponseData): HtmlRenderable {
     );
   }
 
-  const nextUrl = data.nextUrl || "/";
+  const interactive = !data.alreadyLoggedIn && data.status !== "error";
+  const login = interactive ? ctx.routeUrl({ method: "POST" }) : null;
+  if (interactive && !login?.absoluteApiPath) throw new Error("Authress login service route is unavailable");
+  const callback = interactive ? ctx.routeUrl({ path: "/login", method: "GET", query: { next } }) : null;
+  const callbackUrl = callback?.absoluteUiPath ?? callback?.absoluteViewPath;
+  if (interactive && !callbackUrl) throw new Error("Authress login callback route is unavailable");
+  const nextUrl = next;
   const scopes = JSON.stringify(data.scopes?.length ? data.scopes : ["openid", "profile", "email"]);
   const loginUI = data.loginUI || "default";
   const cleanLogin = loginUI === "clean" || loginUI === "redirect";
@@ -32,19 +40,20 @@ export function render(data: ResponseData): HtmlRenderable {
       data-authress-api-url={data.authressApiUrl || ""}
       data-authress-application-id={data.authressApplicationId || ""}
       data-next-url={nextUrl}
+      data-login-callback-url={callbackUrl ?? undefined}
       data-scopes={scopes}
       data-login-ui={loginUI}
       data-mode={data.alreadyLoggedIn ? "signed-in" : data.status === "error" ? "error" : "login"}
     >
       <script src="https://cdn.jsdelivr.net/npm/@authress/login/dist/authress.min.js"></script>
-      <form id="bp-authress-token-form" hx-post="/login" hx-headers='{"Accept":"application/json"}' style="display:none" >
+      {login?.absoluteApiPath ? <form id="bp-authress-token-form" hx-post={login.absoluteApiPath} hx-headers='{"Accept":"application/json"}' style="display:none" >
         <input type="hidden" name="accessToken" value="" />
         <input type="hidden" name="next" value={nextUrl} />
         <input type="hidden" name="userId" value="" />
         <input type="hidden" name="name" value="" />
         <input type="hidden" name="email" value="" />
         <input type="hidden" name="picture" value="" />
-      </form>
+      </form> : null}
       <section class="bp-authress-panel">
         {!cleanLogin ? <div class="bp-authress-mark" aria-hidden="true">A</div> : null}
         <h1>Sign in</h1>
@@ -114,23 +123,23 @@ export function render(data: ResponseData): HtmlRenderable {
             return authressClient;
           };
 
-          const startLogin = async (loginClient: { authenticate: (options: Record<string, unknown>) => Promise<void> }, target: string, scopes: unknown[]) => {
+          const startLogin = async (loginClient: { authenticate: (options: Record<string, unknown>) => Promise<void> }, scopes: unknown[]) => {
             setStatus("Opening sign in");
             await loginClient.authenticate({
-              redirectUrl: `${window.location.origin}${window.location.pathname}?next=${encodeURIComponent(target)}`,
+              redirectUrl: page?.dataset.loginCallbackUrl,
               scopes
             });
           };
 
           form?.addEventListener("htmx:afterRequest", (event: Event) => {
             const xhr = (event as CustomEvent<{ xhr: XMLHttpRequest; successful: boolean }>).detail.xhr;
-            let body: { status?: string; message?: string; nextUrl?: string } | null = null;
+            let body: { status?: string; message?: string } | null = null;
             try { body = JSON.parse(xhr.responseText); } catch { /* ignore */ }
             if (xhr.status >= 400 || body?.status === "error") {
               setStatus(body?.message || `Sign in failed (HTTP ${xhr.status})`);
               return;
             }
-            softNavigate(body?.nextUrl || page?.dataset.nextUrl || "/");
+            softNavigate(page?.dataset.nextUrl || "/");
           });
 
           (async () => {
@@ -158,10 +167,10 @@ export function render(data: ResponseData): HtmlRenderable {
               const startButton = document.getElementById("bp-authress-start-login");
               if (loginUI === "clean") {
                 setStatus("Ready to sign in.");
-                startButton?.addEventListener("click", () => void startLogin(loginClient, target, scopes), { once: true });
+                startButton?.addEventListener("click", () => void startLogin(loginClient, scopes), { once: true });
                 return;
               }
-              await startLogin(loginClient, target, scopes);
+              await startLogin(loginClient, scopes);
               return;
             }
 
@@ -205,7 +214,6 @@ export function render(data: ResponseData): HtmlRenderable {
               const input = form?.querySelector<HTMLInputElement>(`input[name="${key}"]`);
               if (input && value) input.value = value;
             }
-            form?.setAttribute("hx-post", `${window.location.pathname}${window.location.search}`);
             form?.requestSubmit();
           })().catch((error) => {
             setStatus(error?.message || "Sign in could not start.");

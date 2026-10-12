@@ -28,11 +28,7 @@ export const ResponseSchema = av.object({
     username: av.string().describe("Created account username."),
     isFirstAdmin: av.bool().describe("True when this account is the deployment's first admin.")
   }).describe("Created first-admin user summary.")),
-  // GET state for the theme renderer: registration closes after management
-  // bootstrap; loginUrl (self-origin, absolute) is where the renderer sends the
-  // browser in that case - and after a successful first-admin creation.
-  registrationOpen: av.optional(av.bool()).describe("True while management bootstrap is incomplete; once false, the renderer should send the browser to login."),
-  loginUrl: av.optional(av.string()).describe("Absolute self-origin URL of this auth service's login view, used when registration is closed and after successful first-admin creation.")
+  registrationOpen: av.optional(av.bool()).describe("True while management bootstrap is incomplete; once false, the renderer should send the browser to login.")
 });
 export type ResponseData = Infer<typeof ResponseSchema>;
 
@@ -60,14 +56,9 @@ export const handleGet = createHandler(
   { response: ResponseSchema, query: QuerySchema },
   async (ctx) => {
     const runtime = ctx.plugin.runtime;
-    const next = (ctx.query as { next?: string }).next;
-    const query = next ? { next } : undefined;
     return {
       status: "ok" as const,
-      registrationOpen: runtime.isManagement({ tenantId: ctx.tenant.id, appId: ctx.app.id }) && await runtime.identity.bootstrapAvailable({ tenantId: ctx.tenant.id, appId: ctx.app.id }),
-      loginUrl: ctx.routeUrl?.("login.index", { absolute: true, query })
-        ?? ctx.routeUrl?.("login.index", { query })
-        ?? undefined
+      registrationOpen: runtime.isManagement({ tenantId: ctx.tenant.id, appId: ctx.app.id }) && await runtime.identity.bootstrapAvailable({ tenantId: ctx.tenant.id, appId: ctx.app.id })
     };
   }
 );
@@ -95,8 +86,6 @@ export const handlePost = createHandler(
       await runtime.identity.rateLimit(scope, "bootstrap", "setup", 10);
       if (!runtime.verifySetup(body.setupToken ?? "")) throw new Error("Enter the deployment setup token.");
       const created = await runtime.identity.createUser(scope, await runtime.policy(scope), { username: body.username, password: body.password, email: body.email, name: body.name }, ["*"], true);
-      const next = (ctx.query as { next?: string }).next;
-      const query = next ? { next } : undefined;
       return {
         status: "ok" as const,
         message: "First admin created.",
@@ -104,11 +93,7 @@ export const handlePost = createHandler(
           id: created.id,
           username: created.username,
           isFirstAdmin: true
-        },
-        // For the themed success view: where to send the browser to sign in.
-        loginUrl: ctx.routeUrl?.("login.index", { absolute: true, query })
-          ?? ctx.routeUrl?.("login.index", { query })
-          ?? undefined
+        }
       };
     } catch (err) {
       ctx.setStatus?.(400);

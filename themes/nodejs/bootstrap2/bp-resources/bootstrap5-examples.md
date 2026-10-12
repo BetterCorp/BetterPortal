@@ -14,7 +14,7 @@ These examples are service-renderer fragments, never full documents.
 ## Filters and validation
 
 ```tsx
-<form class="row g-2" hx-get={ctx.url.route("incidents.index")} hx-target="#incident-results">
+<form class="row g-2" hx-get={ctx.routeUrl({ viewId: "incidents.index" })?.absoluteViewPath} hx-target="#incident-results">
   <div class="col-sm-4"><label class="form-label" for="query">Search</label><input class="form-control form-control-sm" id="query" name="query" /></div>
   <div class="col-sm-3"><label class="form-label" for="status">Status</label><select class="form-select form-select-sm" id="status" name="status"><option value="">All</option><option>Open</option></select></div>
   <div class="col-auto align-self-end"><button class="btn btn-sm btn-primary" type="submit">Apply</button></div>
@@ -37,7 +37,7 @@ These examples are service-renderer fragments, never full documents.
 
 ```tsx
 <section data-bp-mutation-scope>
-<form hx-post={ctx.url.route("incidents.index", { component: "active" })} hx-target="#incident-active" hx-swap="outerHTML">
+<form hx-post={ctx.routeUrl({ viewId: "incidents.index", method: "POST", component: "active" })?.absoluteViewPath} hx-target="#incident-active" hx-swap="outerHTML">
   <button class="btn btn-sm btn-success" type="submit">Resolve</button>
 </form>
 <div class="alert alert-danger mt-2" data-bp-mutation-error role="alert" aria-live="polite" hidden></div>
@@ -78,7 +78,7 @@ import { BPElement } from "@betterportal/framework";
 ## SSE fragment
 
 ```tsx
-<div id="live-alert" hx-ext="sse" sse-connect={ctx.url.route("alerts.stream")} sse-swap="message"></div>
+<div id="live-alert" hx-ext="sse" sse-connect={ctx.routeUrl({ viewId: "alerts.stream", sse: true })?.absoluteViewPath} sse-swap="message"></div>
 ```
 
 The corresponding SSE tick renderer returns either a Bootstrap alert or an empty `<div id="live-alert"></div>` to clear the strip.

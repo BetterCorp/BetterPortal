@@ -58,7 +58,7 @@ test("account email fragment is cleared and submitted only after explicit confir
       window.submitted.push(JSON.parse(init.body));
       return new Response(JSON.stringify({ message: "Email verified." }), { headers: { "Content-Type": "application/json" } });
     } };`);
-  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderAccount({ accountUrl: "https://auth.test/account", registration: "public", signedIn: false })) }));
+  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderAccount({ registration: "public", signedIn: false }, { request: { query: {} }, app: { defaultRoute: "/" }, routeUrl: () => ({ absoluteApiPath: "https://auth.test/account" }) } as never)) }));
   await page.goto("https://app.test/account#bp-auth=" + encodeURIComponent(JSON.stringify(proof)));
   assert.equal(new URL(page.url()).hash, "");
   assert.deepEqual(await page.evaluate(() => (window as any).submitted), []);
@@ -82,10 +82,10 @@ test("users page generates, displays and copies verification links for eligible 
       return Response.json({ status: "ok", message: "Verification link ready.", verificationLink: ${JSON.stringify(link)} });
     } };`);
   const base = { id: "eligible", username: "alice", email: "alice@example.com", enabled: true, emailVerified: false, roles: [] };
-  const data = { canManageDirectory: true, registration: "closed", endpoint: "https://auth.test/users", users: [base,
+  const data = { canManageDirectory: true, registration: "closed", users: [base,
     { ...base, id: "verified", emailVerified: true }, { ...base, id: "disabled", enabled: false },
     { ...base, id: "protected", protected: true }, { ...base, id: "no-email", email: "" }] };
-  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderUsers(data)) }));
+  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderUsers(data, { request: { query: {} }, routeUrl: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never)) }));
   await page.goto("https://app.test/users");
   const generate = page.getByRole("button", { name: "Generate verification link" });
   assert.equal(await generate.count(), 1);
@@ -100,7 +100,7 @@ test("users page generates, displays and copies verification links for eligible 
   assert.equal(await page.evaluate(() => (window as any).copied), link);
   assert.deepEqual(await page.evaluate(() => (window as any).submitted), [{ action: "verification.link", id: "eligible" }]);
   assert.deepEqual(errors, []);
-  await page.route("https://readonly.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderUsers({ ...data, canManageDirectory: false })) }));
+  await page.route("https://readonly.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderUsers({ ...data, canManageDirectory: false }, { request: { query: {} }, routeUrl: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never)) }));
   await page.goto("https://readonly.test/users");
   assert.equal(await page.getByRole("button", { name: "Generate verification link" }).count(), 0);
 });

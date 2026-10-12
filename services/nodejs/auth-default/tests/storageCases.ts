@@ -43,18 +43,18 @@ export async function checkSessionAndMailPages(storage: AuthStorage, scope: Scop
     for (const target of others) assert.ok(await tx.get("session", "expired-sentinel", target));
   });
   const ctx = { plugin: { runtime: { identity, policy: async () => policy } }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user: { sub: user.id }, query: {},
-    routeUrl: (_route: string, options: any) => "https://auth.test/account?" + new URLSearchParams(options.query).toString() };
+    routeUrl: () => ({ absoluteUiPath: "https://app.test/account" }) };
   const first = await accountGet(ctx as never);
   assert.equal((first.sessions as any[]).length, 100);
-  const second = await accountGet({ ...ctx, query: { sessionAfter: new URL(String(first.sessionNextUrl)).searchParams.get("sessionAfter") } } as never);
+  const second = await accountGet({ ...ctx, query: { sessionAfter: first.sessionNextCursor } } as never);
   assert.equal((second.sessions as any[]).length, 6);
-  assert.equal(second.sessionNextUrl, "");
+  assert.equal(second.sessionNextCursor, "");
   assert.equal(new Set([...(first.sessions as any[]), ...(second.sessions as any[])].map(s => s.id)).size, 106);
   const mailFirst = await usersGet(ctx as never);
   assert.equal((mailFirst.mail as any[]).length, 100);
   assert.ok((mailFirst.mail as any[]).every(m => m.state === "failed"));
-  const mailSecond = await usersGet({ ...ctx, query: { mailAfter: new URL(String(mailFirst.mailNextUrl)).searchParams.get("mailAfter") } } as never);
+  const mailSecond = await usersGet({ ...ctx, query: { mailAfter: mailFirst.mailNextCursor } } as never);
   assert.equal((mailSecond.mail as any[]).length, 5);
-  assert.equal(mailSecond.mailNextUrl, "");
+  assert.equal(mailSecond.mailNextCursor, "");
   assert.equal(new Set([...(mailFirst.mail as any[]), ...(mailSecond.mail as any[])].map(m => m.id)).size, 105);
 }

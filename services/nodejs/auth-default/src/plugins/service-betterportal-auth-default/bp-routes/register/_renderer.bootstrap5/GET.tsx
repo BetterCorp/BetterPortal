@@ -1,20 +1,8 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
-import type { HtmlRenderable } from "@betterportal/framework";
+import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../../../registrationFlow.js";
 
-/** Tenant-relative path (+query) of an absolute self-origin URL, for hx-push-url. */
-function pushPathOf(url: string | undefined, fallback: string): string {
-  if (!url) return fallback;
-  try {
-    const parsed = new URL(url);
-    return parsed.pathname + parsed.search;
-  } catch {
-    return fallback;
-  }
-}
-
-/** Client-side confirm-password gate; everything else is server-rendered. */
 function registerScript(): HtmlRenderable {
   // IIFE - htmx executes swapped <script> content as a plain script, where a
   // top-level `return` inside a bare block is a SyntaxError.
@@ -51,7 +39,9 @@ function redirectStub(url: string, pushUrl: string, label: string): HtmlRenderab
   );
 }
 
-function renderForm(data: ResponseData): HtmlRenderable {
+function renderForm(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const target = ctx.routeUrl({ path: "/register", method: "POST", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } })?.absoluteApiPath;
+  if (!target) throw new Error("Registration action route is unavailable");
   return (
     <div class="container py-5" style="max-width: 420px;">
       <div class="card border-0 shadow-sm">
@@ -62,7 +52,7 @@ function renderForm(data: ResponseData): HtmlRenderable {
           </p>
           <form
             id="bp-register-form"
-            hx-post="this"
+            hx-post={target}
             hx-target="#bp-main"
             hx-swap="innerHTML"
           >
@@ -95,7 +85,8 @@ function renderForm(data: ResponseData): HtmlRenderable {
   );
 }
 
-export function render(data: ResponseData): HtmlRenderable {
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const login = ctx.routeUrl({ path: "/login", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } });
   // POST success - server-rendered confirmation, then on to sign-in.
   if (data.status === "ok" && data.user) {
     return (
@@ -107,9 +98,9 @@ export function render(data: ResponseData): HtmlRenderable {
               <strong>{data.user.username}</strong> is now the platform administrator.
             </div>
             <p class="text-secondary small mb-0">Taking you to sign in...</p>
-            {data.loginUrl
-              ? redirectStub(data.loginUrl, pushPathOf(data.loginUrl, "/login"), "Redirecting to sign in...")
-              : <a class="btn btn-primary mt-3" href="/login">Sign in</a>}
+            {login?.absoluteViewPath && login.uiPath
+              ? redirectStub(login.absoluteViewPath, login.uiPath, "Redirecting to sign in...")
+              : <p class="text-secondary mt-3">Sign in through your app to continue.</p>}
           </div>
         </div>
       </div>
@@ -118,21 +109,21 @@ export function render(data: ResponseData): HtmlRenderable {
 
   // POST validation error (rendered via the 400 status view) - form + message.
   if (data.status === "error") {
-    return renderForm(data);
+    return renderForm(data, ctx);
   }
 
   // GET with users already present - registrations are closed; bounce to login.
   if (!data.registrationOpen) {
-    if (data.loginUrl) {
-      return redirectStub(data.loginUrl, pushPathOf(data.loginUrl, "/login"), "Redirecting to sign in...");
+    if (login?.absoluteViewPath && login.uiPath) {
+      return redirectStub(login.absoluteViewPath, login.uiPath, "Redirecting to sign in...");
     }
     return (
       <div class="container py-5" style="max-width: 420px;">
-        <div class="alert alert-secondary">Registration is closed. <a href="/login">Sign in</a> instead.</div>
+        <div class="alert alert-secondary">Registration is closed. Sign in through your app to continue.</div>
       </div>
     );
   }
 
   // GET, zero users - the first-admin form.
-  return renderForm(data);
+  return renderForm(data, ctx);
 }

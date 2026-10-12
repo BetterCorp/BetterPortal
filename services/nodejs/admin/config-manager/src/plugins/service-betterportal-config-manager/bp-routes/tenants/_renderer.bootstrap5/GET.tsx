@@ -1,6 +1,6 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
-import type { HtmlRenderable } from "@betterportal/framework";
+import type { HtmlRenderable, HttpMethod, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../../../tenantManagement.js";
 
 function tenantsScript(): HtmlRenderable {
@@ -163,8 +163,12 @@ function seoFields(): HtmlRenderable {
   );
 }
 
-export function render(data: ResponseData): HtmlRenderable {
-  const tenantsPath = data.tenantsPath;
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const destination = (method: HttpMethod, query: Record<string, string> = {}): string => {
+    const target = ctx.routeUrl({ path: "/tenants", method, query })?.absoluteViewPath;
+    if (!target) throw new Error("Tenant action route is unavailable");
+    return target;
+  };
 
   return (
     <div class="container-fluid px-0">
@@ -200,7 +204,7 @@ export function render(data: ResponseData): HtmlRenderable {
                       >Edit</button>
                       <button
                         class="btn btn-outline-danger"
-                        hx-delete={`${tenantsPath}?entity=tenant&id=${encodeURIComponent(t.id)}`}
+                        hx-delete={destination("DELETE", { entity: "tenant", id: t.id })}
                         hx-confirm={`Delete tenant ${t.id} and all its apps?`}
                         hx-target="#bp-main"
                         hx-swap="innerHTML"
@@ -258,7 +262,7 @@ export function render(data: ResponseData): HtmlRenderable {
                     >Edit</button>
                     <button
                       class="btn btn-outline-danger"
-                      hx-delete={`${tenantsPath}?entity=app&id=${encodeURIComponent(app.id)}`}
+                      hx-delete={destination("DELETE", { entity: "app", id: app.id })}
                       hx-confirm={`Delete app ${app.id}?`}
                       hx-target="#bp-main"
                       hx-swap="innerHTML"
@@ -278,7 +282,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-add-tenant-form" hx-post={tenantsPath} hx-target="#bp-main" hx-swap="innerHTML">
+          <form id="bp-add-tenant-form" hx-post={destination("POST")} hx-target="#bp-main" hx-swap="innerHTML">
             <input type="hidden" name="entity" value="tenant" />
             <div class="mb-3">
               <label class="form-label">Tenant Name</label>
@@ -298,7 +302,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-edit-tenant-form" hx-put={tenantsPath} hx-target="#bp-main" hx-swap="innerHTML">
+          <form id="bp-edit-tenant-form" hx-put={destination("PUT")} hx-target="#bp-main" hx-swap="innerHTML">
             <input type="hidden" name="entity" value="tenant" />
             <input type="hidden" name="tenantId" />
             <div class="mb-3">
@@ -327,7 +331,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-add-app-form" hx-post={tenantsPath} hx-target="#bp-main" hx-swap="innerHTML">
+          <form id="bp-add-app-form" hx-post={destination("POST")} hx-target="#bp-main" hx-swap="innerHTML">
             <input type="hidden" name="entity" value="app" />
             <div class="mb-3">
               <label class="form-label">Tenant</label>
@@ -387,7 +391,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">
-          <form id="bp-edit-app-form" hx-put={tenantsPath} hx-target="#bp-main" hx-swap="innerHTML">
+          <form id="bp-edit-app-form" hx-put={destination("PUT")} hx-target="#bp-main" hx-swap="innerHTML">
             <input type="hidden" name="entity" value="app" />
             <input type="hidden" name="appId" />
             <div class="mb-3">

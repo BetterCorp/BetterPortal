@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 0758edd262e4511099d41c5cc8a966717827c5932f300f9951f65d7741b4194b
+# Generated from AnyVali documents; do not edit. SHA256: 117bc2559ec884199cbed1ac7960cd97eb5d478c2e5283a905b910455457ae5e
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -2929,6 +2929,24 @@ ResolvedBPElementReferenceInput = TypedDict('ResolvedBPElementReferenceInput', {
     'unavailable': NotRequired['str'],
 })
 
+ResolvedRouteUrl = TypedDict('ResolvedRouteUrl', {
+    'apiPath': Required['str'],
+    'viewPath': Required['str'],
+    'uiPath': Required['Union[str, None]'],
+    'absoluteApiPath': Required['Union[str, None]'],
+    'absoluteViewPath': Required['Union[str, None]'],
+    'absoluteUiPath': Required['Union[str, None]'],
+})
+
+ResolvedRouteUrlInput = TypedDict('ResolvedRouteUrlInput', {
+    'apiPath': Required['str'],
+    'viewPath': Required['str'],
+    'uiPath': Required['Union[str, None]'],
+    'absoluteApiPath': Required['Union[str, None]'],
+    'absoluteViewPath': Required['Union[str, None]'],
+    'absoluteUiPath': Required['Union[str, None]'],
+})
+
 RouteDeclaration = TypedDict('RouteDeclaration', {
     'viewId': NotRequired['str'],
     'title': NotRequired['str'],
@@ -2943,14 +2961,15 @@ RouteDeclarationInput = TypedDict('RouteDeclarationInput', {
 
 RouteUiOptions = TypedDict('RouteUiOptions', {
     'serviceId': NotRequired['str'],
+    'path': NotRequired['str'],
+    'viewId': NotRequired['str'],
+    'method': Required["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
+    'mountId': NotRequired['str'],
     'params': Required['dict[str, Union[UrlScalar, None]]'],
     'query': Required['dict[str, Union[UrlScalar, None]]'],
-    'absolute': Required['bool'],
-    'origin': NotRequired['str'],
     'component': NotRequired['str'],
     'fragment': NotRequired['str'],
     'sse': Required['bool'],
-    'method': Required["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
     'target': NotRequired['str'],
     'swap': NotRequired['str'],
     'push': NotRequired['Union[str, bool]'],
@@ -2958,14 +2977,15 @@ RouteUiOptions = TypedDict('RouteUiOptions', {
 
 RouteUiOptionsInput = TypedDict('RouteUiOptionsInput', {
     'serviceId': NotRequired['str'],
+    'path': NotRequired['str'],
+    'viewId': NotRequired['str'],
+    'method': NotRequired["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
+    'mountId': NotRequired['str'],
     'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
     'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
-    'absolute': NotRequired['bool'],
-    'origin': NotRequired['str'],
     'component': NotRequired['str'],
     'fragment': NotRequired['str'],
     'sse': NotRequired['bool'],
-    'method': NotRequired["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
     'target': NotRequired['str'],
     'swap': NotRequired['str'],
     'push': NotRequired['Union[str, bool]'],
@@ -2973,10 +2993,12 @@ RouteUiOptionsInput = TypedDict('RouteUiOptionsInput', {
 
 RouteUrlOptions = TypedDict('RouteUrlOptions', {
     'serviceId': NotRequired['str'],
+    'path': NotRequired['str'],
+    'viewId': NotRequired['str'],
+    'method': NotRequired['HttpMethod'],
+    'mountId': NotRequired['str'],
     'params': Required['dict[str, Union[UrlScalar, None]]'],
     'query': Required['dict[str, Union[UrlScalar, None]]'],
-    'absolute': Required['bool'],
-    'origin': NotRequired['str'],
     'component': NotRequired['str'],
     'fragment': NotRequired['str'],
     'sse': Required['bool'],
@@ -2984,10 +3006,12 @@ RouteUrlOptions = TypedDict('RouteUrlOptions', {
 
 RouteUrlOptionsInput = TypedDict('RouteUrlOptionsInput', {
     'serviceId': NotRequired['str'],
+    'path': NotRequired['str'],
+    'viewId': NotRequired['str'],
+    'method': NotRequired['HttpMethodInput'],
+    'mountId': NotRequired['str'],
     'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
     'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
-    'absolute': NotRequired['bool'],
-    'origin': NotRequired['str'],
     'component': NotRequired['str'],
     'fragment': NotRequired['str'],
     'sse': NotRequired['bool'],
@@ -5127,6 +5151,7 @@ ViewAppContextAuth = TypedDict('ViewAppContextAuth', {
     'serviceId': Required['str'],
     'loginViewId': NotRequired['str'],
     'logoutViewId': NotRequired['str'],
+    'redirects': NotRequired['ScopedAppAuthRedirects'],
 })
 
 ViewAppContextInput = TypedDict('ViewAppContextInput', {
@@ -5143,6 +5168,7 @@ ViewAppContextInputAuth = TypedDict('ViewAppContextInputAuth', {
     'serviceId': Required['str'],
     'loginViewId': NotRequired['str'],
     'logoutViewId': NotRequired['str'],
+    'redirects': NotRequired['ScopedAppInputAuthRedirects'],
 })
 
 ViewDemoScenario = TypedDict('ViewDemoScenario', {
