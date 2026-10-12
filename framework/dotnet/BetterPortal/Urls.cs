@@ -171,9 +171,9 @@ public sealed class Urls
                 .Where(item => item.Path is not null).ToArray();
             var exact = candidates.Where(item => selector is not null && item.Template.TrimEnd('/') == selector.Split('?', 2)[0].TrimEnd('/')).ToArray();
             if (exact.Length != 0) candidates = exact;
-            var ordered = viewId is not null ? candidates.OrderByDescending(item => Specificity(item.Template)).ToArray() : candidates.OrderBy(item => Specificity(item.Template)).ToArray();
+            var ordered = viewId is not null ? candidates.OrderByDescending(item => Specificity(item.Template)).ToArray() : candidates.OrderBy(item => PathRank(item.Template), StringComparer.Ordinal).ToArray();
             if (ordered.Length == 0) return null;
-            if (ordered.Where(item => Specificity(item.Template) == Specificity(ordered[0].Template)).Select(item => item.Path).Distinct().Count() != 1) return null;
+            if (ordered.Where(item => viewId is not null ? Specificity(item.Template) == Specificity(ordered[0].Template) : PathRank(item.Template) == PathRank(ordered[0].Template)).Select(item => item.Path).Distinct().Count() != 1) return null;
             viewId = ordered[0].View; path = ordered[0].Path;
         }
         else
@@ -188,6 +188,10 @@ public sealed class Urls
                 }).Where(item => item.Path is not null).ToArray();
             var exact = candidates.Where(item => selector is not null && ServicePath(item.Mount)?.TrimEnd('/') == selector.Split('?', 2)[0].TrimEnd('/')).ToArray();
             if (exact.Length != 0) candidates = exact;
+            if (selector is not null && candidates.Length != 0) {
+                var bestRank = candidates.Select(item => PathRank(ServicePath(item.Mount)!)).Order(StringComparer.Ordinal).First();
+                candidates = candidates.Where(item => PathRank(ServicePath(item.Mount)!) == bestRank).ToArray();
+            }
             candidates = candidates.GroupBy(item => ((string)item.Mount["serviceId"]!, item.Path)).Select(group => group.First()).ToArray();
             if (candidates.Length != 1) return null;
             var selected = candidates[0]; target = (string)selected.Mount["serviceId"]!; viewId = (string)selected.Mount["viewId"]!; path = selected.Path;
@@ -223,6 +227,7 @@ public sealed class Urls
         catch (ArgumentException) { return null; }
     }
     private static Node Merge(Node? inherited, Node overrides) { var result = inherited is null ? new Node() : new Node(inherited); foreach (var pair in overrides) result[pair.Key] = pair.Value; return result; }
+    private static string PathRank(string template) => string.Concat(template.Split('/').Select(part => part.StartsWith(':') ? "1" : "0"));
     private static int Specificity(string template) => template.Split('/').Count(part => part.StartsWith(':'));
     private static Node AsNode(object? value) => value is null ? new() : Json.Read(Json.Write(value)) as Node ?? new();
     private static Node? Parameters(string template, string path)

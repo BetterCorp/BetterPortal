@@ -169,10 +169,12 @@ class Urls:
                     values = {**fixed, **(self._parameters(candidate, self._path) if self_target else {}), **parameters}
                     value = _fill(candidate if self_target or selector is None else selector, values)
                     if value is not None: resolved.append((name, candidate, value))
-            resolved.sort(key=lambda item: sum(part.startswith(":") for part in item[1].split("/")), reverse=view_id is not None)
+            def rank(template: str) -> tuple[int, ...]:
+                return (-sum(part.startswith(":") for part in template.split("/")),) if view_id is not None else tuple(int(part.startswith(":")) for part in template.split("/"))
+            resolved.sort(key=lambda item: rank(item[1]))
             if not resolved: return None
-            best = sum(part.startswith(":") for part in resolved[0][1].split("/"))
-            eligible = [item for item in resolved if sum(part.startswith(":") for part in item[1].split("/")) == best]
+            best = rank(resolved[0][1])
+            eligible = [item for item in resolved if rank(item[1]) == best]
             if len({value for _, _, value in eligible}) != 1: return None
             view_id, _, path = eligible[0]
         else:
@@ -186,6 +188,11 @@ class Urls:
                 if value is not None: targets.append((mount, value))
             exact_targets = [(mount, value) for mount, value in targets if selector is not None and (self._service_path(mount) or "").rstrip("/") == selector.split("?", 1)[0].rstrip("/")]
             if exact_targets: targets = exact_targets
+            if selector is not None and targets:
+                def mount_rank(mount: Mapping[str, Any]) -> tuple[int, ...]:
+                    return tuple(int(part.startswith(":")) for part in (self._service_path(mount) or "").split("/"))
+                best_rank = min(mount_rank(mount) for mount, _ in targets)
+                targets = [(mount, value) for mount, value in targets if mount_rank(mount) == best_rank]
             unique = {(mount["serviceId"], value): (mount, value) for mount, value in targets}
             if len(unique) != 1: return None
             mount, path = next(iter(unique.values())); target, view_id = mount["serviceId"], mount["viewId"]

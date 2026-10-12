@@ -26,7 +26,8 @@ export interface RouteUrlOptions {
 /**
  * Resolve a service path or view id; omitting both resolves self. API code normally supplies a path;
  * view ids are also supported in API code, for example to build a public UI URL.
- * A path is always a service path, never an inferred theme/UI path.
+ * A path is always a service path, never an inferred theme/UI path. Exact templates
+ * take precedence; concrete paths prefer earlier literal segments as the router does.
  */
 export type RouteUrlInput = RouteUrlOptions & (
   | { path: string; viewId?: never }

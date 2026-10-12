@@ -59,6 +59,19 @@ def run_urls(urls, labels):
                 case(f"exact-template-{dependency}-{reverse}-{template}", {"path": template, "params": params, **({"serviceId": "docs"} if dependency else {})},
                      resolved(api, ui=ui, origin="https://other.test" if dependency else "https://service.test"),
                      lambda body, reverse=reverse, dependency=dependency: overlapping(body, reverse, dependency))
+    for dependency in (False, True):
+        for reverse in (False, True):
+            case(f"concrete-overlap-{dependency}-{reverse}", {"path": "/a/users/new", **({"serviceId": "docs"} if dependency else {})},
+                 resolved("/a/users/new", ui="/right/new", origin="https://other.test" if dependency else "https://service.test"),
+                 lambda body, reverse=reverse, dependency=dependency: overlapping(body, reverse, dependency))
+    def overlapping_self(body):
+        overlapping(body)
+        body["request"]["path"] = "/a/users/new?hello=world"
+        app = body["snapshot"]["apps"][0]
+        app["routes"].extend(deepcopy(app["appRoutes"][-2:]))
+        for mount, route in zip(app["routes"][-2:], body["routes"][-2:]):
+            mount["operations"] = [op["declaration"]["operationId"] for op in route["operations"]]
+    case("overlapping-self", None, resolved("/a/users/new?hello=world", ui="/right/new?hello=world"), overlapping_self)
     case("unsupported-method", {"method": "DELETE"}, None)
     case("hash-rejected", {"path": "/check/item#anchor"}, None)
     case("dot-param-rejected", {"viewId": "check", "params": {"key": ".."}}, None)
@@ -149,11 +162,11 @@ def run_urls(urls, labels):
                 try:
                     body = fixture(); change(body)
                     call = {"kind": "routeUrl", **({"input": input} if input is not None else {})}
-                    operation = next(spec for spec in body["routes"][0]["operations"] if spec["declaration"]["method"] == body["request"].get("method", "GET"))
-                    if handler:
-                        body["request"]["headers"]["accept"] = "application/json"
-                        operation["urlCalls"] = [call]
-                    else: operation["renderers"][0]["urlCalls"] = [call]
+                    if handler: body["request"]["headers"]["accept"] = "application/json"
+                    for route in body["routes"]:
+                        operation = next(spec for spec in route["operations"] if spec["declaration"]["method"] == body["request"].get("method", "GET"))
+                        if handler: operation["urlCalls"] = [call]
+                        else: operation["renderers"][0]["urlCalls"] = [call]
                     actual = post(url, body)
                     assert actual["status"] == 200 and actual["invoked"] == 1, actual
                     value = json.loads(actual["body"] if handler else "".join(Html(actual["body"]).text))

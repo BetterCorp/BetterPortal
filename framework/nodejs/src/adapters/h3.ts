@@ -403,7 +403,7 @@ async function prepareSseContext(
     callerMode: authResult.callerMode,
     ...extraContext,
     serviceId: routerOptions.serviceId,
-    routeUrl: createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteUrlServiceId?.() ?? routerOptions.serviceId, { path: url.pathname.replace(/\/__sse\/?$/, ""), method: "GET", params, query: queryResult.value as Record<string, unknown> }),
+    routeUrl: createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteUrlServiceId?.() ?? routerOptions.serviceId, { path: url.pathname.replace(/\/__sse\/?$/, ""), template: route.path, method: "GET", params, query: queryResult.value as Record<string, unknown> }),
     diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
     response: responseHelper,
     file: fileResponseHelper,
@@ -875,14 +875,14 @@ function createRouteUrlBuilder(
   extraContext: RequiredHandlerContext,
   aliases: Readonly<Record<string, string>>,
   currentServiceId: string | undefined,
-  current: { path: string; method: HttpMethod; params: Record<string, string>; query: Record<string, unknown> }
+  current: { path: string; template: string; method: HttpMethod; params: Record<string, string>; query: Record<string, unknown> }
 ): RouteUrlResolver {
   return (input: RouteUrlInput = {}) => {
     // Also reject legacy options from untyped callers, rather than silently guessing.
     if (typeof input !== "object" || input === null || "absolute" in input || "origin" in input) return null;
     if (input.path !== undefined && input.viewId !== undefined) return null;
     const self = input.path === undefined && input.viewId === undefined;
-    const currentRoute = routes.find(route => route.methods.includes(current.method) && routePathsMatch(route.path, current.path));
+    const currentRoute = routes.find(route => route.methods.includes(current.method) && route.path === current.template);
     const inferred = new Set(appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && mount.viewId === currentRoute?.viewId).map(mount => mount.serviceId));
     const owner = currentServiceId ?? extraContext.serviceId ?? (inferred.size === 1 ? [...inferred][0] : undefined);
     const reference = input.serviceId ?? owner;
@@ -926,13 +926,14 @@ function createRouteUrlBuilder(
           return concrete && !concrete.split("?", 1)[0].split("/").some(part => pathParamName(part)) ? [{ route, path: concrete }] : [];
         });
       });
-      // Prefer literal route matches over parameter patterns; never choose an arbitrary variant.
-      const direction = input.viewId === undefined ? 1 : -1;
-      resolved.sort((a, b) => direction * (a.route.path.split("/").filter(part => pathParamName(part)).length - b.route.path.split("/").filter(part => pathParamName(part)).length));
+      // Concrete paths follow the router's earliest literal-segment precedence.
+      const rank = (path: string) => path.split("/").map(part => pathParamName(part) ? "1" : "0").join("");
+      const parameterCount = (path: string) => path.split("/").filter(part => pathParamName(part)).length;
+      const compare = (a: string, b: string) => input.viewId === undefined ? rank(a).localeCompare(rank(b)) : parameterCount(b) - parameterCount(a);
+      resolved.sort((a, b) => compare(a.route.path, b.route.path));
       const best = resolved[0];
       if (!best) return null;
-      const specificity = best.route.path.split("/").filter(part => pathParamName(part)).length;
-      if (new Set(resolved.filter(entry => entry.route.path.split("/").filter(part => pathParamName(part)).length === specificity).map(entry => entry.path)).size !== 1) return null;
+      if (new Set(resolved.filter(entry => compare(entry.route.path, best.route.path) === 0).map(entry => entry.path)).size !== 1) return null;
       path = best.path; viewId = best.route.viewId;
     } else {
       let targets = appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && ids.has(mount.serviceId)
@@ -941,6 +942,11 @@ function createRouteUrlBuilder(
         && (viewId !== undefined ? mount.viewId === viewId : pathname !== undefined && Boolean(routeMountServicePath(mount)) && routePathsMatch(routeMountServicePath(mount)!, pathname)));
       const exact = pathname === undefined ? [] : targets.filter(mount => normalizeRoutePath(routeMountServicePath(mount)!) === normalizeRoutePath(pathname));
       if (exact.length) targets = exact;
+      if (pathname !== undefined && targets.length) {
+        const rank = (mount: typeof targets[number]) => routeMountServicePath(mount)!.split("/").map(part => pathParamName(part) ? "1" : "0").join("");
+        const best = targets.map(rank).sort()[0];
+        targets = targets.filter(mount => rank(mount) === best);
+      }
       const resolved = targets.flatMap(mount => {
         const concrete = fillAppPath(suppliedPath ?? routeMountServicePath(mount) ?? "", { ...mount.fixedParams, ...params });
         return concrete ? [{ mount, path: concrete }] : [];
@@ -1201,7 +1207,7 @@ async function handleRouteRequest(
     return rejectUnallowedAppRoute(obs, route, method, extraContext, routeAllowance.reason ?? "route_not_mounted_for_app");
   }
 
-  const routeUrl = createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteUrlServiceId?.() ?? routerOptions.serviceId, { path: url.pathname, method, params, query: query as Record<string, unknown> });
+  const routeUrl = createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteUrlServiceId?.() ?? routerOptions.serviceId, { path: url.pathname, template: route.path, method, params, query: query as Record<string, unknown> });
   const earlyRenderContext = (status: number): ViewRenderContext | undefined => {
     const renderer = rendererFromEvent(event);
     return renderer ? createViewRenderContext(route, {
