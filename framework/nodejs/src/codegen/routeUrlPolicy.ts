@@ -15,7 +15,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const declarations = new Map<ts.Node, Set<string>>();
   const selections = new Map<ts.Node, Map<string, { expression: ts.Expression; field: string; rest: boolean }>>();
   const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
-  type Mutation = { target: ts.Expression; values: readonly ts.Expression[]; global?: ts.Expression };
+  type Mutation = { target: ts.Expression; values: readonly ts.Expression[]; global?: ts.Expression; collection?: boolean };
   const pendingMutations: Mutation[] = [];
   const collect = (node: ts.Node): void => {
     if (file.includes("_renderer.") && ts.isFunctionLike(node)) {
@@ -67,6 +67,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       if (["push", "unshift", "splice", "fill"].includes(method)) pendingMutations.push({
         target: node.expression.expression,
         values: method === "splice" ? node.arguments.slice(2) : method === "fill" ? node.arguments.slice(0, 1) : node.arguments
+      });
+      if (["set", "append", "add"].includes(method)) pendingMutations.push({
+        target: node.expression.expression, values: node.arguments, collection: true
       });
       if (method === "assign" && node.arguments[0]) pendingMutations.push({
         target: node.arguments[0], values: node.arguments.slice(1), global: node.expression.expression
@@ -121,6 +124,19 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     return false;
   };
+  const collection = (expression: ts.Node, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return collection(expression.expression, seen);
+    if (ts.isNewExpression(expression)) return ["Map", "Set", "Headers", "URLSearchParams", "FormData"].some(name => isGlobal(expression.expression, name));
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return collection(initializer, new Set([...seen, expression.text]));
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return false;
+      scope = scope.parent;
+    }
+    return false;
+  };
   const report = (node: ts.Node, message: string) => {
     const position = tree.getLineAndCharacterOfPosition(node.getStart(tree));
     errors.push({ file: `${file}:${position.line + 1}:${position.character + 1}`, message, severity: "error" });
@@ -139,7 +155,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isIdentifier(expression) && !seen.has(expression.text)) {
       const binding = reference(expression);
       if (binding && mutations.get(binding.scope)?.get(binding.name)?.some(mutation =>
-        (!mutation.global || isGlobal(mutation.global, "Object"))
+        (!mutation.global || isGlobal(mutation.global, "Object")) && (!mutation.collection || collection(mutation.target))
         && mutation.values.some(value => internalValue(value, new Set([...seen, expression.text]))))) return true;
       let scope: ts.Node | undefined = expression.parent;
       while (scope) {
@@ -169,6 +185,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
+      if (isGlobal(expression.expression, "String") || isGlobal(expression.expression, "Object")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (isGlobal(expression.expression, "structuredClone")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Array")) {
         if (expression.expression.name.text === "of") return expression.arguments.some(argument => internalValue(argument, seen));
@@ -190,10 +207,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Object")) {
         if (expression.expression.name.text === "assign") return expression.arguments.some(argument => internalValue(argument, seen));
+        if (["values", "entries", "freeze", "seal", "preventExtensions"].includes(expression.expression.name.text)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
         if (expression.expression.name.text === "fromEntries") return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       }
       if (ts.isPropertyAccessExpression(expression.expression)) {
         const operation = expression.expression.name.text;
+        if (["toString", "valueOf", "join"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
         if (["with", "toSpliced"].includes(operation)) return internalValue(expression.expression.expression, seen)
@@ -215,19 +234,41 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       return false;
     }
-    if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Array")) return !!expression.arguments?.some(argument => internalValue(argument, seen));
-    if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Response")) return !!expression.arguments?.[0] && internalValue(expression.arguments[0], seen);
+    if (ts.isNewExpression(expression) && ["Array", "Map", "Set", "URL", "String", "Object"].some(name => isGlobal(expression.expression, name))) return !!expression.arguments?.some(argument => internalValue(argument, seen));
+    if (ts.isNewExpression(expression)) return isGlobal(expression.expression, "Response") && !!expression.arguments?.[0] && internalValue(expression.arguments[0], seen);
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };
   const defaultExports = new Set(tree.statements.flatMap(statement => ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression) ? [statement.expression.text] : []));
-  const handlerFactories = new Set(["createHandler", "createRawHandler", "createStreamHandler", "createSse"]);
+  const factoryNames = new Set(["createHandler", "createRawHandler", "createStreamHandler", "createSse"]);
+  const handlerFactories = new Set<string>();
+  const handlerNamespaces = new Set<string>();
   for (const statement of tree.statements) {
-    if (!ts.isImportDeclaration(statement)) continue;
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteralLike(statement.moduleSpecifier) || statement.importClause?.isTypeOnly) continue;
+    const module = statement.moduleSpecifier.text;
+    if (module !== "@betterportal/framework" && !module.startsWith("@betterportal/framework/")
+      && !/(?:^|[/])\.bp-generated[/]route-runtime(?:\.[cm]?[jt]s)?$/.test(module)) continue;
     const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) handlerNamespaces.add(bindings.name.text);
     if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements) {
-      if (handlerFactories.has(binding.propertyName?.text ?? binding.name.text)) handlerFactories.add(binding.name.text);
+      if (!binding.isTypeOnly && factoryNames.has(binding.propertyName?.text ?? binding.name.text)) handlerFactories.add(binding.name.text);
     }
   }
+  const factoryImport = (expression: ts.Expression, namespace = false, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return factoryImport(expression.expression, namespace, seen);
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return namespace ? factoryImport(initializer, true, new Set([...seen, expression.text])) : factory(initializer, new Set([...seen, expression.text]));
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return false;
+      scope = scope.parent;
+    }
+    return (namespace ? handlerNamespaces : handlerFactories).has(expression.text) && isGlobal(expression, expression.text, true);
+  };
+  const factory = (expression: ts.Expression, seen = new Set<string>()): boolean => ts.isIdentifier(expression) ? factoryImport(expression, false, seen)
+    : ts.isPropertyAccessExpression(expression) ? factoryNames.has(expression.name.text) && factoryImport(expression.expression, true, seen)
+      || expression.name.text === "forContext" && factory(expression.expression, seen)
+        : ts.isCallExpression(expression) ? factory(expression.expression, seen) : false;
   const routeHandlerFile = /(?:^|[/])bp-routes[/](?:.*[/])?(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|SSE|STREAM)\.tsx?$/.test(file.replace(/\\/g, "/"));
   const isReturnedValue = (node: ts.Node): boolean => {
     let current = node.parent;
@@ -249,9 +290,6 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       && (["handler", "handle"].includes(parent.name.text) || defaultExports.has(parent.name.text))) return true;
     if (routeHandlerFile && ts.isExportAssignment(parent)) return true;
     if (!ts.isCallExpression(parent)) return false;
-    const factory = (expression: ts.Expression): boolean => ts.isIdentifier(expression) ? handlerFactories.has(expression.text)
-      : ts.isPropertyAccessExpression(expression) ? handlerFactories.has(expression.name.text) || expression.name.text === "forContext" && factory(expression.expression)
-        : ts.isCallExpression(expression) ? factory(expression.expression) : false;
     return factory(parent.expression);
   };
   const belongsToHandler = (node: ts.Node | undefined): boolean => {
@@ -331,7 +369,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const isResponseConstructor = (expression: ts.Expression): boolean => {
     if (ts.isIdentifier(expression)) return jsonHelpers.has(expression.text) && isGlobal(expression, expression.text, true);
     return ts.isPropertyAccessExpression(expression) && (isGlobal(expression.expression, "Response") && expression.name.text === "json"
-      || isGlobal(expression.expression, "JSON") && expression.name.text === "stringify"
+      || isGlobal(expression.expression, "JSON") && ["stringify", "parse"].includes(expression.name.text)
       || isGlobal(expression.expression, "Promise") && ["resolve", "all", "allSettled", "race"].includes(expression.name.text));
   };
   const visit = (node: ts.Node): void => {

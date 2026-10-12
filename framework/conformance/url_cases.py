@@ -35,6 +35,12 @@ def run_urls(urls, labels):
     case("canonical-current-self", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"), canonical_self)
 
     case("self-query", {"query": {"page": 2}}, resolved("/check/item?hello=world&page=2", ui="/app/item?hello=world&page=2"))
+    def repeated(body):
+        body["request"]["path"] = "/check/item?hello=world&tag=a&tag=b&empty=&empty=x"
+    case("self-repeated-query", None, resolved("/check/item?hello=world&tag=a&tag=b&empty=&empty=x", ui="/app/item?hello=world&tag=a&tag=b&empty=&empty=x"), repeated)
+    case("self-repeated-query-override", {"query": {"tag": "latest", "empty": None}}, resolved("/check/item?hello=world&tag=latest", ui="/app/item?hello=world&tag=latest"), repeated)
+    case("path-repeated-query", {"path": "/check/item?tag=a&tag=b"}, resolved("/check/item?tag=a&tag=b", ui="/app/item?tag=a&tag=b"))
+    case("path-repeated-query-override", {"path": "/check/item?tag=a&tag=b", "query": {"tag": "latest"}}, resolved("/check/item?tag=latest", ui="/app/item?tag=latest"))
     case("self-param", {"params": {"key": "other"}}, resolved("/check/other?hello=world", ui="/app/other?hello=world"))
     case("view-id", {"viewId": "check", "params": {"key": "a/b"}, "query": {"q": "hello world", "omit": None}}, resolved("/check/a%2Fb?q=hello+world", ui="/app/a%2Fb?q=hello+world"))
     case("path", {"path": "/check/item?existing=yes", "query": {"q": "hello world"}}, resolved("/check/item?existing=yes&q=hello+world", ui="/app/item?existing=yes&q=hello+world"))
@@ -96,6 +102,11 @@ def run_urls(urls, labels):
     case("unknown-path", {"path": "/unknown"}, None)
     case("missing-params", {"viewId": "check"}, None)
     case("both-selectors", {"viewId": "check", "path": "/check/item"}, None)
+    case("query-selectors", {"path": "/check/item", "query": {"_c": "card", "_f": "nav.profile", "q": "yes"}}, resolved("/check/item?q=yes", ui="/app/item?q=yes"))
+    case("path-selectors", {"path": "/check/item?_c=card&_f=nav.profile&q=yes"}, resolved("/check/item?q=yes", ui="/app/item?q=yes"))
+    case("selector-conflict-query", {"path": "/check/item?_f=nav.profile", "component": "card", "query": {"_f": "other"}}, resolved("/check/item", "/check/item?_c=card"))
+    def self_selector(body): body["request"]["path"] = "/check/item?hello=world&_c=card"
+    case("self-selectors", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"), self_selector)
     case("component", {"viewId": "check", "params": {"key": "item"}, "component": "card"}, resolved("/check/item", "/check/item?_c=card"))
     case("fragment", {"viewId": "check", "params": {"key": "item"}, "fragment": "nav.profile"}, resolved("/check/item", "/check/item?_f=nav.profile"))
     case("sse", {"viewId": "check", "params": {"key": "item"}, "sse": True, "fragment": "nav.profile"}, resolved("/check/item/__sse", "/check/item/__sse?_f=nav.profile"))
@@ -192,7 +203,8 @@ def run_urls(urls, labels):
                     for route in body["routes"]:
                         operation = next(spec for spec in route["operations"] if spec["declaration"]["method"] == body["request"].get("method", "GET"))
                         if handler: operation["urlCalls"] = [call]
-                        else: operation["renderers"][0]["urlCalls"] = [call]
+                        else:
+                            for renderer in operation["renderers"]: renderer["urlCalls"] = [call]
                     if isinstance(expected, dict) and "validationError" in expected:
                         try: post(url, body)
                         except AssertionError as error:

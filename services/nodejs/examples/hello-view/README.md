@@ -12,4 +12,10 @@ This package demonstrates:
 
 The API examples return domain data and stream items. They do not generate internal URL fields for the view. Renderers receive `ViewRenderContext` as their second argument and resolve navigation, actions and pagination locally with `ctx.routeUrl(input?)`; see the `hello` showcase renderer for cursor-based fragment pagination. Select `uiPath` for page navigation, `absoluteViewPath` for HTML/HTMX requests and `absoluteApiPath` for JSON actions. Specify the action method; omit the target to resolve self. See the [routing contract and paired API/view example](../../../../docs/building/routes-and-views.md).
 
-For collections, filter/sort or incrementally collect domain items and IDs in the API, then resolve each link in the renderer. Avoid arrays (including `Array.from`/`Array.of`) or incrementally constructed response objects containing internal route destinations.
+For collections, filter/sort or incrementally collect domain items and IDs in the API, then resolve each link in the renderer. Avoid arrays (including `Array.from`/`Array.of`), object/JSON copies or incrementally constructed response objects containing internal route destinations. Provider clients/constructors may consume service destinations to return domain data.
+
+Import BP handler factories from `@betterportal/framework` or the generated `.bp-generated/route-runtime.js`. The authoring validator follows these imports and aliases; unrelated SDK factories with the same names retain their own semantics.
+
+For a request such as `?tag=a&tag=b`, `ctx.routeUrl()` preserves both tags; `ctx.routeUrl({ query: { tag: "latest" } })` replaces them. APIs can return domain cursors/filter state and leave the view to resolve navigation. Standard entry collections such as Map/Set must not forward internal destinations through serialization.
+
+Renderer selection uses the explicit `component` or `fragment` option. Reserved `_c`/`_f` keys in query input, supplied paths, or the current request are removed before resolution; only view destinations receive an explicit selector. API and mounted page destinations remain free of renderer selectors.

@@ -18,6 +18,7 @@ def _scalar(value: Any) -> str:
     if isinstance(value, str): return value
     if isinstance(value, bool): return str(value).lower()
     if isinstance(value, int): return str(value)
+    if not isinstance(value, (float, Decimal)): raise ValueError("Expected a route scalar")
     number = float(value)
     if number == 0: return "0"
     text = repr(number).lower()
@@ -68,7 +69,9 @@ def _fill(path: str, params: Mapping[str, Any]) -> str | None:
 def _render(path: str, options: Mapping[str, Any]) -> str:
     encoded = _path(path); parts = urlsplit(path)
     if options.get("sse"): encoded = encoded.rstrip("/") + "/__sse"
-    changes = dict(options.get("query", {}))
+    changes = {name: value for name, value in options.get("query", {}).items() if name not in ("_c", "_f")}
+    for name, _ in parse_qsl(parts.query, keep_blank_values=True):
+        if name in ("_c", "_f"): changes[name] = None
     if options.get("component") and options.get("fragment"): raise ValueError("Ambiguous renderer selector")
     if options.get("component"): changes["_c"] = options["component"]
     if options.get("fragment"): changes["_f"] = options["fragment"]
@@ -81,7 +84,8 @@ def _render(path: str, options: Mapping[str, Any]) -> str:
                 continue
             index = next((index for index, pair in enumerate(pairs) if pair[0] == name), len(pairs))
             pairs = [pair for pair in pairs if pair[0] != name]
-            pairs.insert(index, (name, _scalar(value)))
+            values = value if isinstance(value, (list, tuple)) else [value]
+            pairs[index:index] = [(name, _scalar(item)) for item in values if item is not None]
         query = urlencode(pairs, safe="*").replace("~", "%7E")
     result = encoded + ("?" + query if query else "") + ("#" + quote(parts.fragment, safe="/?:@!$&'()*+,;=-._~%") if parts.fragment else "")
     if options.get("absolute") and options.get("origin"):
@@ -148,7 +152,12 @@ class Urls:
         if not ids or self_target and ids != own: return None
         method = opts.get("method", method if self_target else "GET")
         parameters = {**(params if self_target else {}), **opts["params"]}
-        opts["query"] = {**(query if self_target else {}), **dict(parse_qsl(urlsplit(opts.get("path", "")).query, keep_blank_values=True)), **opts["query"]}
+        embedded: dict[str, Any] = {}
+        for name, value in parse_qsl(urlsplit(opts.get("path", "")).query, keep_blank_values=True):
+            if name not in embedded: embedded[name] = value
+            elif isinstance(embedded[name], list): embedded[name].append(value)
+            else: embedded[name] = [embedded[name], value]
+        opts["query"] = {**(query if self_target else {}), **embedded, **opts["query"]}
         if opts.get("component") and opts.get("fragment"): return None
         selector, view_id = opts.get("path", self._path if self_target else None), opts.get("viewId")
         path: str | None = None

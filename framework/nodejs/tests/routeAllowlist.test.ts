@@ -890,6 +890,57 @@ test("renderer destinations encode queries and expose both service and mounted U
   }, { serviceId, router: { createRequestObservability: () => observability } });
 });
 
+test("routeUi.current defaults to GET in a POST renderer and honors explicit POST", async () => {
+  const observability = createNoopObservability();
+  observability.startSpan = () => observability;
+  const serviceId = uuidv7();
+  const app = {
+    id: uuidv7(), tenantId: tenant.id, slug: "navigation", title: "Navigation",
+    hostnames: ["app.local"], originOverrides: [], refererOverrides: [],
+    shell: { serviceId, service: "test", renderer: "bootstrap5" },
+    themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} },
+    defaultRoute: "/archive/call", menu: [], slots: [], fragments: {},
+    routes: [{ id: uuidv7(), kind: "page", path: "/archive/call", serviceId,
+      viewId: "archive.call", resolvedServicePath: "/call", enabled: true,
+      operations: ["archive.call", "archive.post"], resolvedMethods: ["GET", "POST"] }]
+  } as BetterPortalApp;
+  const pageRoute = {
+    ...route("/call", "archive.call"),
+    methods: ["GET", "POST"],
+    handlers: { GET: () => ({ ok: true }), POST: () => ({ ok: true }) },
+    methodRoutes: { ...route("/call", "archive.call").methodRoutes, POST: { ...route("/call", "archive.call").methodRoutes!.GET!, method: "POST", operationId: "archive.post" } },
+    renderers: {
+      bootstrap5: {
+        pages: [{
+          rendererId: "default", type: "page" as const, method: "POST" as const,
+          render: (_data: unknown, ctx: import("../src/contracts/registry.js").ViewRenderContext) => {
+            assert.equal(ctx.request.method, "POST");
+            const get = ctx.routeUi.current();
+            assert.equal(get.href, "/archive/call");
+            assert.equal(get["hx-push-url"], "/archive/call");
+            assert.ok(get["hx-get"]?.endsWith("/call"));
+            const post = ctx.routeUi.current({ method: "POST" });
+            assert.ok(post["hx-post"]?.endsWith("/call"));
+            assert.equal(post["hx-get"], undefined);
+            assert.equal(post["hx-push-url"], undefined);
+            return `<a href="${get.href}">Call</a>`;
+
+          }
+        }],
+        components: [], fragments: []
+      }
+    }
+  } satisfies RegisteredRoute;
+  await withServer(app, { routes: [pageRoute] }, async baseUrl => {
+    const response = await fetch(`${baseUrl}/call`, { method: "POST", headers: { accept: "text/html" } });
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    assert.match(body, /href="\/archive\/call"/);
+
+
+  }, { serviceId, router: { createRequestObservability: () => observability } });
+});
+
 test("renderer app URLs resolve parameterized mounts and reject missing or ambiguous mounts", async () => {
   const serviceId = uuidv7();
   for (const paths of [[], ["/archive/call/:id"], ["/archive/call/:id", "/alternate/call/:id"]]) {

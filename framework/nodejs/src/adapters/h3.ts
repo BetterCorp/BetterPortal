@@ -736,14 +736,21 @@ function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absolut
   const url = new URL(absoluteOrigin ? absoluteOrigin.replace(/\/+$/, "") + path : path, "http://betterportal.invalid");
   if (sse) url.pathname = `${url.pathname.replace(/\/+$/, "")}/__sse`;
   for (const [key, value] of Object.entries(query)) {
-    if (value !== null && value !== undefined) url.searchParams.set(key, String(value));
+    if (Array.isArray(value)) {
+      const pairs = [...url.searchParams];
+      const index = pairs.findIndex(([name]) => name === key);
+      const retained = pairs.filter(([name]) => name !== key);
+      retained.splice(index < 0 ? retained.length : index, 0, ...value.filter(item => item !== null && item !== undefined).map(item => [key, String(item)] as [string, string]));
+      url.search = "";
+      for (const [name, item] of retained) url.searchParams.append(name, item);
+    } else if (value !== null && value !== undefined) url.searchParams.set(key, String(value));
     else url.searchParams.delete(key);
   }
   return absoluteOrigin ? url.toString() : `${url.pathname}${url.search}${url.hash}`;
 }
 
 function renderUrl(path: string, options: RouteUrlOptions = {}, origin?: string): string {
-  const query = { ...(options.query ?? {}) };
+  const query = { ...(options.query ?? {}), _c: null as string | null, _f: null as string | null };
   if (options.component) query._c = options.component;
   if (options.fragment) query._f = options.fragment;
   return appendQuery(path, query, origin, options.sse);
@@ -848,7 +855,7 @@ function createViewRenderContext(
     routeUi: {
       link: ui,
       current: (options = {}) => {
-        const resolved = routeUrl(options);
+        const resolved = routeUrl({ ...options, method: options.method ?? "GET" });
         if (!resolved) throw new Error("Current route URL could not be resolved");
         return ui(resolved, options);
       },
@@ -908,8 +915,21 @@ function createRouteUrlBuilder(
     if (!ownService && !extraContext.tenant.services.some(service => service.enabled && ids.has(service.id))) return null;
     const method = input.method ?? (self ? current.method : "GET");
     const params = { ...(self ? current.params : {}), ...input.params };
-    const embeddedQuery = Object.fromEntries(new URLSearchParams(input.path?.split("?", 2)[1] ?? ""));
-    const query = { ...(self ? current.query : {}), ...embeddedQuery, ...input.query } as RouteUrlOptions["query"];
+    const embeddedQuery: Record<string, string | string[]> = {};
+    const embeddedPairs = new URLSearchParams(input.path?.split("?", 2)[1] ?? "");
+    for (const key of new Set(embeddedPairs.keys())) {
+      const values = embeddedPairs.getAll(key);
+      embeddedQuery[key] = values.length === 1 ? values[0]! : values;
+    }
+    const inheritedQuery = { ...current.query };
+    if (self) {
+      const requestPairs = getRequestURL(event).searchParams;
+      for (const key of new Set(requestPairs.keys())) {
+        const values = requestPairs.getAll(key);
+        if (values.length > 1 && Object.prototype.hasOwnProperty.call(inheritedQuery, key)) inheritedQuery[key] = values;
+      }
+    }
+    const query = { ...(self ? inheritedQuery : {}), ...embeddedQuery, ...input.query } as RouteUrlOptions["query"];
     if (input.component && input.fragment) return null;
     const suppliedPath = self ? currentRoute?.path ?? current.path : input.path;
     if (suppliedPath !== undefined && (!suppliedPath.startsWith("/") || suppliedPath.startsWith("//") || suppliedPath.includes("\\") || suppliedPath.includes("#") || [...suppliedPath].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) return null;
@@ -983,7 +1003,7 @@ function createRouteUrlBuilder(
       if (Object.entries(mount.fixedParams ?? {}).some(([name, value]) => !uiNames.has(name) && values[name] !== value)) return [];
       const target = fillAppPath(mount.path, values);
       const service = fillAppPath(routeMountServicePath(mount) ?? (ownService ? routes.find(route => route.viewId === viewId && routePathsMatch(route.path, path!.split("?", 1)[0]))?.path : undefined) ?? "", values);
-      return target && service && routePathsMatch(service, path!.split("?", 1)[0]) ? [appendQuery(target, query)] : [];
+      return target && service && routePathsMatch(service, path!.split("?", 1)[0]) ? [renderUrl(target, { query })] : [];
     }));
     const uiPath = pagePaths.size === 1 ? [...pagePaths][0] : null;
     const appBase = requestAppOrigin(extraContext.app, event) ?? (extraContext.app.hostnames.length ? appOrigin(extraContext.app) : undefined);

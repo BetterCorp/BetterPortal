@@ -197,8 +197,10 @@ Use the exported `viewId` in UI code instead of duplicating strings:
 ```ts
 import { viewId as submitViewId } from "../submit/index.js";
 
-export function render(data: ResponseData): HtmlRenderable {
-  return <form hx-post={`{${submitViewId}}`} method="post">...</form>;
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const submit = ctx.routeUrl({ viewId: submitViewId, method: "POST" });
+  if (!submit?.absoluteApiPath) throw new Error("Submit route is unavailable");
+  return <form hx-post={submit.absoluteApiPath} method="post">...</form>;
 }
 ```
 
@@ -305,7 +307,7 @@ if (!destination?.absoluteApiPath) throw new Error("Reports API route is unavail
 // fetch(destination.absoluteApiPath, ...)
 ```
 
-Omit both `path` and `viewId` to resolve self: `ctx.routeUrl()` or `ctx.routeUrl({ query: { page: 2 } })`. Self inherits the current service, route, method, params and query; explicit values override them and null query values remove keys. Explicit targets default to GET and do not inherit another route's params/query. Missing local path parameters may come from a selected or uniquely resolvable mount's fixed values; explicit params override them. Conflicting fixed values require `mountId` or explicit params. A `path` always means a service path, including when it contains a query string. Do not supply both selectors. An exact supplied template takes precedence over wildcard matches. Concrete paths follow the router's preference for earlier literal segments, and self uses the route handling the request.
+Omit both `path` and `viewId` to resolve self: `ctx.routeUrl()` or `ctx.routeUrl({ query: { page: 2 } })`. Self inherits the current service, route, method, params and query; explicit values override them and null query values remove keys. Repeated query values inherited from the request or embedded in a supplied path stay repeated; a scalar override replaces the whole key. Explicit targets default to GET and do not inherit another route's params/query. Missing local path parameters may come from a selected or uniquely resolvable mount's fixed values; explicit params override them. Conflicting fixed values require `mountId` or explicit params. A `path` always means a service path, including when it contains a query string. Do not supply both selectors. An exact supplied template takes precedence over wildcard matches. Concrete paths follow the router's preference for earlier literal segments, and self uses the route handling the request.
 
 Unknown routes, unsupported methods, missing params and ambiguous service targets return `null`. A valid service destination can exist without a UI mount: its UI fields are `null` unless exactly one enabled GET page path resolves. Select `mountId` when several frontend aliases are valid. Required navigation failures must be diagnosed rather than hidden behind guessed paths or `"#"` fallbacks.
 
@@ -336,7 +338,7 @@ export function render(data: { reportId: string }, ctx: ViewRenderContext) {
 }
 ```
 
-Do not wrap route objects or internal destinations in response objects, arrays (including `Array.from`, `Array.of`, `filter`, slices and sorted copies), object copies or `structuredClone` to forward them to a renderer. The authoring check also follows incremental property assignments, aliases, `Object.assign` mutations and array inserts into returned responses. Collect domain IDs/items in the API, for example `result.ids.push(record.id)`, then resolve each destination in the renderer. The check traces BP handler/renderer contexts and their aliases; unrelated provider APIs with similarly named methods remain valid. Public links generated for email or callbacks belong in API code only when that API actually consumes or returns the public link for that purpose.
+Do not wrap route objects or internal destinations in response objects, arrays (including `Array.from`, `Array.of`, `filter`, slices and sorted copies), object copies, JSON parse/stringify clones, scalar wrappers or `structuredClone` to forward them to a renderer. The authoring check also follows incremental property assignments, aliases, `Object.assign` mutations, standard Map/Set entry mutations and array inserts into returned responses. Collect domain IDs/items in the API, for example `result.ids.push(record.id)`, then resolve each destination in the renderer. The check identifies handler factories through framework or generated route-runtime imports, including aliases and namespaces, and respects local shadows. It traces BP handler/renderer contexts and their aliases; unrelated provider APIs with similarly named methods remain valid. Public links generated for email or callbacks belong in API code only when that API actually consumes or returns the public link for that purpose.
 
 Service base URLs must use HTTP(S) without credentials, query strings or fragments; a deployment path prefix is retained. Public app hosts must be credential-free HTTP(S) origins without a path, query or fragment. Invalid bases cannot produce absolute destinations. Native scoped configuration rejects malformed app origins before invoking handlers; the Node resolver leaves unavailable absolute fields null. Relative destinations do not authorize requests or bypass operation allowlists.
 
@@ -750,3 +752,6 @@ App route paths may also define params. Prefer `{name}` in `bp-config.yaml` beca
 Render browser-expressible constraints from the operation's input schema into the HTML controls (`type`, `required`, `min`, `max`, `step`, `minlength`, `maxlength`, `pattern`). Keep those constraints in replacement fragments. The browser validates these attributes; it does not execute the backend AnyVali/JSON schema automatically. Hidden inputs and controls barred from constraint validation are not checked by these APIs; validate computed payloads against the published input contract and always on the server.
 
 Use a normal submit button or `form.requestSubmit(submitter)` so native validation and HTMX submit handling run. Necessary custom triggers must stop when `form.reportValidity()` returns false. Do not disable validation or use `form.submit()`, synthetic submit events or direct requests to force an invalid form through. Recalculation that accepts a subset needs its own non-nested form/component with the corresponding constraints. The backend still validates every submission and all business rules. See [form validation in service views](./themes.md#preserve-html5-form-validation) for API details and verification steps.
+
+Renderer selection uses the explicit `component` or `fragment` option. Reserved `_c`/`_f` keys in query input, supplied paths, or the current request are removed before resolution; only view destinations receive an explicit selector. API and mounted page destinations remain free of renderer selectors.
+`routeUi.current()` resolves GET by default, matching its emitted link and htmx attributes; pass `method` explicitly for another operation. `routeUrl()` itself continues to inherit the current method for self.

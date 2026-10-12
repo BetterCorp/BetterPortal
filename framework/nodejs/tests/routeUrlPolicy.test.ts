@@ -17,7 +17,7 @@ test("build rejects old helpers and URL payloads even with any-typed contexts", 
     'export function handler(ctx: any) { const endpoint = ctx.routeUrl()?.absoluteViewPath; return { endpoint: endpoint }; }',
     'export function render() { return `<a href="{users.index}">Users</a>`; }',
     'export const handle = (ctx: any) => ({ anything: ctx.routeUrl()?.apiPath });',
-    'export default createHandler({}, async ctx => storage.transaction(async tx => ({ endpoint: ctx.routeUrl()?.viewPath })));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, async ctx => storage.transaction(async tx => ({ endpoint: ctx.routeUrl()?.viewPath })));',
     'export function handle(ctx: any) { const next = ctx.routeUrl()?.viewPath; return { next }; }',
     'export const render = () => <a href="{users.index}">Users</a>;',
   ]) assert.ok(inspectRouteUrlSource("bp-routes/users/GET.tsx", source).length, source);
@@ -46,7 +46,7 @@ test("prebuild CLI exits with failure for legacy any-typed route calls", () => {
   try {
     mkdirSync(join(directory, "src"));
     writeFileSync(join(directory, "package.json"), JSON.stringify({ name: "fixture" }));
-    writeFileSync(join(directory, "src", "handler.ts"), 'export default createHandler({}, (ctx: any) => ctx.routeUrl("users.index"));');
+    writeFileSync(join(directory, "src", "handler.ts"), 'import { createHandler } from "@betterportal/framework"; export default createHandler({}, (ctx: any) => ctx.routeUrl("users.index"));');
     const result = spawnSync(process.execPath, [new URL("../lib/cli/bp.js", import.meta.url).pathname, "run", "check-routes"], { cwd: directory, encoding: "utf8" });
     assert.equal(result.status, 1, result.stderr);
     assert.match(result.stderr, /routeUrl no longer accepts/);
@@ -55,7 +55,7 @@ test("prebuild CLI exits with failure for legacy any-typed route calls", () => {
 
 
 test("renderer utilities can return route attributes while API callbacks reject internal payloads", () => {
-  const source = 'export default createHandler({}, ctx => ({ href: ctx.routeUrl()?.uiPath }));';
+  const source = 'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => ({ href: ctx.routeUrl()?.uiPath }));';
   assert.deepEqual(inspectRouteUrlSource("bp-routes/users/_renderer.bootstrap5/GET.tsx", source), []);
   assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", source).length);
   const direct = 'const run = ctx => ({ endpoint: ctx.routeUrl()?.apiPath }); export default run;';
@@ -86,15 +86,15 @@ test("legacy field diagnostics follow renderer inputs and aliases with lexical s
 test("handler request-building callbacks are separate from response-producing callbacks", () => {
   const file = "bp-routes/users/GET.ts";
   for (const source of [
-    'export default createHandler({}, async ctx => { const descriptors = items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath })); await client(descriptors); return { count: items.length }; });',
-    'export default createHandler({}, async ctx => { const descriptors = items.map(() => { return { endpoint: ctx.routeUrl()?.apiPath }; }); await client(descriptors); return { ok: true }; });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, async ctx => { const descriptors = items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath })); await client(descriptors); return { count: items.length }; });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, async ctx => { const descriptors = items.map(() => { return { endpoint: ctx.routeUrl()?.apiPath }; }); await client(descriptors); return { ok: true }; });',
     'export function handler(ctx) { const helper = () => ({ endpoint: ctx.routeUrl()?.viewPath }); client(helper()); return { ok: true }; }',
-    'export default createHandler({}, ctx => client(items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath }))));'
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => client(items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath }))));'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
   for (const source of [
-    'export default createHandler({}, ctx => items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath })));',
-    'export default createHandler({}, async ctx => { return storage.transaction(async tx => ({ endpoint: ctx.routeUrl()?.viewPath })); });',
-    'export default createHandler({}, ctx => storage.transaction(tx => { return { endpoint: ctx.routeUrl()?.apiPath }; }));'
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath })));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, async ctx => { return storage.transaction(async tx => ({ endpoint: ctx.routeUrl()?.viewPath })); });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => storage.transaction(tx => { return { endpoint: ctx.routeUrl()?.apiPath }; }));'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
 });
 
@@ -102,13 +102,13 @@ test("handler request-building callbacks are separate from response-producing ca
 test("removed helpers and internal response spreads cannot bypass the authoring gate", () => {
   const file = "bp-routes/users/GET.ts";
   for (const source of [
-    'export default createHandler({}, ctx => { const { uiRouteUrl } = ctx; uiRouteUrl("users"); });',
-    'export default createHandler({}, ctx => { const { uiRouteUrl: link } = ctx; link("users"); });',
-    'export default createHandler({}, ctx => { ctx["uiRouteUrl"]("users"); });',
-    'export default createHandler({}, ctx => ({ ...ctx.routeUrl({ viewId: "users" }) }));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => { const { uiRouteUrl } = ctx; uiRouteUrl("users"); });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => { const { uiRouteUrl: link } = ctx; link("users"); });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => { ctx["uiRouteUrl"]("users"); });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => ({ ...ctx.routeUrl({ viewId: "users" }) }));',
     'export function handler(ctx) { const links = ctx.routeUrl(); return { ...links }; }'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
-  assert.deepEqual(inspectRouteUrlSource(file, 'export default createHandler({}, ctx => { const requests = [{ ...ctx.routeUrl() }]; client(requests); return { ok: true }; });'), []);
+  assert.deepEqual(inspectRouteUrlSource(file, 'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => { const requests = [{ ...ctx.routeUrl() }]; client(requests); return { ok: true }; });'), []);
   assert.deepEqual(inspectRouteUrlSource("bp-routes/users/_renderer.bootstrap5/GET.tsx", 'export function linkProps(ctx) { return { ...ctx.routeUrl() }; }'), []);
 });
 
@@ -116,18 +116,18 @@ test("removed helpers and internal response spreads cannot bypass the authoring 
 test("direct and mapped handler responses reject internal destinations without rejecting client requests", () => {
   const file = "bp-routes/users/GET.ts";
   for (const source of [
-    'export default createHandler({}, ctx => ctx.routeUrl());',
-    'export default createHandler.forContext<Extra>()({}, ctx => ctx.routeUrl());',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => ctx.routeUrl());',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler.forContext<Extra>()({}, ctx => ctx.routeUrl());',
     'export function handler(ctx) { return ctx.routeUrl({ viewId: "users" }); }',
-    'export default createHandler({}, ctx => items.map(() => ctx.routeUrl()));',
-    'export default createHandler({}, ctx => { const routes = items.map(() => ctx.routeUrl()); return routes; });',
-    'export default createHandler({}, ctx => { return [ctx.routeUrl()]; });',
-    'export default createHandler({}, ctx => items.flatMap(() => [ctx.routeUrl()?.apiPath]));'
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => items.map(() => ctx.routeUrl()));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => { const routes = items.map(() => ctx.routeUrl()); return routes; });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => { return [ctx.routeUrl()]; });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => items.flatMap(() => [ctx.routeUrl()?.apiPath]));'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
   for (const source of [
-    'export default createHandler({}, ctx => client(() => ctx.routeUrl()?.absoluteApiPath));',
-    'export default createHandler({}, ctx => items.map(() => { const endpoint = ctx.routeUrl()?.absoluteApiPath; return client(endpoint); }));',
-    'export default createHandler({}, ctx => { return { publicLink: ctx.routeUrl()?.absoluteUiPath }; });'
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => client(() => ctx.routeUrl()?.absoluteApiPath));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => items.map(() => { const endpoint = ctx.routeUrl()?.absoluteApiPath; return client(endpoint); }));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => { return { publicLink: ctx.routeUrl()?.absoluteUiPath }; });'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
 
@@ -137,12 +137,12 @@ test("destructured removed helpers trace handler/render contexts and leave provi
     'const { uiRouteUrl } = providerConfig;',
     'const { uiRouteUrl: providerLink } = providerConfig;',
     'const model = providerConfig; const { uiRouteUrl } = model;',
-    'export default createHandler({}, ctx => { const model = providerConfig; const { uiRouteUrl } = model; return { value: uiRouteUrl }; });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => { const model = providerConfig; const { uiRouteUrl } = model; return { value: uiRouteUrl }; });',
     'function provider(ctx) { const { uiRouteUrl } = ctx; return uiRouteUrl; }'
   ]) assert.deepEqual(inspectRouteUrlSource("bp-routes/users/GET.ts", source), [], source);
   for (const source of [
-    'export default createHandler({}, request => { const { uiRouteUrl } = request; return uiRouteUrl("users"); });',
-    'export default createHandler({}, request => { const alias = request as any; const { uiRouteUrl: link } = alias; return link("users"); });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, request => { const { uiRouteUrl } = request; return uiRouteUrl("users"); });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, request => { const alias = request as any; const { uiRouteUrl: link } = alias; return link("users"); });',
     'export function handler(request) { const { uiRouteUrl } = request; return uiRouteUrl("users"); }'
   ]) assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", source).length, source);
   assert.ok(inspectRouteUrlSource("bp-routes/users/_renderer.bootstrap5/GET.tsx", 'export function render(data, view) { const alias = view; const { uiRouteUrl } = alias; return uiRouteUrl("users"); }').length);
@@ -153,15 +153,15 @@ test("route call diagnostics and returned destinations trace BP contexts rather 
   const file = "bp-routes/users/GET.ts";
   for (const source of [
     'provider.routeUrl("invoice", options);',
-    'export default createHandler({}, request => provider.routeUrl("invoice", options));',
-    'export default createHandler({}, request => items.map(provider => provider.routeUrl("invoice", options)));',
-    'export default createHandler({}, request => ({ publicApi: provider.apiPath }));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, request => provider.routeUrl("invoice", options));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, request => items.map(provider => provider.routeUrl("invoice", options)));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, request => ({ publicApi: provider.apiPath }));',
     'provider.uiRouteUrl("invoice"); provider.url.route("invoice");'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
   for (const source of [
-    'export default createHandler({}, request => { const alias = request; return alias.routeUrl("users", options); });',
-    'export default createHandler.forContext<Extra>()({}, request => request.routeUrl("users"));',
-    'export default createHandler({}, request => { const alias = request; return alias.uiRouteUrl("users"); });'
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, request => { const alias = request; return alias.routeUrl("users", options); });',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler.forContext<Extra>()({}, request => request.routeUrl("users"));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, request => { const alias = request; return alias.uiRouteUrl("users"); });'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
 });
 
@@ -192,7 +192,7 @@ test("known JSON response constructors and promise wrappers preserve payload pro
   const file = "bp-routes/users/GET.ts";
   for (const source of [
     'export function handler(ctx) { return Response.json({ endpoint: ctx.routeUrl()?.absoluteApiPath }); }',
-    'export default createHandler({}, ctx => Promise.resolve(Response.json({ endpoint: ctx.routeUrl()?.viewPath })));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => Promise.resolve(Response.json({ endpoint: ctx.routeUrl()?.viewPath })));',
     'export function handler(ctx) { return new Response(JSON.stringify({ endpoint: ctx.routeUrl()?.apiPath })); }',
     'import { jsonResponse as json } from "@betterportal/framework"; export function handler(ctx) { return json({ endpoint: ctx.routeUrl()?.apiPath }); }',
     'export function handler(ctx) { return Promise.all(items.map(() => ctx.routeUrl())); }'
@@ -200,7 +200,7 @@ test("known JSON response constructors and promise wrappers preserve payload pro
   for (const source of [
     'export function handler(ctx) { return Response.json({ publicLink: ctx.routeUrl()?.absoluteUiPath }); }',
     'export function handler(ctx) { return new Response(null, { headers: { "HX-Location": ctx.routeUrl()?.uiPath } }); }',
-    'export default createHandler({}, ctx => client({ endpoint: ctx.routeUrl()?.absoluteApiPath }));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => client({ endpoint: ctx.routeUrl()?.absoluteApiPath }));',
     'export function handler(ctx) { const Response = provider; return Response.json({ endpoint: ctx.routeUrl()?.apiPath }); }',
     'import { jsonResponse as json } from "@betterportal/framework"; export function handler(ctx) { const json = client; return json({ endpoint: ctx.routeUrl()?.apiPath }); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
@@ -247,7 +247,7 @@ test("standard cloning preserves response provenance without rejecting domain cl
   const file = "bp-routes/users/GET.ts";
   for (const source of [
     'export function handler(ctx) { return structuredClone({ endpoint: ctx.routeUrl()?.absoluteApiPath }); }',
-    'export default createHandler({}, ctx => structuredClone(ctx.routeUrl()));',
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => structuredClone(ctx.routeUrl()));',
     'export function handler(ctx) { const payload = structuredClone({ endpoint: ctx.routeUrl()?.viewPath }); return payload; }'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
   for (const source of [
@@ -319,5 +319,77 @@ test("standard array factories preserve URLs while mapped domain results remain 
     'export function handler(ctx) { return Array.from([ctx.routeUrl()?.apiPath], () => "ready"); }',
     'import { Array } from "provider"; export function handler(ctx) { return Array.from([ctx.routeUrl()?.apiPath]); }',
     'export function handler(ctx) { const Array = provider; return Array.of(ctx.routeUrl()?.apiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+
+test("handler factories resolve only framework and generated-runtime imports", () => {
+  for (const source of [
+    'import { createHandler } from "provider"; export default createHandler({}, ctx => ctx.routeUrl("invoice"));',
+    'import { createRawHandler as route } from "provider"; route(ctx => ctx.routeUrl("invoice"));',
+    'provider.createStreamHandler(ctx => ctx.uiRouteUrl("invoice"));',
+    'import { createHandler } from "@betterportal/framework"; function helper(createHandler) { return createHandler({}, ctx => ctx.routeUrl("invoice")); }',
+    'import * as bp from "@betterportal/framework"; function helper(bp) { return bp.createHandler({}, ctx => ctx.routeUrl("invoice")); }',
+    'const createSse = provider; createSse({}, ctx => ctx.routeUrl("invoice"));'
+  ]) assert.deepEqual(inspectRouteUrlSource("providers/sdk.ts", source), [], source);
+  for (const source of [
+    'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => ctx.routeUrl("users"));',
+    'import { createHandler as route } from "./.bp-generated/route-runtime.js"; route({}, ctx => ctx.routeUrl("users"));',
+    'import * as bp from "@betterportal/framework"; bp.createHandler({}, ctx => ctx.routeUrl("users"));',
+    'import { createHandler as route } from "@betterportal/framework"; const handler = route; handler({}, ctx => ctx.routeUrl("users"));',
+    'import { createHandler } from "@betterportal/framework"; createHandler.forContext<Extra>()({}, ctx => ctx.routeUrl("users"));'
+  ]) assert.ok(inspectRouteUrlSource("helpers/routes.ts", source).length, source);
+});
+
+
+test("standard object/JSON/scalar wrappers retain response URL provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const expression of [
+    'JSON.parse(JSON.stringify({ endpoint: ctx.routeUrl()?.apiPath }))',
+    'Object.values({ endpoint: ctx.routeUrl()?.viewPath })',
+    'Object.entries({ endpoint: ctx.routeUrl()?.apiPath })',
+    'Object.freeze({ endpoint: ctx.routeUrl()?.viewPath })',
+    'Object.seal({ endpoint: ctx.routeUrl()?.viewPath })',
+    'Object.preventExtensions({ endpoint: ctx.routeUrl()?.viewPath })',
+    'String(ctx.routeUrl()?.apiPath)',
+    'Object(ctx.routeUrl())',
+    'new URL(ctx.routeUrl()?.absoluteApiPath)',
+    'new String(ctx.routeUrl()?.apiPath)',
+    '[ctx.routeUrl()?.apiPath].join(",")',
+    'ctx.routeUrl()?.absoluteApiPath.toString()'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { return ${expression}; }`).length, expression);
+  for (const source of [
+    'export function handler(ctx) { return JSON.parse(JSON.stringify({ publicLink: ctx.routeUrl()?.absoluteUiPath })); }',
+    'export function handler(ctx) { return Object.values({ publicLink: ctx.routeUrl()?.absoluteUiPath }); }',
+    'import { JSON } from "provider"; export function handler(ctx) { return JSON.parse(ctx.routeUrl()?.apiPath); }',
+    'import { String } from "provider"; export function handler(ctx) { return String(ctx.routeUrl()?.apiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+
+test("provider constructors can consume service destinations and return domain models", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'import { Response } from "provider"; export function handler(ctx) { return new Response(ctx.routeUrl()?.absoluteApiPath); }',
+    'import { Array } from "provider"; export function handler(ctx) { return new Array(ctx.routeUrl()?.absoluteApiPath); }',
+    'export function handler(ctx) { const URL = ProviderModel; return new URL(ctx.routeUrl()?.absoluteApiPath); }',
+    'export function handler(ctx) { return new ProviderModel(ctx.routeUrl()?.absoluteApiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return new Response(JSON.stringify({ endpoint: ctx.routeUrl()?.apiPath })); }').length);
+});
+
+
+test("standard entry collections retain mutated URLs when serialized", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const fields = new Map(); fields.set("endpoint", ctx.routeUrl()?.apiPath); return Object.fromEntries(fields); }',
+    'export function handler(ctx) { const fields = new Map(); const alias = fields; alias.set("endpoint", ctx.routeUrl()?.apiPath); return Object.fromEntries(fields); }',
+    'export function handler(ctx) { return Object.fromEntries(new Map([["endpoint", ctx.routeUrl()?.apiPath]])); }',
+    'export function handler(ctx) { const values = new Set(); values.add(ctx.routeUrl()?.apiPath); return Array.from(values); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const fields = new Map(); fields.set("publicLink", ctx.routeUrl()?.absoluteUiPath); return Object.fromEntries(fields); }',
+    'export function handler(ctx) { const requests = new Map(); requests.set("endpoint", ctx.routeUrl()?.apiPath); return client(requests); }',
+    'export function handler(ctx) { const model = new ProviderModel(); model.set("endpoint", ctx.routeUrl()?.apiPath); return model; }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
