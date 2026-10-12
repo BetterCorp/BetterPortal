@@ -97,7 +97,10 @@ public sealed class Urls
             {
                 if (value is null) { pairs.RemoveAll(pair => pair.Name == name); continue; }
                 var index = pairs.FindIndex(pair => pair.Name == name); if (index < 0) index = pairs.Count;
-                pairs.RemoveAll(pair => pair.Name == name); pairs.Insert(index, (name, Scalar(value)));
+                pairs.RemoveAll(pair => pair.Name == name);
+                var values = value is System.Collections.IEnumerable sequence && value is not string && value is not Node
+                    ? sequence.Cast<object?>().Where(item => item is not null).Select(item => Scalar(item!)) : [Scalar(value)];
+                pairs.InsertRange(index, values.Select(item => (name, item)));
             }
             query = string.Join('&', pairs.Select(pair => FormEncode(pair.Name) + "=" + FormEncode(pair.Value)));
         }
@@ -144,10 +147,16 @@ public sealed class Urls
         foreach (var pair in (Node)opts["params"]!) parameters[pair.Key] = pair.Value;
         var query = self ? AsNode(currentQuery) : new Node();
         if (opts.GetValueOrDefault("path") is string embedded && embedded.Contains('?')) {
+            var embeddedQuery = new Node();
             foreach (var pair in embedded.Split('?', 2)[1].Split('&', StringSplitOptions.RemoveEmptyEntries)) {
                 var parts = pair.Split('=', 2);
-                query[Uri.UnescapeDataString(parts[0].Replace("+", " "))] = parts.Length > 1 ? Uri.UnescapeDataString(parts[1].Replace("+", " ")) : "";
+                var name = Uri.UnescapeDataString(parts[0].Replace("+", " "));
+                var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1].Replace("+", " ")) : "";
+                if (!embeddedQuery.TryGetValue(name, out var prior)) embeddedQuery[name] = value;
+                else if (prior is List<object?> values) values.Add(value);
+                else embeddedQuery[name] = new List<object?> { prior, value };
             }
+            foreach (var pair in embeddedQuery) query[pair.Key] = pair.Value;
         }
         foreach (var pair in (Node)opts["query"]!) query[pair.Key] = pair.Value;
         opts["query"] = query;

@@ -15,3 +15,5 @@ The API examples return domain data and stream items. They do not generate inter
 For collections, filter/sort or incrementally collect domain items and IDs in the API, then resolve each link in the renderer. Avoid arrays (including `Array.from`/`Array.of`), object/JSON copies or incrementally constructed response objects containing internal route destinations. Provider clients/constructors may consume service destinations to return domain data.
 
 Import BP handler factories from `@betterportal/framework` or the generated `.bp-generated/route-runtime.js`. The authoring validator follows these imports and aliases; unrelated SDK factories with the same names retain their own semantics.
+
+For a request such as `?tag=a&tag=b`, `ctx.routeUrl()` preserves both tags; `ctx.routeUrl({ query: { tag: "latest" } })` replaces them. APIs can return domain cursors/filter state and leave the view to resolve navigation. Standard entry collections such as Map/Set must not forward internal destinations through serialization.

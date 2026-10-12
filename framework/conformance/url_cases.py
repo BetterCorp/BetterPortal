@@ -35,6 +35,12 @@ def run_urls(urls, labels):
     case("canonical-current-self", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"), canonical_self)
 
     case("self-query", {"query": {"page": 2}}, resolved("/check/item?hello=world&page=2", ui="/app/item?hello=world&page=2"))
+    def repeated(body):
+        body["request"]["path"] = "/check/item?hello=world&tag=a&tag=b&empty=&empty=x"
+    case("self-repeated-query", None, resolved("/check/item?hello=world&tag=a&tag=b&empty=&empty=x", ui="/app/item?hello=world&tag=a&tag=b&empty=&empty=x"), repeated)
+    case("self-repeated-query-override", {"query": {"tag": "latest", "empty": None}}, resolved("/check/item?hello=world&tag=latest", ui="/app/item?hello=world&tag=latest"), repeated)
+    case("path-repeated-query", {"path": "/check/item?tag=a&tag=b"}, resolved("/check/item?tag=a&tag=b", ui="/app/item?tag=a&tag=b"))
+    case("path-repeated-query-override", {"path": "/check/item?tag=a&tag=b", "query": {"tag": "latest"}}, resolved("/check/item?tag=latest", ui="/app/item?tag=latest"))
     case("self-param", {"params": {"key": "other"}}, resolved("/check/other?hello=world", ui="/app/other?hello=world"))
     case("view-id", {"viewId": "check", "params": {"key": "a/b"}, "query": {"q": "hello world", "omit": None}}, resolved("/check/a%2Fb?q=hello+world", ui="/app/a%2Fb?q=hello+world"))
     case("path", {"path": "/check/item?existing=yes", "query": {"q": "hello world"}}, resolved("/check/item?existing=yes&q=hello+world", ui="/app/item?existing=yes&q=hello+world"))

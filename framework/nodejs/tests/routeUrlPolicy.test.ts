@@ -377,3 +377,19 @@ test("provider constructors can consume service destinations and return domain m
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
   assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return new Response(JSON.stringify({ endpoint: ctx.routeUrl()?.apiPath })); }').length);
 });
+
+
+test("standard entry collections retain mutated URLs when serialized", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const fields = new Map(); fields.set("endpoint", ctx.routeUrl()?.apiPath); return Object.fromEntries(fields); }',
+    'export function handler(ctx) { const fields = new Map(); const alias = fields; alias.set("endpoint", ctx.routeUrl()?.apiPath); return Object.fromEntries(fields); }',
+    'export function handler(ctx) { return Object.fromEntries(new Map([["endpoint", ctx.routeUrl()?.apiPath]])); }',
+    'export function handler(ctx) { const values = new Set(); values.add(ctx.routeUrl()?.apiPath); return Array.from(values); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const fields = new Map(); fields.set("publicLink", ctx.routeUrl()?.absoluteUiPath); return Object.fromEntries(fields); }',
+    'export function handler(ctx) { const requests = new Map(); requests.set("endpoint", ctx.routeUrl()?.apiPath); return client(requests); }',
+    'export function handler(ctx) { const model = new ProviderModel(); model.set("endpoint", ctx.routeUrl()?.apiPath); return model; }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

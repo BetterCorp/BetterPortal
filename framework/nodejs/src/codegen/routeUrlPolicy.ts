@@ -15,7 +15,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const declarations = new Map<ts.Node, Set<string>>();
   const selections = new Map<ts.Node, Map<string, { expression: ts.Expression; field: string; rest: boolean }>>();
   const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
-  type Mutation = { target: ts.Expression; values: readonly ts.Expression[]; global?: ts.Expression };
+  type Mutation = { target: ts.Expression; values: readonly ts.Expression[]; global?: ts.Expression; collection?: boolean };
   const pendingMutations: Mutation[] = [];
   const collect = (node: ts.Node): void => {
     if (file.includes("_renderer.") && ts.isFunctionLike(node)) {
@@ -67,6 +67,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       if (["push", "unshift", "splice", "fill"].includes(method)) pendingMutations.push({
         target: node.expression.expression,
         values: method === "splice" ? node.arguments.slice(2) : method === "fill" ? node.arguments.slice(0, 1) : node.arguments
+      });
+      if (["set", "append", "add"].includes(method)) pendingMutations.push({
+        target: node.expression.expression, values: node.arguments, collection: true
       });
       if (method === "assign" && node.arguments[0]) pendingMutations.push({
         target: node.arguments[0], values: node.arguments.slice(1), global: node.expression.expression
@@ -121,6 +124,19 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     return false;
   };
+  const collection = (expression: ts.Node, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return collection(expression.expression, seen);
+    if (ts.isNewExpression(expression)) return ["Map", "Set", "Headers", "URLSearchParams", "FormData"].some(name => isGlobal(expression.expression, name));
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return collection(initializer, new Set([...seen, expression.text]));
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return false;
+      scope = scope.parent;
+    }
+    return false;
+  };
   const report = (node: ts.Node, message: string) => {
     const position = tree.getLineAndCharacterOfPosition(node.getStart(tree));
     errors.push({ file: `${file}:${position.line + 1}:${position.character + 1}`, message, severity: "error" });
@@ -139,7 +155,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isIdentifier(expression) && !seen.has(expression.text)) {
       const binding = reference(expression);
       if (binding && mutations.get(binding.scope)?.get(binding.name)?.some(mutation =>
-        (!mutation.global || isGlobal(mutation.global, "Object"))
+        (!mutation.global || isGlobal(mutation.global, "Object")) && (!mutation.collection || collection(mutation.target))
         && mutation.values.some(value => internalValue(value, new Set([...seen, expression.text]))))) return true;
       let scope: ts.Node | undefined = expression.parent;
       while (scope) {
@@ -218,7 +234,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       return false;
     }
-    if (ts.isNewExpression(expression) && ["Array", "URL", "String", "Object"].some(name => isGlobal(expression.expression, name))) return !!expression.arguments?.some(argument => internalValue(argument, seen));
+    if (ts.isNewExpression(expression) && ["Array", "Map", "Set", "URL", "String", "Object"].some(name => isGlobal(expression.expression, name))) return !!expression.arguments?.some(argument => internalValue(argument, seen));
     if (ts.isNewExpression(expression)) return isGlobal(expression.expression, "Response") && !!expression.arguments?.[0] && internalValue(expression.arguments[0], seen);
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };

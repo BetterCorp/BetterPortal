@@ -109,7 +109,7 @@ preserve the selected fragment/component. Callback failures return a generic 500
 `context.Cancellation` cancels callback waits; pass it to async I/O. Theme resources
 and global status renderers remain pending.
 
-Handlers and renderers use the same resolver: `context.route_url(input=None)` in Python and `context.RouteUrl(input = null)` in .NET. Supply a service `path` or `viewId`; omit both to resolve self with the current method, params and query. Explicit targets default to GET. Dependency aliases, plugin IDs and instance IDs are supported. Unknown targets, unsupported methods and missing params return `None`/`null`.
+Handlers and renderers use the same resolver: `context.route_url(input=None)` in Python and `context.RouteUrl(input = null)` in .NET. Supply a service `path` or `viewId`; omit both to resolve self with the current method, params and query. Explicit targets default to GET. Self preserves repeated query values; scalar overrides replace all values for that key, and null removes the key. Query strings embedded in `path` preserve repeated pairs too. Dependency aliases, plugin IDs and instance IDs are supported. Unknown targets, unsupported methods and missing params return `None`/`null`.
 
 The result has six wire fields: `apiPath` and `viewPath` are service-relative; `uiPath` is the mounted theme path; `absoluteApiPath` and `absoluteViewPath` use the service origin; `absoluteUiPath` is the public app URL. Component/fragment selectors affect view fields only. UI fields are null unless exactly one enabled GET page resolves; select `mountId` for a frontend alias. Resolve internal links in the renderer from domain data and cursors. API code may return a public `absoluteUiPath` link where that link is domain data.
 
