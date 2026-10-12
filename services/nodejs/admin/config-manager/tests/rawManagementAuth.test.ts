@@ -163,3 +163,32 @@ test("service-authenticated self-mutation keeps its own credential check", async
   const response = await send("/.well-known/bp/admin/services/self-mutation", "PUT", {});
   assert.equal(response.status, 400);
 });
+
+
+test("service creators cannot reconfigure or replace registered service credentials", async () => {
+  const { send, storage, appId, tenantId, token } = fixture();
+  const service = storage.config.tenants[0].services[0];
+  service.apiKeyHash = "existing-key-hash";
+  storage.config.apps[0].auth!.roles.push(
+    { id: "service-creator", title: "Creator", permissions: [{ serviceId: service.id, viewId: "services.index", permissions: ["create"] }] },
+    { id: "service-updater", title: "Updater", permissions: [{ serviceId: service.id, viewId: "services.index", permissions: ["update"] }] }
+  );
+  const creator = token(appId, tenantId, ["service-creator"]);
+  const updater = token(appId, tenantId, ["service-updater"]);
+  const path = "/.well-known/bp/admin/services/begin-install";
+  assert.equal((await send(path, "POST", { serviceUrl: "https://new.example", tenantId }, creator)).status, 200);
+  for (const reconfigure of [true, false]) {
+    assert.equal((await send(path, "POST", { serviceUrl: service.hostname, instanceId: service.id, tenantId, reconfigure }, creator)).status, 403);
+  }
+  const shared = storage.config.sharedServiceCatalog[0]; shared.apiKeyHash = "existing-shared-key-hash";
+  assert.equal((await send(path, "POST", { serviceUrl: shared.baseUrl, sharedServiceId: shared.id }, creator)).status, 403);
+  const sharedSetup = await send(path, "POST", { serviceUrl: shared.baseUrl, sharedServiceId: shared.id }, updater);
+  assert.equal(sharedSetup.status, 200, await sharedSetup.clone().text());
+  const setup = await send(path, "POST", { serviceUrl: service.hostname, instanceId: service.id, reconfigure: true }, updater);
+  assert.equal(setup.status, 200, await setup.clone().text());
+  const { setupToken } = await setup.json() as { setupToken: string };
+  const redeemed = await send("/.well-known/bp/services/redeem", "POST", { setupToken, pluginId: service.serviceId });
+  assert.equal(redeemed.status, 200, await redeemed.clone().text());
+  assert.notEqual(storage.config.tenants[0].services[0].apiKeyHash, "existing-key-hash");
+  assert.equal(storage.config.sharedServiceCatalog[0].apiKeyHash, "existing-shared-key-hash");
+});
