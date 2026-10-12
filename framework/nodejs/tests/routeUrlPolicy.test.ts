@@ -955,3 +955,10 @@ test("handler classification handles deep repeated route directories and Windows
     assert.deepEqual(inspectRouteUrlSource(file, source), []);
   }
 });
+
+test("BPRoute OPTIONS controls fail authoring while protocol resolvers remain supported", () => {
+  const file = "bp-routes/items/_renderer.bootstrap5/GET.tsx";
+  assert.ok(inspectRouteUrlSource(file, '<BPRoute ctx={ctx} method="OPTIONS" as="button" />').length);
+  assert.ok(inspectRouteUrlSource(file, '<BPRoute ctx={ctx}><bp-ok method={"OPTIONS"}>Probe</bp-ok></BPRoute>').length);
+  assert.deepEqual(inspectRouteUrlSource(file, 'const protocol = ctx.route({ method: "OPTIONS" });'), []);
+});

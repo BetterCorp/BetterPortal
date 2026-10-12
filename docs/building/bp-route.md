@@ -146,3 +146,7 @@ See [routing lint and build validation](routing-lint.md) for invalid examples, d
 BPRoute success controls make browser user requests. An authenticated user sees bp-noperm for a known required operation whose callers exclude user (service/delegated-only), even if that user holds a platform-root role. Presentation checks do not widen the backend caller policy.
 
 Platform-root presentation grants bypass permission requirements only; the target operation’s elevation requirement still applies. A root user without the required assurance receives the unavailable permission state.
+
+A target or swap override (including swap alone or hx-swap on bp-ok) generates the GET request attribute. Explicit swap settings are preserved during shell enhancement. Python bp_route consumes target/swap aliases and emits hx-target/hx-swap. BPRoute action methods are GET, POST, PUT, PATCH and DELETE; OPTIONS is available through ctx.route for protocol requests and is rejected as an interactive BPRoute action.
+
+Python embedding follows the same precedence: supplied success URL overrides are ignored for component/fragment insertion. A Python mutation form uses native method=post alongside its actual HTMX request method.

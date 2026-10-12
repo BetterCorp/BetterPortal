@@ -84,3 +84,15 @@ test("JSX state false attributes override outer defaults instead of disappearing
   assert.doesNotMatch(active(result), /disabled|data-bp-state-props/);
   assert.match(active(result), /Enabled<\/button>/);
 });
+
+test("swap-only GET controls generate requests and unsupported methods select error", () => {
+  const { ctx } = fixture();
+  for (const props of [{ swap: "outerHTML" }, { children: '<bp-ok hx-swap="outerHTML">Batch</bp-ok>' }]) {
+    const html = active(BPRoute({ ctx, ...props }));
+    assert.match(html, /hx-get="https:\/\/service.test\/batches\/1"/);
+    assert.match(html, /hx-swap="outerHTML"/);
+  }
+  const html = String(BPRoute({ ctx, method: "OPTIONS" as any, as: "button", children: '<bp-ok>Invalid</bp-ok><bp-error>Unavailable</bp-error>' }));
+  assert.match(html, /data-bp-state="error"/);
+  assert.doesNotMatch(html, /hx-options/);
+});

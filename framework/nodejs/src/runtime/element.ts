@@ -12,6 +12,8 @@ import { routeDetails } from "./routeResult.js";
  */
 export interface BPRouteProps extends RouteOptions {
   readonly ctx: ViewRenderContext;
+  /** BPRoute actions support GET, POST, PUT, PATCH and DELETE; OPTIONS remains a resolver-only method. */
+  readonly method?: Exclude<HttpMethod, "OPTIONS">;
   readonly viewId?: string;
   readonly path?: string;
   /** Dependency alias or `shell`; `serviceId` remains available for ordinary targets. */
@@ -71,7 +73,7 @@ export function BPRoute(props: BPRouteProps): ReturnType<typeof raw> {
   const explicitAction = !embedding && (marked.length > 0 || tag === "form" || tag === "button");
   const hasOverride = marked.some(key => typeof effective[key] === "string" && effective[key] !== "");
   const access = !explicitOverride && destination ? routeDetails(destination).access : undefined;
-  const configError = marked.length > 1 && !embedding || Boolean(props.component && props.fragment) || Boolean(props.path !== undefined && props.viewId !== undefined);
+  const configError = !methods.includes(`hx-${method.toLowerCase()}`) || marked.length > 1 && !embedding || Boolean(props.component && props.fragment) || Boolean(props.path !== undefined && props.viewId !== undefined);
   const available = Boolean(request) && !configError && (embedding || explicitAction || Boolean(destination?.uiPath) || hasOverride);
   const initial = !available ? "error" : access === "noauth" || access === "noperm" ? access : embedding ? "loading" : "ok";
   const templates: Record<string, string> = {};
@@ -83,7 +85,7 @@ export function BPRoute(props: BPRouteProps): ReturnType<typeof raw> {
     // Routing attributes are generated only for actionable success, never fallbacks or embeds.
     if (name !== "ok" || embedding) {
       for (const key of Object.keys(html)) if (/^(?:href|action|method|formaction|hx-(?:get|post|put|patch|delete|target|swap|trigger|push-url|replace-url|include|vals|headers))$/i.test(key)) delete html[key];
-    } else if (request) {
+    } else if (request && !configError) {
       if (props.target) html["hx-target"] ??= props.target;
       if (props.swap) html["hx-swap"] ??= props.swap;
       if (marked.length) {
@@ -97,7 +99,7 @@ export function BPRoute(props: BPRouteProps): ReturnType<typeof raw> {
         if (selectedTag === "button") html.type ??= "button";
       } else {
         html.href ??= destination?.viewPath ?? request;
-        if (props.target || html["hx-target"]) html["hx-get"] ??= request;
+        if (props.target || props.swap || html["hx-target"] || html["hx-swap"]) html["hx-get"] ??= request;
       }
       html["data-bp-route-control"] = "";
       if (serviceId) html["data-bp-service"] = serviceId;

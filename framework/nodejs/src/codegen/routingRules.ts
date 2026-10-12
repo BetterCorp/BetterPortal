@@ -21,6 +21,7 @@ export function routingDiagnostics(file: string, source: string): RoutingDiagnos
       const tag = node.tagName.getText(tree);
       if (legacyComponents.has(tag)) report(node, "BPElement was removed. Use BPRoute.");
       const attrs = node.attributes.properties.filter(ts.isJsxAttribute);
+      if ((routeComponents.has(tag) || tag === "bp-ok") && attrs.some(attr => attr.name.getText(tree) === "method" && attr.initializer?.getText(tree).replace(/[{}"']/g, "").toUpperCase() === "OPTIONS")) report(node, "BPRoute actions do not support OPTIONS. Use ctx.route for protocol requests.");
       if ((tag.startsWith("bp-") || routeComponents.has(tag)) && attrs.filter(attr => /^hx-(get|post|put|patch|delete)$/.test(attr.name.getText(tree))).length > 1) {
         report(node, "A BPRoute state accepts only one HTMX request method.");
       }

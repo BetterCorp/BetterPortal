@@ -764,3 +764,21 @@ test("Node shell service items insert successful fragments through the shared ru
   assert.equal(fragmentRequests, 1);
   assert.deepEqual(errors, []);
 });
+
+test("swap-only BPRoute and plain anchors retain outerHTML during main enhancement", async t => {
+  const { BPRoute } = await import("../../../../framework/nodejs/src/runtime/element.js");
+  const { createRouteResult } = await import("../../../../framework/nodejs/src/runtime/routeResult.js");
+  const destination = createRouteResult({ apiPath: "/dashboard", viewPath: "/dashboard", uiPath: "/tools/dashboard", absoluteApiPath: "https://service.test/dashboard", absoluteViewPath: "https://service.test/dashboard", absoluteUiPath: "https://app.test/tools/dashboard" }, () => null, {}, "viewPath", { serviceId: "service" });
+  for (const control of [String(BPRoute({ ctx: { route: () => destination } as any, swap: "outerHTML", id: "swap-link", children: "Swap" })), '<a id="swap-link" href="/dashboard" hx-swap="outerHTML">Swap</a>']) {
+    let requests = 0;
+    const { page, errors } = await shell(t, route => html(route, ++requests === 1 ? control : '<main id="bp-main" data-bp-service="service"><p id="outer-content">Replaced main</p></main>'));
+    await page.waitForSelector("#swap-link");
+    assert.equal(await page.locator("#swap-link").getAttribute("hx-swap"), "outerHTML");
+    assert.equal(await page.locator("#swap-link").getAttribute("hx-get"), "https://service.test/dashboard");
+    await page.locator("#swap-link").click();
+    await page.waitForSelector("#outer-content");
+    assert.equal(await page.locator("#bp-main").count(), 1);
+    assert.equal(requests, 2);
+    assert.deepEqual(errors, []);
+  }
+});

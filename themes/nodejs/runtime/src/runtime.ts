@@ -1971,7 +1971,7 @@ export function betterPortalShellRuntimeSource(): string {
                 newlyHtmxedElements.push(el);
               }
               el.setAttribute("hx-target", "#bp-main");
-              el.setAttribute("hx-swap", "innerHTML");
+              if (!el.hasAttribute("hx-swap")) el.setAttribute("hx-swap", "innerHTML");
               if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", tenantUrl);
               el.setAttribute("data-bp-shell-route", "page");
             } else if (elServiceOrigin && hxMethodAttr && hxMethodPath) {

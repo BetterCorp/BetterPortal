@@ -54,3 +54,21 @@ async def main():
     print('Python themes: defaults, explicit empty overrides, cycles, scope and global status renderer passed')
 
 asyncio.run(main())
+
+# Native BPRoute aliases must produce HTMX options rather than browser targets.
+from types import SimpleNamespace
+from betterportal.themes import bp_route
+from betterportal.urls import RouteDestination
+fake = SimpleNamespace(route=lambda options: RouteDestination({'viewPath': '/check/item', 'absoluteViewPath': 'https://service.test/check/item', 'uiPath': '/app/item'}, None, options, True, TARGET))
+for options in ({'target': '#summary', 'swap': 'outerHTML'}, {'swap': 'outerHTML'}):
+    control = bp_route(fake, {'viewId': 'check'}, {'ok': 'Show'}, **options)
+    assert 'hx-get="https://service.test/check/item"' in control and 'hx-swap="outerHTML"' in control, control
+    assert ' target=' not in control, control
+    if 'target' in options: assert 'hx-target="#summary"' in control, control
+control = bp_route(fake, {'method': 'OPTIONS'}, {'error': {'as': 'label', 'content': 'Unavailable'}}, as_='button')
+assert 'data-bp-state="error"' in control and 'hx-options' not in control, control
+
+control = bp_route(fake, {'component': 'summary'}, {'ok': {'hx-delete': 'https://override.test/wrong', 'content': 'Ignored'}})
+assert 'https://override.test' not in control and 'Ignored' not in control and 'data-bp-mode="embed"' in control, control
+control = bp_route(fake, {'method': 'DELETE'}, {'ok': 'Delete'}, as_='form')
+assert 'method="post"' in control and 'hx-delete="https://service.test/check/item"' in control, control

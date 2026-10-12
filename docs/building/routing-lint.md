@@ -82,3 +82,5 @@ TSDoc/ESDoc must explain the service/UI distinction, contextual string conversio
 See [BPRoute examples and full contract](bp-route.md).
 
 JSX diagnostics report the actual source location of conflicting method/selector attributes and renderer UI-path usage. ESLint preserves the offsets produced by the shared authoring checker.
+
+Literal OPTIONS methods on BPRoute/bp-ok actions fail the authoring check; the BPRoute TypeScript method type excludes OPTIONS. Unchecked runtime inputs select the error state rather than emitting an inert hx-options control.

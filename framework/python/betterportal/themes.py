@@ -22,12 +22,14 @@ def bp_route(context: RenderContext, reference: dict[str, Any], states: Mapping[
     Each state is HTML or a mapping with content/as/HTML attributes. Component or
     fragment selects GET embedding. Unknown access is checked by the request.
     """
+    target = attributes.pop("target", None)
+    swap = attributes.pop("swap", None)
     states = states or {}
     embedding = bool(reference.get('component') or reference.get('fragment'))
     success = states.get('ok', '')
     success_attrs = {key: value for key, value in success.items() if key != 'content'} if isinstance(success, Mapping) else {}
     merged = {**attributes, **success_attrs}
-    methods = [key for key in ('hx-get', 'hx-post', 'hx-put', 'hx-patch', 'hx-delete') if key in merged and merged[key] is not False]
+    methods = [key for key in ('hx-get', 'hx-post', 'hx-put', 'hx-patch', 'hx-delete') if key in merged and merged[key] is not False and merged[key] is not None]
     method = 'GET' if embedding else methods[0][3:].upper() if methods else reference.get('method', 'GET')
     options = {key: value for key, value in reference.items() if key not in ('service', 'args')}
     if 'service' in reference: options['serviceId'] = reference['service']
@@ -35,11 +37,12 @@ def bp_route(context: RenderContext, reference: dict[str, Any], states: Mapping[
     shell = reference.get('service') == 'shell' and reference.get('fragment') and not reference.get('path') and not reference.get('viewId')
     resolved_shell = context.urls.element(cast(BPRouteReferenceInput, reference)) if shell else None
     destination = None if shell else context.route(cast(Any, options))
-    override = merged[methods[0]] if len(methods) == 1 and isinstance(merged[methods[0]], str) and merged[methods[0]] else None
+    override = merged[methods[0]] if not embedding and len(methods) == 1 and isinstance(merged[methods[0]], str) and merged[methods[0]] else None
     request = override or (resolved_shell.get('url') if resolved_shell else None) or (destination.get('absoluteViewPath') or destination['viewPath'] if destination else None)
     tag = success_attrs.get('as', as_ or ('none' if embedding else 'a'))
     actionable = bool(methods) or tag in ('button', 'form')
-    available = bool(request) and not (len(methods) > 1 and not embedding) and not (reference.get('component') and reference.get('fragment'))
+    supported = method in ("GET", "POST", "PUT", "PATCH", "DELETE")
+    available = supported and bool(request) and not (len(methods) > 1 and not embedding) and not (reference.get('component') and reference.get('fragment'))
     available = available and (embedding or actionable or bool(destination and destination.get('uiPath')) or bool(override))
     initial = 'loading' if available and embedding else 'ok' if available else 'error'
 
@@ -58,13 +61,17 @@ def bp_route(context: RenderContext, reference: dict[str, Any], states: Mapping[
         if name != 'ok' or embedding:
             for key in list(values):
                 if key in ('href', 'action', 'method') or key.startswith('hx-'): values.pop(key)
-        elif request:
+        elif request and supported:
+            if target: values.setdefault("hx-target", target)
+            if swap: values.setdefault("hx-swap", swap)
             if methods:
                 values.pop('href', None)
                 if values.get(methods[0]) is True or values.get(methods[0]) == '': values[methods[0]] = request
-            elif selected == 'form': values.update({'action': request, 'method': method.lower(), 'hx-' + method.lower(): request})
+            elif selected == 'form': values.update({'action': request, 'method': 'get' if method == 'GET' else 'post', 'hx-' + method.lower(): request})
             elif selected == 'button' or method != 'GET': values['hx-' + method.lower()] = request; values.setdefault('type', 'button')
-            else: values.setdefault('href', destination['viewPath'] if destination else request)
+            else:
+                values.setdefault('href', destination['viewPath'] if destination else request)
+                if target or swap or values.get('hx-target') or values.get('hx-swap'): values.setdefault('hx-get', request)
             values['data-bp-route-control'] = ''
         if name == 'ok' and embedding: content = '<template data-bp-route-insertion></template>'
         if selected == 'none': return content
