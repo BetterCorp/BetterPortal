@@ -975,3 +975,7 @@ as application code. Export uses AnyVali validation, limits the document to 16 M
 and atomically replaces the output; `--check` detects drift without writing.
 Assembly and output paths are relative to `--project`. Use [native route discovery](../../docs/building/route-authoring.md) to build this registry from
 compiled index, method and SSE modules.
+
+`sse: true` resolves only a known registered GET SSE/finite-stream endpoint on the current service. Ordinary routes, non-GET methods and dependency mounts without streaming capability return null instead of a guessed stream URL.
+
+Embedded query values may contain raw question marks, for example `/items?q=what?x&next=/a?b`; the resolver preserves and encodes the complete values before applying query overrides.

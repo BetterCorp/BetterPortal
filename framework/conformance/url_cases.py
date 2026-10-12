@@ -39,6 +39,8 @@ def run_urls(urls, labels):
         body["request"]["path"] = "/check/item?hello=world&tag=a&tag=b&empty=&empty=x"
     case("self-repeated-query", None, resolved("/check/item?hello=world&tag=a&tag=b&empty=&empty=x", ui="/app/item?hello=world&tag=a&tag=b&empty=&empty=x"), repeated)
     case("self-repeated-query-override", {"query": {"tag": "latest", "empty": None}}, resolved("/check/item?hello=world&tag=latest", ui="/app/item?hello=world&tag=latest"), repeated)
+    case("path-question-values", {"path": "/check/item?q=what?x&next=/a?b"}, resolved("/check/item?q=what%3Fx&next=%2Fa%3Fb", ui="/app/item?q=what%3Fx&next=%2Fa%3Fb"))
+    case("path-question-override", {"path": "/check/item?q=what?x&next=/a?b", "query": {"q": "latest"}}, resolved("/check/item?q=latest&next=%2Fa%3Fb", ui="/app/item?q=latest&next=%2Fa%3Fb"))
     case("path-repeated-query", {"path": "/check/item?tag=a&tag=b"}, resolved("/check/item?tag=a&tag=b", ui="/app/item?tag=a&tag=b"))
     case("path-repeated-query-override", {"path": "/check/item?tag=a&tag=b", "query": {"tag": "latest"}}, resolved("/check/item?tag=latest", ui="/app/item?tag=latest"))
     case("self-param", {"params": {"key": "other"}}, resolved("/check/other?hello=world", ui="/app/other?hello=world"))
@@ -109,7 +111,20 @@ def run_urls(urls, labels):
     case("self-selectors", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"), self_selector)
     case("component", {"viewId": "check", "params": {"key": "item"}, "component": "card"}, resolved("/check/item", "/check/item?_c=card"))
     case("fragment", {"viewId": "check", "params": {"key": "item"}, "fragment": "nav.profile"}, resolved("/check/item", "/check/item?_f=nav.profile"))
-    case("sse", {"viewId": "check", "params": {"key": "item"}, "sse": True, "fragment": "nav.profile"}, resolved("/check/item/__sse", "/check/item/__sse?_f=nav.profile"))
+    def feed(body):
+        schema = body["routes"][0]["operations"][0]["response"]
+        body["routes"][0]["feed"] = {"inputSchema": schema, "eventSchema": schema, "publications": []}
+    case("sse", {"viewId": "check", "params": {"key": "item"}, "sse": True, "fragment": "nav.profile"}, resolved("/check/item/__sse", "/check/item/__sse?_f=nav.profile"), feed)
+    case("unsupported-sse", {"viewId": "check", "params": {"key": "item"}, "sse": True}, None)
+    case("non-get-sse", {"viewId": "check", "params": {"key": "item"}, "method": "POST", "sse": True}, None, feed)
+    case("unknown-dependency-sse", {"viewId": "docs.index", "serviceId": "docs", "sse": True}, None)
+    def finite_target(body):
+        route = deepcopy(body["routes"][0]); route.update(viewId="stream", path="/stream")
+        operation = route["operations"][0]; route["operations"] = [operation]
+        operation["declaration"]["operationId"] = "stream.get"
+        operation["finite"] = {"itemSchema": operation["response"], "items": []}
+        body["routes"].append(route)
+    case("finite-sse", {"viewId": "stream", "sse": True}, resolved("/stream/__sse"), finite_target)
     for raw, encoded in (("https://service.test/prefix", "https://service.test/prefix"), ("https://service.test/prefix///", "https://service.test/prefix"), ("https://service.test/café", "https://service.test/caf%C3%A9")):
         case("service-base-" + raw, {"viewId": "check", "params": {"key": "a/b"}}, resolved("/check/a%2Fb", ui="/app/a%2Fb", origin=encoded),
              lambda body, raw=raw: body["snapshot"]["tenants"][0]["services"][0].update(hostname=raw))

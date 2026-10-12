@@ -19,7 +19,7 @@ export interface RouteUrlOptions {
   component?: string;
   /** Named fragment renderer. Applies to view paths, not API or UI navigation paths. */
   fragment?: string;
-  /** Select the service SSE endpoint. SSE destinations have no UI navigation path. */
+  /** Select a registered GET SSE endpoint on the current service. Unknown streaming capability returns null; SSE has no UI navigation path. */
   sse?: boolean;
 }
 

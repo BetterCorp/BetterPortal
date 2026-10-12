@@ -16,6 +16,7 @@ public sealed class Urls
     private readonly Dictionary<string, HashSet<string>> methods;
     private readonly string? serviceId, appOrigin;
     private readonly string currentPath;
+    private readonly HashSet<string> sseViews;
     public Urls(ScopedContext scope, Registry? registry, string? serviceId, string path, IEnumerable<string>? appOrigins = null)
     {
         var enabled = new List<Node>();
@@ -33,6 +34,7 @@ public sealed class Urls
         aliases = registry?.Dependencies ?? new Dictionary<string, string>();
         routes = registry?.Routes.ToDictionary(route => route.ViewId, route => route.Paths) ?? new();
         methods = registry?.Routes.ToDictionary(route => route.ViewId, route => route.Operations.Select(operation => operation.Method).ToHashSet(StringComparer.Ordinal)) ?? new();
+        sseViews = registry?.Routes.Where(route => route.HasSse).Select(route => route.ViewId).ToHashSet(StringComparer.Ordinal) ?? new(StringComparer.Ordinal);
         this.serviceId = serviceId; currentPath = path;
         var allowed = hosts.SelectMany(HttpAddress.Origins).ToHashSet(StringComparer.Ordinal);
         foreach (var candidate in appOrigins ?? [])
@@ -148,6 +150,7 @@ public sealed class Urls
         var ids = Ids(target); var own = Ids(serviceId);
         if (ids.Count == 0 || self && !ids.SetEquals(own)) return null;
         var method = (string)opts.GetValueOrDefault("method", self ? currentMethod : "GET")!;
+        if (opts["sse"] is true && (method != "GET" || !ids.SetEquals(own) || ids.Count != 1)) return null;
         var parameters = self ? AsNode(currentParams) : new Node();
         foreach (var pair in (Node)opts["params"]!) parameters[pair.Key] = pair.Value;
         var query = self ? AsNode(currentQuery) : new Node();
@@ -211,7 +214,7 @@ public sealed class Urls
             if (candidates.Length != 1) return null;
             var selected = candidates[0]; target = (string)selected.Mount["serviceId"]!; viewId = (string)selected.Mount["viewId"]!; path = selected.Path;
         }
-        if (path is null) return null;
+        if (path is null || opts["sse"] is true && !sseViews.Contains(viewId!)) return null;
         var pagePaths = new HashSet<string>(StringComparer.Ordinal);
         if (method == "GET" && opts["sse"] is not true && !opts.ContainsKey("component") && !opts.ContainsKey("fragment"))
         {

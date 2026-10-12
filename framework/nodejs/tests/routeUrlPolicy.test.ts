@@ -551,3 +551,51 @@ test("named callback parameters retain their caller input provenance", () => {
     'export function handler(ctx) { function domain(value) { return client(value); } return domain(ctx.routeUrl()?.apiPath); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("string transformations preserve response route destinations", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const suffix of ['trim()', 'replace("/", "")', 'replaceAll("/", "")', 'toLowerCase()', 'toUpperCase()', 'normalize()', 'substring(1)', 'padEnd(30)', 'split("/")'])
+    assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { return { endpoint: ctx.routeUrl()?.apiPath.${suffix} }; }`).length, suffix);
+  for (const source of [
+    'export function handler(ctx) { return { publicLink: ctx.routeUrl()?.absoluteUiPath.trim() }; }',
+    'export function handler(ctx) { return { available: ctx.routeUrl()?.apiPath.startsWith("/") }; }',
+    'export function handler(ctx) { return { count: ctx.routeUrl()?.apiPath.trim().length }; }',
+    'export function handler(ctx) { return client(ctx.routeUrl()?.apiPath.trim()); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("source checks include NodeNext mts and cts modules", () => {
+  const root = mkdtempSync(join(tmpdir(), "bp-nodenext-route-check-"));
+  try {
+    mkdirSync(join(root, "src"));
+    for (const extension of ["mts", "cts"])
+      writeFileSync(join(root, "src", "helper." + extension), 'import { createHandler } from "@betterportal/framework"; export const handle = createHandler({}, ctx => ctx.routeUrl("legacy"));');
+    const issues = checkProjectRouteUrls(join(root, "src"));
+    for (const extension of ["mts", "cts"]) assert.ok(issues.some(issue => issue.file.startsWith(join(root, "src", "helper." + extension))));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+
+test("Promise.any retains fulfilled response destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return Promise.any([Promise.resolve({ endpoint: ctx.routeUrl()?.apiPath })]); }').length);
+  for (const source of [
+    'export function handler(ctx) { return Promise.any([Promise.resolve({ publicLink: ctx.routeUrl()?.absoluteUiPath })]); }',
+    'import { Promise } from "provider"; export function handler(ctx) { return Promise.any([ctx.routeUrl()?.apiPath]); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("string replacement values retain their destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return { endpoint: "placeholder".replace("placeholder", ctx.routeUrl()?.apiPath ?? "") }; }',
+    'export function handler(ctx) { return { endpoint: "placeholder".replaceAll("placeholder", ctx.routeUrl()?.apiPath ?? "") }; }',
+    'export function handler(ctx) { const replacement = () => ctx.routeUrl()?.apiPath; return { endpoint: "placeholder".replace("placeholder", replacement) }; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return { publicLink: "placeholder".replace("placeholder", ctx.routeUrl()?.absoluteUiPath ?? "") }; }',
+    'export function handler(ctx) { return provider.replace("id", ctx.routeUrl()?.apiPath); }',
+    'export function handler(ctx) { return "placeholder".replace("placeholder", () => client(ctx.routeUrl()?.apiPath)); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

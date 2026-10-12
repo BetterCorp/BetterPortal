@@ -380,3 +380,7 @@ The source check includes helper folders named `lib` or `dist` beneath `src`; pa
 Returned local response factories and immediately invoked helpers receive the same URL payload checks. String/array lengths and standard collection sizes are derived scalar state and remain valid API response data.
 
 Named response callbacks retain the provenance of caller-supplied parameters, including Array.from/map inputs and fulfilled promise values. Local response helpers follow passed handler contexts too; scalar state and opaque domain-client results remain valid.
+
+The Node source gate includes `.mts`/`.cts` modules and follows value-preserving string transformations of internal destinations. Derived scalar state and opaque domain clients remain valid.
+
+Standard Promise.any results and string replacement values retain internal destination provenance in API responses; public links and opaque provider clients remain valid.
