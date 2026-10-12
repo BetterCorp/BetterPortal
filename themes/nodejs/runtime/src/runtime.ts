@@ -1198,7 +1198,7 @@ export function betterPortalShellRuntimeSource(): string {
             "page"
           );
         });
-        // Sort by service path length descending for longest-prefix-first matching
+        // Keep metadata order stable; matching precedence is resolved below.
         routes.sort((a, b) => b.servicePath.length - a.servicePath.length);
         return routes;
       };
@@ -1240,12 +1240,20 @@ export function betterPortalShellRuntimeSource(): string {
         const values = { ...route.fixedParams, ...params };
         const servicePath = fillPattern(route.servicePath, values);
         const tenantPath = fillPattern(route.tenantPath, values);
-        const specificity = (fromService ? route.servicePath : route.tenantPath).split("/").filter(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part)).length;
+        const specificity = (fromService ? route.servicePath : route.tenantPath).split("/").map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 1 : 0);
         return servicePath && tenantPath ? { route: { ...route, servicePath, tenantPath }, suffix: "", specificity } : null;
       };
-      const mostSpecificMatches = <T extends { specificity: number }>(matches: T[]): T[] => {
-        const best = Math.min(...matches.map(match => match.specificity));
-        return matches.filter(match => match.specificity === best);
+      const mostSpecificMatches = <T extends { specificity: number[] }>(matches: T[]): T[] => {
+        if (!matches.length) return [];
+        const compare = (left: number[], right: number[]): number => {
+          for (let index = 0; index < Math.max(left.length, right.length); index++) {
+            const difference = (left[index] ?? 0) - (right[index] ?? 0);
+            if (difference) return difference;
+          }
+          return 0;
+        };
+        const best = matches.reduce((best, match) => compare(match.specificity, best) < 0 ? match.specificity : best, matches[0].specificity);
+        return matches.filter(match => compare(match.specificity, best) === 0);
       };
       const matchServiceRoute = (serviceId: string, path: string, kind: "page" | "api" = "page"): { route: ServiceRoute; suffix: string } | null => {
         const matches = buildServiceRouteMap().filter(route => (!serviceId || route.serviceId === serviceId)

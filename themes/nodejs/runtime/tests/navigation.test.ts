@@ -540,3 +540,23 @@ test("plain anchors match encoded Unicode and spaces in literal service paths", 
   }
   assert.deepEqual(errors, []);
 });
+
+
+test("overlapping service and UI templates prefer earlier literal segments", async t => {
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/a/users/new") || route.request().url().endsWith("/c/new")) return html(route, '<p id="selected">Selected</p>');
+    return html(route, '<a id="service-overlap" href="/a/users/new">Service</a><a id="ui-overlap" href="/ui/users/new">UI</a>');
+  }, {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+    { href: "/left/:section", servicePath: "/a/:section/new", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/right/:id", servicePath: "/a/users/:id", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/ui/:section/new", servicePath: "/b/:section", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/ui/users/:id", servicePath: "/c/:id", serviceId: "service", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#service-overlap");
+  assert.equal(await page.getAttribute("#service-overlap", "href"), "/right/new");
+  assert.equal(await page.getAttribute("#ui-overlap", "hx-get"), "https://service.test/c/new");
+  await page.locator("#service-overlap").click();
+  await page.waitForSelector("#selected");
+  assert.equal(new URL(page.url()).pathname, "/right/new");
+  assert.deepEqual(errors, []);
+});
