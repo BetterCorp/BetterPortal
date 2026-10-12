@@ -858,3 +858,25 @@ test("call apply and bound local factories retain response and argument provenan
     'return client.call(null, ctx.routeUrl()?.apiPath);'
   ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
 });
+
+
+test("bound callback inputs precede promise and collection inputs", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Promise.resolve(ctx.routeUrl()?.apiPath).then(((first, value) => ({ endpoint: value })).bind(null, "safe"));',
+    'return [ctx.routeUrl()?.apiPath].map(((first, value) => ({ endpoint: value })).bind(null, "safe"));',
+    'return Array.from([ctx.routeUrl()?.apiPath], ((first, value) => ({ endpoint: value })).bind(null, "safe"));',
+    'return Promise.reject(ctx.routeUrl()?.apiPath).catch(((first, value) => ({ endpoint: value })).bind(null, "safe"));'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'const payload = endpoint => ({ endpoint }); return Promise.resolve(ctx.routeUrl()?.apiPath).then(payload.bind(null, "safe"));',
+    'const payload = endpoint => ({ endpoint }); return [ctx.routeUrl()?.apiPath].map(payload.bind(null, "safe"));',
+    'const payload = endpoint => ({ endpoint }); return Promise.reject(ctx.routeUrl()?.apiPath).catch(payload.bind(null, "safe"));'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
+
+test("local recovery parameters preserve explicitly rejected reasons", () => {
+  const file = "bp-routes/users/GET.ts";
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { const recover = failure => failure.catch(endpoint => ({ endpoint })); return recover(Promise.reject(ctx.routeUrl()?.apiPath)); }').length);
+  assert.deepEqual(inspectRouteUrlSource(file, 'export function handler(ctx) { const recover = failure => failure.catch(() => ({ status: "failed" })); return recover(Promise.reject(ctx.routeUrl()?.apiPath)); }'), []);
+});

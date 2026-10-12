@@ -243,7 +243,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     return undefined;
   };
-  const boundInputs = (expression: ts.Node, inputs: readonly ts.Node[], seen = new Set<ts.Node>()): readonly ts.Node[] => {
+  const boundInputs = (expression: ts.Node, inputs: readonly (ts.Node | undefined)[], seen = new Set<ts.Node>()): readonly (ts.Node | undefined)[] => {
     if (seen.has(expression)) return inputs;
     const next = new Set([...seen, expression]);
     if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === "bind") return boundInputs(expression.expression.expression, [...expression.arguments.slice(1), ...inputs], next);
@@ -271,6 +271,13 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         const initializer = initializers.get(scope)?.get(expression.text);
         if (initializer) return rejectedValue(initializer, next);
         if (declarations.get(scope)?.has(expression.text)) break;
+        if (ts.isFunctionLike(scope)) {
+          const parameter = scope.parameters.find(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text);
+          if (parameter) {
+            const input = parameterInputs.get(parameter);
+            return input ? rejectedValue(input, next) : undefined;
+          }
+        }
         scope = scope.parent;
       }
     }
@@ -366,9 +373,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
           if (isPromiseResolver(node.expression)) {
             if (node.arguments[0] && internalValue(node.arguments[0], seen)) internal = true;
           } else {
-            if (callbackInternal(resolveCallback(node.expression), seen, node.arguments, [], true)) internal = true;
+            if (callbackValue(node.expression, seen, node.arguments, [], true)) internal = true;
             for (const argument of node.arguments)
-              if (callbackInternal(resolveCallback(argument), seen, [], [], true)) internal = true;
+              if (callbackValue(argument, seen, [], [], true)) internal = true;
           }
         }
         ts.forEachChild(node, returned);
@@ -381,6 +388,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       evaluatingFunctions.delete(callback);
     }
+  };
+  const callbackValue = (expression: ts.Node | undefined, seen: Set<string>, inputs: readonly (ts.Node | undefined)[] = [], elements: readonly number[] = [], fulfillOnly = false): boolean => {
+    if (!expression) return false;
+    const combined = boundInputs(expression, inputs);
+    const offset = combined.length - inputs.length;
+    return callbackInternal(resolveCallback(expression), seen, combined, elements.map(index => index + offset), fulfillOnly);
   };
   const selectedProperty = (expression: ts.Node, field: string, seen = new Set<ts.Node>()): ts.Node | undefined => {
     if (seen.has(expression)) return undefined;
@@ -467,14 +480,14 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
       const localCallback = resolveCallback(expression.expression);
-      if (localCallback) return callbackInternal(localCallback, seen, boundInputs(expression.expression, expression.arguments));
+      if (localCallback) return callbackValue(expression.expression, seen, expression.arguments);
       if (ts.isPropertyAccessExpression(expression.expression) && ["call", "apply"].includes(expression.expression.name.text)) {
         const receiver = expression.expression.expression;
         const callback = resolveCallback(receiver);
         if (callback) {
           const inputs = expression.expression.name.text === "call" ? expression.arguments.slice(1)
             : expression.arguments[1] ? arrayValues(expression.arguments[1]) ?? [expression.arguments[1]] : [];
-          return callbackInternal(callback, seen, boundInputs(receiver, inputs));
+          return callbackValue(receiver, seen, inputs);
         }
       }
       if (isPromiseResolver(expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
@@ -484,9 +497,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Array")) {
         if (expression.expression.name.text === "of") return expression.arguments.some(argument => internalValue(argument, seen));
         if (expression.expression.name.text === "from") {
-          const callback = resolveCallback(expression.arguments[1]);
           if (!expression.arguments[1]) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
-          return callbackInternal(callback, seen, [expression.arguments[0]], [0]);
+          return callbackValue(expression.arguments[1], seen, [expression.arguments[0]], [0]);
         }
       }
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Object")) {
@@ -505,7 +517,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
           const replacement = expression.arguments[1];
           const callback = resolveCallback(replacement);
           return internalValue(expression.expression.expression, seen) || (callback
-            ? callbackInternal(callback, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
+            ? callbackValue(replacement, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
         }
         if (["toString", "valueOf", "join", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "normalize", "substring", "substr", "charAt", "at", "padStart", "padEnd", "repeat", "split"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (operation === "fill") return internalValue(expression.expression.expression, seen) || !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
@@ -538,13 +550,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
           const replacement = expression.arguments[1];
           const callback = resolveCallback(replacement);
           return internalValue(expression.expression.expression, seen) || (callback
-            ? callbackInternal(callback, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
+            ? callbackValue(replacement, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
         }
         if (operation === "finally") return internalValue(expression.expression.expression, seen);
         for (const argument of expression.arguments) {
-          const callback = resolveCallback(argument);
           const input = operation === "then" && argument === expression.arguments[0] ? expression.expression.expression : rejectedValue(expression.expression.expression);
-          if (callbackInternal(callback, seen, input ? [input] : [])) return true;
+          if (callbackValue(argument, seen, input ? [input] : [])) return true;
         }
         return (operation === "catch" || !expression.arguments[0]) && internalValue(expression.expression.expression, seen);
       }
@@ -552,19 +563,19 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         && expression.expression.name.text === "response" && contextValue(expression.expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && ["map", "flatMap", "reduce", "reduceRight"].includes(expression.expression.name.text)) {
         if (["reduce", "reduceRight"].includes(expression.expression.name.text) && expression.arguments[1] && internalValue(expression.arguments[1], seen)) return true;
-        const callback = resolveCallback(expression.arguments[0]);
         return ["reduce", "reduceRight"].includes(expression.expression.name.text)
-          ? callbackInternal(callback, seen, [expression.arguments[1], expression.expression.expression], [1])
-          : callbackInternal(callback, seen, [expression.expression.expression], [0]);
+          ? callbackValue(expression.arguments[0], seen, [expression.arguments[1], expression.expression.expression], [1])
+          : callbackValue(expression.arguments[0], seen, [expression.expression.expression], [0]);
       }
-      return callbackInternal(resolveCallback(expression.expression), seen, expression.arguments);
+      return callbackValue(expression.expression, seen, expression.arguments);
     }
     if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Promise")) {
       const executor = resolveCallback(expression.arguments?.[0]);
-      const parameter = executor?.parameters[0];
+      const prefix = expression.arguments?.[0] ? boundInputs(expression.arguments[0], []).length : 0;
+      const parameter = executor?.parameters[prefix];
       if (!executor || !parameter) return false;
       promiseResolvers.add(parameter);
-      try { return callbackInternal(executor, seen, [], [], true); }
+      try { return callbackValue(expression.arguments?.[0], seen, [], [], true); }
       finally { promiseResolvers.delete(parameter); }
     }
     if (ts.isNewExpression(expression) && ["Array", "Map", "Set", "URLSearchParams", "Headers", "FormData", "URL", "String", "Object"].some(name => isGlobal(expression.expression, name))) return !!expression.arguments?.some(argument => internalValue(argument, seen));
