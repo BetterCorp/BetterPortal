@@ -425,3 +425,35 @@ test("auth redirects follow framework imports and aliases instead of identifier 
     'import * as bp from "@betterportal/framework"; const { resolveAppAuthRedirect: redirect } = bp; export function handler(ctx) { return redirect(ctx, "afterLogin"); }'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
 });
+
+
+test("destructured context parameters preserve resolver ownership", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler({ routeUrl }) { return { endpoint: routeUrl()?.apiPath }; }',
+    'export function handler({ routeUrl: resolve }) { return { endpoint: resolve()?.viewPath }; }',
+    'export function handler({ uiRouteUrl: resolve }) { return { endpoint: resolve("users") }; }',
+    'export function handler({ ...ctx }) { return { endpoint: ctx.routeUrl()?.apiPath }; }',
+    'import { createHandler } from "@betterportal/framework"; createHandler({}, ({ routeUrl }) => ({ endpoint: routeUrl()?.apiPath }));'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'function helper({ routeUrl }) { return { endpoint: routeUrl("provider") }; }',
+    'export function handler({ routeUrl }) { return { publicLink: routeUrl()?.absoluteUiPath }; }',
+    'export function handler(ctx) { return client({ endpoint: ctx.routeUrl()?.apiPath }); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("reductions inspect returned accumulators and initial response values", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return items.reduce(payload => ({ ...payload, endpoint: ctx.routeUrl()?.apiPath }), {}); }',
+    'export function handler(ctx) { return items.reduceRight(payload => ({ ...payload, endpoint: ctx.routeUrl()?.apiPath }), {}); }',
+    'export function handler(ctx) { const payload = items.reduce(value => { return { endpoint: ctx.routeUrl()?.apiPath }; }, {}); return payload; }',
+    'export function handler(ctx) { return items.reduce(() => ({ ok: true }), { endpoint: ctx.routeUrl()?.apiPath }); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return items.reduce(payload => ({ ...payload, publicLink: ctx.routeUrl()?.absoluteUiPath }), {}); }',
+    'export function handler(ctx) { const requests = items.reduce(payload => ({ ...payload, endpoint: ctx.routeUrl()?.apiPath }), {}); return client(requests); }',
+    'export function handler(ctx) { return items.reduce(payload => ({ count: payload.count + Number(Boolean(ctx.routeUrl()?.apiPath)) }), { count: 0 }); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

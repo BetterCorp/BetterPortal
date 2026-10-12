@@ -370,3 +370,5 @@ An explicit **Always show** choice remains an override of automatic visibility.
 Menu visibility does not replace service-side authorization.
 
 The authoring gate checks response-producing promise continuations as well as synchronous returns. Framework auth redirect helpers are identified by their imports and aliases; unrelated provider helpers may use the same name. Keep internal destinations out of these API response paths and resolve them in the view.
+
+Destructuring a handler context does not bypass the routing migration check. Returned reduction accumulators and their initial values are checked for internal destinations; domain clients may consume those destinations without returning them to views.
