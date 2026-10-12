@@ -384,3 +384,5 @@ Named response callbacks retain the provenance of caller-supplied parameters, in
 The Node source gate includes `.mts`/`.cts` modules and follows value-preserving string transformations of internal destinations. Derived scalar state and opaque domain clients remain valid.
 
 Standard Promise.any results and string replacement values retain internal destination provenance in API responses; public links and opaque provider clients remain valid.
+
+Array element selection retains destination provenance. Explicit string-typed replacement receivers are checked even when initialized dynamically; unrelated provider methods and public links remain valid.

@@ -599,3 +599,26 @@ test("string replacement values retain their destination provenance", () => {
     'export function handler(ctx) { return "placeholder".replace("placeholder", () => client(ctx.routeUrl()?.apiPath)); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("array element selection retains destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const operation of ["find(Boolean)", "findLast(Boolean)", "pop()", "shift()"])
+    assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { return { endpoint: [ctx.routeUrl()?.apiPath].${operation} }; }`).length, operation);
+  for (const source of [
+    'export function handler(ctx) { return { publicLink: [ctx.routeUrl()?.absoluteUiPath].find(Boolean) }; }',
+    'export function handler(ctx) { return ids.find(() => Boolean(ctx.routeUrl()?.apiPath)); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("dynamic string-typed replacement receivers are inspected", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const template: string = getPlaceholder(); return { endpoint: template.replace("placeholder", ctx.routeUrl()?.apiPath ?? "") }; }',
+    'export function handler(ctx) { const template: string = getPlaceholder(); const alias = template; return { endpoint: alias.replaceAll("placeholder", ctx.routeUrl()?.apiPath ?? "") }; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const template: string = getPlaceholder(); return { publicLink: template.replace("placeholder", ctx.routeUrl()?.absoluteUiPath ?? "") }; }',
+    'export function handler(ctx) { const template: string = getPlaceholder(); function helper(template: Provider) { return template.replace("id", ctx.routeUrl()?.apiPath); } return helper(provider); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

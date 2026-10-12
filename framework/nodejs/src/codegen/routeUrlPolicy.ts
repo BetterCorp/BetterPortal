@@ -15,6 +15,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const declarations = new Map<ts.Node, Set<string>>();
   const selections = new Map<ts.Node, Map<string, { expression: ts.Node; field: string; rest: boolean }>>();
   const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
+  const lengthTypes = new Map<ts.Node, Set<string>>();
   type Mutation = { target: ts.Expression; values: readonly ts.Expression[]; global?: ts.Expression; collection?: boolean };
   const pendingMutations: Mutation[] = [];
   const functions = new Map<ts.Node, Map<string, ts.FunctionDeclaration>>();
@@ -26,6 +27,13 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       const exported = ts.isFunctionDeclaration(node) ? ts.getModifiers(node)?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
         : owner && ts.isVariableStatement(owner) && ts.getModifiers(owner)?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword);
       if (name?.startsWith("render") && exported) rendererFunctions.add(node);
+    }
+    if ((ts.isVariableDeclaration(node) || ts.isParameter(node)) && ts.isIdentifier(node.name)
+      && node.type && [ts.SyntaxKind.StringKeyword, ts.SyntaxKind.ArrayType, ts.SyntaxKind.TupleType].includes(node.type.kind)) {
+      let scope: ts.Node = node.parent;
+      while (!ts.isBlock(scope) && !ts.isSourceFile(scope) && !(ts.isParameter(node) && ts.isFunctionLike(scope))) scope = scope.parent;
+      const bindings = lengthTypes.get(scope) ?? new Set<string>();
+      bindings.add(node.name.text); lengthTypes.set(scope, bindings);
     }
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       let scope: ts.Node = node.parent;
@@ -177,6 +185,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
     let scope: ts.Node | undefined = expression.parent;
     while (scope) {
+      if (lengthTypes.get(scope)?.has(expression.text)) return true;
       const initializer = initializers.get(scope)?.get(expression.text);
       if (initializer) return hasScalarLength(initializer, new Set([...seen, expression.text]));
       if (declarations.get(scope)?.has(expression.text) || selections.get(scope)?.has(expression.text)) return false;
@@ -299,7 +308,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
             ? callbackInternal(callback, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
         }
         if (["toString", "valueOf", "join", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "normalize", "substring", "substr", "charAt", "at", "padStart", "padEnd", "repeat", "split"].includes(operation)) return internalValue(expression.expression.expression, seen);
-        if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat"].includes(operation)) return internalValue(expression.expression.expression, seen);
+        if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat", "find", "findLast", "pop", "shift"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
         if (["with", "toSpliced"].includes(operation)) return internalValue(expression.expression.expression, seen)
           || expression.arguments.slice(operation === "with" ? 1 : 2).some(argument => internalValue(argument, seen));
