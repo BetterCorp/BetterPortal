@@ -45,7 +45,7 @@ test("account provisioning, invitations and email changes use bounded email vali
   let status = 200;
   const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
     rawEvent: { req: new Request("https://auth.test/account"), url: new URL("https://auth.test/account") },
-    uiRouteUrl: () => "https://app.test/account", request: {} as Record<string, unknown>, setStatus: (code: number) => { status = code; } };
+    routeUrl: () => ({ absoluteUiPath: "https://app.test/account" }), request: {} as Record<string, unknown>, setStatus: (code: number) => { status = code; } };
   const boundary = "a".repeat(64) + "@" + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(61);
   assert.equal(boundary.length, 254);
   for (const email of ["alice@example..com", "alice@-example.com", "alice@example.com\r\nBcc: other@example.com", "   ", "a" + boundary, "!@!." + "!.".repeat(100_000)]) {
@@ -436,7 +436,7 @@ test("social linking survives an elevation redirect but remains bound to its act
   const runtime = { identity, policy: async () => policy, configuration: () => ({ socialConnections: [{ id: "test", kind: "google", clientId: "client", clientSecret: "secret" }] }) };
   const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user: elevated,
     rawEvent: { req: new Request("https://auth.test/social", { headers: { Origin: "https://app.test" } }), url: new URL("https://auth.test/social") },
-    uiRouteUrl: () => "https://app.test/social", request: { action: "link", connection: "test" } as Record<string, unknown> };
+    routeUrl: () => ({ absoluteUiPath: "https://app.test/social" }), request: { action: "link", connection: "test" } as Record<string, unknown> };
   const ticket = await socialPost(ctx as never);
   ctx.request = { action: "complete", id: ticket.id, secret: ticket.secret, code: "test-code" };
   const otherSession = await identity.issueSession(scope, policy, user, issuer, 3600);
@@ -467,7 +467,7 @@ for (const change of ["none", "revoke", "config", "expire"] as const) test(`soci
   const runtime = { identity, policy: async () => policy, configuration: () => ({ socialConnections: [connection] }) };
   const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user: elevated,
     rawEvent: { req: new Request("https://auth.test/social", { headers: { Origin: "https://app.test" } }), url: new URL("https://auth.test/social") },
-    uiRouteUrl: () => "https://app.test/social", request: { action: "link", connection: "test" } as Record<string, unknown> };
+    routeUrl: () => ({ absoluteUiPath: "https://app.test/social" }), request: { action: "link", connection: "test" } as Record<string, unknown> };
   t.mock.method(socialAdapter, "authorize", async () => "https://provider.test/authorize");
   let started!: () => void; let release!: (identity: { issuer: string; subject: string; emailVerified: boolean }) => void;
   const exchangeStarted = new Promise<void>(resolve => { started = resolve; });
@@ -499,7 +499,7 @@ test("provider failures consume the bounded challenge attempts without persistin
   const { identity, scope, storage } = fixture(t);
   const { socialPost, socialAdapter } = await import("../src/social.js");
   const runtime = { identity, policy: async () => policy, configuration: () => ({ socialConnections: [{ id: "test", kind: "google", clientId: "client", clientSecret: "secret" }] }) };
-  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: { req: new Request("https://app.test/social"), url: new URL("https://app.test/social") }, uiRouteUrl: () => "https://app.test/social", request: { action: "start", connection: "test" } as Record<string, unknown> };
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: { req: new Request("https://app.test/social"), url: new URL("https://app.test/social") }, routeUrl: () => ({ absoluteUiPath: "https://app.test/social" }), request: { action: "start", connection: "test" } as Record<string, unknown> };
   t.mock.method(socialAdapter, "authorize", async () => "https://provider.test/authorize");
   const exchange = t.mock.method(socialAdapter, "exchange", async () => { throw new Error("Provider private response"); });
   const ticket = await socialPost(ctx as never);
@@ -521,7 +521,7 @@ test("registration and verification keep proof out of URLs sent to the server an
   const ctx = {
     plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, responseHeaders: new Headers(),
     rawEvent: { req: new Request("https://auth.test/account", { headers: { Origin: "https://app.test" } }), url: new URL("https://auth.test/account") },
-    routeUrl: () => "https://auth.test/account", uiRouteUrl: () => "https://app.test/account",
+    routeUrl: () => ({ absoluteApiPath: "https://auth.test/account", absoluteUiPath: "https://app.test/account" }),
     request: { action: "signup", email: "alice@example.com", password: "a secure test password" } as Record<string, unknown>
   };
   const response = await accountPost(ctx as never); assert.equal(response.status, "ok");
@@ -588,7 +588,7 @@ test("administrators generate scoped one-use verification links without email de
   let mounted = true, status = 200;
   const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
     request: { action: "verification.link", id: target.id }, query: {}, responseHeaders: new Headers(),
-    uiRouteUrl: () => mounted ? "https://app.test/account" : null,
+    routeUrl: () => ({ absoluteUiPath: mounted ? "https://app.test/account" : null }),
     setStatus: (code: number) => { status = code; } };
   const generate = () => manage(ctx as never);
   mounted = false;

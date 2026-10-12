@@ -147,8 +147,7 @@ export const handleDelete = createHandler(
 );
 
 function tenantsPathFromContext(ctx: Pick<RouteHandlerContext, "routeUrl">): string {
-  return ctx.routeUrl?.("tenants.index", { absolute: true })
-    ?? ctx.routeUrl?.("tenants.index")
+  return ctx.routeUrl?.({ path: "/tenants" })?.absoluteViewPath
     ?? "/tenants";
 }
 

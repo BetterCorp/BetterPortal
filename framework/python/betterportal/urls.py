@@ -9,7 +9,7 @@ from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 
 from .context import ScopedContext, http_origin, http_base_url, _origins
 from .contracts import parse
-from .generated_types import BPElementReferenceInput, ResolvedBPElementReference, RouteUrlOptionsInput, RouteUiOptionsInput
+from .generated_types import BPElementReferenceInput, ResolvedBPElementReference, RouteUrlOptionsInput, RouteUiOptionsInput, ResolvedRouteUrl
 if TYPE_CHECKING:
     from .registry import Registry
 
@@ -64,10 +64,12 @@ def _render(path: str, options: Mapping[str, Any]) -> str:
     if options.get("component"): changes["_c"] = options["component"]
     if options.get("fragment"): changes["_f"] = options["fragment"]
     query = quote(parts.query, safe="!$&()*+,-./:;=?@[]^_`{|}~%")
-    if any(value is not None for value in changes.values()):
+    if changes:
         pairs = parse_qsl(query, keep_blank_values=True, encoding="utf-8", errors="strict")
         for name, value in changes.items():
-            if value is None: continue
+            if value is None:
+                pairs = [pair for pair in pairs if pair[0] != name]
+                continue
             index = next((index for index, pair in enumerate(pairs) if pair[0] == name), len(pairs))
             pairs = [pair for pair in pairs if pair[0] != name]
             pairs.insert(index, (name, _scalar(value)))
@@ -91,7 +93,7 @@ class Urls:
         self._shell = deepcopy(scope.app.get("shell", {}))
         self._hosts = tuple(scope.app["hostnames"])
         self._aliases = dict(registry.dependencies) if registry is not None else {}
-        self._routes = {route.view_id: route.paths for route in registry.routes} if registry is not None else {}
+        self._routes = {route.view_id: (route.paths, {op.declaration["method"] for op in route.operations}) for route in registry.routes} if registry is not None else {}
         self._service_id, self._path = service_id, path
         self._app_origin = None
         allowed = {origin for host in self._hosts for origin in _origins(host)}
@@ -113,45 +115,89 @@ class Urls:
             return _origin(override) if override else next(iter(origins)) if len(origins) == 1 else None
         except ValueError: return None
 
-    def current(self, options: RouteUrlOptionsInput | None = None) -> str: return self.path(self._path, options)
+    def route_url(self, input: RouteUrlOptionsInput | None = None) -> ResolvedRouteUrl | None:
+        """Resolve self, a service path or a view ID into six explicit destination fields.
+
+        apiPath/viewPath use the service endpoint; viewPath adds HTML selectors.
+        uiPath is the mounted GET page. absoluteApiPath/absoluteViewPath use the
+        service origin; absoluteUiPath uses the public app origin. Never forward
+        internal destinations to a view as response data.
+        """
+        return self._resolve(input, "GET", {}, {})
+
+    def _resolve(self, input: RouteUrlOptionsInput | None, method: str, params: Mapping[str, Any], query: Mapping[str, Any]) -> ResolvedRouteUrl | None:
+        from .registry import _path_matches
+        opts = parse("RouteUrlOptionsSchema", input or {})
+        if "path" in opts and "viewId" in opts: return None
+        if "path" in opts:
+            try:
+                if "#" in opts["path"]: return None
+                _path(opts["path"])
+            except ValueError: return None
+        self_target = "path" not in opts and "viewId" not in opts
+        target = opts.get("serviceId", self._service_id)
+        ids, own = self._ids(target), self._ids(self._service_id)
+        if not ids or self_target and ids != own: return None
+        method = opts.get("method", method if self_target else "GET")
+        parameters = {**(params if self_target else {}), **opts["params"]}
+        opts["query"] = {**(query if self_target else {}), **dict(parse_qsl(urlsplit(opts.get("path", "")).query, keep_blank_values=True)), **opts["query"]}
+        if opts.get("component") and opts.get("fragment"): return None
+        selector, view_id = opts.get("path", self._path if self_target else None), opts.get("viewId")
+        path: str | None = None
+        if ids == own and len(ids) == 1:
+            candidates = [(name, candidate) for name, (paths, methods) in self._routes.items() if method in methods for candidate in paths
+                          if name == view_id] if view_id is not None else [
+                (name, candidate) for name, (paths, methods) in self._routes.items() if method in methods for candidate in paths
+                if selector is not None and _path_matches(candidate, selector.split("?", 1)[0])]
+            resolved = [(name, candidate, value) for name, candidate in candidates
+                        if (value := _fill(candidate if self_target or selector is None else selector, ({**self._parameters(candidate, self._path), **parameters} if self_target else parameters))) is not None]
+            resolved.sort(key=lambda item: sum(part.startswith(":") for part in item[1].split("/")), reverse=view_id is not None)
+            if not resolved: return None
+            best = sum(part.startswith(":") for part in resolved[0][1].split("/"))
+            eligible = [item for item in resolved if sum(part.startswith(":") for part in item[1].split("/")) == best]
+            if len({value for _, _, value in eligible}) != 1: return None
+            view_id, _, path = eligible[0]
+        else:
+            targets = []
+            for mount in self._mounts:
+                template = self._service_path(mount)
+                if not mount["enabled"] or mount["serviceId"] not in ids or method not in mount.get("resolvedMethods", []): continue
+                if opts.get("mountId") and opts["mountId"] != mount["id"]: continue
+                if not template or (mount["viewId"] != view_id if view_id is not None else not selector or not _path_matches(template, selector.split("?", 1)[0])): continue
+                value = _fill(selector or template, {**mount.get("fixedParams", {}), **parameters})
+                if value is not None: targets.append((mount, value))
+            unique = {(mount["serviceId"], value): (mount, value) for mount, value in targets}
+            if len(unique) != 1: return None
+            mount, path = next(iter(unique.values())); target, view_id = mount["serviceId"], mount["viewId"]
+        if path is None: return None
+        pages = set()
+        if method == "GET" and not any(opts.get(key) for key in ("sse", "component", "fragment")):
+            for mount in self._mounts:
+                if not mount["enabled"] or mount["kind"] != "page" or mount["serviceId"] not in ids or mount["viewId"] != view_id or "GET" not in mount.get("resolvedMethods", []): continue
+                if opts.get("mountId") and opts["mountId"] != mount["id"]: continue
+                template = self._service_path(mount)
+                if template is None and ids == own:
+                    template = next((candidate for candidate in self._routes.get(view_id, ((), set()))[0] if _path_matches(candidate, path.split("?", 1)[0])), None)
+                if template is None: continue
+                values = {**mount.get("fixedParams", {}), **parameters, **self._parameters(template, path)}
+                ui_names = {part[1:] for part in mount["path"].split("/") if part.startswith(":")}
+                if any(name not in ui_names and values.get(name) != value for name, value in mount.get("fixedParams", {}).items()): continue
+                mounted, service = _fill(mount["path"], values), _fill(template, values)
+                if mounted is not None and service == path.split("?", 1)[0]: pages.add(_render(mounted, {"query": opts["query"]}))
+        ui = next(iter(pages)) if len(pages) == 1 else None
+        origin = self._service_origin(target)
+        try:
+            api = _render(path, {"query": opts["query"], "sse": opts["sse"]})
+            view = _render(path, opts)
+            app = self._app_origin or (_origin(self._hosts[0]) if self._hosts else None)
+            return parse("ResolvedRouteUrlSchema", {"apiPath": api, "viewPath": view, "uiPath": ui,
+                "absoluteApiPath": origin + api if origin else None, "absoluteViewPath": origin + view if origin else None,
+                "absoluteUiPath": app + ui if app and ui else None})
+        except ValueError: return None
 
     @staticmethod
-    def path(path: str, options: RouteUrlOptionsInput | None = None) -> str:
-        return _render(path, parse("RouteUrlOptionsSchema", options or {}))
-
-    def route(self, view_id: str, options: RouteUrlOptionsInput | None = None) -> str | None:
-        opts = parse("RouteUrlOptionsSchema", options or {})
-        target = opts.get("serviceId", self._service_id)
-        ids = self._ids(target)
-        if not ids: return None
-        if len(ids) == 1 and ids == self._ids(self._service_id):
-            path = next((value for candidate in self._routes.get(view_id, ()) if (value := _fill(candidate, opts["params"])) is not None), None)
-        else:
-            mounts = {(item["serviceId"], self._service_path(item)): item for item in self._mounts
-                      if item["enabled"] and item["serviceId"] in ids and item["viewId"] == view_id and self._service_path(item)}
-            if len(mounts) != 1: return None
-            (target, template), mount = next(iter(mounts.items()))
-            path = _fill(cast(str, template), {**mount["fixedParams"], **opts["params"]})
-        if path is None: return None
-        if opts["absolute"]:
-            origin = self._service_origin(target, opts.get("origin"))
-            return None if origin is None else origin + _render(path, {**opts, "absolute": False})
-        return _render(path, opts)
-
-    def ui_route(self, view_id: str, options: RouteUrlOptionsInput | None = None) -> str | None:
-        opts = parse("RouteUrlOptionsSchema", options or {})
-        ids = self._ids(opts.get("serviceId", self._service_id))
-        paths = {_fill(item["path"], opts["params"]) for item in self._mounts if item["enabled"] and item["kind"] == "page"
-                 and "GET" in item.get("resolvedMethods", []) and item["viewId"] == view_id and item["serviceId"] in ids}
-        paths.discard(None)
-        if len(paths) != 1: return None
-        if opts["absolute"]:
-            origin = opts.get("origin") or self._app_origin or next(iter(self._hosts), None)
-            if origin is None: return None
-            try: opts["origin"] = _origin(origin)
-            except ValueError: return None
-        # Navigation never gains a component, fragment or SSE service selector.
-        return _render(cast(str, next(iter(paths))), {key: opts[key] for key in ("query", "absolute", "origin") if key in opts})
+    def _parameters(template: str, path: str) -> dict[str, str]:
+        return {part[1:]: unquote(value) for part, value in zip(template.split("?", 1)[0].split("/"), path.split("?", 1)[0].split("/")) if part.startswith(":")}
 
     @staticmethod
     def _service_path(mount: Mapping[str, Any]) -> str | None:
@@ -177,7 +223,7 @@ class Urls:
             if len(mounts) != 1: return unavailable("ambiguous_provider" if mounts else "service_unavailable")
             mount = mounts[0]; service_id = mount["serviceId"]; origin = self._service_origin(service_id)
             if not origin: return unavailable("service_unavailable")
-            path = _fill(cast(str, self._service_path(mount)), {**mount["fixedParams"], **value["args"]["params"]})
+            path = _fill(cast(str, self._service_path(mount)), {**mount.get("fixedParams", {}), **value["args"]["params"]})
             if path is None: return unavailable("path_params_required")
             opts = {"query": value["args"]["query"], "fragment": value["fragment"]}
         try: url = origin + _render(path, opts)
@@ -202,15 +248,3 @@ class Urls:
     @staticmethod
     def form(url: str, options: RouteUiOptionsInput | None = None) -> dict[str, str]:
         return Urls._attributes(url, parse("RouteUiOptionsSchema", options or {}), True)
-
-    def current_ui(self, options: RouteUiOptionsInput | None = None) -> dict[str, str]:
-        opts = parse("RouteUiOptionsSchema", options or {})
-        return self._attributes(_render(self._path, opts), opts, False)
-
-    def rewrite(self, html: str) -> str:
-        def replace(match):
-            value = self.route(match[3])
-            if value is None: return match[0]
-            from html import escape
-            return match[1] + "=" + match[2] + escape(value, quote=True) + match[2]
-        return re.sub(r"(?<![\w:-])(href|action|hx-get|hx-post|hx-put|hx-patch|hx-delete|hx-download)=([\"'])\{([A-Za-z0-9_$.-]+)\}\2", replace, html)

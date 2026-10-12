@@ -1,4 +1,4 @@
-import { requireElevation, resolveAppAuthRedirect, type RouteHandlerContext, type JsonObject } from "@betterportal/framework";
+import { requireElevation, type RouteHandlerContext, type JsonObject } from "@betterportal/framework";
 import { AuthError, hashPassword, verifyPassword, isValidEmail, type User, type Session } from "./identity.js";
 import type { AuthRuntime } from "./plugins/service-betterportal-auth-default/index.js";
 import type { AuthTransaction } from "./storage.js";
@@ -10,7 +10,7 @@ export function publishSession(ctx: Context, issued: Awaited<ReturnType<AuthRunt
   if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
 }
 export function accountLink(ctx: Context, action: string, ticket: { id: string; secret: string }): string | null {
-  const url = ctx.uiRouteUrl?.("account.index", { absolute: true });
+  const url = ctx.routeUrl?.({ path: "/account" })?.absoluteUiPath;
   return url ? `${url}#bp-auth=${encodeURIComponent(JSON.stringify({ action, ...ticket }))}` : null;
 }
 const publicUser = (u: User) => ({ id: u.id, username: u.username, email: u.email ?? "", name: u.name ?? "", enabled: u.enabled, emailVerified: u.emailVerified, totp: !!u.totp });
@@ -19,8 +19,7 @@ export async function accountGet(ctx: Context): Promise<JsonObject> {
   const scope = { tenantId: ctx.tenant.id, appId: ctx.app.id };
   const policy = await runtime.policy(scope);
   ctx.responseHeaders?.set("Cache-Control", "no-store"); ctx.responseHeaders?.set("Referrer-Policy", "no-referrer");
-  const accountUrl = ctx.routeUrl?.("account.index", { absolute: true }) ?? "/account";
-  if (!ctx.user) return { status: "ok", accountUrl, registration: policy.registration, signedIn: false };
+  if (!ctx.user) return { status: "ok", registration: policy.registration, signedIn: false };
   const user = await runtime.identity.findUser(scope, policy, ctx.user.sub, true);
   if (!user?.enabled) throw new AuthError("Sign in again.", 401);
   const sessionPage = await runtime.identity.storage.transaction(scope, async tx => {
@@ -29,10 +28,10 @@ export async function accountGet(ctx: Context): Promise<JsonObject> {
     return tx.activeSessions<Session>(scope, user.id, now, { after: typeof ctx.query?.sessionAfter === "string" ? ctx.query.sessionAfter : undefined, limit: 101 });
   });
   const sessions = sessionPage.slice(0, 100).map(s => ({ id: s.id, createdAt: s.createdAt, expiresAt: s.expiresAt }));
-  const sessionNextUrl = sessionPage.length > 100 ? ctx.routeUrl?.("account.index", { absolute: true, query: { sessionAfter: sessions.at(-1)!.id } }) ?? "" : "";
+  const sessionNextCursor = sessionPage.length > 100 ? sessions.at(-1)!.id : "";
   const passkeys = await runtime.identity.storage.transaction(scope, async tx => (await tx.list("passkey", user)).filter(p => p.userId === user.id).map(p => ({ id: p.id, name: String(p.name), rpId: String(p.rpId) })));
   const linkedIdentities = await runtime.identity.storage.transaction(scope, async tx => (await tx.list("external", user)).filter(p => p.userId === user.id).map(p => ({ id: p.id, provider: String(p.provider) })));
-  return { status: "ok", passkeys, linkedIdentities, accountUrl, socialUrl: ctx.routeUrl?.("social.index", { absolute: true }) ?? "/social", registration: policy.registration, signedIn: true, user: publicUser(user), sessions, sessionNextUrl };
+  return { status: "ok", passkeys, linkedIdentities, registration: policy.registration, signedIn: true, user: publicUser(user), sessions, sessionNextCursor };
 }
 export async function accountPost(ctx: Context): Promise<JsonObject> {
   const runtime = ctx.plugin.runtime; const identity = runtime.identity;
@@ -41,7 +40,6 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
   const dir = { tenantId: scope.tenantId, appId: policy.isolation === "app" ? scope.appId : "" };
   const event = ctx.rawEvent as { req: Request; url: URL };
   const origin = event.req.headers.get("origin") ?? event.url.origin;
-  const accountUrl = ctx.routeUrl?.("account.index", { absolute: true }) ?? "/account";
   ctx.responseHeaders?.set("Cache-Control", "no-store"); ctx.responseHeaders?.set("Referrer-Policy", "no-referrer");
   const sendLink = async (user: User, purpose: string) => identity.storage.transaction(scope, async tx => {
     const ticket = await identity.challengeInTransaction(tx, scope, purpose, { version: user.refreshVersion }, user.id, 1800);
@@ -72,7 +70,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
         ctx.obs?.logger.info("Auth account email queued", { action });
       } else ctx.obs?.logger.info("Auth account email skipped", { action, reason: "account_ineligible" });
     }
-    return { status: "ok", message: "If the account is eligible, an email will arrive shortly.", accountUrl };
+    return { status: "ok", message: "If the account is eligible, an email will arrive shortly." };
   }
   if (action === "verify" || action === "reset" || action === "email.verify") {
     const passwordHash = action === "reset" ? await hashPassword(String(body.password ?? "")) : undefined;
@@ -95,7 +93,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
       } else user.emailVerified = true;
       await tx.put("user", dir, user); await identity.audit(tx, scope, user.id, `account.${action}`);
     });
-    return { status: "ok", message: action === "reset" ? "Password reset. Sign in with your new password and authentication factor." : "Email verified. You can sign in.", accountUrl };
+    return { status: "ok", message: action === "reset" ? "Password reset. Sign in with your new password and authentication factor." : "Email verified. You can sign in." };
   }
   if (action === "invite.accept") {
     if (policy.registration === "closed") throw new AuthError("Registration is closed.", 403);
@@ -116,7 +114,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
       if (!passwordHash) throw new AuthError("Choose a password for your new account.");
       await identity.createInTransaction(tx, scope, policy, { username: email, email, name: body.name, verified: true }, passwordHash, roles);
     });
-    return { status: "ok", message: "Invitation accepted. Sign in to continue.", accountUrl };
+    return { status: "ok", message: "Invitation accepted. Sign in to continue." };
   }
   if (action === "login.complete") {
     const result = await identity.consume(scope, "login", String(body.id), String(body.secret), async (challenge, tx) => {
@@ -129,7 +127,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
     });
     const issued = await identity.issueSession(scope, policy, result.user, runtime.tokenIssuer, runtime.refreshTokenSeconds);
     publishSession(ctx, issued);
-    return { status: "ok", message: "Signed in.", next: resolveAppAuthRedirect(ctx, "afterLogin", body.next), recoveryCodes: result.recoveryCodes ?? [], accountUrl };
+    return { status: "ok", message: "Signed in.", authenticated: true, recoveryCodes: result.recoveryCodes ?? [] };
   }
   if (!ctx.user) throw new AuthError("Sign in to manage your account.", 401);
   const user = await identity.findUser(scope, policy, ctx.user.sub, true);
@@ -172,7 +170,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
     else requireElevation(ctx.user, { minimum: "confirm", maxAgeSeconds: 300 });
     const prepared = await runtime.factors.prepare(user, origin, true);
     const ticket = await identity.challenge(scope, "factor", { version: user.refreshVersion, factor: prepared.private }, user.id);
-    return { status: "ok", challenge: { ...ticket, ...prepared.public }, accountUrl } as JsonObject;
+    return { status: "ok", challenge: { ...ticket, ...prepared.public } } as JsonObject;
   } else if (action === "factor.complete") {
     const recoveryCodes = await identity.consume(scope, "factor", String(body.id), String(body.secret), async (challenge, tx) => {
       const current = await assertCurrent(tx);
@@ -180,7 +178,7 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
       if (!current?.enabled || challenge.userId !== user.id || current.refreshVersion !== challenge.data.version || factor.origin !== origin) throw new AuthError("Account changed.");
       return runtime.factors.complete(tx, scope, current, factor, body);
     });
-    return { status: "ok", message: "Factor enrolled. Save your recovery codes now.", recoveryCodes: recoveryCodes ?? [], accountUrl };
+    return { status: "ok", message: "Factor enrolled. Save your recovery codes now.", recoveryCodes: recoveryCodes ?? [] };
   } else if (action === "factor.remove") {
     requireElevation(ctx.user, { minimum: "mfa", maxAgeSeconds: 300 });
     await identity.updateUser(scope, policy, user.id, async (u, tx) => {
@@ -204,5 +202,5 @@ export async function accountPost(ctx: Context): Promise<JsonObject> {
     });
   } else throw new AuthError("Unknown account action.");
   await identity.storage.transaction(scope, tx => identity.audit(tx, scope, user.id, `account.${action}`));
-  return { status: "ok", message: "Account updated.", accountUrl };
+  return { status: "ok", message: "Account updated." };
 }

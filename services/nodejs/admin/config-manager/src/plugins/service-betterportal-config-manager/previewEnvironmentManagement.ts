@@ -284,8 +284,7 @@ async function mutate(
 }
 
 function previewPath(ctx: Pick<RouteHandlerContext, "routeUrl">): string {
-  return ctx.routeUrl?.("preview-environments.index", { absolute: true })
-    ?? ctx.routeUrl?.("preview-environments.index")
+  return ctx.routeUrl?.({ path: "/preview-environments" })?.absoluteViewPath
     ?? "/preview-environments";
 }
 

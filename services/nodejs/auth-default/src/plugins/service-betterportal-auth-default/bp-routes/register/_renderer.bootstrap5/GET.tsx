@@ -1,20 +1,8 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
-import type { HtmlRenderable } from "@betterportal/framework";
+import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../../../registrationFlow.js";
 
-/** Tenant-relative path (+query) of an absolute self-origin URL, for hx-push-url. */
-function pushPathOf(url: string | undefined, fallback: string): string {
-  if (!url) return fallback;
-  try {
-    const parsed = new URL(url);
-    return parsed.pathname + parsed.search;
-  } catch {
-    return fallback;
-  }
-}
-
-/** Client-side confirm-password gate; everything else is server-rendered. */
 function registerScript(): HtmlRenderable {
   // IIFE - htmx executes swapped <script> content as a plain script, where a
   // top-level `return` inside a bare block is a SyntaxError.
@@ -95,7 +83,9 @@ function renderForm(data: ResponseData): HtmlRenderable {
   );
 }
 
-export function render(data: ResponseData): HtmlRenderable {
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const login = ctx.routeUrl({ path: "/login", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } });
+  if (!login?.absoluteViewPath || !login.uiPath) throw new Error("Login page is not mounted");
   // POST success - server-rendered confirmation, then on to sign-in.
   if (data.status === "ok" && data.user) {
     return (
@@ -107,8 +97,8 @@ export function render(data: ResponseData): HtmlRenderable {
               <strong>{data.user.username}</strong> is now the platform administrator.
             </div>
             <p class="text-secondary small mb-0">Taking you to sign in...</p>
-            {data.loginUrl
-              ? redirectStub(data.loginUrl, pushPathOf(data.loginUrl, "/login"), "Redirecting to sign in...")
+            {login.absoluteViewPath
+              ? redirectStub(login.absoluteViewPath, login.uiPath, "Redirecting to sign in...")
               : <a class="btn btn-primary mt-3" href="/login">Sign in</a>}
           </div>
         </div>
@@ -123,8 +113,8 @@ export function render(data: ResponseData): HtmlRenderable {
 
   // GET with users already present - registrations are closed; bounce to login.
   if (!data.registrationOpen) {
-    if (data.loginUrl) {
-      return redirectStub(data.loginUrl, pushPathOf(data.loginUrl, "/login"), "Redirecting to sign in...");
+    if (login.absoluteViewPath) {
+      return redirectStub(login.absoluteViewPath, login.uiPath, "Redirecting to sign in...");
     }
     return (
       <div class="container py-5" style="max-width: 420px;">

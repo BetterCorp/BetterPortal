@@ -13,6 +13,7 @@ public sealed class Urls
     private readonly string[] hosts;
     private readonly IReadOnlyDictionary<string, string> aliases;
     private readonly Dictionary<string, IReadOnlyList<string>> routes;
+    private readonly Dictionary<string, HashSet<string>> methods;
     private readonly string? serviceId, appOrigin;
     private readonly string currentPath;
     public Urls(ScopedContext scope, Registry? registry, string? serviceId, string path, IEnumerable<string>? appOrigins = null)
@@ -31,6 +32,7 @@ public sealed class Urls
         hosts = ((List<object?>)scope.App["hostnames"]!).Cast<string>().ToArray();
         aliases = registry?.Dependencies ?? new Dictionary<string, string>();
         routes = registry?.Routes.ToDictionary(route => route.ViewId, route => route.Paths) ?? new();
+        methods = registry?.Routes.ToDictionary(route => route.ViewId, route => route.Operations.Select(operation => operation.Method).ToHashSet(StringComparer.Ordinal)) ?? new();
         this.serviceId = serviceId; currentPath = path;
         var allowed = hosts.SelectMany(HttpAddress.Origins).ToHashSet(StringComparer.Ordinal);
         foreach (var candidate in appOrigins ?? [])
@@ -85,7 +87,7 @@ public sealed class Urls
         if (options.TryGetValue("component", out var component)) changes["_c"] = component;
         if (options.TryGetValue("fragment", out var fragment)) changes["_f"] = fragment;
         var query = uri.Query.TrimStart('?').Replace("'", "%27");
-        if (changes.Any(pair => pair.Value is not null))
+        if (changes.Count > 0)
         {
             var utf8 = new UTF8Encoding(false, true);
             string Decode(string value) => utf8.GetString(System.Web.HttpUtility.UrlDecodeToBytes(value, utf8));
@@ -93,7 +95,7 @@ public sealed class Urls
                 .Select(parts => (Name: Decode(parts[0]), Value: parts.Length == 2 ? Decode(parts[1]) : "")).ToList();
             foreach (var (name, value) in changes)
             {
-                if (value is null) continue;
+                if (value is null) { pairs.RemoveAll(pair => pair.Name == name); continue; }
                 var index = pairs.FindIndex(pair => pair.Name == name); if (index < 0) index = pairs.Count;
                 pairs.RemoveAll(pair => pair.Name == name); pairs.Insert(index, (name, Scalar(value)));
             }
@@ -121,46 +123,105 @@ public sealed class Urls
     }
     private static string? ServicePath(Node mount) => (string?)mount.GetValueOrDefault("resolvedServicePath", mount.GetValueOrDefault("servicePathVariant", mount.GetValueOrDefault("targetPath")));
     private static Node Options(object? value, string schema = "RouteUrlOptionsSchema") => (Node)Contracts.Parse(schema, value ?? new Node())!;
-    public string Current(Generated.RouteUrlOptionsInput? options = null) => Path(currentPath, options);
-    public static string Path(string path, Generated.RouteUrlOptionsInput? options = null) => Render(path, Options(options));
-    public string? Route(string viewId, Generated.RouteUrlOptionsInput? options = null)
+    /// <summary>Resolve self, a service path or a view ID into six explicit destinations.</summary>
+    /// <remarks>API/view paths use the service endpoint; UI paths use the mounted GET page.
+    /// Absolute API/view paths use the service origin; AbsoluteUiPath is the public app URL.
+    /// Resolve internal destinations in renderers, rather than returning them as API fields.</remarks>
+    public Generated.ResolvedRouteUrl? RouteUrl(Generated.RouteUrlOptionsInput? input = null)
+        => Resolve(input, "GET", null, null);
+
+    internal Generated.ResolvedRouteUrl? Resolve(Generated.RouteUrlOptionsInput? input, string currentMethod, object? currentParams, object? currentQuery)
     {
-        var opts = Options(options); var target = (string?)opts.GetValueOrDefault("serviceId", serviceId); var ids = Ids(target);
-        if (ids.Count == 0) return null;
-        string? path;
-        if (ids.Count == 1 && ids.SetEquals(Ids(serviceId))) path = routes.GetValueOrDefault(viewId, []).Select(candidate => Fill(candidate, (Node)opts["params"]!)).FirstOrDefault(value => value is not null);
+        var opts = Options(input);
+        if (opts.ContainsKey("path") && opts.ContainsKey("viewId")) return null;
+        if (opts.GetValueOrDefault("path") is string supplied) { try { if (supplied.Contains('#')) return null; Relative(supplied); } catch (ArgumentException) { return null; } }
+        var self = !opts.ContainsKey("path") && !opts.ContainsKey("viewId");
+        var target = (string?)opts.GetValueOrDefault("serviceId", serviceId);
+        var ids = Ids(target); var own = Ids(serviceId);
+        if (ids.Count == 0 || self && !ids.SetEquals(own)) return null;
+        var method = (string)opts.GetValueOrDefault("method", self ? currentMethod : "GET")!;
+        var parameters = self ? AsNode(currentParams) : new Node();
+        foreach (var pair in (Node)opts["params"]!) parameters[pair.Key] = pair.Value;
+        var query = self ? AsNode(currentQuery) : new Node();
+        if (opts.GetValueOrDefault("path") is string embedded && embedded.Contains('?')) {
+            foreach (var pair in embedded.Split('?', 2)[1].Split('&', StringSplitOptions.RemoveEmptyEntries)) {
+                var parts = pair.Split('=', 2);
+                query[Uri.UnescapeDataString(parts[0].Replace("+", " "))] = parts.Length > 1 ? Uri.UnescapeDataString(parts[1].Replace("+", " ")) : "";
+            }
+        }
+        foreach (var pair in (Node)opts["query"]!) query[pair.Key] = pair.Value;
+        opts["query"] = query;
+        if (opts.ContainsKey("component") && opts.ContainsKey("fragment")) return null;
+        var selector = (string?)opts.GetValueOrDefault("path", self ? currentPath : null);
+        var viewId = (string?)opts.GetValueOrDefault("viewId");
+        string? path = null;
+        if (ids.Count == 1 && ids.SetEquals(own))
+        {
+            var candidates = routes.SelectMany(pair => pair.Value.Select(template => (View: pair.Key, Template: template)))
+                .Where(item => methods[item.View].Contains(method) && (viewId is not null ? item.View == viewId : selector is not null && Parameters(item.Template, selector) is not null))
+                .Select(item => (item.View, item.Template, Path: Fill(self || selector is null ? item.Template : selector,
+                    self ? Merge(Parameters(item.Template, currentPath), parameters) : parameters)))
+                .Where(item => item.Path is not null).ToArray();
+            var ordered = viewId is not null ? candidates.OrderByDescending(item => Specificity(item.Template)).ToArray() : candidates.OrderBy(item => Specificity(item.Template)).ToArray();
+            if (ordered.Length == 0) return null;
+            if (ordered.Where(item => Specificity(item.Template) == Specificity(ordered[0].Template)).Select(item => item.Path).Distinct().Count() != 1) return null;
+            viewId = ordered[0].View; path = ordered[0].Path;
+        }
         else
         {
-            var targets = mounts.Where(item => item["enabled"] is true && ids.Contains((string)item["serviceId"]!) && (string)item["viewId"]! == viewId && ServicePath(item) is not null)
-                .GroupBy(item => ((string)item["serviceId"]!, ServicePath(item)!)).Select(group => group.Last()).ToArray();
-            if (targets.Length != 1) return null;
-            var mount = targets[0]; target = (string)mount["serviceId"]!;
-            var parameters = new Node((Node)mount["fixedParams"]!); foreach (var pair in (Node)opts["params"]!) parameters[pair.Key] = pair.Value;
-            path = Fill(ServicePath(mount)!, parameters);
+            var candidates = mounts.Where(item => item["enabled"] is true && ids.Contains((string)item["serviceId"]!)
+                && ((List<object?>)item.GetValueOrDefault("resolvedMethods", new List<object?>())!).Contains(method)
+                && (!opts.TryGetValue("mountId", out var id) || Equals(id, item["id"]))
+                && (viewId is not null ? (string)item["viewId"]! == viewId : selector is not null && ServicePath(item) is string template && Parameters(template, selector) is not null))
+                .Select(item => {
+                    var values = new Node((Node)item.GetValueOrDefault("fixedParams", new Node())!); foreach (var pair in parameters) values[pair.Key] = pair.Value;
+                    return (Mount: item, Path: Fill(selector ?? ServicePath(item)!, values));
+                }).Where(item => item.Path is not null).GroupBy(item => ((string)item.Mount["serviceId"]!, item.Path)).Select(group => group.First()).ToArray();
+            if (candidates.Length != 1) return null;
+            var selected = candidates[0]; target = (string)selected.Mount["serviceId"]!; viewId = (string)selected.Mount["viewId"]!; path = selected.Path;
         }
         if (path is null) return null;
-        if (opts["absolute"] is true)
+        var pagePaths = new HashSet<string>(StringComparer.Ordinal);
+        if (method == "GET" && opts["sse"] is not true && !opts.ContainsKey("component") && !opts.ContainsKey("fragment"))
         {
-            var origin = ServiceOrigin(target!, (string?)opts.GetValueOrDefault("origin"));
-            opts["absolute"] = false;
-            return origin is null ? null : origin + Render(path, opts);
+            foreach (var mount in mounts.Where(item => item["enabled"] is true && (string)item["kind"]! == "page" && (string)item["viewId"]! == viewId && ids.Contains((string)item["serviceId"]!)
+                && ((List<object?>)item.GetValueOrDefault("resolvedMethods", new List<object?>())!).Contains("GET")
+                && (!opts.TryGetValue("mountId", out var id) || Equals(id, item["id"]))))
+            {
+                var template = ServicePath(mount) ?? (ids.SetEquals(own) ? routes.GetValueOrDefault(viewId!, []).FirstOrDefault(candidate => Parameters(candidate, path) is not null) : null);
+                if (template is null) continue;
+                var values = new Node((Node)mount.GetValueOrDefault("fixedParams", new Node())!);
+                foreach (var pair in parameters) values[pair.Key] = pair.Value;
+                foreach (var pair in Parameters(template, path) ?? new Node()) values[pair.Key] = pair.Value;
+                var uiNames = ((string)mount["path"]!).Split('/').Where(part => part.StartsWith(':')).Select(part => part[1..]).ToHashSet(StringComparer.Ordinal);
+                if (((Node)mount.GetValueOrDefault("fixedParams", new Node())!).Any(pair => !uiNames.Contains(pair.Key) && !Equals(values.GetValueOrDefault(pair.Key), pair.Value))) continue;
+                var ui = Fill((string)mount["path"]!, values);
+                if (ui is not null && Fill(template, values) == path.Split('?', 2)[0]) pagePaths.Add(Render(ui, new() { ["query"] = query }));
+            }
         }
-        return Render(path, opts);
+        try
+        {
+            var api = Render(path, new() { ["query"] = query, ["sse"] = opts["sse"] }); var view = Render(path, opts);
+            var ui = pagePaths.Count == 1 ? pagePaths.First() : null; var origin = ServiceOrigin(target!);
+            var app = appOrigin ?? (hosts.FirstOrDefault() is { } host ? Origin(host) : null);
+            return Contracts.Parse<Generated.ResolvedRouteUrl>("ResolvedRouteUrlSchema", new { apiPath = api, viewPath = view, uiPath = ui,
+                absoluteApiPath = origin is null ? null : origin + api, absoluteViewPath = origin is null ? null : origin + view,
+                absoluteUiPath = ui is null || app is null ? null : app + ui });
+        }
+        catch (ArgumentException) { return null; }
     }
-    public string? UiRoute(string viewId, Generated.RouteUrlOptionsInput? options = null)
+    private static Node Merge(Node? inherited, Node overrides) { var result = inherited is null ? new Node() : new Node(inherited); foreach (var pair in overrides) result[pair.Key] = pair.Value; return result; }
+    private static int Specificity(string template) => template.Split('/').Count(part => part.StartsWith(':'));
+    private static Node AsNode(object? value) => value is null ? new() : Json.Read(Json.Write(value)) as Node ?? new();
+    private static Node? Parameters(string template, string path)
     {
-        var opts = Options(options); var ids = Ids((string?)opts.GetValueOrDefault("serviceId", serviceId));
-        var paths = mounts.Where(item => item["enabled"] is true && (string)item["kind"]! == "page" && (string)item["viewId"]! == viewId
-            && ids.Contains((string)item["serviceId"]!) && ((List<object?>)item.GetValueOrDefault("resolvedMethods", new List<object?>())!).Contains("GET"))
-            .Select(item => Fill((string)item["path"]!, (Node)opts["params"]!)).Where(value => value is not null).Distinct().ToArray();
-        if (paths.Length != 1) return null;
-        if (opts["absolute"] is true)
-        {
-            var origin = (string?)opts.GetValueOrDefault("origin") ?? appOrigin ?? hosts.FirstOrDefault();
-            if (origin is null) return null;
-            try { opts["origin"] = Origin(origin); } catch (ArgumentException) { return null; }
-        }
-        return Render(paths[0]!, opts.Where(pair => pair.Key is "query" or "absolute" or "origin").ToDictionary());
+        var left = template.Split('?', 2)[0].TrimEnd('/').Split('/'); var right = path.Split('?', 2)[0].TrimEnd('/').Split('/');
+        if (left.Length != right.Length) return null;
+        var values = new Node();
+        for (var index = 0; index < left.Length; index++)
+            if (left[index].StartsWith(':')) values[left[index][1..]] = Uri.UnescapeDataString(right[index]);
+            else if (left[index] != right[index]) return null;
+        return values;
     }
     public Generated.ResolvedBPElementReference Element(Generated.BPElementReferenceInput reference)
     {
@@ -183,7 +244,7 @@ public sealed class Urls
             if (matches.Length != 1) return Unavailable(matches.Length > 0 ? "ambiguous_provider" : "service_unavailable");
             var mount = matches[0]; target = (string)mount["serviceId"]!; origin = ServiceOrigin(target);
             if (origin is null) return Unavailable("service_unavailable");
-            var parameters = new Node((Node)mount["fixedParams"]!); foreach (var pair in (Node)args["params"]!) parameters[pair.Key] = pair.Value;
+            var parameters = new Node((Node)mount.GetValueOrDefault("fixedParams", new Node())!); foreach (var pair in (Node)args["params"]!) parameters[pair.Key] = pair.Value;
             path = Fill(ServicePath(mount)!, parameters);
             if (path is null) return Unavailable("path_params_required");
             opts["fragment"] = fragment;
@@ -203,10 +264,4 @@ public sealed class Urls
     }
     public static IReadOnlyDictionary<string, string> Link(string url, Generated.RouteUiOptionsInput? options = null) => Attributes(url, Options(options, "RouteUiOptionsSchema"), false);
     public static IReadOnlyDictionary<string, string> Form(string url, Generated.RouteUiOptionsInput? options = null) => Attributes(url, Options(options, "RouteUiOptionsSchema"), true);
-    public IReadOnlyDictionary<string, string> CurrentUi(Generated.RouteUiOptionsInput? options = null)
-    {
-        var opts = Options(options, "RouteUiOptionsSchema"); return Attributes(Render(currentPath, opts), opts, false);
-    }
-    public string Rewrite(string html) => Regex.Replace(html, "(?<![\\w:-])(href|action|hx-get|hx-post|hx-put|hx-patch|hx-delete|hx-download)=([\"'])\\{([A-Za-z0-9_$.-]+)\\}\\2", match =>
-        Route(match.Groups[3].Value) is { } value ? match.Groups[1].Value + "=" + match.Groups[2].Value + System.Net.WebUtility.HtmlEncode(value) + match.Groups[2].Value : match.Value);
 }

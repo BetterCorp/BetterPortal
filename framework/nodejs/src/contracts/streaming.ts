@@ -1,3 +1,4 @@
+import type { ViewRenderContext } from "./registry.js";
 import * as av from "anyvali";
 import type { BaseSchema, Infer } from "anyvali";
 import type { RouteHandlerContext } from "./route.js";
@@ -97,12 +98,13 @@ export interface StreamShellContext {
 /**
  * Per-renderer implementations for a streaming view, sourced from
  * `_renderer.<rendererKey>/index.stream.tsx` exports.
+ * The second argument is the same safe view context, including routeUrl, used by normal renderers.
  * Each function renders ONE frame; the buffered HTML page render uses the
  * regular `index.tsx` page renderer over the derived `{ items, summary }` data.
  */
 export interface StreamRendererSet {
-  readonly renderShell: (ctx: StreamShellContext) => HtmlRenderable;
-  readonly renderItem: (item: any) => HtmlRenderable;
-  readonly renderSummary?: (summary: any) => HtmlRenderable;
-  readonly renderError?: (error: StreamErrorFrame) => HtmlRenderable;
+  readonly renderShell: (data: StreamShellContext, ctx: ViewRenderContext) => HtmlRenderable;
+  readonly renderItem: (item: any, ctx: ViewRenderContext) => HtmlRenderable;
+  readonly renderSummary?: (summary: any, ctx: ViewRenderContext) => HtmlRenderable;
+  readonly renderError?: (error: StreamErrorFrame, ctx: ViewRenderContext) => HtmlRenderable;
 }

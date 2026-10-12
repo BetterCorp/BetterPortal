@@ -1,8 +1,12 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
-import type { HtmlRenderable } from "@betterportal/framework";
-export function render(data: Record<string, any>): HtmlRenderable {
-  return <section id="bp-social-ui" class="container py-4" style="max-width:540px" data-endpoint={data.endpoint} data-code={data.code} data-state={data.state}>
+import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
+export function render(data: Record<string, any>, ctx: ViewRenderContext): HtmlRenderable {
+  const afterLogin = resolveAppAuthRedirect(ctx, "afterLogin", typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined);
+  const endpoint = ctx.routeUrl({ path: "/social", method: "POST" })?.absoluteApiPath;
+  const account = ctx.routeUrl({ path: "/account", method: "POST" })?.absoluteApiPath;
+  if (!endpoint || !account) throw new Error("Social authentication service routes are unavailable");
+  return <section id="bp-social-ui" class="container py-4" style="max-width:540px" data-endpoint={endpoint} data-account-endpoint={account} data-after-login={afterLogin} data-code={data.code} data-state={data.state}>
     <h2>{data.signedIn ? "Link a sign-in provider" : "Sign in"}</h2><p role="status">{data.message ?? (data.error ? "The provider declined sign-in. Try again." : "")}</p>
     {data.connections.map((c: any) => <button class="btn btn-outline-primary m-2" data-connection={c.id} data-action={data.signedIn ? "link" : "start"}>Continue with {c.title}</button>)}
     <script>{js(`(() => {
@@ -27,11 +31,11 @@ export function render(data: Record<string, any>): HtmlRenderable {
           let result = await send({ action: "complete", id, secret, code: root.dataset.code });
           if (result.challenge) {
             const factor = await api.factor(result.challenge); if (!factor) { status.textContent = "Sign-in cancelled."; return; }
-            result = await send({ action: "login.complete", id: result.challenge.id, secret: result.challenge.secret, ...factor }, result.accountUrl);
+            result = await send({ action: "login.complete", id: result.challenge.id, secret: result.challenge.secret, ...factor }, root.dataset.accountEndpoint);
           }
           status.textContent = result.message || "Signed in.";
           if (result.recoveryCodes?.length) { const pre = document.createElement("pre"); pre.textContent = "Save your recovery codes:\\n" + result.recoveryCodes.join("\\n"); status.append(pre); }
-          if (result.next) { const link = document.createElement("a"); link.href = result.next; link.textContent = "Continue"; link.className = "btn btn-primary d-block"; status.append(link); }
+          if (result.authenticated && root.dataset.afterLogin) { const link = document.createElement("a"); link.href = root.dataset.afterLogin; link.textContent = "Continue"; link.className = "btn btn-primary d-block"; status.append(link); }
         } catch (error) { status.textContent = error.message; }
       })();
     })()`)}</script>

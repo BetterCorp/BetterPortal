@@ -170,8 +170,7 @@ export default createHandler(
     }
 
     const redirectUri =
-      ctx.uiRouteUrl?.("login.index", { absolute: true }) ??
-      ctx.routeUrl?.("login.index", { absolute: true }) ??
+      ctx.routeUrl?.({ path: "/login" })?.absoluteUiPath ??
       "/login";
     return {
       status: "ok" as const,

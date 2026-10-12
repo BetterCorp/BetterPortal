@@ -11,6 +11,39 @@
           "minLength": 1
         }
       },
+      "path": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "viewId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
+      "method": {
+        "kind": "enum",
+        "values": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "OPTIONS"
+        ],
+        "default": "GET"
+      },
+      "mountId": {
+        "kind": "optional",
+        "inner": {
+          "kind": "string",
+          "minLength": 1
+        }
+      },
       "params": {
         "kind": "record",
         "valueSchema": {
@@ -65,17 +98,6 @@
         },
         "default": {}
       },
-      "absolute": {
-        "kind": "bool",
-        "default": false
-      },
-      "origin": {
-        "kind": "optional",
-        "inner": {
-          "kind": "string",
-          "minLength": 1
-        }
-      },
       "component": {
         "kind": "optional",
         "inner": {
@@ -93,18 +115,6 @@
       "sse": {
         "kind": "bool",
         "default": false
-      },
-      "method": {
-        "kind": "enum",
-        "values": [
-          "GET",
-          "POST",
-          "PUT",
-          "PATCH",
-          "DELETE",
-          "OPTIONS"
-        ],
-        "default": "GET"
       },
       "target": {
         "kind": "optional",
@@ -134,11 +144,10 @@
       }
     },
     "required": [
+      "method",
       "params",
       "query",
-      "absolute",
-      "sse",
-      "method"
+      "sse"
     ],
     "unknownKeys": "reject"
   },

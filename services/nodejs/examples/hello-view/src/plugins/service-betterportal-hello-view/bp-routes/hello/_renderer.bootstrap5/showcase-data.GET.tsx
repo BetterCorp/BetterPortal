@@ -50,7 +50,7 @@ function renderDataTableFragment(page: number, ctx: ViewRenderContext): HtmlRend
     return (
       <li class={`page-item${p === safePage ? " active" : ""}`}>
         <button type="button" class="page-link"
-          {...ctx.routeUi.fragment(ctx.url.current({ component: "user-table", query: { page: p } }), { target: "#bp-c-user-table", swap: "innerHTML" })}
+          {...ctx.routeUi.fragment(ctx.routeUrl({ component: "user-table", query: { page: p } })!, { target: "#bp-c-user-table", swap: "innerHTML" })}
         >{label}</button>
       </li>
     );

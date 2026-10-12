@@ -7,7 +7,7 @@ export const render: RegisteredViewRenderer["render"] = (_data, ctx) => (
   <div
     id="critical-alert-stream"
     hx-ext="sse"
-    sse-connect={ctx.url.route("alerts.stream")}
+    sse-connect={ctx.routeUrl({ viewId: "alerts.stream" })?.apiPath}
     sse-swap="message"
   ></div>
 );

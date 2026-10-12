@@ -4,6 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { scanRoutes } from "./scanner.js";
 import { emitRegistry, emitRouteRuntime } from "./emitter.js";
+import { checkProjectRouteUrls } from "./routeUrlPolicy.js";
 import { validateScanResult } from "./validate.js";
 
 interface BetterPortalConfig {
@@ -56,6 +57,12 @@ function run(): void {
 
   if (routeDirs.length === 0 && shellDirs.length === 0) {
     console.error('[bp-codegen] No "betterportal.routes" or "betterportal.shells" configured in package.json.');
+    process.exit(1);
+  }
+
+  const urlErrors = checkProjectRouteUrls(path.join(packageDir, "src"));
+  if (urlErrors.length) {
+    for (const error of urlErrors) console.error(`[bp-codegen] ERROR: ${error.file}: ${error.message}`);
     process.exit(1);
   }
 

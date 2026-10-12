@@ -17,7 +17,8 @@ export function rendererSets(item) {
       ...(kind === "fragment" ? { fragmentLocation: declaration.key.split(".")[0], fragmentId: declaration.key.split(".")[1] } : {}),
       render(data, context) {
         if (spec.throw) throw new Error("private-render-secret");
-        if (spec.text !== undefined) return spec.text;
+        if (spec.routeLink) return '<a href="' + context.routeUrl({ viewId: spec.routeLink }).viewPath + '">Reload</a>';
+      if (spec.text !== undefined) return spec.text;
         const value = JSON.stringify(spec.urlCalls ? urlCalls(context, spec.urlCalls) : spec.dataOnly ? data : { data, context: { tenant: context.tenant, app: context.app, request: context.request, route: context.route } });
         return "<pre>" + value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") + "</pre>";
       } };
@@ -27,8 +28,9 @@ export function rendererSets(item) {
     } else (sets[declaration.renderer] ??= { pages: [], fragments: [], components: [] })[kind + "s"].push(entry);
   }
   for (const operation of item.operations) for (const spec of operation.streamRenderers ?? []) {
-    const render = entry => data => {
+    const render = entry => (data, context) => {
       if (entry.throw) throw new Error("private-render-secret");
+      if (entry.routeLink) return '<a href="' + context.routeUrl({ viewId: entry.routeLink }).viewPath + '">Reload</a>';
       if (entry.text !== undefined) return entry.text;
       const value = JSON.stringify(data);
       return "<pre>" + value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") + "</pre>";
@@ -42,6 +44,7 @@ export function rendererSets(item) {
     const target = sets[declaration.renderer]?.fragments.find(entry => entry.method === "GET" && entry.rendererId === declaration.key);
     if (target) target.sseRender = (data, context) => {
       if (spec.throw || Object.hasOwn(spec, "throwOn") && spec.throwOn === data) throw new Error("private-render-secret");
+      if (spec.routeLink) return '<a href="' + context.routeUrl({ viewId: spec.routeLink }).viewPath + '">Reload</a>';
       if (spec.text !== undefined) return spec.text;
       const value = JSON.stringify(spec.dataOnly ? data : { data, context: { tenant: context.tenant, app: context.app, request: context.request, route: context.route } });
       return "<pre>" + value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;") + "</pre>";

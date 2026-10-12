@@ -23,14 +23,9 @@ def url_calls(context, calls):
     values = []
     for call in calls:
         try:
-            urls, options = context.urls, call.get("options", {})
-            if call["kind"] == "route": value = urls.route(call["viewId"], options)
-            elif call["kind"] == "uiRoute": value = urls.ui_route(call["viewId"], options)
-            elif call["kind"] == "path": value = urls.path(call["path"], options)
-            elif call["kind"] == "current": value = urls.current(options)
-            elif call["kind"] == "currentUi": value = urls.current_ui(options)
-            elif call["kind"] == "element": value = urls.element(call["reference"])
-            else: value = getattr(urls, call["kind"])(call["url"], options)
+            if call["kind"] == "routeUrl": value = context.route_url(call.get("input"))
+            elif call["kind"] == "element": value = context.urls.element(call["reference"])
+            else: raise ValueError("Unknown URL fixture call")
             values.append(value)
         except (ValueError, TypeError, av.ValidationError): values.append({"invalid": True})
     return values
@@ -94,6 +89,7 @@ async def hosting_request(body):
                 try: await asyncio.sleep(30)
                 finally: cancelled = True
             if item.get("throw") or "throwOn" in item and item["throwOn"] == data: raise ValueError("private-render-secret")
+            if "routeLink" in item: return '<a href="' + context.route_url({"viewId": item["routeLink"]})["viewPath"] + '">Reload</a>'
             if "text" in item: return item["text"]
             value = url_calls(context, item["urlCalls"]) if "urlCalls" in item else data if item.get("dataOnly") else {"data": data, "context": context.data}
             return "<pre>" + html.escape(json.dumps(value)) + "</pre>"

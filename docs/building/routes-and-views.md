@@ -204,7 +204,7 @@ export function render(data: ResponseData): HtmlRenderable {
 
 Route chrome is operation-owned presentation metadata. Export `chrome = { fullScreen: true }` from the relevant method file when that operation should use a full-workspace presentation. Config Manager copies the selected operation's default chrome into scoped app routes; an explicit app-route chrome value overrides it.
 
-Route dependencies are explicit operation references that must be mounted with the source operation. Export `{ operationId, method }` from the method that calls the operation, adding a dependency alias as `serviceId` for cross-service calls. Renderer route tokens never declare dependencies. Config Manager auto-adds one dependency mount per operation.
+Route dependencies are explicit operation references that must be mounted with the source operation. Export `{ operationId, method }` from the method that calls the operation, adding a dependency alias as `serviceId` for cross-service calls. Route URL resolution never declares dependencies. Config Manager auto-adds one dependency mount per operation.
 
 `apps[].routes[]` stores both browser-visible page routes and service/API allowlist routes:
 
@@ -232,7 +232,7 @@ By default, a user-facing capability should be one renderable route that provide
 
 Use `kind: "api"` only when there is a specific reason the endpoint has no UI: provider callbacks, webhooks, machine-only/internal dependencies, raw files, streams, or similar protocol endpoints. An API route is never an application navigation destination, and the user must never be left viewing it. Browser-mediated protocol endpoints such as OAuth callbacks must immediately redirect to an enabled page route after completing their work.
 
-An internal, root-relative `<a href>` is browser-visible navigation and must resolve to an enabled GET `kind: "page"` route backed by a renderable view. In a service renderer, use inline `ctx.url.route(...)` only for an owning-service static path with one unambiguous page mount and no collision with another app path. Use `ctx.url.uiRoute(...)` for parameterized paths or when reverse mapping is not unique; fix the configuration if that helper returns null. Do not navigate to a `kind: "api"` operation. API routes are invoked through form actions, `hx-*` requests, `fetch`, SSE, downloads, callbacks, and other non-page operations.
+An internal anchor must resolve to an enabled GET page. Use `ctx.routeUrl({ viewId, params, query })?.uiPath` for navigation and `absoluteViewPath` for explicit HTMX requests. API allowlist mounts are request destinations, not page navigation targets.
 
 For OAuth, the user-facing "Continue with ..." anchor should target a mounted page/view route. That view may initiate the external provider redirect with the normal BP response/header flow. The provider callback can remain an API route, but it must redirect back to a mounted page route after completing authentication. `data-bp-no-route` is not a workaround for service links: it disables routing entirely and leaves a root-relative URL pointed at the theme origin.
 
@@ -283,27 +283,33 @@ Requests are not grants. An administrator approves a compatible provider in Conf
 
 Use `this.m2mClient(requestId, ctx)` for a pure-service call made inside a route handler. It creates a child `bp.s2s.request` span and propagates W3C trace context to the target. Use `this.m2mClient(requestId, tenantId, appId)` only for background automation where no request parent exists. For a user-initiated operation, use `this.delegatedM2mClient(requestId, ctx)` so the generated client sends the original BP user JWT plus a fresh service proof while preserving the same distributed trace. The target verifies both credentials. Do not manually construct auth or trace headers.
 
-Handlers that need to request a service view should use `ctx.routeUrl(viewId, options)`. With no `serviceId`, it resolves the current service registry. For another service, pass its declared dependency alias/key; BetterPortal maps the alias through `betterportal.lock.json`, then resolves the active concrete service and service path from the synced application route index. A plugin ID or concrete service-instance UUID is also accepted for platform-owned dynamic references, but application code should prefer declared dependency aliases. The target route must be mounted in the app. When `absolute: true`, the result uses the target service hostname/base URL. Use it for HTMX requests, form actions, `fetch`, SSE, and downloads.
+API handlers and renderers use the same `ctx.routeUrl(input?)` function. Streaming shell, item, summary and error callbacks also receive that safe view context as their second argument. API code normally supplies a service `path`; either context may supply a `viewId`, including when API code needs a public UI link for an email or callback. Pass a declared dependency alias as `serviceId` for another service. The resolver returns an object or `null`, never a URL string.
+
+| Field | Meaning and use |
+| --- | --- |
+| `apiPath` | Relative service endpoint for API requests. |
+| `viewPath` | Relative service endpoint for rendered HTML; includes component/fragment selectors. |
+| `uiPath` | Relative mounted theme path for browser navigation and history. |
+| `absoluteApiPath` | API endpoint on the target service origin; use for cross-service fetch, forms and downloads. |
+| `absoluteViewPath` | Rendered-view endpoint on the target service origin; use for HTMX view requests. |
+| `absoluteUiPath` | Public absolute app/theme URL; use for shareable links, emails and callbacks. |
+
+All fields include the encoded query string. API and view fields normally share the same endpoint; HTTP content negotiation selects JSON or HTML. Component/fragment selectors apply only to view fields. `sse: true` selects the service's `/__sse` endpoint and makes the UI fields unavailable.
 
 ```ts
-const url = ctx.routeUrl?.("reports.detail.index", {
-  serviceId: "reports",
-  absolute: true,
-  params: { reportId },
-  query: { token }
+const destination = ctx.routeUrl?.({
+  path: "/reports/:reportId", serviceId: "reports", method: "GET",
+  params: { reportId }, query: { token }
 });
+if (!destination?.absoluteApiPath) throw new Error("Reports API route is unavailable");
+// fetch(destination.absoluteApiPath, ...)
 ```
 
-Use `ctx.uiRouteUrl(viewId, options)` only for GET browser navigation through the app shell, such as handler `HX-Location` redirects that already need an app URL. It uses the same dependency-alias resolution against the synced application route index, resolves enabled GET page mounts, and when `absolute: true` uses the app hostname/base URL. It returns `null` for API and mutation-only routes.
+Omit both `path` and `viewId` to resolve self: `ctx.routeUrl()` or `ctx.routeUrl({ query: { page: 2 } })`. Self inherits the current service, route, method, params and query; explicit values override them and null query values remove keys. Explicit targets default to GET and do not inherit another route's params/query. A `path` always means a service path, including when it contains a query string. Do not supply both selectors.
 
-```ts
-const submitUrl = ctx.routeUrl?.("reports.update", { serviceId: "reports" }); // hx-post, form action, fetch
-const pageUrl = ctx.uiRouteUrl?.("reports.detail", { serviceId: "reports" }); // handler HX-Location redirect
-```
+Unknown routes, unsupported methods, missing params and ambiguous service targets return `null`. A valid service destination can exist without a UI mount: its UI fields are `null` unless exactly one enabled GET page path resolves. Select `mountId` when several frontend aliases are valid. Required navigation failures must be diagnosed rather than hidden behind guessed paths or `"#"` fallbacks.
 
-`routeUrl` fills a registered service-path variant, while `uiRouteUrl` fills an enabled GET app-page path. Both return `null` for missing required parameters. Current-service `routeUrl` does not check whether the view is mounted, uniquely mounted, or a page; it can return a service path even with zero or multiple app mounts. `uiRouteUrl` returns `null` unless the supplied parameters resolve to exactly one distinct app path. Neither emits unresolved `:param` placeholders.
-
-Do not use `uiRouteUrl` for HTMX requests, form actions, `fetch`, SSE, or downloads. Those requests would target the app/theme origin instead of the service and can return 404.
+API responses contain domain data, state and cursors. Renderers resolve their own destinations; do not add internal `accountUrl`, `loginUrl`, pagination URLs, or route objects merely to forward links to a view. Public `absoluteUiPath` links and external provider URLs remain valid domain data. This is a breaking contract: positional string-returning `routeUrl`, `uiRouteUrl`, renderer `ctx.url` helpers, old internal response fields and literal route tokens fail build validation, including common any-typed usages.
 
 For a reusable UI fragment from another declared service dependency, use the typed `BPElement` helper and pass the renderer `ctx`:
 
@@ -328,9 +334,9 @@ import { BPElement } from "@betterportal/framework";
 
 The shared HTMX pipeline performs the request and adds managed BetterPortal headers. `bp-loading` is the initial state. Omit `bp-ok` for the normal case: a successful response is inserted directly, exactly as if `<bp-ok><template /></bp-ok>` had been supplied. Add `bp-ok` only to wrap or decorate success content; when present it must contain exactly one empty `<template />` insertion point. `bp-status` accepts exact codes, `40x`, or `4xx`, in that priority order. `bp-nok` handles unavailable dependencies, unmatched errors, and network failures. Omitted states render nothing. A 204 response is successful empty content.
 
-Handlers use `ctx.routeUrl` for service actions and `ctx.uiRouteUrl` for redirects to app pages. Renderers use `ctx.url.route` for service requests and inline contextual anchors to uniquely reversible static page mounts. Use `ctx.url.uiRoute` for parameterized paths, ambiguous reverse mappings, or links outside the rendering service’s ownership; a null result requires configuration repair. Both accept a declared dependency alias in `serviceId`; omit it for the current service. Use `BPElement` for UI components from another service or the active shell; do not parse cross-service references into arbitrary `hx-*` attributes.
+Both contexts use `ctx.routeUrl`; select service fields for requests and UI fields for browser navigation. Missing or ambiguous UI mounts require configuration repair. Use `BPElement` for UI components from another service or the active shell; do not parse cross-service references into arbitrary `hx-*` attributes.
 
-Raw app routes and tenant services are intentionally absent from renderer context. Use `ctx.url` for route resolution and `BPElement` for dependency or shell fragments.
+Raw app routes and tenant services are intentionally absent from renderer context. Use `ctx.routeUrl` for route resolution and `BPElement` for dependency or shell fragments.
 
 App routes persist selected `operationId` values. HTTP methods are derived from those manifest operations and are never user-editable.
 
@@ -443,7 +449,7 @@ export const dependencies = [
 ] as const;
 ```
 
-Omit `serviceId` for the current service. For another service, `serviceId` is the dependency alias declared in `betterportal.json` and locked by `betterportal.lock.json`; it is not a runtime UUID, title, hostname, or plugin id. Codegen rejects unknown aliases and manifest construction rejects unavailable local operations. Renderer `{view.id}` tokens only resolve URLs and never declare dependencies.
+Omit `serviceId` for the current service. For another service, `serviceId` is the dependency alias declared in `betterportal.json` and locked by `betterportal.lock.json`; it is not a runtime UUID, title, hostname, or plugin id. Codegen rejects unknown aliases and manifest construction rejects unavailable local operations. Route resolution never declares dependencies; use the shared resolver with an already declared alias.
 
 A fragment-only route still has a normal method operation. For example, `/sync/status/GET.ts` owns `sync.status.read`, while `_body.status.GET.tsx` is its fragment representation. Any `/sync` GET or POST operation that uses it must explicitly declare `{ operationId: "sync.status.read", method: "GET" }`. Fragment-only operations are API mounts, participate in permissions, and are never browser navigation pages.
 
@@ -487,7 +493,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
       <thead><tr><th scope="col">Call time</th></tr></thead>
       <tbody>{data.calls.map(c => (
         <tr><td>
-          <a href={ctx.url.route("archive.call", { query: { id: c.id } }) ?? undefined}>
+          <a href={ctx.routeUrl({ viewId: "archive.call", query: { id: c.id } })?.uiPath ?? undefined}>
             {c.time}
           </a>
         </td></tr>
@@ -497,72 +503,31 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
 }
 ```
 
-Mount each GET operation once as an enabled Visual Route with a page renderer, for example service `/calls` at app `/archive/calls` and service `/call` at app `/archive/call`. With `id = "call 42"`, the renderer emits `/call?id=call+42`. Inside the BP shell, the runtime rewrites the anchor to `/archive/call?id=call+42`, requests `/call?id=call+42` on the owning service origin with managed BP headers, and swaps `#bp-main`. The browser stays on the app origin; Back/Forward restore the mounted page and query.
+Mount each GET operation once as an enabled Visual Route with a page renderer, for example service `/calls` at app `/archive/calls` and service `/call` at app `/archive/call`. With `id = "call 42"`, the renderer emits `/archive/call?id=call+42`. Inside the BP shell, the runtime requests `/call?id=call+42` on the owning service origin with managed BP headers, and swaps `#bp-main`. The browser stays on the app origin; Back/Forward restore the mounted page and query.
 
 The shell provides the owning `data-bp-service` context and mounted route map. This ordinary same-service anchor needs no extra attributes, `hx-get`, `hx-push-url`, or routing override. Keep it in the shell-owned content lane. Do not add `data-bp-no-route`, `bp-no-override`, or `target="_blank"`: those bypass this navigation flow. An explicitly different `hx-target` makes a contextual swap rather than ordinary page navigation.
 
-`ctx.url.route` returns a service path, not proof of a page mount or unique reverse mapping. For the current service it can resolve an unmounted view or a view mounted at several app paths. `ctx.url.uiRoute` checks enabled GET page mounts and returns null for missing parameters or multiple distinct resolved app paths. `jsx-htmx` types href as `string | undefined`, so the inline `?? undefined` converts the helper’s null result to an omitted attribute. This is only an attribute type conversion, not a valid navigation result. Diagnose required links in tests and fix the route configuration or parameters. Do not hide required-route failures with `?? "#"` or a wrapper that silently substitutes a span.
-
-Use `ctx.url.uiRoute(viewId, options)` for parameterized routes, potentially ambiguous reverse mappings, service/app path collisions, or an auth link to another service without an owning service wrapper. It resolves only enabled GET page mounts, and `absolute: true` uses the app origin. For the uniquely reversible static same-service case, use the inline `ctx.url.route` example above. In handlers the corresponding helpers are `ctx.routeUrl` and `ctx.uiRouteUrl`; those names do not exist directly on renderer context.
-
-For a parameterized detail route, keep the anchor inline:
+The resolver validates service identity, method and parameter filling separately from UI mount availability. Use `uiPath` for href/history and `absoluteViewPath` for an HTMX HTML request. Parameterized links and auth links use the same function. Assert that required destinations resolve; a null-to-undefined JSX conversion is only an attribute type conversion.
 
 ```tsx
-<a href={ctx.url.uiRoute("archive.call.detail", {
-  params: { id: c.id }, query: { tab: "recording" }
-}) ?? undefined}>{c.time}</a>
+const detail = ctx.routeUrl({ viewId: "archive.call.detail", params: { callId: "call 42" } });
+if (!detail?.uiPath) throw new Error("Call detail page is not mounted");
+<a href={detail.uiPath} hx-get={detail.absoluteViewPath ?? undefined}>Call 42</a>
 ```
 
-For service `/call/:id` mounted at app `/archive/call/:id`, this helper produces the concrete app path `/archive/call/42?tab=recording`. A service URL `/call/42` cannot be safely reverse-mapped against the shell's literal `/call/:id` entry. Test actual navigation in the mounted shell; do not assume that a parameterized link receives automatic HTMX attributes. If the same view resolves to both `/archive/call/42` and `/alternate/call/42`, `uiRoute` returns null rather than choosing one. Repair the mounts or use separately identified views; falling back to `route()` would reintroduce arbitrary selection.
+Its limited `tenant` projection contains `id`, `slug`, `title`, and `branding`. Its limited `app` projection contains `id`, `tenantId`, `slug`, `title`, `defaultRoute`, resolved `shell`, and navigation-only auth references (`serviceId`, `loginViewId`, `logoutViewId`, and configured post-auth redirects). It intentionally excludes services, routes, hostnames, origin policy, theme configuration, auth verification metadata, roles, permissions, keys, and M2M configuration. Authorization and business logic remain in the route handler.
 
-The shell owns primary app navigation and its Back control. Do not repeat a Calls/PBXs/Settings menu or Back link inside the page. Call-table links and other task-specific contextual links belong in service content. Check the active theme before adding titles, breadcrumbs, or navigation it already supplies.
-
-When scaffolding a service with navigation, add a browser test using the real mounted shell and renderer, following the [shell navigation tests](../../themes/nodejs/runtime/tests/navigation.test.ts). Assert the rendered link has no unresolved braces, click it, check the service GET and query, check the app URL, and exercise Back then Forward. Include distinct app/service origins and managed credentials for authenticated services. Stubbed URL helpers and compilation alone cannot establish shell navigation behavior.
-
-## Do not patch the platform from a consumer
-
-In a service or theme repository, BetterPortal framework/runtime packages, Config Manager, generated registries/clients/contracts, and `node_modules` are immutable. Do not patch them, hardcode runtime UUIDs or hostnames, bypass auth/allowlists, or hide contract failures behind casts. Stop, inspect this documentation and the generated contract, and re-plan with supported APIs. If support is missing, propose a separate upstream BetterPortal change rather than adding consumer-side duct tape.
-
-`ViewRenderContext` is the renderer's server-populated second argument and is never serialized automatically. Type it directly so an added `ctx` cannot silently become `any`; codegen rejects untyped, `any`, and `unknown` context parameters. This example assumes a uniquely reversible static page mount:
+`ctx.routeUrl({ component: "detail" })` selects a component on self. Use `{ viewId, component }` for another service route, and select its `viewPath`/`absoluteViewPath`. SSE fragment URLs use `{ sse: true, fragment: "body.live" }`. Auth references are view IDs resolved with the same function:
 
 ```tsx
-import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
-
-export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
-  return <a href={ctx.url.route("incidents.index") ?? undefined}>Related incidents</a>;
-}
+const login = ctx.app.auth ? ctx.routeUrl({
+  viewId: ctx.app.auth.loginViewId ?? "login.index",
+  serviceId: ctx.app.auth.serviceId,
+  query: { returnTo: ctx.routeUrl()?.uiPath }
+}) : null;
 ```
 
-Its limited `tenant` projection contains `id`, `slug`, `title`, and `branding`. Its limited `app` projection contains `id`, `tenantId`, `slug`, `title`, `defaultRoute`, resolved `shell`, and navigation-only auth references (`serviceId`, `loginViewId`, and `logoutViewId`). It intentionally excludes services, routes, hostnames, origin policy, theme configuration, auth verification metadata, roles, permissions, keys, and M2M configuration. Authorization and business logic remain in the route handler.
-
-Renderer URL helpers are `ctx.url.route()` and `ctx.url.uiRoute()`, corresponding to handler `ctx.routeUrl()` and `ctx.uiRouteUrl()`. Both accept a declared dependency alias as `serviceId` and resolve it from the server-only application route index; the raw index is not exposed to renderer code. `ctx.url.route(viewId, { component: "detail" })` selects a named component on any resolved service route; `ctx.url.current({ component: "detail" })` is the current-route shorthand. Use `{ sse: true, fragment: "body.live" }` for the route's typed `/__sse` fragment URL.
-
-Auth references are stable view IDs, never URL paths. Resolve browser navigation through the app mount:
-
-```tsx
-const loginHref = ctx.app.auth
-  ? ctx.url.uiRoute(ctx.app.auth.loginViewId ?? "login.index", {
-      serviceId: ctx.app.auth.serviceId,
-      query: { returnTo: ctx.url.current() }
-    })
-  : null;
-
-const loginAttributes = loginHref ? ctx.routeUi.link(loginHref) : {};
-```
-
-Do not add renderer-only links or platform context to the route response schema merely to make HTML rendering possible. JSON/API clients do not need that presentation plumbing.
-
-Service-rendered HTML can reference service routes with `{view.id}` tokens:
-
-```html
-<form hx-post="{example.submit}" method="post">
-<a hx-get="{profile.summary}">Profile</a>
-<button hx-download="{reports.download}">Download</button>
-```
-
-The framework rewrites tokens server-side only in service-route attributes: `href`, `action`, `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`, and `hx-download`. UI/app route mapping is not done here; themes and the shell own browser-visible paths.
-
-The emitted HTML must use a single- or double-quoted attribute whose entire value is `{view.id}`, with no whitespace, query, hash or prefix/suffix. View IDs match `[A-Za-z0-9_$.-]+`. Tokens are not general URL interpolation. For example, `<a href="{archive.call}?id=123">Call</a>` and JSX ``href={`{archive.call}?id=${c.id}`}`` remain unresolved; use `href={ctx.url.route("archive.call", { query: { id: c.id } }) ?? undefined}`. Removing HTML quotes does not resolve a token. Missing targets and token suffixes are left intact and logged without query values, so browser tests should reject unresolved tokens in these attributes. Tokens do not declare route dependencies.
+Literal `{view.id}` attribute tokens are no longer supported. Resolve routes explicitly in renderer code; build diagnostics identify old tokens and helpers before publishing.
 
 ## Downloads
 
@@ -707,11 +672,11 @@ A fragment tick renderer uses `_<location>.<id>.sse.tsx` and exports `renderTick
 import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
 
 export function renderTick(data: IncidentEvent, ctx: ViewRenderContext): HtmlRenderable {
-  const detailUrl = ctx.url.route("incidents.index", {
+  const detail = ctx.routeUrl({ viewId: "incidents.index",
     component: "incident-detail",
     query: { incidentId: data.incidentId }
   });
-  return <tr id={`incident-${data.incidentId}`} data-detail-url={detailUrl ?? ""}></tr>;
+  return <tr id={`incident-${data.incidentId}`} data-detail-url={detail?.absoluteViewPath ?? undefined}></tr>;
 }
 ```
 

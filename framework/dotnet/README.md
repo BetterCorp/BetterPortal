@@ -109,33 +109,20 @@ preserve the selected fragment/component. Callback failures return a generic 500
 `context.Cancellation` cancels callback waits; pass it to async I/O. Theme resources
 and global status renderers remain pending.
 
-Handlers and renderers receive `context.Urls`. `Route(viewId, options)` builds
-service request URLs; `UiRoute(...)` builds navigation links only for enabled
-mounted GET pages. Both resolve dependency aliases, plugin IDs and exact instance
-IDs. Missing params and ambiguous destinations return `null`. Local optional
-routes select the most specific satisfiable path. Cross-service requests merge
-fixed mount params with explicit params; navigation uses public path params.
-`Absolute = true` resolves a trusted service/app origin. These helpers neither send
-requests nor attach credentials; destinations still authorize their callers.
+Handlers and renderers use the same resolver: `context.route_url(input=None)` in Python and `context.RouteUrl(input = null)` in .NET. Supply a service `path` or `viewId`; omit both to resolve self with the current method, params and query. Explicit targets default to GET. Dependency aliases, plugin IDs and instance IDs are supported. Unknown targets, unsupported methods and missing params return `None`/`null`.
+
+The result has six wire fields: `apiPath` and `viewPath` are service-relative; `uiPath` is the mounted theme path; `absoluteApiPath` and `absoluteViewPath` use the service origin; `absoluteUiPath` is the public app URL. Component/fragment selectors affect view fields only. UI fields are null unless exactly one enabled GET page resolves; select `mountId` for a frontend alias. Resolve internal links in the renderer from domain data and cursors. API code may return a public `absoluteUiPath` link where that link is domain data.
 
 ```csharp
-using BetterPortal;
 using BetterPortal.Generated;
-
-var url = Urls.Path("/items", new() { Fragment = "nav.profile",
-    Query = new Dictionary<string, UrlScalarInput?> { ["name"] = "Hi BP", ["omit"] = null } });
-if (url != "/items?name=Hi+BP&_f=nav.profile") throw new Exception("Query changed");
-if (Urls.Form("/items", new() { Method = RouteUiOptionsInputMethod.POST, Target = "#items" })["hx-post"] != "/items") throw new Exception("Form changed");
+var request = new RouteUrlOptionsInput { Path = "/items/:id",
+    Params = new Dictionary<string, UrlScalarInput?> { ["id"] = 42 } };
+// In either callback: var destination = context.RouteUrl(request);
+// API requests use destination.AbsoluteApiPath; HTML requests use AbsoluteViewPath.
+// Navigation uses UiPath; emails and public links use AbsoluteUiPath.
 ```
 
-`Current`, `Path`, `Link`, `Form` and `CurrentUi` support query encoding,
-components, fragments, SSE URLs and HTMX attribute maps. Escape attribute values
-when writing HTML. `Element(reference)` resolves a single mounted service fragment
-or shell fragment, returning `Url`/`ServiceId` or an `Unavailable` reason. URL helpers
-retain only navigation data; credential-bearing/non-HTTP service origins and path
-traversal/network-path references are rejected. Rendered HTML rewrites quoted
-`{view.id}` tokens in supported request attributes; unresolved tokens remain.
-Use `UiRoute` for internal page anchors.
+The old string-returning route/current/path/UI helpers and literal route tokens have been removed. Update callers to select a destination field. The resolver neither sends requests nor grants access. Fragment composition remains available through the scoped element resolver; no credentials are retained in renderer navigation helpers.
 
 `RawHandler<TParams, TQuery, THeaders, TBody>` shares input validation and host
 authorization with JSON handlers. It returns `ValueTask<RawResponse>`; JSON

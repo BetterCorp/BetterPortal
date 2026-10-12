@@ -1512,8 +1512,8 @@ export function betterPortalShellRuntimeSource(): string {
           if (!form.isConnected) return false;
           if (body.challenge) {
             const challenge = body.challenge;
-            const endpoint = typeof body.accountUrl === "string" ? new URL(body.accountUrl, action) : null;
-            if (!endpoint || endpoint.origin !== new URL(action).origin || serviceIdForUrl(endpoint.href) !== context.id) throw new Error("The auth service returned an invalid verification endpoint.");
+            const endpoint = form.dataset.factorEndpoint ? new URL(form.dataset.factorEndpoint, action) : null;
+            if (!endpoint || endpoint.origin !== new URL(action).origin || serviceIdForUrl(endpoint.href) !== context.id) throw new Error("The login view has an invalid verification endpoint.");
             const proof = await factorDialog({ ...challenge, purpose: "login" });
             if (!proof) throw new Error("Sign-in verification cancelled.");
             if (!form.isConnected) return false;

@@ -199,8 +199,8 @@ def run_finite(urls, labels):
                 assert "itemSchema" in data["streaming"] and "summarySchema" not in data["streaming"], actual
                 assert data["renderable"] and data["html"]["renderers"]["bootstrap5"] == {"defaultRenderer": "default", "renderModes": ["fragment"], "slots": [], "renderers": []}, actual
             check(url, label, "metadata-" + path, body, metadata)
-        for name in ("buffered-page", "buffered-fragment", "buffered-component", "fragment-shell", "exact-theme", "sse-json-fallback", "ndjson-ignores-theme", "shell-query", "shell-percent", "shell-input", "shell-error", "item-render-error", "summary-omitted", "error-renderer", "error-renderer-fails", "render-bound", "shell-rewrite", "item-rewrite", "safe-context"):
-            mode = "sse" if name in ("sse-json-fallback", "item-render-error", "summary-omitted", "error-renderer", "error-renderer-fails", "render-bound", "item-rewrite") else "ndjson" if name == "ndjson-ignores-theme" else "html"
+        for name in ("buffered-page", "buffered-fragment", "buffered-component", "fragment-shell", "exact-theme", "sse-json-fallback", "ndjson-ignores-theme", "shell-query", "shell-percent", "shell-input", "shell-error", "item-render-error", "summary-omitted", "error-renderer", "error-renderer-fails", "render-bound", "shell-route-link", "item-route-link", "safe-context"):
+            mode = "sse" if name in ("sse-json-fallback", "item-render-error", "summary-omitted", "error-renderer", "error-renderer-fails", "render-bound", "item-route-link") else "ndjson" if name == "ndjson-ignores-theme" else "html"
             body = fixture(mode); themed(body); spec = body["routes"][0]["operations"][0]
             renderer = spec["streamRenderers"][0]
             if name.startswith("buffered-") or name == "fragment-shell":
@@ -223,8 +223,8 @@ def run_finite(urls, labels):
             if name.startswith("error-renderer"):
                 spec["finite"]["fail"] = True
                 renderer["error"] = {"text": "<p>Unavailable</p>", "throw": name.endswith("fails")}
-            if name in ("shell-rewrite", "item-rewrite"):
-                renderer["shell" if mode == "html" else "item"]["text"] = '<a href="{about.index}">Reload</a>'
+            if name in ("shell-route-link", "item-route-link"):
+                renderer["shell" if mode == "html" else "item"]["routeLink"] = "about.index"
                 about = deepcopy(body["routes"][0]); about.update(viewId="about.index", path="/about")
                 about["operations"] = [about["operations"][0]]; about["operations"][0]["declaration"]["operationId"] = "about.get"
                 body["routes"].append(about)
@@ -247,11 +247,11 @@ def run_finite(urls, labels):
                     context = html_data(actual["body"])["context"]
                     assert set(context) == {"tenant", "app", "request", "route"} and "services" not in context["tenant"], actual
                     assert context["route"]["mode"] == "fragment" and context["request"]["params"] == {"key": "item"}, actual
-                elif name == "shell-rewrite": assert actual["body"] == '<a href="/about">Reload</a>', actual
+                elif name == "shell-route-link": assert actual["body"] == '<a href="/about">Reload</a>', actual
                 else:
                     events = list(read_events(BytesIO(actual["body"].encode())))
                     if name == "summary-omitted": assert [event["event"] for event in events] == ["item"] * 3 + ["end"], actual
-                    elif name == "item-rewrite": assert events[0]["data"] == '<a href="/about">Reload</a>', actual
+                    elif name == "item-route-link": assert events[0]["data"] == '<a href="/about">Reload</a>', actual
                     else:
                         assert events[-1]["event"] == "error" and all(event["event"] == "item" for event in events[:-1]), actual
                         if name == "error-renderer": assert events[-1]["data"] == "<p>Unavailable</p>", actual

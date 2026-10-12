@@ -1,7 +1,7 @@
 /** @jsxImportSource jsx-htmx */
 import { renderChallenge } from "../../../../../accountUI.js";
 import { js } from "jsx-htmx";
-import type { HtmlRenderable } from "@betterportal/framework";
+import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../../../loginFlow.js";
 
 function loginScript(): HtmlRenderable {
@@ -50,10 +50,19 @@ function loginScript(): HtmlRenderable {
   })()`);
 }
 
-export function render(data: ResponseData): HtmlRenderable {
-  if (data.challenge) return renderChallenge(data.challenge, data.accountUrl ?? "/account");
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const account = ctx.routeUrl({ path: "/account", method: "POST" });
+  const accountPage = ctx.routeUrl({ path: "/account" });
+  const social = ctx.routeUrl({ path: "/social" });
+  const logout = ctx.routeUrl({ path: "/login", query: { action: "logout" } });
+  const requestedNext = typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined;
+  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", data.loggedOut ? undefined : requestedNext);
+  const register = ctx.routeUrl({ path: "/register", query: { next: requestedNext } });
+  if (data.challenge) {
+    if (!account?.absoluteApiPath) throw new Error("Account service route is unavailable");
+    return renderChallenge(data.challenge, account.absoluteApiPath, "login.complete", next);
+  }
   if (data.loggedOut) {
-    const next = data.nextUrl || "/";
     return (
       <div class="container py-5" style="max-width: 420px;">
         <div class="card border-0 shadow-sm">
@@ -69,14 +78,14 @@ export function render(data: ResponseData): HtmlRenderable {
 
   // Zero users -> this deployment still needs its first admin. Soft-redirect to
   // the register view in-shell; URL bar follows via hx-push-url.
-  if (data.requiresFirstAdmin && data.firstAdminUrl) {
+  if (data.requiresFirstAdmin && register?.absoluteViewPath) {
     return (
       <div
-        hx-get={data.firstAdminUrl}
+        hx-get={register.absoluteViewPath}
         hx-trigger="load"
         hx-target="#bp-main"
         hx-swap="innerHTML"
-        hx-push-url="/register"
+        hx-push-url={register.uiPath ?? false}
       >
         <div class="d-flex justify-content-center py-5">
           <div class="spinner-border" role="status"><span class="visually-hidden">Redirecting to first-admin setup...</span></div>
@@ -87,8 +96,7 @@ export function render(data: ResponseData): HtmlRenderable {
 
   // Already signed in with an explicit destination - go there immediately,
   // no interstitial. The shell maps the tenant path to its owning service.
-  if (data.alreadyLoggedIn && data.nextUrl) {
-    const next = data.nextUrl;
+  if (data.alreadyLoggedIn && requestedNext) {
     return (
       <div class="d-flex justify-content-center py-5">
         <div class="spinner-border" role="status"><span class="visually-hidden">Redirecting...</span></div>
@@ -110,10 +118,10 @@ export function render(data: ResponseData): HtmlRenderable {
             <button id="bp-login-continue" class="btn btn-primary w-100 mb-2">Continue</button>
             <button
               class="btn btn-outline-secondary w-100"
-              hx-get={data.logoutUrl || "/login?action=logout"}
+              hx-get={logout?.absoluteViewPath ?? undefined}
               hx-target="#bp-main"
               hx-swap="innerHTML"
-              hx-push-url="/login?action=logout"
+              hx-push-url={logout?.uiPath ?? false}
             >Sign out</button>
           </div>
         </div>
@@ -138,6 +146,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <p class="text-secondary text-center small mb-4">BetterPortal admin</p>
           <form
             id="bp-login-form"
+            data-factor-endpoint={account?.absoluteApiPath ?? undefined}
             hx-post="this"
             hx-headers='{"Accept":"application/json"}'
             hx-swap="none"
@@ -158,8 +167,8 @@ export function render(data: ResponseData): HtmlRenderable {
             <div class="alert alert-danger d-none" id="bp-login-error"></div>
             <button type="submit" class="btn btn-primary w-100">Sign in</button>
           </form>
-          {data.socialUrl ? <a class="d-block mt-3" href={data.socialUrl} hx-get={data.socialUrl} hx-target="#bp-main">Sign in with Google, Microsoft or GitHub</a> : null}
-          {data.accountUrl ? <a class="d-block mt-3" href={data.accountUrl} hx-get={data.accountUrl} hx-target="#bp-main">Register or recover your account</a> : null}
+          {social?.uiPath ? <a class="d-block mt-3" href={social.uiPath} hx-get={social.absoluteViewPath ?? undefined} hx-target="#bp-main">Sign in with Google, Microsoft or GitHub</a> : null}
+          {accountPage?.uiPath ? <a class="d-block mt-3" href={accountPage.uiPath} hx-get={accountPage.absoluteViewPath ?? undefined} hx-target="#bp-main">Register or recover your account</a> : null}
         </div>
       </div>
       <script>{loginScript()}</script>
