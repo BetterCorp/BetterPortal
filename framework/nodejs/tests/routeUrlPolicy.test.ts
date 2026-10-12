@@ -164,3 +164,23 @@ test("route call diagnostics and returned destinations trace BP contexts rather 
     'export default createHandler({}, request => { const alias = request; return alias.uiRouteUrl("users"); });'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
 });
+
+
+test("destructured internal fields and aliased resolvers retain lexical provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const { absoluteApiPath: endpoint } = ctx.routeUrl()!; return { endpoint }; }',
+    'export function handler(ctx) { const route = ctx.routeUrl(); const { viewPath } = route; return viewPath; }',
+    'export function handler(ctx) { const { routeUrl } = ctx; return routeUrl("users.index"); }',
+    'export function handler(ctx) { const { routeUrl: link } = ctx; return link("users.index", {}); }',
+    'export function handler(ctx) { const link = ctx.routeUrl; const alias = link; return alias("users.index"); }',
+    'export function handler(ctx) { const { routeUrl: link } = ctx; return link(); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const { absoluteUiPath: publicLink } = ctx.routeUrl()!; return { publicLink }; }',
+    'export function handler(ctx) { const { absoluteApiPath: endpoint } = providerConfig; return { endpoint }; }',
+    'export function handler(ctx) { const { routeUrl: link } = provider; return link("invoice", options); }',
+    'export function handler(ctx) { const { routeUrl } = ctx; function provider(routeUrl) { return routeUrl("invoice", options); } return provider(externalLink); }',
+    'export function handler(ctx) { const { routeUrl } = ctx; const { absoluteApiPath } = routeUrl()!; return client(absoluteApiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

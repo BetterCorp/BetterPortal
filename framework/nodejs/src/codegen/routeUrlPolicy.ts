@@ -12,6 +12,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const errors: RouteUrlPolicyError[] = [];
   const rendererFunctions = new Set<ts.Node>();
+  const selections = new Map<ts.Node, Map<string, { expression: ts.Expression; field: string; rest: boolean }>>();
   const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
   const collect = (node: ts.Node): void => {
     if (file.includes("_renderer.") && ts.isFunctionLike(node)) {
@@ -27,6 +28,18 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       while (!ts.isBlock(scope) && !ts.isSourceFile(scope)) scope = scope.parent;
       const bindings = initializers.get(scope) ?? new Map<string, ts.Expression>();
       bindings.set(node.name.text, node.initializer); initializers.set(scope, bindings);
+    }
+    if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name) && node.initializer) {
+      let scope: ts.Node = node.parent;
+      while (!ts.isBlock(scope) && !ts.isSourceFile(scope)) scope = scope.parent;
+      const bindings = selections.get(scope) ?? new Map<string, { expression: ts.Expression; field: string; rest: boolean }>();
+      for (const item of node.name.elements) {
+        if (!ts.isIdentifier(item.name)) continue;
+        const key = item.propertyName ?? item.name;
+        if (!ts.isIdentifier(key) && !ts.isStringLiteralLike(key)) continue;
+        bindings.set(item.name.text, { expression: node.initializer, field: key.text, rest: !!item.dotDotDotToken });
+      }
+      selections.set(scope, bindings);
     }
     ts.forEachChild(node, collect);
   };
@@ -65,6 +78,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isIdentifier(expression) && !seen.has(expression.text)) {
       let scope: ts.Node | undefined = expression.parent;
       while (scope) {
+        const selected = selections.get(scope)?.get(expression.text);
+        if (selected) return (selected.rest || internalPaths.has(selected.field)) && internalValue(selected.expression, new Set([...seen, expression.text]));
         const initializer = initializers.get(scope)?.get(expression.text);
         if (initializer) return internalValue(initializer, new Set([...seen, expression.text]));
         if (ts.isFunctionLike(scope) && scope.parameters.some(param => ts.isIdentifier(param.name) && param.name.text === expression.text)) break;
@@ -74,7 +89,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAccessExpression(expression) && expression.name.text === "absoluteUiPath") return false;
     if (ts.isPropertyAccessExpression(expression) && internalPaths.has(expression.name.text)) return internalValue(expression.expression, seen);
     if (ts.isCallExpression(expression) && (ts.isIdentifier(expression.expression) && expression.expression.text === "resolveAppAuthRedirect"
-      || ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === "routeUrl" && contextValue(expression.expression.expression))) return true;
+      || isResolverFunction(expression.expression))) return true;
     if (ts.isPropertyAccessExpression(expression)) return internalValue(expression.expression, seen);
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
@@ -170,6 +185,22 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     return ["ctx", "context"].includes(expression.text);
   };
+  const isResolverFunction = (expression: ts.Expression, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return isResolverFunction(expression.expression, seen);
+    if (ts.isPropertyAccessExpression(expression)) return expression.name.text === "routeUrl" && contextValue(expression.expression);
+    if (ts.isElementAccessExpression(expression)) return ts.isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === "routeUrl" && contextValue(expression.expression);
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const selected = selections.get(scope)?.get(expression.text);
+      if (selected) return selected.field === "routeUrl" && contextValue(selected.expression);
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return isResolverFunction(initializer, new Set([...seen, expression.text]));
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return false;
+      scope = scope.parent;
+    }
+    return false;
+  };
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl" && contextValue(node.expression)
       || ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === "uiRouteUrl" && contextValue(node.expression)
@@ -182,13 +213,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "url" && contextValue(node.expression.expression)) {
       report(node, "ctx.url helpers were removed. Use ctx.routeUrl({ ... }); omit the target for self.");
     }
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && contextValue(node.expression.expression)) {
-      const property = node.expression;
-      if (property.name.text === "routeUrl" && node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])
+    if (ts.isCallExpression(node) && isResolverFunction(node.expression)) {
+      if (node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])
         && node.arguments[0].properties.some(item => item.name && ["absolute", "origin"].includes(item.name.getText(tree)))) {
         report(node, "absolute/origin options were removed. Select the corresponding absolute destination field.");
       }
-      if (property.name.text === "routeUrl" && (node.arguments.length > 1 || node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]))) {
+      if ((node.arguments.length > 1 || node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]))) {
         report(node, "routeUrl no longer accepts a positional view id or returns a string. Pass one options object and select a destination field.");
       }
     }

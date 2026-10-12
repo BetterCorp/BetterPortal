@@ -16,3 +16,15 @@ test("logout preserves the requested destination and otherwise uses the app fall
   }
   assert.match(toHtmlString(render(data, context)), /href="\/fallback"/);
 });
+
+
+test("non-interactive auth responses do not require a POST service destination", () => {
+  const unavailable = { ...context, routeUrl: () => null } as ViewRenderContext;
+  const base = { status: "ok" as const, loginUI: "default" as const, scopes: [] };
+  assert.match(toHtmlString(render({ ...base, loggedOut: true }, unavailable)), /Signed out/);
+  for (const data of [{ ...base, alreadyLoggedIn: true }, { ...base, status: "error" as const, message: "Provider unavailable" }]) {
+    const html = toHtmlString(render(data, unavailable));
+    assert.doesNotMatch(html, /<form[^>]*id="bp-authress-token-form"/);
+  }
+  assert.throws(() => render(base, unavailable), /Authress login service route is unavailable/);
+});

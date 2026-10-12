@@ -8,8 +8,6 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
   const query = ctx.request.query;
   const requested = query.next ?? query.redirect;
   const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", typeof requested === "string" ? requested : undefined);
-  const login = ctx.routeUrl({ method: "POST" });
-  if (!login?.absoluteApiPath) throw new Error("Authress login service route is unavailable");
   if (data.loggedOut) {
     return (
       <div class="container py-5" style="max-width: 420px;">
@@ -24,6 +22,9 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
     );
   }
 
+  const interactive = !data.alreadyLoggedIn && data.status !== "error";
+  const login = interactive ? ctx.routeUrl({ method: "POST" }) : null;
+  if (interactive && !login?.absoluteApiPath) throw new Error("Authress login service route is unavailable");
   const nextUrl = next;
   const scopes = JSON.stringify(data.scopes?.length ? data.scopes : ["openid", "profile", "email"]);
   const loginUI = data.loginUI || "default";
@@ -41,14 +42,14 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
       data-mode={data.alreadyLoggedIn ? "signed-in" : data.status === "error" ? "error" : "login"}
     >
       <script src="https://cdn.jsdelivr.net/npm/@authress/login/dist/authress.min.js"></script>
-      <form id="bp-authress-token-form" hx-post={login.absoluteApiPath} hx-headers='{"Accept":"application/json"}' style="display:none" >
+      {login?.absoluteApiPath ? <form id="bp-authress-token-form" hx-post={login.absoluteApiPath} hx-headers='{"Accept":"application/json"}' style="display:none" >
         <input type="hidden" name="accessToken" value="" />
         <input type="hidden" name="next" value={nextUrl} />
         <input type="hidden" name="userId" value="" />
         <input type="hidden" name="name" value="" />
         <input type="hidden" name="email" value="" />
         <input type="hidden" name="picture" value="" />
-      </form>
+      </form> : null}
       <section class="bp-authress-panel">
         {!cleanLogin ? <div class="bp-authress-mark" aria-hidden="true">A</div> : null}
         <h1>Sign in</h1>
