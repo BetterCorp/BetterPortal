@@ -479,3 +479,8 @@ export function buildServiceViewUrl(
 
   return resolvedPath ? `${baseUrl}${resolvedPath}` : null;
 }
+
+/** Service-owned path template for a mounted app route. */
+export function routeMountServicePath(mount: BetterPortalApp["routes"][number]): string | undefined {
+  return mount.resolvedServicePath ?? mount.servicePathVariant ?? mount.targetPath;
+}

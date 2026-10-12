@@ -14,7 +14,7 @@ import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 
-async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false) {
+async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false, extraRoutes: Array<Record<string, unknown>> = []) {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -29,7 +29,7 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
     <html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
     <div data-bp-shell-root data-bp-menu-health="false" data-bp-auth-service="auth" data-bp-login-url="https://auth.test/login"
       data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test" } : {}) })}'
-      data-bp-routes='[{"href":"/tools/dashboard","requestUrl":"https://service.test/dashboard","serviceId":"service","kind":"page"},{"href":"/auth/login","requestUrl":"https://auth.test/login","serviceId":"auth","kind":"page"}]'>
+      data-bp-routes='${JSON.stringify([{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }, { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" }, ...extraRoutes])}'>
       <a id="menu" href="/tools/dashboard" data-bp-route-link data-bp-service="service" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
       <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
     </div><script>${asset.body}</script></body></html>` }));
@@ -470,5 +470,59 @@ test("generated JSX anchors preserve mounted queries and Back/Forward across ori
   await page.waitForSelector("#call-detail");
   assert.equal(page.url(), "https://app.test/tools/dashboard?id=call+42");
   assert.ok(requests.every(request => request.method === "GET" && request.authorization === "Bearer navigation-test"));
+  assert.deepEqual(errors, []);
+});
+
+
+test("PVE plain anchors prefer GET pages and fill parameterized mounts without concrete menu URLs", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, route => {
+    const url = new URL(route.request().url());
+    requests.push(url.pathname + url.search);
+    if (url.pathname === "/batches/1") return html(route, '<p id="batch-detail">Batch 1</p>');
+    if (url.pathname === "/batches") return html(route, '<a id="detail-link" href="/batches/1?tab=rows">Batch 1</a>');
+    return html(route, '<a id="batch-link" href="/batches">Batches</a>');
+  }, {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+    { href: "/_bp/service/service/batches", requestUrl: "https://service.test/batches", servicePath: "/batches", serviceId: "service", kind: "api", methods: ["POST"] },
+    { href: "/preview/batches", requestUrl: "https://service.test/batches", servicePath: "/batches", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/preview/batches/:batchId", servicePath: "/batches/:batchId", serviceId: "service", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#batch-link");
+  assert.equal(await page.getAttribute("#batch-link", "href"), "/preview/batches");
+  assert.equal(await page.getAttribute("#batch-link", "hx-get"), "https://service.test/batches");
+  await page.locator("#batch-link").click();
+  await page.waitForSelector("#detail-link");
+  assert.equal(await page.getAttribute("#detail-link", "href"), "/preview/batches/1?tab=rows");
+  assert.equal(await page.getAttribute("#detail-link", "hx-get"), "https://service.test/batches/1?tab=rows");
+  await page.locator("#detail-link").click();
+  await page.waitForSelector("#batch-detail");
+  assert.equal(new URL(page.url()).pathname, "/preview/batches/1");
+  assert.equal(new URL(page.url()).search, "?tab=rows");
+  assert.ok(requests.includes("/batches/1?tab=rows"));
+  await page.goBack();
+  await page.waitForSelector("#detail-link");
+  await page.goForward();
+  await page.waitForSelector("#batch-detail");
+  assert.deepEqual(errors, []);
+});
+
+test("an undeclared child path is not fabricated from a parent mount", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<a id="unknown-child" href="/dashboard/missing">Missing</a>'));
+  await page.waitForSelector("#unknown-child");
+  assert.equal(await page.getAttribute("#unknown-child", "href"), "/dashboard/missing");
+  assert.equal(await page.getAttribute("#unknown-child", "hx-get"), null);
+  assert.deepEqual(errors, []);
+});
+
+
+test("literal pages outrank parameter patterns and fixed aliases never target a different record", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<a id="create" href="/batches/new">New</a><a id="other" href="/batches/2">Other</a>'), {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+    { href: "/preview/batches/:batchId", servicePath: "/batches/:batchId", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/preview/create", servicePath: "/batches/new", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/featured", servicePath: "/batches/:batchId", fixedParams: { batchId: "1" }, serviceId: "service", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#create");
+  assert.equal(await page.getAttribute("#create", "href"), "/preview/create");
+  assert.equal(await page.getAttribute("#other", "href"), "/preview/batches/2");
   assert.deepEqual(errors, []);
 });
