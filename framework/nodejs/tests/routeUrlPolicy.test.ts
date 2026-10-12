@@ -501,3 +501,53 @@ test("source checks include nested lib and dist helper folders", () => {
     assert.ok(issues.every(issue => issue.severity === "error"));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+
+test("returned local response factories and IIFEs retain URL provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { function payload() { return { endpoint: ctx.routeUrl()?.apiPath }; } return payload(); }',
+    'export function handler(ctx) { const payload = () => ({ endpoint: ctx.routeUrl()?.apiPath }); const alias = payload; return alias(); }',
+    'export function handler(ctx) { return (() => ({ endpoint: ctx.routeUrl()?.apiPath }))(); }',
+    'export function handler(ctx) { return (async function() { return { endpoint: ctx.routeUrl()?.apiPath }; })(); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { function payload() { return { publicLink: ctx.routeUrl()?.absoluteUiPath }; } return payload(); }',
+    'export function handler(ctx) { function payload() { return client(ctx.routeUrl()?.apiPath); } return payload(); }',
+    'export function handler(ctx) { function recurse() { return recurse(); } return recurse(); }',
+    'export function handler(ctx) { const payload = () => ({ endpoint: ctx.routeUrl()?.apiPath }); function helper(payload) { return payload(); } return helper(providerPayload); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("scalar string and collection properties remain domain state", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return { pathLength: ctx.routeUrl()?.apiPath.length }; }',
+    'export function handler(ctx) { const value = ctx.routeUrl()?.apiPath; return { pathLength: value["length"] }; }',
+    'export function handler(ctx) { const paths = [ctx.routeUrl()?.apiPath]; return { count: paths.length }; }',
+    'export function handler(ctx) { const paths = new Set([ctx.routeUrl()?.apiPath]); return { count: paths.size }; }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return { endpoint: ctx.routeUrl()?.apiPath }; }').length);
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { const payload = { length: ctx.routeUrl()?.apiPath }; return { endpoint: payload.length }; }').length);
+});
+
+
+test("named callback parameters retain their caller input provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const asEntry = value => ({ endpoint: value }); return Array.from([ctx.routeUrl()?.apiPath], asEntry); }',
+    'export function handler(ctx) { function asEntry(value) { return { endpoint: value }; } const alias = asEntry; return Array.from([ctx.routeUrl()?.apiPath], alias); }',
+    'export function handler(ctx) { const asEntry = value => ({ endpoint: value }); return [ctx.routeUrl()?.apiPath].map(asEntry); }',
+    'export function handler(ctx) { return Promise.resolve(ctx.routeUrl()?.apiPath).then(value => ({ endpoint: value })); }',
+    'export function handler(ctx) { function payload(context) { return { endpoint: context.routeUrl()?.apiPath }; } return payload(ctx); }',
+    'export function handler(ctx) { function payload({ routeUrl }) { return { endpoint: routeUrl()?.apiPath }; } return payload(ctx); }',
+    'export function handler(ctx) { function payload({ apiPath }) { return { endpoint: apiPath }; } return payload(ctx.routeUrl()); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const asEntry = value => ({ publicLink: value }); return Array.from([ctx.routeUrl()?.absoluteUiPath], asEntry); }',
+    'export function handler(ctx) { function length(value) { return { count: value.length }; } return Array.from([ctx.routeUrl()?.apiPath], length); }',
+    'export function handler(ctx) { return Promise.resolve(ctx.routeUrl()?.apiPath).then(value => ({ count: value.length })); }',
+    'export function handler(ctx) { function payload(context) { return { publicLink: context.routeUrl()?.absoluteUiPath }; } return payload(ctx); }',
+    'export function handler(ctx) { function domain(value) { return client(value); } return domain(ctx.routeUrl()?.apiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
