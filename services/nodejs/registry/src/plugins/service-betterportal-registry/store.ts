@@ -25,6 +25,9 @@ export type PublishResult =
   | { status: "created" | "unchanged"; stored: StoredContract }
   | { status: "identity_conflict" | "version_conflict"; message: string };
 
+const REGISTRY_REF = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/;
+const SAFE_VERSION = /^[A-Za-z0-9][A-Za-z0-9.+-]*$/;
+
 function semverCompare(left: string, right: string): number {
   const parse = (value: string) => {
     const withoutBuild = value.split("+", 1)[0];
@@ -67,6 +70,7 @@ export class ContractRegistryStore {
 
   publish(registryRef: string, contract: BpSchemaOutput): PublishResult {
     const { pluginId, version } = contract.manifest;
+    if (!REGISTRY_REF.test(registryRef) || !SAFE_VERSION.test(version)) throw new Error("Invalid registry package path");
     const existingRef = this.index.pluginIds[pluginId];
     const entry = this.index.packages[registryRef];
     if ((existingRef && existingRef !== registryRef) || (entry && entry.pluginId !== pluginId)) {
@@ -91,10 +95,11 @@ export class ContractRegistryStore {
   }
 
   get(registryRef: string, version: string): StoredContract | null {
+    if (!REGISTRY_REF.test(registryRef)) return null;
     const entry = this.index.packages[registryRef];
     if (!entry) return null;
     const resolved = version === "latest" ? entry.versions.at(-1) : version;
-    if (!resolved) return null;
+    if (!resolved || !SAFE_VERSION.test(resolved) || !entry.versions.includes(resolved)) return null;
     const file = this.packageFile(registryRef, resolved);
     return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) as StoredContract : null;
   }

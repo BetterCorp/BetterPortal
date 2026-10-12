@@ -4,6 +4,7 @@ import { uuidv7, type BetterPortalConfig, type BetterPortalRouteMount, type Plat
 import type { Observable } from "@bsb/base";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import { renderBootstrapWizardHtml } from "./bootstrapWizardHtml.js";
+import { issueBootstrapAdminToken } from "./bootstrapAccess.js";
 import { apiRoutePath } from "./routeMounts.js";
 import type { PostgresStorage } from "./storage/postgres.js";
 
@@ -167,6 +168,16 @@ export async function registerBootstrapEndpoint(input: {
 
     const freshConfig = await input.storage.loadConfig();
     const owner = uuidv7();
+    const committedResponse = async (result: Record<string, unknown>): Promise<Response> => {
+      const tenantId = result.adminTenantId;
+      const appId = result.adminAppId;
+      if (typeof tenantId !== "string" || typeof appId !== "string" || !tenantId || !appId) {
+        return jsonResponse({ error: "Bootstrap result is incomplete" }, 409);
+      }
+      const response = jsonResponse({ ...result, bootstrapAdminToken: await issueBootstrapAdminToken(input.cpState, tenantId, appId) } as never, 200);
+      response.headers.set("Cache-Control", "no-store");
+      return response;
+    };
     const completeBootstrap = async (result: Record<string, unknown>, snapshot?: BetterPortalConfig): Promise<void> => {
       try {
         await input.postgres!.completePendingAction({ kind: "bootstrap", key: "bootstrap", owner, result }, snapshot);
@@ -182,13 +193,13 @@ export async function registerBootstrapEndpoint(input: {
         secretHash: hashBootstrapKey(body.bootstrapKey),
         owner
       });
-      if (claim.state === "completed") return jsonResponse((claim.action.result ?? { ok: true }) as unknown as never, 200);
+      if (claim.state === "completed") return committedResponse((claim.action.result ?? { ok: true }) as Record<string, unknown>);
       if (claim.state === "busy") return jsonResponse({ error: "Bootstrap is already being committed" }, 409);
       if (claim.state !== "claimed") return jsonResponse({ error: "Invalid or expired bootstrap key" }, 401);
       if (freshConfig.tenants.length > 0) {
         const result = existingBootstrapResult(freshConfig, input.cpState.issuer);
         await completeBootstrap(result);
-        return jsonResponse(result as unknown as never, 200);
+        return committedResponse(result);
       }
     } else {
       if (!state || state.consumed || state.expiresAt < Date.now() || freshConfig.tenants.length > 0) {
@@ -372,7 +383,7 @@ export async function registerBootstrapEndpoint(input: {
     input.logger.log.info("Bootstrap committed: tenant={tid} app={aid}; admin URL={adminUrl}", {
       tid: adminTenantId, aid: adminAppId, adminUrl: body.adminApp.hostname
     });
-    return jsonResponse(result as unknown as never, 200);
+    return committedResponse(result);
   });
 
 }
