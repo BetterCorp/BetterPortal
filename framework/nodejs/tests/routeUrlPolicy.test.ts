@@ -81,3 +81,19 @@ test("legacy field diagnostics follow renderer inputs and aliases with lexical s
   assert.deepEqual(inspectRouteUrlSource(file, unrelated), []);
   assert.deepEqual(inspectRouteUrlSource(file, 'export function render(data: any) { function follow(data: any) { return data.nextUrl; } return follow(provider()); }'), []);
 });
+
+
+test("handler request-building callbacks are separate from response-producing callbacks", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export default createHandler({}, async ctx => { const descriptors = items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath })); await client(descriptors); return { count: items.length }; });',
+    'export default createHandler({}, async ctx => { const descriptors = items.map(() => { return { endpoint: ctx.routeUrl()?.apiPath }; }); await client(descriptors); return { ok: true }; });',
+    'export function handler(ctx) { const helper = () => ({ endpoint: ctx.routeUrl()?.viewPath }); client(helper()); return { ok: true }; }',
+    'export default createHandler({}, ctx => client(items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath }))));'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+  for (const source of [
+    'export default createHandler({}, ctx => items.map(() => ({ endpoint: ctx.routeUrl()?.absoluteApiPath })));',
+    'export default createHandler({}, async ctx => { return storage.transaction(async tx => ({ endpoint: ctx.routeUrl()?.viewPath })); });',
+    'export default createHandler({}, ctx => storage.transaction(tx => { return { endpoint: ctx.routeUrl()?.apiPath }; }));'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+});
