@@ -150,3 +150,5 @@ Platform-root presentation grants bypass permission requirements only; the targe
 A target or swap override (including swap alone or hx-swap on bp-ok) generates the GET request attribute. Explicit swap settings are preserved during shell enhancement. Python bp_route consumes target/swap aliases and emits hx-target/hx-swap. BPRoute action methods are GET, POST, PUT, PATCH and DELETE; OPTIONS is available through ctx.route for protocol requests and is rejected as an interactive BPRoute action.
 
 Python embedding follows the same precedence: supplied success URL overrides are ignored for component/fragment insertion. A Python mutation form uses native method=post alongside its actual HTMX request method.
+
+Optional-auth operations remain reachable for anonymous users and users without the optional permission grants, matching request enforcement. A declared elevation requirement still requires a user with the requested assurance.

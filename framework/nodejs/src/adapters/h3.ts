@@ -1916,12 +1916,13 @@ async function resolveUserRequestAuth(
   return { status: 200, user: claims, callerMode: "user" };
 }
 function presentationRouteAccess(requirement: ApiAuthRequirement, user: ValidatedUserClaims | undefined, auth: H3AuthContext | undefined): RouteAccess {
-  if (!requirement.required && !requirement.elevation && requirement.permissions.length === 0) return "ok";
+  if (!requirement.required && !requirement.elevation) return "ok";
   if (!auth) return "unknown";
   if (!user) return "noauth";
   // BPRoute controls issue browser user requests, including those rendered during delegated calls.
   if (requirement.required && !(requirement.callers ?? ["user"]).includes("user")) return "noperm";
   if (requirement.elevation) { try { requireElevation(user, requirement.elevation); } catch { return "noperm"; } }
+  if (!requirement.required) return "ok";
   if (user.roles.includes(PLATFORM_ROOT_PERMISSION_ROLE_ID) && auth.platformRoot?.tenantId === user.tenantId && auth.platformRoot?.appId === user.appId) return "ok";
   if (requirement.permissions.length && !auth.appAuthConfig) return "unknown";
   const grants = expandRolesToPermissions(user.roles, auth.appAuthConfig);

@@ -944,7 +944,7 @@ test("BPRoute rejects user controls for required service/delegated-only operatio
   page.renderers = { bootstrap5: { pages: [{ rendererId: "default", type: "page", method: "GET", render: (_data, ctx) => BPRoute({ ctx, viewId: "target", children: '<bp-ok>Allowed</bp-ok><bp-noperm>Denied</bp-noperm>' }) }], components: [], fragments: [] } };
   app.routes = [page, target].map(r => ({ id: uuidv7(), kind: "page", resolvedMethods: ["GET"], path: r.path, resolvedServicePath: r.path, serviceId, viewId: r.viewId, enabled: true, operations: [r.viewId] }));
   const now = Math.floor(Date.now() / 1000);
-  const claims: JwtClaims = { iss: "test", aud: "test", sub: "root", jti: uuidv7(), iat: now, exp: now + 60, tenantId: tenant.id, appId: app.id, roles: ["*"], realm: "runtime", tokenType: "access" };
+  let claims: JwtClaims = { iss: "test", aud: "test", sub: "root", jti: uuidv7(), iat: now, exp: now + 60, tenantId: tenant.id, appId: app.id, roles: ["*"], realm: "runtime", tokenType: "access" };
   await withServer(app, { routes: [page, target] }, async baseUrl => {
     for (const callers of [["service"], ["delegated"], ["user"]] as const) {
       target.methodRoutes.GET!.auth = { required: true, permissions: [], callers: [...callers] };
@@ -957,5 +957,21 @@ test("BPRoute rejects user controls for required service/delegated-only operatio
     const elevated = await fetch(baseUrl + "/page", { headers: { Authorization: "Bearer valid", Accept: "text/html" } });
     assert.equal(elevated.status, 200);
     assert.match(await elevated.text(), /data-bp-state="noperm"/);
+    target.methodRoutes.GET!.auth = { required: false, permissions: [{ serviceId, viewId: "target", permissions: ["read"] }] };
+    page.methodRoutes.GET!.auth = { required: false, permissions: [] };
+    claims = { ...claims, roles: [] };
+    for (const headers of [{ Accept: "text/html" }, { Accept: "text/html", Authorization: "Bearer valid" }]) {
+      const optional = await fetch(baseUrl + "/page", { headers });
+      assert.equal(optional.status, 200);
+      assert.match(await optional.text(), /data-bp-state="ok"/);
+      const actual = await fetch(baseUrl + "/target", { headers: { ...headers, Accept: "application/json" } });
+      assert.equal(actual.status, 200);
+    }
+    target.methodRoutes.GET!.auth.elevation = { minimum: "mfa" };
+    const anonymousElevation = await fetch(baseUrl + "/page", { headers: { Accept: "text/html" } });
+    assert.match(await anonymousElevation.text(), /data-bp-state="noauth"/);
+    claims = { ...claims, elevation: { assurance: "mfa", verifiedAt: now, expiresAt: now + 60 } };
+    const optionalElevated = await fetch(baseUrl + "/page", { headers: { Authorization: "Bearer valid", Accept: "text/html" } });
+    assert.match(await optionalElevated.text(), /data-bp-state="ok"/);
   }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, platformRoot: { tenantId: tenant.id, appId: app.id } }) } });
 });
