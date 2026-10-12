@@ -196,7 +196,7 @@ public sealed class Urls
         }
         else
         {
-            var candidates = mounts.Where(item => item["enabled"] is true && ids.Contains((string)item["serviceId"]!)
+            var candidates = mounts.Where(item => ServicePath(item) is not null && item["enabled"] is true && ids.Contains((string)item["serviceId"]!)
                 && ((List<object?>)item.GetValueOrDefault("resolvedMethods", new List<object?>())!).Contains(method)
                 && (!opts.TryGetValue("mountId", out var id) || Equals(id, item["id"]))
                 && (viewId is not null ? (string)item["viewId"]! == viewId : selector is not null && ServicePath(item) is string template && Parameters(template, selector) is not null))
