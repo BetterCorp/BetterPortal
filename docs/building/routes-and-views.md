@@ -759,3 +759,5 @@ Renderer selection uses the explicit `component` or `fragment` option. Reserved 
 `sse: true` resolves only a known registered GET SSE/finite-stream endpoint on the current service. Ordinary routes, non-GET methods and dependency mounts without streaming capability return null instead of a guessed stream URL.
 
 Embedded query values may contain raw question marks, for example `/items?q=what?x&next=/a?b`; the resolver preserves and encodes the complete values before applying query overrides.
+
+A dependency mount without a resolved service path cannot identify a service endpoint, so resolution returns null rather than guessing or throwing.

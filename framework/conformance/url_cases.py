@@ -150,6 +150,10 @@ def run_urls(urls, labels):
     case("self-post", None, resolved("/check/item?hello=world"), self_post)
     case("selector-conflict", {"viewId": "check", "params": {"key": "item"}, "component": "card", "fragment": "nav.profile"}, None)
     case("dependency", {"viewId": "docs.index", "serviceId": "docs"}, resolved("/content/intro", ui="/docs/intro", origin="https://other.test"))
+    def missing_dependency_path(body):
+        mount = body["snapshot"]["apps"][0]["appRoutes"][1]
+        for key in ("resolvedServicePath", "servicePathVariant", "targetPath"): mount.pop(key, None)
+    case("dependency-missing-service-path", {"viewId": "docs.index", "serviceId": "docs"}, None, missing_dependency_path)
     case("dependency-path", {"path": "/content/:slug", "serviceId": "docs"}, resolved("/content/intro", ui="/docs/intro", origin="https://other.test"))
     case("disabled-provider", {"viewId": "docs.index", "serviceId": "docs"}, None,
          lambda body: body["snapshot"]["tenants"][0]["services"][1].update(enabled=False))
