@@ -372,3 +372,7 @@ Menu visibility does not replace service-side authorization.
 The authoring gate checks response-producing promise continuations as well as synchronous returns. Framework auth redirect helpers are identified by their imports and aliases; unrelated provider helpers may use the same name. Keep internal destinations out of these API response paths and resolve them in the view.
 
 Destructuring a handler context does not bypass the routing migration check. Returned reduction accumulators and their initial values are checked for internal destinations; domain clients may consume those destinations without returning them to views.
+
+Response callback checks follow local named functions and lexical aliases. Transparent iterable constructors such as URLSearchParams/Headers retain destination provenance when serialized; public links and unrelated provider constructors remain valid.
+
+The source check includes helper folders named `lib` or `dist` beneath `src`; package build output lives outside the scanned source root.

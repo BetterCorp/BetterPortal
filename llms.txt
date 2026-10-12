@@ -681,7 +681,7 @@ If you add a custom HX-* header to a response, ensure it's in `exposeHeaders` (i
 - Skips elements with `data-bp-no-route=""` - use this on theme-shell elements that always target the theme itself (style, brand, nav, fragments wrappers).
 - Rewrites internal page anchors through their `kind: "page"` app mount. Service renderers must not use API/service paths as anchor destinations.
 
-Always write hx-* paths as relative. Never hardcode `http://localhost:3300/...`.
+Resolve hx-* destinations with `ctx.routeUrl` in the renderer. Use `absoluteViewPath` for HTML requests and `absoluteApiPath` for JSON actions; do not hand-write hostnames such as `http://localhost:3300/...`.
 
 ### 13c. Live refresh via HX-Trigger
 
@@ -726,7 +726,7 @@ form.requestSubmit();  // HTMX handles submit; hidden fields are not validated b
 
 This pattern transports an already validated computed payload. Hidden inputs are barred from HTML constraint validation: `reportValidity()` and `requestSubmit()` do not check their requiredness, range or pattern. Validate computed values against the published input contract before assigning them, and always validate again on the server. Prefer visible, constraint-validatable controls when the browser should enforce the schema.
 
-Form's relative hx-post gets rewritten by `resolveServiceLinks` to the correct origin. Avoids hardcoding URLs in JS. Never invoke this pattern during rendering, initialization, draft restoration or history/preload insertion. Recalculation and final submission are explicit handler intents; validation failure or cancellation must not leave a one-shot action flag for the next edit.
+Resolve the form's hx-post with `ctx.routeUrl` and select `absoluteViewPath` for HTML submission. Relative service links can still be rewritten by `resolveServiceLinks`; resolved absolute service destinations are already correct. Avoid hardcoding hostnames in JS. Never invoke this pattern during rendering, initialization, draft restoration or history/preload insertion. Recalculation and final submission are explicit handler intents; validation failure or cancellation must not leave a one-shot action flag for the next edit.
 
 ### 13e. Idempotent body-delegated handlers
 
@@ -911,7 +911,7 @@ All admin write operations emit `HX-Trigger` events so live regions in the theme
 ## 17. Common gotchas
 
 - **Adding a new bp-route doesn't auto-register.** You must run `bp-codegen` (or restart with a build that runs it).
-- **`hx-post` to absolute URL bypasses rewriting.** Always use relative paths in JSX; let the runtime rewrite.
+- **Use resolver destinations for `hx-post`.** `ctx.routeUrl` provides the correct absolute service destination. Use `absoluteViewPath` for HTML requests and `absoluteApiPath` for JSON actions; avoid hand-written hostnames. Relative service paths still support runtime rewriting.
 - **Cross-origin `HX-Trigger` requires `exposeHeaders`.** Browsers strip headers not in `Access-Control-Expose-Headers`. Update `plugins/nodejs/betterportal-bsb/src/service.ts` if you add new HX-* response headers.
 - **Schema validation is concrete.** Adding a new field to a config or response requires updating the `av.object({...})` and rebuilding. Unknown keys are stripped by default; use `unknownKeys: "reject"` when extra fields must fail. Never use `unknownKeys: "allow"`.
 - **Menu data model.** Items can be `link | group | external | section | divider` and may nest to 32 levels; deeper or circular menus are rejected.

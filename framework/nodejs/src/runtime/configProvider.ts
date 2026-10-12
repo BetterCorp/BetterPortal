@@ -378,7 +378,7 @@ export function safeServiceBaseUrl(service: { hostname: string } | { endpointBas
   try {
     const parsed = new URL(serviceBaseUrl(service));
     if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) return undefined;
-    return `${parsed.origin}${parsed.pathname}`;
+    return `${parsed.origin}${parsed.pathname === "/" ? "" : parsed.pathname}`;
   } catch { return undefined; }
 }
 

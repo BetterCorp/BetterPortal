@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { inspectRouteUrlSource } from "../src/codegen/routeUrlPolicy.js";
+import { inspectRouteUrlSource, checkProjectRouteUrls } from "../src/codegen/routeUrlPolicy.js";
 
 test("build rejects old helpers and URL payloads even with any-typed contexts", () => {
   for (const source of [
@@ -456,4 +456,48 @@ test("reductions inspect returned accumulators and initial response values", () 
     'export function handler(ctx) { const requests = items.reduce(payload => ({ ...payload, endpoint: ctx.routeUrl()?.apiPath }), {}); return client(requests); }',
     'export function handler(ctx) { return items.reduce(payload => ({ count: payload.count + Number(Boolean(ctx.routeUrl()?.apiPath)) }), { count: 0 }); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+
+test("named and aliased response callbacks are inspected", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return task.then(build); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); const alias = build; return task.then(alias); }',
+    'export function handler(ctx) { function build() { return { endpoint: ctx.routeUrl()?.apiPath }; } return task.catch(build); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return items.map(build); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return items.reduce(build, {}); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const build = () => ({ publicLink: ctx.routeUrl()?.absoluteUiPath }); return task.then(build); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); function helper(build) { return task.then(build); } return helper(providerBuild); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return client(task.then(build)); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("transparent iterable constructors retain URL provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const expression of [
+    'Object.fromEntries(new URLSearchParams({ endpoint: ctx.routeUrl()?.apiPath ?? "" }))',
+    'Object.fromEntries(new Headers({ endpoint: ctx.routeUrl()?.apiPath ?? "" }))'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { return Response.json(${expression}); }`).length, expression);
+  for (const source of [
+    'export function handler(ctx) { return Object.fromEntries(new URLSearchParams({ publicLink: ctx.routeUrl()?.absoluteUiPath ?? "" })); }',
+    'import { URLSearchParams } from "provider"; export function handler(ctx) { return new URLSearchParams(ctx.routeUrl()?.apiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+
+test("source checks include nested lib and dist helper folders", () => {
+  const root = mkdtempSync(join(tmpdir(), "bp-nested-route-check-"));
+  try {
+    for (const directory of ["src/lib", "src/plugins/example/lib", "src/dist"]) {
+      mkdirSync(join(root, directory), { recursive: true });
+      writeFileSync(join(root, directory, "helper.ts"), 'import { createHandler } from "@betterportal/framework"; export const handle = createHandler({}, ctx => ctx.routeUrl("legacy"));');
+    }
+    const issues = checkProjectRouteUrls(join(root, "src"));
+    for (const directory of ["src/lib", "src/plugins/example/lib", "src/dist"])
+      assert.ok(issues.some(issue => issue.file.startsWith(join(root, directory, "helper.ts"))));
+    assert.ok(issues.every(issue => issue.severity === "error"));
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
