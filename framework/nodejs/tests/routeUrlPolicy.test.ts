@@ -896,3 +896,16 @@ test("static spreads expand before call apply and bound callback parameter mappi
     'const helpers = { payload: (value => ({ endpoint: value })).bind(null, "safe") }; return Promise.resolve(ctx.routeUrl()?.apiPath).then(helpers.payload);'
   ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
 });
+
+
+test("pass-through then and finally retain rejection reasons until recovery", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Promise.reject(ctx.routeUrl()?.apiPath).then(() => ({ status: "ready" })).catch(endpoint => ({ endpoint }));',
+    'return Promise.reject(ctx.routeUrl()?.apiPath).then(null, undefined).finally(() => {}).catch(endpoint => ({ endpoint }));'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'return Promise.reject(ctx.routeUrl()?.apiPath).then(null, () => ({ status: "ready" })).catch(endpoint => ({ endpoint }));',
+    'return Promise.reject(ctx.routeUrl()?.apiPath).catch(() => ({ status: "ready" })).catch(endpoint => ({ endpoint }));'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});

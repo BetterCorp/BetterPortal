@@ -31,3 +31,5 @@ The authoring gate follows explicitly rejected promise reasons into recovery cal
 Bound callback arguments precede caller-supplied promise/collection inputs during source checks. Explicit rejection reasons also follow local recovery parameters, preserving safe recovery without overlooking returned destinations.
 
 Statically known spread arguments are expanded before call/apply/bind parameter mapping, including bound callbacks stored in known object fields.
+
+Rejection provenance passes through `then` calls without rejection handlers and through `finally`, stopping when a rejection handler recovers.

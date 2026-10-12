@@ -281,6 +281,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     const next = new Set([...seen, expression]);
     if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression)
       && isGlobal(expression.expression.expression, "Promise") && expression.expression.name.text === "reject") return expression.arguments[0];
+    if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression)) {
+      const operation = expression.expression.name.text;
+      const handler = expression.arguments[operation === "then" ? 1 : 0];
+      if (operation === "finally" || ["then", "catch"].includes(operation)
+        && (!handler || handler.kind === ts.SyntaxKind.NullKeyword || isGlobal(handler, "undefined"))) return rejectedValue(expression.expression.expression, next);
+    }
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return rejectedValue(expression.expression, next);
     if (ts.isIdentifier(expression)) {
       let scope: ts.Node | undefined = expression.parent;
