@@ -815,3 +815,18 @@ test("returned object descriptors and fill arrays retain internal destinations",
     'const Object = client; return Object.create(null, { endpoint: { value: ctx.routeUrl()?.apiPath } });'
   ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
 });
+
+
+test("BP context response bodies retain destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return ctx.response(ctx.routeUrl()?.apiPath);',
+    'return ctx.response(JSON.stringify({ endpoint: ctx.routeUrl()?.viewPath }));',
+    'const context = ctx; return context.response({ endpoint: context.routeUrl()?.uiPath });'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'return ctx.response({ publicLink: ctx.routeUrl()?.absoluteUiPath });',
+    'return client.response(ctx.routeUrl()?.apiPath);',
+    'return ctx.response({ status: "ready" });'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});

@@ -406,3 +406,5 @@ The authoring check recognizes statically named computed properties in destructu
 Local object response factories and values returned by array `splice()` retain destination provenance. Selecting only domain values, removing no values, public links and opaque domain-client results remain valid.
 
 Returned standard object descriptor factories and array mutation results preserve internal destination provenance. Local object methods are resolved before standard-operation names, leaving domain-client methods and public links valid.
+
+BP `ctx.response()` bodies participate in the same authoring checks as `Response` and JSON response helpers; public links and domain data remain valid.

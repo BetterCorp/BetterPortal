@@ -504,7 +504,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         }
         return (operation === "catch" || !expression.arguments[0]) && internalValue(expression.expression.expression, seen);
       }
-      if (isResponseConstructor(expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
+      if (isResponseConstructor(expression.expression) || ts.isPropertyAccessExpression(expression.expression)
+        && expression.expression.name.text === "response" && contextValue(expression.expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && ["map", "flatMap", "reduce", "reduceRight"].includes(expression.expression.name.text)) {
         if (["reduce", "reduceRight"].includes(expression.expression.name.text) && expression.arguments[1] && internalValue(expression.arguments[1], seen)) return true;
         const callback = resolveCallback(expression.arguments[0]);
