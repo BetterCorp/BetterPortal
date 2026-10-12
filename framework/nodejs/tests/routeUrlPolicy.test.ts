@@ -256,3 +256,23 @@ test("standard cloning preserves response provenance without rejecting domain cl
     'export function handler(ctx) { const structuredClone = client; return structuredClone({ endpoint: ctx.routeUrl()?.apiPath }); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("array operations preserve returned values without tainting predicate-only URL use", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const operation of ['filter(Boolean)', 'slice(0)', 'sort()', 'reverse()', 'toSorted()', 'toReversed()', 'flat()', 'concat([])', 'with(0, "replacement")', 'toSpliced(0, 1)']) {
+    const source = `export function handler(ctx) { const endpoints = [ctx.routeUrl()?.apiPath]; return endpoints.${operation}; }`;
+    assert.ok(inspectRouteUrlSource(file, source).length, source);
+  }
+  for (const source of [
+    'export function handler(ctx) { return [ctx.routeUrl()?.viewPath].filter(Boolean); }',
+    'export function handler(ctx) { return [].concat(ctx.routeUrl()?.absoluteApiPath); }',
+    'export function handler(ctx) { return [].with(0, ctx.routeUrl()?.viewPath); }',
+    'export function handler(ctx) { return [].toSpliced(0, 0, ctx.routeUrl()?.viewPath); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return [ctx.routeUrl()?.absoluteUiPath].filter(Boolean); }',
+    'export function handler(ctx) { return items.filter(() => ctx.routeUrl()?.apiPath !== null); }',
+    'export function handler(ctx) { return items.sort(() => ctx.routeUrl() ? 1 : -1); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

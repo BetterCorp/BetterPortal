@@ -114,6 +114,13 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         if (expression.expression.name.text === "assign") return expression.arguments.some(argument => internalValue(argument, seen));
         if (expression.expression.name.text === "fromEntries") return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       }
+      if (ts.isPropertyAccessExpression(expression.expression)) {
+        const operation = expression.expression.name.text;
+        if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat"].includes(operation)) return internalValue(expression.expression.expression, seen);
+        if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
+        if (["with", "toSpliced"].includes(operation)) return internalValue(expression.expression.expression, seen)
+          || expression.arguments.slice(operation === "with" ? 1 : 2).some(argument => internalValue(argument, seen));
+      }
       if (isResponseConstructor(expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && ["map", "flatMap"].includes(expression.expression.name.text)) {
         const callback = expression.arguments[0];
