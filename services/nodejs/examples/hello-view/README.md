@@ -21,3 +21,5 @@ For a request such as `?tag=a&tag=b`, `ctx.routeUrl()` preserves both tags; `ctx
 Renderer selection uses the explicit `component` or `fragment` option. Reserved `_c`/`_f` keys in query input, supplied paths, or the current request are removed before resolution; only view destinations receive an explicit selector. API and mounted page destinations remain free of renderer selectors.
 
 The authoring gate checks response-producing promise continuations as well as synchronous returns. Framework auth redirect helpers are identified by their imports and aliases; unrelated provider helpers may use the same name. Keep internal destinations out of these API response paths and resolve them in the view.
+
+Destructuring a handler context does not bypass the routing migration check. Returned reduction accumulators and their initial values are checked for internal destinations; domain clients may consume those destinations without returning them to views.
