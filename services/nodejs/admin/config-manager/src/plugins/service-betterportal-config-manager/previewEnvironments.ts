@@ -680,8 +680,8 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
         const generatedPath = kind === "page" ? pageRoutePath(manifest.serviceId, servicePath) : apiRoutePath(manifest.serviceId, servicePath);
         const validPrevious = previous && mountSuppliesServiceParams(previous.path, servicePath, previous.fixedParams);
         const path = kind === "page" && validPrevious ? previous.path : generatedPath;
-        if (previous && path !== previous.path && app.routes.some(route => route.id !== previous.id && route.enabled
-          && appRoutePatternKey(route.path) === appRoutePatternKey(path))) {
+        if (previous && path !== previous.path && [...app.routes, ...desired].some(route => route.id !== previous.id
+          && (route.kind ?? "page") === kind && appRoutePatternKey(route.path) === appRoutePatternKey(path))) {
           throw new PreviewEnvironmentError(`Cannot repair preview route ${previous.viewId}: UI path ${path} is already mounted`, 409);
         }
         desired.push({

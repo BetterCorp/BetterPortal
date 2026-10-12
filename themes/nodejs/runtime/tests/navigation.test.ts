@@ -26,7 +26,7 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
   await page.route("https://service.test/**", respond);
   await page.route("https://auth.test/**", respond);
   await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html>
-    <html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
+    <html><head><meta charset="utf-8"><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
     <div data-bp-shell-root data-bp-menu-health="false" data-bp-auth-service="auth" data-bp-login-url="https://auth.test/login"
       data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test" } : {}) })}'
       data-bp-routes='${JSON.stringify([{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }, { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" }, ...extraRoutes])}'>
@@ -524,5 +524,19 @@ test("literal pages outrank parameter patterns and fixed aliases never target a 
   await page.waitForSelector("#create");
   assert.equal(await page.getAttribute("#create", "href"), "/preview/create");
   assert.equal(await page.getAttribute("#other", "href"), "/preview/batches/2");
+  assert.deepEqual(errors, []);
+});
+
+
+test("plain anchors match encoded Unicode and spaces in literal service paths", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<a id="unicode" href="/caf%C3%A9">Cafe</a><a id="space" href="/orders%20today">Orders</a>'), {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+    { href: "/preview/café", servicePath: "/café", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/preview/orders today", servicePath: "/orders today", serviceId: "service", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#unicode");
+  for (const [id, service, ui] of [["unicode", "/caf%C3%A9", "/preview/caf%C3%A9"], ["space", "/orders%20today", "/preview/orders%20today"]]) {
+    assert.equal(new URL((await page.getAttribute("#" + id, "href"))!, "https://app.test").pathname, ui);
+    assert.equal(new URL((await page.getAttribute("#" + id, "hx-get"))!).pathname, service);
+  }
   assert.deepEqual(errors, []);
 });

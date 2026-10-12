@@ -1209,13 +1209,15 @@ export function betterPortalShellRuntimeSource(): string {
         const names = normalizePath(template).split("/");
         const values = normalizePath(path).split("/");
         if (names.length !== values.length) return null;
-        const params: Record<string, string> = {};
+        const params: Record<string, string> = Object.create(null);
         for (let index = 0; index < names.length; index++) {
           const name = names[index].startsWith(":") ? names[index].slice(1)
             : /^\{[^}]+\}$/.test(names[index]) ? names[index].slice(1, -1) : null;
           if (name) {
             try { params[name] = decodeURIComponent(values[index]); } catch { return null; }
-          } else if (names[index] !== values[index]) return null;
+          } else {
+            try { if (decodeURIComponent(names[index]) !== decodeURIComponent(values[index])) return null; } catch { return null; }
+          }
         }
         return params;
       };
