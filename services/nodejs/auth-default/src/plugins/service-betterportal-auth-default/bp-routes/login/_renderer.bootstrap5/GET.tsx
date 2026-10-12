@@ -14,7 +14,7 @@ function loginScript(): HtmlRenderable {
     // the correct HX-Location post-login.
     const nextInput = form.querySelector('input[name="next"]');
     if (nextInput) {
-      nextInput.value = new URLSearchParams(window.location.search).get("next") || "";
+      nextInput.value = new URLSearchParams(window.location.search).get("next") || nextInput.value;
     }
     form.addEventListener("htmx:before:request", () => {
       const errEl = document.getElementById("bp-login-error");
@@ -115,7 +115,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
           <div class="card-body text-center">
             <h3 class="card-title mb-1">Already signed in</h3>
             <p class="text-secondary small mb-4">You are signed in as <strong>{displayName}</strong>.</p>
-            <button id="bp-login-continue" class="btn btn-primary w-100 mb-2">Continue</button>
+            <button id="bp-login-continue" data-next={next} class="btn btn-primary w-100 mb-2">Continue</button>
             <button
               class="btn btn-outline-secondary w-100"
               hx-get={logout?.absoluteViewPath ?? undefined}
@@ -129,9 +129,10 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
           // Honour ?next= the same way the login form does, and soft-navigate
           // inside the shell. The shell's config_request hook maps the tenant
           // path to its owning service origin.
-          const next = new URLSearchParams(window.location.search).get("next") || "/";
-          document.getElementById("bp-login-continue")?.addEventListener("click", () => {
-            window.htmx.ajax("GET", next, { target: "#bp-main", swap: "innerHTML", push: next });
+          const button = document.getElementById("bp-login-continue");
+          const next = button?.dataset.next;
+          button?.addEventListener("click", () => {
+            if (next) window.htmx.ajax("GET", next, { target: "#bp-main", swap: "innerHTML", push: next });
           });
         })()`)}</script>
       </div>
@@ -163,7 +164,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
               <label class="form-label">Password *</label>
               <input type="password" class="form-control" name="password" autocomplete="current-password" required />
             </div>
-            <input type="hidden" name="next" value="" />
+            <input type="hidden" name="next" value={next} />
             <div class="alert alert-danger d-none" id="bp-login-error"></div>
             <button type="submit" class="btn btn-primary w-100">Sign in</button>
           </form>
