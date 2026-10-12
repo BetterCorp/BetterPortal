@@ -11,9 +11,6 @@ test("build rejects old helpers and URL payloads even with any-typed contexts", 
     'const ctx: any = {}; ctx.uiRouteUrl("users.index");',
     'const ctx: any = {}; ctx.url.route("users.index");',
     'const ctx: any = {}; ctx.routeUrl("users.index", {});',
-    'const data: any = {}; data.accountUrl;',
-    'const data: any = {}; data["nextUrl"];',
-    'const { loginUrl } = data;',
     'export function handler(ctx: any) { const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin"); return { nextUrl }; }',
     'export function handler(ctx: any) { return { destination: ctx.routeUrl() }; }',
     'export function handler(ctx: any) { const target = ctx.routeUrl(); return { endpoint: target.apiPath }; }',
@@ -65,4 +62,22 @@ test("renderer utilities can return route attributes while API callbacks reject 
   assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", direct).length);
   assert.deepEqual(inspectRouteUrlSource("rendering/linkProps.ts", direct), []);
   assert.deepEqual(inspectRouteUrlSource("rendering/links.ts", 'export function handle(ctx) { return { href: ctx.routeUrl()?.uiPath }; }'), []);
+});
+
+
+test("legacy field diagnostics follow renderer inputs and aliases with lexical scope", () => {
+  const file = "bp-routes/users/_renderer.bootstrap5/GET.tsx";
+  for (const source of [
+    'export function render(payload: any, ctx: any) { return payload.accountUrl; }',
+    'export const render = (payload: any, ctx: any) => payload["nextUrl"];',
+    'export function render(payload: any) { const response = payload; const { loginUrl } = response; return loginUrl; }',
+    'export function render({ sessionNextUrl }: any) { return sessionNextUrl; }',
+    'export function render({ loginUrl: signIn }: any) { return signIn; }',
+    'export function render(data: any) { const payload = data as any; const { nextUrl: next } = payload; return next; }',
+    'export function render(data: any) { return (data as any).accountUrl; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  const unrelated = 'function follow(data: any) { return data.nextUrl; } function use(result: any) { return result.loginUrl; } function external(response: any) { const { nextUrl } = response; return nextUrl; }';
+  assert.deepEqual(inspectRouteUrlSource("providers/oauth.ts", unrelated), []);
+  assert.deepEqual(inspectRouteUrlSource(file, unrelated), []);
+  assert.deepEqual(inspectRouteUrlSource(file, 'export function render(data: any) { function follow(data: any) { return data.nextUrl; } return follow(provider()); }'), []);
 });

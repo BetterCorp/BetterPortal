@@ -11,10 +11,17 @@ const internalPaths = new Set(["apiPath", "viewPath", "uiPath", "absoluteApiPath
 export function inspectRouteUrlSource(file: string, source: string): RouteUrlPolicyError[] {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const errors: RouteUrlPolicyError[] = [];
-  const payloads = new Set(["data", "result", "response"]);
+  const rendererFunctions = new Set<ts.Node>();
   const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
   const collect = (node: ts.Node): void => {
-    if (file.includes("_renderer.") && ts.isFunctionDeclaration(node) && node.name?.text === "render" && node.parameters[0] && ts.isIdentifier(node.parameters[0].name)) payloads.add(node.parameters[0].name.text);
+    if (file.includes("_renderer.") && ts.isFunctionLike(node)) {
+      const declaration = ts.isVariableDeclaration(node.parent) ? node.parent : undefined;
+      const name = ts.isFunctionDeclaration(node) ? node.name?.text : declaration && ts.isIdentifier(declaration.name) ? declaration.name.text : undefined;
+      const owner = declaration?.parent.parent;
+      const exported = ts.isFunctionDeclaration(node) ? ts.getModifiers(node)?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
+        : owner && ts.isVariableStatement(owner) && ts.getModifiers(owner)?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword);
+      if (name?.startsWith("render") && exported) rendererFunctions.add(node);
+    }
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       let scope: ts.Node = node.parent;
       while (!ts.isBlock(scope) && !ts.isSourceFile(scope)) scope = scope.parent;
@@ -24,6 +31,22 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     ts.forEachChild(node, collect);
   };
   collect(tree);
+  const rendererPayload = (expression: ts.Node, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)
+      || ts.isNonNullExpression(expression) || ts.isSatisfiesExpression(expression)) return rendererPayload(expression.expression, seen);
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return rendererPayload(initializer, new Set([...seen, expression.text]));
+      if (ts.isFunctionLike(scope) && scope.parameters.some(param => ts.isIdentifier(param.name) && param.name.text === expression.text)) {
+        const input = scope.parameters[0]?.name;
+        return rendererFunctions.has(scope) && input !== undefined && ts.isIdentifier(input) && input.text === expression.text;
+      }
+      scope = scope.parent;
+    }
+    return false;
+  };
   const report = (node: ts.Node, message: string) => {
     const position = tree.getLineAndCharacterOfPosition(node.getStart(tree));
     errors.push({ file: `${file}:${position.line + 1}:${position.character + 1}`, message, severity: "error" });
@@ -116,13 +139,17 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     let field: string | undefined;
     if (ts.isPropertyAccessExpression(node)) field = node.name.text;
     if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node) || ts.isBindingElement(node)) && node.name && (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name))) field = node.name.text;
+    if (ts.isBindingElement(node) && node.propertyName && (ts.isIdentifier(node.propertyName) || ts.isStringLiteralLike(node.propertyName))) field = node.propertyName.text;
     if (ts.isElementAccessExpression(node) && node.argumentExpression && ts.isStringLiteralLike(node.argumentExpression)) field = node.argumentExpression.text;
     const payloadAccess = (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))
-      && ts.isIdentifier(node.expression) && payloads.has(node.expression.text);
+      && rendererPayload(node.expression);
     const payloadBinding = ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)
       && ts.isVariableDeclaration(node.parent.parent) && node.parent.parent.initializer
-      && ts.isIdentifier(node.parent.parent.initializer) && payloads.has(node.parent.parent.initializer.text);
-    if (field && legacyFields.has(field) && (payloadAccess || payloadBinding)) report(node, `Legacy internal URL field '${field}' was removed. Return domain data/cursors and resolve destinations in the renderer.`);
+      && rendererPayload(node.parent.parent.initializer);
+    const payloadParameter = ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)
+      && ts.isParameter(node.parent.parent) && rendererFunctions.has(node.parent.parent.parent)
+      && ts.isFunctionLike(node.parent.parent.parent) && node.parent.parent.parent.parameters[0] === node.parent.parent;
+    if (field && legacyFields.has(field) && (payloadAccess || payloadBinding || payloadParameter)) report(node, `Legacy internal URL field '${field}' was removed. Return domain data/cursors and resolve destinations in the renderer.`);
     if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) && inReturnedObject(node) && internalValue(ts.isPropertyAssignment(node) ? node.initializer : node.name)) {
       report(node, "Do not return internal route paths as API response fields. Resolve them at the point of use; only public absoluteUiPath links belong in domain responses.");
     }
