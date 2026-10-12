@@ -82,11 +82,14 @@ test("login account limits normalize padding and case across different peers", a
   const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
   const authenticate = t.mock.method(identity, "authenticate", async () => undefined);
   let status = 0;
+  let diagnostic: { code: string; reason: string } | undefined;
   for (let i = 0; i < 11; i++) {
     const req = new Request("https://auth.test/login"); Object.assign(req, { ip: `192.0.2.${i + 1}` });
     await handlePost({ tenant: { id: scope.tenantId }, app: { id: scope.appId }, rawEvent: { req }, request: { username: " ".repeat(i) + "Alice@Example.COM" + " ".repeat(i), password: "incorrect" },
-      plugin: { runtime: { identity, policy: async () => policy } }, setStatus: (value: number) => { status = value; } } as never);
+      plugin: { runtime: { identity, policy: async () => policy } }, diagnostic: (value: typeof diagnostic) => { diagnostic = value; }, setStatus: (value: number) => { status = value; } } as never);
     assert.equal(status, i < 10 ? 401 : 429);
+    assert.equal(diagnostic?.code, i < 10 ? "auth.login.invalid_credentials" : "auth.login.rate_limited");
+    assert.ok(!JSON.stringify(diagnostic).includes("Alice@Example.COM"));
   }
   assert.equal(authenticate.mock.callCount(), 10);
 });
@@ -554,7 +557,7 @@ test("app administrators cannot mutate shared tenant accounts; direct roles stay
   let status = 200;
   const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
     request: { action: "disable", id: target.id } as Record<string, unknown>, setStatus: (code: number) => { status = code; } };
-  for (const action of ["disable", "sessions.revoke", "group.save", "group.delete"]) {
+  for (const action of ["disable", "sessions.revoke", "verification.link", "group.save", "group.delete"]) {
     ctx.request.action = action;
     assert.equal((await manage(ctx as never)).status, "error"); assert.equal(status, 403);
   }
@@ -569,6 +572,76 @@ test("app administrators cannot mutate shared tenant accounts; direct roles stay
   ctx.request = { action: "disable", id: target.id };
   assert.equal((await manage(ctx as never)).status, "ok");
   assert.equal((await identity.findUser(scope, shared, target.id, true))?.enabled, false);
+});
+
+test("administrators generate scoped one-use verification links without email delivery", async t => {
+  const { identity, scope, storage } = fixture(t);
+  const { default: manage, auth } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/POST.js");
+  const { default: list } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/GET.js");
+  const { accountPost } = await import("../src/account.js");
+  assert.equal(auth.elevation.minimum, "mfa");
+  const actor = await identity.createUser(scope, policy, { username: "actor", verified: true });
+  const target = await identity.createUser(scope, policy, { username: "alice", email: "alice@example.com" });
+  const session = await identity.issueSession(scope, policy, actor, issuer, 3600);
+  const user = await issuer.verifier().verify(session.accessToken, scope);
+  const runtime = { identity, policy: async () => policy };
+  let mounted = true, status = 200;
+  const ctx = { plugin: { runtime }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user,
+    request: { action: "verification.link", id: target.id }, query: {}, responseHeaders: new Headers(),
+    uiRouteUrl: () => mounted ? "https://app.test/account" : null,
+    setStatus: (code: number) => { status = code; } };
+  const generate = () => manage(ctx as never);
+  mounted = false;
+  assert.equal((await generate()).status, "error");
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("challenge", scope)), []);
+  mounted = true;
+  const result = await generate(); assert.equal(result.status, "ok");
+  const url = new URL(String(result.verificationLink)); assert.equal(url.origin + url.pathname, "https://app.test/account");
+  const ticket = JSON.parse(decodeURIComponent(url.hash.slice("#bp-auth=".length)));
+  assert.equal(ticket.action, "verify");
+  assert.equal(ctx.responseHeaders.get("Cache-Control"), "no-store");
+  assert.equal(ctx.responseHeaders.get("Referrer-Policy"), "no-referrer");
+  const [challenge] = await storage.transaction(scope, tx => tx.list("challenge", scope));
+  assert.equal(challenge.userId, target.id);
+  assert.ok(Number(challenge.expiresAt) - Date.now() > 1790000 && Number(challenge.expiresAt) - Date.now() <= 1800000);
+  assert.ok(!JSON.stringify(challenge).includes(ticket.secret));
+  assert.deepEqual(await storage.transaction(scope, tx => tx.list("mail", scope)), []);
+  const listing = await list(ctx as never);
+  assert.ok(!JSON.stringify(listing).includes(ticket.secret));
+  assert.ok(!JSON.stringify(listing).includes("verificationLink"));
+  assert.ok((listing.audit as Array<Record<string, unknown>>).some(a => a.event === "admin.verification.link"));
+  const complete = { ...ctx, user: undefined, request: ticket,
+    rawEvent: { req: new Request("https://app.test/account"), url: new URL("https://app.test/account") } };
+  await assert.rejects(accountPost({ ...complete, app: { id: uuidv7() } } as never), /expired or unavailable/);
+  const { handlePost } = await import("../src/plugins/service-betterportal-auth-default/loginFlow.js");
+  t.mock.method(identity, "authenticate", async () => target);
+  let diagnostic: { code: string } | undefined;
+  const login = await handlePost({ ...ctx, user: undefined, request: { username: "alice", password: "private-password" },
+    rawEvent: complete.rawEvent, diagnostic: (value: typeof diagnostic) => { diagnostic = value; },
+    plugin: { runtime: { ...runtime, isManagement: () => false } } } as never);
+  assert.equal(login.status, "error"); assert.equal(status, 403);
+  assert.equal(diagnostic?.code, "auth.login.email_unverified");
+  assert.equal((await accountPost(complete as never)).status, "ok");
+  assert.equal((await identity.findUser(scope, policy, target.id, true))?.emailVerified, true);
+  await assert.rejects(accountPost(complete as never), /expired or unavailable/);
+  assert.equal((await generate()).status, "error", "already verified users cannot get another link");
+  const other = await identity.createUser({ ...scope, appId: uuidv7() }, policy, { username: "other", email: "other@example.com" });
+  ctx.request.id = other.id;
+  assert.equal((await generate()).status, "error"); assert.equal(status, 404);
+  const disabled = await identity.createUser(scope, policy, { username: "disabled", email: "disabled@example.com" });
+  await identity.updateUser(scope, policy, disabled.id, async u => { u.enabled = false; });
+  ctx.request.id = disabled.id; assert.equal((await generate()).status, "error");
+  const expiredUser = await identity.createUser(scope, policy, { username: "expired", email: "expired@example.com" });
+  ctx.request.id = expiredUser.id;
+  const expiring = new URL(String((await generate()).verificationLink));
+  const expiredTicket = JSON.parse(decodeURIComponent(expiring.hash.slice("#bp-auth=".length)));
+  await storage.transaction(scope, async tx => {
+    const row = (await tx.get("challenge", expiredTicket.id, scope))!;
+    await tx.put("challenge", scope, { ...row, expiresAt: 0 });
+  });
+  await assert.rejects(accountPost({ ...complete, request: expiredTicket } as never), /expired or unavailable/);
+  await identity.revokeSession(scope, await issuer.verifyRefreshToken({ ...scope, refreshToken: session.refreshToken! }));
+  assert.equal((await generate()).status, "error"); assert.equal(status, 401);
 });
 
 test("session cleanup and bounded account/mail pages preserve app and tenant isolation", async t => {

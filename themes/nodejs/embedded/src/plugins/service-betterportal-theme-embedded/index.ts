@@ -14,6 +14,7 @@ import {
   renderThemeLlmsIndex,
   renderThemeLlmsUi,
   buildServiceViewUrl,
+  routeMountServicePath,
   eventHeaders,
   eventObservability,
   eventSessionId,
@@ -380,6 +381,9 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           return {
             id: route.id,
             href: route.path,
+          servicePath: routeMountServicePath(route),
+          methods: route.resolvedMethods,
+          fixedParams: route.fixedParams,
             requestUrl: safeTarget.ok ? safeTarget.url : undefined,
             serviceId: route.serviceId,
             active: route.path === (currentRoute?.path ?? requestContext.app.defaultRoute),

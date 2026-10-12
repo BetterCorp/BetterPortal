@@ -21,6 +21,9 @@ export interface EmbeddedRouteLink {
   id: string;
   href: string;
   requestUrl?: string;
+  servicePath?: string;
+  methods?: string[];
+  fixedParams?: Record<string, string>;
   serviceId: string;
   active: boolean;
   error?: string;

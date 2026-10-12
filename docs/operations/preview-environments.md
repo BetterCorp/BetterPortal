@@ -2,7 +2,21 @@
 
 Preview groups clone one source tenant/app into isolated, non-editable preview resources. CI continues to own service builds, deployment, DNS, and TLS; BetterPortal owns the cloned application configuration and lifecycle.
 
-Creating a group does not require a service list. Each new preview records the service IDs and URLs supplied by its create request, allowing different deployment keys in the same group to contain different services. Service-specific preview configuration becomes available after those services are discovered and sync their manifests.
+Creating a group does not require a service list. BP plugin IDs may be declared before deployment, without URLs or production registrations. Each new preview records the service IDs and URLs supplied by its create request, allowing different deployment keys in the same group to contain different services.
+
+## BP plugin setup before deployment
+
+Enter **BP plugin IDs** when creating the PVE group, or open its **Settings** and use **Add BP plugin**. Known plugins use config schemas from cached service manifests, including the source application's production services.
+
+For a new BP plugin, expand its entry under **BP plugins** and upload or paste its BP config schema JSON. Accepted formats are a nonempty `ConfigSchemaDescriptor[]` array or a BP manifest/config-schema response containing `configSchemas`. If the artifact includes `pluginId` or `serviceId`, it must match the declared BP plugin ID. These are BP tenant/app schema descriptors, including `jsonSchema`, field defaults, visibility and UI metadata; BSB plugin configuration remains in Vault.
+
+Uploaded schemas belong only to this PVE group's plugin definition and take precedence over cached schemas. Use **Encrypted service configuration** to enter tenant/app values before deployment. Secret values retain the existing browser-side encryption flow; the config manager never receives the preview encryption key. An ID without a known or uploaded schema may be declared, but has no editable config fields yet.
+
+CI supplies the actual service URL when provisioning the deployment. The new PVE captures its group's configured values and uploaded schemas in its own effective settings, which are delivered to the service through BP sync. Uploading a schema creates no service registration or credentials, and does not contact a service URL.
+
+Manifest sync does not overwrite uploaded definitions or saved values. Settings shows a warning when synced BP config schemas differ from an upload. A replacement upload preserves saved values and rejects removal of configured fields or changes to their secret classification; new required fields can be filled before saving configuration. Group edits affect future previews and newly added services, while existing service settings remain in each PVE's snapshot.
+
+Production registration and plugin sync remain separate manual operations. PVE declarations and uploads do not register or promote the BP plugin in production.
 
 ## Preview role elevation
 
@@ -43,7 +57,9 @@ Content-Type: application/json
 }
 ```
 
-Repeating a request for the same deployment key must use that preview's original service set. It refreshes the stored lifetime; changed service URLs rotate only those service credentials. `setupMode` may be omitted and defaults to `pull`; other modes are rejected.
+Repeating a request for the same deployment key must retain all existing services and may add new service IDs and URLs. Additions capture only the new service's current group settings and receive fresh credentials; unchanged services retain their credentials and configuration. Omitting an existing service is rejected. The request refreshes the stored lifetime; changed service URLs rotate only those service credentials. `setupMode` may be omitted and defaults to `pull`; other modes are rejected.
+
+When an added BP plugin exists in the source app, its newly available shell, slots, fragments, auth references and configured routes are mapped into the preview. Existing preview settings and occupied slots are preserved; copied routes remain disabled until the added service syncs its manifest. This uses the source app's current bindings at the time of addition, without recloning the running preview app.
 
 On first creation, copy each returned `BP_CONTROL_PLANE_URL` and `BP_SERVICE_API_KEY` into the matching service deployment. `DELETE` on the same URL removes the preview immediately and is safe to repeat. Expired previews are deleted automatically.
 

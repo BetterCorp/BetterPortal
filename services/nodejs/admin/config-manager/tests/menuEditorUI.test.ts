@@ -9,6 +9,7 @@ import { getManifestCache, type CachedManifest } from "../src/plugins/service-be
 
 const require = createRequire(import.meta.url);
 test("menu audiences are visible in light/dark themes and persist through the actual HTMX form", async t => {
+  const siblingId = uuidv7();
   const tenantId = uuidv7(), appId = uuidv7(), serviceId = uuidv7(), routeId = uuidv7(), itemId = uuidv7();
   let config = BetterPortalConfigSchema.parse({ tenants: [{ id: tenantId, slug: "tenant", title: "Tenant", services: [{
     id: serviceId, serviceId: "org.example.archive", hostname: "https://archive.test", apiKeyHash: "test-only", createdAt: new Date().toISOString()
@@ -16,7 +17,7 @@ test("menu audiences are visible in light/dark themes and persist through the ac
     auth: { serviceId, expectedIssuer: "issuer", expectedAudience: "audience", jwksUri: "https://auth.test/jwks", roles: [
       { id: "reader", title: "Archive reader", permissions: [{ serviceId, viewId: "archive", permissions: ["read"] }] }
     ] }, routes: [{ id: routeId, kind: "page", path: "/archive", serviceId, viewId: "archive", operations: ["archive.get"] }],
-    menu: [{ id: itemId, type: "link", routeId, title: "Archive", rolesAnyOf: ["obsolete-role"] }]
+    menu: [{ id: itemId, type: "link", routeId, title: "Archive", rolesAnyOf: ["obsolete-role"] }, { id: siblingId, type: "external", title: "Sibling", href: "https://example.com" }]
   }] });
   getManifestCache().set(serviceId, { serviceId: "org.example.archive", viewIndex: { archive: {
     viewId: "archive", path: "/archive", pathVariants: [], operations: [{ operationId: "archive.get", method: "GET",
@@ -32,6 +33,7 @@ test("menu audiences are visible in light/dark themes and persist through the ac
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
   await page.route("https://config.test/**", async intercepted => {
     const req = intercepted.request();
+    if (req.method() === "POST") await new Promise(resolve => setTimeout(resolve, 500));
     const response = await app.fetch(new Request(req.url(), { method: req.method(), headers: req.headers(), body: req.postData() ?? undefined }));
     const body = await response.text();
     await intercepted.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: req.method() === "GET"
@@ -43,15 +45,35 @@ test("menu audiences are visible in light/dark themes and persist through the ac
   for (const theme of ["light", "dark"]) {
     await page.locator("html").evaluate((element, value) => element.setAttribute("data-bs-theme", value), theme);
     for (const label of ["Automatic", "Everyone", "Signed in", "Only signed out", "Has permission"]) {
-      assert.equal(await page.locator("label").filter({ hasText: new RegExp(`^${label}$`) }).isVisible(), true);
+      assert.equal(await page.locator(`#bp-menu-row-${itemId} label`).filter({ hasText: new RegExp(`^${label}$`) }).isVisible(), true);
     }
   }
+  await page.locator(`#bp-menu-row-${siblingId}`).evaluate(element => { (window as any).originalSibling = element; });
+  await page.locator(`label[for="bp-audience-${siblingId}-show-unauthenticated"]`).click();
   await page.locator(`label[for="bp-audience-${itemId}-hide-unauthenticated"]`).click();
-  await page.getByRole("button", { name: "Save visibility" }).click();
+  await page.locator(`#bp-menu-row-${itemId}`).getByRole("button", { name: "Save visibility" }).click();
+  await page.locator(`#bp-menu-loading-${itemId}`).waitFor({ state: "visible" });
+  assert.equal(await page.locator(`#bp-menu-loading-${siblingId}`).isVisible(), false);
   await page.waitForFunction(() => document.querySelector('[name="authStatus"][value="hide-unauthenticated"]')?.hasAttribute("checked"));
   await page.waitForFunction(() => !document.querySelector(".htmx-settling, .htmx-request"));
-  assert.equal(await page.locator('[name="authStatus"][value="hide-unauthenticated"]').isChecked(), true);
+  assert.equal(await page.locator(`#bp-menu-row-${itemId} [name="authStatus"][value="hide-unauthenticated"]`).isChecked(), true);
   assert.equal(config.apps[0].menu[0].authStatus, "hide-unauthenticated");
   assert.equal(config.apps[0].menu[0].rolesAnyOf, undefined);
+  await page.locator(`#bp-menu-title-${itemId}`).click();
+  await page.getByRole("textbox", { name: "Menu title" }).fill("Renamed archive");
+  await page.locator(`#bp-menu-title-${itemId} button[type="submit"]`).click();
+  await page.locator(`#bp-menu-loading-${itemId}`).waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Renamed archive", exact: true }).waitFor();
+  assert.equal(config.apps[0].menu[0].title, "Renamed archive");
+  await page.locator(`#bp-menu-row-${itemId}`).getByRole("button", { name: "Edit", exact: true }).click();
+  await page.locator(`#bp-menu-row-${itemId} input[name="path"]`).fill("/renamed");
+  await page.locator(`#bp-menu-row-${itemId} input[name="targetPath"]`).fill("/archive-target");
+  await page.locator(`#bp-menu-row-${itemId}`).getByRole("button", { name: "OK Save" }).click();
+  await page.locator(`#bp-menu-loading-${itemId}`).waitFor({ state: "visible" });
+  await page.locator(`#bp-menu-row-${itemId}`).getByText("/renamed", { exact: true }).waitFor();
+  assert.equal(config.apps[0].routes[0].path, "/renamed");
+  assert.equal(config.apps[0].routes[0].targetPath, "/archive-target");
+  assert.equal(await page.locator(`#bp-menu-row-${siblingId}`).evaluate(element => element === (window as any).originalSibling), true);
+  assert.equal(await page.locator(`#bp-menu-row-${siblingId} input[value="show-unauthenticated"]`).isChecked(), true);
   if (process.env.BP_MENU_SCREENSHOT) await page.screenshot({ path: process.env.BP_MENU_SCREENSHOT, fullPage: true });
 });

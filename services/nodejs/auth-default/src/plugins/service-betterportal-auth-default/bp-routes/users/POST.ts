@@ -1,6 +1,6 @@
 export { title, description } from "./index.js";
 import * as av from "anyvali";
-import { JsonObjectSchema, uuidv7 } from "@betterportal/framework";
+import { JsonObjectSchema, uuidv7, type JsonObject } from "@betterportal/framework";
 import { createHandler } from "../../.bp-generated/route-runtime.js";
 import { accountLink } from "../../../../account.js";
 import { AuthError, isValidEmail, type User } from "../../../../identity.js";
@@ -9,11 +9,14 @@ export const auth = { required: true, elevation: { minimum: "mfa" as const }, pe
 export const cacheHints = { ttlSeconds: 0, varyBy: [] };
 export const RequestSchema = av.object({ action: av.string(), id: av.optional(av.string()), email: av.optional(av.string()), name: av.optional(av.string()), enabled: av.optional(av.bool()), roles: av.optional(av.array(av.string())), members: av.optional(av.array(av.string())) });
 export const ResponseSchema = JsonObjectSchema;
-export default createHandler({ response: ResponseSchema, request: RequestSchema }, async ctx => {
+export default createHandler({ response: ResponseSchema, request: RequestSchema }, async (ctx): Promise<JsonObject> => {
   const runtime = ctx.plugin.runtime; const identity = runtime.identity; const scope = { tenantId: ctx.tenant.id, appId: ctx.app.id }; const policy = await runtime.policy(scope);
   const dir = { tenantId: scope.tenantId, appId: policy.isolation === "app" ? scope.appId : "" }; const body = ctx.request as av.Infer<typeof RequestSchema>;
+  ctx.responseHeaders?.set("Cache-Control", "no-store");
+  ctx.responseHeaders?.set("Referrer-Policy", "no-referrer");
+  let verificationLink: string | undefined;
   try {
-    if (policy.isolation === "tenant" && !policy.canManageDirectory && ["disable", "sessions.revoke", "group.save", "group.delete"].includes(body.action)) throw new AuthError("Use the tenant's designated directory administration app to manage shared accounts and groups.", 403);
+    if (policy.isolation === "tenant" && !policy.canManageDirectory && ["disable", "sessions.revoke", "verification.link", "group.save", "group.delete"].includes(body.action)) throw new AuthError("Use the tenant's designated directory administration app to manage shared accounts and groups.", 403);
     const roles = [...new Set(body.roles ?? [])];
     if (roles.some(id => id === "*" || !policy.allowedRoleIds.includes(id))) throw new AuthError("Choose existing app roles. Root cannot be provisioned here.");
     await identity.storage.transaction(scope, async tx => {
@@ -32,12 +35,18 @@ export default createHandler({ response: ResponseSchema, request: RequestSchema 
         const challenge = await tx.get("challenge", body.id ?? "", scope);
         if (!challenge || challenge.purpose !== "invite") throw new AuthError("Invitation unavailable.", 404);
         await tx.remove("challenge", challenge.id, scope);
-      } else if (body.action === "roles" || body.action === "disable" || body.action === "sessions.revoke") {
+      } else if (body.action === "roles" || body.action === "disable" || body.action === "sessions.revoke" || body.action === "verification.link") {
         const user = await tx.get<User>("user", body.id ?? "", dir);
         if (!user) throw new AuthError("User unavailable.", 404);
         const current = await tx.get("roles", user.id, scope);
         if (user.bootstrapAdmin || (current?.roles as string[] | undefined)?.includes("*")) throw new AuthError("The bootstrap administrator cannot be modified through this interface.", 403);
-        if (body.action === "roles") await tx.put("roles", scope, { id: user.id, roles, initialized: true });
+        if (body.action === "verification.link") {
+          if (!user.enabled || !user.email || user.emailVerified) throw new AuthError("Verification links require an enabled user with an unverified email address.");
+          const ticket = await identity.challengeInTransaction(tx, scope, "verify", { version: user.refreshVersion }, user.id, 1800);
+          const link = accountLink(ctx, "verify", ticket);
+          if (!link) throw new AuthError("Mount the account page in this app before creating verification links.");
+          verificationLink = link;
+        } else if (body.action === "roles") await tx.put("roles", scope, { id: user.id, roles, initialized: true });
         else { if (body.action === "disable") user.enabled = body.enabled === true; user.refreshVersion++; await tx.put("user", dir, user); }
       } else if (body.action === "group.save") {
         const id = body.id || uuidv7();
@@ -59,6 +68,6 @@ export default createHandler({ response: ResponseSchema, request: RequestSchema 
       } else throw new AuthError("Unknown admin action.");
       await identity.audit(tx, scope, ctx.user!.sub, `admin.${body.action}`, { id: body.id ?? "", roles });
     });
-    return { status: "ok", message: "Saved." };
-  } catch (error) { if (!(error instanceof AuthError)) throw error; ctx.setStatus?.(error.status); return { status: "error", message: error.message }; }
+    return verificationLink ? { status: "ok", message: "Verification link ready. It expires in 30 minutes.", verificationLink } : { status: "ok", message: "Saved." };
+  } catch (error) { if (!(error instanceof AuthError)) throw error; ctx.diagnostic?.({ code: "auth.users.rejected", reason: error.message }); ctx.setStatus?.(error.status); return { status: "error", message: error.message }; }
 });

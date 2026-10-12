@@ -1,5 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import {
+  PluginIdSchema,
   PreviewEnvironmentGroupSchema,
   PreviewEnvironmentGroupServiceSchema,
   uuidv7,
@@ -15,7 +17,7 @@ import {
   type ServiceManifestCacheEntry
 } from "@betterportal/framework";
 import { generateApiKey, hashApiKey } from "./storage/core.js";
-import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
+import { apiRoutePath, pageRoutePath, appRoutePatternKey, mountSuppliesServiceParams } from "./routeMounts.js";
 
 export const PREVIEW_DEPLOYMENT_API_BASE = "/api/preview-groups";
 
@@ -196,7 +198,7 @@ export function provisionPreviewDeployment(
     deployment.groupId === group.id && deployment.key === key
   );
   if (existing) {
-    requireExactServiceSet(existing, requestedServices);
+    requireExistingServices(existing, requestedServices);
     return updateDeployment(config, existing, requestedServices, controlPlaneUrl, now);
   }
 
@@ -224,22 +226,10 @@ export function provisionPreviewDeployment(
   const services = [...requestedServices].map(([serviceId, requested]) => {
     const configured = group.services.find((service) => service.serviceId === serviceId) ?? discovered.find((service) => service.serviceId === serviceId)!;
     const source = sourceServiceForPreview(sourceTenant, sourceApp, serviceId);
-    const instanceId = uuidv7();
-    const apiKey = generateApiKey();
-    if (source) serviceMap.set(source.id, instanceId);
-    credentials.push(issuedCredential(serviceId, instanceId, requested, apiKey, controlPlaneUrl));
-    return {
-      id: instanceId,
-      hostname: requested,
-      apiKeyHash: hashApiKey(apiKey),
-      serviceId,
-      capabilities: source?.capabilities ?? [],
-      title: configured.title ?? source?.title ?? serviceId,
-      ...(source?.description ? { description: source.description } : {}),
-      deploymentMode: "self-hosted" as const,
-      createdAt: timestamp,
-      enabled: true
-    };
+    const { service, credential } = createPreviewService(source, configured, requested, controlPlaneUrl, timestamp);
+    if (source) serviceMap.set(source.id, service.id);
+    credentials.push(credential);
+    return service;
   });
 
   const referenced = collectAppServiceReferences(sourceApp);
@@ -393,6 +383,16 @@ function updateDeployment(
 ): { deployment: PreviewEnvironmentDeployment; credentials: IssuedPreviewCredential[]; created: false } {
   const tenant = config.tenants.find((candidate) => candidate.id === deployment.tenantId);
   if (!tenant) throw new PreviewEnvironmentError("Preview deployment tenant is missing", 409);
+  const additions = [...requestedServices].filter(([serviceId]) => !deployment.services.some((binding) => binding.serviceId === serviceId));
+  const group = requireGroup(config, deployment.groupId);
+  const sourceTenant = config.tenants.find((candidate) => candidate.id === group.sourceTenantId);
+  const sourceApp = config.apps.find((candidate) => candidate.id === group.sourceAppId && candidate.tenantId === group.sourceTenantId);
+  if (additions.length) {
+    if (!sourceTenant || !sourceApp || !config.apps.some((app) => app.id === deployment.appId && app.tenantId === tenant.id)) {
+      throw new PreviewEnvironmentError("Preview source or application is unavailable", 409);
+    }
+    requireUnambiguousSourceServices(sourceTenant, sourceApp, new Map(additions));
+  }
   delete deployment.credentialReplay;
   const credentials: IssuedPreviewCredential[] = [];
   for (const binding of deployment.services) {
@@ -416,11 +416,135 @@ function updateDeployment(
     }
     credentials.push(issuedCredential(binding.serviceId, binding.instanceId, nextUrl, apiKey, controlPlaneUrl));
   }
+  if (additions.length) {
+    const addedInstanceIds = new Set<string>();
+    deployment.effectiveConfig ??= structuredClone({ services: group.services, elevatedRoleIds: group.elevatedRoleIds });
+    for (const [serviceId, url] of additions) {
+      const source = sourceServiceForPreview(sourceTenant!, sourceApp!, serviceId);
+      let configured = group.services.find((service) => service.serviceId === serviceId);
+      if (!configured) {
+        configured = PreviewEnvironmentGroupServiceSchema.parse({ serviceId, title: source?.title ?? serviceId });
+        group.services.push(configured);
+        group.updatedAt = now.toISOString();
+      }
+      const { service, credential } = createPreviewService(source, configured, url, controlPlaneUrl, now.toISOString());
+      tenant.services.push(service);
+      deployment.services.push({ serviceId, instanceId: service.id, url });
+      addedInstanceIds.add(service.id);
+      // Capture only the addition's current defaults, preserving the running preview's config.
+      const previous = deployment.effectiveConfig.services.findIndex((service) => service.serviceId === serviceId);
+      if (previous === -1) deployment.effectiveConfig.services.push(structuredClone(configured));
+      else deployment.effectiveConfig.services[previous] = structuredClone(configured);
+      credentials.push(credential);
+    }
+    restoreAddedServiceBindings(config, deployment, sourceTenant!, sourceApp!, addedInstanceIds);
+  }
   const expiresAt = expiryDate(now, deployment.expiresInDays);
   if (expiresAt) deployment.expiresAt = expiresAt;
   else delete deployment.expiresAt;
   deployment.updatedAt = now.toISOString();
+  for (const binding of deployment.services) {
+    const manifest = config.manifestCache.find(entry => entry.serviceId === binding.instanceId);
+    const app = config.apps.find(candidate => candidate.id === deployment.appId);
+    if (manifest && app) reconcileRoutesForService(app, binding.instanceId, { ...manifest, serviceId: binding.serviceId });
+  }
+  const app = config.apps.find(candidate => candidate.id === deployment.appId);
+  if (app) rebuildPreviewMenu(config, app);
   return { deployment, credentials, created: false };
+}
+
+function restoreAddedServiceBindings(
+  config: BetterPortalConfig,
+  deployment: PreviewEnvironmentDeployment,
+  sourceTenant: BetterPortalConfig["tenants"][number],
+  sourceApp: BetterPortalApp,
+  addedInstanceIds: Set<string>
+): void {
+  const app = config.apps.find((candidate) => candidate.id === deployment.appId)!;
+  const tenant = config.tenants.find((candidate) => candidate.id === deployment.tenantId)!;
+  const serviceMap = new Map<string, string>();
+  for (const binding of deployment.services) {
+    const source = sourceServiceForPreview(sourceTenant, sourceApp, binding.serviceId);
+    if (source) serviceMap.set(source.id, binding.instanceId);
+  }
+  for (const id of sourceTenant.activatedPlatformServices) {
+    if (tenant.activatedPlatformServices.includes(id)) serviceMap.set(id, id);
+  }
+  const referenced = collectAppServiceReferences(sourceApp);
+  const clonedActivations = config.sharedServiceActivations.filter((activation) => activation.tenantId === tenant.id && activation.appId === app.id);
+  for (const source of config.sharedServiceActivations.filter((activation) =>
+    activation.enabled && activation.tenantId === sourceTenant.id && referenced.has(activation.id) && (!activation.appId || activation.appId === sourceApp.id)
+  )) {
+    const index = clonedActivations.findIndex((activation) => activation.sharedServiceId === source.sharedServiceId);
+    if (index !== -1) serviceMap.set(source.id, clonedActivations.splice(index, 1)[0]!.id);
+  }
+  // Project source references through every deployed service, but merge only newly available bindings.
+  const mapped = clonePreviewApp(sourceApp, app.id, tenant.id, app.title, app.hostnames[0]!, serviceMap);
+  if (!app.shell && mapped.shell && addedInstanceIds.has(mapped.shell.serviceId)) app.shell = mapped.shell;
+  app.routes.push(...mapped.routes.filter((route) => addedInstanceIds.has(route.serviceId)));
+  app.slots.push(...mapped.slots.filter((slot) => addedInstanceIds.has(slot.serviceId) && !app.slots.some((current) => current.slotId === slot.slotId)));
+  for (const [location, fragments] of Object.entries(mapped.fragments)) {
+    const additions = fragments.filter((fragment) => addedInstanceIds.has(fragment.serviceId));
+    if (additions.length) (app.fragments[location] ??= []).push(...additions);
+  }
+  for (const [shellId, settings] of Object.entries(mapped.shellFragments)) {
+    for (const [fragmentId, setting] of Object.entries(settings)) {
+      const current = app.shellFragments[shellId]?.[fragmentId];
+      const isAddedItem = (item: BetterPortalShellFragmentItem) => item.source === "service" && addedInstanceIds.has(item.serviceId);
+      if (!current) {
+        if (addedInstanceIds.has(shellId) || (setting.mode === "override" && isAddedItem(setting.item))) {
+          (app.shellFragments[shellId] ??= {})[fragmentId] = setting;
+        } else if (setting.mode === "items") {
+          const items = setting.items.filter(isAddedItem);
+          if (items.length) (app.shellFragments[shellId] ??= {})[fragmentId] = { mode: "items", items };
+        }
+      } else if (current.mode === "items" && setting.mode === "items") {
+        current.items.push(...setting.items.filter((item) => isAddedItem(item) && !current.items.some((existing) => isDeepStrictEqual(existing, item))));
+      }
+    }
+  }
+  if (!app.auth && mapped.auth && addedInstanceIds.has(mapped.auth.serviceId)) {
+    app.auth = mapped.auth;
+  } else if (app.auth && mapped.auth && app.auth.serviceId === mapped.auth.serviceId) {
+    for (const key of ["afterLogin", "afterLogout"] as const) {
+      const target = mapped.auth.redirects?.[key];
+      if (target && addedInstanceIds.has(target.serviceId) && !app.auth.redirects?.[key]) {
+        (app.auth.redirects ??= {})[key] = target;
+      }
+    }
+    for (const role of app.auth.roles) {
+      const sourceRole = mapped.auth.roles.find((candidate) => candidate.id === role.id);
+      role.permissions.push(...(sourceRole?.permissions ?? []).filter((permission) =>
+        addedInstanceIds.has(permission.serviceId) && !role.permissions.some((current) => current.serviceId === permission.serviceId && current.viewId === permission.viewId)
+      ));
+    }
+  }
+}
+
+function createPreviewService(
+  source: BetterPortalConfig["tenants"][number]["services"][number] | undefined,
+  configured: PreviewEnvironmentGroup["services"][number],
+  url: string,
+  controlPlaneUrl: string,
+  timestamp: string
+) {
+  const instanceId = uuidv7();
+  const apiKey = generateApiKey();
+  return {
+    service: {
+      id: instanceId,
+      hostname: url,
+      apiKeyHash: hashApiKey(apiKey),
+      serviceId: configured.serviceId,
+      capabilities: source?.capabilities ?? [],
+      title: configured.title ?? source?.title ?? configured.serviceId,
+      ...(source?.description ? { description: source.description } : {}),
+      deploymentMode: "self-hosted" as const,
+      createdAt: timestamp,
+      enabled: true
+    },
+    credential: issuedCredential(configured.serviceId, instanceId, url, apiKey, controlPlaneUrl)
+  };
 }
 
 function clonePreviewApp(
@@ -536,6 +660,7 @@ function reconcilePreviewDeploymentFromCache(config: BetterPortalConfig, deploym
 function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: string, manifest: PreviewManifest): void {
   const existing = app.routes.filter((route) => route.serviceId === serviceInstanceId);
   const desired: BetterPortalRouteMount[] = [];
+  const repaired = new Set<string>();
   for (const view of Object.values(manifest.viewIndex)) {
     const pageOperations = view.operations.filter((operation) =>
       operation.method === "GET" && operation.renderable && operation.renderModes.includes("page")
@@ -544,36 +669,53 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
     const apiOperations = view.operations.filter((operation) => !pageIds.has(operation.operationId));
     for (const [kind, operations] of [["page", pageOperations], ["api", apiOperations]] as const) {
       if (operations.length === 0) continue;
-      const previous = existing.find((route) =>
+      const matches = existing.filter((route) =>
         (route.kind ?? "page") === kind
         && route.viewId === view.viewId
         && route.operations.some((operationId) => operations.some((operation) => operation.operationId === operationId))
       );
       const operation = operations[0]!;
-      desired.push({
-        ...(previous ? structuredClone(previous) : {
-          id: uuidv7(),
+      for (const previous of matches.length ? matches : [undefined]) {
+        const servicePath = previous?.servicePathVariant && [view.path, ...view.pathVariants].includes(previous.servicePathVariant)
+          ? previous.servicePathVariant : view.path;
+        const generatedPath = kind === "page" ? pageRoutePath(manifest.serviceId, servicePath) : apiRoutePath(manifest.serviceId, servicePath);
+        const validPrevious = previous && mountSuppliesServiceParams(previous.path, servicePath, previous.fixedParams);
+        const path = kind === "page" && validPrevious ? previous.path : generatedPath;
+        if (previous && path !== previous.path) repaired.add(previous.id);
+        desired.push({
+          ...(previous ? structuredClone(previous) : {
+            id: uuidv7(),
+            serviceId: serviceInstanceId,
+            viewId: view.viewId,
+            operations: []
+          }),
+          kind,
+          path,
           serviceId: serviceInstanceId,
           viewId: view.viewId,
-          operations: []
-        }),
-        kind,
-        path: previous?.path ?? (kind === "page"
-          ? pageRoutePath(manifest.serviceId, view.path)
-          : apiRoutePath(manifest.serviceId, view.path)),
-        serviceId: serviceInstanceId,
-        viewId: view.viewId,
-        targetPath: view.path,
-        title: operation.title,
-        authRequired: operation.authRequired,
-        menu: operation.menu !== false,
-        ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
-        robots: [...operation.robots],
-        ...(operation.chrome ? { chrome: operation.chrome } : {}),
-        enabled: true,
-        enablement: "enabled",
-        operations: operations.map((candidate) => candidate.operationId)
-      });
+          targetPath: servicePath,
+          resolvedServicePath: servicePath,
+          servicePathVariant: servicePath !== view.path ? servicePath : undefined,
+          title: operation.title,
+          authRequired: operation.authRequired,
+          menu: operation.menu !== false,
+          ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
+          robots: [...operation.robots],
+          ...(operation.chrome ? { chrome: operation.chrome } : {}),
+          enabled: true,
+          enablement: "enabled",
+          operations: operations.map((candidate) => candidate.operationId)
+        });
+      }
+    }
+  }
+  // Check the final set: retired mounts must not block a repair, while surviving
+  // mounts (including disabled routes) and repairs in this pass still reserve paths.
+  const finalRoutes = [...app.routes.filter(route => route.serviceId !== serviceInstanceId), ...desired];
+  for (const route of desired.filter(route => repaired.has(route.id))) {
+    if (finalRoutes.some(other => other.id !== route.id && (other.kind ?? "page") === route.kind
+      && appRoutePatternKey(other.path) === appRoutePatternKey(route.path))) {
+      throw new PreviewEnvironmentError(`Cannot repair preview route ${route.viewId}: UI path ${route.path} is already mounted`, 409);
     }
   }
   // Preserve route precedence: repeated sync must not move a service's routes to the end.
@@ -705,17 +847,17 @@ function normalizeRequestedServices(values: Array<{ serviceId: string; url: stri
   for (const value of values) {
     const serviceId = value.serviceId.trim();
     if (!serviceId || result.has(serviceId)) throw new PreviewEnvironmentError("Service plugin IDs must be present and unique");
+    if (!PluginIdSchema.safeParse(serviceId).success) throw new PreviewEnvironmentError("Invalid BP plugin ID: " + serviceId);
     result.set(serviceId, normalizeServiceOrigin(value.url));
   }
   if (result.size === 0) throw new PreviewEnvironmentError("At least one service is required");
   return result;
 }
 
-function requireExactServiceSet(deployment: PreviewEnvironmentDeployment, requested: Map<string, string>): void {
-  const expected = deployment.services.map((service) => service.serviceId).sort();
-  const received = [...requested.keys()].sort();
-  if (expected.length !== received.length || expected.some((serviceId, index) => serviceId !== received[index])) {
-    throw new PreviewEnvironmentError(`Services must exactly match the existing preview: ${expected.join(", ")}`, 409);
+function requireExistingServices(deployment: PreviewEnvironmentDeployment, requested: Map<string, string>): void {
+  const missing = deployment.services.filter((service) => !requested.has(service.serviceId));
+  if (missing.length) {
+    throw new PreviewEnvironmentError(`Existing preview services must be retained: ${missing.map(service => service.serviceId).join(", ")}`, 409);
   }
 }
 

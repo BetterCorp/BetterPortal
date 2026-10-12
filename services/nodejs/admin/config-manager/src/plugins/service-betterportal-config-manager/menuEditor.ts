@@ -151,7 +151,11 @@ function lookupServiceViews(serviceId: string): Array<{ viewId: string; title: s
 type RowMode = "display" | "display-title" | "edit-title" | "edit-external" | "edit-link";
 
 function rowAttrs(item: MenuItem, depth: number, editing = false): string {
-  return `id="bp-menu-row-${item.id}" draggable="${editing ? "false" : "true"}" data-bp-drag-item="${item.id}" data-bp-drag-type="${item.type}" data-bp-drag-depth="${depth}"${editing ? " data-bp-menu-editing" : ""} style="padding-left: ${depth * 1.5 + 1}rem;"`;
+  return `hx-indicator:inherited="#bp-menu-loading-${item.id}" hx-sync:inherited="closest li:queue" id="bp-menu-row-${item.id}" draggable="${editing ? "false" : "true"}" data-bp-drag-item="${item.id}" data-bp-drag-type="${item.type}" data-bp-drag-depth="${depth}"${editing ? " data-bp-menu-editing" : ""} style="padding-left: ${depth * 1.5 + 1}rem;"`;
+}
+
+function rowLoader(item: MenuItem): string {
+  return `<div id="bp-menu-loading-${item.id}" class="htmx-indicator bp-menu-loading" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Updating…</div>`;
 }
 
 function editableTitleText(item: MenuItem, route: Route | null): string {
@@ -182,7 +186,7 @@ function titleDisplayHtml(item: MenuItem, route: Route | null, appId: string): s
 
 function titleEditorHtml(item: MenuItem, route: Route | null, appId: string): string {
   return `<form id="bp-menu-title-${item.id}" data-bp-menu-editing
-    hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-title-${item.id}" hx-swap="outerHTML settle:0"
+    hx-post="${API_BASE}/menu-editor/save-title" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0"
     class="d-flex align-items-center gap-1 flex-grow-1 m-0">
     <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
     <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
@@ -266,7 +270,7 @@ function visibilityControls(item: MenuItem): string {
       const id = `bp-audience-${item.id}-${value}`;
       return `<input type="radio" class="btn-check" name="authStatus" id="${id}" value="${value}"${(item.authStatus ?? "auto") === value ? " checked" : ""} />
         <label class="btn btn-sm btn-outline-primary" style="--bs-btn-color:var(--bs-body-color)" for="${id}">${label}</label>`;
-    }).join("")}</div></fieldset>
+    }).join("")}</div>${item.type === "group" ? `<div class="small text-secondary mt-1">Saving this audience also updates all children, including nested groups.</div>` : ""}</fieldset>
     ${item.type === "link" ? `<fieldset class="mb-0"><legend class="small mb-1">When service is unavailable</legend>
       ${[["show", "Show warning"], ["hide", "Hide"]].map(([value, label]) => `<label class="form-check form-check-inline small mb-0">
         <input type="radio" class="form-check-input" name="serviceStatus" value="${value}"${(item.serviceStatus ?? "show") === value ? " checked" : ""} />${label}</label>`).join("")}</fieldset>` : ""}
@@ -299,7 +303,8 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
   const typeBadgeClass = item.type === "group" ? "text-bg-warning" : item.type === "external" ? "text-bg-info" : item.type === "link" ? "text-bg-primary" : "text-bg-secondary";
 
   if (mode === "edit-external" && item.type === "external") {
-    return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
+    return `<li ${rowAttrs(item, depth, true)} class="list-group-item position-relative">
+    ${rowLoader(item)}
       <form hx-post="${API_BASE}/menu-editor/save-external" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0"
         class="d-flex flex-column gap-2">
         <div class="d-flex align-items-center gap-2">
@@ -322,7 +327,8 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
   }
 
   // display mode
-  return `<li ${rowAttrs(item, depth)} class="list-group-item">
+  return `<li ${rowAttrs(item, depth)} class="list-group-item position-relative">
+    ${rowLoader(item)}
     <div class="d-flex align-items-start gap-3">
       <span class="text-secondary" style="cursor:grab; padding-top:0.3rem; user-select:none; font-size:0.75rem; line-height:1;" title="Drag to reorder">drag</span>
       <div class="d-flex flex-column gap-1 flex-grow-1 min-width-0">
@@ -332,7 +338,7 @@ function renderRow(item: MenuItem, depth: number, mode: RowMode, config: any, ap
         </div>
         ${subLineHtml(item, route, config, appId)}
         <div class="small text-body-secondary">${accessSummary(config, appDef, item, accessApp)}</div>
-        <form hx-post="${API_BASE}/menu-editor/save-visibility" hx-target="#bp-menu-editor" hx-swap="outerHTML settle:0" class="d-flex flex-column gap-2 mt-2">
+        <form hx-post="${API_BASE}/menu-editor/save-visibility" hx-target="${item.type === "group" ? "#bp-menu-editor" : `#bp-menu-row-${item.id}`}" hx-swap="outerHTML settle:0" class="d-flex flex-column gap-2 mt-2">
           <input type="hidden" name="appId" value="${escapeHtml(appId)}" />
           <input type="hidden" name="itemId" value="${escapeHtml(item.id)}" />
           ${visibilityControls(item)}
@@ -374,7 +380,8 @@ async function renderEditLink(item: MenuItem, route: Route | null, depth: number
   ].join("");
   const viewOpts = renderViewOptions(views, route?.viewId ?? "");
 
-  return `<li ${rowAttrs(item, depth, true)} class="list-group-item">
+  return `<li ${rowAttrs(item, depth, true)} class="list-group-item position-relative">
+    ${rowLoader(item)}
     <form hx-post="${API_BASE}/menu-editor/save-link" hx-target="#bp-menu-row-${item.id}" hx-swap="outerHTML settle:0"
       class="d-flex flex-column gap-2">
       <div class="d-flex align-items-center gap-2">
@@ -542,6 +549,10 @@ function renderEditor(config: any, appDef: any, appId: string): string {
   const groups = collectGroups(menu);
 
   return `<div id="bp-menu-editor" data-bp-app-id="${escapeHtml(appId)}">
+    <style>
+      .bp-menu-loading { display: none; }
+      .bp-menu-loading.htmx-request { display: flex; position: absolute; inset: 0; z-index: 5; align-items: center; justify-content: center; gap: .5rem; background: var(--bs-body-bg); opacity: .9; }
+    </style>
     <form id="bp-drag-move-form" style="display:none"
       hx-post="${API_BASE}/menu-editor/move-after"
       hx-target="#bp-menu-editor"
@@ -644,10 +655,24 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     if (!["auto", "show", "show-unauthenticated", "hide-unauthenticated", "hide-unauthorized"].includes(f.authStatus)) {
       return jsonResponse({ error: "Invalid visibility" }, 400);
     }
-    found.item.authStatus = f.authStatus as MenuItem["authStatus"];
+    const audience = f.authStatus as MenuItem["authStatus"];
+    if (found.item.type === "group") {
+      const applyAudience = (items: MenuItem[]): void => {
+        for (const item of items) {
+          item.authStatus = audience;
+          if (item.type === "link") delete item.rolesAnyOf;
+          if (item.type === "group") applyAudience(item.children ?? []);
+        }
+      };
+      applyAudience(found.item.children ?? []);
+    }
+    found.item.authStatus = audience;
     if (found.item.type === "link") found.item.serviceStatus = f.serviceStatus === "hide" ? "hide" : "show";
     if (found.item.type === "link" || f.clearRoleRestriction === "true") delete found.item.rolesAnyOf;
-    return respondEditor(config, f.appId);
+    if (found.item.type === "group") return respondEditor(config, f.appId);
+    const response = await respondRow(config, f.appId, f.itemId, "display");
+    response.headers.set("HX-Trigger", "bp:menu-changed");
+    return response;
   });
 
   post("save-title", async (f, config) => {
@@ -657,17 +682,9 @@ export function registerMenuEditorRoutes(app: BetterPortalH3App, store: Platform
     const found = locate(menu, f.itemId);
     if (found) found.item.title = f.title || undefined;
     appDef.menu = menu;
-    // Return single row + HX-Trigger to refresh sidebar nav
-    const config2 = config;
-    const appDef2 = getApp(config2, f.appId);
-    const found2 = appDef2 ? locate(getMenu(appDef2), f.itemId) : null;
-    if (!appDef2 || !found2) return htmlResponse("", 200, "text/html; mode=fragment");
-    const route = found2.item.routeId
-      ? (appDef2.routes ?? []).find((candidate: any) => candidate.id === found2.item.routeId) ?? null
-      : null;
-    return htmlResponse(titleDisplayHtml(found2.item, route, f.appId), 200, "text/html; mode=fragment", {
-      "HX-Trigger": "bp:menu-changed"
-    });
+    const response = await respondRow(config, f.appId, f.itemId, "display");
+    response.headers.set("HX-Trigger", "bp:menu-changed");
+    return response;
   });
 
   post("save-link", async (f, config) => {

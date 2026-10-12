@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 22e8cab76d101d553f469e5793a0398e2d17f076e85ce3eddfd4b50fc2f3f75b
+# Generated from AnyVali documents; do not edit. SHA256: 0758edd262e4511099d41c5cc8a966717827c5932f300f9951f65d7741b4194b
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -2818,12 +2818,14 @@ PreviewEnvironmentGroupInput = TypedDict('PreviewEnvironmentGroupInput', {
 PreviewEnvironmentGroupService = TypedDict('PreviewEnvironmentGroupService', {
     'serviceId': Required['str'],
     'title': NotRequired['str'],
+    'configSchemas': NotRequired['list[ConfigSchemaDescriptor]'],
     'config': Required['PreviewEnvironmentServiceConfig'],
 })
 
 PreviewEnvironmentGroupServiceInput = TypedDict('PreviewEnvironmentGroupServiceInput', {
     'serviceId': Required['str'],
     'title': NotRequired['str'],
+    'configSchemas': NotRequired['list[ConfigSchemaDescriptorInput]'],
     'config': NotRequired['PreviewEnvironmentServiceConfigInput'],
 })
 

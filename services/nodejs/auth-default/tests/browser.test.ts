@@ -10,6 +10,7 @@ import { Factors } from "../src/factors.js";
 import { IdentityService, SecretCipher, type IdentityPolicy } from "../src/identity.js";
 import { JsonAuthStorage } from "../src/storage.js";
 import { renderAccount } from "../lib/accountUI.js";
+import { render as renderUsers } from "../lib/plugins/service-betterportal-auth-default/bp-routes/users/_renderer.bootstrap5/GET.js";
 
 test("browser passkey registration and authentication validate origin, ownership and replay", async t => {
   const dir = mkdtempSync(join(tmpdir(), "bp-passkey-"));
@@ -67,4 +68,39 @@ test("account email fragment is cleared and submitted only after explicit confir
   assert.equal(await page.locator('[role="status"]').textContent(), "Email verified.");
   assert.deepEqual(await page.evaluate(() => (window as any).submitted), [proof]);
   assert.deepEqual(errors, []);
+});
+
+test("users page generates, displays and copies verification links for eligible accounts", async t => {
+  const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
+  const page = await browser.newPage(); const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const link = "https://app.test/account#bp-auth=" + encodeURIComponent(JSON.stringify({ action: "verify", id: "ticket", secret: "private-proof" }));
+  await page.addInitScript(`window.submitted = [];
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: async value => { window.copied = value; } } });
+    window.BetterPortalAuth = { fetch: async (_url, init) => {
+      window.submitted.push(JSON.parse(init.body));
+      return Response.json({ status: "ok", message: "Verification link ready.", verificationLink: ${JSON.stringify(link)} });
+    } };`);
+  const base = { id: "eligible", username: "alice", email: "alice@example.com", enabled: true, emailVerified: false, roles: [] };
+  const data = { canManageDirectory: true, registration: "closed", endpoint: "https://auth.test/users", users: [base,
+    { ...base, id: "verified", emailVerified: true }, { ...base, id: "disabled", enabled: false },
+    { ...base, id: "protected", protected: true }, { ...base, id: "no-email", email: "" }] };
+  await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderUsers(data)) }));
+  await page.goto("https://app.test/users");
+  const generate = page.getByRole("button", { name: "Generate verification link" });
+  assert.equal(await generate.count(), 1);
+  assert.equal(await page.locator('[data-verification-output]').isVisible(), false);
+  assert.deepEqual(await page.evaluate(() => (window as any).submitted), []);
+  assert.deepEqual(errors, []);
+  await generate.click();
+  await page.locator('[data-verification-output]').waitFor({ state: "visible", timeout: 3000 });
+  assert.equal(await page.locator('[data-verification-value]').inputValue(), link);
+  assert.equal(await page.getByRole("link", { name: "Open verification link" }).getAttribute("href"), link);
+  await page.getByRole("button", { name: "Copy link" }).click();
+  assert.equal(await page.evaluate(() => (window as any).copied), link);
+  assert.deepEqual(await page.evaluate(() => (window as any).submitted), [{ action: "verification.link", id: "eligible" }]);
+  assert.deepEqual(errors, []);
+  await page.route("https://readonly.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(renderUsers({ ...data, canManageDirectory: false })) }));
+  await page.goto("https://readonly.test/users");
+  assert.equal(await page.getByRole("button", { name: "Generate verification link" }).count(), 0);
 });

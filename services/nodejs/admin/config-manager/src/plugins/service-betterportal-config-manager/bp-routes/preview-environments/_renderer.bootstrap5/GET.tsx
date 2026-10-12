@@ -38,6 +38,36 @@ function pageScript(): HtmlRenderable {
 
 export function configEditorScript(): HtmlRenderable {
   return js(`(() => {
+    document.querySelectorAll("[data-bp-schema-form]:not([data-bp-ready])").forEach((form) => {
+      form.dataset.bpReady = "true";
+      const fileInput = form.querySelector("[data-bp-schema-file]");
+      const text = form.querySelector("[name=schemas]");
+      const status = form.querySelector("[data-bp-schema-status]");
+      const submit = form.querySelector("[type=submit]");
+      text.addEventListener("input", () => {
+        fileInput.value = "";
+        fileInput.setCustomValidity("");
+        status.textContent = "";
+      });
+      fileInput.addEventListener("change", async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        submit.disabled = true;
+        try {
+          if (file.size > 1024 * 1024) throw new Error("BP schema upload exceeds 1 MiB");
+          const contents = await file.text();
+          JSON.parse(contents);
+          text.value = contents;
+          fileInput.setCustomValidity("");
+          status.textContent = file.name;
+        } catch (error) {
+          fileInput.setCustomValidity(error.message || String(error));
+          status.textContent = error.message || String(error);
+        } finally {
+          submit.disabled = false;
+        }
+      });
+    });
     const decode64 = (value) => {
       const base64 = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
       return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
@@ -365,9 +395,37 @@ export function configEditor(group: ResponseData["groups"][number], path: string
     return <input class="form-control" type={field.secret ? "password" : field.control === "email" || field.control === "url" || field.control === "number" ? field.control : "text"} maxlength="255" value={field.secret ? "" : value} autocomplete={field.secret ? "new-password" : "off"} data-bp-config-field="" data-service-id={service.serviceId} data-scope={field.scope} data-key={field.key} data-title={field.title} data-secret={field.secret ? "true" : "false"} data-default-value={field.defaultValue === undefined ? undefined : JSON.stringify(field.defaultValue)} disabled={field.secret} required={field.required && !field.secret} />;
   };
   return (
+    <div>
+      <section class="mt-3" aria-labelledby={`bp-plugin-definitions-${group.id}`}>
+        <h4 class="h6" id={`bp-plugin-definitions-${group.id}`}>BP plugins</h4>
+        <form class="d-flex flex-wrap gap-2 mb-3" hx-post={path} hx-target="#bp-main" hx-swap="innerHTML">
+          <input type="hidden" name="action" value="save-service" />
+          <input type="hidden" name="groupId" value={group.id} />
+          <label class="visually-hidden" for={`bp-plugin-id-${group.id}`}>BP plugin ID</label>
+          <input id={`bp-plugin-id-${group.id}`} class="form-control font-monospace" style="flex:1 1 16rem;min-width:0" name="serviceId" placeholder="org.example.service" required />
+          <button class="btn btn-outline-primary" type="submit">Add BP plugin</button>
+        </form>
+        {group.services.map((service) => (
+          <details class="border-bottom py-2">
+            <summary><code class="text-break">{service.serviceId}</code> <span class="small text-secondary">{service.schemaSource === "uploaded" ? "Uploaded schema" : service.schemaSource === "synced" ? "Synced schema" : "No schema"}</span></summary>
+            {service.schemaWarning ? <div class="alert alert-warning mt-2" role="status">{service.schemaWarning}</div> : null}
+            <form class="mt-2" data-bp-schema-form="" hx-post={path} hx-target="#bp-main" hx-swap="innerHTML">
+              <input type="hidden" name="action" value="save-service" />
+              <input type="hidden" name="groupId" value={group.id} />
+              <input type="hidden" name="serviceId" value={service.serviceId} />
+              <label class="form-label" for={`bp-schema-file-${group.id}-${service.serviceId}`}>BP config schema file</label>
+              <input id={`bp-schema-file-${group.id}-${service.serviceId}`} class="form-control mb-2" type="file" accept=".json,application/json" data-bp-schema-file="" />
+              <label class="form-label" for={`bp-schema-json-${group.id}-${service.serviceId}`}>BP configSchemas JSON</label>
+              <textarea id={`bp-schema-json-${group.id}-${service.serviceId}`} class="form-control font-monospace mb-2" name="schemas" rows={4} maxlength={1048576} required></textarea>
+              <div class="small text-secondary mb-2" data-bp-schema-status="" role="status"></div>
+              <button class="btn btn-sm btn-outline-primary" type="submit">Save schema</button>
+            </form>
+          </details>
+        ))}
+      </section>
     <details class="border rounded p-3 mt-3">
       <summary class="fw-semibold">Encrypted service configuration</summary>
-      {!hasFields ? <div class="alert alert-secondary mt-3 mb-0">No synced service config schemas are available for this group.</div> : (
+      {!hasFields ? <div class="alert alert-secondary mt-3 mb-0">No BP config fields are available.</div> : (
         <form class="mt-3" data-bp-preview-config-form="" data-group-id={group.id} data-path={path} data-ticket-url={ticketUrl} data-source-tenant-id={group.sourceTenantId} data-source-app-id={group.sourceAppId}>
           <div class="alert alert-warning small">Use preview-only values. The key and decrypted secrets stay in this browser; BetterPortal stores only <code>encrypted:</code> envelopes.</div>
           <label class="form-label" for={`bp-preview-key-${group.id}`}>Preview config key</label>
@@ -402,6 +460,7 @@ export function configEditor(group: ResponseData["groups"][number], path: string
         </form>
       )}
     </details>
+    </div>
   );
 }
 
@@ -463,7 +522,7 @@ export function render(data: ResponseData): HtmlRenderable {
                 <code class="d-block text-break">POST {data.deploymentApiBase}/{group.id}/deployments/&lt;key&gt;</code>
               </div>
               <div class="col-12 col-xl-5">
-                <div class="small text-secondary mb-1">Discovered services</div>
+                <div class="small text-secondary mb-1">BP plugins</div>
                 <div class="d-flex flex-wrap gap-1">{group.services.length ? group.services.map((service) => <span class="badge text-bg-secondary">{service.serviceId}</span>) : <span class="small text-secondary">Added by the first preview create request.</span>}</div>
               </div>
             </div>
@@ -571,6 +630,10 @@ export function render(data: ResponseData): HtmlRenderable {
               <select id="bp-preview-source-app" class="form-select" name="sourceAppId" required><option value="">Select app</option>{data.sourceApps.map((app) => <option value={app.id} data-tenant-id={app.tenantId}>{app.title}</option>)}</select>
             </div>
             <div class="mb-3"><label class="form-label">Maximum/default expiry</label>{expiryInput(30)}</div>
+            <div class="mb-3">
+              <label class="form-label" for="bp-new-plugin-ids">BP plugin IDs</label>
+              <textarea id="bp-new-plugin-ids" class="form-control font-monospace" name="pluginIds" rows={3} placeholder="org.example.service"></textarea>
+            </div>
             {oidcFields("bp-new-group")}
             <div class="mb-3">
               <label class="form-label" for="bp-new-elevated-roles">Preview admin role IDs</label>

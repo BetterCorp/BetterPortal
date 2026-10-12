@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 0a8d4d619e365fde21860ae39d63624fd0dd8c4986a794018f91e90eb6a28ffa
+// Generated from AnyVali documents; do not edit. SHA256: fd3e4cee05640f9a5cbe508145a852ac97f31f4fbcec6ecabe502ef1710db105
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -7226,6 +7226,9 @@ public sealed record PreviewEnvironmentGroupService
     [JsonPropertyName("title")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Title { get; init; }
+    [JsonPropertyName("configSchemas")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ConfigSchemaDescriptor>> ConfigSchemas { get; init; }
     [JsonPropertyName("config")]
     public required PreviewEnvironmentServiceConfig Config { get; init; }
 }
@@ -7237,6 +7240,9 @@ public sealed record PreviewEnvironmentGroupServiceInput
     [JsonPropertyName("title")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Title { get; init; }
+    [JsonPropertyName("configSchemas")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ConfigSchemaDescriptorInput>> ConfigSchemas { get; init; }
     [JsonPropertyName("config")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<PreviewEnvironmentServiceConfigInput> Config { get; init; }

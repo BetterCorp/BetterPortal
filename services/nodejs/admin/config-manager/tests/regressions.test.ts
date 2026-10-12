@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { H3 } from "h3";
+import { EventStream, H3 } from "h3";
 import { setImmediate } from "node:timers/promises";
 import { registerWebhookRoutes } from "../src/plugins/service-betterportal-config-manager/webhooks.js";
 import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
@@ -370,6 +370,38 @@ test("config sync shares projections, suppresses duplicates and closes revoked s
   allowed = false;
   for (const listener of listeners) listener();
   assert.ok((await Promise.all(pending)).every(result => result.done), "no duplicate or revoked config frame");
+});
+
+test("idle config sync uses compatible heartbeat events and releases timers when disconnected", { timeout: 5000 }, async t => {
+  // Production service-base can resolve a stream implementation without pushComment.
+  const comment = t.mock.method(EventStream.prototype, "pushComment", () => { throw new TypeError("stream.pushComment is not a function"); });
+  const intervals = new Map<ReturnType<typeof setInterval>, { callback: () => void; ms: number }>();
+  t.mock.method(globalThis, "setInterval", (callback: () => void, ms: number) => {
+    const timer = {} as ReturnType<typeof setInterval>;
+    intervals.set(timer, { callback, ms }); return timer;
+  });
+  t.mock.method(globalThis, "clearInterval", (timer: ReturnType<typeof setInterval>) => { intervals.delete(timer); });
+  const app = new H3(); const listeners = new Set<() => void>(); let projections = 0;
+  registerSyncEndpoint(app, {
+    onChange(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    validateApiKey: async () => ({ scope: "platform", serviceId: "service", service: {} }),
+    getScopedConfig: async () => { projections++; return { managementOrigins: [], tenants: [], apps: [] }; }
+  } as never);
+  const response = await app.request("/.well-known/bp/sync", { headers: { authorization: "Bearer key" } });
+  const reader = response.body!.getReader(); t.after(() => reader.cancel().catch(() => {}));
+  assert.match(new TextDecoder().decode((await reader.read()).value), /event: config/);
+  const heartbeat = [...intervals.values()].find(timer => timer.ms === 15000)!;
+  assert.ok(heartbeat);
+  // A slow client must receive only one pending heartbeat across repeated ticks.
+  heartbeat.callback(); heartbeat.callback(); heartbeat.callback();
+  assert.equal(new TextDecoder().decode((await reader.read()).value), "event: heartbeat\ndata: keepalive\n\n");
+  await setImmediate();
+  heartbeat.callback();
+  assert.equal(new TextDecoder().decode((await reader.read()).value), "event: heartbeat\ndata: keepalive\n\n");
+  assert.equal(comment.mock.callCount(), 0);
+  assert.equal(projections, 1, "heartbeats do not project or resend configuration");
+  await reader.cancel(); await setImmediate();
+  assert.equal(intervals.size, 0); assert.equal(listeners.size, 1, "only the endpoint's projection cache listener remains");
 });
 
 test("auth cache drops removed apps and JWKS", async () => {
@@ -827,7 +859,7 @@ test("preview config schema falls back from an unsynced preview to its shared pr
       { serviceId: "shared-crm", configSchemas: [{ id: "crm", title: "CRM", description: "CRM", scope: "tenant", jsonSchema: {}, fields: [{ key: "region", title: "Region", description: "Region", scope: "tenant", visibility: "public", ownership: "bp", sourceOfTruth: "bp", defaultValue: "za", required: false }] }] }
     ]
   };
-  const group = { id: groupId, sourceTenantId: tenantId, sourceAppId: appId };
+  const group = { id: groupId, sourceTenantId: tenantId, sourceAppId: appId, services: [] };
   assert.equal(resolvePreviewConfigSchemas(config as never, group as never, "za.co.robertgroup.one.crm")?.[0]?.fields[0]?.key, "region");
 });
 
@@ -1995,7 +2027,7 @@ test("preview groups clone, reconcile, refresh and expire in isolation", () => {
     key: "123",
     hostname: "ignored.example",
     services: [{ serviceId: "org.example.other", url: "https://other-pr-123.example" }]
-  }, "https://config.example", now), /exactly match the existing preview/);
+  }, "https://config.example", now), /Existing preview services must be retained/);
 
   const other = provisionPreviewDeployment(config, group.id, {
     key: "456",
