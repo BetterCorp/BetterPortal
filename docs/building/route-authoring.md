@@ -86,6 +86,14 @@ Each method owns its stable `operationId`, auth and schemas. Node renderer and S
 filenames are described in [Routes and views](routes-and-views.md#fragment-stream-and-sse-selection);
 native factories use the conventions below.
 
+### Routing migration check
+
+Node packages run `bp run check-routes` before building. The check scans `src`, including helper folders named `lib` and `dist`; package build output remains outside that source root. Import handler factories from `@betterportal/framework` or the generated route runtime so their context ownership remains explicit.
+
+Removed URL helpers/options and literal route tokens are build errors. API responses contain domain data, state, IDs and cursors; renderers resolve destinations with `ctx.routeUrl`. The authoring gate follows statically traceable response construction through context destructuring, aliases, local helper functions, named callbacks, promises, reductions and transparent object/collection serialization. Named callbacks retain their caller-input provenance.
+
+Public links, scalar state such as string/array lengths and collection sizes, and domain clients that consume service destinations remain valid. Framework auth redirect helpers are identified by imports and aliases, so unrelated provider helpers may use the same names. See [the routing contract and migration examples](routes-and-views.md).
+
 ## Python and .NET
 
 Python discovers modules from one filesystem package. .NET discovers public static
@@ -368,15 +376,3 @@ has access. Explicit alternatives are **Always show**, **Only signed out**,
 at least one named role, and parent group conditions also apply to descendants.
 An explicit **Always show** choice remains an override of automatic visibility.
 Menu visibility does not replace service-side authorization.
-
-The authoring gate checks response-producing promise continuations as well as synchronous returns. Framework auth redirect helpers are identified by their imports and aliases; unrelated provider helpers may use the same name. Keep internal destinations out of these API response paths and resolve them in the view.
-
-Destructuring a handler context does not bypass the routing migration check. Returned reduction accumulators and their initial values are checked for internal destinations; domain clients may consume those destinations without returning them to views.
-
-Response callback checks follow local named functions and lexical aliases. Transparent iterable constructors such as URLSearchParams/Headers retain destination provenance when serialized; public links and unrelated provider constructors remain valid.
-
-The source check includes helper folders named `lib` or `dist` beneath `src`; package build output lives outside the scanned source root.
-
-Returned local response factories and immediately invoked helpers receive the same URL payload checks. String/array lengths and standard collection sizes are derived scalar state and remain valid API response data.
-
-Named response callbacks retain the provenance of caller-supplied parameters, including Array.from/map inputs and fulfilled promise values. Local response helpers follow passed handler contexts too; scalar state and opaque domain-client results remain valid.
