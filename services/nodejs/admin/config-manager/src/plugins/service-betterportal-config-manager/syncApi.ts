@@ -36,6 +36,7 @@ import { credentialDiagnostics } from "./credentialDiagnostics.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
 const SERVICE_ACTIVITY_INTERVAL_MS = 60_000;
+const SYNC_HEARTBEAT_INTERVAL_MS = 15_000;
 
 async function touchServiceActivity(
   store: PlatformConfigStore,
@@ -697,6 +698,19 @@ export function registerSyncEndpoint(
       });
     });
 
+    // Named events work with both h3 stream implementations used by service-base.
+    // Sync clients ignore heartbeat events while idle HTTP connections stay active.
+    // Bound writes to one pending heartbeat when a client stops consuming the stream.
+    let heartbeatPending = false;
+    const heartbeatTimer = setInterval(() => {
+      if (closed || heartbeatPending) return;
+      heartbeatPending = true;
+      void Promise.resolve().then(() => stream.push({ event: "heartbeat", data: "keepalive" })).catch(() => {
+        closed = true;
+        return stream.close();
+      }).catch(() => {}).finally(() => { heartbeatPending = false; });
+    }, SYNC_HEARTBEAT_INTERVAL_MS);
+
     const lastSeenTimer = setInterval(() => {
       touchServiceActivity(store, serviceId, validated.scope, validated.tenantId, "lastSeenAt").catch((error) => {
         obs?.logger.warn("BP SYNC: failed updating last seen service={serviceId}: {msg}", {
@@ -708,6 +722,7 @@ export function registerSyncEndpoint(
 
     stream.onClosed(() => {
       closed = true;
+      clearInterval(heartbeatTimer);
       clearInterval(lastSeenTimer);
       obs?.logger.info("BP SYNC: stream closed service={serviceId}", {
         serviceId

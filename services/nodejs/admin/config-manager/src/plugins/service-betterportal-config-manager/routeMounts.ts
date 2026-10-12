@@ -48,3 +48,13 @@ export function isMenuRouteExcluded(
     && operation.method === "GET" && operation.renderModes.includes("page"));
   return page ? page.menu === false : route.menu === false;
 }
+
+/** Check whether a UI mount can supply every parameter required by its service target. */
+export function mountSuppliesServiceParams(uiPath: string, servicePath: string, fixedParams: Readonly<Record<string, string>> = {}): boolean {
+  const names = (path: string) => path.split("?", 1)[0].split("/").flatMap(segment => {
+    const match = /^(?::([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})$/.exec(segment);
+    return match ? [match[1] ?? match[2]] : [];
+  });
+  const available = new Set([...names(uiPath), ...Object.keys(fixedParams).filter(name => fixedParams[name] != null)]);
+  return names(servicePath).every(name => available.has(name));
+}

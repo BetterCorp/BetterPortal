@@ -211,6 +211,10 @@ Route dependencies are explicit operation references that must be mounted with t
 - `kind: "page"` routes are visual app routes. Their app path, title, query, chrome, and menu usage are app-owned.
 - `kind: "api"` routes are service-locked allowlist routes. Config-manager mounts them under `/_bp/service/{service-slug}/{service-path}` and keeps `targetPath`/`resolvedServicePath` pointed at the service-owned path from the manifest.
 
+PVE manifest sync and same-key redeployment validate existing mounts against the accepted service paths. A mount that cannot supply required path parameters is rebuilt with a parameterized UI path, preserving its ID. Valid custom aliases and fixed-parameter mounts remain intact; repairs reject conflicting frontend patterns.
+
+The shell retains service/UI path templates even when a contextual page has no concrete menu URL. Plain service anchors resolve complete GET page patterns ahead of API allowlist mappings, preserve query strings, and fill both sides with the same parameters. An undeclared child path is never inferred from a parent mount.
+
 App and service paths are separate mappings. Every service parameter must be supplied by a same-named `:param` segment in the app path or by a fixed value:
 
 ```ts
