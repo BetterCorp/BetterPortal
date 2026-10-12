@@ -85,7 +85,7 @@ WORKDIR /home/bsb
 ENV BSB_PLUGIN_DIRS=""
 RUN npm install --omit=dev --save-exact \
     @bsb/base@9.7.4 @bsb/config-vault@9.7.4 @bsb/observable-axiom@9.7.4 \
-    @betterportal/config-manager@10.7.1
+    anyvali@1.1.6 @betterportal/config-manager@10.7.1
 ```
 
 Retain the deployment's existing entrypoint adjustments and health check. Keep `BSB_CONFIG_PLUGIN_PACKAGE=@bsb/config-vault` as an unversioned package name; the installed dependency carries the version. Preserve service-specific Vault credentials, volumes, ports and replica/update settings when replacing the Dockerfile. Rebuild matching auth, admin, theme and example services together for a breaking routing upgrade; APIs return domain data and views resolve their own destinations.
