@@ -276,3 +276,27 @@ test("array operations preserve returned values without tainting predicate-only 
     'export function handler(ctx) { return items.sort(() => ctx.routeUrl() ? 1 : -1); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("incremental response mutations follow aliases and keep request-only objects separate", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const payload = {}; payload.endpoint = ctx.routeUrl()?.apiPath; return payload; }',
+    'export function handler(ctx) { const payload = {}; payload["endpoint"] = ctx.routeUrl()?.viewPath; return payload; }',
+    'export function handler(ctx) { const payload = {}; const alias = payload; alias.endpoint = ctx.routeUrl()?.absoluteApiPath; return payload; }',
+    'export function handler(ctx) { const payload = { items: [] }; const alias = payload.items; alias.push(ctx.routeUrl()?.apiPath); return payload; }',
+    'export function handler(ctx) { let endpoint; endpoint = ctx.routeUrl()?.viewPath; return { endpoint }; }',
+    'export function handler(ctx) { const payload = {}; if (ctx.query.enabled) { payload.endpoint = ctx.routeUrl()?.viewPath; } return payload; }',
+    'export function handler(ctx) { const payload = {}; Object.assign(payload, { endpoint: ctx.routeUrl()?.viewPath }); return payload; }',
+    'export function handler(ctx) { const payload = []; payload.push(ctx.routeUrl()?.apiPath); return payload; }',
+    'export function handler(ctx) { const payload = []; payload.splice(0, 0, ctx.routeUrl()?.apiPath); return payload; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const payload = {}; payload.publicLink = ctx.routeUrl()?.absoluteUiPath; return payload; }',
+    'export function handler(ctx) { const requests = []; requests.push(ctx.routeUrl()?.absoluteApiPath); client(requests); return { ok: true }; }',
+    'export function handler(ctx) { const payload = {}; const alias = payload; alias.endpoint = ctx.routeUrl()?.apiPath; return client(payload); }',
+    'export function handler(ctx) { const payload = {}; function helper(payload) { payload.endpoint = ctx.routeUrl()?.apiPath; client(payload); } helper({}); return payload; }',
+    'export function handler(ctx) { const payload = {}; { const payload = {}; payload.endpoint = ctx.routeUrl()?.apiPath; client(payload); } return payload; }',
+    'export function handler(ctx) { const payload = {}; const Object = client; Object.assign(payload, { endpoint: ctx.routeUrl()?.apiPath }); return payload; }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

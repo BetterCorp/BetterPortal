@@ -15,6 +15,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const declarations = new Map<ts.Node, Set<string>>();
   const selections = new Map<ts.Node, Map<string, { expression: ts.Expression; field: string; rest: boolean }>>();
   const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
+  type Mutation = { target: ts.Expression; values: readonly ts.Expression[]; global?: ts.Expression };
+  const pendingMutations: Mutation[] = [];
   const collect = (node: ts.Node): void => {
     if (file.includes("_renderer.") && ts.isFunctionLike(node)) {
       const declaration = ts.isVariableDeclaration(node.parent) ? node.parent : undefined;
@@ -55,9 +57,54 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       if (bindings && ts.isNamespaceImport(bindings)) declare(bindings.name.text);
       if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements) if (!binding.isTypeOnly) declare(binding.name.text);
     }
+    if (ts.isBinaryExpression(node) && [ts.SyntaxKind.EqualsToken, ts.SyntaxKind.PlusEqualsToken,
+      ts.SyntaxKind.BarBarEqualsToken, ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+      ts.SyntaxKind.QuestionQuestionEqualsToken].includes(node.operatorToken.kind)) {
+      pendingMutations.push({ target: node.left, values: [node.right] });
+    }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      const method = node.expression.name.text;
+      if (["push", "unshift", "splice", "fill"].includes(method)) pendingMutations.push({
+        target: node.expression.expression,
+        values: method === "splice" ? node.arguments.slice(2) : method === "fill" ? node.arguments.slice(0, 1) : node.arguments
+      });
+      if (method === "assign" && node.arguments[0]) pendingMutations.push({
+        target: node.arguments[0], values: node.arguments.slice(1), global: node.expression.expression
+      });
+    }
     ts.forEachChild(node, collect);
   };
   collect(tree);
+  const references = new Map<ts.Node, { scope: ts.Node; name: string } | undefined>();
+  const reference = (expression: ts.Node, seen = new Set<ts.Node>()): { scope: ts.Node; name: string } | undefined => {
+    if (seen.has(expression)) return undefined;
+    if (references.has(expression)) return references.get(expression);
+    const next = new Set([...seen, expression]);
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)
+      || ts.isNonNullExpression(expression) || ts.isSatisfiesExpression(expression)
+      || ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) return reference(expression.expression, next);
+    if (!ts.isIdentifier(expression)) return undefined;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      if (declarations.get(scope)?.has(expression.text) || selections.get(scope)?.has(expression.text)) {
+        const initializer = initializers.get(scope)?.get(expression.text);
+        const selected = selections.get(scope)?.get(expression.text);
+        const alias = initializer ? reference(initializer, next) : selected ? reference(selected.expression, next) : undefined;
+        const binding = alias ?? { scope, name: expression.text };
+        references.set(expression, binding); return binding;
+      }
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return undefined;
+      scope = scope.parent;
+    }
+    return undefined;
+  };
+  const mutations = new Map<ts.Node, Map<string, Mutation[]>>();
+  for (const mutation of pendingMutations) {
+    const binding = reference(mutation.target);
+    if (!binding) continue;
+    const bindings = mutations.get(binding.scope) ?? new Map<string, Mutation[]>();
+    bindings.set(binding.name, [...bindings.get(binding.name) ?? [], mutation]); mutations.set(binding.scope, bindings);
+  }
   const rendererPayload = (expression: ts.Node, seen = new Set<string>()): boolean => {
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)
       || ts.isNonNullExpression(expression) || ts.isSatisfiesExpression(expression)) return rendererPayload(expression.expression, seen);
@@ -90,6 +137,10 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       ts.SyntaxKind.GreaterThanGreaterThanToken, ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken].includes(expression.operatorToken.kind)) return false;
     if (ts.isConditionalExpression(expression)) return internalValue(expression.whenTrue, seen) || internalValue(expression.whenFalse, seen);
     if (ts.isIdentifier(expression) && !seen.has(expression.text)) {
+      const binding = reference(expression);
+      if (binding && mutations.get(binding.scope)?.get(binding.name)?.some(mutation =>
+        (!mutation.global || isGlobal(mutation.global, "Object"))
+        && mutation.values.some(value => internalValue(value, new Set([...seen, expression.text]))))) return true;
       let scope: ts.Node | undefined = expression.parent;
       while (scope) {
         const selected = selections.get(scope)?.get(expression.text);
