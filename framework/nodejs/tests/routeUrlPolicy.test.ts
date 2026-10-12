@@ -172,12 +172,14 @@ test("destructured internal fields and aliased resolvers retain lexical provenan
     'export function handler(ctx) { const { absoluteApiPath: endpoint } = ctx.routeUrl()!; return { endpoint }; }',
     'export function handler(ctx) { const route = ctx.routeUrl(); const { viewPath } = route; return viewPath; }',
     'export function handler(ctx) { const { routeUrl } = ctx; return routeUrl("users.index"); }',
+    'export function handler(ctx) { return ctx.routeUrl({ "absolute": true }); }',
     'export function handler(ctx) { const { routeUrl: link } = ctx; return link("users.index", {}); }',
     'export function handler(ctx) { const link = ctx.routeUrl; const alias = link; return alias("users.index"); }',
     'export function handler(ctx) { const { routeUrl: link } = ctx; return link(); }'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
   for (const source of [
     'export function handler(ctx) { const { absoluteUiPath: publicLink } = ctx.routeUrl()!; return { publicLink }; }',
+    'export function handler(ctx) { return ctx.routeUrl()["absoluteUiPath"]; }',
     'export function handler(ctx) { const { absoluteApiPath: endpoint } = providerConfig; return { endpoint }; }',
     'export function handler(ctx) { const { routeUrl: link } = provider; return link("invoice", options); }',
     'export function handler(ctx) { const { routeUrl } = ctx; function provider(routeUrl) { return routeUrl("invoice", options); } return provider(externalLink); }',

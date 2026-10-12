@@ -86,7 +86,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         scope = scope.parent;
       }
     }
-    if (ts.isPropertyAccessExpression(expression) && expression.name.text === "absoluteUiPath") return false;
+    if (ts.isPropertyAccessExpression(expression) && expression.name.text === "absoluteUiPath"
+      || ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === "absoluteUiPath") return false;
     if (ts.isPropertyAccessExpression(expression) && internalPaths.has(expression.name.text)) return internalValue(expression.expression, seen);
     if (ts.isCallExpression(expression) && (ts.isIdentifier(expression.expression) && expression.expression.text === "resolveAppAuthRedirect"
       || isResolverFunction(expression.expression))) return true;
@@ -215,7 +216,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     if (ts.isCallExpression(node) && isResolverFunction(node.expression)) {
       if (node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])
-        && node.arguments[0].properties.some(item => item.name && ["absolute", "origin"].includes(item.name.getText(tree)))) {
+        && node.arguments[0].properties.some(item => item.name && ["absolute", "origin"].includes(ts.isIdentifier(item.name) || ts.isStringLiteralLike(item.name) ? item.name.text : item.name.getText(tree)))) {
         report(node, "absolute/origin options were removed. Select the corresponding absolute destination field.");
       }
       if ((node.arguments.length > 1 || node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]))) {
