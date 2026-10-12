@@ -394,3 +394,5 @@ Promise constructor fulfillment payloads retain destination provenance, includin
 Prebuild and generation both inspect configured `betterportal.routes` and `betterportal.shells` folders, including locations outside `src`, as well as default source helpers. Nested roots are deduplicated.
 
 Standard reversible URI/base64 encoders retain destination provenance. Numeric indexing into known strings is character state; indexing into arrays can select a complete internal path.
+
+Streamed API items emitted by `yield` or `yield*` follow the same destination checks as returned payloads. Streams return domain items/public links; renderers resolve internal navigation locally.
