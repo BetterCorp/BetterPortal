@@ -402,3 +402,5 @@ Destructuring assignments into existing variables or response properties retain 
 Standard Object.defineProperty/defineProperties response mutations retain descriptor value provenance; public links and objects consumed by domain clients remain valid.
 
 The authoring check recognizes statically named computed properties in destructuring assignments and follows the selected field of known objects. Selecting domain data from an object that also contains an internal destination remains valid; returning the internal destination fails the build. Object property descriptor mutations are checked too.
+
+Local object response factories and values returned by array `splice()` retain destination provenance. Selecting only domain values, removing no values, public links and opaque domain-client results remain valid.
