@@ -8,7 +8,7 @@ test("OAuth uses an absolute service callback when UI aliases are ambiguous", as
     const result = await login({ query: {}, config: { clientId: "client_test", apiKey: "sk_test" },
       app: { defaultRoute: "/dashboard" }, plugin: { getAuthorizationUrl: (_config: unknown, options: { redirectUri: string }) => {
         callback = options.redirectUri; return "https://provider.test/authorize";
-      } }, routeUrl: () => ({ absoluteUiPath: publicUrl, absoluteViewPath: "https://auth.test/login" }) } as never);
+      } }, route: () => ({ absoluteUiPath: publicUrl, absoluteViewPath: "https://auth.test/login" }) } as never);
     assert.equal(result.status, "ok");
     assert.equal(callback, publicUrl ?? "https://auth.test/login");
     assert.equal(result.authorizationUrl, "https://provider.test/authorize");
@@ -16,7 +16,7 @@ test("OAuth uses an absolute service callback when UI aliases are ambiguous", as
   let called = false;
   const unavailable = await login({ query: {}, config: { clientId: "client_test", apiKey: "sk_test" }, app: { defaultRoute: "/dashboard" },
     plugin: { getAuthorizationUrl: () => { called = true; return "https://provider.test/authorize"; } },
-    routeUrl: () => ({ absoluteUiPath: null, absoluteViewPath: null }) } as never);
+    route: () => ({ absoluteUiPath: null, absoluteViewPath: null }) } as never);
   assert.equal(unavailable.status, "error");
   assert.equal(called, false);
 });

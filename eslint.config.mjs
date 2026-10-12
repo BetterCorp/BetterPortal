@@ -1,3 +1,4 @@
+import betterportal from "./framework/nodejs/lib/eslint.js";
 import js from "@eslint/js";
 import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
@@ -15,12 +16,14 @@ export default defineConfig(
   {
     files: ["**/*.{ts,tsx}"],
     extends: [tseslint.configs.recommended],
-    plugins: { tsdoc },
+    plugins: { tsdoc, betterportal },
     rules: {
       "tsdoc/syntax": "error",
+      "betterportal/routing-contract": "error",
       // Existing schema/HTMX interop uses explicit any; strict TS remains the type gate.
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_", ignoreRestSiblings: true }]
     }
-  }
+  },
+  { files: ["**/tests/**", "tests/**"], rules: { "betterportal/routing-contract": "off" } }
 );

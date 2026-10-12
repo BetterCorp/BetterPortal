@@ -55,7 +55,7 @@ public sealed record HandlerContext<TParams, TQuery, THeaders, TBody>(RequestCon
     public ResponseState Response => RequestContext.Response;
     public Urls Urls => RequestContext.Urls;
     /// <summary>Resolve self or an explicit target, using validated params/query for self.</summary>
-    public Generated.ResolvedRouteUrl? RouteUrl(Generated.RouteUrlOptionsInput? input = null)
+    public Generated.ResolvedRoute? Route(Generated.RouteOptionsInput? input = null)
         => Urls.Resolve(input, RequestContext.Method, Params, Query);
 }
 public sealed record Invocation(object? Value, object? Params, object? Query);

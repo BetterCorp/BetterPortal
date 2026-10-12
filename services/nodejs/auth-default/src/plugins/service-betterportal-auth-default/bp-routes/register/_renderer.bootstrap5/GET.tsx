@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../../../registrationFlow.js";
@@ -40,7 +40,7 @@ function redirectStub(url: string, pushUrl: string, label: string): HtmlRenderab
 }
 
 function renderForm(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
-  const target = ctx.routeUrl({ path: "/register", method: "POST", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } })?.absoluteApiPath;
+  const target = ctx.route({ path: "/register", method: "POST", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } })?.absoluteApiPath;
   if (!target) throw new Error("Registration action route is unavailable");
   return (
     <div class="container py-5" style="max-width: 420px;">
@@ -86,7 +86,7 @@ function renderForm(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable 
 }
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
-  const login = ctx.routeUrl({ path: "/login", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } });
+  const login = ctx.route({ path: "/login", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } });
   // POST success - server-rendered confirmation, then on to sign-in.
   if (data.status === "ok" && data.user) {
     return (

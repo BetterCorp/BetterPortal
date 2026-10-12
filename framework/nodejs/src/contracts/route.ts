@@ -1,5 +1,5 @@
-import type { RouteUrlResolver } from "./routeUrl.js";
-export type { RouteUrlInput, RouteUrlOptions, RouteUrlResolver, ResolvedRouteUrl } from "./routeUrl.js";
+import type { RouteResolver } from "./routing.js";
+export type { RouteInput, RouteOptions, RouteResolver, ResolvedRoute } from "./routing.js";
 import * as av from "anyvali";
 import type { Infer, ParseContext, SchemaNode } from "anyvali";
 import { PluginIdSchema, type HttpMethod } from "./common.js";
@@ -202,7 +202,7 @@ export interface RouteHandlerContextBase<
    * Select apiPath/viewPath/uiPath or their absolute counterparts at the point of use.
    * Do not pass internal renderer navigation URLs through an API response.
    */
-  readonly routeUrl?: RouteUrlResolver;
+  readonly route: RouteResolver;
   /** Emit a dev-declared webhook event through the control plane. */
   readonly webhook?: (eventId: string, payload: JsonValue, options?: WebhookEmitOptions) => Promise<void>;
   readonly response: (body?: RawResponseBody, init?: ResponseInit) => Response;
@@ -307,7 +307,7 @@ export type SseMapperContext<
   readonly serviceCaller?: ValidatedServiceClaims;
   readonly callerMode?: ApiCallerMode;
   readonly serviceId?: string;
-  readonly routeUrl?: RouteHandlerContext["routeUrl"];
+  readonly route?: RouteHandlerContext["route"];
   readonly obs?: BetterPortalObservability;
   readonly config?: TServiceConfig;
   /** Aborted when the browser closes the SSE connection. */

@@ -4,7 +4,7 @@ import type { HttpMethod } from "./common.js";
 export type RouteUrlValue = string | number | boolean | null | undefined;
 
 /** Options shared by API handlers and view renderers. */
-export interface RouteUrlOptions {
+export interface RouteOptions {
   /** Dependency alias, plugin id, or service instance id. Defaults to the current service. */
   serviceId?: string;
   /** Target HTTP method. Defaults to the current method for self, and GET for an explicit target. */
@@ -29,7 +29,7 @@ export interface RouteUrlOptions {
  * A path is always a service path, never an inferred theme/UI path. Exact templates
  * take precedence; concrete paths prefer earlier literal segments as the router does.
  */
-export type RouteUrlInput = RouteUrlOptions & (
+export type RouteInput = RouteOptions & (
   | { path: string; viewId?: never }
   | { viewId: string; path?: never }
   | { path?: never; viewId?: never }
@@ -42,12 +42,18 @@ export type RouteUrlInput = RouteUrlOptions & (
  * Resolve destinations where they are used: never add internal navigation URLs
  * to an API response merely to pass them to a renderer.
  */
-export interface ResolvedRouteUrl {
+export interface ResolvedRoute {
+  /** API handlers stringify to apiPath; renderers stringify to viewPath. Never defaults to a UI path. */
+  toString(): string;
+  /** Return an immutable component destination, or null when resolution fails. */
+  component(id: string): ResolvedRoute | null;
+  /** Return an immutable fragment destination, or null when resolution fails. */
+  fragment(id: string): ResolvedRoute | null;
   /** Resolved service-relative API request path. Use for service-context API requests. */
   readonly apiPath: string;
-  /** Service-relative rendered-view request path, including component/fragment selectors. */
+  /** Default service-view destination for renderer links and HTML actions, including component/fragment selectors. The theme maps service destinations to UI mounts. */
   readonly viewPath: string;
-  /** Mounted theme/UI path for browser navigation and history. Null unless one GET page mount resolves. */
+  /** Explicit mounted theme destination for shell navigation and history. Service renderers prefer BPRoute or viewPath. Null unless one GET page mount resolves. */
   readonly uiPath: string | null;
   /** Absolute API request URL on the target service origin. Null if that origin is unavailable. */
   readonly absoluteApiPath: string | null;
@@ -62,4 +68,4 @@ export interface ResolvedRouteUrl {
  * routes, unsupported methods, missing parameters or ambiguous service targets.
  * Unmounted/ambiguous UI destinations leave UI fields null while service paths remain usable.
  */
-export type RouteUrlResolver = (input?: RouteUrlInput) => ResolvedRouteUrl | null;
+export type RouteResolver = (input?: RouteInput) => ResolvedRoute | null;

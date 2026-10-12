@@ -8,10 +8,10 @@ public sealed record RenderContext(Generated.ViewRenderData Data, Urls Urls, Can
     public Generated.ViewTenantContext Tenant => Data.Tenant;
     public Generated.ViewAppContext App => Data.App;
     public Generated.ViewRenderDataRequest Request => Data.Request;
-    public Generated.ViewRenderDataRoute Route => Data.Route;
+    public Generated.ViewRenderDataRoute RouteInfo => Data.Route;
     /// <summary>The same route resolver as API handlers; omit the target to resolve self.</summary>
-    public Generated.ResolvedRouteUrl? RouteUrl(Generated.RouteUrlOptionsInput? input = null)
-        => Urls.Resolve(input, Request.Method.ToString().ToUpperInvariant(), Request.Params, Request.Query);
+    public Generated.ResolvedRoute? Route(Generated.RouteOptionsInput? input = null)
+        => Urls.Resolve(input, Request.Method.ToString().ToUpperInvariant(), Request.Params, Request.Query, viewContext: true);
     public static RenderContext Create(RequestContext request, string viewId, string matchedPath, string renderer, string mode, string kind,
         string? key, int status, object? @params, object? query, CancellationToken cancellation = default)
     {

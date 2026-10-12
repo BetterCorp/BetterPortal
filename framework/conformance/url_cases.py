@@ -193,7 +193,7 @@ def run_urls(urls, labels):
     case("known-current-instance", None, resolved("/check/item?hello=world", ui="/copy/item?hello=world", origin="https://copy.test"), concrete_identity)
     def getter_identity(body):
         duplicate_current(body)
-        body["routeUrlServiceId"] = TARGET
+        body["routeServiceId"] = TARGET
     case("current-instance-getter", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"), getter_identity, runtimes=["node"])
     case("disabled-ui", {"viewId": "check", "params": {"key": "item"}}, resolved("/check/item"), lambda body: body["snapshot"]["apps"][0]["appRoutes"][0].update(enabled=False))
     def providers(body):

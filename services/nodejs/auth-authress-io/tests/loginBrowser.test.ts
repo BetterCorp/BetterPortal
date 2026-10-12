@@ -8,7 +8,7 @@ const apiDestination = "https://auth.service.test/_bp/service/authress/login?nex
 const callbackDestination = "https://portal.test/account/sign-in?next=%2Freports";
 const context = {
   request: { query: { next: "/reports" } }, app: { defaultRoute: "/home" },
-  routeUrl: (options: { method?: string }) => ({ apiPath: "/login", viewPath: "/login", uiPath: "/account/sign-in",
+  route: (options: { method?: string }) => ({ apiPath: "/login", viewPath: "/login", uiPath: "/account/sign-in",
     absoluteApiPath: apiDestination, absoluteViewPath: "https://auth.service.test/_bp/service/authress/login?next=%2Freports",
     absoluteUiPath: options.method === "GET" ? callbackDestination : null })
 } as unknown as ViewRenderContext;

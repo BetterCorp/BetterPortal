@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/framework",
-  "version": "10.7.1",
+  "version": "11.0.0",
   "description": "BetterPortal v10 core library for Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,6 +38,8 @@
     "anyvali": "^1.1.6",
     "h3": "^2.0.1-rc.31",
     "jose": "^6.2.10",
+    "jsx-htmx": "4.0.100",
+    "parse5": "^8.0.1",
     "typescript": "^6.0.3",
     "yaml": "^2.9.1"
   },
@@ -52,5 +54,29 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "default": "./lib/index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./lib/jsx-runtime.d.ts",
+      "import": "./lib/jsx-runtime.js",
+      "default": "./lib/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./lib/jsx-dev-runtime.d.ts",
+      "import": "./lib/jsx-dev-runtime.js",
+      "default": "./lib/jsx-dev-runtime.js"
+    },
+    "./eslint": {
+      "types": "./lib/eslint.d.ts",
+      "import": "./lib/eslint.js",
+      "default": "./lib/eslint.js"
+    },
+    "./lib/*": "./lib/*",
+    "./package.json": "./package.json"
   }
 }

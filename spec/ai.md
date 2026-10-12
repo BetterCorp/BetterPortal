@@ -53,7 +53,7 @@ These Config Manager responses are generated only from cached manifests received
 2. Select `/llms-api.txt`, `/llms-dev.txt`, or `/llms-ui.txt` for the task.
 3. Fetch linked manifests, route schemas, resources, or the app catalog as needed.
 4. Authenticate with the app's configured user auth service before calling protected actions.
-5. Call the discovered service origin. Use `ctx.routeUrl` in both contexts: API/view fields target services, UI fields target app navigation.
+5. Call the discovered service origin. Use `ctx.route` in both contexts: API/view fields target services, UI fields target app navigation.
 6. Preserve live `BP-SetHeader` values until expiry, remove values named by `BP-RemoveHeader`, and send current BP headers on subsequent calls.
 
 Installed-service S2S credentials and platform-admin credentials are never part of AI discovery. Platform administration remains operator-only.

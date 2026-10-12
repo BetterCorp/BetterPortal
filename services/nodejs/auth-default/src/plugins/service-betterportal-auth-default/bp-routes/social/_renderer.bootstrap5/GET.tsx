@@ -1,10 +1,10 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { js } from "jsx-htmx";
 import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 export function render(data: Record<string, any>, ctx: ViewRenderContext): HtmlRenderable {
   const afterLogin = resolveAppAuthRedirect(ctx, "afterLogin", typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined);
-  const endpoint = ctx.routeUrl({ path: "/social", method: "POST" })?.absoluteApiPath;
-  const account = ctx.routeUrl({ path: "/account", method: "POST" })?.absoluteApiPath;
+  const endpoint = ctx.route({ path: "/social", method: "POST" })?.absoluteApiPath;
+  const account = ctx.route({ path: "/account", method: "POST" })?.absoluteApiPath;
   if (!endpoint || !account) throw new Error("Social authentication service routes are unavailable");
   return <section id="bp-social-ui" class="container py-4" style="max-width:540px" data-endpoint={endpoint} data-account-endpoint={account} data-after-login={afterLogin} data-code={data.code} data-state={data.state}>
     <h2>{data.signedIn ? "Link a sign-in provider" : "Sign in"}</h2><p role="status">{data.message ?? (data.error ? "The provider declined sign-in. Try again." : "")}</p>

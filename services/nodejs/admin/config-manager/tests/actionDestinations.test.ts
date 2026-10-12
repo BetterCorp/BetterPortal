@@ -17,13 +17,13 @@ test("management APIs return domain models and views resolve their own action de
   const storage = new FileStorage(join(directory, "config.json"));
   await storage.saveConfig(BetterPortalConfigSchema.parse({}));
   setConfigManagerRouteContext({ storage, cpState: {} as never, serviceBaseUrl: "https://config.test/prefix" });
-  const request = { request: {}, query: {}, routeUrl: () => { throw new Error("API must not resolve view action URLs"); } };
+  const request = { request: {}, query: {}, route: () => { throw new Error("API must not resolve view action URLs"); } };
   const tenantData = await getTenants(request as never);
   const previewData = await getPreviews(request as never);
   assert.equal("tenantsPath" in tenantData, false);
   assert.equal("previewPath" in previewData, false);
   const calls: Array<{ path: string; method: string }> = [];
-  const ctx = { routeUrl: (input: { path: string; method?: string; query?: Record<string, string> }) => {
+  const ctx = { route: (input: { path: string; method?: string; query?: Record<string, string> }) => {
     calls.push({ path: input.path, method: input.method ?? "GET" });
     const url = new URL("https://config.test/prefix" + input.path);
     for (const [key, value] of Object.entries(input.query ?? {})) url.searchParams.set(key, value);

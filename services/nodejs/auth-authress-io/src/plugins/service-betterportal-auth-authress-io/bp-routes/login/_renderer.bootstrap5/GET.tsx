@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 
 import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 import { css, js } from "jsx-htmx";
@@ -23,9 +23,9 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
   }
 
   const interactive = !data.alreadyLoggedIn && data.status !== "error";
-  const login = interactive ? ctx.routeUrl({ method: "POST" }) : null;
+  const login = interactive ? ctx.route({ method: "POST" }) : null;
   if (interactive && !login?.absoluteApiPath) throw new Error("Authress login service route is unavailable");
-  const callback = interactive ? ctx.routeUrl({ path: "/login", method: "GET", query: { next } }) : null;
+  const callback = interactive ? ctx.route({ path: "/login", method: "GET", query: { next } }) : null;
   const callbackUrl = callback?.absoluteUiPath ?? callback?.absoluteViewPath;
   if (interactive && !callbackUrl) throw new Error("Authress login callback route is unavailable");
   const nextUrl = next;

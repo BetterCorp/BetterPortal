@@ -71,10 +71,11 @@ def render(value: TokenLifetimeConfig, context: RenderContext) -> str:
 renderer = Renderer[TokenLifetimeConfig]({"renderer": "bootstrap5"}, render)
 html = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, renderers=[renderer])
 from betterportal.urls import Urls
-from betterportal.generated_types import RouteUrlOptionsInput, ResolvedRouteUrl
-url_options: RouteUrlOptionsInput = {"path": "/hello", "query": {"count": 42, "missing": None}, "fragment": "nav.profile"}
-def destinations(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> ResolvedRouteUrl | None:
-    return context.route_url(url_options)
+from betterportal.generated_types import RouteOptionsInput
+from betterportal.urls import RouteDestination
+url_options: RouteOptionsInput = {"path": "/hello", "query": {"count": 42, "missing": None}, "fragment": "nav.profile"}
+def destinations(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> RouteDestination | None:
+    return context.route(url_options)
 from typing import AsyncIterator
 from betterportal.finite import FiniteHandler, StreamRenderers
 from betterportal.streaming import Summary
@@ -135,11 +136,11 @@ def bad_render(value: ApiAuthRequirement, context: RenderContext) -> str:
 renderer = Renderer[ApiAuthRequirement]({"renderer": "bootstrap5"}, lambda value, context: 42)
 from betterportal.urls import Urls
 invalid_url = Urls.path("/hello", {"query": {"array": [1]}})
-from betterportal.generated_types import RouteUrlOptionsInput
-legacy_options: RouteUrlOptionsInput = {"absolute": True}
-invalid_query: RouteUrlOptionsInput = {"query": {"array": [1]}}
+from betterportal.generated_types import RouteOptionsInput
+legacy_options: RouteOptionsInput = {"absolute": True}
+invalid_query: RouteOptionsInput = {"query": {"array": [1]}}
 def legacy_call(context: HandlerContext[Any, Any, Any, Any]) -> None:
-    context.route_url("check")
+    context.route("check")
 from betterportal.finite import StreamRenderers
 bad_stream = StreamRenderers[ApiAuthRequirement, ApiAuthRequirement]("bootstrap5", lambda data, context: data["missing"], lambda data, context: 42)
 from betterportal.feeds import SseFeed
@@ -227,13 +228,13 @@ var handler = new Handler<object?, object?, object?, object?, BetterPortal.Gener
         Contracts.Parse<BetterPortal.Generated.ApiAuthRequirement>("ApiAuthRequirementSchema", new BetterPortal.Generated.ApiAuthRequirementInput())),
     renderers: new[] { renderer });
 if (handler.Renderers.Count != 1) throw new System.Exception("Missing typed renderer");
-var options = new BetterPortal.Generated.RouteUrlOptionsInput { Path = "/hello", Fragment = "nav.profile", Query = new System.Collections.Generic.Dictionary<string, BetterPortal.Generated.UrlScalarInput?> { ["count"] = 42, ["missing"] = null } };
-var typedOptions = Contracts.Parse<BetterPortal.Generated.RouteUrlOptions>("RouteUrlOptionsSchema", options);
+var options = new BetterPortal.Generated.RouteOptionsInput { Path = "/hello", Fragment = "nav.profile", Query = new System.Collections.Generic.Dictionary<string, BetterPortal.Generated.UrlScalarInput?> { ["count"] = 42, ["missing"] = null } };
+var typedOptions = Contracts.Parse<BetterPortal.Generated.RouteOptions>("RouteOptionsSchema", options);
 var integers = new System.Collections.Generic.Dictionary<string, BetterPortal.Generated.UrlScalarInput?> {
     ["safe"] = 42, ["large"] = 9007199254740993L, ["min"] = long.MinValue, ["max"] = ulong.MaxValue };
-var integerOptions = Contracts.Parse<BetterPortal.Generated.RouteUrlOptions>("RouteUrlOptionsSchema", new BetterPortal.Generated.RouteUrlOptionsInput { Path = "/ids", Query = integers });
+var integerOptions = Contracts.Parse<BetterPortal.Generated.RouteOptions>("RouteOptionsSchema", new BetterPortal.Generated.RouteOptionsInput { Path = "/ids", Query = integers });
 if (!Json.Write(integerOptions.Query).Contains("9007199254740993")) throw new System.Exception("Typed URL integers lost precision");
-System.Func<HandlerContext<object?, object?, object?, object?>, BetterPortal.Generated.ResolvedRouteUrl?> destinations = context => context.RouteUrl(new() { Path = "/hello" });
+System.Func<HandlerContext<object?, object?, object?, object?>, BetterPortal.Generated.ResolvedRoute?> destinations = context => context.Route(new() { Path = "/hello" });
 _ = destinations;
 BetterPortal.Generated.UrlScalarInput[] nativeIntegers = { (sbyte)-1, (byte)2, (short)-3, (ushort)4, 5, 6u };
 if (Json.Write(nativeIntegers) != "[-1,2,-3,4,5,6]") throw new System.Exception("Small integer union conversions changed");
@@ -293,7 +294,7 @@ static int InvalidHandler(BetterPortal.HandlerContext<object, ApiAuthRequirement
 }
 var renderer = new BetterPortal.Renderer<ApiAuthRequirement>(new() { Renderer = "bootstrap5" }, (value, context) => 42);
 static string PrivateContext(BetterPortal.RenderContext context) => context.Tenant.Services;
-var urlOptions = new RouteUrlOptionsInput { Absolute = "true" };
+var urlOptions = new RouteOptionsInput { Absolute = "true" };
 var stream = new BetterPortal.StreamRenderers<ApiAuthRequirement, ApiAuthRequirement>("bootstrap5",
     (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.Missing),
     (data, context) => System.Threading.Tasks.ValueTask.FromResult(data.Required.Trim()));

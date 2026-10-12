@@ -41,10 +41,10 @@ npm run bp-codegen
 Tag releases publish npm packages and BSB registry schemas. The separate BetterPortal contract publish job is intentionally disabled until its registry setup is enabled. Set and commit the workspace version before tagging:
 
 ```bash
-node scripts/release/set-workspace-version.mjs 10.7.1
+node scripts/release/set-workspace-version.mjs 11.0.0
 npm install --package-lock-only --ignore-scripts
-git commit -S -am "chore(release): prepare v10.7.1"
-git tag -s v10.7.1 -m "BetterPortal v10.7.1"
+git commit -S -am "chore(release): prepare v11.0.0"
+git tag -s v11.0.0 -m "BetterPortal v11.0.0"
 ```
 
 Verify the commit/tag signatures with the configured signing identity before pushing. Push the release commit to master, then push the signed tag to start publication.
@@ -85,7 +85,7 @@ WORKDIR /home/bsb
 ENV BSB_PLUGIN_DIRS=""
 RUN npm install --omit=dev --save-exact \
     @bsb/base@9.7.4 @bsb/config-vault@9.7.4 @bsb/observable-axiom@9.7.4 \
-    anyvali@1.1.6 @betterportal/config-manager@10.7.1
+    anyvali@1.1.6 @betterportal/config-manager@11.0.0
 ```
 
 Retain the deployment's existing entrypoint adjustments and health check. Keep `BSB_CONFIG_PLUGIN_PACKAGE=@bsb/config-vault` as an unversioned package name; the installed dependency carries the version. Preserve service-specific Vault credentials, volumes, ports and replica/update settings when replacing the Dockerfile. Rebuild matching auth, admin, theme and example services together for a breaking routing upgrade; APIs return domain data and views resolve their own destinations.

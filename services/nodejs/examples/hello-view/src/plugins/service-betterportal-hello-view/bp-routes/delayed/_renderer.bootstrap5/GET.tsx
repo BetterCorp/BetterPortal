@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { DelayedItem, DelayedSummary } from "../GET.js";
 import { renderItem, renderSummary } from "./index.stream.js";

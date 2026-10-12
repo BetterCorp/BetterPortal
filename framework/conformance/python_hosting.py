@@ -23,7 +23,7 @@ def url_calls(context, calls):
     values = []
     for call in calls:
         try:
-            if call["kind"] == "routeUrl": value = context.route_url(call.get("input"))
+            if call["kind"] == "routeUrl": value = context.route(call.get("input"))
             elif call["kind"] == "element": value = context.urls.element(call["reference"])
             else: raise ValueError("Unknown URL fixture call")
             values.append(value)
@@ -89,7 +89,7 @@ async def hosting_request(body):
                 try: await asyncio.sleep(30)
                 finally: cancelled = True
             if item.get("throw") or "throwOn" in item and item["throwOn"] == data: raise ValueError("private-render-secret")
-            if "routeLink" in item: return '<a href="' + context.route_url({"viewId": item["routeLink"]})["viewPath"] + '">Reload</a>'
+            if "routeLink" in item: return '<a href="' + context.route({"viewId": item["routeLink"]})["viewPath"] + '">Reload</a>'
             if "text" in item: return item["text"]
             value = url_calls(context, item["urlCalls"]) if "urlCalls" in item else data if item.get("dataOnly") else {"data": data, "context": context.data}
             return "<pre>" + html.escape(json.dumps(value)) + "</pre>"

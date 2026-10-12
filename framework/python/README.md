@@ -112,7 +112,7 @@ a generic 500. Disconnects cancel async callbacks. Pass shared error renderers a
 operation-local error renderers take precedence. Global renderers also cover
 unmatched routes after resolving a valid app scope.
 
-Handlers and renderers use the same resolver: `context.route_url(input=None)` in Python and `context.RouteUrl(input = null)` in .NET. Supply a service `path` or `viewId`; omit both to resolve self with the current method, params and query. Explicit targets default to GET. Self preserves repeated query values; scalar overrides replace all values for that key, and null removes the key. Query strings embedded in `path` preserve repeated pairs too. Dependency aliases, plugin IDs and instance IDs are supported. Unknown targets, unsupported methods and missing params return `None`/`null`.
+Handlers and renderers use the same resolver: `context.route(input=None)` in Python and `context.Route(input = null)` in .NET. Supply a service `path` or `viewId`; omit both to resolve self with the current method, params and query. Explicit targets default to GET. Self preserves repeated query values; scalar overrides replace all values for that key, and null removes the key. Query strings embedded in `path` preserve repeated pairs too. Dependency aliases, plugin IDs and instance IDs are supported. Unknown targets, unsupported methods and missing params return `None`/`null`.
 
 Renderer selection uses the explicit `component` or `fragment` option. Reserved `_c`/`_f` keys in query input, supplied paths, or the current request are removed before resolution; only view destinations receive an explicit selector. API and mounted page destinations remain free of renderer selectors.
 
@@ -121,13 +121,13 @@ Renderer selection uses the explicit `component` or `fragment` option. Reserved 
 The result has six wire fields: `apiPath` and `viewPath` are service-relative; `uiPath` is the mounted theme path; `absoluteApiPath` and `absoluteViewPath` use the service origin; `absoluteUiPath` is the public app URL. Component/fragment selectors affect view fields only. UI fields are null unless exactly one enabled GET page resolves; select `mountId` for a frontend alias. Resolve internal links in the renderer from domain data and cursors. API code may return a public `absoluteUiPath` link where that link is domain data.
 
 ```python
-from betterportal.generated_types import RouteUrlOptionsInput, ResolvedRouteUrl
+from betterportal.generated_types import RouteOptionsInput, ResolvedRoute
 
-request: RouteUrlOptionsInput = {"path": "/items/:id", "params": {"id": 42}, "query": {"page": 2}}
-# In either callback: destination = context.route_url(request)
+request: RouteOptionsInput = {"path": "/items/:id", "params": {"id": 42}, "query": {"page": 2}}
+# In either callback: destination = context.route(request)
 # API requests use destination["absoluteApiPath"].
 # HTML requests use destination["absoluteViewPath"].
-# Navigation uses destination["uiPath"]; emails use destination["absoluteUiPath"].
+# Service views use str(destination) or destination["viewPath"]; emails use destination["absoluteUiPath"].
 ```
 
 The old string-returning route/current/path/UI helpers and literal route tokens have been removed. Update callers to select a destination field. The resolver neither sends requests nor grants access. Fragment composition remains available through the scoped element resolver; no credentials are retained in renderer navigation helpers.
@@ -1086,3 +1086,16 @@ the active shell for the resolved app, with normal origin restrictions.
 Embedded query values may contain raw question marks, for example `/items?q=what?x&next=/a?b`; the resolver preserves and encodes the complete values before applying query overrides.
 
 A dependency mount without a resolved service path cannot identify a service endpoint, so resolution returns null rather than guessing or throwing.
+
+
+Use `betterportal.themes.bp_route` for native HTML controls/embeds; its states use the shared browser runtime. Component/fragment success wraps fetched HTML rather than authored children:
+
+```python
+from betterportal.themes import bp_route
+
+# Inside a renderer, context is the RenderContext supplied by BetterPortal.
+# html = bp_route(context, {"viewId": "items.detail", "params": {"id": 42}},
+#     {"ok": "Item", "error": {"as": "label", "id": "unavailable", "content": "Unavailable"}})
+```
+
+Route results stringify to apiPath in handlers and viewPath in renderers. Immutable selector chaining uses `destination.component("summary")` or `.fragment("body.live")`. The theme maps service controls to public UI mounts; do not prefer uiPath for service-renderer hrefs.

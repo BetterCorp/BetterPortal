@@ -1,7 +1,7 @@
 import type { BaseSchema } from "anyvali";
 import type { HttpMethod, RenderMode } from "./common.js";
 import type { CacheHints, OperationDependency } from "./view.js";
-import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteUrlOptions, RouteUrlResolver, ResolvedRouteUrl } from "./route.js";
+import type { ApiAuthRequirement, DemoScenario, RawRouteHandler, RouteHandler, RouteResolver } from "./route.js";
 import type { BetterPortalApp, BetterPortalRouteChrome, BetterPortalTenant } from "./platformConfig.js";
 import type { ApiContractDescriptor } from "./m2m.js";
 import type { BpStreamHandler, StreamRendererSet } from "./streaming.js";
@@ -15,30 +15,21 @@ type AnyRawRouteHandler =
   | RawRouteHandler<any, any, any, any, any, any>
   | RawRouteHandler<any, any, any, any, never, any>;
 
-export interface RouteUiOptions extends RouteUrlOptions {
-  method?: HttpMethod;
-  target?: string;
-  swap?: string;
-  push?: string | boolean;
-}
-
-export type RouteUiAttributes = Readonly<Record<string, string>>;
-
-export interface BPElementArgs {
-  readonly params?: Readonly<Record<string, string | number | boolean>>;
+export interface BPRouteArgs {
+  readonly params?: Readonly<Record<string, string | number | boolean | null | undefined>>;
   readonly query?: Readonly<Record<string, string | number | boolean | null | undefined>>;
 }
 
-export interface BPElementReference {
+export interface BPRouteReference {
   /** Dependency alias from betterportal.json, a canonical plugin id, or "shell". */
   readonly service: string;
   /** Service route path from the dependency contract. Required for service fragments. */
   readonly path?: string;
   readonly fragment: string;
-  readonly args?: BPElementArgs;
+  readonly args?: BPRouteArgs;
 }
 
-export interface ResolvedBPElementReference {
+export interface ResolvedBPRouteReference {
   readonly url?: string;
   readonly serviceId?: string;
   readonly unavailable?: string;
@@ -81,7 +72,7 @@ export interface ViewRenderContext {
     readonly params: Readonly<Record<string, string>>;
     readonly query: Readonly<Record<string, unknown>>;
   };
-  readonly route: {
+  readonly routeInfo: {
     readonly viewId: string;
     readonly path: string;
     readonly renderer: string;
@@ -91,15 +82,9 @@ export interface ViewRenderContext {
     readonly status: number;
   };
   /** Resolve self, a service path or a view id. Identical to the API handler resolver. */
-  readonly routeUrl: RouteUrlResolver;
-  readonly routeUi: {
-    link(route: ResolvedRouteUrl, options?: RouteUiOptions): RouteUiAttributes;
-    current(options?: RouteUiOptions): RouteUiAttributes;
-    fragment(route: ResolvedRouteUrl, options?: RouteUiOptions): RouteUiAttributes;
-    form(route: ResolvedRouteUrl, options?: RouteUiOptions): RouteUiAttributes;
-  };
+  readonly route: RouteResolver;
   /** Resolve an app-allowlisted fragment request. Context is consumed server-side. */
-  readonly element: (reference: BPElementReference) => ResolvedBPElementReference;
+  readonly element: (reference: BPRouteReference) => ResolvedBPRouteReference;
 }
 // -- HTML renderer types -----------------------------------------------
 

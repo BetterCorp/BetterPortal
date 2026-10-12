@@ -19,7 +19,7 @@ test("user management submits multiple and empty role arrays and preserves off-p
     users: [{ id: "alice", email: "alice@example.test", roles: ["reader"], effectiveRoles: ["reader"], enabled: true },
       { id: "root", username: "root", roles: ["*"], effectiveRoles: ["*"], protected: true, enabled: true }],
     groups: [{ id: "team", name: "Team", members: ["alice", "off-page"], roles: ["reader"] }]
-  }, { request: { query: {} }, routeUrl: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never)) }));
+  }, { request: { query: {} }, route: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never)) }));
   await page.goto("https://app.test/users");
   const form = page.locator('form:has(input[name="action"][value="roles"])');
   assert.equal(await form.count(), 1);
@@ -59,6 +59,6 @@ test("closed registration stays in the users response and hides invitations", as
   };
   const result = await users(ctx as never) as Record<string, unknown>;
   assert.equal(result.registration, "closed");
-  const markup = toHtmlString(render(result, { request: { query: {} }, routeUrl: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never));
+  const markup = toHtmlString(render(result, { request: { query: {} }, route: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never));
   assert.doesNotMatch(markup, /value="invite"/);
 });

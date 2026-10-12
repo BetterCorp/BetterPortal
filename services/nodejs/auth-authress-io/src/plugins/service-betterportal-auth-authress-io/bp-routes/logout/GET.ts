@@ -26,7 +26,7 @@ export default createHandler(
     const query = ctx.query as Infer<typeof QuerySchema>;
     ctx.bpHeaders?.remove("Authorization");
     ctx.bpHeaders?.remove("X-BP-Refresh");
-    const login = ctx.routeUrl?.({ path: "/login", query: { action: "logout", next: query.next ?? query.redirect } });
+    const login = ctx.route?.({ path: "/login", query: { action: "logout", next: query.next ?? query.redirect } });
     if (login?.uiPath) ctx.responseHeaders?.set("HX-Location", login.uiPath);
     if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
     return { status: "ok" as const, message: "Signed out." };

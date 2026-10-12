@@ -3,7 +3,7 @@ import test from "node:test";
 import { toHtmlString, type ViewRenderContext } from "@betterportal/framework";
 import { render } from "../src/plugins/service-betterportal-auth-workos/bp-routes/login/_renderer.bootstrap5/GET.js";
 
-const context = { request: { query: {} }, app: { defaultRoute: "/fallback" }, routeUrl: () => ({
+const context = { request: { query: {} }, app: { defaultRoute: "/fallback" }, route: () => ({
   apiPath: "/login", viewPath: "/login", uiPath: "/login",
   absoluteApiPath: "https://auth.test/login", absoluteViewPath: "https://auth.test/login", absoluteUiPath: "https://app.test/login"
 }) } as unknown as ViewRenderContext;

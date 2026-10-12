@@ -43,7 +43,7 @@ class Operation:
         return await self.handler.execute(context, values)
 
     async def render_error(self, context: RenderContext, message: str, fallback: Iterable[Renderer[ViewRenderError]] = ()) -> RawResponse | None:
-        route = context.route
+        route = context.route_info
         identity = (route["renderer"], route["kind"], route.get("key"), route["status"])
         renderer = next((item for item in (*self.error_renderers, *fallback) if item.identity == identity), None)
         if renderer is None and not any(item.identity[:3] == identity[:3] for item in self.handler.renderers): return None

@@ -38,10 +38,10 @@ return order;
 
 Resolve #62 consistently across root `llms.txt`, generated `/llms-dev.txt` and `/llms-ui.txt`, route/view docs, theme guides, skills, examples and scaffolding:
 
-- Use inline `ctx.routeUrl({ viewId, query })?.uiPath` anchors inside service-rendered shell content; the runtime handles the service-to-UI mapping. Explain required shell behavior, unresolved destinations and intentional native navigation separately.
+- Use inline `ctx.route({ viewId, query })?.viewPath` anchors inside service-rendered shell content; the runtime handles the service-to-UI mapping. Explain required shell behavior, unresolved destinations and intentional native navigation separately.
 - Distinguish handler helpers from renderer `ViewRenderContext` helpers. Document the remaining explicit UI-URL use cases for `uiRoute` without recommending it as the default service anchor helper.
 - Put a complete renderer-directory/signature/query example beside its expected request and browser URL behavior. Keep page markup in the documented renderer; do not add a generic PageLink wrapper.
-- Explain the shared `ctx.routeUrl` destination fields and build errors for removed literal route tokens.
+- Explain the shared `ctx.route` destination fields and build errors for removed literal route tokens.
 - Document title and breadcrumb ownership, text parents, ordering, service-relative path resolution, title fallback and reset/history behavior. Retain the pending theme-title/navigation and Bootstrap1 card/table spacing guidance.
 - Add TSDoc to the new setter and affected public URL helpers: parameters, return values, representation restrictions, null/unresolved behavior and copyable examples. Validate it with the existing `tsdoc/syntax` ESLint rule; do not disable lint rules or add redundant lint configuration.
 

@@ -1,5 +1,6 @@
+import { createRouteResult, viewRouteResolver, type RouteAccess } from "../runtime/routeResult.js";
 import { routeMountServicePath, safeServiceBaseUrl } from "../runtime/configProvider.js";
-import type { RouteUrlInput, RouteUrlOptions, RouteUrlResolver, ResolvedRouteUrl } from "../contracts/routeUrl.js";
+import type { RouteInput, RouteOptions, RouteResolver } from "../contracts/routing.js";
 import { ElevationRequired, requireElevation, elevationResponse } from "../runtime/auth/elevation.js";
 import { createEventStream, getRequestIP, getRequestURL } from "h3";
 import type { HttpMethod } from "../contracts/common.js";
@@ -7,7 +8,7 @@ import type { JsonValue } from "../contracts/json.js";
 import type { BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
 import { renderThemeLlmsDrop, type ThemeLlmsContext } from "../runtime/llms.js";
 import type { BetterPortalObservability, ObservabilityAttributes } from "../contracts/observability.js";
-import type { BPElementReference, BetterPortalRegistry, RegisteredRoute, RouteUiAttributes, RouteUiOptions, ViewRenderContext } from "../contracts/registry.js";
+import type { BPRouteReference, BetterPortalRegistry, RegisteredRoute, ViewRenderContext } from "../contracts/registry.js";
 import type {
   ApiAuthRequirement,
   FileResponseOptions,
@@ -75,7 +76,7 @@ export interface H3RouterObservabilityOptions {
   /** Identifier of the service hosting this router (used by ctx.serviceId). */
   serviceId?: string;
   /** Current installed instance used for URL resolution; evaluated after configuration/installation changes. */
-  resolveRouteUrlServiceId?: () => string | undefined;
+  resolveRouteServiceId?: () => string | undefined;
   /** Resolve auth context for a request. Returning undefined disables auth enforcement for the request. */
   resolveAuth?: (event: BetterPortalEvent, route: RegisteredRoute) => Promise<H3AuthContext | undefined> | H3AuthContext | undefined;
   /**
@@ -91,7 +92,7 @@ export interface H3RouterObservabilityOptions {
 type RequiredHandlerContext =
   Omit<Partial<RuntimeRouteHandlerContext>, "response" | "file">
   & Pick<RuntimeRouteHandlerContext, "tenant" | "app">;
-type ViewRenderContextSource = Pick<RouteHandlerContext, "tenant" | "app" | "method" | "path" | "params" | "query" | "routeUrl">;
+type ViewRenderContextSource = Pick<RouteHandlerContext, "tenant" | "app" | "method" | "path" | "params" | "query" | "route">;
 
 export interface H3AuthContext {
   readonly verifier?: JwtVerifier;
@@ -403,7 +404,7 @@ async function prepareSseContext(
     callerMode: authResult.callerMode,
     ...extraContext,
     serviceId: routerOptions.serviceId,
-    routeUrl: createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteUrlServiceId?.() ?? routerOptions.serviceId, { path: url.pathname.replace(/\/__sse\/?$/, ""), template: route.path, method: "GET", params, query: queryResult.value as Record<string, unknown> }),
+    route: createRouteResolver(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteServiceId?.() ?? routerOptions.serviceId, { path: url.pathname.replace(/\/__sse\/?$/, ""), template: route.path, method: "GET", params, query: queryResult.value as Record<string, unknown> }),
     diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
     response: responseHelper,
     file: fileResponseHelper,
@@ -479,7 +480,7 @@ export function createH3Router(
           serviceCaller: context.serviceCaller,
           callerMode: context.callerMode,
           serviceId: context.serviceId,
-          routeUrl: context.routeUrl,
+          route: context.route,
           config: context.config,
           ...(context.plugin ? { plugin: context.plugin } : {}),
           signal: abort.signal,
@@ -684,7 +685,7 @@ function pathParamName(segment: string): string | null {
   return null;
 }
 
-function fillAppPath(path: string, params: RouteUrlOptions["params"] = {}): string | null {
+function fillAppPath(path: string, params: RouteOptions["params"] = {}): string | null {
   const [pathPart, queryPart] = path.split("?", 2);
   let unresolved = false;
   const resolved = pathPart.split("/").map((segment) => {
@@ -732,7 +733,7 @@ function serviceOrigin(extraContext: RequiredHandlerContext, serviceId: string, 
   return service ? safeServiceBaseUrl(service) ?? null : null;
 }
 
-function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absoluteOrigin?: string, sse = false): string {
+function appendQuery(path: string, query: RouteOptions["query"] = {}, absoluteOrigin?: string, sse = false): string {
   const url = new URL(absoluteOrigin ? absoluteOrigin.replace(/\/+$/, "") + path : path, "http://betterportal.invalid");
   if (sse) url.pathname = `${url.pathname.replace(/\/+$/, "")}/__sse`;
   for (const [key, value] of Object.entries(query)) {
@@ -749,32 +750,18 @@ function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absolut
   return absoluteOrigin ? url.toString() : `${url.pathname}${url.search}${url.hash}`;
 }
 
-function renderUrl(path: string, options: RouteUrlOptions = {}, origin?: string): string {
+function renderUrl(path: string, options: RouteOptions = {}, origin?: string): string {
   const query = { ...(options.query ?? {}), _c: null as string | null, _f: null as string | null };
   if (options.component) query._c = options.component;
   if (options.fragment) query._f = options.fragment;
   return appendQuery(path, query, origin, options.sse);
 }
 
-function createRouteUiAttributes(route: ResolvedRouteUrl, options: RouteUiOptions = {}, form = false): RouteUiAttributes {
-  const method = options.method ?? "GET";
-  const request = route.absoluteViewPath ?? route.viewPath;
-  const attrs: Record<string, string> = form
-    ? { action: request, method }
-    : { href: route.uiPath ?? request };
-  attrs[`hx-${method.toLowerCase()}`] = request;
-  if (options.target) attrs["hx-target"] = options.target;
-  if (options.swap) attrs["hx-swap"] = options.swap;
-  if (options.push !== undefined) attrs["hx-push-url"] = String(options.push);
-  else if (method === "GET" && route.uiPath && !options.target) attrs["hx-push-url"] = route.uiPath;
-  return attrs;
-}
-
 function createElementResolver(
   extraContext: RequiredHandlerContext,
   dependencyAliases: Readonly<Record<string, string>>
 ): ViewRenderContext["element"] {
-  return (reference: BPElementReference) => {
+  return (reference: BPRouteReference) => {
     if (!reference.fragment.trim()) return { unavailable: "fragment_required" };
 
     if (reference.service === "shell") {
@@ -823,9 +810,7 @@ function createViewRenderContext(
   key: string | undefined,
   status: number
 ): ViewRenderContext {
-  const routeUrl: RouteUrlResolver = (input) => ctx.routeUrl?.(input) ?? null;
-  const ui = (resolved: ResolvedRouteUrl, options?: RouteUiOptions) => createRouteUiAttributes(resolved, options);
-  const form = (resolved: ResolvedRouteUrl, options?: RouteUiOptions) => createRouteUiAttributes(resolved, options, true);
+  const routeResolver = viewRouteResolver(input => ctx.route?.(input) ?? null);
   return {
     tenant: {
       id: ctx.tenant.id,
@@ -850,18 +835,8 @@ function createViewRenderContext(
       } : {})
     },
     request: { method: ctx.method, path: ctx.path, params: ctx.params, query: ctx.query },
-    route: { viewId: route.viewId, path: route.path, renderer, mode, kind, key, status },
-    routeUrl,
-    routeUi: {
-      link: ui,
-      current: (options = {}) => {
-        const resolved = routeUrl({ ...options, method: options.method ?? "GET" });
-        if (!resolved) throw new Error("Current route URL could not be resolved");
-        return ui(resolved, options);
-      },
-      fragment: ui,
-      form
-    },
+    routeInfo: { viewId: route.viewId, path: route.path, renderer, mode, kind, key, status },
+    route: routeResolver,
     element: createElementResolver(ctx as RequiredHandlerContext, dependencyAliases)
   };
 }
@@ -885,18 +860,19 @@ function serviceReferenceIds(
 }
 
 /** Resolve every destination from one method-aware service/mount lookup. */
-function createRouteUrlBuilder(
+function createRouteResolver(
   event: BetterPortalEvent,
   routes: ReadonlyArray<RegisteredRoute>,
   extraContext: RequiredHandlerContext,
   aliases: Readonly<Record<string, string>>,
   currentServiceId: string | undefined,
-  current: { path: string; template: string; method: HttpMethod; params: Record<string, string>; query: Record<string, unknown> }
-): RouteUrlResolver {
-  return (input: RouteUrlInput = {}) => {
+  current: { path: string; template: string; method: HttpMethod; params: Record<string, string>; query: Record<string, unknown> },
+  access?: (requirement: ApiAuthRequirement) => RouteAccess
+): RouteResolver {
+  const resolve: RouteResolver = (input: RouteInput = {}) => {
     // Also reject legacy options from untyped callers, rather than silently guessing.
     if (typeof input !== "object" || input === null || "absolute" in input || "origin" in input) return null;
-    if (input.path !== undefined && input.viewId !== undefined) return null;
+    if (input.path !== undefined && input.viewId !== undefined || input.component && input.fragment) return null;
     const self = input.path === undefined && input.viewId === undefined;
     const currentRoute = routes.find(route => route.methods.includes(current.method) && route.path === current.template);
     const inferred = new Set(appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && mount.viewId === currentRoute?.viewId).map(mount => mount.serviceId));
@@ -931,13 +907,14 @@ function createRouteUrlBuilder(
         if (values.length > 1 && Object.prototype.hasOwnProperty.call(inheritedQuery, key)) inheritedQuery[key] = values;
       }
     }
-    const query = { ...(self ? inheritedQuery : {}), ...embeddedQuery, ...input.query } as RouteUrlOptions["query"];
+    const query = { ...(self ? inheritedQuery : {}), ...embeddedQuery, ...input.query } as RouteOptions["query"];
     if (input.component && input.fragment) return null;
     const suppliedPath = self ? currentRoute?.path ?? current.path : input.path;
     if (suppliedPath !== undefined && (!suppliedPath.startsWith("/") || suppliedPath.startsWith("//") || suppliedPath.includes("\\") || suppliedPath.includes("#") || [...suppliedPath].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) return null;
     const pathname = suppliedPath?.split("?", 1)[0];
     let serviceId = ownService ? currentInstance! : reference;
     let path: string | null = null;
+    let selectedDeclaration: RegisteredRoute | undefined;
     let viewId = input.viewId;
     if (ownService) {
       let candidates = routes.filter(route => route.methods.includes(method) && (viewId !== undefined
@@ -966,7 +943,7 @@ function createRouteUrlBuilder(
       if (!best) return null;
       if (input.sse && !best.route.sse && !isStreamHandler(best.route.handlers.GET)) return null;
       if (new Set(resolved.filter(entry => compare(entry.route.path, best.route.path) === 0).map(entry => entry.path)).size !== 1) return null;
-      path = best.path; viewId = best.route.viewId;
+      path = best.path; viewId = best.route.viewId; selectedDeclaration = best.route;
     } else {
       let targets = appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && ids.has(mount.serviceId)
         && (mount.resolvedMethods?.includes(method) ?? false)
@@ -1010,13 +987,15 @@ function createRouteUrlBuilder(
     }));
     const uiPath = pagePaths.size === 1 ? [...pagePaths][0] : null;
     const appBase = requestAppOrigin(extraContext.app, event) ?? (extraContext.app.hostnames.length ? appOrigin(extraContext.app) : undefined);
-    return {
+    const target = selectedDeclaration;
+    return createRouteResult({
       apiPath, viewPath, uiPath,
       absoluteApiPath: serviceBase ? renderUrl(path, { query, sse: input.sse }, serviceBase) : null,
       absoluteViewPath: serviceBase ? renderUrl(path, options, serviceBase) : null,
       absoluteUiPath: uiPath && appBase ? new URL(uiPath, appBase).toString() : null
-    };
+    }, resolve, input, "apiPath", { serviceId, method, access: target && access ? access(target.methodRoutes?.[method]?.auth ?? { required: false, permissions: [] }) : "unknown" });
   };
+  return resolve;
 }
 
 function routeParamsFromPath(template: string, path: string): Record<string, string> {
@@ -1239,7 +1218,8 @@ async function handleRouteRequest(
     return rejectUnallowedAppRoute(obs, route, method, extraContext, routeAllowance.reason ?? "route_not_mounted_for_app");
   }
 
-  const routeUrl = createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteUrlServiceId?.() ?? routerOptions.serviceId, { path: url.pathname, template: route.path, method, params, query: query as Record<string, unknown> });
+  let presentationAccess: (requirement: ApiAuthRequirement) => RouteAccess = () => "unknown";
+  const routeResolver = createRouteResolver(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteServiceId?.() ?? routerOptions.serviceId, { path: url.pathname, template: route.path, method, params, query: query as Record<string, unknown> }, requirement => presentationAccess(requirement));
   const earlyRenderContext = (status: number): ViewRenderContext | undefined => {
     const renderer = rendererFromEvent(event);
     return renderer ? createViewRenderContext(route, {
@@ -1249,7 +1229,7 @@ async function handleRouteRequest(
       path: url.pathname,
       params,
       query: query as Record<string, unknown>,
-      routeUrl
+      route: routeResolver
     }, dependencyAliases, renderer, "page", "page", undefined, status) : undefined;
   };
 
@@ -1258,6 +1238,7 @@ async function handleRouteRequest(
   const apiAuth: ApiAuthRequirement = { ...methodRoute.auth, required: methodRoute.auth.required || !!methodRoute.auth.elevation };
   const authResolved = await loadAuthContext(event, route, routerOptions, obs);
   const authResult = await resolveRequestAuth(apiAuth, event, authResolved, route, method, obs);
+  presentationAccess = requirement => presentationRouteAccess(requirement, authResult.user, authResolved);
   if (authResult.error) {
     return renderAuthError(
       route,
@@ -1328,7 +1309,7 @@ async function handleRouteRequest(
     setStatus: (status) => { event.res.status = status; },
     diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
     serviceId: routerOptions.serviceId,
-    routeUrl,
+    route: routeResolver,
     response: responseHelper,
     file: fileResponseHelper,
     ...(obs ? { obs } : {})
@@ -1933,6 +1914,20 @@ async function resolveUserRequestAuth(
   }
 
   return { status: 200, user: claims, callerMode: "user" };
+}
+function presentationRouteAccess(requirement: ApiAuthRequirement, user: ValidatedUserClaims | undefined, auth: H3AuthContext | undefined): RouteAccess {
+  if (!requirement.required && !requirement.elevation && requirement.permissions.length === 0) return "ok";
+  if (!auth) return "unknown";
+  if (!user) return "noauth";
+  if (user.roles.includes(PLATFORM_ROOT_PERMISSION_ROLE_ID) && auth.platformRoot?.tenantId === user.tenantId && auth.platformRoot?.appId === user.appId) return "ok";
+  if (requirement.permissions.length && !auth.appAuthConfig) return "unknown";
+  const grants = expandRolesToPermissions(user.roles, auth.appAuthConfig);
+  const aliases = auth.serviceIdAliases ?? {};
+  if (!requirement.permissions.every(required => required.permissions.every(action => grants.some(grant =>
+    (grant.serviceId === required.serviceId || aliases[grant.serviceId] === required.serviceId || aliases[required.serviceId] === grant.serviceId)
+    && grant.viewId === required.viewId && grant.permissions.includes(action))))) return "noperm";
+  if (requirement.elevation) { try { requireElevation(user, requirement.elevation); } catch { return "noperm"; } }
+  return "ok";
 }
 function expandRolesToPermissions(
   roleIds: ReadonlyArray<string>,

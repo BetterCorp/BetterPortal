@@ -55,7 +55,7 @@ test("SSE contracts require canonical files and schema-owned handlers", (t) => {
     export function render(data: { value: string }) { return data.value; }
   `);
   write(join(rendererDir, "_body.live.sse.tsx"), `
-    export function renderTick(data: { value: string }, ctx: import("@betterportal/framework").ViewRenderContext) { return ctx.routeUrl()?.viewPath + data.value; }
+    export function renderTick(data: { value: string }, ctx: import("@betterportal/framework").ViewRenderContext) { return ctx.route()?.viewPath + data.value; }
   `);
 
   const scan = scanRoutes(baseDir);
@@ -125,12 +125,12 @@ test("SSE contracts require canonical files and schema-owned handlers", (t) => {
   write(join(routeDir, "sse.ts"), sseSource);
 
   write(join(rendererDir, "_body.live.GET.tsx"), `
-    export const render = (data: { value: string }, ctx) => ctx.routeUrl()?.viewPath + data.value;
+    export const render = (data: { value: string }, ctx) => ctx.route()?.viewPath + data.value;
   `);
   assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes("ViewRenderContext")), true);
 
   write(join(rendererDir, "_body.live.sse.tsx"), `
-    export const renderTick = (data: { value: string }, ctx) => ctx.routeUrl()?.viewPath + data.value;
+    export const renderTick = (data: { value: string }, ctx) => ctx.route()?.viewPath + data.value;
   `);
   assert.equal(validateScanResult(scanRoutes(baseDir)).some((issue) => issue.message.includes("SSE renderer") && issue.message.includes("ViewRenderContext")), true);
 
@@ -220,7 +220,7 @@ test("SSE fragments use the resolved app shell renderer and ignore client overri
           fragmentLocation: "body",
           fragmentId: "live",
           render: () => "ready",
-          sseRender: (data: { value: string }, ctx) => `<strong>${ctx.route.viewId}:${ctx.routeUrl({  })?.apiPath}:${data.value}</strong>`
+          sseRender: (data: { value: string }, ctx) => `<strong>${ctx.routeInfo.viewId}:${ctx.route({  })?.apiPath}:${data.value}</strong>`
         }]
       }
     },

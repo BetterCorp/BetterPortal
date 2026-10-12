@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import type { RegisteredViewRenderer } from "@betterportal/framework";
 
 // File location in a service:
@@ -7,7 +7,7 @@ export const render: RegisteredViewRenderer["render"] = (_data, ctx) => (
   <div
     id="critical-alert-stream"
     hx-ext="sse"
-    sse-connect={ctx.routeUrl({ viewId: "alerts.stream", sse: true })?.absoluteViewPath}
+    sse-connect={ctx.route({ viewId: "alerts.stream", sse: true })?.absoluteViewPath}
     sse-swap="message"
   ></div>
 );

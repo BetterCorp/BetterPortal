@@ -58,8 +58,8 @@ test("theme LLM documents provide concise task-specific discovery", () => {
   assert.match(dev, /declared dependency alias/);
   assert.match(ui, /\.well-known\/bp\/resources\/ui\.skill/);
   assert.match(ui, /dependency alias\/key/);
-  assert.match(ui, /Omit `bp-ok`/);
-  assert.match(ui, /ctx\.routeUrl/);
+  assert.match(ui, /Component\/fragment props select embedding/);
+  assert.match(ui, /ctx\.route/);
   assert.doesNotMatch(ui, /Route tokens must occupy|\{archive\.call\}/);
 });
 

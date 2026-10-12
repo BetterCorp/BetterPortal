@@ -48,7 +48,7 @@ async def snapshots(body):
         async def prepare(headers):
             try:
                 context, _ = await service.prepare(route, "GET", "/check/item", headers)
-                return {"status": 200, "config": dict(context.config), "url": context.urls.route_url({"viewId": "check", "params": {"key": "item"}})["absoluteApiPath"]}
+                return {"status": 200, "config": dict(context.config), "url": context.urls.route({"viewId": "check", "params": {"key": "item"}})["absoluteApiPath"]}
             except RequestError as error: return {"status": error.status}
         def state(): return {"ready": service.ready, "snapshot": service.snapshot()}
         outcomes = []

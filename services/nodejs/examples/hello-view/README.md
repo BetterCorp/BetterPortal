@@ -10,9 +10,9 @@ This package demonstrates:
 - schema-first validation
 - support for the `bootstrap1` and `embedded` themes
 
-The API examples return domain data and stream items. They do not generate internal URL fields for the view. Renderers receive `ViewRenderContext` as their second argument and resolve navigation, actions and pagination locally with `ctx.routeUrl(input?)`; see the `hello` showcase renderer for cursor-based fragment pagination. Select `uiPath` for page navigation, `absoluteViewPath` for HTML/HTMX requests and `absoluteApiPath` for JSON actions. Specify the action method; omit the target to resolve self. See the [routing contract and paired API/view example](../../../../docs/building/routes-and-views.md).
+The API examples return domain data and stream items. They do not generate internal URL fields for the view. Renderers receive `ViewRenderContext` as their second argument and resolve navigation, actions and pagination locally with `ctx.route(input?)`; see the `hello` showcase renderer for cursor-based fragment pagination. Select `uiPath` for page navigation, `absoluteViewPath` for HTML/HTMX requests and `absoluteApiPath` for JSON actions. Specify the action method; omit the target to resolve self. See the [routing contract and paired API/view example](../../../../docs/building/routes-and-views.md).
 
-For collections, return domain items, IDs and cursors from the API, then resolve links in the renderer. `ctx.routeUrl()` preserves repeated query values such as `?tag=a&tag=b`; a scalar override replaces the complete key and null removes it. Embedded values such as `/items?q=what?x&next=/a?b` retain their complete content before encoding and overrides.
+For collections, return domain items, IDs and cursors from the API, then resolve links in the renderer. `ctx.route()` preserves repeated query values such as `?tag=a&tag=b`; a scalar override replaces the complete key and null removes it. Embedded values such as `/items?q=what?x&next=/a?b` retain their complete content before encoding and overrides.
 
 Select renderers with the explicit `component` or `fragment` option. Reserved `_c`/`_f` query keys in input paths or the current request are removed; only view destinations receive an explicit selector. Service base metadata preserves non-root prefixes and omits a root trailing slash.
 

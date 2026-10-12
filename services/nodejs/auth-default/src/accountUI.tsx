@@ -1,4 +1,5 @@
-/** @jsxImportSource jsx-htmx */
+import { BPRoute } from "@betterportal/framework";
+/* @jsxImportSource @betterportal/framework */
 import { js } from "jsx-htmx";
 import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 
@@ -62,9 +63,7 @@ export function renderChallenge(challenge: unknown, endpoint: string, action = "
 }
 export function renderAccount(data: Record<string, any>, ctx: ViewRenderContext): HtmlRenderable {
   const afterLogin = resolveAppAuthRedirect(ctx, "afterLogin", typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined);
-  const account = ctx.routeUrl({ path: "/account", method: "POST" });
-  const social = ctx.routeUrl({ path: "/social" });
-  const next = data.sessionNextCursor ? ctx.routeUrl({ path: "/account", query: { sessionAfter: data.sessionNextCursor } }) : null;
+  const account = ctx.route({ path: "/account", method: "POST" });
   if (!account?.absoluteApiPath) throw new Error("Account service route is unavailable");
   if (data.challenge) return renderChallenge(data.challenge, account.absoluteApiPath, "factor.complete", afterLogin);
   const action = ["verify", "reset", "email.verify", "invite.accept"].includes(data.action) ? data.action : "";
@@ -74,7 +73,7 @@ export function renderAccount(data: Record<string, any>, ctx: ViewRenderContext)
     <div role="status" class="my-3" aria-live="polite">{data.message ?? ""}</div>
     {action ? form(action, action === "reset" ? "Reset password" : action === "invite.accept" ? "Accept invitation" : "Verify email", <><input type="hidden" name="id" value={data.id} /><input type="hidden" name="secret" value={data.secret} />{(action === "reset" || (action === "invite.accept" && !data.signedIn)) ? field("password", "New password (at least 12 characters)", "password") : null}</>) : data.signedIn ? <>
       <p>{data.user?.email || data.user?.username}</p>
-      <a href={social?.uiPath ?? undefined} hx-get={social?.absoluteViewPath ?? undefined} hx-target="#bp-main">Link Google, Microsoft or GitHub</a>
+      <BPRoute ctx={ctx} {...{ path: "/social" }} ><bp-ok>Link Google, Microsoft or GitHub</bp-ok></BPRoute>
       {(data.linkedIdentities ?? []).map((link: any) => form("identity.unlink", "Unlink provider", <><p>{link.provider}</p><input type="hidden" name="id" value={link.id} /></>))}
       {form("profile", "Update name", field("name", "Display name"))}
       {form("password", "Change password", <>{field("currentPassword", "Current password", "password")}{field("password", "New password (at least 12 characters)", "password")}</>)}
@@ -82,7 +81,7 @@ export function renderAccount(data: Record<string, any>, ctx: ViewRenderContext)
       {form("factor.start", "Add an authentication factor")}
       {data.user?.totp ? form("factor.remove", "Remove authenticator", <input type="hidden" name="method" value="totp" />) : null}
       {(data.passkeys ?? []).map((key: any) => form("factor.remove", "Remove passkey", <><p>{key.name} · {key.rpId}</p><input type="hidden" name="method" value="passkey" /><input type="hidden" name="id" value={key.id} /></>))}
-      {next ? <a href={next.uiPath ?? undefined} hx-get={next.absoluteViewPath ?? undefined} hx-target="#bp-main">More active sessions</a> : null}
+      {data.sessionNextCursor ? <BPRoute ctx={ctx} {...{ path: "/account", query: { sessionAfter: data.sessionNextCursor } }}><bp-ok>More active sessions</bp-ok><bp-error as="span">More sessions unavailable</bp-error></BPRoute> : null}
       <h3>Active sessions in this app</h3>{(data.sessions ?? []).map((session: any) => form("session.revoke", "Revoke session", <><p>{new Date(session.createdAt).toISOString()}</p><input type="hidden" name="id" value={session.id} /></>))}
     </> : <>
       {data.registration === "public" ? form("signup", "Create account", <>{field("email", "Email", "email")}{field("name", "Display name")}{field("password", "Password (at least 12 characters)", "password")}</>) : null}

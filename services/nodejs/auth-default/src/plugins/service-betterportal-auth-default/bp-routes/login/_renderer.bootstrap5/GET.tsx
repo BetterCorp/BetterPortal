@@ -1,4 +1,5 @@
-/** @jsxImportSource jsx-htmx */
+import { BPRoute } from "@betterportal/framework";
+/* @jsxImportSource @betterportal/framework */
 import { renderChallenge } from "../../../../../accountUI.js";
 import { js } from "jsx-htmx";
 import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
@@ -51,13 +52,13 @@ function loginScript(): HtmlRenderable {
 }
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
-  const account = ctx.routeUrl({ path: "/account", method: "POST" });
-  const accountPage = ctx.routeUrl({ path: "/account" });
-  const social = ctx.routeUrl({ path: "/social" });
-  const logout = ctx.routeUrl({ path: "/login", query: { action: "logout" } });
+  const account = ctx.route({ path: "/account", method: "POST" });
+  const accountPage = ctx.route({ path: "/account" });
+  const social = ctx.route({ path: "/social" });
+  const logout = ctx.route({ path: "/login", query: { action: "logout" } });
   const requestedNext = typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined;
   const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", requestedNext);
-  const register = ctx.routeUrl({ path: "/register", query: { next: requestedNext } });
+  const register = ctx.route({ path: "/register", query: { next: requestedNext } });
   if (data.challenge) {
     if (!account?.absoluteApiPath) throw new Error("Account service route is unavailable");
     return renderChallenge(data.challenge, account.absoluteApiPath, "login.complete", next);
@@ -139,7 +140,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
     );
   }
 
-  const login = ctx.routeUrl({ path: "/login", method: "POST" })?.absoluteApiPath;
+  const login = ctx.route({ path: "/login", method: "POST" })?.absoluteApiPath;
   if (!login) throw new Error("Login action route is unavailable");
   return (
     <div class="container py-5" style="max-width: 420px;">
@@ -170,8 +171,8 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
             <div class="alert alert-danger d-none" id="bp-login-error"></div>
             <button type="submit" class="btn btn-primary w-100">Sign in</button>
           </form>
-          {social?.uiPath ? <a class="d-block mt-3" href={social.uiPath} hx-get={social.absoluteViewPath ?? undefined} hx-target="#bp-main">Sign in with Google, Microsoft or GitHub</a> : null}
-          {accountPage?.uiPath ? <a class="d-block mt-3" href={accountPage.uiPath} hx-get={accountPage.absoluteViewPath ?? undefined} hx-target="#bp-main">Register or recover your account</a> : null}
+          {social?.uiPath ? <BPRoute ctx={ctx} {...{ path: "/social" }} class="d-block mt-3"><bp-ok>Sign in with Google, Microsoft or GitHub</bp-ok></BPRoute> : null}
+          {accountPage?.uiPath ? <BPRoute ctx={ctx} {...{ path: "/account" }} class="d-block mt-3"><bp-ok>Register or recover your account</bp-ok></BPRoute> : null}
         </div>
       </div>
       <script>{loginScript()}</script>

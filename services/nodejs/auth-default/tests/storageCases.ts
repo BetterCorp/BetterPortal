@@ -43,7 +43,7 @@ export async function checkSessionAndMailPages(storage: AuthStorage, scope: Scop
     for (const target of others) assert.ok(await tx.get("session", "expired-sentinel", target));
   });
   const ctx = { plugin: { runtime: { identity, policy: async () => policy } }, tenant: { id: scope.tenantId }, app: { id: scope.appId }, user: { sub: user.id }, query: {},
-    routeUrl: () => ({ absoluteUiPath: "https://app.test/account" }) };
+    route: () => ({ absoluteUiPath: "https://app.test/account" }) };
   const first = await accountGet(ctx as never);
   assert.equal((first.sessions as any[]).length, 100);
   const second = await accountGet({ ...ctx, query: { sessionAfter: first.sessionNextCursor } } as never);

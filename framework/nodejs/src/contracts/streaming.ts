@@ -98,7 +98,7 @@ export interface StreamShellContext {
 /**
  * Per-renderer implementations for a streaming view, sourced from
  * `_renderer.<rendererKey>/index.stream.tsx` exports.
- * The second argument is the same safe view context, including routeUrl, used by normal renderers.
+ * The second argument is the same safe view context, including route, used by normal renderers.
  * Each function renders ONE frame; the buffered HTML page render uses the
  * regular `index.tsx` page renderer over the derived `{ items, summary }` data.
  */

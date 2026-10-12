@@ -4,7 +4,7 @@ import { Script } from "node:vm";
 import { toHtmlString, type ViewRenderContext } from "@betterportal/framework";
 import { render } from "../src/plugins/service-betterportal-auth-default/bp-routes/login/_renderer.bootstrap5/GET.js";
 
-const context = { request: { query: {} }, app: { defaultRoute: "/fallback" }, routeUrl: () => ({
+const context = { request: { query: {} }, app: { defaultRoute: "/fallback" }, route: () => ({
   apiPath: "/login", viewPath: "/login", uiPath: "/login",
   absoluteApiPath: "https://auth.test/login", absoluteViewPath: "https://auth.test/login", absoluteUiPath: "https://app.test/login"
 }) } as unknown as ViewRenderContext;
@@ -23,7 +23,7 @@ test("signed-in Continue and password forms preserve configured destinations wit
   for (const useView of [false, true]) {
     const configured = { ...context, app: { ...context.app, defaultRoute: useView ? "/fallback" : "/dashboard",
       ...(useView ? { auth: { serviceId: "auth", redirects: { afterLogin: { serviceId: "auth", viewId: "dashboard.index" } } } } : {}) },
-      routeUrl: (input: any) => input?.viewId === "dashboard.index" ? { ...context.routeUrl()!, uiPath: "/dashboard" } : context.routeUrl(input) };
+      route: (input: any) => input?.viewId === "dashboard.index" ? { ...context.route()!, uiPath: "/dashboard" } : context.route(input) };
     const html = toHtmlString(render({ status: "ok", alreadyLoggedIn: true }, configured));
     const destination = /id="bp-login-continue"[^>]*data-next="([^"]+)"/.exec(html)?.[1];
     assert.equal(destination, "/dashboard");

@@ -1,3 +1,4 @@
+import { routingDiagnostics } from "./routingRules.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import ts from "typescript";
@@ -10,7 +11,7 @@ const internalPaths = new Set(["apiPath", "viewPath", "uiPath", "absoluteApiPath
 /** Reject the old routing API and renderer-only URL payloads even in loosely typed source. */
 export function inspectRouteUrlSource(file: string, source: string): RouteUrlPolicyError[] {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-  const errors: RouteUrlPolicyError[] = [];
+  const errors: RouteUrlPolicyError[] = routingDiagnostics(file, source).map(item => ({ file, message: item.message, severity: "error" }));
   const rendererFunctions = new Set<ts.Node>();
   const declarations = new Map<ts.Node, Set<string>>();
   const selections = new Map<ts.Node, Map<string, { expression: ts.Node; field: string; rest: boolean; element?: number }>>();
@@ -560,6 +561,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       || isResolverFunction(expression.expression))) return true;
     if (ts.isPropertyAccessExpression(expression)) return internalValue(expression.expression, seen);
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
+    if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression)
+      && ["component", "fragment", "toString"].includes(expression.expression.name.text)
+      && internalValue(expression.expression.expression, seen)) return true;
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
       const localCallback = resolveCallback(expression.expression);
@@ -773,13 +777,13 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   };
   const isResolverFunction = (expression: ts.Node, seen = new Set<string>()): boolean => {
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return isResolverFunction(expression.expression, seen);
-    if (ts.isPropertyAccessExpression(expression)) return expression.name.text === "routeUrl" && contextValue(expression.expression);
-    if (ts.isElementAccessExpression(expression)) return ts.isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === "routeUrl" && contextValue(expression.expression);
+    if (ts.isPropertyAccessExpression(expression)) return expression.name.text === "route" && contextValue(expression.expression);
+    if (ts.isElementAccessExpression(expression)) return ts.isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === "route" && contextValue(expression.expression);
     if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
     let scope: ts.Node | undefined = expression.parent;
     while (scope) {
       const selected = selections.get(scope)?.get(expression.text);
-      if (selected) return selected.element !== undefined ? !selected.rest && selectedElements(selected).some(value => isResolverFunction(value, new Set([...seen, expression.text]))) : selected.field === "routeUrl" && contextValue(selected.expression);
+      if (selected) return selected.element !== undefined ? !selected.rest && selectedElements(selected).some(value => isResolverFunction(value, new Set([...seen, expression.text]))) : selected.field === "route" && contextValue(selected.expression);
       const initializer = initializers.get(scope)?.get(expression.text);
       if (initializer) return isResolverFunction(initializer, new Set([...seen, expression.text]));
       if (ts.isFunctionLike(scope)) {
@@ -841,18 +845,18 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       || isGlobal(expression.expression, "Promise") && ["resolve", "all", "allSettled", "race", "any"].includes(expression.name.text));
   };
   const visit = (node: ts.Node): void => {
-    if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl" && contextValue(node.expression)
-      || ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === "uiRouteUrl" && contextValue(node.expression)
-      || ts.isBindingElement(node) && (node.propertyName ?? node.name).getText(tree).replace(/^["']|["']$/g, "") === "uiRouteUrl"
+    if (ts.isPropertyAccessExpression(node) && ["uiRouteUrl", "routeUrl", "routeUi"].includes(node.name.text) && contextValue(node.expression)
+      || ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && ["uiRouteUrl", "routeUrl", "routeUi"].includes(node.argumentExpression.text) && contextValue(node.expression)
+      || ts.isBindingElement(node) && ["uiRouteUrl", "routeUrl", "routeUi"].includes((node.propertyName ?? node.name).getText(tree).replace(/^["']|["']$/g, ""))
         && ts.isObjectBindingPattern(node.parent) && ts.isVariableDeclaration(node.parent.parent)
         && !!node.parent.parent.initializer && contextValue(node.parent.parent.initializer)
-      || ts.isBindingElement(node) && (node.propertyName ?? node.name).getText(tree).replace(/^["']|["']$/g, "") === "uiRouteUrl"
+      || ts.isBindingElement(node) && ["uiRouteUrl", "routeUrl", "routeUi"].includes((node.propertyName ?? node.name).getText(tree).replace(/^["']|["']$/g, ""))
         && ts.isObjectBindingPattern(node.parent) && ts.isParameter(node.parent.parent) && contextValue(node.parent)) {
-      report(node, "uiRouteUrl was removed. Use ctx.routeUrl({ ... }) and select uiPath or absoluteUiPath.");
+      report(node, "Legacy routing helpers were removed. Prefer BPRoute; use ctx.route({ ... }) for explicit destinations.");
     }
     if (ts.isPropertyAccessExpression(node) && ["route", "uiRoute", "current", "path"].includes(node.name.text)
       && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "url" && contextValue(node.expression.expression)) {
-      report(node, "ctx.url helpers were removed. Use ctx.routeUrl({ ... }); omit the target for self.");
+      report(node, "ctx.url helpers were removed. Use ctx.route({ ... }); omit the target for self.");
     }
     if (ts.isCallExpression(node) && isResolverFunction(node.expression)) {
       if (node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])
@@ -860,7 +864,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         report(node, "absolute/origin options were removed. Select the corresponding absolute destination field.");
       }
       if ((node.arguments.length > 1 || node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]))) {
-        report(node, "routeUrl no longer accepts a positional view id or returns a string. Pass one options object and select a destination field.");
+        report(node, "route no longer accepts a positional view id or returns a string. Pass one options object and select a destination field.");
       }
     }
     let field: string | undefined;
@@ -884,12 +888,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       report(node, "Do not return internal route paths as API response fields. Resolve them at the point of use; only public absoluteUiPath links belong in domain responses.");
     }
     if ((ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) && /(?:href|action|hx-(?:get|post|put|patch|delete|download))=["']\{[A-Za-z0-9_$.-]+\}["']/.test(node.text)) {
-      report(node, "Legacy route tokens were removed. Resolve the destination with ctx.routeUrl in the renderer.");
+      report(node, "Legacy route tokens were removed. Resolve the destination with ctx.route in the renderer.");
     }
     if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteralLike(node.initializer)
       && ["href", "action", "hx-get", "hx-post", "hx-put", "hx-patch", "hx-delete", "hx-download", "sse-connect"].includes(node.name.getText(tree))
       && /^\{[A-Za-z0-9_$.-]+\}$/.test(node.initializer.text)) {
-      report(node, "Legacy route tokens were removed. Resolve the destination with ctx.routeUrl in the renderer.");
+      report(node, "Legacy route tokens were removed. Resolve the destination with ctx.route in the renderer.");
     }
     ts.forEachChild(node, visit);
   };
