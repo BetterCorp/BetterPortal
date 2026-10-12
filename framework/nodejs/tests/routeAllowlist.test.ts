@@ -953,5 +953,9 @@ test("BPRoute rejects user controls for required service/delegated-only operatio
       const html = await response.text();
       assert.match(html, callers[0] === "user" ? /data-bp-state="ok"/ : /data-bp-state="noperm"/);
     }
+    target.methodRoutes.GET!.auth = { required: true, callers: ["user"], permissions: [], elevation: { minimum: "mfa" } };
+    const elevated = await fetch(baseUrl + "/page", { headers: { Authorization: "Bearer valid", Accept: "text/html" } });
+    assert.equal(elevated.status, 200);
+    assert.match(await elevated.text(), /data-bp-state="noperm"/);
   }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, platformRoot: { tenantId: tenant.id, appId: app.id } }) } });
 });

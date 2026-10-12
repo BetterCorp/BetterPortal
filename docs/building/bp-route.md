@@ -144,3 +144,5 @@ Use `@betterportal/framework` as `jsxImportSource` for typed route values, state
 See [routing lint and build validation](routing-lint.md) for invalid examples, diagnostics and supported exceptions.
 
 BPRoute success controls make browser user requests. An authenticated user sees bp-noperm for a known required operation whose callers exclude user (service/delegated-only), even if that user holds a platform-root role. Presentation checks do not widen the backend caller policy.
+
+Platform-root presentation grants bypass permission requirements only; the target operation’s elevation requirement still applies. A root user without the required assurance receives the unavailable permission state.

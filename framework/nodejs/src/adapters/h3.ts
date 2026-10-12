@@ -1921,6 +1921,7 @@ function presentationRouteAccess(requirement: ApiAuthRequirement, user: Validate
   if (!user) return "noauth";
   // BPRoute controls issue browser user requests, including those rendered during delegated calls.
   if (requirement.required && !(requirement.callers ?? ["user"]).includes("user")) return "noperm";
+  if (requirement.elevation) { try { requireElevation(user, requirement.elevation); } catch { return "noperm"; } }
   if (user.roles.includes(PLATFORM_ROOT_PERMISSION_ROLE_ID) && auth.platformRoot?.tenantId === user.tenantId && auth.platformRoot?.appId === user.appId) return "ok";
   if (requirement.permissions.length && !auth.appAuthConfig) return "unknown";
   const grants = expandRolesToPermissions(user.roles, auth.appAuthConfig);
@@ -1928,7 +1929,6 @@ function presentationRouteAccess(requirement: ApiAuthRequirement, user: Validate
   if (!requirement.permissions.every(required => required.permissions.every(action => grants.some(grant =>
     (grant.serviceId === required.serviceId || aliases[grant.serviceId] === required.serviceId || aliases[required.serviceId] === grant.serviceId)
     && grant.viewId === required.viewId && grant.permissions.includes(action))))) return "noperm";
-  if (requirement.elevation) { try { requireElevation(user, requirement.elevation); } catch { return "noperm"; } }
   return "ok";
 }
 function expandRolesToPermissions(
