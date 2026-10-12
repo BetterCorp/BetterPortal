@@ -7,7 +7,7 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
-    "test": "node --test tests/lint.test.mjs && npm run test --workspaces --if-present"
+    "test": "node --test tests/lint.test.mjs tests/security.test.mjs && npm run test --workspaces --if-present"
   },
   "keywords": [],
   "author": "",
