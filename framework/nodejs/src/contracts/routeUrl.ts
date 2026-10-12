@@ -11,7 +11,7 @@ export interface RouteUrlOptions {
   method?: HttpMethod;
   /** Values substituted into service and mounted UI path parameters. Missing values fail resolution. */
   params?: Record<string, RouteUrlValue>;
-  /** Query values, encoded once. Null and undefined remove keys. Self inherits the current query before overrides. */
+  /** Query values, encoded once. Null and undefined remove keys. Self inherits the current query before overrides. Reserved _c/_f keys are removed; use component/fragment. */
   query?: Record<string, RouteUrlValue>;
   /** Select one UI mount when a service endpoint has multiple frontend aliases. */
   mountId?: string;

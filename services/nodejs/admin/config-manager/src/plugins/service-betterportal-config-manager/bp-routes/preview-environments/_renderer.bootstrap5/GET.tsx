@@ -465,8 +465,8 @@ export function configEditor(group: ResponseData["groups"][number], path: string
 }
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
-  const destination = (method: HttpMethod, query: Record<string, string> = {}): string => {
-    const target = ctx.routeUrl({ path: "/preview-environments", method, query })?.absoluteViewPath;
+  const destination = (method: HttpMethod, query: Record<string, string> = {}, component?: string): string => {
+    const target = ctx.routeUrl({ path: "/preview-environments", method, query, component })?.absoluteViewPath;
     if (!target) throw new Error("Preview action route is unavailable");
     return target;
   };
@@ -506,7 +506,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
                   class="btn btn-sm btn-outline-secondary"
                   data-bs-toggle="collapse"
                   data-bs-target={`#bp-settings-${group.id}`}
-                  hx-get={destination("GET", { _c: "config", groupId: group.id })}
+                  hx-get={destination("GET", { groupId: group.id }, "config")}
                   hx-trigger={`click[!document.getElementById('bp-config-${group.id}').querySelector('form')]`}
                   hx-target={`#bp-config-${group.id}`}
                   hx-swap="innerHTML"
@@ -601,7 +601,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
                       </td>
                       <td>
                         <button type="button" class="btn btn-sm btn-outline-secondary me-2" data-bs-toggle="offcanvas" data-bs-target="#bp-preview-debug"
-                          hx-get={destination("GET", { _c: "debug", deploymentId: deployment.id })} hx-target="#bp-preview-debug-body" hx-swap="innerHTML">Debug</button>
+                          hx-get={destination("GET", { deploymentId: deployment.id }, "debug")} hx-target="#bp-preview-debug-body" hx-swap="innerHTML">Debug</button>
                         <button class="btn btn-sm btn-outline-danger" hx-delete={destination("DELETE", { entity: "deployment", id: deployment.id })} hx-confirm={`Delete preview ${deployment.name}?`} hx-target="#bp-main" hx-swap="innerHTML">Delete</button>
                       </td>
                     </tr>

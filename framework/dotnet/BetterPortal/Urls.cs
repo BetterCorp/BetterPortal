@@ -82,7 +82,12 @@ public sealed class Urls
     {
         var uri = Relative(path); var encoded = uri.AbsolutePath;
         if (options.GetValueOrDefault("sse") is true) encoded = encoded.TrimEnd('/') + "/__sse";
-        var changes = new Node((Node)options.GetValueOrDefault("query", new Node())!);
+        var changes = ((Node)options.GetValueOrDefault("query", new Node())!).Where(pair => pair.Key is not "_c" and not "_f").ToDictionary();
+        foreach (var part in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var name = Uri.UnescapeDataString(part.Split('=', 2)[0].Replace("+", " "));
+            if (name is "_c" or "_f") changes[name] = null;
+        }
         if (options.ContainsKey("component") && options.ContainsKey("fragment")) throw new ArgumentException("Ambiguous renderer selector");
         if (options.TryGetValue("component", out var component)) changes["_c"] = component;
         if (options.TryGetValue("fragment", out var fragment)) changes["_f"] = fragment;

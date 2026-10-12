@@ -102,6 +102,11 @@ def run_urls(urls, labels):
     case("unknown-path", {"path": "/unknown"}, None)
     case("missing-params", {"viewId": "check"}, None)
     case("both-selectors", {"viewId": "check", "path": "/check/item"}, None)
+    case("query-selectors", {"path": "/check/item", "query": {"_c": "card", "_f": "nav.profile", "q": "yes"}}, resolved("/check/item?q=yes", ui="/app/item?q=yes"))
+    case("path-selectors", {"path": "/check/item?_c=card&_f=nav.profile&q=yes"}, resolved("/check/item?q=yes", ui="/app/item?q=yes"))
+    case("selector-conflict-query", {"path": "/check/item?_f=nav.profile", "component": "card", "query": {"_f": "other"}}, resolved("/check/item", "/check/item?_c=card"))
+    def self_selector(body): body["request"]["path"] = "/check/item?hello=world&_c=card"
+    case("self-selectors", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"), self_selector)
     case("component", {"viewId": "check", "params": {"key": "item"}, "component": "card"}, resolved("/check/item", "/check/item?_c=card"))
     case("fragment", {"viewId": "check", "params": {"key": "item"}, "fragment": "nav.profile"}, resolved("/check/item", "/check/item?_f=nav.profile"))
     case("sse", {"viewId": "check", "params": {"key": "item"}, "sse": True, "fragment": "nav.profile"}, resolved("/check/item/__sse", "/check/item/__sse?_f=nav.profile"))
@@ -198,7 +203,8 @@ def run_urls(urls, labels):
                     for route in body["routes"]:
                         operation = next(spec for spec in route["operations"] if spec["declaration"]["method"] == body["request"].get("method", "GET"))
                         if handler: operation["urlCalls"] = [call]
-                        else: operation["renderers"][0]["urlCalls"] = [call]
+                        else:
+                            for renderer in operation["renderers"]: renderer["urlCalls"] = [call]
                     if isinstance(expected, dict) and "validationError" in expected:
                         try: post(url, body)
                         except AssertionError as error:

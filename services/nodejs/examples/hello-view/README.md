@@ -17,3 +17,5 @@ For collections, filter/sort or incrementally collect domain items and IDs in th
 Import BP handler factories from `@betterportal/framework` or the generated `.bp-generated/route-runtime.js`. The authoring validator follows these imports and aliases; unrelated SDK factories with the same names retain their own semantics.
 
 For a request such as `?tag=a&tag=b`, `ctx.routeUrl()` preserves both tags; `ctx.routeUrl({ query: { tag: "latest" } })` replaces them. APIs can return domain cursors/filter state and leave the view to resolve navigation. Standard entry collections such as Map/Set must not forward internal destinations through serialization.
+
+Renderer selection uses the explicit `component` or `fragment` option. Reserved `_c`/`_f` keys in query input, supplied paths, or the current request are removed before resolution; only view destinations receive an explicit selector. API and mounted page destinations remain free of renderer selectors.

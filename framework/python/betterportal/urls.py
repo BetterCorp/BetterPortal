@@ -69,7 +69,9 @@ def _fill(path: str, params: Mapping[str, Any]) -> str | None:
 def _render(path: str, options: Mapping[str, Any]) -> str:
     encoded = _path(path); parts = urlsplit(path)
     if options.get("sse"): encoded = encoded.rstrip("/") + "/__sse"
-    changes = dict(options.get("query", {}))
+    changes = {name: value for name, value in options.get("query", {}).items() if name not in ("_c", "_f")}
+    for name, _ in parse_qsl(parts.query, keep_blank_values=True):
+        if name in ("_c", "_f"): changes[name] = None
     if options.get("component") and options.get("fragment"): raise ValueError("Ambiguous renderer selector")
     if options.get("component"): changes["_c"] = options["component"]
     if options.get("fragment"): changes["_f"] = options["fragment"]

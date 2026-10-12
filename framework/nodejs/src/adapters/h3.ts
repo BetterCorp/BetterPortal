@@ -750,7 +750,7 @@ function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absolut
 }
 
 function renderUrl(path: string, options: RouteUrlOptions = {}, origin?: string): string {
-  const query = { ...(options.query ?? {}) };
+  const query = { ...(options.query ?? {}), _c: null as string | null, _f: null as string | null };
   if (options.component) query._c = options.component;
   if (options.fragment) query._f = options.fragment;
   return appendQuery(path, query, origin, options.sse);
@@ -855,7 +855,7 @@ function createViewRenderContext(
     routeUi: {
       link: ui,
       current: (options = {}) => {
-        const resolved = routeUrl(options);
+        const resolved = routeUrl({ ...options, method: options.method ?? "GET" });
         if (!resolved) throw new Error("Current route URL could not be resolved");
         return ui(resolved, options);
       },
@@ -1003,7 +1003,7 @@ function createRouteUrlBuilder(
       if (Object.entries(mount.fixedParams ?? {}).some(([name, value]) => !uiNames.has(name) && values[name] !== value)) return [];
       const target = fillAppPath(mount.path, values);
       const service = fillAppPath(routeMountServicePath(mount) ?? (ownService ? routes.find(route => route.viewId === viewId && routePathsMatch(route.path, path!.split("?", 1)[0]))?.path : undefined) ?? "", values);
-      return target && service && routePathsMatch(service, path!.split("?", 1)[0]) ? [appendQuery(target, query)] : [];
+      return target && service && routePathsMatch(service, path!.split("?", 1)[0]) ? [renderUrl(target, { query })] : [];
     }));
     const uiPath = pagePaths.size === 1 ? [...pagePaths][0] : null;
     const appBase = requestAppOrigin(extraContext.app, event) ?? (extraContext.app.hostnames.length ? appOrigin(extraContext.app) : undefined);
