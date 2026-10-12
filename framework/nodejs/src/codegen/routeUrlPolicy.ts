@@ -229,7 +229,17 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   };
   const arrayValues = (expression: ts.Node, seen = new Set<string>()): readonly ts.Node[] | undefined => {
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return arrayValues(expression.expression, seen);
-    if (ts.isArrayLiteralExpression(expression) && !expression.elements.some(ts.isSpreadElement)) return expression.elements;
+    if (ts.isArrayLiteralExpression(expression)) {
+      const values: ts.Node[] = [];
+      for (const element of expression.elements) {
+        if (ts.isSpreadElement(element)) {
+          const spread = arrayValues(element.expression, seen);
+          if (!spread) return undefined;
+          values.push(...spread);
+        } else values.push(element);
+      }
+      return values;
+    }
     if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Array") && expression.expression.name.text === "of") return expression.arguments;
     if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Array")) return expression.arguments;
     if (!ts.isIdentifier(expression) || seen.has(expression.text)) return undefined;
@@ -243,11 +253,18 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     return undefined;
   };
+  const argumentValues = (inputs: readonly (ts.Node | undefined)[]): readonly (ts.Node | undefined)[] => inputs.flatMap<ts.Node | undefined>(input =>
+    input && ts.isSpreadElement(input) ? arrayValues(input.expression) ?? [input.expression] : [input]);
   const boundInputs = (expression: ts.Node, inputs: readonly (ts.Node | undefined)[], seen = new Set<ts.Node>()): readonly (ts.Node | undefined)[] => {
     if (seen.has(expression)) return inputs;
     const next = new Set([...seen, expression]);
-    if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === "bind") return boundInputs(expression.expression.expression, [...expression.arguments.slice(1), ...inputs], next);
+    if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === "bind") return boundInputs(expression.expression.expression, [...argumentValues(expression.arguments).slice(1), ...inputs], next);
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return boundInputs(expression.expression, inputs, next);
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) {
+      const field = ts.isPropertyAccessExpression(expression) ? expression.name.text : (expression.argumentExpression as ts.StringLiteralLike).text;
+      const selected = selectedProperty(expression.expression, field);
+      if (selected) return boundInputs(selected, inputs, next);
+    }
     if (ts.isIdentifier(expression)) {
       let scope: ts.Node | undefined = expression.parent;
       while (scope) {
@@ -264,6 +281,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     const next = new Set([...seen, expression]);
     if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression)
       && isGlobal(expression.expression.expression, "Promise") && expression.expression.name.text === "reject") return expression.arguments[0];
+    if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression)) {
+      const operation = expression.expression.name.text;
+      const handler = expression.arguments[operation === "then" ? 1 : 0];
+      if (operation === "finally" || ["then", "catch"].includes(operation)
+        && (!handler || handler.kind === ts.SyntaxKind.NullKeyword || isGlobal(handler, "undefined"))) return rejectedValue(expression.expression.expression, next);
+    }
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return rejectedValue(expression.expression, next);
     if (ts.isIdentifier(expression)) {
       let scope: ts.Node | undefined = expression.parent;
@@ -391,8 +414,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   };
   const callbackValue = (expression: ts.Node | undefined, seen: Set<string>, inputs: readonly (ts.Node | undefined)[] = [], elements: readonly number[] = [], fulfillOnly = false): boolean => {
     if (!expression) return false;
-    const combined = boundInputs(expression, inputs);
-    const offset = combined.length - inputs.length;
+    const expanded = argumentValues(inputs);
+    const combined = boundInputs(expression, expanded);
+    const offset = combined.length - expanded.length;
     return callbackInternal(resolveCallback(expression), seen, combined, elements.map(index => index + offset), fulfillOnly);
   };
   const selectedProperty = (expression: ts.Node, field: string, seen = new Set<ts.Node>()): ts.Node | undefined => {
@@ -485,8 +509,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         const receiver = expression.expression.expression;
         const callback = resolveCallback(receiver);
         if (callback) {
-          const inputs = expression.expression.name.text === "call" ? expression.arguments.slice(1)
-            : expression.arguments[1] ? arrayValues(expression.arguments[1]) ?? [expression.arguments[1]] : [];
+          const arguments_ = argumentValues(expression.arguments);
+          const inputs = expression.expression.name.text === "call" ? arguments_.slice(1)
+            : arguments_[1] ? arrayValues(arguments_[1]) ?? [arguments_[1]] : [];
           return callbackValue(receiver, seen, inputs);
         }
       }
