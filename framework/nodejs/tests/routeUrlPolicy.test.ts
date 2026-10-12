@@ -830,3 +830,82 @@ test("BP context response bodies retain destination provenance", () => {
     'return ctx.response({ status: "ready" });'
   ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
 });
+
+
+test("rejected promise reasons reach recovery callback responses", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Promise.reject(ctx.routeUrl()?.apiPath).catch(endpoint => ({ endpoint }));',
+    'const failure = Promise.reject(ctx.routeUrl()?.viewPath); return failure.then(null, endpoint => ({ endpoint }));'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'return Promise.reject(ctx.routeUrl()?.apiPath).catch(() => ({ status: "failed" }));',
+    'return Promise.reject(ctx.routeUrl()?.absoluteUiPath).catch(publicLink => ({ publicLink }));'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
+
+test("call apply and bound local factories retain response and argument provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'const payload = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return payload.call(null);',
+    'const payload = value => ({ endpoint: value }); return payload.apply(null, [ctx.routeUrl()?.apiPath]);',
+    'const payload = value => ({ endpoint: value }); const bound = payload.bind(null, ctx.routeUrl()?.apiPath); return bound();',
+    'const payload = value => ({ endpoint: value }); return payload.bind(null).call(null, ctx.routeUrl()?.apiPath);'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'const payload = value => ({ status: "ready" }); return payload.call(null, ctx.routeUrl()?.apiPath);',
+    'const payload = value => ({ publicLink: value }); return payload.bind(null, ctx.routeUrl()?.absoluteUiPath)();',
+    'return client.call(null, ctx.routeUrl()?.apiPath);'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
+
+
+test("bound callback inputs precede promise and collection inputs", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Promise.resolve(ctx.routeUrl()?.apiPath).then(((first, value) => ({ endpoint: value })).bind(null, "safe"));',
+    'return [ctx.routeUrl()?.apiPath].map(((first, value) => ({ endpoint: value })).bind(null, "safe"));',
+    'return Array.from([ctx.routeUrl()?.apiPath], ((first, value) => ({ endpoint: value })).bind(null, "safe"));',
+    'return Promise.reject(ctx.routeUrl()?.apiPath).catch(((first, value) => ({ endpoint: value })).bind(null, "safe"));'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'const payload = endpoint => ({ endpoint }); return Promise.resolve(ctx.routeUrl()?.apiPath).then(payload.bind(null, "safe"));',
+    'const payload = endpoint => ({ endpoint }); return [ctx.routeUrl()?.apiPath].map(payload.bind(null, "safe"));',
+    'const payload = endpoint => ({ endpoint }); return Promise.reject(ctx.routeUrl()?.apiPath).catch(payload.bind(null, "safe"));'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
+
+test("local recovery parameters preserve explicitly rejected reasons", () => {
+  const file = "bp-routes/users/GET.ts";
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { const recover = failure => failure.catch(endpoint => ({ endpoint })); return recover(Promise.reject(ctx.routeUrl()?.apiPath)); }').length);
+  assert.deepEqual(inspectRouteUrlSource(file, 'export function handler(ctx) { const recover = failure => failure.catch(() => ({ status: "failed" })); return recover(Promise.reject(ctx.routeUrl()?.apiPath)); }'), []);
+});
+
+
+test("static spreads expand before call apply and bound callback parameter mapping", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Promise.resolve(ctx.routeUrl()?.apiPath).then(((a, b, value) => ({ endpoint: value })).bind(null, ...["x", "y"]));',
+    'const payload = (first, value) => ({ endpoint: value }); return payload.apply(null, [...["safe"], ctx.routeUrl()?.apiPath]);',
+    'const payload = (first, value) => ({ endpoint: value }); return payload.call(...[null, "safe", ctx.routeUrl()?.apiPath]);',
+    'const helpers = { payload: ((first, value) => ({ endpoint: value })).bind(null, "safe") }; return Promise.resolve(ctx.routeUrl()?.apiPath).then(helpers.payload);'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'return Promise.resolve(ctx.routeUrl()?.apiPath).then(((first, value) => ({ endpoint: value })).bind(null, ...["x", "y"]));',
+    'const payload = first => ({ endpoint: first }); return payload.apply(null, [...["safe"], ctx.routeUrl()?.apiPath]);',
+    'const helpers = { payload: (value => ({ endpoint: value })).bind(null, "safe") }; return Promise.resolve(ctx.routeUrl()?.apiPath).then(helpers.payload);'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
+
+
+test("pass-through then and finally retain rejection reasons until recovery", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Promise.reject(ctx.routeUrl()?.apiPath).then(() => ({ status: "ready" })).catch(endpoint => ({ endpoint }));',
+    'return Promise.reject(ctx.routeUrl()?.apiPath).then(null, undefined).finally(() => {}).catch(endpoint => ({ endpoint }));'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'return Promise.reject(ctx.routeUrl()?.apiPath).then(null, () => ({ status: "ready" })).catch(endpoint => ({ endpoint }));',
+    'return Promise.reject(ctx.routeUrl()?.apiPath).catch(() => ({ status: "ready" })).catch(endpoint => ({ endpoint }));'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
