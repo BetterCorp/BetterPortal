@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import * as path from "node:path";
-import { checkProjectRouteUrls } from "../codegen/routeUrlPolicy.js";
+import { checkConfiguredRouteUrls } from "../codegen/routeUrlPolicy.js";
 import { buildContracts } from "./contract.js";
 import { installClient, syncClients } from "./client.js";
 import { findPackageJson, readJsonFile } from "./project.js";
@@ -21,8 +21,10 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "run" && subcommand === "check-routes") {
-    const packageDir = path.dirname(findPackageJson());
-    const errors = checkProjectRouteUrls(path.join(packageDir, "src"));
+    const packagePath = findPackageJson();
+    const packageDir = path.dirname(packagePath);
+    const pkg = readJsonFile<{ betterportal?: { routes?: string[]; shells?: string[] } }>(packagePath);
+    const errors = checkConfiguredRouteUrls(packageDir, pkg.betterportal);
     for (const error of errors) console.error(`[bp] ERROR: ${error.file}: ${error.message}`);
     if (errors.length) process.exitCode = 1;
     return;
