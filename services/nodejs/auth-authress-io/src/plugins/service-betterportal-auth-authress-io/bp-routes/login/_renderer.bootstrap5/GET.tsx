@@ -7,7 +7,7 @@ import type { ResponseData } from "../../../loginFlow.js";
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const query = ctx.request.query;
   const requested = query.next ?? query.redirect;
-  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", !data.loggedOut && typeof requested === "string" ? requested : undefined);
+  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", typeof requested === "string" ? requested : undefined);
   const login = ctx.routeUrl({ method: "POST" });
   if (!login?.absoluteApiPath) throw new Error("Authress login service route is unavailable");
   if (data.loggedOut) {

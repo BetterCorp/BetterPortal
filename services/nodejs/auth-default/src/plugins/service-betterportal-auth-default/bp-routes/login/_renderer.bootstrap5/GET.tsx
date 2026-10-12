@@ -56,7 +56,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
   const social = ctx.routeUrl({ path: "/social" });
   const logout = ctx.routeUrl({ path: "/login", query: { action: "logout" } });
   const requestedNext = typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined;
-  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", data.loggedOut ? undefined : requestedNext);
+  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", requestedNext);
   const register = ctx.routeUrl({ path: "/register", query: { next: requestedNext } });
   if (data.challenge) {
     if (!account?.absoluteApiPath) throw new Error("Account service route is unavailable");

@@ -6,8 +6,8 @@ import type { ResponseData } from "../GET.js";
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const query = ctx.request.query;
-  const requested = query.state ?? query.next ?? query.redirect;
-  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", !data.loggedOut && typeof requested === "string" ? requested : undefined);
+  const requested = data.loggedOut ? query.next ?? query.redirect : query.state ?? query.next ?? query.redirect;
+  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", typeof requested === "string" ? requested : undefined);
   if (data.loggedOut) {
     return (
       <div class="container py-5" style="max-width: 420px;">
