@@ -23,3 +23,5 @@ The fatal prebuild check includes NodeNext `.mts`/`.cts` files and covers config
 Dependency mounts require a resolved service path to identify an endpoint; missing service paths return null.
 
 Selecting a domain field from a known object remains valid even when another field holds an internal destination. The authoring check follows the selected field through aliases.
+
+BP `ctx.response()` bodies participate in the same checks as `Response` and JSON response helpers; public links and domain data remain valid.
