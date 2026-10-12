@@ -95,6 +95,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
+      if (isResponseConstructor(expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && ["map", "flatMap"].includes(expression.expression.name.text)) {
         const callback = expression.arguments[0];
         if (callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) {
@@ -110,6 +111,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       return false;
     }
+    if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Response")) return !!expression.arguments?.[0] && internalValue(expression.arguments[0], seen);
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };
   const defaultExports = new Set(tree.statements.flatMap(statement => ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression) ? [statement.expression.text] : []));
@@ -201,6 +203,31 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       scope = scope.parent;
     }
     return false;
+  };
+  const jsonHelpers = new Set<string>();
+  for (const statement of tree.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)
+      || statement.moduleSpecifier.text !== "@betterportal/framework" || statement.importClause?.isTypeOnly) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements) {
+      if (!binding.isTypeOnly && (binding.propertyName?.text ?? binding.name.text) === "jsonResponse") jsonHelpers.add(binding.name.text);
+    }
+  }
+  const isGlobal = (expression: ts.Expression, name: string): boolean => {
+    if (!ts.isIdentifier(expression) || expression.text !== name) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      if (initializers.get(scope)?.has(name) || selections.get(scope)?.has(name)) return false;
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === name)) return false;
+      scope = scope.parent;
+    }
+    return true;
+  };
+  const isResponseConstructor = (expression: ts.Expression): boolean => {
+    if (ts.isIdentifier(expression)) return jsonHelpers.has(expression.text);
+    return ts.isPropertyAccessExpression(expression) && (isGlobal(expression.expression, "Response") && expression.name.text === "json"
+      || isGlobal(expression.expression, "JSON") && expression.name.text === "stringify"
+      || isGlobal(expression.expression, "Promise") && ["resolve", "all", "allSettled", "race"].includes(expression.name.text));
   };
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl" && contextValue(node.expression)

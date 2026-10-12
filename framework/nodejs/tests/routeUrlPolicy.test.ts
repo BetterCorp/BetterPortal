@@ -186,3 +186,21 @@ test("destructured internal fields and aliased resolvers retain lexical provenan
     'export function handler(ctx) { const { routeUrl } = ctx; const { absoluteApiPath } = routeUrl()!; return client(absoluteApiPath); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("known JSON response constructors and promise wrappers preserve payload provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return Response.json({ endpoint: ctx.routeUrl()?.absoluteApiPath }); }',
+    'export default createHandler({}, ctx => Promise.resolve(Response.json({ endpoint: ctx.routeUrl()?.viewPath })));',
+    'export function handler(ctx) { return new Response(JSON.stringify({ endpoint: ctx.routeUrl()?.apiPath })); }',
+    'import { jsonResponse as json } from "@betterportal/framework"; export function handler(ctx) { return json({ endpoint: ctx.routeUrl()?.apiPath }); }',
+    'export function handler(ctx) { return Promise.all(items.map(() => ctx.routeUrl())); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return Response.json({ publicLink: ctx.routeUrl()?.absoluteUiPath }); }',
+    'export function handler(ctx) { return new Response(null, { headers: { "HX-Location": ctx.routeUrl()?.uiPath } }); }',
+    'export default createHandler({}, ctx => client({ endpoint: ctx.routeUrl()?.absoluteApiPath }));',
+    'export function handler(ctx) { const Response = provider; return Response.json({ endpoint: ctx.routeUrl()?.apiPath }); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
