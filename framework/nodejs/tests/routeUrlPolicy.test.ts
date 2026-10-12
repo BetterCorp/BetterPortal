@@ -33,6 +33,7 @@ test("build permits renderer resolution, cursors and public domain links", () =>
     'export function handler(ctx: any) { const next = resolveAppAuthRedirect(ctx, "afterLogin"); const user = lookup(ctx.query.next); return { name: user.name }; }',
     'export function render(ctx: any) { const endpoint = ctx.routeUrl()?.apiPath; return `<form action="${endpoint}"></form>`; } export function handle() { const endpoint = "domain"; return { endpoint }; }',
     'export function provider(ctx: any) { const next = resolveAppAuthRedirect(ctx, "afterLogin"); return { authorizationUrl: getProviderUrl({ state: next }) }; }',
+    'export function handler(ctx: any) { return { available: ctx.routeUrl({ viewId: "reports" }) !== null, same: ctx.routeUrl()?.apiPath === "/reports", ready: !!ctx.routeUrl(), status: ctx.routeUrl() ? "ready" : "missing" }; }',
     'const settings = { nextUrl: "https://provider.test" }; settings.nextUrl;',
     'export function handler() { return { nextCursor: "42", authorizationUrl: "https://provider.test" }; }',
     'export function render(data: any, ctx: any) { const endpoint = ctx.routeUrl({ method: "POST" })?.absoluteApiPath; return `<form action="${endpoint}"></form>`; }'
