@@ -8,9 +8,9 @@ import { inspectRouteUrlSource } from "../src/codegen/routeUrlPolicy.js";
 
 test("build rejects old helpers and URL payloads even with any-typed contexts", () => {
   for (const source of [
-    'const ctx: any = {}; ctx.uiRouteUrl("users.index");',
-    'const ctx: any = {}; ctx.url.route("users.index");',
-    'const ctx: any = {}; ctx.routeUrl("users.index", {});',
+    'export function handler(ctx: any) { ctx.uiRouteUrl("users.index"); }',
+    'export function handler(ctx: any) { ctx.url.route("users.index"); }',
+    'export function handler(ctx: any) { ctx.routeUrl("users.index", {}); }',
     'export function handler(ctx: any) { const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin"); return { nextUrl }; }',
     'export function handler(ctx: any) { return { destination: ctx.routeUrl() }; }',
     'export function handler(ctx: any) { const target = ctx.routeUrl(); return { endpoint: target.apiPath }; }',
@@ -46,7 +46,7 @@ test("prebuild CLI exits with failure for legacy any-typed route calls", () => {
   try {
     mkdirSync(join(directory, "src"));
     writeFileSync(join(directory, "package.json"), JSON.stringify({ name: "fixture" }));
-    writeFileSync(join(directory, "src", "handler.ts"), 'const ctx: any = {}; ctx.routeUrl("users.index");');
+    writeFileSync(join(directory, "src", "handler.ts"), 'export default createHandler({}, (ctx: any) => ctx.routeUrl("users.index"));');
     const result = spawnSync(process.execPath, [new URL("../lib/cli/bp.js", import.meta.url).pathname, "run", "check-routes"], { cwd: directory, encoding: "utf8" });
     assert.equal(result.status, 1, result.stderr);
     assert.match(result.stderr, /routeUrl no longer accepts/);
@@ -117,6 +117,7 @@ test("direct and mapped handler responses reject internal destinations without r
   const file = "bp-routes/users/GET.ts";
   for (const source of [
     'export default createHandler({}, ctx => ctx.routeUrl());',
+    'export default createHandler.forContext<Extra>()({}, ctx => ctx.routeUrl());',
     'export function handler(ctx) { return ctx.routeUrl({ viewId: "users" }); }',
     'export default createHandler({}, ctx => items.map(() => ctx.routeUrl()));',
     'export default createHandler({}, ctx => { const routes = items.map(() => ctx.routeUrl()); return routes; });',
@@ -145,4 +146,21 @@ test("destructured removed helpers trace handler/render contexts and leave provi
     'export function handler(request) { const { uiRouteUrl } = request; return uiRouteUrl("users"); }'
   ]) assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", source).length, source);
   assert.ok(inspectRouteUrlSource("bp-routes/users/_renderer.bootstrap5/GET.tsx", 'export function render(data, view) { const alias = view; const { uiRouteUrl } = alias; return uiRouteUrl("users"); }').length);
+});
+
+
+test("route call diagnostics and returned destinations trace BP contexts rather than provider method names", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'provider.routeUrl("invoice", options);',
+    'export default createHandler({}, request => provider.routeUrl("invoice", options));',
+    'export default createHandler({}, request => items.map(provider => provider.routeUrl("invoice", options)));',
+    'export default createHandler({}, request => ({ publicApi: provider.apiPath }));',
+    'provider.uiRouteUrl("invoice"); provider.url.route("invoice");'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+  for (const source of [
+    'export default createHandler({}, request => { const alias = request; return alias.routeUrl("users", options); });',
+    'export default createHandler.forContext<Extra>()({}, request => request.routeUrl("users"));',
+    'export default createHandler({}, request => { const alias = request; return alias.uiRouteUrl("users"); });'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
 });

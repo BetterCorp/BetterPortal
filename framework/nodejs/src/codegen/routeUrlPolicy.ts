@@ -72,9 +72,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
     }
     if (ts.isPropertyAccessExpression(expression) && expression.name.text === "absoluteUiPath") return false;
-    if (ts.isPropertyAccessExpression(expression) && internalPaths.has(expression.name.text)) return true;
+    if (ts.isPropertyAccessExpression(expression) && internalPaths.has(expression.name.text)) return internalValue(expression.expression, seen);
     if (ts.isCallExpression(expression) && (ts.isIdentifier(expression.expression) && expression.expression.text === "resolveAppAuthRedirect"
-      || ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === "routeUrl")) return true;
+      || ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === "routeUrl" && contextValue(expression.expression.expression))) return true;
     if (ts.isPropertyAccessExpression(expression)) return internalValue(expression.expression, seen);
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
@@ -115,10 +115,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     return Boolean(current && ts.isArrowFunction(current) && !ts.isBlock(current.body));
   };
-  const belongsToHandler = (node: ts.Node | undefined): boolean => {
+  const ownsHandlerContext = (node: ts.Node): boolean => {
     if (file.includes("_renderer.")) return false;
-    while (node && !ts.isFunctionLike(node) && !ts.isSourceFile(node)) node = node.parent;
-    if (!node || !ts.isFunctionLike(node)) return false;
     if (routeHandlerFile && (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node))) {
       if (node.name && (["handler", "handle"].includes(node.name.text) || defaultExports.has(node.name.text))) return true;
       if (ts.getModifiers(node)?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword)) return true;
@@ -128,9 +126,19 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       && (["handler", "handle"].includes(parent.name.text) || defaultExports.has(parent.name.text))) return true;
     if (routeHandlerFile && ts.isExportAssignment(parent)) return true;
     if (!ts.isCallExpression(parent)) return false;
+    const factory = (expression: ts.Expression): boolean => ts.isIdentifier(expression) ? handlerFactories.has(expression.text)
+      : ts.isPropertyAccessExpression(expression) ? handlerFactories.has(expression.name.text) || expression.name.text === "forContext" && factory(expression.expression)
+        : ts.isCallExpression(expression) ? factory(expression.expression) : false;
+    return factory(parent.expression);
+  };
+  const belongsToHandler = (node: ts.Node | undefined): boolean => {
+    if (file.includes("_renderer.")) return false;
+    while (node && !ts.isFunctionLike(node) && !ts.isSourceFile(node)) node = node.parent;
+    if (!node || !ts.isFunctionLike(node)) return false;
+    if (ownsHandlerContext(node)) return true;
+    const parent = node.parent;
+    if (!ts.isCallExpression(parent)) return false;
     const callee = parent.expression;
-    if (ts.isIdentifier(callee) && handlerFactories.has(callee.text)
-      || ts.isPropertyAccessExpression(callee) && handlerFactories.has(callee.name.text)) return true;
     // A callback contributes to the response only when its call result is returned.
     return ts.isPropertyAccessExpression(callee) && ["map", "flatMap", "transaction"].includes(callee.name.text)
       && isReturnedValue(parent) && belongsToHandler(parent.parent);
@@ -154,7 +162,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       if (initializer) return contextValue(initializer, new Set([...seen, expression.text]));
       if (ts.isFunctionLike(scope)) {
         const index = scope.parameters.findIndex(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text);
-        if (index >= 0) return index === 0 && belongsToHandler(scope)
+        if (index >= 0) return index === 0 && ownsHandlerContext(scope)
           || index === 1 && rendererFunctions.has(scope)
           || /(?:RouteHandlerContext|ViewRenderContext|HandlerContext)/.test(scope.parameters[index].type?.getText(tree) ?? "");
       }
@@ -163,18 +171,18 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     return ["ctx", "context"].includes(expression.text);
   };
   const visit = (node: ts.Node): void => {
-    if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl"
-      || ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === "uiRouteUrl"
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl" && contextValue(node.expression)
+      || ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === "uiRouteUrl" && contextValue(node.expression)
       || ts.isBindingElement(node) && (node.propertyName ?? node.name).getText(tree).replace(/^["']|["']$/g, "") === "uiRouteUrl"
         && ts.isObjectBindingPattern(node.parent) && ts.isVariableDeclaration(node.parent.parent)
         && !!node.parent.parent.initializer && contextValue(node.parent.parent.initializer)) {
       report(node, "uiRouteUrl was removed. Use ctx.routeUrl({ ... }) and select uiPath or absoluteUiPath.");
     }
     if (ts.isPropertyAccessExpression(node) && ["route", "uiRoute", "current", "path"].includes(node.name.text)
-      && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "url") {
+      && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "url" && contextValue(node.expression.expression)) {
       report(node, "ctx.url helpers were removed. Use ctx.routeUrl({ ... }); omit the target for self.");
     }
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && contextValue(node.expression.expression)) {
       const property = node.expression;
       if (property.name.text === "routeUrl" && node.arguments[0] && ts.isObjectLiteralExpression(node.arguments[0])
         && node.arguments[0].properties.some(item => item.name && ["absolute", "origin"].includes(item.name.getText(tree)))) {
