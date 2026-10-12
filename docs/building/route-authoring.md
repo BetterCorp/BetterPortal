@@ -386,3 +386,5 @@ The Node source gate includes `.mts`/`.cts` modules and follows value-preserving
 Standard Promise.any results and string replacement values retain internal destination provenance in API responses; public links and opaque provider clients remain valid.
 
 Array element selection retains destination provenance. Explicit string-typed replacement receivers are checked even when initialized dynamically; unrelated provider methods and public links remain valid.
+
+Array destructuring retains element provenance, including aliases and rest values. Character selection from route strings is scalar state; selecting a complete path from an array remains an internal destination.

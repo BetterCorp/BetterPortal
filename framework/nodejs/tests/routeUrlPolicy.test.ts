@@ -622,3 +622,31 @@ test("dynamic string-typed replacement receivers are inspected", () => {
     'export function handler(ctx) { const template: string = getPlaceholder(); function helper(template: Provider) { return template.replace("id", ctx.routeUrl()?.apiPath); } return helper(provider); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("array binding patterns retain selected destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const [endpoint] = [ctx.routeUrl()?.apiPath]; return { endpoint }; }',
+    'export function handler(ctx) { const values = [ctx.routeUrl()?.apiPath]; const [endpoint] = values; return { endpoint }; }',
+    'export function handler(ctx) { const [, endpoint] = ["domain", ctx.routeUrl()?.apiPath]; return { endpoint }; }',
+    'export function handler(ctx) { const [...endpoints] = [ctx.routeUrl()?.apiPath]; return { endpoints }; }',
+    'export function handler(ctx) { const [resolve] = [ctx.routeUrl]; return resolve("legacy"); }',
+    'export function handler(ctx) { const [context] = [ctx]; return { endpoint: context.routeUrl()?.apiPath }; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const [publicLink] = [ctx.routeUrl()?.absoluteUiPath, ctx.routeUrl()?.apiPath]; return { publicLink }; }',
+    'export function handler(ctx) { const [endpoint, ...ids] = [ctx.routeUrl()?.apiPath, "domain"]; return { ids }; }',
+    'export function handler(ctx) { const [endpoint] = [ctx.routeUrl()?.apiPath]; return client(endpoint); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("string character selection remains scalar state while array selection retains URLs", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return { leading: ctx.routeUrl()?.apiPath.charAt(0) }; }',
+    'export function handler(ctx) { return { leading: ctx.routeUrl()?.apiPath.at(0) }; }',
+    'export function handler(ctx) { const value = ctx.routeUrl()?.apiPath; return { leading: value.at(0) }; }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return { endpoint: [ctx.routeUrl()?.apiPath].at(0) }; }').length);
+});

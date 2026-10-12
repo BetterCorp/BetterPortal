@@ -13,9 +13,10 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const errors: RouteUrlPolicyError[] = [];
   const rendererFunctions = new Set<ts.Node>();
   const declarations = new Map<ts.Node, Set<string>>();
-  const selections = new Map<ts.Node, Map<string, { expression: ts.Node; field: string; rest: boolean }>>();
+  const selections = new Map<ts.Node, Map<string, { expression: ts.Node; field: string; rest: boolean; element?: number }>>();
   const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
   const lengthTypes = new Map<ts.Node, Set<string>>();
+  const stringTypes = new Map<ts.Node, Set<string>>();
   type Mutation = { target: ts.Expression; values: readonly ts.Expression[]; global?: ts.Expression; collection?: boolean };
   const pendingMutations: Mutation[] = [];
   const functions = new Map<ts.Node, Map<string, ts.FunctionDeclaration>>();
@@ -34,6 +35,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       while (!ts.isBlock(scope) && !ts.isSourceFile(scope) && !(ts.isParameter(node) && ts.isFunctionLike(scope))) scope = scope.parent;
       const bindings = lengthTypes.get(scope) ?? new Set<string>();
       bindings.add(node.name.text); lengthTypes.set(scope, bindings);
+      if (node.type.kind === ts.SyntaxKind.StringKeyword) {
+        const strings = stringTypes.get(scope) ?? new Set<string>(); strings.add(node.name.text); stringTypes.set(scope, strings);
+      }
     }
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       let scope: ts.Node = node.parent;
@@ -44,12 +48,22 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if ((ts.isVariableDeclaration(node) && node.initializer || ts.isParameter(node)) && ts.isObjectBindingPattern(node.name)) {
       let scope: ts.Node = node.parent;
       while (!ts.isBlock(scope) && !ts.isSourceFile(scope) && !(ts.isParameter(node) && ts.isFunctionLike(scope))) scope = scope.parent;
-      const bindings = selections.get(scope) ?? new Map<string, { expression: ts.Node; field: string; rest: boolean }>();
+      const bindings = selections.get(scope) ?? new Map<string, { expression: ts.Node; field: string; rest: boolean; element?: number }>();
       for (const item of node.name.elements) {
         if (!ts.isIdentifier(item.name)) continue;
         const key = item.propertyName ?? item.name;
         if (!ts.isIdentifier(key) && !ts.isStringLiteralLike(key)) continue;
         bindings.set(item.name.text, { expression: node.initializer ?? node.name, field: key.text, rest: !!item.dotDotDotToken });
+      }
+      selections.set(scope, bindings);
+    }
+    if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name) && node.initializer) {
+      let scope: ts.Node = node.parent;
+      while (!ts.isBlock(scope) && !ts.isSourceFile(scope)) scope = scope.parent;
+      const bindings = selections.get(scope) ?? new Map<string, { expression: ts.Node; field: string; rest: boolean; element?: number }>();
+      for (const [index, item] of node.name.elements.entries()) {
+        if (!ts.isBindingElement(item) || !ts.isIdentifier(item.name)) continue;
+        bindings.set(item.name.text, { expression: node.initializer, field: String(index), rest: !!item.dotDotDotToken, element: index });
       }
       selections.set(scope, bindings);
     }
@@ -173,6 +187,45 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     return undefined;
   };
+  const arrayValues = (expression: ts.Node, seen = new Set<string>()): readonly ts.Node[] | undefined => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return arrayValues(expression.expression, seen);
+    if (ts.isArrayLiteralExpression(expression) && !expression.elements.some(ts.isSpreadElement)) return expression.elements;
+    if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Array") && expression.expression.name.text === "of") return expression.arguments;
+    if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Array")) return expression.arguments;
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return undefined;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return arrayValues(initializer, new Set([...seen, expression.text]));
+      if (declarations.get(scope)?.has(expression.text) || selections.get(scope)?.has(expression.text)) return undefined;
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return undefined;
+      scope = scope.parent;
+    }
+    return undefined;
+  };
+  const selectedElements = (selected: { expression: ts.Node; rest: boolean; element?: number }): readonly ts.Node[] => {
+    const values = arrayValues(selected.expression);
+    return values && selected.element !== undefined ? selected.rest ? values.slice(selected.element) : values.slice(selected.element, selected.element + 1) : [selected.expression];
+  };
+  const isStringValue = (expression: ts.Node, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return isStringValue(expression.expression, seen);
+    if (ts.isStringLiteralLike(expression) || ts.isTemplateExpression(expression)) return true;
+    if (ts.isPropertyAccessExpression(expression)) return (internalPaths.has(expression.name.text) || expression.name.text === "absoluteUiPath") && internalValue(expression.expression);
+    if (ts.isCallExpression(expression) && isGlobal(expression.expression, "String") || ts.isNewExpression(expression) && isGlobal(expression.expression, "String")) return true;
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      if (stringTypes.get(scope)?.has(expression.text)) return true;
+      const selected = selections.get(scope)?.get(expression.text);
+      if (selected?.element !== undefined) return !selected.rest && selectedElements(selected).length === 1 && isStringValue(selectedElements(selected)[0], new Set([...seen, expression.text]));
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return isStringValue(initializer, new Set([...seen, expression.text]));
+      if (declarations.get(scope)?.has(expression.text) || selected) return false;
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return false;
+      scope = scope.parent;
+    }
+    return false;
+  };
   const hasScalarLength = (expression: ts.Node, seen = new Set<string>()): boolean => {
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return hasScalarLength(expression.expression, seen);
     if (ts.isArrayLiteralExpression(expression) || ts.isStringLiteralLike(expression) || ts.isTemplateExpression(expression)) return true;
@@ -253,7 +306,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       let scope: ts.Node | undefined = expression.parent;
       while (scope) {
         const selected = selections.get(scope)?.get(expression.text);
-        if (selected) return (selected.rest || internalPaths.has(selected.field)) && internalValue(selected.expression, new Set([...seen, expression.text]));
+        if (selected) return selected.element !== undefined ? selectedElements(selected).some(value => internalValue(value, new Set([...seen, expression.text]))) : (selected.rest || internalPaths.has(selected.field)) && internalValue(selected.expression, new Set([...seen, expression.text]));
         const initializer = initializers.get(scope)?.get(expression.text);
         if (initializer) return internalValue(initializer, new Set([...seen, expression.text]));
         if (ts.isFunctionLike(scope) && scope.parameters.some(param => ts.isIdentifier(param.name) && param.name.text === expression.text)) {
@@ -301,6 +354,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       if (ts.isPropertyAccessExpression(expression.expression)) {
         const operation = expression.expression.name.text;
+        if ((operation === "charAt" || operation === "at") && isStringValue(expression.expression.expression)) return false;
         if (["replace", "replaceAll"].includes(operation) && hasScalarLength(expression.expression.expression)) {
           const replacement = expression.arguments[1];
           const callback = resolveCallback(replacement);
@@ -315,6 +369,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       if (ts.isPropertyAccessExpression(expression.expression) && ["then", "catch", "finally"].includes(expression.expression.name.text)) {
         const operation = expression.expression.name.text;
+        if ((operation === "charAt" || operation === "at") && isStringValue(expression.expression.expression)) return false;
         if (["replace", "replaceAll"].includes(operation) && hasScalarLength(expression.expression.expression)) {
           const replacement = expression.arguments[1];
           const callback = resolveCallback(replacement);
@@ -433,7 +488,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     let scope: ts.Node | undefined = expression.parent;
     while (scope) {
       const selected = selections.get(scope)?.get(expression.text);
-      if (selected) return selected.rest && contextValue(selected.expression, new Set([...seen, expression.text]));
+      if (selected) return selected.element !== undefined ? !selected.rest && selectedElements(selected).some(value => contextValue(value, new Set([...seen, expression.text]))) : selected.rest && contextValue(selected.expression, new Set([...seen, expression.text]));
       const initializer = initializers.get(scope)?.get(expression.text);
       if (initializer) return contextValue(initializer, new Set([...seen, expression.text]));
       if (ts.isFunctionLike(scope)) {
@@ -455,7 +510,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     let scope: ts.Node | undefined = expression.parent;
     while (scope) {
       const selected = selections.get(scope)?.get(expression.text);
-      if (selected) return selected.field === "routeUrl" && contextValue(selected.expression);
+      if (selected) return selected.element !== undefined ? !selected.rest && selectedElements(selected).some(value => isResolverFunction(value, new Set([...seen, expression.text]))) : selected.field === "routeUrl" && contextValue(selected.expression);
       const initializer = initializers.get(scope)?.get(expression.text);
       if (initializer) return isResolverFunction(initializer, new Set([...seen, expression.text]));
       if (ts.isFunctionLike(scope)) {
