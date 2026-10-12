@@ -201,6 +201,7 @@ test("known JSON response constructors and promise wrappers preserve payload pro
     'export function handler(ctx) { return Response.json({ publicLink: ctx.routeUrl()?.absoluteUiPath }); }',
     'export function handler(ctx) { return new Response(null, { headers: { "HX-Location": ctx.routeUrl()?.uiPath } }); }',
     'export default createHandler({}, ctx => client({ endpoint: ctx.routeUrl()?.absoluteApiPath }));',
-    'export function handler(ctx) { const Response = provider; return Response.json({ endpoint: ctx.routeUrl()?.apiPath }); }'
+    'export function handler(ctx) { const Response = provider; return Response.json({ endpoint: ctx.routeUrl()?.apiPath }); }',
+    'import { jsonResponse as json } from "@betterportal/framework"; export function handler(ctx) { const json = client; return json({ endpoint: ctx.routeUrl()?.apiPath }); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });

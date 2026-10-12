@@ -224,7 +224,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     return true;
   };
   const isResponseConstructor = (expression: ts.Expression): boolean => {
-    if (ts.isIdentifier(expression)) return jsonHelpers.has(expression.text);
+    if (ts.isIdentifier(expression)) return jsonHelpers.has(expression.text) && isGlobal(expression, expression.text);
     return ts.isPropertyAccessExpression(expression) && (isGlobal(expression.expression, "Response") && expression.name.text === "json"
       || isGlobal(expression.expression, "JSON") && expression.name.text === "stringify"
       || isGlobal(expression.expression, "Promise") && ["resolve", "all", "allSettled", "race"].includes(expression.name.text));
