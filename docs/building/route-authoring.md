@@ -392,3 +392,5 @@ Array destructuring retains element provenance, including aliases and rest value
 Promise constructor fulfillment payloads retain destination provenance, including resolver aliases and called callbacks. Unused helper declarations, public links and domain-client request building remain valid.
 
 Prebuild and generation both inspect configured `betterportal.routes` and `betterportal.shells` folders, including locations outside `src`, as well as default source helpers. Nested roots are deduplicated.
+
+Standard reversible URI/base64 encoders retain destination provenance. Numeric indexing into known strings is character state; indexing into arrays can select a complete internal path.

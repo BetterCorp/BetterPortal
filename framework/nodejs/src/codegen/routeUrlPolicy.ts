@@ -310,6 +310,11 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
   };
   const internalValue = (expression: ts.Node, seen = new Set<string>()): boolean => {
+    if (ts.isElementAccessExpression(expression) && isStringValue(expression.expression)) {
+      const index = expression.argumentExpression;
+      if (ts.isNumericLiteral(index) || ts.isStringLiteralLike(index) && /^\d+$/.test(index.text)
+        || ts.isPrefixUnaryExpression(index) && ts.isNumericLiteral(index.operand)) return false;
+    }
     if (ts.isObjectBindingPattern(expression) && ts.isParameter(expression.parent)) {
       const input = parameterInputs.get(expression.parent);
       return !!input && internalValue(input, seen);
@@ -364,6 +369,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
       if (isPromiseResolver(expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
+      if (["encodeURI", "encodeURIComponent", "decodeURI", "decodeURIComponent", "escape", "unescape", "btoa", "atob"].some(name => isGlobal(expression.expression, name))) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (isGlobal(expression.expression, "String") || isGlobal(expression.expression, "Object")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (isGlobal(expression.expression, "structuredClone")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Array")) {
