@@ -995,6 +995,7 @@ export abstract class BPService<
 
     createH3Router(registry, this.app, {
       serviceId: def.manifest.pluginId,
+      resolveRouteUrlServiceId: () => this.scopedConfig?.serviceIdentity?.id,
       resolveAuth: (event, route) => this.resolveAuthForRequest(event, route),
       validateTenantApp: (tenantId, appId) => this.validateTenantApp(tenantId, appId),
       resolveContext: (event, route) => this.resolveHandlerContext(event, route)

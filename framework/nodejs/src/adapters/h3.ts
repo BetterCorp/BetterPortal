@@ -74,6 +74,8 @@ export interface H3RouterObservabilityOptions {
   ) => BetterPortalObservability;
   /** Identifier of the service hosting this router (used by ctx.serviceId). */
   serviceId?: string;
+  /** Current installed instance used for URL resolution; evaluated after configuration/installation changes. */
+  resolveRouteUrlServiceId?: () => string | undefined;
   /** Resolve auth context for a request. Returning undefined disables auth enforcement for the request. */
   resolveAuth?: (event: BetterPortalEvent, route: RegisteredRoute) => Promise<H3AuthContext | undefined> | H3AuthContext | undefined;
   /**
@@ -401,7 +403,7 @@ async function prepareSseContext(
     callerMode: authResult.callerMode,
     ...extraContext,
     serviceId: routerOptions.serviceId,
-    routeUrl: createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.serviceId, { path: url.pathname.replace(/\/__sse\/?$/, ""), method: "GET", params, query: queryResult.value as Record<string, unknown> }),
+    routeUrl: createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteUrlServiceId?.() ?? routerOptions.serviceId, { path: url.pathname.replace(/\/__sse\/?$/, ""), method: "GET", params, query: queryResult.value as Record<string, unknown> }),
     diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
     response: responseHelper,
     file: fileResponseHelper,
@@ -885,8 +887,13 @@ function createRouteUrlBuilder(
     const reference = input.serviceId ?? owner;
     if (!reference) return null;
     const ids = serviceReferenceIds(extraContext, reference, aliases);
-    const currentIds = owner ? serviceReferenceIds(extraContext, owner, aliases) : new Set<string>();
-    const ownService = [...ids].some(id => currentIds.has(id));
+    const ownerKey = owner ? aliases[owner] ?? owner : undefined;
+    const owners = extraContext.tenant.services.filter(service => service.enabled && (service.id === ownerKey || service.serviceId === ownerKey));
+    const currentInstance = owners.length === 1 ? owners[0].id : owners.length === 0 ? owner : undefined;
+    const targetInstances = extraContext.tenant.services.filter(service => service.enabled && ids.has(service.id));
+    const ownService = currentInstance !== undefined && (targetInstances.length === 1
+      ? targetInstances[0].id === currentInstance
+      : targetInstances.length === 0 && reference === currentInstance);
     if (self && !ownService) return null;
     if (!ownService && !extraContext.tenant.services.some(service => service.enabled && ids.has(service.id))) return null;
     const method = input.method ?? (self ? current.method : "GET");
@@ -897,7 +904,7 @@ function createRouteUrlBuilder(
     const suppliedPath = self ? currentRoute?.path ?? current.path : input.path;
     if (suppliedPath !== undefined && (!suppliedPath.startsWith("/") || suppliedPath.startsWith("//") || suppliedPath.includes("\\") || suppliedPath.includes("#") || [...suppliedPath].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) return null;
     const pathname = suppliedPath?.split("?", 1)[0];
-    let serviceId = reference;
+    let serviceId = ownService ? currentInstance! : reference;
     let path: string | null = null;
     let viewId = input.viewId;
     if (ownService) {
@@ -905,8 +912,15 @@ function createRouteUrlBuilder(
         ? route.viewId === viewId
         : pathname !== undefined && routePathsMatch(route.path, pathname)));
       const resolved = candidates.flatMap(route => {
-        const concrete = fillAppPath(suppliedPath ?? route.path, params);
-        return concrete && !concrete.split("?", 1)[0].split("/").some(part => pathParamName(part)) ? [{ route, path: concrete }] : [];
+        const mounts = appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && mount.serviceId === currentInstance
+          && mount.viewId === route.viewId && mount.resolvedMethods?.includes(method)
+          && (input.mountId === undefined || mount.id === input.mountId)
+          && (!routeMountServicePath(mount) || routePathsMatch(routeMountServicePath(mount)!, route.path)));
+        const defaults = mounts.length ? mounts.map(mount => mount.fixedParams ?? {}) : [{}];
+        return defaults.flatMap(fixed => {
+          const concrete = fillAppPath(suppliedPath ?? route.path, { ...fixed, ...params });
+          return concrete && !concrete.split("?", 1)[0].split("/").some(part => pathParamName(part)) ? [{ route, path: concrete }] : [];
+        });
       });
       // Prefer literal route matches over parameter patterns; never choose an arbitrary variant.
       const direction = input.viewId === undefined ? 1 : -1;
@@ -1181,7 +1195,7 @@ async function handleRouteRequest(
     return rejectUnallowedAppRoute(obs, route, method, extraContext, routeAllowance.reason ?? "route_not_mounted_for_app");
   }
 
-  const routeUrl = createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.serviceId, { path: url.pathname, method, params, query: query as Record<string, unknown> });
+  const routeUrl = createRouteUrlBuilder(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteUrlServiceId?.() ?? routerOptions.serviceId, { path: url.pathname, method, params, query: query as Record<string, unknown> });
   const earlyRenderContext = (status: number): ViewRenderContext | undefined => {
     const renderer = rendererFromEvent(event);
     return renderer ? createViewRenderContext(route, {

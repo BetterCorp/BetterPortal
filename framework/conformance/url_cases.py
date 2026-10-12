@@ -25,8 +25,8 @@ def run_urls(urls, labels):
             "absoluteApiPath": origin + api if origin else None,
             "absoluteViewPath": origin + view if origin else None,
             "absoluteUiPath": "https://app.test" + ui if ui else None}
-    def case(name, input, expected, change=lambda body: None, native=False):
-        cases.append((name, input, expected, change, native))
+    def case(name, input, expected, change=lambda body: None, native=False, runtimes=None):
+        cases.append((name, input, expected, change, native, runtimes))
     case("self", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"))
     case("self-query", {"query": {"page": 2}}, resolved("/check/item?hello=world&page=2", ui="/app/item?hello=world&page=2"))
     case("self-param", {"params": {"key": "other"}}, resolved("/check/other?hello=world", ui="/app/other?hello=world"))
@@ -72,6 +72,34 @@ def run_urls(urls, labels):
         mounts.append({**deepcopy(mounts[0]), "id": alias_id, "path": "/alias/:key"})
     case("ambiguous-ui", {"viewId": "check", "params": {"key": "item"}}, resolved("/check/item"), aliases)
     case("selected-mount", {"viewId": "check", "params": {"key": "item"}, "mountId": alias_id}, resolved("/check/item", ui="/alias/item"), aliases)
+    def fixed_local(body):
+        body["snapshot"]["apps"][0]["appRoutes"][0].update(path="/fixed", fixedParams={"key": "pinned"})
+    case("local-fixed", {"viewId": "check"}, resolved("/check/pinned", ui="/fixed"), fixed_local)
+    case("local-fixed-path", {"path": "/check/:key"}, resolved("/check/pinned", ui="/fixed"), fixed_local)
+    case("local-fixed-override", {"viewId": "check", "params": {"key": "other"}}, resolved("/check/other"), fixed_local)
+    def fixed_aliases(body):
+        fixed_local(body)
+        mounts = body["snapshot"]["apps"][0]["appRoutes"]
+        mounts.append({**deepcopy(mounts[0]), "id": alias_id, "path": "/another", "fixedParams": {"key": "other"}})
+    case("local-fixed-ambiguous", {"viewId": "check"}, None, fixed_aliases)
+    case("local-fixed-selected", {"viewId": "check", "mountId": alias_id}, resolved("/check/other", ui="/another"), fixed_aliases)
+    def duplicate_current(body):
+        body["snapshot"].pop("serviceIdentity", None)
+        body["snapshot"]["tenants"][0]["services"].append({**deepcopy(body["snapshot"]["tenants"][0]["services"][0]), "id": alias_id, "hostname": "https://copy.test"})
+        mounts = body["snapshot"]["apps"][0]["appRoutes"]
+        mounts.append({**deepcopy(mounts[0]), "id": alias_id, "serviceId": alias_id, "path": "/copy/:key"})
+    # Native hosts reject ambiguous canonical owners before invoking a handler; exercise Node resolver rejection directly.
+    case("ambiguous-current-instance", None, None, duplicate_current, runtimes=["node"])
+    case("concrete-current-target", {"serviceId": TARGET, "viewId": "check", "params": {"key": "item"}}, resolved("/check/item", ui="/app/item"), duplicate_current, runtimes=["node"])
+    def concrete_identity(body):
+        duplicate_current(body)
+        body["snapshot"]["serviceIdentity"] = {"id": alias_id}
+        body["snapshot"]["apps"][0]["routes"].append(deepcopy(body["snapshot"]["apps"][0]["appRoutes"][-1]))
+    case("known-current-instance", None, resolved("/check/item?hello=world", ui="/copy/item?hello=world", origin="https://copy.test"), concrete_identity)
+    def getter_identity(body):
+        duplicate_current(body)
+        body["routeUrlServiceId"] = TARGET
+    case("current-instance-getter", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"), getter_identity, runtimes=["node"])
     case("disabled-ui", {"viewId": "check", "params": {"key": "item"}}, resolved("/check/item"), lambda body: body["snapshot"]["apps"][0]["appRoutes"][0].update(enabled=False))
     def providers(body):
         body["snapshot"]["tenants"][0]["services"].append({**deepcopy(body["snapshot"]["tenants"][0]["services"][1]), "id": BINDING})
@@ -79,8 +107,9 @@ def run_urls(urls, labels):
         mounts.append({**deepcopy(mounts[1]), "id": BINDING, "serviceId": BINDING})
     case("ambiguous-provider", {"viewId": "docs.index", "serviceId": "docs"}, None, providers)
     for url, label in zip(urls, labels):
-        for name, input, expected, change, native in cases:
+        for name, input, expected, change, native, runtimes in cases:
             if native and label == "node": continue
+            if runtimes is not None and label not in runtimes: continue
             for handler in (False, True):
                 result = {"runtime": label, "id": "url-" + name + ("-handler" if handler else "-renderer"), "passed": False}
                 try:

@@ -305,7 +305,7 @@ if (!destination?.absoluteApiPath) throw new Error("Reports API route is unavail
 // fetch(destination.absoluteApiPath, ...)
 ```
 
-Omit both `path` and `viewId` to resolve self: `ctx.routeUrl()` or `ctx.routeUrl({ query: { page: 2 } })`. Self inherits the current service, route, method, params and query; explicit values override them and null query values remove keys. Explicit targets default to GET and do not inherit another route's params/query. A `path` always means a service path, including when it contains a query string. Do not supply both selectors.
+Omit both `path` and `viewId` to resolve self: `ctx.routeUrl()` or `ctx.routeUrl({ query: { page: 2 } })`. Self inherits the current service, route, method, params and query; explicit values override them and null query values remove keys. Explicit targets default to GET and do not inherit another route's params/query. Missing local path parameters may come from a selected or uniquely resolvable mount's fixed values; explicit params override them. Conflicting fixed values require `mountId` or explicit params. A `path` always means a service path, including when it contains a query string. Do not supply both selectors.
 
 Unknown routes, unsupported methods, missing params and ambiguous service targets return `null`. A valid service destination can exist without a UI mount: its UI fields are `null` unless exactly one enabled GET page path resolves. Select `mountId` when several frontend aliases are valid. Required navigation failures must be diagnosed rather than hidden behind guessed paths or `"#"` fallbacks.
 

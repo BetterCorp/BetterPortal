@@ -159,8 +159,15 @@ public sealed class Urls
         {
             var candidates = routes.SelectMany(pair => pair.Value.Select(template => (View: pair.Key, Template: template)))
                 .Where(item => methods[item.View].Contains(method) && (viewId is not null ? item.View == viewId : selector is not null && Parameters(item.Template, selector) is not null))
-                .Select(item => (item.View, item.Template, Path: Fill(self || selector is null ? item.Template : selector,
-                    self ? Merge(Parameters(item.Template, currentPath), parameters) : parameters)))
+                .SelectMany(item => {
+                    var matched = mounts.Where(mount => mount["enabled"] is true && ids.Contains((string)mount["serviceId"]!) && (string)mount["viewId"]! == item.View
+                        && ((List<object?>)mount.GetValueOrDefault("resolvedMethods", new List<object?>())!).Contains(method)
+                        && (!opts.TryGetValue("mountId", out var selected) || Equals(selected, mount["id"]))
+                        && (ServicePath(mount) is not { } template || Parameters(item.Template, template) is not null)).ToArray();
+                    var defaults = matched.Length == 0 ? new[] { new Node() } : matched.Select(mount => (Node)mount.GetValueOrDefault("fixedParams", new Node())!).ToArray();
+                    return defaults.Select(fixedValues => (item.View, item.Template, Path: Fill(self || selector is null ? item.Template : selector,
+                        Merge(fixedValues, self ? Merge(Parameters(item.Template, currentPath), parameters) : parameters))));
+                })
                 .Where(item => item.Path is not null).ToArray();
             var ordered = viewId is not null ? candidates.OrderByDescending(item => Specificity(item.Template)).ToArray() : candidates.OrderBy(item => Specificity(item.Template)).ToArray();
             if (ordered.Length == 0) return null;

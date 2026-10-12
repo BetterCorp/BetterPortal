@@ -149,8 +149,16 @@ class Urls:
                           if name == view_id] if view_id is not None else [
                 (name, candidate) for name, (paths, methods) in self._routes.items() if method in methods for candidate in paths
                 if selector is not None and _path_matches(candidate, selector.split("?", 1)[0])]
-            resolved = [(name, candidate, value) for name, candidate in candidates
-                        if (value := _fill(candidate if self_target or selector is None else selector, ({**self._parameters(candidate, self._path), **parameters} if self_target else parameters))) is not None]
+            resolved = []
+            for name, candidate in candidates:
+                mounts = [mount for mount in self._mounts if mount["enabled"] and mount["serviceId"] in ids and mount["viewId"] == name
+                    and method in mount.get("resolvedMethods", []) and (not opts.get("mountId") or opts["mountId"] == mount["id"])
+                    and ((template := self._service_path(mount)) is None or _path_matches(candidate, template))]
+                defaults = [mount.get("fixedParams", {}) for mount in mounts] if mounts else [{}]
+                for fixed in defaults:
+                    values = {**fixed, **(self._parameters(candidate, self._path) if self_target else {}), **parameters}
+                    value = _fill(candidate if self_target or selector is None else selector, values)
+                    if value is not None: resolved.append((name, candidate, value))
             resolved.sort(key=lambda item: sum(part.startswith(":") for part in item[1].split("/")), reverse=view_id is not None)
             if not resolved: return None
             best = sum(part.startswith(":") for part in resolved[0][1].split("/"))
