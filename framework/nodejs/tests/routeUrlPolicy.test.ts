@@ -340,3 +340,40 @@ test("handler factories resolve only framework and generated-runtime imports", (
     'import { createHandler } from "@betterportal/framework"; createHandler.forContext<Extra>()({}, ctx => ctx.routeUrl("users"));'
   ]) assert.ok(inspectRouteUrlSource("helpers/routes.ts", source).length, source);
 });
+
+
+test("standard object/JSON/scalar wrappers retain response URL provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const expression of [
+    'JSON.parse(JSON.stringify({ endpoint: ctx.routeUrl()?.apiPath }))',
+    'Object.values({ endpoint: ctx.routeUrl()?.viewPath })',
+    'Object.entries({ endpoint: ctx.routeUrl()?.apiPath })',
+    'Object.freeze({ endpoint: ctx.routeUrl()?.viewPath })',
+    'Object.seal({ endpoint: ctx.routeUrl()?.viewPath })',
+    'Object.preventExtensions({ endpoint: ctx.routeUrl()?.viewPath })',
+    'String(ctx.routeUrl()?.apiPath)',
+    'Object(ctx.routeUrl())',
+    'new URL(ctx.routeUrl()?.absoluteApiPath)',
+    'new String(ctx.routeUrl()?.apiPath)',
+    '[ctx.routeUrl()?.apiPath].join(",")',
+    'ctx.routeUrl()?.absoluteApiPath.toString()'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { return ${expression}; }`).length, expression);
+  for (const source of [
+    'export function handler(ctx) { return JSON.parse(JSON.stringify({ publicLink: ctx.routeUrl()?.absoluteUiPath })); }',
+    'export function handler(ctx) { return Object.values({ publicLink: ctx.routeUrl()?.absoluteUiPath }); }',
+    'import { JSON } from "provider"; export function handler(ctx) { return JSON.parse(ctx.routeUrl()?.apiPath); }',
+    'import { String } from "provider"; export function handler(ctx) { return String(ctx.routeUrl()?.apiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+
+test("provider constructors can consume service destinations and return domain models", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'import { Response } from "provider"; export function handler(ctx) { return new Response(ctx.routeUrl()?.absoluteApiPath); }',
+    'import { Array } from "provider"; export function handler(ctx) { return new Array(ctx.routeUrl()?.absoluteApiPath); }',
+    'export function handler(ctx) { const URL = ProviderModel; return new URL(ctx.routeUrl()?.absoluteApiPath); }',
+    'export function handler(ctx) { return new ProviderModel(ctx.routeUrl()?.absoluteApiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+  assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return new Response(JSON.stringify({ endpoint: ctx.routeUrl()?.apiPath })); }').length);
+});

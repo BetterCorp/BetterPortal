@@ -169,6 +169,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
+      if (isGlobal(expression.expression, "String") || isGlobal(expression.expression, "Object")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (isGlobal(expression.expression, "structuredClone")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Array")) {
         if (expression.expression.name.text === "of") return expression.arguments.some(argument => internalValue(argument, seen));
@@ -190,10 +191,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Object")) {
         if (expression.expression.name.text === "assign") return expression.arguments.some(argument => internalValue(argument, seen));
+        if (["values", "entries", "freeze", "seal", "preventExtensions"].includes(expression.expression.name.text)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
         if (expression.expression.name.text === "fromEntries") return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       }
       if (ts.isPropertyAccessExpression(expression.expression)) {
         const operation = expression.expression.name.text;
+        if (["toString", "valueOf", "join"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
         if (["with", "toSpliced"].includes(operation)) return internalValue(expression.expression.expression, seen)
@@ -215,8 +218,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       return false;
     }
-    if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Array")) return !!expression.arguments?.some(argument => internalValue(argument, seen));
-    if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Response")) return !!expression.arguments?.[0] && internalValue(expression.arguments[0], seen);
+    if (ts.isNewExpression(expression) && ["Array", "URL", "String", "Object"].some(name => isGlobal(expression.expression, name))) return !!expression.arguments?.some(argument => internalValue(argument, seen));
+    if (ts.isNewExpression(expression)) return isGlobal(expression.expression, "Response") && !!expression.arguments?.[0] && internalValue(expression.arguments[0], seen);
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };
   const defaultExports = new Set(tree.statements.flatMap(statement => ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression) ? [statement.expression.text] : []));
@@ -350,7 +353,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const isResponseConstructor = (expression: ts.Expression): boolean => {
     if (ts.isIdentifier(expression)) return jsonHelpers.has(expression.text) && isGlobal(expression, expression.text, true);
     return ts.isPropertyAccessExpression(expression) && (isGlobal(expression.expression, "Response") && expression.name.text === "json"
-      || isGlobal(expression.expression, "JSON") && expression.name.text === "stringify"
+      || isGlobal(expression.expression, "JSON") && ["stringify", "parse"].includes(expression.name.text)
       || isGlobal(expression.expression, "Promise") && ["resolve", "all", "allSettled", "race"].includes(expression.name.text));
   };
   const visit = (node: ts.Node): void => {
