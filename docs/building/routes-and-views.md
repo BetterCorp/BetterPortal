@@ -311,6 +311,35 @@ Unknown routes, unsupported methods, missing params and ambiguous service target
 
 API responses contain domain data, state and cursors. Renderers resolve their own destinations; do not add internal `accountUrl`, `loginUrl`, pagination URLs, or route objects merely to forward links to a view. Public `absoluteUiPath` links and external provider URLs remain valid domain data. `bp setup` installs `bp run check-routes` as a fatal npm prebuild check for BSB services; generation also validates source. Keep that prebuild check when customizing build scripts. This is a breaking contract: positional string-returning `routeUrl`, `uiRouteUrl`, renderer `ctx.url` helpers, old internal response fields and literal route tokens fail build validation, including common any-typed usages.
 
+Resolve each action in the renderer with its actual HTTP method. For example, a GET response supplies an identifier; its view resolves a POST destination from that identifier:
+
+```ts
+// bp-routes/reports/GET.ts: domain data only, no view URLs.
+import * as av from "anyvali";
+import { createHandler } from "@betterportal/framework";
+
+export const QuerySchema = av.object({ reportId: av.string() });
+export const ResponseSchema = av.object({ reportId: av.string() });
+export default createHandler({ query: QuerySchema, response: ResponseSchema },
+  ctx => ({ reportId: ctx.query.reportId }));
+```
+
+```tsx
+// bp-routes/reports/_renderer.bootstrap5/GET.tsx
+import type { ViewRenderContext } from "@betterportal/framework";
+
+export function render(data: { reportId: string }, ctx: ViewRenderContext) {
+  const action = ctx.routeUrl({ path: "/reports/:reportId", method: "POST",
+    params: { reportId: data.reportId } })?.absoluteViewPath;
+  if (!action) throw new Error("Report POST view is unavailable");
+  return <form hx-post={action}><button type="submit">Update report</button></form>;
+}
+```
+
+Do not wrap route objects or internal destinations in response objects, arrays, object copies or `structuredClone` to forward them to a renderer. The authoring check traces BP handler/renderer contexts and their aliases; unrelated provider APIs with similarly named methods remain valid. Public links generated for email or callbacks belong in API code only when that API actually consumes or returns the public link for that purpose.
+
+Service base URLs must use HTTP(S) without credentials, query strings or fragments; a deployment path prefix is retained. Public app hosts must be credential-free HTTP(S) origins without a path, query or fragment. Invalid bases cannot produce absolute destinations. Native scoped configuration rejects malformed app origins before invoking handlers; the Node resolver leaves unavailable absolute fields null. Relative destinations do not authorize requests or bypass operation allowlists.
+
 For a reusable UI fragment from another declared service dependency, use the typed `BPElement` helper and pass the renderer `ctx`:
 
 ```tsx

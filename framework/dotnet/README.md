@@ -3,7 +3,7 @@
 .NET 10. This is an in-progress framework with prototype ASP.NET Core hosting
 for JSON, HTML, raw, finite streams and subscriber feeds. Full theme helpers
 and streaming dependency clients remain in the [capability ledger](../conformance/CAPABILITIES.md).
-The AnyVali 1.1.5 schema gate passes all 1,580 checks; see the ledger for results.
+The AnyVali 1.1.6 schema gate passes all 1,580 checks; see the ledger for results.
 
 Start a standalone service with the [native init commands](../../docs/building/route-authoring.md#create-a-standalone-service).
 

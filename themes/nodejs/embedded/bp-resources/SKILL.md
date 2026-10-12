@@ -8,7 +8,7 @@ description: Build compact BetterPortal service UI for the Embedded theme.
 1. Read `/llms-api.txt`, `/llms-ui.txt` and the Embedded UI guide.
 2. Keep the view single-column and self-contained.
 3. Use semantic HTML and server-rendered HTMX fragments.
-4. Use the same `ctx.routeUrl(input?)` in API handlers and renderers. Omit the target for self. Select `apiPath`/`absoluteApiPath` for API requests, `viewPath`/`absoluteViewPath` for HTML requests, and `uiPath`/`absoluteUiPath` for theme navigation/public links. Pass a declared dependency alias in `serviceId`; renderers resolve links from domain data and cursors.
+4. Use the same `ctx.routeUrl(input?)` in API handlers and renderers. Omit the target for self. Select `apiPath`/`absoluteApiPath` for API requests, `viewPath`/`absoluteViewPath` for HTML requests, and `uiPath`/`absoluteUiPath` for theme navigation/public links. Pass a declared dependency alias in `serviceId`; renderers resolve links from domain data and cursors. API handlers must not add internal URL fields to their response for views. Resolve POST/PUT/DELETE destinations with the corresponding method in the renderer, and use `sse: true` with `absoluteViewPath` for HTML streams.
 5. Include loading, empty, validation and failure states.
 6. Verify keyboard use, labels, responsive wrapping and the published schemas.
 

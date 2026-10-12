@@ -102,9 +102,9 @@ test("handler request-building callbacks are separate from response-producing ca
 test("removed helpers and internal response spreads cannot bypass the authoring gate", () => {
   const file = "bp-routes/users/GET.ts";
   for (const source of [
-    'const { uiRouteUrl } = ctx; uiRouteUrl("users");',
-    'const { uiRouteUrl: link } = ctx; link("users");',
-    'ctx["uiRouteUrl"]("users");',
+    'export default createHandler({}, ctx => { const { uiRouteUrl } = ctx; uiRouteUrl("users"); });',
+    'export default createHandler({}, ctx => { const { uiRouteUrl: link } = ctx; link("users"); });',
+    'export default createHandler({}, ctx => { ctx["uiRouteUrl"]("users"); });',
     'export default createHandler({}, ctx => ({ ...ctx.routeUrl({ viewId: "users" }) }));',
     'export function handler(ctx) { const links = ctx.routeUrl(); return { ...links }; }'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
@@ -228,5 +228,31 @@ test("transparent object construction retains internal destination provenance", 
   for (const source of [
     'export function handler(ctx) { return Object.assign({}, { publicLink: ctx.routeUrl()?.absoluteUiPath }); }',
     'export function handler(ctx) { const Object = client; return Object.assign({}, { endpoint: ctx.routeUrl()?.apiPath }); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+
+test("context names alone do not turn provider helpers into BP contexts", () => {
+  for (const source of [
+    'function adapt(ctx: Provider) { return ctx.routeUrl("invoice"); }',
+    'const ctx = provider; ctx.routeUrl("invoice"); ctx.uiRouteUrl("invoice");',
+    'const context: Provider = provider; context.url.route("invoice");',
+    'function adapt(context) { const { routeUrl } = context; return routeUrl("invoice"); }'
+  ]) assert.deepEqual(inspectRouteUrlSource("providers/adapter.ts", source), [], source);
+  assert.ok(inspectRouteUrlSource("providers/adapter.ts", 'function adapt(request: RouteHandlerContext) { return request.routeUrl("invoice"); }').length);
+});
+
+
+test("standard cloning preserves response provenance without rejecting domain clients", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return structuredClone({ endpoint: ctx.routeUrl()?.absoluteApiPath }); }',
+    'export default createHandler({}, ctx => structuredClone(ctx.routeUrl()));',
+    'export function handler(ctx) { const payload = structuredClone({ endpoint: ctx.routeUrl()?.viewPath }); return payload; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return structuredClone({ publicLink: ctx.routeUrl()?.absoluteUiPath }); }',
+    'import { structuredClone } from "provider"; export function handler(ctx) { return structuredClone({ endpoint: ctx.routeUrl()?.apiPath }); }',
+    'export function handler(ctx) { const structuredClone = client; return structuredClone({ endpoint: ctx.routeUrl()?.apiPath }); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });

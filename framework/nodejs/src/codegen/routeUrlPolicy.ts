@@ -109,6 +109,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
+      if (isGlobal(expression.expression, "structuredClone")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Object")) {
         if (expression.expression.name.text === "assign") return expression.arguments.some(argument => internalValue(argument, seen));
         if (expression.expression.name.text === "fromEntries") return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
@@ -204,7 +205,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       scope = scope.parent;
     }
-    return ["ctx", "context"].includes(expression.text);
+    return false;
   };
   const isResolverFunction = (expression: ts.Expression, seen = new Set<string>()): boolean => {
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return isResolverFunction(expression.expression, seen);
