@@ -164,9 +164,9 @@ export default createHandler(
       };
     }
 
-    const redirectUri =
-      ctx.routeUrl?.({ path: "/login" })?.absoluteUiPath ??
-      "/login";
+    const login = ctx.routeUrl?.({ path: "/login" });
+    const redirectUri = login?.absoluteUiPath ?? login?.absoluteViewPath;
+    if (!redirectUri) return { status: "error" as const, message: "The sign-in callback URL is unavailable.", loginUI: config.loginUI ?? "default" };
     return {
       status: "ok" as const,
       message: "Continue to WorkOS.",
