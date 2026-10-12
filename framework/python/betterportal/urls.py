@@ -217,7 +217,11 @@ class Urls:
         try:
             api = _render(path, {"query": opts["query"], "sse": opts["sse"]})
             view = _render(path, opts)
-            app = self._app_origin or (_origin(self._hosts[0]) if self._hosts else None)
+            app = self._app_origin
+            if app is None:
+                for host in self._hosts:
+                    try: app = _origin(host); break
+                    except ValueError: pass
             return parse("ResolvedRouteUrlSchema", {"apiPath": api, "viewPath": view, "uiPath": ui,
                 "absoluteApiPath": origin + api if origin else None, "absoluteViewPath": origin + view if origin else None,
                 "absoluteUiPath": app + ui if app and ui else None})

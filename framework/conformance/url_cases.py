@@ -106,6 +106,14 @@ def run_urls(urls, labels):
         change = lambda body, raw=raw: body["snapshot"]["tenants"][0]["services"][0].update(hostname=raw)
         case("unsafe-service-base-" + raw, {"viewId": "check", "params": {"key": "item"}}, resolved("/check/item", ui="/app/item", origin=None), change, runtimes=["node"])
         case("unsafe-service-base-" + raw, {"viewId": "check", "params": {"key": "item"}}, None, change, runtimes=["dotnet"] if "@" in raw else ["python", "dotnet"])
+    for host in ("https://user:pass@app.test", "https://user@app.test", "https://:pass@app.test", "https://app.test/?token=secret", "https://app.test/#secret"):
+        expected = resolved("/check/item", ui="/app/item")
+        expected["absoluteUiPath"] = None
+        change = lambda body, host=host: body["snapshot"]["apps"][0].update(hostnames=[host])
+        case("unsafe-app-origin-" + host, {"viewId": "check", "params": {"key": "item"}}, expected, change, runtimes=["node"])
+        # Native scoped contexts reject these invalid origins before constructing URL helpers.
+        error = "Invalid HTTP authority" if "@" in host else "Expected an origin without path, query or fragment"
+        case("unsafe-app-origin-" + host, {"viewId": "check", "params": {"key": "item"}}, {"validationError": error}, change, runtimes=["python", "dotnet"])
     for number in (9007199254740993, 9223372036854775807, -9223372036854775808, 18446744073709551615):
         case("integer-" + str(number), {"viewId": "check", "params": {"key": number}, "query": {"n": number}},
              resolved(f"/check/{number}?n={number}", ui=f"/app/{number}?n={number}"), native=True)
@@ -185,10 +193,18 @@ def run_urls(urls, labels):
                         operation = next(spec for spec in route["operations"] if spec["declaration"]["method"] == body["request"].get("method", "GET"))
                         if handler: operation["urlCalls"] = [call]
                         else: operation["renderers"][0]["urlCalls"] = [call]
-                    actual = post(url, body)
-                    assert actual["status"] == 200 and actual["invoked"] == 1, actual
-                    value = json.loads(actual["body"] if handler else "".join(Html(actual["body"]).text))
-                    assert value == [expected], (value, expected)
+                    if isinstance(expected, dict) and "validationError" in expected:
+                        try: post(url, body)
+                        except AssertionError as error:
+                            text = str(error)
+                            assert text.startswith("HTTP 500: "), text
+                            assert json.loads(text.removeprefix("HTTP 500: ")) == {"error": expected["validationError"]}, text
+                        else: raise AssertionError("Expected native origin validation to reject invalid app configuration")
+                    else:
+                        actual = post(url, body)
+                        assert actual["status"] == 200 and actual["invoked"] == 1, actual
+                        value = json.loads(actual["body"] if handler else "".join(Html(actual["body"]).text))
+                        assert value == [expected], (value, expected)
                     result["passed"] = True
                 except Exception as error: result["error"] = str(error)
                 results.append(result)

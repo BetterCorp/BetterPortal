@@ -109,6 +109,10 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
+      if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Object")) {
+        if (expression.expression.name.text === "assign") return expression.arguments.some(argument => internalValue(argument, seen));
+        if (expression.expression.name.text === "fromEntries") return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
+      }
       if (isResponseConstructor(expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && ["map", "flatMap"].includes(expression.expression.name.text)) {
         const callback = expression.arguments[0];

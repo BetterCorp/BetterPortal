@@ -700,17 +700,26 @@ function fillAppPath(path: string, params: RouteUrlOptions["params"] = {}): stri
   return queryPart ? `${resolved}?${queryPart}` : resolved;
 }
 
-function appOrigin(app: BetterPortalApp, override?: string): string {
-  const raw = (override ?? app.hostnames[0] ?? "").replace(/\/+$/, "");
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
-  return `https://${raw}`;
+function appOrigin(app: BetterPortalApp, override?: string): string | null {
+  for (const value of override ? [override] : app.hostnames) {
+    try {
+      const raw = value.trim();
+      if (!raw) continue;
+      const parsed = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+      if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== "/") continue;
+      return parsed.origin;
+    } catch { /* Ignore unsafe configured app hosts. */ }
+  }
+  return null;
 }
 
 function requestAppOrigin(app: BetterPortalApp, event: BetterPortalEvent): string | undefined {
   const headers = event.req.headers;
   for (const candidate of buildHostCandidates(headers, "theme")) {
-    const hostname = app.hostnames.find((entry) => hostFromHeaderValue(entry) === candidate.host);
-    if (hostname) return appOrigin(app, hostname);
+    for (const hostname of app.hostnames.filter(entry => hostFromHeaderValue(entry) === candidate.host)) {
+      const origin = appOrigin(app, hostname);
+      if (origin) return origin;
+    }
   }
   return undefined;
 }

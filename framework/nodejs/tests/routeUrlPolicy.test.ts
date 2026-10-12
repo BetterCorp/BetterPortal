@@ -216,3 +216,17 @@ test("response constructor recognition respects imported and declared domain typ
   ]) assert.deepEqual(inspectRouteUrlSource("bp-routes/users/GET.ts", source), [], source);
   assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", 'import type { Response } from "provider"; export function handler(ctx) { return Response.json({ endpoint: ctx.routeUrl()?.apiPath }); }').length);
 });
+
+
+test("transparent object construction retains internal destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return Object.assign({}, { endpoint: ctx.routeUrl()?.absoluteApiPath }); }',
+    'export function handler(ctx) { return Object.fromEntries([["endpoint", ctx.routeUrl()?.viewPath]]); }',
+    'export function handler(ctx) { return Promise.resolve(Object.assign({}, ctx.routeUrl())); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return Object.assign({}, { publicLink: ctx.routeUrl()?.absoluteUiPath }); }',
+    'export function handler(ctx) { const Object = client; return Object.assign({}, { endpoint: ctx.routeUrl()?.apiPath }); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

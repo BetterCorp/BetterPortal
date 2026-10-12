@@ -220,7 +220,12 @@ public sealed class Urls
         {
             var api = Render(path, new() { ["query"] = query, ["sse"] = opts["sse"] }); var view = Render(path, opts);
             var ui = pagePaths.Count == 1 ? pagePaths.First() : null; var origin = ServiceOrigin(target!);
-            var app = appOrigin ?? (hosts.FirstOrDefault() is { } host ? Origin(host) : null);
+            var app = appOrigin;
+            if (app is null) foreach (var host in hosts)
+            {
+                try { app = Origin(host); break; }
+                catch (ArgumentException) { }
+            }
             return Contracts.Parse<Generated.ResolvedRouteUrl>("ResolvedRouteUrlSchema", new { apiPath = api, viewPath = view, uiPath = ui,
                 absoluteApiPath = origin is null ? null : origin + api, absoluteViewPath = origin is null ? null : origin + view,
                 absoluteUiPath = ui is null || app is null ? null : app + ui });
