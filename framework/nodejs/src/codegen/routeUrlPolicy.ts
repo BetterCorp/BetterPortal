@@ -432,6 +432,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
+      const localCallback = resolveCallback(expression.expression);
+      if (localCallback) return callbackInternal(localCallback, seen, expression.arguments);
       if (isPromiseResolver(expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (["encodeURI", "encodeURIComponent", "decodeURI", "decodeURIComponent", "escape", "unescape", "btoa", "atob"].some(name => isGlobal(expression.expression, name))) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (isGlobal(expression.expression, "String") || isGlobal(expression.expression, "Object")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
@@ -445,6 +447,10 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         }
       }
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Object")) {
+        if (expression.expression.name.text === "create") return !!expression.arguments[1] && internalValue(expression.arguments[1], seen);
+        if (expression.expression.name.text === "defineProperty") return !!expression.arguments[0] && internalValue(expression.arguments[0], seen)
+          || !!expression.arguments[2] && internalValue(expression.arguments[2], seen);
+        if (expression.expression.name.text === "defineProperties") return expression.arguments.some(argument => internalValue(argument, seen));
         if (expression.expression.name.text === "assign") return expression.arguments.some(argument => internalValue(argument, seen));
         if (["values", "entries", "freeze", "seal", "preventExtensions"].includes(expression.expression.name.text)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
         if (expression.expression.name.text === "fromEntries") return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
@@ -459,12 +465,17 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
             ? callbackInternal(callback, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
         }
         if (["toString", "valueOf", "join", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "normalize", "substring", "substr", "charAt", "at", "padStart", "padEnd", "repeat", "split"].includes(operation)) return internalValue(expression.expression.expression, seen);
+        if (operation === "fill") return internalValue(expression.expression.expression, seen) || !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
         if (operation === "splice") {
           const values = arrayValues(expression.expression.expression);
           const number = (value: ts.Expression | undefined): number | undefined => value && ts.isNumericLiteral(value) ? Number(value.text)
             : value && ts.isPrefixUnaryExpression(value) && value.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(value.operand) ? -Number(value.operand.text) : undefined;
           const start = number(expression.arguments[0]);
           const count = number(expression.arguments[1]);
+          const binding = reference(expression.expression.expression);
+          const earlierMutation = binding && mutations.get(binding.scope)?.get(binding.name)?.some(mutation => mutation.target.getStart(tree) < expression.getStart(tree)
+            && mutation.values.some(value => internalValue(value, seen)));
+          if (earlierMutation) return internalValue(expression.expression.expression, seen);
           if (values && (start !== undefined || !expression.arguments.length) && (count !== undefined || expression.arguments.length < 2)) {
             const index = Math.max(0, Math.min(values.length, start === undefined ? 0 : start < 0 ? values.length + start : start));
             const removed = !expression.arguments.length ? [] : values.slice(index, expression.arguments.length === 1 ? values.length : index + Math.max(0, count!));
@@ -472,7 +483,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
           }
           return internalValue(expression.expression.expression, seen);
         }
-        if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat", "find", "findLast", "pop", "shift"].includes(operation)) return internalValue(expression.expression.expression, seen);
+        if (["filter", "slice", "sort", "reverse", "copyWithin", "toSorted", "toReversed", "flat", "find", "findLast", "pop", "shift"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
         if (["with", "toSpliced"].includes(operation)) return internalValue(expression.expression.expression, seen)
           || expression.arguments.slice(operation === "with" ? 1 : 2).some(argument => internalValue(argument, seen));

@@ -404,3 +404,5 @@ Standard Object.defineProperty/defineProperties response mutations retain descri
 The authoring check recognizes statically named computed properties in destructuring assignments and follows the selected field of known objects. Selecting domain data from an object that also contains an internal destination remains valid; returning the internal destination fails the build. Object property descriptor mutations are checked too.
 
 Local object response factories and values returned by array `splice()` retain destination provenance. Selecting only domain values, removing no values, public links and opaque domain-client results remain valid.
+
+Returned standard object descriptor factories and array mutation results preserve internal destination provenance. Local object methods are resolved before standard-operation names, leaving domain-client methods and public links valid.
