@@ -76,7 +76,7 @@ function permissionForManage(path: string, method: string): { viewId: string; ac
   return { viewId, action };
 }
 
-async function permissionForAdmin(path: string, method: string, event: BetterPortalEvent): Promise<{ viewId: string; action: Action } | undefined> {
+async function permissionForAdmin(path: string, method: string, event: BetterPortalEvent, config: BetterPortalConfig): Promise<{ viewId: string; action: Action } | undefined> {
   const suffix = path.slice(ADMIN.length + 1);
   const action: Action | undefined = method === "GET" ? "read" : method === "POST" ? "create"
     : method === "PUT" || method === "PATCH" ? "update" : method === "DELETE" ? "delete" : undefined;
@@ -102,7 +102,13 @@ async function permissionForAdmin(path: string, method: string, event: BetterPor
     || /^tenants\/[^/]+\/(?:services(?:\/[^/]+(?:\/(?:purge|migrate-to-shared(?:\/preview)?))?)?|activate\/[^/]+)$/.test(suffix)) {
     return { viewId: "services.index", action: suffix.endsWith("/purge") ? "delete" : suffix.endsWith("/migrate-to-shared") ? "update" : action };
   }
-  if (suffix === "services/begin-install" && method === "POST") return { viewId: "services.index", action: "create" };
+  if (suffix === "services/begin-install" && method === "POST") {
+    const body = await event.req.clone().json().catch(() => null) as { reconfigure?: unknown; instanceId?: unknown; sharedServiceId?: unknown } | null;
+    const existingInstance = typeof body?.instanceId === "string" && (config.platformServices.some(service => service.id === body.instanceId)
+      || config.tenants.some(tenant => tenant.services.some(service => service.id === body.instanceId)));
+    const registeredShared = typeof body?.sharedServiceId === "string" && config.sharedServiceCatalog.some(service => service.id === body.sharedServiceId && !!service.apiKeyHash);
+    return { viewId: "services.index", action: body?.reconfigure === true || existingInstance || registeredShared ? "update" : "create" };
+  }
   if (suffix === "services/begin-hostname-change" && method === "POST") return { viewId: "services.index", action: "update" };
   if ((suffix === "wizard/step1" || suffix === "configure") && method === "GET"
     || suffix === "wizard/verify" && method === "POST") return { viewId: "services.index", action: "read" };
@@ -181,7 +187,7 @@ export function registerRawManagementAccessControl(app: BetterPortalH3App, store
       && target.tenantId === config.configManagement.adminTenantId && claims.roles.includes("*");
     if (admin) {
       if (root) return;
-      const policy = await permissionForAdmin(path, method, event);
+      const policy = await permissionForAdmin(path, method, event, config);
       return policy && hasPermission(config, target, claims.roles, policy.viewId, policy.action)
         ? undefined : jsonResponse({ error: "Platform management permission required" }, 403);
     }
