@@ -131,8 +131,8 @@ Runnable BetterPortal services are BSB plugins. They need `@bsb/base` at runtime
   "dependencies": {
     "@bsb/base": "^9.7.4",
     "anyvali": "^1.1.6",
-    "@betterportal/framework": "10.0.0",
-    "@betterportal/plugin-bsb": "10.0.0"
+    "@betterportal/framework": "10.7.0",
+    "@betterportal/plugin-bsb": "10.7.0"
   }
 }
 ```

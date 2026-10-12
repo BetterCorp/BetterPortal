@@ -133,7 +133,7 @@ jobs:
 
       - name: Create or refresh BetterPortal preview
         id: betterportal
-        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@v10.6.0
+        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@v10.7.0
         with:
           control-plane-url: ${{ vars.BP_CONTROL_PLANE_URL }}
           group-id: ${{ vars.BP_PREVIEW_GROUP_ID }}
@@ -165,7 +165,7 @@ jobs:
 
       - name: Delete BetterPortal preview
         if: always()
-        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@v10.6.0
+        uses: BetterCorp/BetterPortal/.github/actions/preview-environment@v10.7.0
         with:
           operation: delete
           control-plane-url: ${{ vars.BP_CONTROL_PLANE_URL }}

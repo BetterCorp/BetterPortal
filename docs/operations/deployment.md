@@ -38,14 +38,16 @@ npm run bp-codegen
 
 ## Release publishing
 
-Tag releases publish npm packages, BSB registry schemas, and BetterPortal contracts. Set and commit the workspace version before tagging:
+Tag releases publish npm packages and BSB registry schemas. The separate BetterPortal contract publish job is intentionally disabled until its registry setup is enabled. Set and commit the workspace version before tagging:
 
 ```bash
-node scripts/release/set-workspace-version.mjs 10.0.2
-npm install --package-lock-only
-git commit -am "chore(release): prepare v10.0.2"
-git tag v10.0.2
+node scripts/release/set-workspace-version.mjs 10.7.0
+npm install --package-lock-only --ignore-scripts
+git commit -S -am "chore(release): prepare v10.7.0"
+git tag -s v10.7.0 -m "BetterPortal v10.7.0"
 ```
+
+Verify the commit/tag signatures with the configured signing identity before pushing. Push the release commit to master, then push the signed tag to start publication.
 
 The tag and committed workspace versions must match; release CI checks this before build/publish. Master builds and tests only, and pushing a commit without the tag does not publish.
 
@@ -97,13 +99,13 @@ BSB_SHOW_PACKAGES=${BSB_SHOW_PACKAGES:-false}
 The `bsb-plugin-watcher` service is the only container that sets `BSB_PLUGINS` and `BSB_PLUGIN_UPDATE`. It mounts `bp-plugins` read/write, runs with `BSB_PLUGIN_WATCHER=true`, and syncs these packages into `/mnt/plugins`:
 
 ```text
-@betterportal/config-manager@10.6
-@betterportal/theme-bootstrap1@10.6
-@betterportal/theme-embedded@10.6
-@betterportal/auth-default@10.6
-@betterportal/auth-authress-io@10.6
-@betterportal/auth-workos@10.6
-@betterportal/hello-view@10.6
+@betterportal/config-manager@10.7
+@betterportal/theme-bootstrap1@10.7
+@betterportal/theme-embedded@10.7
+@betterportal/auth-default@10.7
+@betterportal/auth-authress-io@10.7
+@betterportal/auth-workos@10.7
+@betterportal/hello-view@10.7
 @bsb/observable-opentelemetry@9.6
 @bsb/observable-axiom@9.6
 ```
