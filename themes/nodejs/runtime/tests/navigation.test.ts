@@ -28,7 +28,7 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
   await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html>
     <html><head><meta charset="utf-8"><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
     <div data-bp-shell-root data-bp-menu-health="false" data-bp-auth-service="auth" data-bp-login-url="https://auth.test/login"
-      data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test" } : {}) })}'
+      data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test", themeTarget: "https://app.test" } : {}) })}'
       data-bp-routes='${JSON.stringify([{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }, { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" }, ...extraRoutes])}'>
       <a id="menu" href="/tools/dashboard" data-bp-route-link data-bp-service="service" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
       <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
@@ -558,5 +558,35 @@ test("overlapping service and UI templates prefer earlier literal segments", asy
   await page.locator("#service-overlap").click();
   await page.waitForSelector("#selected");
   assert.equal(new URL(page.url()).pathname, "/right/new");
+  assert.deepEqual(errors, []);
+});
+
+
+test("shared-origin history resolves other services without choosing ambiguous mounts", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<p id="loaded">Loaded</p>'), {}, "https://auth.test/login", "/auth/login", true, [
+    { href: "/other/items/:id", servicePath: "/items/:id", serviceId: "otherTenantAuth", kind: "page", methods: ["GET"] },
+    { href: "/auth/shared", servicePath: "/shared", serviceId: "auth", kind: "page", methods: ["GET"] },
+    { href: "/other/shared", servicePath: "/shared", serviceId: "otherTenantAuth", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#loaded");
+  const converted = await page.evaluate(() => {
+    const paths = ["https://auth.test/items/1?tab=rows", "https://auth.test/shared", "https://service.test/items/1"];
+    return paths.map(path => {
+      const detail = { history: { path } };
+      document.body.dispatchEvent(new CustomEvent("htmx:before:history:update", { bubbles: true, detail }));
+      return detail.history.path;
+    });
+  });
+  assert.deepEqual(converted, ["/other/items/1?tab=rows", "https://auth.test/shared", "https://service.test/items/1"]);
+  assert.deepEqual(errors, []);
+});
+
+test("template-only routes rejected by the host cannot target the theme origin", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<a id="theme-target" href="/rejected/1">Rejected</a>'), {}, "https://service.test/dashboard", "/tools/dashboard", true, [
+    { href: "/rejected/:id", servicePath: "/internal/:id", serviceId: "themeTarget", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#theme-target");
+  assert.equal(await page.getAttribute("#theme-target", "href"), "/rejected/1");
+  assert.equal(await page.getAttribute("#theme-target", "hx-get"), null);
   assert.deepEqual(errors, []);
 });

@@ -50,14 +50,14 @@ test("same-key redeployment repairs paths using the accepted manifest cache", ()
 
 test("repair rejects a conflicting frontend path rather than creating duplicate mounts", () => {
   const { config, app, instance, manifest } = fixture();
-  app.routes.push({ ...app.routes[0], id: uuidv7(), viewId: "other", path: pageRoutePath(manifest.serviceId, "/batches/:id"), enabled: true });
+  app.routes.push({ ...app.routes[0], id: uuidv7(), serviceId: uuidv7(), viewId: "other", path: pageRoutePath(manifest.serviceId, "/batches/:id"), enabled: true });
   assert.throws(() => reconcilePreviewService(config, instance, manifest as never), /already mounted/);
 });
 
 
 test("repair rejects paths held by disabled pages", () => {
   const { config, app, instance, manifest } = fixture();
-  app.routes.push({ ...app.routes[0], id: uuidv7(), viewId: "other", path: pageRoutePath(manifest.serviceId, "/batches/:id"), enabled: false });
+  app.routes.push({ ...app.routes[0], id: uuidv7(), serviceId: uuidv7(), viewId: "other", path: pageRoutePath(manifest.serviceId, "/batches/:id"), enabled: false });
   assert.throws(() => reconcilePreviewService(config, instance, manifest as never), /already mounted/);
 });
 
@@ -65,4 +65,15 @@ test("two stale aliases cannot repair to the same generated frontend pattern", (
   const { config, app, instance, manifest } = fixture();
   app.routes.push({ ...app.routes[0], id: uuidv7(), path: "/alternate/detail" });
   assert.throws(() => reconcilePreviewService(config, instance, manifest as never), /already mounted/);
+});
+
+
+test("retired service mounts do not block a surviving stale mount repair", () => {
+  const { config, app, instance, manifest } = fixture();
+  const survivingId = app.routes[0].id;
+  app.routes.push({ ...app.routes[0], id: uuidv7(), viewId: "retired", path: pageRoutePath(manifest.serviceId, "/batches/:id") });
+  reconcilePreviewService(config, instance, manifest as never);
+  assert.equal(app.routes.length, 1);
+  assert.equal(app.routes[0].id, survivingId);
+  assert.equal(app.routes[0].path, pageRoutePath(manifest.serviceId, "/batches/:batchId"));
 });

@@ -1181,6 +1181,8 @@ export function betterPortalShellRuntimeSource(): string {
           const origin = serviceOrigins[serviceId];
           if (!origin) return;
           try {
+            // Hosts reject service targets on the theme origin, including template-only routes.
+            if (new URL(origin).origin === window.location.origin) return;
             const tenantPath = normalizePath(tenantPathRaw || "/");
             const servicePath = normalizePath(template ?? new URL(requestUrl).pathname);
             routes.push({ tenantPath, servicePath, serviceOrigin: origin, serviceId, kind, methods, fixedParams });
@@ -1255,8 +1257,9 @@ export function betterPortalShellRuntimeSource(): string {
         const best = matches.reduce((best, match) => compare(match.specificity, best) < 0 ? match.specificity : best, matches[0].specificity);
         return matches.filter(match => compare(match.specificity, best) === 0);
       };
-      const matchServiceRoute = (serviceId: string, path: string, kind: "page" | "api" = "page"): { route: ServiceRoute; suffix: string } | null => {
+      const matchServiceRoute = (serviceId: string, path: string, kind: "page" | "api" = "page", origin?: string): { route: ServiceRoute; suffix: string } | null => {
         const matches = buildServiceRouteMap().filter(route => (!serviceId || route.serviceId === serviceId)
+          && (!origin || new URL(route.serviceOrigin).origin === origin)
           && (route.kind ?? (route.tenantPath.startsWith("/_bp/") ? "api" : "page")) === kind
           && (kind !== "page" || !route.methods || route.methods.includes("GET")))
           .flatMap(route => { const resolved = resolveRoutePattern(route, path, true); return resolved ? [resolved] : []; });
@@ -1279,8 +1282,7 @@ export function betterPortalShellRuntimeSource(): string {
           if (tenantMatch) {
             return normalizePath(tenantMatch.route.tenantPath + tenantMatch.suffix) + url.search + url.hash;
           }
-          const serviceId = serviceIdByOrigin[url.origin] || "";
-          const match = matchServiceRoute(serviceId, url.pathname) || matchServiceRoute(serviceId, url.pathname, "api");
+          const match = matchServiceRoute("", url.pathname, "page", url.origin) || matchServiceRoute("", url.pathname, "api", url.origin);
           if (!match) return value;
           return normalizePath(match.route.tenantPath + match.suffix) + url.search + url.hash;
         } catch {
