@@ -20,6 +20,11 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   type Mutation = { target: ts.Expression; values: readonly ts.Expression[]; global?: ts.Expression; collection?: boolean };
   const pendingMutations: Mutation[] = [];
   const functions = new Map<ts.Node, Map<string, ts.FunctionDeclaration>>();
+  const propertyKey = (name: ts.PropertyName): string | undefined => {
+    if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) return name.text;
+    if (ts.isComputedPropertyName(name) && (ts.isStringLiteralLike(name.expression) || ts.isNumericLiteral(name.expression))) return name.expression.text;
+    return undefined;
+  };
   const collect = (node: ts.Node): void => {
     if (file.includes("_renderer.") && ts.isFunctionLike(node)) {
       const declaration = ts.isVariableDeclaration(node.parent) ? node.parent : undefined;
@@ -106,10 +111,10 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
           for (const item of target.properties) {
             if (ts.isSpreadAssignment(item)) { pendingMutations.push({ target: item.expression, values: [value] }); continue; }
             if (!ts.isPropertyAssignment(item) && !ts.isShorthandPropertyAssignment(item)) continue;
-            const name = item.name;
-            if (!ts.isIdentifier(name) && !ts.isStringLiteralLike(name)) continue;
-            const source = ts.isObjectLiteralExpression(value) ? value.properties.find(property => property.name && property.name.getText(tree).replace(/^["']|["']$/g, "") === name.text) : undefined;
-            const selected = source && ts.isPropertyAssignment(source) ? source.initializer : source && ts.isShorthandPropertyAssignment(source) ? source.name : ts.factory.createPropertyAccessExpression(value, name.text);
+            const name = propertyKey(item.name);
+            if (name === undefined) continue;
+            const source = ts.isObjectLiteralExpression(value) ? value.properties.find(property => property.name && propertyKey(property.name) === name) : undefined;
+            const selected = source && ts.isPropertyAssignment(source) ? source.initializer : source && ts.isShorthandPropertyAssignment(source) ? source.name : ts.factory.createPropertyAccessExpression(value, name);
             assigned(ts.isPropertyAssignment(item) ? item.initializer : item.name, selected);
           }
           return;
@@ -339,6 +344,26 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       evaluatingFunctions.delete(callback);
     }
   };
+  const selectedProperty = (expression: ts.Node, field: string, seen = new Set<ts.Node>()): ts.Node | undefined => {
+    if (seen.has(expression)) return undefined;
+    const next = new Set([...seen, expression]);
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)
+      || ts.isSatisfiesExpression(expression) || ts.isTypeAssertionExpression(expression)) return selectedProperty(expression.expression, field, next);
+    if (ts.isObjectLiteralExpression(expression)) {
+      const property = expression.properties.find(item => item.name && propertyKey(item.name) === field);
+      return property && ts.isPropertyAssignment(property) ? property.initializer : property && ts.isShorthandPropertyAssignment(property) ? property.name : undefined;
+    }
+    if (ts.isIdentifier(expression)) {
+      let scope: ts.Node | undefined = expression.parent;
+      while (scope) {
+        const initializer = initializers.get(scope)?.get(expression.text);
+        if (initializer) return selectedProperty(initializer, field, next);
+        if (declarations.get(scope)?.has(expression.text) || selections.get(scope)?.has(expression.text)) break;
+        scope = scope.parent;
+      }
+    }
+    return undefined;
+  };
   const internalValue = (expression: ts.Node, seen = new Set<string>()): boolean => {
     if (ts.isElementAccessExpression(expression) && isStringValue(expression.expression)) {
       const index = expression.argumentExpression;
@@ -385,6 +410,11 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         }
         scope = scope.parent;
       }
+    }
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) {
+      const field = ts.isPropertyAccessExpression(expression) ? expression.name.text : (expression.argumentExpression as ts.StringLiteralLike).text;
+      const selected = selectedProperty(expression.expression, field);
+      if (selected) return internalValue(selected, seen);
     }
     if ((ts.isPropertyAccessExpression(expression) && expression.name.text === "length"
       || ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === "length") && hasScalarLength(expression.expression)) return false;

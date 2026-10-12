@@ -759,3 +759,19 @@ test("standard property descriptors retain response destination mutations", () =
     'import { Object } from "provider"; export function handler(ctx) { const payload = new Model(); Object.defineProperty(payload, "endpoint", { value: ctx.routeUrl()?.apiPath }); return payload; }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("computed assignment keys retain provenance and known objects select only the requested field", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const assignment of [
+    '({ ["endpoint"]: endpoint } = { endpoint: ctx.routeUrl()?.apiPath });',
+    '({ endpoint } = { ["endpoint"]: ctx.routeUrl()?.apiPath });',
+    'const record = { ["endpoint"]: ctx.routeUrl()?.apiPath }; ({ ["endpoint"]: endpoint } = record);',
+    'const record = { status: "ready", endpoint: ctx.routeUrl()?.apiPath }; const alias = record; ({ endpoint } = alias);'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { let endpoint; ${assignment} return { endpoint }; }`).length, assignment);
+  for (const assignment of [
+    '({ status } = record);',
+    '({ ["status"]: status } = record);',
+    'const alias = record; ({ status } = alias);'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { let status; const record = { status: "ready", endpoint: ctx.routeUrl()?.apiPath }; ${assignment} return { status }; }`), [], assignment);
+});
