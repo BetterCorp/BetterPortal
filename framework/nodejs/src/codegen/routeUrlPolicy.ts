@@ -147,7 +147,16 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         if (selected) return (selected.rest || internalPaths.has(selected.field)) && internalValue(selected.expression, new Set([...seen, expression.text]));
         const initializer = initializers.get(scope)?.get(expression.text);
         if (initializer) return internalValue(initializer, new Set([...seen, expression.text]));
-        if (ts.isFunctionLike(scope) && scope.parameters.some(param => ts.isIdentifier(param.name) && param.name.text === expression.text)) break;
+        if (ts.isFunctionLike(scope) && scope.parameters.some(param => ts.isIdentifier(param.name) && param.name.text === expression.text)) {
+          const call = scope.parent;
+          const first = scope.parameters[0]?.name;
+          if (first && ts.isIdentifier(first) && first.text === expression.text && ts.isCallExpression(call)
+            && call.arguments[1] === scope && ts.isPropertyAccessExpression(call.expression)
+            && isGlobal(call.expression.expression, "Array") && call.expression.name.text === "from") {
+            return !!call.arguments[0] && internalValue(call.arguments[0], new Set([...seen, expression.text]));
+          }
+          break;
+        }
         scope = scope.parent;
       }
     }
@@ -161,6 +170,24 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     // An arbitrary function may consume a URL while returning unrelated domain data.
     if (ts.isCallExpression(expression)) {
       if (isGlobal(expression.expression, "structuredClone")) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
+      if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Array")) {
+        if (expression.expression.name.text === "of") return expression.arguments.some(argument => internalValue(argument, seen));
+        if (expression.expression.name.text === "from") {
+          const callback = expression.arguments[1];
+          if (!callback) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
+          if (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) {
+            if (!ts.isBlock(callback.body)) return internalValue(callback.body, seen);
+            let internal = false;
+            const returned = (node: ts.Node): void => {
+              if (node !== callback.body && ts.isFunctionLike(node)) return;
+              if (ts.isReturnStatement(node) && node.expression && internalValue(node.expression, seen)) internal = true;
+              ts.forEachChild(node, returned);
+            };
+            returned(callback.body); return internal;
+          }
+          return false;
+        }
+      }
       if (ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Object")) {
         if (expression.expression.name.text === "assign") return expression.arguments.some(argument => internalValue(argument, seen));
         if (expression.expression.name.text === "fromEntries") return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
@@ -188,6 +215,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       return false;
     }
+    if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Array")) return !!expression.arguments?.some(argument => internalValue(argument, seen));
     if (ts.isNewExpression(expression) && isGlobal(expression.expression, "Response")) return !!expression.arguments?.[0] && internalValue(expression.arguments[0], seen);
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };

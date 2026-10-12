@@ -52,7 +52,7 @@ The negotiation corpus mirrors `framework/conformance/media_cases.py`, including
 its stricter native cases. Tests cover SSE wire bytes and limits, injection,
 collector state/ownership and fuzz seeds. CI runs tests with the race detector,
 vet, bounded parser fuzzing and an example from an isolated copy with networking
-disabled, on Go 1.22 and the current stable version.
+disabled, on Go 1.22 and the current stable version. The workflow uses `actions/setup-go@v7` on Ubuntu 24.04. Reproduce the isolated example with `GOWORK=off GOPROXY=off GOSUMDB=off go run ./examples/protocol`.
 
 Pending: AnyVali contract import/type generation; generated route registration;
 manifest/schema discovery; request/response validation; app resolution, allowlists,

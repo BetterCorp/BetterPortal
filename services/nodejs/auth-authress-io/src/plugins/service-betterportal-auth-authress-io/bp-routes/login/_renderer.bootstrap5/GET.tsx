@@ -25,6 +25,9 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
   const interactive = !data.alreadyLoggedIn && data.status !== "error";
   const login = interactive ? ctx.routeUrl({ method: "POST" }) : null;
   if (interactive && !login?.absoluteApiPath) throw new Error("Authress login service route is unavailable");
+  const callback = interactive ? ctx.routeUrl({ path: "/login", method: "GET", query: { next } }) : null;
+  const callbackUrl = callback?.absoluteUiPath ?? callback?.absoluteViewPath;
+  if (interactive && !callbackUrl) throw new Error("Authress login callback route is unavailable");
   const nextUrl = next;
   const scopes = JSON.stringify(data.scopes?.length ? data.scopes : ["openid", "profile", "email"]);
   const loginUI = data.loginUI || "default";
@@ -37,6 +40,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
       data-authress-api-url={data.authressApiUrl || ""}
       data-authress-application-id={data.authressApplicationId || ""}
       data-next-url={nextUrl}
+      data-login-callback-url={callbackUrl ?? undefined}
       data-scopes={scopes}
       data-login-ui={loginUI}
       data-mode={data.alreadyLoggedIn ? "signed-in" : data.status === "error" ? "error" : "login"}
@@ -119,10 +123,10 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
             return authressClient;
           };
 
-          const startLogin = async (loginClient: { authenticate: (options: Record<string, unknown>) => Promise<void> }, target: string, scopes: unknown[]) => {
+          const startLogin = async (loginClient: { authenticate: (options: Record<string, unknown>) => Promise<void> }, scopes: unknown[]) => {
             setStatus("Opening sign in");
             await loginClient.authenticate({
-              redirectUrl: `${window.location.origin}${window.location.pathname}?next=${encodeURIComponent(target)}`,
+              redirectUrl: page?.dataset.loginCallbackUrl,
               scopes
             });
           };
@@ -163,10 +167,10 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
               const startButton = document.getElementById("bp-authress-start-login");
               if (loginUI === "clean") {
                 setStatus("Ready to sign in.");
-                startButton?.addEventListener("click", () => void startLogin(loginClient, target, scopes), { once: true });
+                startButton?.addEventListener("click", () => void startLogin(loginClient, scopes), { once: true });
                 return;
               }
-              await startLogin(loginClient, target, scopes);
+              await startLogin(loginClient, scopes);
               return;
             }
 
@@ -210,7 +214,6 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
               const input = form?.querySelector<HTMLInputElement>(`input[name="${key}"]`);
               if (input && value) input.value = value;
             }
-            form?.setAttribute("hx-post", `${window.location.pathname}${window.location.search}`);
             form?.requestSubmit();
           })().catch((error) => {
             setStatus(error?.message || "Sign in could not start.");
