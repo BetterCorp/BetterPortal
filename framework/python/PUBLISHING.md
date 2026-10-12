@@ -55,3 +55,16 @@ by pinning the previous published wheel; publish a new version for a correction.
 The version updater maps alpha/beta/rc/dev SemVer suffixes to PEP 440, but this
 publishing workflow deliberately accepts stable releases only. Build metadata
 and unsupported prerelease names fail before version files are modified.
+
+## Validate distributions locally
+
+The workflow uses `build==1.6.1` and `twine==7.0.0`. Reproduce its archive and metadata checks before publishing:
+
+```bash
+python -m pip install build==1.6.1 twine==7.0.0
+python -m build framework/python --outdir dist
+python -m twine check --strict dist/*
+python scripts/release/check-python-release.py --dist dist
+```
+
+These commands validate local artifacts; publishing uses the workflow's isolated OIDC job after master CI and the account setup above.
