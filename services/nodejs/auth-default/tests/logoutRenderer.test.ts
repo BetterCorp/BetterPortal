@@ -29,7 +29,7 @@ test("signed-in Continue and password forms preserve configured destinations wit
     assert.equal(destination, "/dashboard");
     let click: (() => void) | undefined;
     let navigated = "";
-    new Script(/<script>([\s\S]*?)<\/script>/.exec(html)![1]).runInNewContext({
+    new Script(/<script>([\s\S]*?)<\/script>/i.exec(html)![1]).runInNewContext({
       document: { getElementById: () => ({ dataset: { next: destination }, addEventListener: (_event: string, handler: () => void) => { click = handler; } }) },
       window: { htmx: { ajax: (_method: string, url: string) => { navigated = url; } } }
     });
@@ -38,7 +38,7 @@ test("signed-in Continue and password forms preserve configured destinations wit
     const form = toHtmlString(render({ status: "ok" }, configured));
     assert.match(form, /name="next" value="\/dashboard"/);
     const input = { value: "/dashboard" };
-    new Script(/<script>([\s\S]*?)<\/script>/.exec(form)![1]).runInNewContext({
+    new Script(/<script>([\s\S]*?)<\/script>/i.exec(form)![1]).runInNewContext({
       document: { getElementById: () => ({ querySelector: () => input, addEventListener: () => {} }) },
       window: { location: { search: "" } }, URLSearchParams
     });
