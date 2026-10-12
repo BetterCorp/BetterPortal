@@ -127,6 +127,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       if (["set", "append", "add"].includes(method)) pendingMutations.push({
         target: node.expression.expression, values: node.arguments, collection: true
       });
+      if (["defineProperty", "defineProperties"].includes(method) && node.arguments[0]) pendingMutations.push({
+        target: node.arguments[0], values: node.arguments.slice(method === "defineProperty" ? 2 : 1), global: node.expression.expression
+      });
       if (method === "assign" && node.arguments[0]) pendingMutations.push({
         target: node.arguments[0], values: node.arguments.slice(1), global: node.expression.expression
       });

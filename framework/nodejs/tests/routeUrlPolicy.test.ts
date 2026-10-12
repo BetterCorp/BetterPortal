@@ -744,3 +744,18 @@ test("destructuring assignments retain response destination provenance", () => {
     'export function handler(ctx) { let endpoint; [endpoint] = [ctx.routeUrl()?.apiPath]; return client(endpoint); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("standard property descriptors retain response destination mutations", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const payload = {}; Object.defineProperty(payload, "endpoint", { enumerable: true, value: ctx.routeUrl()?.apiPath }); return payload; }',
+    'export function handler(ctx) { const payload = {}; const alias = payload; Object.defineProperty(alias, "endpoint", { enumerable: true, value: ctx.routeUrl()?.apiPath }); return payload; }',
+    'export function handler(ctx) { const payload = {}; Object.defineProperties(payload, { endpoint: { enumerable: true, value: ctx.routeUrl()?.apiPath } }); return payload; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const payload = {}; Object.defineProperty(payload, "publicLink", { enumerable: true, value: ctx.routeUrl()?.absoluteUiPath }); return payload; }',
+    'export function handler(ctx) { const request = {}; Object.defineProperty(request, "endpoint", { enumerable: true, value: ctx.routeUrl()?.apiPath }); return client(request); }',
+    'import { Object } from "provider"; export function handler(ctx) { const payload = new Model(); Object.defineProperty(payload, "endpoint", { value: ctx.routeUrl()?.apiPath }); return payload; }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
