@@ -14,7 +14,7 @@ import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
 
-async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false) {
+async function shell(t: TestContext, respond: (route: Route) => Promise<void>, stored = {}, initialUrl = "https://service.test/dashboard", initialTenantPath = "/tools/dashboard", sharedAuthOrigin = false, extraRoutes: Array<Record<string, unknown>> = []) {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -26,10 +26,10 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
   await page.route("https://service.test/**", respond);
   await page.route("https://auth.test/**", respond);
   await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: `<!doctype html>
-    <html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
+    <html><head><meta charset="utf-8"><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
     <div data-bp-shell-root data-bp-menu-health="false" data-bp-auth-service="auth" data-bp-login-url="https://auth.test/login"
-      data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test" } : {}) })}'
-      data-bp-routes='[{"href":"/tools/dashboard","requestUrl":"https://service.test/dashboard","serviceId":"service","kind":"page"},{"href":"/auth/login","requestUrl":"https://auth.test/login","serviceId":"auth","kind":"page"}]'>
+      data-bp-services='${JSON.stringify({ service: "https://service.test", auth: "https://auth.test", ...(sharedAuthOrigin ? { otherTenantAuth: "https://auth.test", themeTarget: "https://app.test", themeHttpTarget: "http://app.test" } : {}) })}'
+      data-bp-routes='${JSON.stringify([{ href: "/tools/dashboard", requestUrl: "https://service.test/dashboard", serviceId: "service", kind: "page" }, { href: "/auth/login", requestUrl: "https://auth.test/login", serviceId: "auth", kind: "page" }, ...extraRoutes])}'>
       <a id="menu" href="/tools/dashboard" data-bp-route-link data-bp-service="service" hx-get="https://service.test/dashboard" hx-target="#bp-main">Dashboard</a>
       <main id="bp-main" data-bp-service="${new URL(initialUrl, "https://app.test").origin === "https://auth.test" ? "auth" : "service"}" hx-get="${initialUrl}" ${initialUrl ? 'hx-trigger="load"' : ''} hx-target="#bp-main" hx-swap="innerHTML"><p>Loading</p></main>
     </div><script>${asset.body}</script></body></html>` }));
@@ -470,5 +470,151 @@ test("generated JSX anchors preserve mounted queries and Back/Forward across ori
   await page.waitForSelector("#call-detail");
   assert.equal(page.url(), "https://app.test/tools/dashboard?id=call+42");
   assert.ok(requests.every(request => request.method === "GET" && request.authorization === "Bearer navigation-test"));
+  assert.deepEqual(errors, []);
+});
+
+
+test("PVE plain anchors prefer GET pages and fill parameterized mounts without concrete menu URLs", async t => {
+  const requests: string[] = [];
+  const { page, errors } = await shell(t, route => {
+    const url = new URL(route.request().url());
+    requests.push(url.pathname + url.search);
+    if (url.pathname === "/batches/1") return html(route, '<p id="batch-detail">Batch 1</p>');
+    if (url.pathname === "/batches") return html(route, '<a id="detail-link" href="/batches/1?tab=rows">Batch 1</a>');
+    return html(route, '<a id="batch-link" href="/batches">Batches</a>');
+  }, {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+    { href: "/_bp/service/service/batches", requestUrl: "https://service.test/batches", servicePath: "/batches", serviceId: "service", kind: "api", methods: ["POST"] },
+    { href: "/preview/batches", requestUrl: "https://service.test/batches", servicePath: "/batches", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/preview/batches/:batchId", servicePath: "/batches/:batchId", serviceId: "service", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#batch-link");
+  assert.equal(await page.getAttribute("#batch-link", "href"), "/preview/batches");
+  assert.equal(await page.getAttribute("#batch-link", "hx-get"), "https://service.test/batches");
+  await page.locator("#batch-link").click();
+  await page.waitForSelector("#detail-link");
+  assert.equal(await page.getAttribute("#detail-link", "href"), "/preview/batches/1?tab=rows");
+  assert.equal(await page.getAttribute("#detail-link", "hx-get"), "https://service.test/batches/1?tab=rows");
+  await page.locator("#detail-link").click();
+  await page.waitForSelector("#batch-detail");
+  assert.equal(new URL(page.url()).pathname, "/preview/batches/1");
+  assert.equal(new URL(page.url()).search, "?tab=rows");
+  assert.ok(requests.includes("/batches/1?tab=rows"));
+  await page.goBack();
+  await page.waitForSelector("#detail-link");
+  await page.goForward();
+  await page.waitForSelector("#batch-detail");
+  assert.deepEqual(errors, []);
+});
+
+test("an undeclared child path is not fabricated from a parent mount", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<a id="unknown-child" href="/dashboard/missing">Missing</a>'));
+  await page.waitForSelector("#unknown-child");
+  assert.equal(await page.getAttribute("#unknown-child", "href"), "/dashboard/missing");
+  assert.equal(await page.getAttribute("#unknown-child", "hx-get"), null);
+  assert.deepEqual(errors, []);
+});
+
+
+test("literal pages outrank parameter patterns and fixed aliases never target a different record", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<a id="create" href="/batches/new">New</a><a id="other" href="/batches/2">Other</a>'), {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+    { href: "/preview/batches/:batchId", servicePath: "/batches/:batchId", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/preview/create", servicePath: "/batches/new", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/featured", servicePath: "/batches/:batchId", fixedParams: { batchId: "1" }, serviceId: "service", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#create");
+  assert.equal(await page.getAttribute("#create", "href"), "/preview/create");
+  assert.equal(await page.getAttribute("#other", "href"), "/preview/batches/2");
+  assert.deepEqual(errors, []);
+});
+
+
+test("plain anchors match encoded Unicode and spaces in literal service paths", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<a id="unicode" href="/caf%C3%A9">Cafe</a><a id="space" href="/orders%20today">Orders</a>'), {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+    { href: "/preview/café", servicePath: "/café", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/preview/orders today", servicePath: "/orders today", serviceId: "service", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#unicode");
+  for (const [id, service, ui] of [["unicode", "/caf%C3%A9", "/preview/caf%C3%A9"], ["space", "/orders%20today", "/preview/orders%20today"]]) {
+    assert.equal(new URL((await page.getAttribute("#" + id, "href"))!, "https://app.test").pathname, ui);
+    assert.equal(new URL((await page.getAttribute("#" + id, "hx-get"))!).pathname, service);
+  }
+  assert.deepEqual(errors, []);
+});
+
+
+test("overlapping service and UI templates prefer earlier literal segments", async t => {
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/a/users/new") || route.request().url().endsWith("/c/new")) return html(route, '<p id="selected">Selected</p>');
+    return html(route, '<a id="service-overlap" href="/a/users/new">Service</a><a id="ui-overlap" href="/ui/users/new">UI</a>');
+  }, {}, "https://service.test/dashboard", "/tools/dashboard", false, [
+    { href: "/left/:section", servicePath: "/a/:section/new", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/right/:id", servicePath: "/a/users/:id", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/ui/:section/new", servicePath: "/b/:section", serviceId: "service", kind: "page", methods: ["GET"] },
+    { href: "/ui/users/:id", servicePath: "/c/:id", serviceId: "service", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#service-overlap");
+  assert.equal(await page.getAttribute("#service-overlap", "href"), "/right/new");
+  assert.equal(await page.getAttribute("#ui-overlap", "hx-get"), "https://service.test/c/new");
+  await page.locator("#service-overlap").click();
+  await page.waitForSelector("#selected");
+  assert.equal(new URL(page.url()).pathname, "/right/new");
+  assert.deepEqual(errors, []);
+});
+
+
+test("shared-origin history resolves other services without choosing ambiguous mounts", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<p id="loaded">Loaded</p>'), {}, "https://auth.test/login", "/auth/login", true, [
+    { href: "/other/items/:id", servicePath: "/items/:id", serviceId: "otherTenantAuth", kind: "page", methods: ["GET"] },
+    { href: "/auth/shared", servicePath: "/shared", serviceId: "auth", kind: "page", methods: ["GET"] },
+    { href: "/other/shared", servicePath: "/shared", serviceId: "otherTenantAuth", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#loaded");
+  const converted = await page.evaluate(() => {
+    const paths = ["https://auth.test/items/1?tab=rows", "https://auth.test/shared", "https://service.test/items/1"];
+    return paths.map(path => {
+      const detail = { history: { path } };
+      document.body.dispatchEvent(new CustomEvent("htmx:before:history:update", { bubbles: true, detail }));
+      return detail.history.path;
+    });
+  });
+  assert.deepEqual(converted, ["/other/items/1?tab=rows", "https://auth.test/shared", "https://service.test/items/1"]);
+  assert.deepEqual(errors, []);
+});
+
+test("template-only routes rejected by the host cannot target the theme origin", async t => {
+  const { page, errors } = await shell(t, route => html(route, '<a id="theme-target" href="/rejected/1">Rejected</a><a id="theme-http-target" href="/rejected-http/1">Rejected HTTP</a>'), {}, "https://service.test/dashboard", "/tools/dashboard", true, [
+    { href: "/rejected/:id", servicePath: "/internal/:id", serviceId: "themeTarget", kind: "page", methods: ["GET"] },
+    { href: "/rejected-http/:id", servicePath: "/internal-http/:id", serviceId: "themeHttpTarget", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#theme-target");
+  assert.equal(await page.getAttribute("#theme-target", "href"), "/rejected/1");
+  assert.equal(await page.getAttribute("#theme-target", "hx-get"), null);
+  assert.equal(await page.getAttribute("#theme-http-target", "href"), "/rejected-http/1");
+  assert.equal(await page.getAttribute("#theme-http-target", "hx-get"), null);
+  assert.deepEqual(errors, []);
+});
+
+
+test("shared-origin history replay keeps credentials scoped to the matched service", async t => {
+  let authorization: string | undefined;
+  let wrongScope: string | undefined;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).pathname === "/items/1") {
+      authorization = route.request().headers().authorization;
+      wrongScope = route.request().headers()["x-auth-only"];
+      return html(route, '<p id="replayed">Replayed</p>');
+    }
+    return html(route, '<p id="initial">Initial</p>');
+  }, { Authorization: { value: "Bearer other-service", owner: "otherTenantAuth", scope: "otherTenantAuth" },
+       "X-Auth-Only": { value: "wrong-service", owner: "auth", scope: "auth" } }, "https://auth.test/login", "/auth/login", true, [
+    { href: "/other/items/:id", servicePath: "/items/:id", serviceId: "otherTenantAuth", kind: "page", methods: ["GET"] }
+  ]);
+  await page.waitForSelector("#initial");
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("htmx:before:history:restore", {
+    cancelable: true, detail: { path: "/other/items/1" }
+  })));
+  await page.waitForSelector("#replayed");
+  assert.equal(authorization, "Bearer other-service");
+  assert.equal(wrongScope, undefined);
   assert.deepEqual(errors, []);
 });

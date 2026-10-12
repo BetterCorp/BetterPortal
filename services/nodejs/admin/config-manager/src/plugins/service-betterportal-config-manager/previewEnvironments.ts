@@ -17,7 +17,7 @@ import {
   type ServiceManifestCacheEntry
 } from "@betterportal/framework";
 import { generateApiKey, hashApiKey } from "./storage/core.js";
-import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
+import { apiRoutePath, pageRoutePath, appRoutePatternKey, mountSuppliesServiceParams } from "./routeMounts.js";
 
 export const PREVIEW_DEPLOYMENT_API_BASE = "/api/preview-groups";
 
@@ -443,6 +443,13 @@ function updateDeployment(
   if (expiresAt) deployment.expiresAt = expiresAt;
   else delete deployment.expiresAt;
   deployment.updatedAt = now.toISOString();
+  for (const binding of deployment.services) {
+    const manifest = config.manifestCache.find(entry => entry.serviceId === binding.instanceId);
+    const app = config.apps.find(candidate => candidate.id === deployment.appId);
+    if (manifest && app) reconcileRoutesForService(app, binding.instanceId, { ...manifest, serviceId: binding.serviceId });
+  }
+  const app = config.apps.find(candidate => candidate.id === deployment.appId);
+  if (app) rebuildPreviewMenu(config, app);
   return { deployment, credentials, created: false };
 }
 
@@ -653,6 +660,7 @@ function reconcilePreviewDeploymentFromCache(config: BetterPortalConfig, deploym
 function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: string, manifest: PreviewManifest): void {
   const existing = app.routes.filter((route) => route.serviceId === serviceInstanceId);
   const desired: BetterPortalRouteMount[] = [];
+  const repaired = new Set<string>();
   for (const view of Object.values(manifest.viewIndex)) {
     const pageOperations = view.operations.filter((operation) =>
       operation.method === "GET" && operation.renderable && operation.renderModes.includes("page")
@@ -661,36 +669,53 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
     const apiOperations = view.operations.filter((operation) => !pageIds.has(operation.operationId));
     for (const [kind, operations] of [["page", pageOperations], ["api", apiOperations]] as const) {
       if (operations.length === 0) continue;
-      const previous = existing.find((route) =>
+      const matches = existing.filter((route) =>
         (route.kind ?? "page") === kind
         && route.viewId === view.viewId
         && route.operations.some((operationId) => operations.some((operation) => operation.operationId === operationId))
       );
       const operation = operations[0]!;
-      desired.push({
-        ...(previous ? structuredClone(previous) : {
-          id: uuidv7(),
+      for (const previous of matches.length ? matches : [undefined]) {
+        const servicePath = previous?.servicePathVariant && [view.path, ...view.pathVariants].includes(previous.servicePathVariant)
+          ? previous.servicePathVariant : view.path;
+        const generatedPath = kind === "page" ? pageRoutePath(manifest.serviceId, servicePath) : apiRoutePath(manifest.serviceId, servicePath);
+        const validPrevious = previous && mountSuppliesServiceParams(previous.path, servicePath, previous.fixedParams);
+        const path = kind === "page" && validPrevious ? previous.path : generatedPath;
+        if (previous && path !== previous.path) repaired.add(previous.id);
+        desired.push({
+          ...(previous ? structuredClone(previous) : {
+            id: uuidv7(),
+            serviceId: serviceInstanceId,
+            viewId: view.viewId,
+            operations: []
+          }),
+          kind,
+          path,
           serviceId: serviceInstanceId,
           viewId: view.viewId,
-          operations: []
-        }),
-        kind,
-        path: previous?.path ?? (kind === "page"
-          ? pageRoutePath(manifest.serviceId, view.path)
-          : apiRoutePath(manifest.serviceId, view.path)),
-        serviceId: serviceInstanceId,
-        viewId: view.viewId,
-        targetPath: view.path,
-        title: operation.title,
-        authRequired: operation.authRequired,
-        menu: operation.menu !== false,
-        ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
-        robots: [...operation.robots],
-        ...(operation.chrome ? { chrome: operation.chrome } : {}),
-        enabled: true,
-        enablement: "enabled",
-        operations: operations.map((candidate) => candidate.operationId)
-      });
+          targetPath: servicePath,
+          resolvedServicePath: servicePath,
+          servicePathVariant: servicePath !== view.path ? servicePath : undefined,
+          title: operation.title,
+          authRequired: operation.authRequired,
+          menu: operation.menu !== false,
+          ...(operation.sitemap ? { sitemap: operation.sitemap } : {}),
+          robots: [...operation.robots],
+          ...(operation.chrome ? { chrome: operation.chrome } : {}),
+          enabled: true,
+          enablement: "enabled",
+          operations: operations.map((candidate) => candidate.operationId)
+        });
+      }
+    }
+  }
+  // Check the final set: retired mounts must not block a repair, while surviving
+  // mounts (including disabled routes) and repairs in this pass still reserve paths.
+  const finalRoutes = [...app.routes.filter(route => route.serviceId !== serviceInstanceId), ...desired];
+  for (const route of desired.filter(route => repaired.has(route.id))) {
+    if (finalRoutes.some(other => other.id !== route.id && (other.kind ?? "page") === route.kind
+      && appRoutePatternKey(other.path) === appRoutePatternKey(route.path))) {
+      throw new PreviewEnvironmentError(`Cannot repair preview route ${route.viewId}: UI path ${route.path} is already mounted`, 409);
     }
   }
   // Preserve route precedence: repeated sync must not move a service's routes to the end.
