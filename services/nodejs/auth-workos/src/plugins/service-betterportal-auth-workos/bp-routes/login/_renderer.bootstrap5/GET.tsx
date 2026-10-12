@@ -1,11 +1,13 @@
 /** @jsxImportSource jsx-htmx */
 
-import type { HtmlRenderable } from "@betterportal/framework";
+import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 import { css, js } from "jsx-htmx";
 import type { ResponseData } from "../GET.js";
 
-export function render(data: ResponseData): HtmlRenderable {
-  const next = data.nextUrl || "/";
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const query = ctx.request.query;
+  const requested = query.state ?? query.next ?? query.redirect;
+  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", !data.loggedOut && typeof requested === "string" ? requested : undefined);
   if (data.loggedOut) {
     return (
       <div class="container py-5" style="max-width: 420px;">

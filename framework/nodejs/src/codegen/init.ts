@@ -56,6 +56,11 @@ function run(): void {
       console.log("[bp-init] Removed duplicate legacy BSB prebuild hook.");
       modified = true;
     }
+    if (!raw.scripts.prebuild?.includes("bp run check-routes")) {
+      raw.scripts.prebuild = "bp run check-routes" + (raw.scripts.prebuild ? " && " + raw.scripts.prebuild : "");
+      console.log("[bp-init] Added fatal prebuild route checks.");
+      modified = true;
+    }
     // Route generation and dependency types must exist before TypeScript compilation.
     if (!raw.bsb.hooks) raw.bsb.hooks = {};
     const afterSchemas = Array.isArray(raw.bsb.hooks.afterSchemas)

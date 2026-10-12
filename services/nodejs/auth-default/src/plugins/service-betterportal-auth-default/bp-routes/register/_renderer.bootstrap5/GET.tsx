@@ -85,7 +85,6 @@ function renderForm(data: ResponseData): HtmlRenderable {
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const login = ctx.routeUrl({ path: "/login", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } });
-  if (!login?.absoluteViewPath || !login.uiPath) throw new Error("Login page is not mounted");
   // POST success - server-rendered confirmation, then on to sign-in.
   if (data.status === "ok" && data.user) {
     return (
@@ -97,9 +96,9 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
               <strong>{data.user.username}</strong> is now the platform administrator.
             </div>
             <p class="text-secondary small mb-0">Taking you to sign in...</p>
-            {login.absoluteViewPath
+            {login?.absoluteViewPath && login.uiPath
               ? redirectStub(login.absoluteViewPath, login.uiPath, "Redirecting to sign in...")
-              : <a class="btn btn-primary mt-3" href="/login">Sign in</a>}
+              : <p class="text-secondary mt-3">Sign in through your app to continue.</p>}
           </div>
         </div>
       </div>
@@ -113,12 +112,12 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
 
   // GET with users already present - registrations are closed; bounce to login.
   if (!data.registrationOpen) {
-    if (login.absoluteViewPath) {
+    if (login?.absoluteViewPath && login.uiPath) {
       return redirectStub(login.absoluteViewPath, login.uiPath, "Redirecting to sign in...");
     }
     return (
       <div class="container py-5" style="max-width: 420px;">
-        <div class="alert alert-secondary">Registration is closed. <a href="/login">Sign in</a> instead.</div>
+        <div class="alert alert-secondary">Registration is closed. Sign in through your app to continue.</div>
       </div>
     );
   }

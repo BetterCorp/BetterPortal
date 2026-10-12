@@ -15,7 +15,8 @@
     "bp:contract": "bp run contract",
     "publish:bp": "bp publish",
     "prepublishOnly": "npm run build",
-    "publish:client": "bsb-client-cli publish"
+    "publish:client": "bsb-client-cli publish",
+    "prebuild": "bp run check-routes"
   },
   "keywords": [
     "betterportal",

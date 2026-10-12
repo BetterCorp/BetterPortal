@@ -5,7 +5,7 @@ import { toHtmlString } from "@betterportal/framework";
 import { render } from "../src/plugins/service-betterportal-auth-workos/bp-routes/login/_renderer.bootstrap5/GET.js";
 
 test("WorkOS login script is valid on repeated swaps and redirects only in automatic modes", () => {
-  const html = toHtmlString(render({ status: "ok", loginUI: "default", authorizationUrl: "https://auth.test/authorize" }));
+  const html = toHtmlString(render({ status: "ok", loginUI: "default", authorizationUrl: "https://auth.test/authorize" }, { request: { query: {} }, app: { defaultRoute: "/" } } as never));
   const source = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1];
   assert(source);
   const script = new Script(source);

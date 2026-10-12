@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import * as path from "node:path";
+import { checkProjectRouteUrls } from "../codegen/routeUrlPolicy.js";
 import { buildContracts } from "./contract.js";
 import { installClient, syncClients } from "./client.js";
 import { findPackageJson, readJsonFile } from "./project.js";
@@ -16,6 +18,13 @@ async function main(): Promise<void> {
 
   if (command === "setup") {
     await import("../codegen/init.js");
+    return;
+  }
+  if (command === "run" && subcommand === "check-routes") {
+    const packageDir = path.dirname(findPackageJson());
+    const errors = checkProjectRouteUrls(path.join(packageDir, "src"));
+    for (const error of errors) console.error(`[bp] ERROR: ${error.file}: ${error.message}`);
+    if (errors.length) process.exitCode = 1;
     return;
   }
   if (command === "run" && subcommand === "gen") {
@@ -61,6 +70,7 @@ async function main(): Promise<void> {
   console.log(`BetterPortal CLI
 
   bp setup
+  bp run check-routes
   bp run gen
   bp run types [--registry-only] [--frozen]
   bp run contract

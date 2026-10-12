@@ -339,3 +339,24 @@ test("menu eligibility is authored on the method and retained in generated regis
   route.metadataExports.push("menu");
   assert.equal(validateScanResult(scan).some(issue => issue.message.includes('metadata "menu" belongs in each method file')), true);
 });
+
+
+test("generated stream renderer signatures accept the shared view context", () => {
+  const directory = mkdtempSync(join(tmpdir(), "bp-stream-context-"));
+  try {
+    const file = join(directory, "fixture.mts");
+    const framework = new URL("../lib/index.js", import.meta.url).pathname;
+    writeFileSync(file, `import type { BpStreamHandler, StreamRendererSetFor } from ${JSON.stringify(framework)};
+      const renderers = {
+        renderShell: (data, ctx) => ctx.routeUrl()?.viewPath ?? data.sseConnectPath,
+        renderItem: (item, ctx) => ctx.routeUrl({ params: { id: item.id } })?.viewPath ?? "",
+        renderSummary: (summary, ctx) => String(summary.count) + (ctx.routeUrl()?.uiPath ?? "")
+      } satisfies StreamRendererSetFor<BpStreamHandler<{ id: string }, { count: number }>>;
+      void renderers;`);
+    const program = ts.createProgram([file], { noEmit: true, strict: true, skipLibCheck: true,
+      target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext });
+    const diagnostics = ts.getPreEmitDiagnostics(program);
+    assert.equal(ts.formatDiagnostics(diagnostics, { getCanonicalFileName: file => file,
+      getCurrentDirectory: () => directory, getNewLine: () => "\n" }), "");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

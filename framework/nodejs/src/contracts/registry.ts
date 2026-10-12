@@ -148,8 +148,8 @@ export type SseRendererFor<TContract> = (
 export type StreamRendererSetFor<THandler> = THandler extends BpStreamHandler<infer TItem, infer TSummary, infer _TParams, infer _TQuery, infer _THeaders>
   ? {
       readonly renderShell: StreamRendererSet["renderShell"];
-      readonly renderItem: (item: TItem) => HtmlRenderable;
-      readonly renderSummary?: (summary: Exclude<TSummary, void>) => HtmlRenderable;
+      readonly renderItem: (item: TItem, ctx: ViewRenderContext) => HtmlRenderable;
+      readonly renderSummary?: (summary: Exclude<TSummary, void>, ctx: ViewRenderContext) => HtmlRenderable;
       readonly renderError?: StreamRendererSet["renderError"];
     }
   : never;

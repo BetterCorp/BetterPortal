@@ -1,12 +1,16 @@
 /** @jsxImportSource jsx-htmx */
 
-import type { HtmlRenderable } from "@betterportal/framework";
+import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 import { css, js } from "jsx-htmx";
 import type { ResponseData } from "../../../loginFlow.js";
 
-export function render(data: ResponseData): HtmlRenderable {
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const query = ctx.request.query;
+  const requested = query.next ?? query.redirect;
+  const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", !data.loggedOut && typeof requested === "string" ? requested : undefined);
+  const login = ctx.routeUrl({ method: "POST" });
+  if (!login?.absoluteApiPath) throw new Error("Authress login service route is unavailable");
   if (data.loggedOut) {
-    const next = data.nextUrl || "/";
     return (
       <div class="container py-5" style="max-width: 420px;">
         <div class="card border-0 shadow-sm">
@@ -20,7 +24,7 @@ export function render(data: ResponseData): HtmlRenderable {
     );
   }
 
-  const nextUrl = data.nextUrl || "/";
+  const nextUrl = next;
   const scopes = JSON.stringify(data.scopes?.length ? data.scopes : ["openid", "profile", "email"]);
   const loginUI = data.loginUI || "default";
   const cleanLogin = loginUI === "clean" || loginUI === "redirect";
@@ -37,7 +41,7 @@ export function render(data: ResponseData): HtmlRenderable {
       data-mode={data.alreadyLoggedIn ? "signed-in" : data.status === "error" ? "error" : "login"}
     >
       <script src="https://cdn.jsdelivr.net/npm/@authress/login/dist/authress.min.js"></script>
-      <form id="bp-authress-token-form" hx-post="/login" hx-headers='{"Accept":"application/json"}' style="display:none" >
+      <form id="bp-authress-token-form" hx-post={login.absoluteApiPath} hx-headers='{"Accept":"application/json"}' style="display:none" >
         <input type="hidden" name="accessToken" value="" />
         <input type="hidden" name="next" value={nextUrl} />
         <input type="hidden" name="userId" value="" />
@@ -124,13 +128,13 @@ export function render(data: ResponseData): HtmlRenderable {
 
           form?.addEventListener("htmx:afterRequest", (event: Event) => {
             const xhr = (event as CustomEvent<{ xhr: XMLHttpRequest; successful: boolean }>).detail.xhr;
-            let body: { status?: string; message?: string; nextUrl?: string } | null = null;
+            let body: { status?: string; message?: string } | null = null;
             try { body = JSON.parse(xhr.responseText); } catch { /* ignore */ }
             if (xhr.status >= 400 || body?.status === "error") {
               setStatus(body?.message || `Sign in failed (HTTP ${xhr.status})`);
               return;
             }
-            softNavigate(body?.nextUrl || page?.dataset.nextUrl || "/");
+            softNavigate(page?.dataset.nextUrl || "/");
           });
 
           (async () => {

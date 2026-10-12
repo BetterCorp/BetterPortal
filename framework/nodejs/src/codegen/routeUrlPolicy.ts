@@ -11,9 +11,16 @@ const internalPaths = new Set(["apiPath", "viewPath", "uiPath", "absoluteApiPath
 export function inspectRouteUrlSource(file: string, source: string): RouteUrlPolicyError[] {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const errors: RouteUrlPolicyError[] = [];
-  const initializers = new Map<string, ts.Expression>();
+  const payloads = new Set(["data", "result", "response"]);
+  const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
   const collect = (node: ts.Node): void => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) initializers.set(node.name.text, node.initializer);
+    if (file.includes("_renderer.") && ts.isFunctionDeclaration(node) && node.name?.text === "render" && node.parameters[0] && ts.isIdentifier(node.parameters[0].name)) payloads.add(node.parameters[0].name.text);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      let scope: ts.Node = node.parent;
+      while (!ts.isBlock(scope) && !ts.isSourceFile(scope)) scope = scope.parent;
+      const bindings = initializers.get(scope) ?? new Map<string, ts.Expression>();
+      bindings.set(node.name.text, node.initializer); initializers.set(scope, bindings);
+    }
     ts.forEachChild(node, collect);
   };
   collect(tree);
@@ -23,15 +30,28 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   };
   const internalValue = (expression: ts.Node, seen = new Set<string>()): boolean => {
     if (ts.isIdentifier(expression) && !seen.has(expression.text)) {
-      const initializer = initializers.get(expression.text);
-      if (initializer) return internalValue(initializer, new Set([...seen, expression.text]));
+      let scope: ts.Node | undefined = expression.parent;
+      while (scope) {
+        const initializer = initializers.get(scope)?.get(expression.text);
+        if (initializer) return internalValue(initializer, new Set([...seen, expression.text]));
+        if (ts.isFunctionLike(scope) && scope.parameters.some(param => ts.isIdentifier(param.name) && param.name.text === expression.text)) break;
+        scope = scope.parent;
+      }
     }
+    if (ts.isPropertyAccessExpression(expression) && expression.name.text === "absoluteUiPath") return false;
     if (ts.isPropertyAccessExpression(expression) && internalPaths.has(expression.name.text)) return true;
+    if (ts.isCallExpression(expression) && (ts.isIdentifier(expression.expression) && expression.expression.text === "resolveAppAuthRedirect"
+      || ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === "routeUrl")) return true;
+    if (ts.isPropertyAccessExpression(expression)) return internalValue(expression.expression, seen);
+    if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
+    // An arbitrary function may consume a URL while returning unrelated domain data.
+    if (ts.isCallExpression(expression)) return false;
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };
   const inReturnedObject = (node: ts.Node): boolean => {
     let current = node.parent;
     while (current && !ts.isFunctionLike(current)) {
+      if (ts.isCallExpression(current) || ts.isNewExpression(current) || ts.isJsxAttribute(current) || ts.isJsxSpreadAttribute(current)) return false;
       if (ts.isReturnStatement(current)) return true;
       current = current.parent;
     }
@@ -59,7 +79,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAccessExpression(node)) field = node.name.text;
     if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node) || ts.isBindingElement(node)) && node.name && (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name))) field = node.name.text;
     if (ts.isElementAccessExpression(node) && node.argumentExpression && ts.isStringLiteralLike(node.argumentExpression)) field = node.argumentExpression.text;
-    if (field && legacyFields.has(field)) report(node, `Legacy internal URL field '${field}' was removed. Return domain data/cursors and resolve destinations in the renderer.`);
+    const payloadAccess = (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))
+      && ts.isIdentifier(node.expression) && payloads.has(node.expression.text);
+    const payloadBinding = ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)
+      && ts.isVariableDeclaration(node.parent.parent) && node.parent.parent.initializer
+      && ts.isIdentifier(node.parent.parent.initializer) && payloads.has(node.parent.parent.initializer.text);
+    if (field && legacyFields.has(field) && (payloadAccess || payloadBinding)) report(node, `Legacy internal URL field '${field}' was removed. Return domain data/cursors and resolve destinations in the renderer.`);
     if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) && inReturnedObject(node) && internalValue(ts.isPropertyAssignment(node) ? node.initializer : node.name)) {
       report(node, "Do not return internal route paths as API response fields. Resolve them at the point of use; only public absoluteUiPath links belong in domain responses.");
     }

@@ -895,7 +895,7 @@ function createRouteUrlBuilder(
     const query = { ...(self ? current.query : {}), ...embeddedQuery, ...input.query } as RouteUrlOptions["query"];
     if (input.component && input.fragment) return null;
     const suppliedPath = self ? currentRoute?.path ?? current.path : input.path;
-    if (suppliedPath !== undefined && (!suppliedPath.startsWith("/") || suppliedPath.startsWith("//") || suppliedPath.includes("\\") || suppliedPath.includes("#") || /[\x00-\x1f\x7f]/.test(suppliedPath))) return null;
+    if (suppliedPath !== undefined && (!suppliedPath.startsWith("/") || suppliedPath.startsWith("//") || suppliedPath.includes("\\") || suppliedPath.includes("#") || [...suppliedPath].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) return null;
     const pathname = suppliedPath?.split("?", 1)[0];
     let serviceId = reference;
     let path: string | null = null;

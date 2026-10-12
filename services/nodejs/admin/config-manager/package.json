@@ -16,7 +16,8 @@
     "bp:gen": "bp run gen",
     "bp:types": "bp run types",
     "bp:contract": "bp run contract",
-    "publish:bp": "bp publish"
+    "publish:bp": "bp publish",
+    "prebuild": "bp run check-routes"
   },
   "keywords": [
     "betterportal",

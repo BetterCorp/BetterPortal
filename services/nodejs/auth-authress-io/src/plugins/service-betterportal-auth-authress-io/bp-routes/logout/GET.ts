@@ -1,7 +1,7 @@
 export const operationId = "auth.logout";
 import * as av from "anyvali";
 import type { Infer } from "anyvali";
-import { createHandler, resolveAppAuthRedirect, type ApiAuthRequirement, type CacheHints } from "@betterportal/framework";
+import { createHandler, type ApiAuthRequirement, type CacheHints } from "@betterportal/framework";
 
 export const QuerySchema = av.object({
   next: av.optional(av.string()),
@@ -10,8 +10,7 @@ export const QuerySchema = av.object({
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok"] as const),
-  message: av.string(),
-  nextUrl: av.string()
+  message: av.string()
 });
 export type ResponseData = Infer<typeof ResponseSchema>;
 
@@ -25,11 +24,11 @@ export default createHandler(
   { response: ResponseSchema, query: QuerySchema },
   (ctx) => {
     const query = ctx.query as Infer<typeof QuerySchema>;
-    const nextUrl = resolveAppAuthRedirect(ctx, "afterLogout", query.next ?? query.redirect);
     ctx.bpHeaders?.remove("Authorization");
     ctx.bpHeaders?.remove("X-BP-Refresh");
-    ctx.responseHeaders?.set("HX-Location", "/login?action=logout");
+    const login = ctx.routeUrl?.({ path: "/login", query: { action: "logout", next: query.next ?? query.redirect } });
+    if (login?.uiPath) ctx.responseHeaders?.set("HX-Location", login.uiPath);
     if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
-    return { status: "ok" as const, message: "Signed out.", nextUrl };
+    return { status: "ok" as const, message: "Signed out." };
   }
 );
