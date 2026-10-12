@@ -909,9 +909,12 @@ function createRouteUrlBuilder(
     let path: string | null = null;
     let viewId = input.viewId;
     if (ownService) {
-      const candidates = routes.filter(route => route.methods.includes(method) && (viewId !== undefined
+      let candidates = routes.filter(route => route.methods.includes(method) && (viewId !== undefined
         ? route.viewId === viewId
         : pathname !== undefined && routePathsMatch(route.path, pathname)));
+      // A supplied template identifies its declaration before wildcard matching.
+      const exact = pathname === undefined ? [] : candidates.filter(route => normalizeRoutePath(route.path) === normalizeRoutePath(pathname));
+      if (exact.length) candidates = exact;
       const resolved = candidates.flatMap(route => {
         const mounts = appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && mount.serviceId === currentInstance
           && mount.viewId === route.viewId && mount.resolvedMethods?.includes(method)
@@ -932,10 +935,12 @@ function createRouteUrlBuilder(
       if (new Set(resolved.filter(entry => entry.route.path.split("/").filter(part => pathParamName(part)).length === specificity).map(entry => entry.path)).size !== 1) return null;
       path = best.path; viewId = best.route.viewId;
     } else {
-      const targets = appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && ids.has(mount.serviceId)
+      let targets = appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && ids.has(mount.serviceId)
         && (mount.resolvedMethods?.includes(method) ?? false)
         && (input.mountId === undefined || mount.id === input.mountId)
         && (viewId !== undefined ? mount.viewId === viewId : pathname !== undefined && Boolean(routeMountServicePath(mount)) && routePathsMatch(routeMountServicePath(mount)!, pathname)));
+      const exact = pathname === undefined ? [] : targets.filter(mount => normalizeRoutePath(routeMountServicePath(mount)!) === normalizeRoutePath(pathname));
+      if (exact.length) targets = exact;
       const resolved = targets.flatMap(mount => {
         const concrete = fillAppPath(suppliedPath ?? routeMountServicePath(mount) ?? "", { ...mount.fixedParams, ...params });
         return concrete ? [{ mount, path: concrete }] : [];

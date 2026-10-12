@@ -157,6 +157,8 @@ class Urls:
                           if name == view_id] if view_id is not None else [
                 (name, candidate) for name, (paths, methods) in self._routes.items() if method in methods for candidate in paths
                 if selector is not None and _matches(candidate, selector.split("?", 1)[0])]
+            exact = [(name, candidate) for name, candidate in candidates if selector is not None and candidate.rstrip("/") == selector.split("?", 1)[0].rstrip("/")]
+            if exact: candidates = exact
             resolved = []
             for name, candidate in candidates:
                 mounts = [mount for mount in self._mounts if mount["enabled"] and mount["serviceId"] in ids and mount["viewId"] == name
@@ -182,6 +184,8 @@ class Urls:
                 if not template or (mount["viewId"] != view_id if view_id is not None else not selector or not _matches(template, selector.split("?", 1)[0])): continue
                 value = _fill(selector or template, {**mount.get("fixedParams", {}), **parameters})
                 if value is not None: targets.append((mount, value))
+            exact_targets = [(mount, value) for mount, value in targets if selector is not None and (self._service_path(mount) or "").rstrip("/") == selector.split("?", 1)[0].rstrip("/")]
+            if exact_targets: targets = exact_targets
             unique = {(mount["serviceId"], value): (mount, value) for mount, value in targets}
             if len(unique) != 1: return None
             mount, path = next(iter(unique.values())); target, view_id = mount["serviceId"], mount["viewId"]

@@ -169,6 +169,8 @@ public sealed class Urls
                         Merge(fixedValues, self ? Merge(Parameters(item.Template, currentPath), parameters) : parameters))));
                 })
                 .Where(item => item.Path is not null).ToArray();
+            var exact = candidates.Where(item => selector is not null && item.Template.TrimEnd('/') == selector.Split('?', 2)[0].TrimEnd('/')).ToArray();
+            if (exact.Length != 0) candidates = exact;
             var ordered = viewId is not null ? candidates.OrderByDescending(item => Specificity(item.Template)).ToArray() : candidates.OrderBy(item => Specificity(item.Template)).ToArray();
             if (ordered.Length == 0) return null;
             if (ordered.Where(item => Specificity(item.Template) == Specificity(ordered[0].Template)).Select(item => item.Path).Distinct().Count() != 1) return null;
@@ -183,7 +185,10 @@ public sealed class Urls
                 .Select(item => {
                     var values = new Node((Node)item.GetValueOrDefault("fixedParams", new Node())!); foreach (var pair in parameters) values[pair.Key] = pair.Value;
                     return (Mount: item, Path: Fill(selector ?? ServicePath(item)!, values));
-                }).Where(item => item.Path is not null).GroupBy(item => ((string)item.Mount["serviceId"]!, item.Path)).Select(group => group.First()).ToArray();
+                }).Where(item => item.Path is not null).ToArray();
+            var exact = candidates.Where(item => selector is not null && ServicePath(item.Mount)?.TrimEnd('/') == selector.Split('?', 2)[0].TrimEnd('/')).ToArray();
+            if (exact.Length != 0) candidates = exact;
+            candidates = candidates.GroupBy(item => ((string)item.Mount["serviceId"]!, item.Path)).Select(group => group.First()).ToArray();
             if (candidates.Length != 1) return null;
             var selected = candidates[0]; target = (string)selected.Mount["serviceId"]!; viewId = (string)selected.Mount["viewId"]!; path = selected.Path;
         }

@@ -35,6 +35,30 @@ def run_urls(urls, labels):
     case("path-pattern", {"path": "/check/:key", "params": {"key": "42"}}, resolved("/check/42", ui="/app/42"))
     case("encoded-unicode", {"viewId": "check", "params": {"key": "日本語 a/b"}, "query": {"flag": True, "count": 42}}, resolved("/check/%E6%97%A5%E6%9C%AC%E8%AA%9E%20a%2Fb?flag=true&count=42", ui="/app/%E6%97%A5%E6%9C%AC%E8%AA%9E%20a%2Fb?flag=true&count=42"))
     case("raw-query-clear", {"path": "/check/item?hello=world", "query": {"hello": None}}, resolved("/check/item", ui="/app/item"))
+    def overlapping(body, reverse=False, dependency=False):
+        if dependency:
+            mounts = body["snapshot"]["apps"][0]["appRoutes"]
+            mounts[1].update(viewId="first", path="/left/:section", resolvedServicePath="/a/:section/new", fixedParams={})
+            mounts.append({**deepcopy(mounts[1]), "id": BINDING, "viewId": "second", "path": "/right/:id", "resolvedServicePath": "/a/users/:id"})
+            if reverse: mounts[1:] = reversed(mounts[1:])
+        else:
+            route = deepcopy(body["routes"][0])
+            route.update(viewId="first", path="/a/:section/new")
+            second = deepcopy(route)
+            second.update(viewId="second", path="/a/users/:id")
+            for entry in (route, second):
+                for operation in entry["operations"]:
+                    operation["declaration"]["operationId"] = entry["viewId"] + "." + operation["declaration"]["method"].lower()
+            body["routes"].extend([second, route] if reverse else [route, second])
+            mounts = body["snapshot"]["apps"][0]["appRoutes"]
+            mounts.extend([{**deepcopy(mounts[0]), "id": SOURCE, "viewId": "first", "path": "/left/:section", "resolvedServicePath": "/a/:section/new"},
+                           {**deepcopy(mounts[0]), "id": BINDING, "viewId": "second", "path": "/right/:id", "resolvedServicePath": "/a/users/:id"}])
+    for dependency in (False, True):
+        for reverse in (False, True):
+            for template, params, api, ui in (("/a/:section/new", {"section": "sales"}, "/a/sales/new", "/left/sales"), ("/a/users/:id", {"id": "new"}, "/a/users/new", "/right/new")):
+                case(f"exact-template-{dependency}-{reverse}-{template}", {"path": template, "params": params, **({"serviceId": "docs"} if dependency else {})},
+                     resolved(api, ui=ui, origin="https://other.test" if dependency else "https://service.test"),
+                     lambda body, reverse=reverse, dependency=dependency: overlapping(body, reverse, dependency))
     case("unsupported-method", {"method": "DELETE"}, None)
     case("hash-rejected", {"path": "/check/item#anchor"}, None)
     case("dot-param-rejected", {"viewId": "check", "params": {"key": ".."}}, None)
