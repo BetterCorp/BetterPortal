@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { inspectRouteUrlSource } from "../src/codegen/routeUrlPolicy.js";
+import { inspectRouteUrlSource, checkProjectRouteUrls } from "../src/codegen/routeUrlPolicy.js";
 
 test("build rejects old helpers and URL payloads even with any-typed contexts", () => {
   for (const source of [
@@ -485,4 +485,19 @@ test("transparent iterable constructors retain URL provenance", () => {
     'export function handler(ctx) { return Object.fromEntries(new URLSearchParams({ publicLink: ctx.routeUrl()?.absoluteUiPath ?? "" })); }',
     'import { URLSearchParams } from "provider"; export function handler(ctx) { return new URLSearchParams(ctx.routeUrl()?.apiPath); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+
+test("source checks include nested lib and dist helper folders", () => {
+  const root = mkdtempSync(join(tmpdir(), "bp-nested-route-check-"));
+  try {
+    for (const directory of ["src/lib", "src/plugins/example/lib", "src/dist"]) {
+      mkdirSync(join(root, directory), { recursive: true });
+      writeFileSync(join(root, directory, "helper.ts"), 'import { createHandler } from "@betterportal/framework"; export const handle = createHandler({}, ctx => ctx.routeUrl("legacy"));');
+    }
+    const issues = checkProjectRouteUrls(join(root, "src"));
+    for (const directory of ["src/lib", "src/plugins/example/lib", "src/dist"])
+      assert.ok(issues.some(issue => issue.file.startsWith(join(root, directory, "helper.ts"))));
+    assert.ok(issues.every(issue => issue.severity === "error"));
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

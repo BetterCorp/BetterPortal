@@ -509,7 +509,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
 export function checkProjectRouteUrls(directory: string): RouteUrlPolicyError[] {
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-    if ((entry.name.startsWith(".") && entry.name !== ".well-known") || ["node_modules", "lib", "dist"].includes(entry.name)) return [];
+    if ((entry.name.startsWith(".") && entry.name !== ".well-known") || entry.name === "node_modules") return [];
     const file = path.join(directory, entry.name);
     return entry.isDirectory() ? checkProjectRouteUrls(file) : /\.tsx?$/.test(file) ? inspectRouteUrlSource(file, fs.readFileSync(file, "utf8")) : [];
   });

@@ -213,6 +213,8 @@ test("public service base metadata rejects credentials and URL payloads while pr
     assert.equal(safeServiceBaseUrl({ hostname }), undefined);
     assert.equal(safeServiceBaseUrl({ endpointBaseUrl: hostname }), undefined);
   }
+  assert.equal(safeServiceBaseUrl({ hostname: "https://plans.example" }), "https://plans.example");
+  assert.equal(safeServiceBaseUrl({ endpointBaseUrl: "https://plans.example///" }), "https://plans.example");
   assert.equal(safeServiceBaseUrl({ hostname: "https://plans.example/prefix/" }), "https://plans.example/prefix");
   assert.equal(safeServiceBaseUrl({ endpointBaseUrl: "http://plans.example:8080/prefix" }), "http://plans.example:8080/prefix");
 });
