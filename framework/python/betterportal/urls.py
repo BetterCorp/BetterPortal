@@ -153,6 +153,7 @@ class Urls:
         selector, view_id = opts.get("path", self._path if self_target else None), opts.get("viewId")
         path: str | None = None
         if ids == own and len(ids) == 1:
+            target = next(iter(ids))
             candidates = [(name, candidate) for name, (paths, methods) in self._routes.items() if method in methods for candidate in paths
                           if name == view_id] if view_id is not None else [
                 (name, candidate) for name, (paths, methods) in self._routes.items() if method in methods for candidate in paths
@@ -200,7 +201,7 @@ class Urls:
         pages = set()
         if method == "GET" and not any(opts.get(key) for key in ("sse", "component", "fragment")):
             for mount in self._mounts:
-                if not mount["enabled"] or mount["kind"] != "page" or mount["serviceId"] not in ids or mount["viewId"] != view_id or "GET" not in mount.get("resolvedMethods", []): continue
+                if not mount["enabled"] or mount["kind"] != "page" or mount["serviceId"] != target or mount["viewId"] != view_id or "GET" not in mount.get("resolvedMethods", []): continue
                 if opts.get("mountId") and opts["mountId"] != mount["id"]: continue
                 template = self._service_path(mount)
                 if template is None and ids == own:

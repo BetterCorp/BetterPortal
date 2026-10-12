@@ -28,6 +28,12 @@ def run_urls(urls, labels):
     def case(name, input, expected, change=lambda body: None, native=False, runtimes=None):
         cases.append((name, input, expected, change, native, runtimes))
     case("self", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"))
+    case("canonical-own-reference", {"serviceId": "com.example.service", "viewId": "check", "params": {"key": "item"}}, resolved("/check/item", ui="/app/item"))
+    def canonical_self(body):
+        body["snapshot"].pop("serviceIdentity", None)
+        body["snapshot"]["m2m"] = {"localServiceIds": [TARGET], "services": [], "bindings": [], "grants": []}
+    case("canonical-current-self", None, resolved("/check/item?hello=world", ui="/app/item?hello=world"), canonical_self)
+
     case("self-query", {"query": {"page": 2}}, resolved("/check/item?hello=world&page=2", ui="/app/item?hello=world&page=2"))
     case("self-param", {"params": {"key": "other"}}, resolved("/check/other?hello=world", ui="/app/other?hello=world"))
     case("view-id", {"viewId": "check", "params": {"key": "a/b"}, "query": {"q": "hello world", "omit": None}}, resolved("/check/a%2Fb?q=hello+world", ui="/app/a%2Fb?q=hello+world"))
@@ -153,6 +159,14 @@ def run_urls(urls, labels):
         mounts = body["snapshot"]["apps"][0]["appRoutes"]
         mounts.append({**deepcopy(mounts[1]), "id": BINDING, "serviceId": BINDING})
     case("ambiguous-provider", {"viewId": "docs.index", "serviceId": "docs"}, None, providers)
+    def overlapping_providers(body):
+        providers(body)
+        mounts = body["snapshot"]["apps"][0]["appRoutes"]
+        mounts[1].update(path="/generic/:section", resolvedServicePath="/a/:section/new", fixedParams={})
+        mounts[2].update(path="/specific/:id", resolvedServicePath="/a/users/:id", fixedParams={})
+        body["snapshot"]["tenants"][0]["services"][-1]["hostname"] = "https://copy.test"
+    case("selected-provider-ui", {"path": "/a/users/new", "serviceId": "docs"}, resolved("/a/users/new", ui="/specific/new", origin="https://copy.test"), overlapping_providers)
+
     for url, label in zip(urls, labels):
         for name, input, expected, change, native, runtimes in cases:
             if native and label == "node": continue

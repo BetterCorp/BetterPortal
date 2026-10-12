@@ -58,14 +58,42 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isCallExpression(expression)) return false;
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };
+  const defaultExports = new Set(tree.statements.flatMap(statement => ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression) ? [statement.expression.text] : []));
+  const handlerFactories = new Set(["createHandler", "createRawHandler", "createStreamHandler", "createSse"]);
+  for (const statement of tree.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements) {
+      if (handlerFactories.has(binding.propertyName?.text ?? binding.name.text)) handlerFactories.add(binding.name.text);
+    }
+  }
+  const routeHandlerFile = /(?:^|[/])bp-routes[/](?:.*[/])?(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|SSE|STREAM)\.tsx?$/.test(file.replace(/\\/g, "/"));
+  const belongsToHandler = (node: ts.Node | undefined): boolean => {
+    if (file.includes("_renderer.")) return false;
+    while (node && !ts.isSourceFile(node)) {
+      if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) {
+        if (routeHandlerFile && node.name && (["handler", "handle"].includes(node.name.text) || defaultExports.has(node.name.text))) return true;
+        if (routeHandlerFile && ts.getModifiers(node)?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword)) return true;
+      }
+      if (routeHandlerFile && ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && (["handler", "handle"].includes(node.name.text) || defaultExports.has(node.name.text))) return true;
+      if (routeHandlerFile && ts.isExportAssignment(node)) return true;
+      if (ts.isCallExpression(node)) {
+        const callee = node.expression;
+        if (ts.isIdentifier(callee) && handlerFactories.has(callee.text)
+          || ts.isPropertyAccessExpression(callee) && handlerFactories.has(callee.name.text)) return true;
+      }
+      node = node.parent;
+    }
+    return false;
+  };
   const inReturnedObject = (node: ts.Node): boolean => {
     let current = node.parent;
     while (current && !ts.isFunctionLike(current)) {
       if (ts.isCallExpression(current) || ts.isNewExpression(current) || ts.isJsxAttribute(current) || ts.isJsxSpreadAttribute(current)) return false;
-      if (ts.isReturnStatement(current)) return true;
+      if (ts.isReturnStatement(current)) return belongsToHandler(current.parent);
       current = current.parent;
     }
-    return Boolean(current && ts.isArrowFunction(current) && !ts.isBlock(current.body));
+    return Boolean(current && ts.isArrowFunction(current) && !ts.isBlock(current.body) && belongsToHandler(current));
   };
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl") {

@@ -22,7 +22,7 @@ export default createHandler({ response: ResponseSchema, query: QuerySchema }, a
     return {
     nextCursor: page.length > 100 ? users.at(-1)!.id : "",
     mailNextCursor: mailPage.length > 100 ? mailPage[99].id : "",
-    status: "ok", isolation: policy.isolation, mode: runtime.identity.storage.mode, roleIds: policy.allowedRoleIds, canManageDirectory: policy.isolation === "app" || policy.canManageDirectory === true,
+    status: "ok", registration: policy.registration, isolation: policy.isolation, mode: runtime.identity.storage.mode, roleIds: policy.allowedRoleIds, canManageDirectory: policy.isolation === "app" || policy.canManageDirectory === true,
     users: await Promise.all(users.map(async u => {
       const roles = (await tx.get("roles", u.id, scope))?.roles as string[] ?? [];
       const groupRoles = groups.filter(g => (g.members as string[]).includes(u.id)).flatMap(g => (g.appRoles as Record<string, string[]>)[scope.appId] ?? []);

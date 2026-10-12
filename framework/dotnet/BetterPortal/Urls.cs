@@ -157,6 +157,7 @@ public sealed class Urls
         string? path = null;
         if (ids.Count == 1 && ids.SetEquals(own))
         {
+            target = ids.Single();
             var candidates = routes.SelectMany(pair => pair.Value.Select(template => (View: pair.Key, Template: template)))
                 .Where(item => methods[item.View].Contains(method) && (viewId is not null ? item.View == viewId : selector is not null && Parameters(item.Template, selector) is not null))
                 .SelectMany(item => {
@@ -200,7 +201,7 @@ public sealed class Urls
         var pagePaths = new HashSet<string>(StringComparer.Ordinal);
         if (method == "GET" && opts["sse"] is not true && !opts.ContainsKey("component") && !opts.ContainsKey("fragment"))
         {
-            foreach (var mount in mounts.Where(item => item["enabled"] is true && (string)item["kind"]! == "page" && (string)item["viewId"]! == viewId && ids.Contains((string)item["serviceId"]!)
+            foreach (var mount in mounts.Where(item => item["enabled"] is true && (string)item["kind"]! == "page" && (string)item["viewId"]! == viewId && (string)item["serviceId"]! == target
                 && ((List<object?>)item.GetValueOrDefault("resolvedMethods", new List<object?>())!).Contains("GET")
                 && (!opts.TryGetValue("mountId", out var id) || Equals(id, item["id"]))))
             {

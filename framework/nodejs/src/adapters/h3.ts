@@ -965,7 +965,7 @@ function createRouteUrlBuilder(
     const viewPath = renderUrl(path, options);
     const pageMounts = method === "GET" && !input.sse && !input.component && !input.fragment
       ? appRouteIndex(extraContext.app).filter(mount => mount.enabled !== false && (mount.kind ?? "page") === "page"
-        && (mount.resolvedMethods?.includes("GET") ?? false) && ids.has(mount.serviceId) && mount.viewId === viewId
+        && (mount.resolvedMethods?.includes("GET") ?? false) && mount.serviceId === serviceId && mount.viewId === viewId
         && (input.mountId === undefined || input.mountId === mount.id))
       : [];
     const pagePaths = new Set(pageMounts.flatMap(mount => {

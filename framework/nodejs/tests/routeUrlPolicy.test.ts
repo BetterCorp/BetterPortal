@@ -20,14 +20,17 @@ test("build rejects old helpers and URL payloads even with any-typed contexts", 
     'export function handler(ctx: any) { const endpoint = ctx.routeUrl()?.absoluteViewPath; return { endpoint: endpoint }; }',
     'export function render() { return `<a href="{users.index}">Users</a>`; }',
     'export const handle = (ctx: any) => ({ anything: ctx.routeUrl()?.apiPath });',
+    'export default createHandler({}, async ctx => storage.transaction(async tx => ({ endpoint: ctx.routeUrl()?.viewPath })));',
     'export function handle(ctx: any) { const next = ctx.routeUrl()?.viewPath; return { next }; }',
     'export const render = () => <a href="{users.index}">Users</a>;',
-  ]) assert.ok(inspectRouteUrlSource("fixture.tsx", source).length, source);
+  ]) assert.ok(inspectRouteUrlSource("bp-routes/users/GET.tsx", source).length, source);
 });
 
 test("build permits renderer resolution, cursors and public domain links", () => {
   for (const source of [
     'export function handler(ctx: any) { return { publicLink: ctx.routeUrl({ viewId: "users.index" })?.absoluteUiPath }; }',
+    'export default function linkProps(ctx: any) { return { href: ctx.routeUrl()?.uiPath }; }',
+    'export function linkProps(ctx: any) { return { href: ctx.routeUrl()?.uiPath }; } export function render(data, ctx) { return <a {...linkProps(ctx)}>View</a>; }',
     'export function shell(context: any) { return { loginUrl: context.loginUrl, logoutUrl: context.logoutUrl }; }',
     'export function provider() { return { nextUrl: "https://external.test", loginUrl: "https://external.test/login" }; }',
     'export function handler(ctx: any) { const next = resolveAppAuthRedirect(ctx, "afterLogin"); const user = lookup(ctx.query.next); return { name: user.name }; }',
@@ -51,4 +54,15 @@ test("prebuild CLI exits with failure for legacy any-typed route calls", () => {
     assert.equal(result.status, 1, result.stderr);
     assert.match(result.stderr, /routeUrl no longer accepts/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+
+test("renderer utilities can return route attributes while API callbacks reject internal payloads", () => {
+  const source = 'export default createHandler({}, ctx => ({ href: ctx.routeUrl()?.uiPath }));';
+  assert.deepEqual(inspectRouteUrlSource("bp-routes/users/_renderer.bootstrap5/GET.tsx", source), []);
+  assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", source).length);
+  const direct = 'const run = ctx => ({ endpoint: ctx.routeUrl()?.apiPath }); export default run;';
+  assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", direct).length);
+  assert.deepEqual(inspectRouteUrlSource("rendering/linkProps.ts", direct), []);
+  assert.deepEqual(inspectRouteUrlSource("rendering/links.ts", 'export function handle(ctx) { return { href: ctx.routeUrl()?.uiPath }; }'), []);
 });
