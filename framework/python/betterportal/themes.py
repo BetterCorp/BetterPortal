@@ -1,4 +1,4 @@
-"""Native shell fragments and browser-runtime-compatible BP elements."""
+"""Native shell fragments and browser-runtime-compatible BPRoute controls."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,23 +7,87 @@ from types import MappingProxyType
 from typing import Mapping
 from html import escape
 import inspect
+import re
 from typing import Any, Callable, Iterable, cast
-from .generated_types import BPElementReferenceInput
+from .generated_types import BPRouteReferenceInput
 from .contracts import parse
 from .handler import RequestContext
 from .rendering import RenderContext
 
 
-def element(context: RenderContext, reference: dict[str, Any], children: str = '') -> str:
-    """Children are trusted rendered HTML; all generated attributes are escaped."""
-    resolved = context.urls.element(cast(BPElementReferenceInput, reference))
-    ready = bool(resolved.get('url'))
-    attributes = {'data-bp-element': '', 'data-bp-state': 'loading' if ready else 'nok', 'aria-busy': 'true' if ready else 'false'}
-    if resolved.get('serviceId'): attributes['data-bp-service'] = resolved['serviceId']
-    if resolved.get('unavailable'): attributes['data-bp-unavailable'] = resolved['unavailable']
-    if ready: attributes.update({'hx-get': resolved['url'], 'hx-trigger': 'load, bp:element-retry', 'hx-target': 'this', 'hx-swap': 'none'})
-    attrs = ' '.join(key if value == '' else key + '="' + escape(value, quote=True) + '"' for key, value in attributes.items())
-    return '<bp-element ' + attrs + '>' + children + '</bp-element>'
+def bp_route(context: RenderContext, reference: dict[str, Any], states: Mapping[str, Any] | None = None,
+             as_: str | None = None, **attributes: Any) -> str:
+    """Render browser-compatible BPRoute controls/embeds; supplied state HTML is trusted.
+
+    Each state is HTML or a mapping with content/as/HTML attributes. Component or
+    fragment selects GET embedding. Unknown access is checked by the request.
+    """
+    target = attributes.pop("target", None)
+    swap = attributes.pop("swap", None)
+    states = states or {}
+    embedding = bool(reference.get('component') or reference.get('fragment'))
+    success = states.get('ok', '')
+    success_attrs = {key: value for key, value in success.items() if key != 'content'} if isinstance(success, Mapping) else {}
+    merged = {**attributes, **success_attrs}
+    methods = [key for key in ('hx-get', 'hx-post', 'hx-put', 'hx-patch', 'hx-delete') if key in merged and merged[key] is not False and merged[key] is not None]
+    method = 'GET' if embedding else methods[0][3:].upper() if methods else reference.get('method', 'GET')
+    options = {key: value for key, value in reference.items() if key not in ('service', 'args')}
+    if 'service' in reference: options['serviceId'] = reference['service']
+    options.update(reference.get('args', {})); options['method'] = method
+    shell = reference.get('service') == 'shell' and reference.get('fragment') and not reference.get('path') and not reference.get('viewId')
+    resolved_shell = context.urls.element(cast(BPRouteReferenceInput, reference)) if shell else None
+    destination = None if shell else context.route(cast(Any, options))
+    override = merged[methods[0]] if not embedding and len(methods) == 1 and isinstance(merged[methods[0]], str) and merged[methods[0]] else None
+    request = override or (resolved_shell.get('url') if resolved_shell else None) or (destination.get('absoluteViewPath') or destination['viewPath'] if destination else None)
+    tag = success_attrs.get('as', as_ or ('none' if embedding else 'a'))
+    actionable = bool(methods) or tag in ('button', 'form')
+    supported = method in ("GET", "POST", "PUT", "PATCH", "DELETE")
+    available = supported and bool(request) and not (len(methods) > 1 and not embedding) and not (reference.get('component') and reference.get('fragment'))
+    available = available and (embedding or actionable or bool(destination and destination.get('uiPath')) or bool(override))
+    initial = 'loading' if available and embedding else 'ok' if available else 'error'
+
+    def attrs_html(values: Mapping[str, Any]) -> str:
+        output = []
+        for key, value in values.items():
+            if not re.fullmatch(r'[A-Za-z_:][A-Za-z0-9_:.-]*', key): raise ValueError('Invalid BPRoute attribute')
+            if value is None or value is False: continue
+            output.append(key if value is True else key + '="' + escape(str(value), quote=True) + '"')
+        return ' '.join(output)
+
+    def branch(name: str, state: Any) -> str:
+        values = {**attributes, **({key: value for key, value in state.items() if key != 'content'} if isinstance(state, Mapping) else {})}
+        selected = str(values.pop('as', as_ or ('a' if name == 'ok' and not embedding else 'none')))
+        content = str(state.get('content', '') if isinstance(state, Mapping) else state)
+        if name != 'ok' or embedding:
+            for key in list(values):
+                if key in ('href', 'action', 'method') or key.startswith('hx-'): values.pop(key)
+        elif request and supported:
+            if target: values.setdefault("hx-target", target)
+            if swap: values.setdefault("hx-swap", swap)
+            if methods:
+                values.pop('href', None)
+                if values.get(methods[0]) is True or values.get(methods[0]) == '': values[methods[0]] = request
+            elif selected == 'form': values.update({'action': request, 'method': 'get' if method == 'GET' else 'post', 'hx-' + method.lower(): request})
+            elif selected == 'button' or method != 'GET': values['hx-' + method.lower()] = request; values.setdefault('type', 'button')
+            else:
+                values.setdefault('href', destination['viewPath'] if destination else request)
+                if target or swap or values.get('hx-target') or values.get('hx-swap'): values.setdefault('hx-get', request)
+            values['data-bp-route-control'] = ''
+        if name == 'ok' and embedding: content = '<template data-bp-route-insertion></template>'
+        if selected == 'none': return content
+        if not re.fullmatch(r'[a-z][a-z0-9-]*', selected, re.I): raise ValueError('Invalid BPRoute element')
+        attrs = attrs_html(values)
+        return '<' + selected + (' ' + attrs if attrs else '') + '>' + content + '</' + selected + '>'
+
+    branches = {name: branch(name, state) for name, state in states.items()}
+    branches.setdefault('ok', branch('ok', ''))
+    templates = ''.join('<template data-bp-route-state="' + escape(name, quote=True) + '">' + html + '</template>' for name, html in branches.items())
+    root: dict[str, Any] = {'data-bp-route': '', 'data-bp-mode': 'embed' if embedding else 'action', 'data-bp-state': initial, 'style': 'display:contents'}
+    service_id = resolved_shell.get('serviceId') if resolved_shell else destination.service_id if destination else None
+    if service_id: root['data-bp-service'] = service_id
+    if not available: root['data-bp-unavailable'] = 'route_unavailable'
+    if embedding and available: root.update({'hx-get': request, 'hx-trigger': 'load, bp:route-retry', 'hx-target': 'this', 'hx-swap': 'none', 'aria-busy': 'true'})
+    return '<bp-route ' + attrs_html(root) + '>' + templates + branches.get(initial, '') + '</bp-route>'
 
 
 @dataclass(frozen=True)
@@ -70,7 +134,7 @@ class ShellFragments:
         visited = 0
         async def item(reference, stack):
             if reference['source'] == 'shell': return await render(reference['fragmentId'], stack)
-            return element(context, {'service': reference['serviceId'], 'path': reference['targetPath'], 'fragment': reference['fragmentId']})
+            return bp_route(context, {'service': reference['serviceId'], 'path': reference['targetPath'], 'fragment': reference['fragmentId']})
         async def render(name, stack):
             nonlocal visited
             visited += 1

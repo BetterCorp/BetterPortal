@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: 117bc2559ec884199cbed1ac7960cd97eb5d478c2e5283a905b910455457ae5e
+# Generated from AnyVali documents; do not edit. SHA256: bbdc5be903cfe0400f36f0c5519a0bf55f8ccb977972d398840c3471af4e9fbc
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -253,27 +253,27 @@ AuthressProviderConfigInput = TypedDict('AuthressProviderConfigInput', {
     'pictureClaimPath': NotRequired['str'],
 })
 
-BPElementReference = TypedDict('BPElementReference', {
+BPRouteReference = TypedDict('BPRouteReference', {
     'service': Required['str'],
     'path': NotRequired['str'],
     'fragment': Required['str'],
-    'args': Required['BPElementReferenceArgs'],
+    'args': Required['BPRouteReferenceArgs'],
 })
 
-BPElementReferenceArgs = TypedDict('BPElementReferenceArgs', {
-    'params': Required['dict[str, UrlScalar]'],
+BPRouteReferenceArgs = TypedDict('BPRouteReferenceArgs', {
+    'params': Required['dict[str, Union[UrlScalar, None]]'],
     'query': Required['dict[str, Union[UrlScalar, None]]'],
 })
 
-BPElementReferenceInput = TypedDict('BPElementReferenceInput', {
+BPRouteReferenceInput = TypedDict('BPRouteReferenceInput', {
     'service': Required['str'],
     'path': NotRequired['str'],
     'fragment': Required['str'],
-    'args': NotRequired['BPElementReferenceInputArgs'],
+    'args': NotRequired['BPRouteReferenceInputArgs'],
 })
 
-BPElementReferenceInputArgs = TypedDict('BPElementReferenceInputArgs', {
-    'params': NotRequired['dict[str, UrlScalarInput]'],
+BPRouteReferenceInputArgs = TypedDict('BPRouteReferenceInputArgs', {
+    'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
     'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
 })
 
@@ -2917,19 +2917,19 @@ RendererDeclarationInput = TypedDict('RendererDeclarationInput', {
     'status': NotRequired['int'],
 })
 
-ResolvedBPElementReference = TypedDict('ResolvedBPElementReference', {
+ResolvedBPRouteReference = TypedDict('ResolvedBPRouteReference', {
     'url': NotRequired['str'],
     'serviceId': NotRequired['str'],
     'unavailable': NotRequired['str'],
 })
 
-ResolvedBPElementReferenceInput = TypedDict('ResolvedBPElementReferenceInput', {
+ResolvedBPRouteReferenceInput = TypedDict('ResolvedBPRouteReferenceInput', {
     'url': NotRequired['str'],
     'serviceId': NotRequired['str'],
     'unavailable': NotRequired['str'],
 })
 
-ResolvedRouteUrl = TypedDict('ResolvedRouteUrl', {
+ResolvedRoute = TypedDict('ResolvedRoute', {
     'apiPath': Required['str'],
     'viewPath': Required['str'],
     'uiPath': Required['Union[str, None]'],
@@ -2938,7 +2938,7 @@ ResolvedRouteUrl = TypedDict('ResolvedRouteUrl', {
     'absoluteUiPath': Required['Union[str, None]'],
 })
 
-ResolvedRouteUrlInput = TypedDict('ResolvedRouteUrlInput', {
+ResolvedRouteInput = TypedDict('ResolvedRouteInput', {
     'apiPath': Required['str'],
     'viewPath': Required['str'],
     'uiPath': Required['Union[str, None]'],
@@ -2959,39 +2959,7 @@ RouteDeclarationInput = TypedDict('RouteDeclarationInput', {
     'description': NotRequired['str'],
 })
 
-RouteUiOptions = TypedDict('RouteUiOptions', {
-    'serviceId': NotRequired['str'],
-    'path': NotRequired['str'],
-    'viewId': NotRequired['str'],
-    'method': Required["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
-    'mountId': NotRequired['str'],
-    'params': Required['dict[str, Union[UrlScalar, None]]'],
-    'query': Required['dict[str, Union[UrlScalar, None]]'],
-    'component': NotRequired['str'],
-    'fragment': NotRequired['str'],
-    'sse': Required['bool'],
-    'target': NotRequired['str'],
-    'swap': NotRequired['str'],
-    'push': NotRequired['Union[str, bool]'],
-})
-
-RouteUiOptionsInput = TypedDict('RouteUiOptionsInput', {
-    'serviceId': NotRequired['str'],
-    'path': NotRequired['str'],
-    'viewId': NotRequired['str'],
-    'method': NotRequired["Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']"],
-    'mountId': NotRequired['str'],
-    'params': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
-    'query': NotRequired['dict[str, Union[UrlScalarInput, None]]'],
-    'component': NotRequired['str'],
-    'fragment': NotRequired['str'],
-    'sse': NotRequired['bool'],
-    'target': NotRequired['str'],
-    'swap': NotRequired['str'],
-    'push': NotRequired['Union[str, bool]'],
-})
-
-RouteUrlOptions = TypedDict('RouteUrlOptions', {
+RouteOptions = TypedDict('RouteOptions', {
     'serviceId': NotRequired['str'],
     'path': NotRequired['str'],
     'viewId': NotRequired['str'],
@@ -3004,7 +2972,7 @@ RouteUrlOptions = TypedDict('RouteUrlOptions', {
     'sse': Required['bool'],
 })
 
-RouteUrlOptionsInput = TypedDict('RouteUrlOptionsInput', {
+RouteOptionsInput = TypedDict('RouteOptionsInput', {
     'serviceId': NotRequired['str'],
     'path': NotRequired['str'],
     'viewId': NotRequired['str'],

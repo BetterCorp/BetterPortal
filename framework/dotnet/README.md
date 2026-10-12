@@ -109,7 +109,7 @@ preserve the selected fragment/component. Callback failures return a generic 500
 `context.Cancellation` cancels callback waits; pass it to async I/O. Theme resources
 and global status renderers remain pending.
 
-Handlers and renderers use the same resolver: `context.route_url(input=None)` in Python and `context.RouteUrl(input = null)` in .NET. Supply a service `path` or `viewId`; omit both to resolve self with the current method, params and query. Explicit targets default to GET. Self preserves repeated query values; scalar overrides replace all values for that key, and null removes the key. Query strings embedded in `path` preserve repeated pairs too. Dependency aliases, plugin IDs and instance IDs are supported. Unknown targets, unsupported methods and missing params return `None`/`null`.
+Handlers and renderers use the same resolver: `context.route(input=None)` in Python and `context.Route(input = null)` in .NET. Supply a service `path` or `viewId`; omit both to resolve self with the current method, params and query. Explicit targets default to GET. Self preserves repeated query values; scalar overrides replace all values for that key, and null removes the key. Query strings embedded in `path` preserve repeated pairs too. Dependency aliases, plugin IDs and instance IDs are supported. Unknown targets, unsupported methods and missing params return `None`/`null`.
 
 Renderer selection uses the explicit `component` or `fragment` option. Reserved `_c`/`_f` keys in query input, supplied paths, or the current request are removed before resolution; only view destinations receive an explicit selector. API and mounted page destinations remain free of renderer selectors.
 
@@ -119,9 +119,9 @@ The result has six wire fields: `apiPath` and `viewPath` are service-relative; `
 
 ```csharp
 using BetterPortal.Generated;
-var request = new RouteUrlOptionsInput { Path = "/items/:id",
+var request = new RouteOptionsInput { Path = "/items/:id",
     Params = new Dictionary<string, UrlScalarInput?> { ["id"] = 42 } };
-// In either callback: var destination = context.RouteUrl(request);
+// In either callback: var destination = context.Route(request);
 // API requests use destination.AbsoluteApiPath; HTML requests use AbsoluteViewPath.
 // Navigation uses UiPath; emails and public links use AbsoluteUiPath.
 ```
@@ -981,3 +981,5 @@ compiled index, method and SSE modules.
 Embedded query values may contain raw question marks, for example `/items?q=what?x&next=/a?b`; the resolver preserves and encodes the complete values before applying query overrides.
 
 A dependency mount without a resolved service path cannot identify a service endpoint, so resolution returns null rather than guessing or throwing.
+
+Route results stringify to ApiPath in handlers and ViewPath in renderers. Immutable selector chaining uses `destination.Component("summary")` or `.Fragment("body.live")`. Route metadata is `RouteInfo`. The theme maps service controls to public UI mounts; do not prefer UiPath for service-renderer hrefs. JSX authors use BPRoute; native HTML can emit the same documented BPRoute state templates and service attributes.

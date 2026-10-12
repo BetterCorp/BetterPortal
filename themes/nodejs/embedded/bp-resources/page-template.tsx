@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import type { RegisteredViewRenderer } from "@betterportal/framework";
 
 export const render: RegisteredViewRenderer["render"] = (data) => (

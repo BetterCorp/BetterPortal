@@ -4,7 +4,7 @@
     "module": "NodeNext",
     "lib": ["ES2022", "DOM"],
     "jsx": "react-jsx",
-    "jsxImportSource": "jsx-htmx",
+    "jsxImportSource": "@betterportal/framework",
     "types": ["node"],
     "declaration": true,
     "declarationMap": true,

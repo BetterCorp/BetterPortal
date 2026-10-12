@@ -1,4 +1,5 @@
-/** @jsxImportSource jsx-htmx */
+import { BPRoute } from "@betterportal/framework";
+/* @jsxImportSource @betterportal/framework */
 import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../GET.js";
 
@@ -49,9 +50,9 @@ function renderDataTableFragment(page: number, ctx: ViewRenderContext): HtmlRend
     }
     return (
       <li class={`page-item${p === safePage ? " active" : ""}`}>
-        <button type="button" class="page-link"
-          {...ctx.routeUi.fragment(ctx.routeUrl({ component: "user-table", query: { page: p } })!, { target: "#bp-c-user-table", swap: "innerHTML" })}
-        >{label}</button>
+        <BPRoute ctx={ctx} as="button" class="page-link" target="#bp-c-user-table" swap="innerHTML"
+          hx-get={ctx.route({ component: "user-table", query: { page: p } })?.viewPath}
+        ><bp-ok>{label}</bp-ok><bp-error as="span">{label}</bp-error></BPRoute>
       </li>
     );
   }

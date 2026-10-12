@@ -94,6 +94,18 @@ function run(): void {
     }
   }
 
+  const tsconfigPath = path.join(packageDir, "tsconfig.json");
+  if (fs.existsSync(tsconfigPath)) {
+    try {
+      const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, "utf8"));
+      if (tsconfig.compilerOptions?.jsxImportSource === "jsx-htmx") {
+        tsconfig.compilerOptions.jsxImportSource = "@betterportal/framework";
+        fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2) + "\n");
+        console.log("[bp-init] Installed the typed BPRoute JSX facade.");
+      }
+    } catch { /* JSONC/custom configurations are documented for manual migration. */ }
+  }
+
   // Ensure betterportal key exists
   if (!raw.betterportal) {
     raw.betterportal = { routes: [] };

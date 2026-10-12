@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { css } from "jsx-htmx";
 import { createPluginManifest, type PluginManifest, type HtmlRenderable } from "@betterportal/framework";
 import {

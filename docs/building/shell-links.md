@@ -1,8 +1,10 @@
+> Routing contract: prefer `BPRoute` for links, actions, forms and embedded components/fragments. Use `ctx.route()` only when a destination value is specifically required. Service-view defaults use `viewPath`; the theme owns UI mounting/history. See [the detailed BPRoute contract](https://github.com/BetterCorp/BetterPortal/blob/master/docs/building/bp-route.md).
+
 # Shell Links and BP Config Attributes
 
 BetterPortal's shell runtime rewrites service-owned links so services can emit portable, root-relative HTML.
 
-Services render navigation links to enabled GET pages with `ctx.routeUrl({ viewId, params, query })?.uiPath`. The shell matches complete route templates, including encoded parameters, and rejects ambiguous destinations. A service-relative anchor such as `/batches/1` can map automatically to its unique mounted UI page. Unknown children are never appended to a parent mount. Resolve aliases explicitly with `mountId`; handle a null destination by disabling or omitting the link. API operations use `apiPath`/`absoluteApiPath`; explicit HTML requests use `viewPath`/`absoluteViewPath`. See the [complete renderer example](routes-and-views.md#inline-navigation-in-service-renderers).
+Services render navigation links to enabled GET pages with `ctx.route({ viewId, params, query })?.viewPath`. The shell matches complete route templates, including encoded parameters, and rejects ambiguous destinations. A service-relative anchor such as `/batches/1` can map automatically to its unique mounted UI page. Unknown children are never appended to a parent mount. Resolve aliases explicitly with `mountId`; handle a null destination by disabling or omitting the link. API operations use `apiPath`/`absoluteApiPath`; explicit HTML requests use `viewPath`/`absoluteViewPath`. See the [complete renderer example](routes-and-views.md#inline-navigation-in-service-renderers).
 
 The normal design is one renderable route with both API handlers/schemas and HTML renderers. Create an API-only route only for a genuinely non-visual protocol endpoint. Never navigate the user to an API route or leave the browser displaying one; callbacks that run in the browser must redirect to a mounted page when finished.
 
@@ -76,7 +78,7 @@ data-bp-config="preload"
 | `rewrite=false` or `no-rewrite` | Leaves URLs untouched, but still allows preload unless disabled. |
 | `ignore` | Completely skips shell processing for this element. |
 
-`bp-service-id="<id>"` and `data-bp-service-id="<id>"` are shorthand for `data-bp-config="service=<id>"`. Use them for subtrees that issue requests to another service. Resolve cross-service navigation with `ctx.routeUrl({ viewId, serviceId: dependencyAlias, params })?.uiPath`. Resolve HTMX HTML requests with its `absoluteViewPath`.
+`bp-service-id="<id>"` and `data-bp-service-id="<id>"` are shorthand for `data-bp-config="service=<id>"`. Use them for subtrees that issue requests to another service. Resolve cross-service navigation with `ctx.route({ viewId, serviceId: dependencyAlias, params })?.viewPath`. Resolve HTMX HTML requests with its `absoluteViewPath`.
 
 ## Examples
 
@@ -129,3 +131,7 @@ Config applies from ancestors down to children. Child elements can override pare
 ```
 
 Use this sparingly. Most service content should rely on the normal service context and root-relative URLs.
+
+Plain service anchors are upgraded to main-panel HTMX only when their complete enabled page mount resolves. Preload markers alone do not indicate routing success. Encoded service template placeholders from older shell metadata are recognized when declared in the UI mount. Custom themes must rebuild/redeploy their bundled shared runtime to receive fixes; see [11.0.0 routing notes](https://github.com/BetterCorp/BetterPortal/blob/master/docs/releases/11.0.0.md).
+
+Ordinary service-rendered destinations resolve against the owning service before any UI alias. An identically named UI mount belonging to another service cannot take over the link. Shell-owned navigation is explicitly marked. A configured UI path is a compatibility fallback only when no owning service destination matches.

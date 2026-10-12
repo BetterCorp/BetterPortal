@@ -33,6 +33,14 @@ async def main():
             changed['apps'][0]['shellFragments'] = {TARGET: {'nav': {'mode': 'override', 'item': {'source': 'shell', 'fragmentId': 'brand'}}}}
             await service.apply_snapshot(changed)
             assert (await client.get(url)).text.startswith('<nav><b>')
+            # Service-provided shell items must use the renamed BPRoute helper.
+            changed = deepcopy(source['snapshot'])
+            changed['apps'][0]['shellFragments'] = {TARGET: {'nav': {'mode': 'items', 'items': [
+                {'source': 'service', 'serviceId': TARGET, 'targetPath': '/check/item', 'fragmentId': 'menu.badge'}]}}}
+            await service.apply_snapshot(changed)
+            response = await client.get(url)
+            assert response.status_code == 200 and '<bp-route ' in response.text, response.text
+            assert 'data-bp-mode="embed"' in response.text and 'data-bp-service="' + TARGET + '"' in response.text
             changed = deepcopy(source['snapshot'])
             changed['apps'][0]['shellFragments'] = {TARGET: {'brand': {'mode': 'none'}}}
             await service.apply_snapshot(changed)
@@ -46,3 +54,21 @@ async def main():
     print('Python themes: defaults, explicit empty overrides, cycles, scope and global status renderer passed')
 
 asyncio.run(main())
+
+# Native BPRoute aliases must produce HTMX options rather than browser targets.
+from types import SimpleNamespace
+from betterportal.themes import bp_route
+from betterportal.urls import RouteDestination
+fake = SimpleNamespace(route=lambda options: RouteDestination({'viewPath': '/check/item', 'absoluteViewPath': 'https://service.test/check/item', 'uiPath': '/app/item'}, None, options, True, TARGET))
+for options in ({'target': '#summary', 'swap': 'outerHTML'}, {'swap': 'outerHTML'}):
+    control = bp_route(fake, {'viewId': 'check'}, {'ok': 'Show'}, **options)
+    assert 'hx-get="https://service.test/check/item"' in control and 'hx-swap="outerHTML"' in control, control
+    assert ' target=' not in control, control
+    if 'target' in options: assert 'hx-target="#summary"' in control, control
+control = bp_route(fake, {'method': 'OPTIONS'}, {'error': {'as': 'label', 'content': 'Unavailable'}}, as_='button')
+assert 'data-bp-state="error"' in control and 'hx-options' not in control, control
+
+control = bp_route(fake, {'component': 'summary'}, {'ok': {'hx-delete': 'https://override.test/wrong', 'content': 'Ignored'}})
+assert 'https://override.test' not in control and 'Ignored' not in control and 'data-bp-mode="embed"' in control, control
+control = bp_route(fake, {'method': 'DELETE'}, {'ok': 'Delete'}, as_='form')
+assert 'method="post"' in control and 'hx-delete="https://service.test/check/item"' in control, control

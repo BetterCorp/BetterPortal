@@ -731,8 +731,8 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
     if (!tenantId || !appId) return htmlResponse(`<div class="alert alert-danger">tenantId and appId are required.</div>`, 400, "text/html; mode=fragment");
-    const permissionsUrl = route?.routeUrl?.({ path: "/.well-known/bp/config/workos-role-sync/permissions", method: "POST", query: { tenantId, appId } })?.absoluteViewPath;
-    const rolesUrl = route?.routeUrl?.({ path: "/.well-known/bp/config/workos-role-sync/roles", method: "POST", query: { tenantId, appId } })?.absoluteViewPath;
+    const permissionsUrl = route?.route?.({ path: "/.well-known/bp/config/workos-role-sync/permissions", method: "POST", query: { tenantId, appId } })?.absoluteViewPath;
+    const rolesUrl = route?.route?.({ path: "/.well-known/bp/config/workos-role-sync/roles", method: "POST", query: { tenantId, appId } })?.absoluteViewPath;
     if (!permissionsUrl || !rolesUrl) {
       return htmlResponse(`<div class="alert alert-danger">WorkOS role sync routes could not be resolved.</div>`, 500, "text/html; mode=fragment");
     }

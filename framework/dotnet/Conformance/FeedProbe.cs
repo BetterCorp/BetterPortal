@@ -66,7 +66,7 @@ internal sealed class FeedProbe : IEventTransport
                         finally { cancelled = true; callbackStopped.TrySetResult(); }
                     }
                     if (item.GetValueOrDefault("throw") is true || item.TryGetValue("throwOn", out var marker) && Json.Write(data) == Json.Write(marker)) throw new InvalidOperationException("private-render-secret");
-                    if (item.TryGetValue("routeLink", out var link)) return "<a href=\"" + context.RouteUrl(new() { ViewId = (string)link! })!.ViewPath + "\">Reload</a>";
+                    if (item.TryGetValue("routeLink", out var link)) return "<a href=\"" + context.Route(new() { ViewId = (string)link! })!.ViewPath + "\">Reload</a>";
                     if (item.TryGetValue("text", out var text)) return (string)text!;
                     return "<pre>" + System.Net.WebUtility.HtmlEncode(Json.Write(item.GetValueOrDefault("dataOnly") is true ? data : new { data, context = context.Data })) + "</pre>";
                 })));

@@ -798,7 +798,7 @@
   },
   {
     "id": "route-url-defaults",
-    "contract": "RouteUrlOptionsSchema",
+    "contract": "RouteOptionsSchema",
     "input": {},
     "output": {
       "params": {},
@@ -846,7 +846,7 @@
   },
   {
     "id": "element-args-defaults",
-    "contract": "BPElementReferenceSchema",
+    "contract": "BPRouteReferenceSchema",
     "input": {
       "service": "shell",
       "fragment": "branding"

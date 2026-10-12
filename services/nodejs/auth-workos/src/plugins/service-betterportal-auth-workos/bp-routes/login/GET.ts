@@ -164,7 +164,7 @@ export default createHandler(
       };
     }
 
-    const login = ctx.routeUrl?.({ path: "/login" });
+    const login = ctx.route?.({ path: "/login" });
     const redirectUri = login?.absoluteUiPath ?? login?.absoluteViewPath;
     if (!redirectUri) return { status: "error" as const, message: "The sign-in callback URL is unavailable.", loginUI: config.loginUI ?? "default" };
     return {

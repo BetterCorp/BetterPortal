@@ -67,7 +67,7 @@ def auth_redirect(context: RequestContext, kind: str, requested: str | None = No
     if requested is not None: return safe(requested)
     target = context.scope.app.get('auth', {}).get('redirects', {}).get(kind)
     if target:
-        result = context.urls.route_url({'viewId': target['viewId'], 'serviceId': target['serviceId']})
+        result = context.urls.route({'viewId': target['viewId'], 'serviceId': target['serviceId']})
         if result is not None and result['uiPath'] is not None: return safe(result['uiPath'])
     return safe(context.scope.app.get('defaultRoute') or '/')
 

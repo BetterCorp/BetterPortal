@@ -10,7 +10,7 @@ Login renderers resolve their token POST and provider callback destinations from
 
 ```ts
 // In the login renderer, after deriving the validated next destination:
-const post = ctx.routeUrl({ path: "/login", method: "POST" })?.absoluteApiPath;
-const callback = ctx.routeUrl({ path: "/login", method: "GET", query: { next } });
+const post = ctx.route({ path: "/login", method: "POST" })?.absoluteApiPath;
+const callback = ctx.route({ path: "/login", method: "GET", query: { next } });
 const returnTo = callback?.absoluteUiPath ?? callback?.absoluteViewPath;
 ```

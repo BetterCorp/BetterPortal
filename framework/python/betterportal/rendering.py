@@ -12,8 +12,8 @@ from .contracts import parse
 from .generated_types import RendererDeclaration, RendererDeclarationInput, ViewRenderData, ViewTenantContext, ViewAppContext, ViewRenderDataRequest, ViewRenderDataRoute
 from .handler import RequestContext
 from .media import NotAcceptable
-from .urls import Urls
-from .generated_types import RouteUrlOptionsInput, ResolvedRouteUrl
+from .urls import Urls, RouteDestination
+from .generated_types import RouteOptionsInput
 
 Result = TypeVar("Result")
 
@@ -23,8 +23,8 @@ class RenderContext:
     data: ViewRenderData
     urls: Urls
 
-    def route_url(self, input: RouteUrlOptionsInput | None = None) -> ResolvedRouteUrl | None:
-        return self.urls._resolve(input, self.request["method"], self.request["params"], self.request["query"])
+    def route(self, input: RouteOptionsInput | None = None) -> RouteDestination | None:
+        return self.urls._resolve(input, self.request["method"], self.request["params"], self.request["query"], view_context=True)
 
     @property
     def tenant(self) -> ViewTenantContext: return self.data["tenant"]
@@ -33,7 +33,7 @@ class RenderContext:
     @property
     def request(self) -> ViewRenderDataRequest: return self.data["request"]
     @property
-    def route(self) -> ViewRenderDataRoute: return self.data["route"]
+    def route_info(self) -> ViewRenderDataRoute: return self.data["route"]
 
     @classmethod
     def create(cls, request: RequestContext, view_id: str, matched_path: str, renderer: str, mode: str, kind: str,

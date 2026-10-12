@@ -3,7 +3,7 @@ import test from "node:test";
 import { toHtmlString, type ViewRenderContext } from "@betterportal/framework";
 import { render } from "../src/plugins/service-betterportal-auth-default/bp-routes/register/_renderer.bootstrap5/GET.js";
 
-const context = { request: { query: {} }, routeUrl: (input: { path?: string }) => ({
+const context = { request: { query: {} }, route: (input: { path?: string }) => ({
   apiPath: "/login", viewPath: "/login", uiPath: null,
   absoluteApiPath: `https://auth.test${input.path ?? "/register"}`, absoluteViewPath: "https://auth.test/login", absoluteUiPath: null
 }) } as unknown as ViewRenderContext;

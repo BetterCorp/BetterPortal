@@ -132,18 +132,18 @@ public sealed class Urls
         catch (ArgumentException) { return null; }
     }
     private static string? ServicePath(Node mount) => (string?)mount.GetValueOrDefault("resolvedServicePath", mount.GetValueOrDefault("servicePathVariant", mount.GetValueOrDefault("targetPath")));
-    private static Node Options(object? value, string schema = "RouteUrlOptionsSchema") => (Node)Contracts.Parse(schema, value ?? new Node())!;
+    private static Node Options(object? value, string schema = "RouteOptionsSchema") => (Node)Contracts.Parse(schema, value ?? new Node())!;
     /// <summary>Resolve self, a service path or a view ID into six explicit destinations.</summary>
     /// <remarks>API/view paths use the service endpoint; UI paths use the mounted GET page.
     /// Absolute API/view paths use the service origin; AbsoluteUiPath is the public app URL.
     /// Resolve internal destinations in renderers, rather than returning them as API fields.</remarks>
-    public Generated.ResolvedRouteUrl? RouteUrl(Generated.RouteUrlOptionsInput? input = null)
+    public Generated.ResolvedRoute? Route(Generated.RouteOptionsInput? input = null)
         => Resolve(input, "GET", null, null);
 
-    internal Generated.ResolvedRouteUrl? Resolve(Generated.RouteUrlOptionsInput? input, string currentMethod, object? currentParams, object? currentQuery)
+    internal Generated.ResolvedRoute? Resolve(Generated.RouteOptionsInput? input, string currentMethod, object? currentParams, object? currentQuery, bool viewContext = false)
     {
         var opts = Options(input);
-        if (opts.ContainsKey("path") && opts.ContainsKey("viewId")) return null;
+        if (opts.ContainsKey("path") && opts.ContainsKey("viewId") || opts.ContainsKey("component") && opts.ContainsKey("fragment")) return null;
         if (opts.GetValueOrDefault("path") is string supplied) { try { if (supplied.Contains('#')) return null; Relative(supplied); } catch (ArgumentException) { return null; } }
         var self = !opts.ContainsKey("path") && !opts.ContainsKey("viewId");
         var target = (string?)opts.GetValueOrDefault("serviceId", serviceId);
@@ -243,9 +243,9 @@ public sealed class Urls
                 try { app = Origin(host); break; }
                 catch (ArgumentException) { }
             }
-            return Contracts.Parse<Generated.ResolvedRouteUrl>("ResolvedRouteUrlSchema", new { apiPath = api, viewPath = view, uiPath = ui,
+            return Contracts.Parse<Generated.ResolvedRoute>("ResolvedRouteSchema", new { apiPath = api, viewPath = view, uiPath = ui,
                 absoluteApiPath = origin is null ? null : origin + api, absoluteViewPath = origin is null ? null : origin + view,
-                absoluteUiPath = ui is null || app is null ? null : app + ui });
+                absoluteUiPath = ui is null || app is null ? null : app + ui }).Bind(target => Resolve(target, currentMethod, currentParams, currentQuery, viewContext), input, viewContext);
         }
         catch (ArgumentException) { return null; }
     }
@@ -263,10 +263,10 @@ public sealed class Urls
             else if (Uri.UnescapeDataString(left[index]) != Uri.UnescapeDataString(right[index])) return null;
         return values;
     }
-    public Generated.ResolvedBPElementReference Element(Generated.BPElementReferenceInput reference)
+    public Generated.ResolvedBPRouteReference Element(Generated.BPRouteReferenceInput reference)
     {
-        var value = (Node)Contracts.Parse("BPElementReferenceSchema", reference)!; var args = (Node)value["args"]!;
-        Generated.ResolvedBPElementReference Unavailable(string reason) => Contracts.Parse<Generated.ResolvedBPElementReference>("ResolvedBPElementReferenceSchema", new { unavailable = reason });
+        var value = (Node)Contracts.Parse("BPRouteReferenceSchema", reference)!; var args = (Node)value["args"]!;
+        Generated.ResolvedBPRouteReference Unavailable(string reason) => Contracts.Parse<Generated.ResolvedBPRouteReference>("ResolvedBPRouteReferenceSchema", new { unavailable = reason });
         var fragment = (string)value["fragment"]!;
         if (fragment.Trim().Length == 0) return Unavailable("fragment_required");
         string? target, origin, path; var opts = new Node { ["query"] = args["query"] };
@@ -289,19 +289,7 @@ public sealed class Urls
             if (path is null) return Unavailable("path_params_required");
             opts["fragment"] = fragment;
         }
-        try { return Contracts.Parse<Generated.ResolvedBPElementReference>("ResolvedBPElementReferenceSchema", new { url = origin + Render(path, opts), serviceId = target }); }
+        try { return Contracts.Parse<Generated.ResolvedBPRouteReference>("ResolvedBPRouteReferenceSchema", new { url = origin + Render(path, opts), serviceId = target }); }
         catch (ArgumentException) { return Unavailable("service_path_required"); }
     }
-    private static IReadOnlyDictionary<string, string> Attributes(string url, Node opts, bool form)
-    {
-        if (url.StartsWith('/')) _ = Relative(url); else _ = HttpAddress.Origin(url, allowPath: true);
-        var method = (string)opts["method"]!;
-        var attributes = form ? new Dictionary<string, string> { ["action"] = url, ["method"] = method } : new() { ["href"] = url };
-        attributes["hx-" + method.ToLowerInvariant()] = url;
-        foreach (var (source, target) in new[] { ("target", "hx-target"), ("swap", "hx-swap"), ("push", "hx-push-url") })
-            if (opts.TryGetValue(source, out var value)) attributes[target] = Scalar(value!);
-        return attributes;
-    }
-    public static IReadOnlyDictionary<string, string> Link(string url, Generated.RouteUiOptionsInput? options = null) => Attributes(url, Options(options, "RouteUiOptionsSchema"), false);
-    public static IReadOnlyDictionary<string, string> Form(string url, Generated.RouteUiOptionsInput? options = null) => Attributes(url, Options(options, "RouteUiOptionsSchema"), true);
 }

@@ -1,3 +1,5 @@
+> Routing contract: prefer `BPRoute` for links, actions, forms and embedded components/fragments. Use `ctx.route()` only when a destination value is specifically required. Service-view defaults use `viewPath`; the theme owns UI mounting/history. See [the detailed BPRoute contract](https://github.com/BetterCorp/BetterPortal/blob/master/docs/building/bp-route.md).
+
 # Shell services and themes
 
 Shell services render the BetterPortal host page and provide the visual theme. The shell service identity and its service-view renderer compatibility key are separate contracts.
@@ -64,7 +66,7 @@ Check light/dark modes with the effective app palette, including select options,
 
 ## Shared Node shell runtime
 
-Node shells use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and `bp-element` lifecycle states.
+Node shells use `@betterportal/theme-runtime` for shell behavior. The package owns service and tenant URL rewriting, managed BP headers, header-aware preload, HTMX request/response handling, generic route chrome state, SSE, history, auth failures, downloads, and `bp-route` lifecycle states.
 
 The shared runtime automatically upgrades plain internal `<a href="/route">` links and forms using native GET or POST to HTMX requests owned by the rendering service. A bare `<form>` posts to the current service view. Put `bp-no-override` or `data-bp-no-override` on an element or ancestor when native browser navigation/submission is intentional; `data-bp-no-route` remains the shell-owned equivalent. External links/forms and unsupported form methods stay native.
 
@@ -140,7 +142,7 @@ export function render(ctx: ShellFragmentRenderContext): HtmlRenderable {
 }
 ```
 
-`ShellFragmentRenderContext` supplies the tenant, app, shell service configuration, request URL, fragment id, and server-resolved block items. Cross-service URLs are not constructed by shell code. Service views reuse a singular active-shell fragment with `<BPElement ctx={ctx} service="shell" fragment="theme-selector" />`; a successful response inserts directly when `bp-ok` is omitted. See [Routes and views](./routes-and-views.md).
+`ShellFragmentRenderContext` supplies the tenant, app, shell service configuration, request URL, fragment id, and server-resolved block items. Cross-service URLs are not constructed by shell code. Service views reuse a singular active-shell fragment with `<BPRoute ctx={ctx} service="shell" fragment="theme-selector" />`; a successful response inserts directly when `bp-ok` is omitted. See [Routes and views](./routes-and-views.md).
 
 There is no reserved `background` location and no browser-side fragment discovery. A theme that needs a background block declares `_background/index.tsx` explicitly.
 
@@ -219,13 +221,13 @@ Check a failed POST followed by menu navigation, Back/Forward, prefetched naviga
 
 ## Service route links
 
-API handlers and renderers share `ctx.routeUrl(input?)`. Resolve a mounted page for navigation, or its service view destination for an explicit HTMX request:
+Prefer BPRoute for service-rendered navigation. Service paths are mapped to enabled UI mounts by the theme:
 
 ```tsx
-const profile = ctx.routeUrl({ viewId: "profile.summary" });
-return profile?.uiPath
-  ? <a href={profile.uiPath} hx-get={profile.absoluteViewPath ?? profile.viewPath}>Profile</a>
-  : <span aria-disabled="true">Profile unavailable</span>;
+<BPRoute ctx={ctx} viewId="profile.summary">
+  <bp-ok>Profile</bp-ok>
+  <bp-error as="span">Profile unavailable</bp-error>
+</BPRoute>
 ```
 
 Use `apiPath`/`absoluteApiPath` for API requests and `absoluteUiPath` for public links. Omit the selector to resolve self. Literal route tokens were removed; internal URL payload fields and old helper calls fail builds.
@@ -259,3 +261,5 @@ in `data-bp-shell-service` on the shell root, include its registered origin in
 hostname with the selected theme service, including when that hostname differs
 from the service's registered origin. Apply the shared visibility filter on both
 initial rendering and menu refreshes.
+
+Plain service anchors are upgraded to main-panel HTMX only when their complete enabled page mount resolves. Preload markers alone do not indicate routing success. Encoded service template placeholders from older shell metadata are recognized when declared in the UI mount. Custom themes must rebuild/redeploy their bundled shared runtime to receive fixes; see [11.0.0 routing notes](https://github.com/BetterCorp/BetterPortal/blob/master/docs/releases/11.0.0.md).

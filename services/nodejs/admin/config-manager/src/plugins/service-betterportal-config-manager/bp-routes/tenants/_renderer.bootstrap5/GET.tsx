@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable, HttpMethod, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../../../tenantManagement.js";
@@ -165,7 +165,7 @@ function seoFields(): HtmlRenderable {
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const destination = (method: HttpMethod, query: Record<string, string> = {}): string => {
-    const target = ctx.routeUrl({ path: "/tenants", method, query })?.absoluteViewPath;
+    const target = ctx.route({ path: "/tenants", method, query })?.absoluteViewPath;
     if (!target) throw new Error("Tenant action route is unavailable");
     return target;
   };

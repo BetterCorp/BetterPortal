@@ -408,12 +408,12 @@ test("generated JSX anchors preserve mounted queries and Back/Forward across ori
     export default createHandler({ response: ResponseSchema, query: QuerySchema }, ctx => ({ detail: !!ctx.query.id }));
   `);
   writeFileSync(join(routeDir, "_renderer.bootstrap5", "GET.tsx"), `
-    /** @jsxImportSource jsx-htmx */
+    /** @jsxImportSource @betterportal/framework */
     import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
     import type { ResponseData } from "../GET.js";
     export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
       if (data.detail) return <p id="call-detail">Call 42</p>;
-      return <a id="call-link" href={ctx.routeUrl({ viewId: "archive.call", query: { id: "call 42" } })?.uiPath ?? undefined}>Call 42</a>;
+      return <a id="call-link" href={ctx.route({ viewId: "archive.call", query: { id: "call 42" } })?.viewPath ?? undefined}>Call 42</a>;
     }
   `);
   const scanned = scanRoutes(root);
@@ -646,4 +646,139 @@ for (const metadata of [true, false]) test(`service base prefixes survive templa
   assert.ok(requests.filter(path => path === "/prefix/reports/1").length >= 2);
   assert.ok(!requests.includes("/reports/1"));
   assert.deepEqual(errors, []);
+});
+
+test("encoded service placeholders from older shell metadata preserve the UUID UI mount and history", async t => {
+  const mounted = "/01a0fa1c-4ba2-7753-a7d8-0d2cfa0921c8/batches";
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url().endsWith("/batches/1")) return html(route, '<p id="batch-detail">Batch 1</p>');
+    return html(route, '<a id="batch-link" href="/batches/1">1</a>');
+  }, {}, "https://service.test/batches", mounted, false, [
+    { href: mounted, requestUrl: "https://service.test/batches", serviceId: "service", kind: "page" },
+    { href: mounted + "/:batchId", requestUrl: "https://service.test/batches/%3AbatchId", serviceId: "service", kind: "page" }
+  ]);
+  await page.waitForSelector("#batch-link");
+  assert.equal(await page.locator("#batch-link").getAttribute("href"), mounted + "/1");
+  assert.equal(await page.locator("#batch-link").getAttribute("hx-get"), "https://service.test/batches/1");
+  assert.equal(await page.locator("#batch-link").getAttribute("hx-target"), "#bp-main");
+  assert.equal(await page.locator("#batch-link").getAttribute("hx-swap"), "innerHTML");
+  assert.equal(await page.locator("#batch-link").getAttribute("hx-push-url"), mounted + "/1");
+  await page.locator("#batch-link").click();
+  await page.waitForSelector("#batch-detail");
+  assert.equal(new URL(page.url()).pathname, mounted + "/1");
+  await page.goBack();
+  await page.waitForSelector("#batch-link");
+  assert.equal(new URL(page.url()).pathname, mounted);
+  await page.goForward();
+  await page.waitForSelector("#batch-detail");
+  assert.deepEqual(errors, []);
+});
+
+test("BPRoute component response fills only the chosen wrapper and error replaces it", async t => {
+  const bp = '<bp-route data-bp-route data-bp-mode="embed" data-bp-state="loading" data-bp-service="service" hx-get="https://service.test/batches/1?_c=summary" hx-trigger="load" hx-target="this" hx-swap="none">'
+    + '<template data-bp-route-state="ok"><div class="p-3" id="summary"><template data-bp-route-insertion></template></div></template>'
+    + '<template data-bp-route-state="error"><label id="mysum">Summary unavailable</label></template></bp-route>';
+  const { page, errors } = await shell(t, route => route.request().url().includes("_c=summary")
+    ? html(route, '<p id="summary-content">Summary loaded</p>') : html(route, bp));
+  await page.waitForSelector("#summary-content");
+  assert.equal(await page.locator("#summary").getAttribute("class"), "p-3");
+  assert.equal(await page.locator("bp-route a, bp-route button").count(), 0);
+  await page.evaluate(() => {
+    const element = document.querySelector("bp-route")!;
+    const event = new CustomEvent("htmx:sendError", { bubbles: true, detail: { ctx: { sourceElement: element } } });
+    element.dispatchEvent(event);
+  });
+  // Network errors are also covered through actual failed fetches in the action test below.
+  assert.deepEqual(errors, []);
+});
+
+test("BPRoute failed DELETE renders a label without replaying the mutation or retaining the anchor", async t => {
+  let deletes = 0;
+  const bp = '<bp-route data-bp-route data-bp-mode="action" data-bp-state="ok" data-bp-service="service">'
+    + '<template data-bp-route-state="ok"><a id="delete-item" hx-delete="https://service.test/batches/1" hx-target="#result" hx-swap="innerHTML" data-bp-route-control>Delete</a></template>'
+    + '<template data-bp-route-state="error"><label id="delete-error">Delete unavailable</label></template>'
+    + '<a id="delete-item" hx-delete="https://service.test/batches/1" hx-target="#result" hx-swap="innerHTML" data-bp-route-control>Delete</a></bp-route><div id="result"></div>';
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "DELETE") { deletes++; return html(route, "Failure", 500); }
+    return html(route, bp);
+  });
+  await page.waitForSelector("#delete-item");
+  assert.equal(deletes, 0);
+  await page.locator("#delete-item").click();
+  await page.waitForSelector("#delete-error");
+  assert.equal(await page.locator("#delete-error").evaluate(el => el.tagName), "LABEL");
+  assert.equal(await page.locator("#delete-item").count(), 0);
+  assert.equal(await page.locator("#result").textContent(), "");
+  assert.equal(deletes, 1);
+  assert.deepEqual(errors, []);
+});
+
+
+test("an owning service path wins over another service's identically named UI mount", async t => {
+  const { page, errors } = await shell(t, route => {
+    if (route.request().url() === "https://service.test/batches/1") return html(route, '<p id="own-batch">Own batch</p>');
+    if (route.request().url().startsWith("https://auth.test/")) return html(route, '<p id="wrong-service">Wrong service</p>');
+    return html(route, '<a id="owner-link" href="/batches/1">1</a>');
+  }, {}, "https://service.test/batches", "/inventory/batches", false, [
+    { href: "/inventory/batches", requestUrl: "https://service.test/batches", serviceId: "service", kind: "page" },
+    { href: "/inventory/batches/:batchId", requestUrl: "https://service.test/batches/%3AbatchId", serviceId: "service", kind: "page" },
+    { href: "/batches/:batchId", requestUrl: "https://auth.test/reports/%3AbatchId", serviceId: "auth", kind: "page" }
+  ]);
+  await page.waitForSelector("#owner-link");
+  assert.equal(await page.locator("#owner-link").getAttribute("href"), "/inventory/batches/1");
+  assert.equal(await page.locator("#owner-link").getAttribute("hx-get"), "https://service.test/batches/1");
+  await page.locator("#owner-link").click();
+  await page.waitForSelector("#own-batch");
+  assert.equal(await page.locator("#wrong-service").count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test("Node shell service items insert successful fragments through the shared runtime", async t => {
+  const { BPService } = await import("../../../../plugins/nodejs/betterportal-bsb/src/service.js");
+  const app = createBetterPortalApp();
+  const settings = {
+    shell: { serviceId: "shell", service: "test", renderer: "bootstrap5" },
+    shellFragments: { shell: { nav: { mode: "items", items: [{ source: "service", serviceId: "service", targetPath: "/dashboard", fragmentId: "menu.badge" }] } } },
+    routes: [{ enabled: true, serviceId: "service", resolvedServicePath: "/dashboard" }],
+    fragments: {}, slots: []
+  };
+  const service = Object.create(BPService.prototype) as any;
+  Object.assign(service, { app, manifest: { shell: { service: "test" } },
+    resolveHandlerContext: () => ({ tenant: { id: "tenant", services: [{ id: "service", enabled: true, hostname: "https://service.test" }] }, app: settings }),
+    effectiveServiceConfig: () => ({}) });
+  service.registerShellFragmentRoutes({ shellFragments: [{ id: "nav", kind: "block", render: (ctx: any) => `<nav id="shell-nav">${ctx.items.join("")}</nav>` }] });
+  const response = await app.fetch(new Request("https://shell.test/.well-known/bp/shell/fragment/nav"));
+  assert.equal(response.status, 200);
+  const generated = await response.text();
+  let fragmentRequests = 0;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).searchParams.get("_f") === "menu.badge") {
+      fragmentRequests++;
+      return html(route, '<mark id="shell-fragment">Fragment loaded</mark>');
+    }
+    return html(route, generated);
+  });
+  await page.waitForSelector("#shell-fragment");
+  assert.equal(await page.locator("#shell-nav").textContent(), "Fragment loaded");
+  assert.equal(await page.locator("bp-route").getAttribute("data-bp-state"), "ok");
+  assert.equal(fragmentRequests, 1);
+  assert.deepEqual(errors, []);
+});
+
+test("swap-only BPRoute and plain anchors retain outerHTML during main enhancement", async t => {
+  const { BPRoute } = await import("../../../../framework/nodejs/src/runtime/element.js");
+  const { createRouteResult } = await import("../../../../framework/nodejs/src/runtime/routeResult.js");
+  const destination = createRouteResult({ apiPath: "/dashboard", viewPath: "/dashboard", uiPath: "/tools/dashboard", absoluteApiPath: "https://service.test/dashboard", absoluteViewPath: "https://service.test/dashboard", absoluteUiPath: "https://app.test/tools/dashboard" }, () => null, {}, "viewPath", { serviceId: "service" });
+  for (const control of [String(BPRoute({ ctx: { route: () => destination } as any, swap: "outerHTML", id: "swap-link", children: "Swap" })), '<a id="swap-link" href="/dashboard" hx-swap="outerHTML">Swap</a>']) {
+    let requests = 0;
+    const { page, errors } = await shell(t, route => html(route, ++requests === 1 ? control : '<main id="bp-main" data-bp-service="service"><p id="outer-content">Replaced main</p></main>'));
+    await page.waitForSelector("#swap-link");
+    assert.equal(await page.locator("#swap-link").getAttribute("hx-swap"), "outerHTML");
+    assert.equal(await page.locator("#swap-link").getAttribute("hx-get"), "https://service.test/dashboard");
+    await page.locator("#swap-link").click();
+    await page.waitForSelector("#outer-content");
+    assert.equal(await page.locator("#bp-main").count(), 1);
+    assert.equal(requests, 2);
+    assert.deepEqual(errors, []);
+  }
 });

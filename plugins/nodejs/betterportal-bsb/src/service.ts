@@ -446,7 +446,7 @@ export abstract class BPService<
         const escape = (value: string) => value.replace(/[&<>"']/g, (character) => ({
           "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
         })[character]!);
-        return `<bp-element data-bp-element data-bp-state="loading" aria-busy="true" data-bp-service="${escape(item.serviceId)}" hx-get="${escape(target.toString())}" hx-trigger="load, bp:element-retry" hx-target="this" hx-swap="none"></bp-element>`;
+        return `<bp-route data-bp-route data-bp-mode="embed" data-bp-state="loading" aria-busy="true" data-bp-service="${escape(item.serviceId)}" hx-get="${escape(target.toString())}" hx-trigger="load, bp:route-retry" hx-target="this" hx-swap="none" style="display:contents"><template data-bp-route-state="ok"><template data-bp-route-insertion></template></template></bp-route>`;
       };
 
       if (definition.kind === "fragment") {
@@ -995,7 +995,7 @@ export abstract class BPService<
 
     createH3Router(registry, this.app, {
       serviceId: def.manifest.pluginId,
-      resolveRouteUrlServiceId: () => this.scopedConfig?.serviceIdentity?.id,
+      resolveRouteServiceId: () => this.scopedConfig?.serviceIdentity?.id,
       resolveAuth: (event, route) => this.resolveAuthForRequest(event, route),
       validateTenantApp: (tenantId, appId) => this.validateTenantApp(tenantId, appId),
       resolveContext: (event, route) => this.resolveHandlerContext(event, route)

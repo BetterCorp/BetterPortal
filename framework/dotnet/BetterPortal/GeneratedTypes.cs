@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 15b42976d9deacc9d721e6084aa4a8aaaefb1990ab22461773d6618e0338dd31
+// Generated from AnyVali documents; do not edit. SHA256: 81ece17b9821aadf1fce7c293735474f6d205b5ff4123f82641b6e1ab44a93df
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -586,7 +586,7 @@ public enum AuthressProviderConfigKind
     AuthressIo,
 }
 
-public sealed record BPElementReference
+public sealed record BPRouteReference
 {
     [JsonPropertyName("service")]
     public required string Service { get; init; }
@@ -596,18 +596,18 @@ public sealed record BPElementReference
     [JsonPropertyName("fragment")]
     public required string Fragment { get; init; }
     [JsonPropertyName("args")]
-    public required BPElementReferenceArgs Args { get; init; }
+    public required BPRouteReferenceArgs Args { get; init; }
 }
 
-public sealed record BPElementReferenceArgs
+public sealed record BPRouteReferenceArgs
 {
     [JsonPropertyName("params")]
-    public required IReadOnlyDictionary<string, UrlScalar> Params { get; init; }
+    public required IReadOnlyDictionary<string, UrlScalar?> Params { get; init; }
     [JsonPropertyName("query")]
     public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
 }
 
-public sealed record BPElementReferenceInput
+public sealed record BPRouteReferenceInput
 {
     [JsonPropertyName("service")]
     public required string Service { get; init; }
@@ -618,14 +618,14 @@ public sealed record BPElementReferenceInput
     public required string Fragment { get; init; }
     [JsonPropertyName("args")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<BPElementReferenceInputArgs> Args { get; init; }
+    public Optional<BPRouteReferenceInputArgs> Args { get; init; }
 }
 
-public sealed record BPElementReferenceInputArgs
+public sealed record BPRouteReferenceInputArgs
 {
     [JsonPropertyName("params")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, UrlScalarInput>> Params { get; init; }
+    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Params { get; init; }
     [JsonPropertyName("query")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }
@@ -7457,7 +7457,7 @@ public enum RendererDeclarationKind
     Component,
 }
 
-public sealed record ResolvedBPElementReference
+public sealed record ResolvedBPRouteReference
 {
     [JsonPropertyName("url")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -7470,7 +7470,7 @@ public sealed record ResolvedBPElementReference
     public Optional<string> Unavailable { get; init; }
 }
 
-public sealed record ResolvedBPElementReferenceInput
+public sealed record ResolvedBPRouteReferenceInput
 {
     [JsonPropertyName("url")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -7483,7 +7483,7 @@ public sealed record ResolvedBPElementReferenceInput
     public Optional<string> Unavailable { get; init; }
 }
 
-public sealed record ResolvedRouteUrl
+public sealed partial record ResolvedRoute
 {
     [JsonPropertyName("apiPath")]
     public required string ApiPath { get; init; }
@@ -7499,7 +7499,7 @@ public sealed record ResolvedRouteUrl
     public required string? AbsoluteUiPath { get; init; }
 }
 
-public sealed record ResolvedRouteUrlInput
+public sealed record ResolvedRouteInput
 {
     [JsonPropertyName("apiPath")]
     public required string ApiPath { get; init; }
@@ -7541,123 +7541,7 @@ public sealed record RouteDeclarationInput
     public Optional<string> Description { get; init; }
 }
 
-public sealed record RouteUiOptions
-{
-    [JsonPropertyName("serviceId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ServiceId { get; init; }
-    [JsonPropertyName("path")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Path { get; init; }
-    [JsonPropertyName("viewId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ViewId { get; init; }
-    [JsonPropertyName("method")]
-    public required RouteUiOptionsMethod Method { get; init; }
-    [JsonPropertyName("mountId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> MountId { get; init; }
-    [JsonPropertyName("params")]
-    public required IReadOnlyDictionary<string, UrlScalar?> Params { get; init; }
-    [JsonPropertyName("query")]
-    public required IReadOnlyDictionary<string, UrlScalar?> Query { get; init; }
-    [JsonPropertyName("component")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Component { get; init; }
-    [JsonPropertyName("fragment")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Fragment { get; init; }
-    [JsonPropertyName("sse")]
-    public required bool Sse { get; init; }
-    [JsonPropertyName("target")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Target { get; init; }
-    [JsonPropertyName("swap")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Swap { get; init; }
-    [JsonPropertyName("push")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Variant<string, bool>> Push { get; init; }
-}
-
-public sealed record RouteUiOptionsInput
-{
-    [JsonPropertyName("serviceId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ServiceId { get; init; }
-    [JsonPropertyName("path")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Path { get; init; }
-    [JsonPropertyName("viewId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ViewId { get; init; }
-    [JsonPropertyName("method")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<RouteUiOptionsInputMethod> Method { get; init; }
-    [JsonPropertyName("mountId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> MountId { get; init; }
-    [JsonPropertyName("params")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Params { get; init; }
-    [JsonPropertyName("query")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, UrlScalarInput?>> Query { get; init; }
-    [JsonPropertyName("component")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Component { get; init; }
-    [JsonPropertyName("fragment")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Fragment { get; init; }
-    [JsonPropertyName("sse")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Sse { get; init; }
-    [JsonPropertyName("target")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Target { get; init; }
-    [JsonPropertyName("swap")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Swap { get; init; }
-    [JsonPropertyName("push")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Variant<string, bool>> Push { get; init; }
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<RouteUiOptionsInputMethod>))]
-public enum RouteUiOptionsInputMethod
-{
-    [JsonStringEnumMemberName("GET")]
-    GET,
-    [JsonStringEnumMemberName("POST")]
-    POST,
-    [JsonStringEnumMemberName("PUT")]
-    PUT,
-    [JsonStringEnumMemberName("PATCH")]
-    PATCH,
-    [JsonStringEnumMemberName("DELETE")]
-    DELETE,
-    [JsonStringEnumMemberName("OPTIONS")]
-    OPTIONS,
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<RouteUiOptionsMethod>))]
-public enum RouteUiOptionsMethod
-{
-    [JsonStringEnumMemberName("GET")]
-    GET,
-    [JsonStringEnumMemberName("POST")]
-    POST,
-    [JsonStringEnumMemberName("PUT")]
-    PUT,
-    [JsonStringEnumMemberName("PATCH")]
-    PATCH,
-    [JsonStringEnumMemberName("DELETE")]
-    DELETE,
-    [JsonStringEnumMemberName("OPTIONS")]
-    OPTIONS,
-}
-
-public sealed record RouteUrlOptions
+public sealed record RouteOptions
 {
     [JsonPropertyName("serviceId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -7688,7 +7572,7 @@ public sealed record RouteUrlOptions
     public required bool Sse { get; init; }
 }
 
-public sealed record RouteUrlOptionsInput
+public sealed record RouteOptionsInput
 {
     [JsonPropertyName("serviceId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

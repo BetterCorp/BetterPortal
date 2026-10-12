@@ -494,36 +494,34 @@ export function betterPortalShellRuntimeSource(): string {
       })();
       const unresolvedServiceOrigin = "https://betterportal.invalid";
 
-      interface BPElementStates {
+      interface BPRouteStates {
         loading?: string;
         ok?: string;
-        nok?: string;
+        error?: string;
+        noauth?: string;
+        noperm?: string;
         statuses: Array<{ code: string; content: string }>;
       }
 
-      const bpElementStates = new WeakMap<Element, BPElementStates>();
+      const bpElementStates = new WeakMap<Element, BPRouteStates>();
       const bpElementAuthRetried = new WeakSet<Element>();
       const bpElementStateSwaps = new WeakSet<Element>();
-      const directStateChildren = (element: Element) => Array.from(element.children)
-        .filter((child) => ["BP-LOADING", "BP-OK", "BP-NOK", "BP-STATUS"].includes(child.tagName));
-
       const initializeBpElement = (element: Element) => {
         if (bpElementStates.has(element)) return;
-        const states: BPElementStates = { statuses: [] };
-        for (const child of directStateChildren(element)) {
-          if (child.tagName === "BP-LOADING") states.loading = child.innerHTML;
-          else if (child.tagName === "BP-OK") states.ok = child.innerHTML;
-          else if (child.tagName === "BP-NOK") states.nok = child.innerHTML;
-          else states.statuses.push({ code: child.getAttribute("code") || "", content: child.innerHTML });
+        const states: BPRouteStates = { statuses: [] };
+        for (const child of Array.from(element.children)) {
+          if (!(child instanceof HTMLTemplateElement) || !child.hasAttribute("data-bp-route-state")) continue;
+          const name = child.getAttribute("data-bp-route-state") || "";
+          if (name.startsWith("status:")) states.statuses.push({ code: name.slice(7), content: child.innerHTML });
+          else if (["ok", "error", "noauth", "noperm", "loading"].includes(name)) (states as any)[name] = child.innerHTML;
+          child.remove();
         }
         bpElementStates.set(element, states);
-        const initial = element.getAttribute("data-bp-state") === "nok" ? states.nok : states.loading;
-        element.innerHTML = initial ?? "";
       };
 
       const initializeBpElements = (root: ParentNode) => {
-        if (root instanceof Element && root.matches("bp-element[data-bp-element]")) initializeBpElement(root);
-        root.querySelectorAll?.("bp-element[data-bp-element]").forEach(initializeBpElement);
+        if (root instanceof Element && root.matches("bp-route[data-bp-route]")) initializeBpElement(root);
+        root.querySelectorAll?.("bp-route[data-bp-route]").forEach(initializeBpElement);
       };
 
       const statusSpecificity = (pattern: string, status: number): number => {
@@ -570,7 +568,8 @@ export function betterPortalShellRuntimeSource(): string {
         element.toggleAttribute("data-bp-status", status > 0);
         if (status > 0) element.setAttribute("data-bp-status", String(status));
 
-        if (status === 204) {
+        const embedding = element.getAttribute("data-bp-mode") === "embed";
+        if (status === 204 && embedding) {
           element.setAttribute("data-bp-state", "empty");
           swapBpElementContent(element, "");
           return;
@@ -578,15 +577,16 @@ export function betterPortalShellRuntimeSource(): string {
         if (status >= 200 && status < 300) {
           bpElementAuthRetried.delete(element);
           element.setAttribute("data-bp-state", "ok");
-          swapBpElementContent(element, states.ok === undefined ? responseHtml : injectElementResponse(states.ok, responseHtml));
+          swapBpElementContent(element, embedding ? injectElementResponse(states.ok ?? '<template data-bp-route-insertion></template>', responseHtml) : states.ok ?? "");
           return;
         }
         const matched = states.statuses
           .map((state) => ({ ...state, specificity: statusSpecificity(state.code, status) }))
           .filter((state) => state.specificity > 0)
           .sort((a, b) => b.specificity - a.specificity)[0];
-        element.setAttribute("data-bp-state", matched ? "status" : "nok");
-        swapBpElementContent(element, injectElementResponse(matched?.content ?? states.nok ?? "", responseHtml));
+        const state = status === 401 ? "noauth" : status === 403 ? "noperm" : "error";
+        element.setAttribute("data-bp-state", matched ? "status" : state);
+        swapBpElementContent(element, matched?.content ?? states[state] ?? states.error ?? "");
       };
 
       const showBpElementLoading = (element: Element) => {
@@ -594,11 +594,13 @@ export function betterPortalShellRuntimeSource(): string {
         element.setAttribute("data-bp-state", "loading");
         element.setAttribute("aria-busy", "true");
         element.removeAttribute("data-bp-status");
-        element.innerHTML = bpElementStates.get(element)?.loading ?? "";
+        const loading = bpElementStates.get(element)?.loading;
+        // Preserve an actionable source until its request completes when no loading branch exists.
+        if (loading !== undefined) swapBpElementContent(element, loading);
       };
 
       const requestBpElement = (source: unknown): Element | null =>
-        source instanceof Element ? source.closest("bp-element[data-bp-element]") : null;
+        source instanceof Element ? source.closest("bp-route[data-bp-route]") : null;
 
       const themeModeKey = "bp.theme.mode:" + window.location.host;
       const themeMedia = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -1202,7 +1204,14 @@ export function betterPortalShellRuntimeSource(): string {
               prefix = "/" + segments.slice(0, segments.length - count).join("/");
               prefix = prefix.replace(/\/+$/, "");
             }
-            const servicePath = normalizePath(template ? prefix + template : new URL(requestUrl).pathname);
+            const publishedPath = requestUrl ? new URL(requestUrl).pathname : "";
+            const tenantNames = new Set(tenantPath.split("/").flatMap(part => part.startsWith(":") ? [part.slice(1)] : /^\{[^}]+\}$/.test(part) ? [part.slice(1, -1)] : []));
+            const inferredTemplate = publishedPath.split("/").map(part => {
+              let decoded: string; try { decoded = decodeURIComponent(part); } catch { return part; }
+              const name = decoded.startsWith(":") ? decoded.slice(1) : /^\{[^}]+\}$/.test(decoded) ? decoded.slice(1, -1) : "";
+              return tenantNames.has(name) ? ":" + name : part;
+            }).join("/");
+            const servicePath = normalizePath(template ? prefix + template : inferredTemplate);
             routes.push({ tenantPath, servicePath, serviceRelativePath: template, serviceOrigin: registered.origin, serviceId, kind, methods, fixedParams });
           } catch { /* skip invalid */ }
         };
@@ -1926,17 +1935,16 @@ export function betterPortalShellRuntimeSource(): string {
             const pathOnly = normalizePath(resolvedPath.pathname);
             const query = resolvedPath.search + resolvedPath.hash;
 
-            // A configured tenant/UI path is authoritative. Otherwise treat
-            // the value as a service path and reverse-map it through config.
-            const configuredMatch = matchTenantRoute(pathOnly);
+            // Service-rendered values belong to their owning service. An
+            // unrelated UI alias must never take precedence over that service path.
+            // Shell route links are explicitly marked and were handled above.
+            const ownPage = elServiceId ? matchServiceRoute(elServiceId, pathOnly) : null;
+            const ownApi = elServiceId ? matchServiceRoute(elServiceId, pathOnly, "api") : null;
+            const configuredMatch = !ownPage && !ownApi ? matchTenantRoute(pathOnly) : null;
             const configuredKind = configuredMatch?.route.kind
               ?? (configuredMatch?.route.tenantPath.startsWith("/_bp/") ? "api" : "page");
-            const match = configuredMatch
-              ? configuredKind === "page" ? configuredMatch : null
-              : elServiceId ? matchServiceRoute(elServiceId, pathOnly) : null;
-            const apiMatch = configuredMatch
-              ? configuredKind === "api" ? configuredMatch : null
-              : elServiceId ? matchServiceRoute(elServiceId, pathOnly, "api") : null;
+            const match = ownPage ?? (configuredKind === "page" ? configuredMatch : null);
+            const apiMatch = ownApi ?? (configuredKind === "api" ? configuredMatch : null);
 
             if (!match && apiMatch && (!apiMatch.route.methods || apiMatch.route.methods.includes("GET")) && isAnchor && !hxMethodAttr) {
               const tenantUrl = normalizePath(apiMatch.route.tenantPath + apiMatch.suffix) + query;
@@ -1963,7 +1971,7 @@ export function betterPortalShellRuntimeSource(): string {
                 newlyHtmxedElements.push(el);
               }
               el.setAttribute("hx-target", "#bp-main");
-              el.setAttribute("hx-swap", "innerHTML");
+              if (!el.hasAttribute("hx-swap")) el.setAttribute("hx-swap", "innerHTML");
               if (!hxMethodAttr || hxMethodAttr === "hx-get") el.setAttribute("hx-push-url", tenantUrl);
               el.setAttribute("data-bp-shell-route", "page");
             } else if (elServiceOrigin && hxMethodAttr && hxMethodPath) {
@@ -2515,8 +2523,8 @@ export function betterPortalShellRuntimeSource(): string {
         htmx_before_request(_elt: any, detail: any) {
           const source = detail.ctx?.sourceElement;
           if (source instanceof Element && isDisabledControl(source)) return false;
-          const bpElement = requestBpElement(source);
-          if (bpElement) showBpElementLoading(bpElement);
+          const bpElement = requestBpElement(detail.ctx?.__bpRoute || source);
+          if (bpElement) { detail.ctx.__bpRoute = bpElement; showBpElementLoading(bpElement); }
           const preload = (source as any)?._htmx?.preload;
           if (preload && preload.action === new URL(detail.ctx.request.action, window.location.href).href.replace(/#.*$/, "")
             && preload.headerState === JSON.stringify(liveBpHeaders()) && Date.now() < preload.expiresAt) {
@@ -2596,13 +2604,13 @@ export function betterPortalShellRuntimeSource(): string {
             ctx.__bpSplitPaneState = captureSplitPaneState(target);
           }
 
-          const bpElement = requestBpElement(source);
-          if (bpElement && !isMainTarget(target) && !bpElementStateSwaps.has(bpElement)) {
+          const bpElement = requestBpElement(ctx?.__bpRoute || source);
+          if (bpElement && !bpElementStateSwaps.has(bpElement) && (bpElement.getAttribute("data-bp-mode") === "embed" || status >= 400)) {
             const responseText = ctx?.text || "";
-            if (status === 401 && !bpElementAuthRetried.has(bpElement)) {
+            if (status === 401 && bpElement.getAttribute("data-bp-mode") === "embed" && !bpElementAuthRetried.has(bpElement)) {
               bpElementAuthRetried.add(bpElement);
               void refreshStoredHeadersOnce(true).then((refreshed) => {
-                if (refreshed) htmx.trigger(bpElement, "bp:element-retry");
+                if (refreshed) htmx.trigger(bpElement, "bp:route-retry");
                 else renderBpElementState(bpElement, status, responseText);
               });
             } else {
@@ -2709,12 +2717,26 @@ export function betterPortalShellRuntimeSource(): string {
 
           scheduleBootstrapOverlaySync();
           applyChromeFromResponse(detail);
-          const bpElement = requestBpElement(detail.ctx?.sourceElement);
+          const bpElement = requestBpElement(detail.ctx?.__bpRoute || detail.ctx?.sourceElement);
           if (bpElement
             && bpElement.getAttribute("data-bp-state") === "loading"
             && detail.ctx?.response?.status
             && !(detail.ctx.response.status === 401 && bpElementAuthRetried.has(bpElement))) {
-            renderBpElementState(bpElement, detail.ctx.response.status, detail.ctx?.text || "");
+            if (bpElement.getAttribute("data-bp-mode") === "embed" || detail.ctx.response.status >= 400) {
+              if (detail.ctx.response.status === 401 && bpElement.getAttribute("data-bp-mode") === "embed"
+                && !bpElementAuthRetried.has(bpElement)) {
+                bpElementAuthRetried.add(bpElement);
+                void refreshStoredHeadersOnce(true).then(refreshed => {
+                  if (refreshed) htmx.trigger(bpElement, "bp:route-retry");
+                  else renderBpElementState(bpElement, 401, detail.ctx?.text || "");
+                });
+              } else renderBpElementState(bpElement, detail.ctx.response.status, detail.ctx?.text || "");
+              if (requestTargetsMain(detail)) setLoading(false);
+              else detail.ctx?.target?.classList?.remove("bp-fragment-loading");
+              // A state replacement detaches the initiating control. Stop its response
+              // here, before HTMX can swap the original body into another target.
+              return false;
+            }
           }
           // Apply BP-SetHeader / BP-RemoveHeader directives from EVERY response
           // (success or error) before anything else - e.g. login's Authorization.
@@ -2754,6 +2776,9 @@ export function betterPortalShellRuntimeSource(): string {
 
         // After successful swap: clear loading, resolve service links, reload Bootstrap
         htmx_after_swap(_elt: any, detail: any) {
+          const activeRoute = requestBpElement(detail.ctx?.__bpRoute || detail.ctx?.sourceElement);
+          if (activeRoute?.getAttribute("data-bp-mode") === "action" && activeRoute.getAttribute("data-bp-state") === "loading"
+            && detail.ctx?.response?.status < 400) renderBpElementState(activeRoute, detail.ctx.response.status);
           syncMenuVisibility();
           let target = detail.ctx?.target;
           if (!target) return;
@@ -2804,7 +2829,7 @@ export function betterPortalShellRuntimeSource(): string {
 
         htmx_response_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;
-          const bpElement = requestBpElement(ctx?.sourceElement);
+          const bpElement = requestBpElement(ctx?.__bpRoute || ctx?.sourceElement);
           if (bpElement && bpElement.getAttribute("data-bp-state") === "loading") {
             renderBpElementState(bpElement, ctx?.response?.status || 0, ctx?.text || "");
           }
@@ -2832,7 +2857,7 @@ export function betterPortalShellRuntimeSource(): string {
         htmx_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;
           const target = ctx?.target;
-          const bpElement = requestBpElement(ctx?.sourceElement);
+          const bpElement = requestBpElement(ctx?.__bpRoute || ctx?.sourceElement);
           if (bpElement) renderBpElementState(bpElement, 0);
 
           // Clear fragment loading on error

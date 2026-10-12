@@ -348,9 +348,9 @@ test("generated stream renderer signatures accept the shared view context", () =
     const framework = new URL("../lib/index.js", import.meta.url).pathname;
     writeFileSync(file, `import type { BpStreamHandler, StreamRendererSetFor } from ${JSON.stringify(framework)};
       const renderers = {
-        renderShell: (data, ctx) => ctx.routeUrl()?.viewPath ?? data.sseConnectPath,
-        renderItem: (item, ctx) => ctx.routeUrl({ params: { id: item.id } })?.viewPath ?? "",
-        renderSummary: (summary, ctx) => String(summary.count) + (ctx.routeUrl()?.uiPath ?? "")
+        renderShell: (data, ctx) => ctx.route()?.viewPath ?? data.sseConnectPath,
+        renderItem: (item, ctx) => ctx.route({ params: { id: item.id } })?.viewPath ?? "",
+        renderSummary: (summary, ctx) => String(summary.count) + (ctx.route()?.uiPath ?? "")
       } satisfies StreamRendererSetFor<BpStreamHandler<{ id: string }, { count: number }>>;
       void renderers;`);
     const program = ts.createProgram([file], { noEmit: true, strict: true, skipLibCheck: true,

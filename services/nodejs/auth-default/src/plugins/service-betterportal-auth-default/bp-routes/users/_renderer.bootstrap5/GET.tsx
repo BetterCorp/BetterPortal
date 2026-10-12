@@ -1,6 +1,6 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { js } from "jsx-htmx";
-import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
+import { BPRoute, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 
 export function render(data: Record<string, any>, ctx: ViewRenderContext): HtmlRenderable {
   const roleIds = (data.roleIds ?? []).filter((id: string) => id !== "*");
@@ -13,10 +13,8 @@ export function render(data: Record<string, any>, ctx: ViewRenderContext): HtmlR
     {selected.filter(id => id !== "*" && !roleIds.includes(id)).map(id => <small class="d-block text-warning">Unavailable role: {id}. Saving removes this assignment.</small>)}
   </fieldset>;
   const users = data.users ?? [], groups = data.groups ?? [];
-  const endpoint = ctx.routeUrl({ method: "POST" })?.absoluteApiPath;
+  const endpoint = ctx.route({ method: "POST" })?.absoluteApiPath;
   const query = { after: String(ctx.request.query.after ?? ""), mailAfter: String(ctx.request.query.mailAfter ?? "") };
-  const next = data.nextCursor ? ctx.routeUrl({ query: { ...query, after: data.nextCursor } }) : null;
-  const mailNext = data.mailNextCursor ? ctx.routeUrl({ query: { ...query, mailAfter: data.mailNextCursor } }) : null;
   if (!endpoint) throw new Error("Users service route is unavailable");
   return <section id="bp-users-ui" class="container-fluid py-4" data-endpoint={endpoint}>
     <header class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
@@ -42,7 +40,7 @@ export function render(data: Record<string, any>, ctx: ViewRenderContext): HtmlR
             {u.effectiveRoles?.filter((id: string) => !u.roles.includes(id)).length ? <small class="d-block text-body-secondary mt-2">From groups: {u.effectiveRoles.filter((id: string) => !u.roles.includes(id)).join(", ")}</small> : null}</td>
           <td><span class={`badge mb-2 ${u.enabled ? "text-bg-success" : "text-bg-secondary"}`}>{u.enabled ? "Enabled" : "Disabled"}</span>{data.canManageDirectory && !u.protected ? <form data-bp-no-route=""><input type="hidden" name="action" value="disable" /><input type="hidden" name="id" value={u.id} /><input type="hidden" name="enabled" value={String(!u.enabled)} /><button class="btn btn-sm btn-outline-secondary" type="submit">{u.enabled ? "Disable" : "Enable"}</button></form> : null}</td>
         </tr>)}</tbody></table></div>}
-        {next ? <a class="btn btn-outline-secondary" href={next.uiPath ?? undefined} hx-get={next.absoluteViewPath ?? undefined} hx-target="#bp-main">Next users</a> : null}
+        {data.nextCursor ? <BPRoute ctx={ctx} query={{ ...query, after: data.nextCursor }} class="btn btn-outline-secondary"><bp-ok>Next users</bp-ok><bp-error as="span" aria-disabled="true">Next users unavailable</bp-error></BPRoute> : null}
       </div></section></div>
       <div class="col-12 col-xl-4"><section class="card"><div class="card-header"><h2 class="h5 mb-0">Invite user</h2></div><div class="card-body">
         {data.registration === "closed" ? <p class="text-body-secondary mb-0">Registration is closed. Enable invitations in auth configuration to invite users.</p> : <form data-bp-no-route=""><input type="hidden" name="action" value="invite" /><label class="form-label d-block mb-3">Email<input class="form-control mt-1" type="email" name="email" required /></label>{rolePicker()}<button class="btn btn-primary" type="submit">Send invitation</button></form>}
@@ -63,7 +61,7 @@ export function render(data: Record<string, any>, ctx: ViewRenderContext): HtmlR
       </div></section></div>
       <div class="col-12 col-lg-6"><section class="card"><div class="card-header"><h2 class="h5 mb-0">Failed email deliveries</h2></div><div class="card-body">
         {!data.mail?.length ? <p class="text-body-secondary mb-0">No failed deliveries.</p> : data.mail.map((m: any) => <form class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3" data-bp-no-route=""><input type="hidden" name="action" value="mail.retry" /><input type="hidden" name="id" value={m.id} /><span>{m.attempts} attempts <small class="d-block text-body-secondary">{m.id}</small></span><button class="btn btn-sm btn-outline-primary" type="submit">Retry</button></form>)}
-        {mailNext ? <a class="btn btn-outline-secondary mt-3" href={mailNext.uiPath ?? undefined} hx-get={mailNext.absoluteViewPath ?? undefined} hx-target="#bp-main">More failed deliveries</a> : null}
+        {data.mailNextCursor ? <BPRoute ctx={ctx} query={{ ...query, mailAfter: data.mailNextCursor }} class="btn btn-outline-secondary mt-3"><bp-ok>More failed deliveries</bp-ok><bp-error as="span">More deliveries unavailable</bp-error></BPRoute> : null}
       </div></section></div>
       <div class="col-12 col-lg-6"><section class="card"><div class="card-header"><h2 class="h5 mb-0">Recent account events</h2></div><div class="card-body">
         {!data.audit?.length ? <p class="text-body-secondary mb-0">No account events yet.</p> : <ul class="list-group list-group-flush">{data.audit.map((a: any) => <li class="list-group-item"><strong>{a.event}</strong><small class="d-block text-body-secondary">{new Date(a.at).toISOString()} · {a.actor}</small></li>)}</ul>}

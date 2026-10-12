@@ -10,7 +10,7 @@ export function publishSession(ctx: Context, issued: Awaited<ReturnType<AuthRunt
   if (ctx.serviceId) ctx.responseHeaders?.set("HX-Trigger", `bp:fragments:${ctx.serviceId}`);
 }
 export function accountLink(ctx: Context, action: string, ticket: { id: string; secret: string }): string | null {
-  const url = ctx.routeUrl?.({ path: "/account" })?.absoluteUiPath;
+  const url = ctx.route?.({ path: "/account" })?.absoluteUiPath;
   return url ? `${url}#bp-auth=${encodeURIComponent(JSON.stringify({ action, ...ticket }))}` : null;
 }
 const publicUser = (u: User) => ({ id: u.id, username: u.username, email: u.email ?? "", name: u.name ?? "", enabled: u.enabled, emailVerified: u.emailVerified, totp: !!u.totp });

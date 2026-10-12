@@ -32,7 +32,7 @@ public sealed class Operation
     }
     public async ValueTask<RawResponse?> RenderError(RenderContext context, string message)
     {
-        var route = context.Route; var kind = route.Kind.ToString().ToLowerInvariant();
+        var route = context.RouteInfo; var kind = route.Kind.ToString().ToLowerInvariant();
         var identity = (route.Renderer, kind, route.Key.HasValue ? route.Key.Value : null, (int)route.Status);
         var renderer = ErrorRenderers.FirstOrDefault(item => item.Identity == identity);
         if (renderer is null && !Handler.Renderers.Any(item => (item.Identity.Renderer, item.Identity.Kind, item.Identity.Key) == (identity.Renderer, kind, identity.Item3))) return null;

@@ -9,10 +9,32 @@ from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 
 from .context import ScopedContext, http_origin, http_base_url, _origins
 from .contracts import parse
-from .generated_types import BPElementReferenceInput, ResolvedBPElementReference, RouteUrlOptionsInput, RouteUiOptionsInput, ResolvedRouteUrl
+from .generated_types import BPRouteReferenceInput, ResolvedBPRouteReference, RouteOptionsInput
 if TYPE_CHECKING:
     from .registry import Registry
 
+
+class RouteDestination(dict[str, Any]):
+    """Six portable fields; string conversion uses the creating API/view context."""
+    def __init__(self, fields: Mapping[str, Any], resolve: Any, options: Mapping[str, Any], view: bool = False, service_id: str | None = None):
+        super().__init__(fields)
+        self._resolve = resolve
+        self._options = deepcopy(dict(options))
+        self._view = view
+        self.service_id = service_id
+
+    def __str__(self) -> str:
+        return cast(str, self["viewPath" if self._view else "apiPath"])
+
+    def component(self, component_id: str) -> RouteDestination | None:
+        if not component_id.strip(): return None
+        options = {key: value for key, value in self._options.items() if key != "fragment"}
+        return self._resolve({**options, "component": component_id})
+
+    def fragment(self, fragment_id: str) -> RouteDestination | None:
+        if not fragment_id.strip(): return None
+        options = {key: value for key, value in self._options.items() if key != "component"}
+        return self._resolve({**options, "fragment": fragment_id})
 
 def _scalar(value: Any) -> str:
     if isinstance(value, str): return value
@@ -129,7 +151,7 @@ class Urls:
             return _origin(override) if override else next(iter(origins)) if len(origins) == 1 else None
         except ValueError: return None
 
-    def route_url(self, input: RouteUrlOptionsInput | None = None) -> ResolvedRouteUrl | None:
+    def route(self, input: RouteOptionsInput | None = None) -> RouteDestination | None:
         """Resolve self, a service path or a view ID into six explicit destination fields.
 
         apiPath/viewPath use the service endpoint; viewPath adds HTML selectors.
@@ -139,9 +161,9 @@ class Urls:
         """
         return self._resolve(input, "GET", {}, {})
 
-    def _resolve(self, input: RouteUrlOptionsInput | None, method: str, params: Mapping[str, Any], query: Mapping[str, Any]) -> ResolvedRouteUrl | None:
-        opts = parse("RouteUrlOptionsSchema", input or {})
-        if "path" in opts and "viewId" in opts: return None
+    def _resolve(self, input: RouteOptionsInput | None, method: str, params: Mapping[str, Any], query: Mapping[str, Any], view_context: bool = False) -> RouteDestination | None:
+        opts = parse("RouteOptionsSchema", input or {})
+        if "path" in opts and "viewId" in opts or opts.get("component") and opts.get("fragment"): return None
         if "path" in opts:
             try:
                 if "#" in opts["path"]: return None
@@ -233,9 +255,10 @@ class Urls:
                 for host in self._hosts:
                     try: app = _origin(host); break
                     except ValueError: pass
-            return parse("ResolvedRouteUrlSchema", {"apiPath": api, "viewPath": view, "uiPath": ui,
+            fields = parse("ResolvedRouteSchema", {"apiPath": api, "viewPath": view, "uiPath": ui,
                 "absoluteApiPath": origin + api if origin else None, "absoluteViewPath": origin + view if origin else None,
                 "absoluteUiPath": app + ui if app and ui else None})
+            return RouteDestination(fields, lambda target: self._resolve(target, method, params, query, view_context=view_context), input or {}, view_context, target)
         except ValueError: return None
 
     @staticmethod
@@ -246,9 +269,9 @@ class Urls:
     def _service_path(mount: Mapping[str, Any]) -> str | None:
         return mount.get("resolvedServicePath", mount.get("servicePathVariant", mount.get("targetPath")))
 
-    def element(self, reference: BPElementReferenceInput) -> ResolvedBPElementReference:
-        value = parse("BPElementReferenceSchema", reference)
-        def unavailable(reason): return parse("ResolvedBPElementReferenceSchema", {"unavailable": reason})
+    def element(self, reference: BPRouteReferenceInput) -> ResolvedBPRouteReference:
+        value = parse("BPRouteReferenceSchema", reference)
+        def unavailable(reason): return parse("ResolvedBPRouteReferenceSchema", {"unavailable": reason})
         if not value["fragment"].strip(): return unavailable("fragment_required")
         path: str | None
         if value["service"] == "shell":
@@ -270,23 +293,4 @@ class Urls:
             opts = {"query": value["args"]["query"], "fragment": value["fragment"]}
         try: url = origin + _render(path, opts)
         except ValueError: return unavailable("service_path_required")
-        return parse("ResolvedBPElementReferenceSchema", {"url": url, "serviceId": service_id})
-
-    @staticmethod
-    def _attributes(url: str, opts: Mapping[str, Any], form: bool) -> dict[str, str]:
-        if url.startswith("/"): _path(url)
-        else: http_origin(url, allow_path=True)
-        method = opts["method"]
-        attrs = {"action": url, "method": method} if form else {"href": url}
-        attrs["hx-" + method.lower()] = url
-        for source, target in (("target", "hx-target"), ("swap", "hx-swap"), ("push", "hx-push-url")):
-            if source in opts: attrs[target] = _scalar(opts[source])
-        return attrs
-
-    @staticmethod
-    def link(url: str, options: RouteUiOptionsInput | None = None) -> dict[str, str]:
-        return Urls._attributes(url, parse("RouteUiOptionsSchema", options or {}), False)
-
-    @staticmethod
-    def form(url: str, options: RouteUiOptionsInput | None = None) -> dict[str, str]:
-        return Urls._attributes(url, parse("RouteUiOptionsSchema", options or {}), True)
+        return parse("ResolvedBPRouteReferenceSchema", {"url": url, "serviceId": service_id})

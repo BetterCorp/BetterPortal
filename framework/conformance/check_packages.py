@@ -111,7 +111,7 @@ render_context = RenderContext.create(RequestContext(scope, AuthorizedCaller(), 
 renderer = Renderer({"renderer": "bootstrap5"}, lambda value, context: "<p>" + context.tenant["title"] + "</p>")
 assert asyncio.run(renderer.render({}, render_context)) == "<p>Tenant</p>"
 assert "services" not in render_context.tenant
-assert render_context.route_url() is None  # This fixture has no registered service route.
+assert render_context.route() is None  # This fixture has no registered service route.
 handler = Handler(contract("JsonObjectSchema"), lambda context: context.query, query=contract("JsonObjectSchema"))
 assert asyncio.run(handler.invoke(RequestContext(scope, AuthorizedCaller(), "GET", "/"), {"query": {"nested": [None]}})) == {"nested": [None]}
 raw_handler = RawHandler(lambda context: RawResponse.file(b"hello", "report.txt"))

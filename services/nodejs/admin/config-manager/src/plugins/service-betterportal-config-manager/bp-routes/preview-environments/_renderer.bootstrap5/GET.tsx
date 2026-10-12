@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import { js } from "jsx-htmx";
 import type { HtmlRenderable, HttpMethod, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../../../previewEnvironmentManagement.js";
@@ -466,7 +466,7 @@ export function configEditor(group: ResponseData["groups"][number], path: string
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const destination = (method: HttpMethod, query: Record<string, string> = {}, component?: string): string => {
-    const target = ctx.routeUrl({ path: "/preview-environments", method, query, component })?.absoluteViewPath;
+    const target = ctx.route({ path: "/preview-environments", method, query, component })?.absoluteViewPath;
     if (!target) throw new Error("Preview action route is unavailable");
     return target;
   };

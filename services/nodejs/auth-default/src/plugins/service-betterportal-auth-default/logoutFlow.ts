@@ -42,7 +42,7 @@ export const handlePost = createHandler(
     ctx.bpHeaders?.remove("X-BP-Refresh");
     ctx.responseHeaders?.set(
       "HX-Location",
-      ctx.routeUrl?.({ path: "/login", query: { action: "logout" } })?.uiPath ?? "/login?action=logout"
+      ctx.route?.({ path: "/login", query: { action: "logout" } })?.uiPath ?? "/login?action=logout"
     );
     // Auth state changed - reload this service's fragments (nav profile etc.).
     if (ctx.serviceId) {

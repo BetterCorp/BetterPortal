@@ -288,7 +288,7 @@ test("Debug loads on demand into its drawer without navigating or replacing the 
       assert.equal(url.searchParams.get("deploymentId"), deployment.id);
       return route.fulfill({ contentType: "text/html", headers: { "access-control-allow-origin": "*" }, body: String(renderDebug({ diagnostics: buildPreviewDiagnostics(config, deployment.id) } as never)) });
     }
-    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'><style>${readFileSync(require.resolve("bootstrap/dist/css/bootstrap.min.css"), "utf8")}</style></head><body><div data-bp-shell-root data-bp-menu-health="false" data-bp-services='{"config":"https://config.test"}'><main id="bp-main" data-bp-service="config">${renderList(data, { routeUrl: (input: { path?: string; query?: Record<string, string>; component?: string }) => {
+    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'><style>${readFileSync(require.resolve("bootstrap/dist/css/bootstrap.min.css"), "utf8")}</style></head><body><div data-bp-shell-root data-bp-menu-health="false" data-bp-services='{"config":"https://config.test"}'><main id="bp-main" data-bp-service="config">${renderList(data, { route: (input: { path?: string; query?: Record<string, string>; component?: string }) => {
       const url = new URL(input.path ?? "/", "https://config.test");
       for (const [key, value] of Object.entries(input.query ?? {})) url.searchParams.set(key, value);
       if (input.component) url.searchParams.set("_c", input.component);

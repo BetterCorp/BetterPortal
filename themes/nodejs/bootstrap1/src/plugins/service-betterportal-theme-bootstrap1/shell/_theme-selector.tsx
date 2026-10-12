@@ -1,4 +1,4 @@
-/** @jsxImportSource jsx-htmx */
+/* @jsxImportSource @betterportal/framework */
 import type { HtmlRenderable, ShellFragmentRenderContext } from "@betterportal/framework";
 
 export const title = "Theme selector";

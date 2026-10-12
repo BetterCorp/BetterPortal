@@ -7,7 +7,7 @@ import { test } from "node:test";
 import * as av from "anyvali";
 import { BetterPortalConfigSchema, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
 const managementViewContext = {
-  routeUrl: (input: { path?: string; query?: Record<string, string>; component?: string }) => {
+  route: (input: { path?: string; query?: Record<string, string>; component?: string }) => {
     const url = new URL(input.path ?? "/", "https://config.example");
     for (const [key, value] of Object.entries(input.query ?? {})) url.searchParams.set(key, value);
     if (input.component) url.searchParams.set("_c", input.component);

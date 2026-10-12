@@ -14,11 +14,11 @@ test("app auth redirects resolve configured views and preserve explicit next pat
         }
       }
     },
-    routeUrl: (input: { viewId?: string; serviceId?: string }) => {
+    route: (input: { viewId?: string; serviceId?: string }) => {
       calls.push([input.viewId!, input.serviceId]);
       return { uiPath: "/dashboard" };
     }
-  } as unknown as Pick<RouteHandlerContext, "app" | "routeUrl">;
+  } as unknown as Pick<RouteHandlerContext, "app" | "route">;
 
   assert.equal(resolveAppAuthRedirect(ctx, "afterLogin"), "/dashboard");
   assert.deepEqual(calls, [["dashboard.index", "019f114d-bdc9-7eca-a3de-470e7a45316f"]]);

@@ -13,7 +13,7 @@ import { toPublishedJsonSchemaDocument } from "./jsonSchema.js";
 
 // -- Route resolution --------------------------------------------------
 
-export interface ResolvedRoute {
+export interface ResolvedRegisteredRoute {
   readonly route: RegisteredRoute;
   readonly params: Record<string, string>;
 }
@@ -51,7 +51,7 @@ export function resolveRoute(
   registry: BetterPortalRegistry,
   path: string,
   method: HttpMethod
-): ResolvedRoute | null {
+): ResolvedRegisteredRoute | null {
   const requestSegments = path.split("/").filter(Boolean);
   const candidates = buildCandidates(registry);
   const matches: Array<{ candidate: RouteCandidate; params: Record<string, string> }> = [];
