@@ -457,3 +457,32 @@ test("reductions inspect returned accumulators and initial response values", () 
     'export function handler(ctx) { return items.reduce(payload => ({ count: payload.count + Number(Boolean(ctx.routeUrl()?.apiPath)) }), { count: 0 }); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("named and aliased response callbacks are inspected", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return task.then(build); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); const alias = build; return task.then(alias); }',
+    'export function handler(ctx) { function build() { return { endpoint: ctx.routeUrl()?.apiPath }; } return task.catch(build); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return items.map(build); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return items.reduce(build, {}); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { const build = () => ({ publicLink: ctx.routeUrl()?.absoluteUiPath }); return task.then(build); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); function helper(build) { return task.then(build); } return helper(providerBuild); }',
+    'export function handler(ctx) { const build = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return client(task.then(build)); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("transparent iterable constructors retain URL provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const expression of [
+    'Object.fromEntries(new URLSearchParams({ endpoint: ctx.routeUrl()?.apiPath ?? "" }))',
+    'Object.fromEntries(new Headers({ endpoint: ctx.routeUrl()?.apiPath ?? "" }))'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { return Response.json(${expression}); }`).length, expression);
+  for (const source of [
+    'export function handler(ctx) { return Object.fromEntries(new URLSearchParams({ publicLink: ctx.routeUrl()?.absoluteUiPath ?? "" })); }',
+    'import { URLSearchParams } from "provider"; export function handler(ctx) { return new URLSearchParams(ctx.routeUrl()?.apiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
