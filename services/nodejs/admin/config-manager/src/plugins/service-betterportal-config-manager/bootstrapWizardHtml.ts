@@ -142,8 +142,8 @@ function step(id, label) {
   };
 }
 
-async function postJson(url, body) {
-  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "accept": "application/json" }, body: JSON.stringify(body) });
+async function postJson(url, body, authorization) {
+  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "accept": "application/json", ...(authorization ? { authorization: "Bearer " + authorization } : {}) }, body: JSON.stringify(body) });
   if (!res.ok) {
     let text = "";
     try { text = await res.text(); } catch (_) {}
@@ -158,7 +158,7 @@ async function getJson(url) {
   return readJson(res, "GET " + url);
 }
 
-async function installService(label, serviceUrl, scope, options) {
+async function installService(label, serviceUrl, scope, options, authorization) {
   const s = step("install-" + label, "Install " + label + " service");
   try {
     const beginRes = await postJson(CP_ISSUER + "/.well-known/bp/admin/services/begin-install", {
@@ -166,7 +166,7 @@ async function installService(label, serviceUrl, scope, options) {
       ...(scope || {}),
       ...(options && options.instanceId ? { instanceId: options.instanceId } : {}),
       ...(options && options.sharedServiceId ? { sharedServiceId: options.sharedServiceId } : {})
-    });
+    }, authorization);
     const installRes = await postJson(serviceUrl.replace(/\\/+$/, "") + "/.well-known/bp/install", {
       setupToken: beginRes.setupToken,
       cpUrl: CP_ISSUER
@@ -218,7 +218,7 @@ async function buildAdminRole(adminAppId, payload, commit) {
       title: "Administrator",
       description: "Full access to all services and views. Auto-created during bootstrap.",
       permissions: grants
-    });
+    }, commit.bootstrapAdminToken);
     s.done();
     return res;
   } catch (e) {
@@ -293,14 +293,16 @@ document.getElementById("wizard").addEventListener("submit", async (evt) => {
       "auth",
       payload.authService.hostname,
       { tenantId: commit.adminTenantId, appId: commit.adminAppId },
-      { sharedServiceId: commit.authSharedServiceId }
+      { sharedServiceId: commit.authSharedServiceId },
+      commit.bootstrapAdminToken
     );
     if (payload.themeService && payload.themeService.hostname) {
       await installService(
         "theme",
         payload.themeService.hostname,
         { tenantId: commit.adminTenantId, appId: commit.adminAppId },
-        { sharedServiceId: commit.themeSharedServiceId }
+        { sharedServiceId: commit.themeSharedServiceId },
+        commit.bootstrapAdminToken
       );
     }
 

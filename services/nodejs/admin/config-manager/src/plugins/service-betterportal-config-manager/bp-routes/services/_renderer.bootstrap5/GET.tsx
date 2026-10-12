@@ -638,8 +638,17 @@ export function render(data: ResponseData): HtmlRenderable {
       '<div class="font-monospace">' + escapeHtml(manifest.pluginId) + '</div>' +
       (capabilities ? '<div>' + escapeHtml(capabilities) + '</div>' : "");
   };
+  const managementFetch = (url, options) => {
+    if (!window.BetterPortalAuth?.fetch) throw new Error("Authentication is unavailable. Reload the app and sign in again.");
+    return window.BetterPortalAuth.fetch(url, options);
+  };
   const postJson = async (url, body) => {
-    const response = await fetch(url, {
+    const target = new URL(url, window.location.href);
+    const management = new URL(adminApiBase, window.location.href);
+    let managementPath = management.pathname;
+    while (managementPath.endsWith("/")) managementPath = managementPath.slice(0, -1);
+    const isManagement = target.origin === management.origin && (target.pathname === managementPath || target.pathname.startsWith(managementPath + "/"));
+    const response = await (isManagement ? managementFetch : fetch)(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(body)
@@ -654,7 +663,7 @@ export function render(data: ResponseData): HtmlRenderable {
       window.htmx.ajax("GET", url, { target: "#bp-main", swap: "innerHTML" });
       return;
     }
-    const response = await fetch(url, { headers: { Accept: "text/html" }, cache: "no-store" });
+    const response = await managementFetch(url, { headers: { Accept: "text/html" }, cache: "no-store" });
     const html = await response.text();
     const main = document.getElementById("bp-main");
     if (response.ok && main) main.innerHTML = html;

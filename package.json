@@ -7,7 +7,7 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
-    "test": "node --test tests/lint.test.mjs && npm run test --workspaces --if-present"
+    "test": "node --test tests/lint.test.mjs tests/security.test.mjs && npm run test --workspaces --if-present"
   },
   "keywords": [],
   "author": "",
@@ -37,5 +37,10 @@
     "eslint-plugin-tsdoc": "^0.5.2",
     "globals": "^17.12.0",
     "typescript-eslint": "^8.69.0"
+  },
+  "overrides": {
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "^4.3.2"
+    }
   }
 }

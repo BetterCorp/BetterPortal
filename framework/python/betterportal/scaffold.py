@@ -23,7 +23,7 @@ build-backend = "setuptools.build_meta"
 name = {json.dumps(registry_ref.replace('/', '-'))}
 version = "1.0.0"
 requires-python = ">=3.10"
-dependencies = ["betterportal[asgi]=={runtime}", "uvicorn==0.52.4"]
+dependencies = ["betterportal[asgi]=={runtime}", "uvicorn==0.54.0"]
 
 [tool.setuptools.packages.find]
 include = ["my_service*"]
