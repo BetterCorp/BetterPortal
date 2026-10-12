@@ -446,7 +446,7 @@ export abstract class BPService<
         const escape = (value: string) => value.replace(/[&<>"']/g, (character) => ({
           "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
         })[character]!);
-        return `<bp-route data-bp-route data-bp-state="loading" aria-busy="true" data-bp-service="${escape(item.serviceId)}" hx-get="${escape(target.toString())}" hx-trigger="load, bp:route-retry" hx-target="this" hx-swap="none"></bp-route>`;
+        return `<bp-route data-bp-route data-bp-mode="embed" data-bp-state="loading" aria-busy="true" data-bp-service="${escape(item.serviceId)}" hx-get="${escape(target.toString())}" hx-trigger="load, bp:route-retry" hx-target="this" hx-swap="none" style="display:contents"><template data-bp-route-state="ok"><template data-bp-route-insertion></template></template></bp-route>`;
       };
 
       if (definition.kind === "fragment") {

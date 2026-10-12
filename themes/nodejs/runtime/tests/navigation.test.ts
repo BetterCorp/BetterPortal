@@ -732,3 +732,35 @@ test("an owning service path wins over another service's identically named UI mo
   assert.equal(await page.locator("#wrong-service").count(), 0);
   assert.deepEqual(errors, []);
 });
+
+test("Node shell service items insert successful fragments through the shared runtime", async t => {
+  const { BPService } = await import("../../../../plugins/nodejs/betterportal-bsb/src/service.js");
+  const app = createBetterPortalApp();
+  const settings = {
+    shell: { serviceId: "shell", service: "test", renderer: "bootstrap5" },
+    shellFragments: { shell: { nav: { mode: "items", items: [{ source: "service", serviceId: "service", targetPath: "/dashboard", fragmentId: "menu.badge" }] } } },
+    routes: [{ enabled: true, serviceId: "service", resolvedServicePath: "/dashboard" }],
+    fragments: {}, slots: []
+  };
+  const service = Object.create(BPService.prototype) as any;
+  Object.assign(service, { app, manifest: { shell: { service: "test" } },
+    resolveHandlerContext: () => ({ tenant: { id: "tenant", services: [{ id: "service", enabled: true, hostname: "https://service.test" }] }, app: settings }),
+    effectiveServiceConfig: () => ({}) });
+  service.registerShellFragmentRoutes({ shellFragments: [{ id: "nav", kind: "block", render: (ctx: any) => `<nav id="shell-nav">${ctx.items.join("")}</nav>` }] });
+  const response = await app.fetch(new Request("https://shell.test/.well-known/bp/shell/fragment/nav"));
+  assert.equal(response.status, 200);
+  const generated = await response.text();
+  let fragmentRequests = 0;
+  const { page, errors } = await shell(t, route => {
+    if (new URL(route.request().url()).searchParams.get("_f") === "menu.badge") {
+      fragmentRequests++;
+      return html(route, '<mark id="shell-fragment">Fragment loaded</mark>');
+    }
+    return html(route, generated);
+  });
+  await page.waitForSelector("#shell-fragment");
+  assert.equal(await page.locator("#shell-nav").textContent(), "Fragment loaded");
+  assert.equal(await page.locator("bp-route").getAttribute("data-bp-state"), "ok");
+  assert.equal(fragmentRequests, 1);
+  assert.deepEqual(errors, []);
+});
