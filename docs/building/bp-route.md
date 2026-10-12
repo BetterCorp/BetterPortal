@@ -142,3 +142,5 @@ const summary = ctx.route({ viewId: "items.detail", params: { itemId } })?.compo
 Use `@betterportal/framework` as `jsxImportSource` for typed route values, state attributes and HTMX markers. It delegates rendering/escaping to JSX-HTMX. Python uses `context.route()` and `str(destination)`; .NET uses `context.Route()` and `destination.ToString()`, with the same API/view distinction and six-field wire contract. Renderer metadata becomes `route_info`/`RouteInfo`.
 
 See [routing lint and build validation](routing-lint.md) for invalid examples, diagnostics and supported exceptions.
+
+BPRoute success controls make browser user requests. An authenticated user sees bp-noperm for a known required operation whose callers exclude user (service/delegated-only), even if that user holds a platform-root role. Presentation checks do not widen the backend caller policy.

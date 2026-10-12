@@ -932,3 +932,26 @@ test("renderer app URLs resolve parameterized mounts and reject missing or ambig
     }, { serviceId });
   }
 });
+
+test("BPRoute rejects user controls for required service/delegated-only operations", async () => {
+  const { BPRoute } = await import("../src/runtime/element.js");
+  const serviceId = uuidv7();
+  const app = { id: uuidv7(), tenantId: tenant.id, slug: "app", title: "App", hostnames: ["app.local"], originOverrides: [], refererOverrides: [], themeConfig: { mode: "system", bootstrap: {}, light: {}, dark: {} }, shell: { serviceId, service: "test", renderer: "bootstrap5" }, defaultRoute: "/page", menu: [], slots: [], fragments: {}, routes: [] } as unknown as BetterPortalApp;
+  const page = route("/page", "page");
+  page.methodRoutes.GET!.auth = { required: true, permissions: [] };
+  const target = route("/target", "target");
+  target.renderers = { bootstrap5: { pages: [{ rendererId: "default", type: "page", method: "GET", render: () => "target" }], components: [], fragments: [] } };
+  page.renderers = { bootstrap5: { pages: [{ rendererId: "default", type: "page", method: "GET", render: (_data, ctx) => BPRoute({ ctx, viewId: "target", children: '<bp-ok>Allowed</bp-ok><bp-noperm>Denied</bp-noperm>' }) }], components: [], fragments: [] } };
+  app.routes = [page, target].map(r => ({ id: uuidv7(), kind: "page", resolvedMethods: ["GET"], path: r.path, resolvedServicePath: r.path, serviceId, viewId: r.viewId, enabled: true, operations: [r.viewId] }));
+  const now = Math.floor(Date.now() / 1000);
+  const claims: JwtClaims = { iss: "test", aud: "test", sub: "root", jti: uuidv7(), iat: now, exp: now + 60, tenantId: tenant.id, appId: app.id, roles: ["*"], realm: "runtime", tokenType: "access" };
+  await withServer(app, { routes: [page, target] }, async baseUrl => {
+    for (const callers of [["service"], ["delegated"], ["user"]] as const) {
+      target.methodRoutes.GET!.auth = { required: true, permissions: [], callers: [...callers] };
+      const response = await fetch(baseUrl + "/page", { headers: { Authorization: "Bearer valid", Accept: "text/html", "BP-Renderer": "bootstrap5" } });
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      assert.match(html, callers[0] === "user" ? /data-bp-state="ok"/ : /data-bp-state="noperm"/);
+    }
+  }, { serviceId, router: { resolveAuth: () => ({ verifier: { verify: async () => claims }, tenantId: tenant.id, appId: app.id, platformRoot: { tenantId: tenant.id, appId: app.id } }) } });
+});

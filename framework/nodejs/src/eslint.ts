@@ -13,7 +13,8 @@ export default {
         return { Program() {
           for (const diagnostic of inspectRouteUrlSource(context.filename, context.sourceCode.text)) {
             const position = /:(\d+):(\d+)$/.exec(diagnostic.file);
-            const loc = { line: position ? Number(position[1]) : 1, column: position ? Number(position[2]) - 1 : 0 };
+            const loc = diagnostic.start !== undefined ? context.sourceCode.getLocFromIndex(diagnostic.start)
+              : { line: position ? Number(position[1]) : 1, column: position ? Number(position[2]) - 1 : 0 };
             context.report({ loc: { start: loc, end: loc }, messageId: "contract", data: { message: diagnostic.message } });
           }
         } };

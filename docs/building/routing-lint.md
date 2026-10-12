@@ -80,3 +80,5 @@ The existing provenance checker follows documented static response construction 
 TSDoc/ESDoc must explain the service/UI distinction, contextual string conversion, method selection and state/embedding behaviour. Current Markdown, generated LLM documents, theme resources and executable examples must show BPRoute first. Historical release APIs are explicitly marked superseded rather than silently treated as current guidance.
 
 See [BPRoute examples and full contract](bp-route.md).
+
+JSX diagnostics report the actual source location of conflicting method/selector attributes and renderer UI-path usage. ESLint preserves the offsets produced by the shared authoring checker.

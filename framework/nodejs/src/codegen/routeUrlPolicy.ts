@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import ts from "typescript";
 
-export interface RouteUrlPolicyError { file: string; message: string; severity: "error" }
+export interface RouteUrlPolicyError { file: string; message: string; severity: "error"; start?: number; length?: number }
 
 const legacyFields = new Set(["accountUrl", "loginUrl", "logoutUrl", "socialUrl", "firstAdminUrl", "nextUrl", "mailNextUrl", "sessionNextUrl", "previewPath", "tenantsPath"]);
 const internalPaths = new Set(["apiPath", "viewPath", "uiPath", "absoluteApiPath", "absoluteViewPath"]);
@@ -11,7 +11,7 @@ const internalPaths = new Set(["apiPath", "viewPath", "uiPath", "absoluteApiPath
 /** Reject the old routing API and renderer-only URL payloads even in loosely typed source. */
 export function inspectRouteUrlSource(file: string, source: string): RouteUrlPolicyError[] {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
-  const errors: RouteUrlPolicyError[] = routingDiagnostics(file, source).map(item => ({ file, message: item.message, severity: "error" }));
+  const errors: RouteUrlPolicyError[] = routingDiagnostics(file, source).map(item => ({ file, message: item.message, severity: "error", start: item.start, length: item.length }));
   const rendererFunctions = new Set<ts.Node>();
   const declarations = new Map<ts.Node, Set<string>>();
   const selections = new Map<ts.Node, Map<string, { expression: ts.Node; field: string; rest: boolean; element?: number }>>();
