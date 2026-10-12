@@ -11,7 +11,7 @@ test("build rejects old helpers and URL payloads even with any-typed contexts", 
     'export function handler(ctx: any) { ctx.uiRouteUrl("users.index"); }',
     'export function handler(ctx: any) { ctx.url.route("users.index"); }',
     'export function handler(ctx: any) { ctx.routeUrl("users.index", {}); }',
-    'export function handler(ctx: any) { const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin"); return { nextUrl }; }',
+    'import { resolveAppAuthRedirect } from "@betterportal/framework"; export function handler(ctx: any) { const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin"); return { nextUrl }; }',
     'export function handler(ctx: any) { return { destination: ctx.routeUrl() }; }',
     'export function handler(ctx: any) { const target = ctx.routeUrl(); return { endpoint: target.apiPath }; }',
     'export function handler(ctx: any) { const endpoint = ctx.routeUrl()?.absoluteViewPath; return { endpoint: endpoint }; }',
@@ -392,4 +392,36 @@ test("standard entry collections retain mutated URLs when serialized", () => {
     'export function handler(ctx) { const requests = new Map(); requests.set("endpoint", ctx.routeUrl()?.apiPath); return client(requests); }',
     'export function handler(ctx) { const model = new ProviderModel(); model.set("endpoint", ctx.routeUrl()?.apiPath); return model; }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+
+test("returned promise continuations retain response URL provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return clientCall.then(() => ({ endpoint: ctx.routeUrl()?.apiPath })); }',
+    'export function handler(ctx) { const result = clientCall.then(() => ({ endpoint: ctx.routeUrl()?.apiPath })); return result; }',
+    'export function handler(ctx) { return clientCall.catch(() => ({ endpoint: ctx.routeUrl()?.apiPath })); }',
+    'export function handler(ctx) { return clientCall.then(() => { return { endpoint: ctx.routeUrl()?.apiPath }; }); }',
+    'export function handler(ctx) { return Promise.resolve(ctx.routeUrl()?.apiPath).finally(() => log("done")); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return clientCall.then(() => ({ publicLink: ctx.routeUrl()?.absoluteUiPath })); }',
+    'export function handler(ctx) { clientCall.then(() => client(ctx.routeUrl()?.apiPath)); return { ok: true }; }',
+    'export function handler(ctx) { return clientCall.finally(() => client(ctx.routeUrl()?.apiPath)); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
+
+test("auth redirects follow framework imports and aliases instead of identifier names", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'import { resolveAppAuthRedirect } from "provider"; export function handler(ctx) { return resolveAppAuthRedirect(ctx); }',
+    'function resolveAppAuthRedirect(ctx) { return "domain"; } export function handler(ctx) { return resolveAppAuthRedirect(ctx); }',
+    'import { resolveAppAuthRedirect } from "@betterportal/framework"; export function handler(ctx, resolveAppAuthRedirect) { return resolveAppAuthRedirect(ctx); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+  for (const source of [
+    'import { resolveAppAuthRedirect as redirect } from "@betterportal/framework"; export function handler(ctx) { return { endpoint: redirect(ctx, "afterLogin") }; }',
+    'import * as bp from "@betterportal/framework"; export function handler(ctx) { return bp.resolveAppAuthRedirect(ctx, "afterLogin"); }',
+    'import { resolveAppAuthRedirect as redirect } from "@betterportal/framework"; const alias = redirect; export function handler(ctx) { return alias(ctx, "afterLogin"); }',
+    'import * as bp from "@betterportal/framework"; const { resolveAppAuthRedirect: redirect } = bp; export function handler(ctx) { return redirect(ctx, "afterLogin"); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
 });
