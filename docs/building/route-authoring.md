@@ -396,3 +396,5 @@ Prebuild and generation both inspect configured `betterportal.routes` and `bette
 Standard reversible URI/base64 encoders retain destination provenance. Numeric indexing into known strings is character state; indexing into arrays can select a complete internal path.
 
 Streamed API items emitted by `yield` or `yield*` follow the same destination checks as returned payloads. Streams return domain items/public links; renderers resolve internal navigation locally.
+
+Destructuring assignments into existing variables or response properties retain destination provenance just like declarations; public links and domain-client request building remain valid.
