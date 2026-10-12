@@ -8,6 +8,20 @@ if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
   process.exit(1);
 }
 
+// PyPI uses PEP 440 spelling for the prereleases supported by this repository.
+const pythonMatch = /^(\d+\.\d+\.\d+)(?:-(alpha|beta|rc|dev)\.(\d+))?$/.exec(version);
+if (!pythonMatch) {
+  console.error("Python releases support X.Y.Z or X.Y.Z-{alpha,beta,rc,dev}.N; build metadata is not publishable on PyPI");
+  process.exit(1);
+}
+const pythonSuffix = { alpha: "a", beta: "b", rc: "rc", dev: ".dev" };
+const pythonVersion = pythonMatch[1] + (pythonMatch[2] ? pythonSuffix[pythonMatch[2]] + pythonMatch[3] : "");
+const pythonFile = "framework/python/pyproject.toml";
+const pythonProject = readFileSync(pythonFile, "utf8");
+const pythonVersionPattern = /(^\[project\]\s*\n(?:(?!\[)[^\n]*\n)*?version\s*=\s*")[^"]+("\s*$)/m;
+if (!pythonVersionPattern.test(pythonProject)) throw new Error("Missing Python project.version");
+const updatedPythonProject = pythonProject.replace(pythonVersionPattern, (_, before, after) => before + pythonVersion + after);
+
 const readJson = (file) => JSON.parse(readFileSync(file, "utf8"));
 const writeJson = (file, value) => {
   writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -24,6 +38,7 @@ const workspaceNames = new Set(workspacePackages.map((entry) => entry.pkg.name))
 
 if (checkOnly) {
   const mismatches = [];
+  if (updatedPythonProject !== pythonProject) mismatches.push(`${pythonFile}: version must be ${pythonVersion}`);
   for (const { file, pkg } of [{ file: "package.json", pkg: root }, ...workspacePackages]) {
     if (pkg.version !== version) mismatches.push(`${file}: version is ${pkg.version ?? "missing"}`);
     for (const field of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
@@ -48,6 +63,8 @@ const updateDeps = (deps) => {
     }
   }
 };
+
+writeFileSync(pythonFile, updatedPythonProject, "utf8");
 
 root.version = version;
 updateDeps(root.dependencies);

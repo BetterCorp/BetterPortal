@@ -1086,3 +1086,8 @@ Callbacks receive safe presentation fields, scoped service `config`, `urls`,
 BP element attributes for service fragments or shell chrome; its child HTML is
 trusted application output. Shell fragment endpoints require this service to be
 the active shell for the resolved app, with normal origin restrictions.
+
+## PyPI publishing
+
+See [PUBLISHING.md](PUBLISHING.md) for trusted-publisher setup, release versioning
+and the signed-tag publishing workflow.
