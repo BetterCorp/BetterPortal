@@ -775,3 +775,22 @@ test("computed assignment keys retain provenance and known objects select only t
     'const alias = record; ({ status } = alias);'
   ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { let status; const record = { status: "ready", endpoint: ctx.routeUrl()?.apiPath }; ${assignment} return { status }; }`), [], assignment);
 });
+
+
+test("local object response methods and removed splice values retain provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'const helpers = { payload: () => ({ endpoint: ctx.routeUrl()?.apiPath }) }; return helpers.payload();',
+    'const helpers = { payload() { return { endpoint: ctx.routeUrl()?.apiPath }; } }; const alias = helpers; return alias["payload"]();',
+    'const helpers = { ["payload"]: value => ({ endpoint: value }) }; return helpers.payload(ctx.routeUrl()?.apiPath);',
+    'const values = [ctx.routeUrl()?.apiPath]; return values.splice(0, 1);',
+    'const values = ["safe", ctx.routeUrl()?.apiPath]; return values.splice(-1);'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'const helpers = { payload() { return { publicLink: ctx.routeUrl()?.absoluteUiPath }; } }; return helpers.payload();',
+    'return client.payload(ctx.routeUrl()?.apiPath);',
+    'const values = ["safe", ctx.routeUrl()?.apiPath]; return values.splice(0, 1);',
+    'const values = [ctx.routeUrl()?.apiPath]; return values.splice(0, 0);',
+    'const values = [ctx.routeUrl()?.apiPath]; return values.splice();'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});

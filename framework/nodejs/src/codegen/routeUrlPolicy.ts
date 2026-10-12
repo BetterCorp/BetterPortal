@@ -205,10 +205,14 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     const position = tree.getLineAndCharacterOfPosition(node.getStart(tree));
     errors.push({ file: `${file}:${position.line + 1}:${position.character + 1}`, message, severity: "error" });
   };
-  const resolveCallback = (expression: ts.Node | undefined, seen = new Set<string>()): ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration | undefined => {
+  const resolveCallback = (expression: ts.Node | undefined, seen = new Set<string>()): ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration | ts.MethodDeclaration | undefined => {
     if (!expression) return undefined;
-    if (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression) || ts.isFunctionDeclaration(expression)) return expression;
+    if (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression) || ts.isFunctionDeclaration(expression) || ts.isMethodDeclaration(expression)) return expression;
     if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return resolveCallback(expression.expression, seen);
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) {
+      const field = ts.isPropertyAccessExpression(expression) ? expression.name.text : (expression.argumentExpression as ts.StringLiteralLike).text;
+      return resolveCallback(selectedProperty(expression.expression, field), seen);
+    }
     if (!ts.isIdentifier(expression) || seen.has(expression.text)) return undefined;
     let scope: ts.Node | undefined = expression.parent;
     while (scope) {
@@ -351,7 +355,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       || ts.isSatisfiesExpression(expression) || ts.isTypeAssertionExpression(expression)) return selectedProperty(expression.expression, field, next);
     if (ts.isObjectLiteralExpression(expression)) {
       const property = expression.properties.find(item => item.name && propertyKey(item.name) === field);
-      return property && ts.isPropertyAssignment(property) ? property.initializer : property && ts.isShorthandPropertyAssignment(property) ? property.name : undefined;
+      return property && ts.isPropertyAssignment(property) ? property.initializer : property && ts.isShorthandPropertyAssignment(property) ? property.name : property && ts.isMethodDeclaration(property) ? property : undefined;
     }
     if (ts.isIdentifier(expression)) {
       let scope: ts.Node | undefined = expression.parent;
@@ -455,6 +459,19 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
             ? callbackInternal(callback, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
         }
         if (["toString", "valueOf", "join", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "normalize", "substring", "substr", "charAt", "at", "padStart", "padEnd", "repeat", "split"].includes(operation)) return internalValue(expression.expression.expression, seen);
+        if (operation === "splice") {
+          const values = arrayValues(expression.expression.expression);
+          const number = (value: ts.Expression | undefined): number | undefined => value && ts.isNumericLiteral(value) ? Number(value.text)
+            : value && ts.isPrefixUnaryExpression(value) && value.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(value.operand) ? -Number(value.operand.text) : undefined;
+          const start = number(expression.arguments[0]);
+          const count = number(expression.arguments[1]);
+          if (values && (start !== undefined || !expression.arguments.length) && (count !== undefined || expression.arguments.length < 2)) {
+            const index = Math.max(0, Math.min(values.length, start === undefined ? 0 : start < 0 ? values.length + start : start));
+            const removed = !expression.arguments.length ? [] : values.slice(index, expression.arguments.length === 1 ? values.length : index + Math.max(0, count!));
+            return removed.some(value => internalValue(value, seen));
+          }
+          return internalValue(expression.expression.expression, seen);
+        }
         if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat", "find", "findLast", "pop", "shift"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
         if (["with", "toSpliced"].includes(operation)) return internalValue(expression.expression.expression, seen)
