@@ -660,6 +660,7 @@ function reconcilePreviewDeploymentFromCache(config: BetterPortalConfig, deploym
 function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: string, manifest: PreviewManifest): void {
   const existing = app.routes.filter((route) => route.serviceId === serviceInstanceId);
   const desired: BetterPortalRouteMount[] = [];
+  const repaired = new Set<string>();
   for (const view of Object.values(manifest.viewIndex)) {
     const pageOperations = view.operations.filter((operation) =>
       operation.method === "GET" && operation.renderable && operation.renderModes.includes("page")
@@ -680,10 +681,7 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
         const generatedPath = kind === "page" ? pageRoutePath(manifest.serviceId, servicePath) : apiRoutePath(manifest.serviceId, servicePath);
         const validPrevious = previous && mountSuppliesServiceParams(previous.path, servicePath, previous.fixedParams);
         const path = kind === "page" && validPrevious ? previous.path : generatedPath;
-        if (previous && path !== previous.path && [...app.routes, ...desired].some(route => route.id !== previous.id
-          && (route.kind ?? "page") === kind && appRoutePatternKey(route.path) === appRoutePatternKey(path))) {
-          throw new PreviewEnvironmentError(`Cannot repair preview route ${previous.viewId}: UI path ${path} is already mounted`, 409);
-        }
+        if (previous && path !== previous.path) repaired.add(previous.id);
         desired.push({
           ...(previous ? structuredClone(previous) : {
             id: uuidv7(),
@@ -709,6 +707,15 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
           operations: operations.map((candidate) => candidate.operationId)
         });
       }
+    }
+  }
+  // Check the final set: retired mounts must not block a repair, while surviving
+  // mounts (including disabled routes) and repairs in this pass still reserve paths.
+  const finalRoutes = [...app.routes.filter(route => route.serviceId !== serviceInstanceId), ...desired];
+  for (const route of desired.filter(route => repaired.has(route.id))) {
+    if (finalRoutes.some(other => other.id !== route.id && (other.kind ?? "page") === route.kind
+      && appRoutePatternKey(other.path) === appRoutePatternKey(route.path))) {
+      throw new PreviewEnvironmentError(`Cannot repair preview route ${route.viewId}: UI path ${route.path} is already mounted`, 409);
     }
   }
   // Preserve route precedence: repeated sync must not move a service's routes to the end.
