@@ -144,10 +144,30 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     }
     return Boolean(current && ts.isArrowFunction(current) && !ts.isBlock(current.body) && belongsToHandler(current));
   };
+  const contextValue = (expression: ts.Node, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)
+      || ts.isNonNullExpression(expression) || ts.isSatisfiesExpression(expression)) return contextValue(expression.expression, seen);
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return contextValue(initializer, new Set([...seen, expression.text]));
+      if (ts.isFunctionLike(scope)) {
+        const index = scope.parameters.findIndex(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text);
+        if (index >= 0) return index === 0 && belongsToHandler(scope)
+          || index === 1 && rendererFunctions.has(scope)
+          || /(?:RouteHandlerContext|ViewRenderContext|HandlerContext)/.test(scope.parameters[index].type?.getText(tree) ?? "");
+      }
+      scope = scope.parent;
+    }
+    return ["ctx", "context"].includes(expression.text);
+  };
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl"
       || ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === "uiRouteUrl"
-      || ts.isBindingElement(node) && (node.propertyName ?? node.name).getText(tree).replace(/^["']|["']$/g, "") === "uiRouteUrl") {
+      || ts.isBindingElement(node) && (node.propertyName ?? node.name).getText(tree).replace(/^["']|["']$/g, "") === "uiRouteUrl"
+        && ts.isObjectBindingPattern(node.parent) && ts.isVariableDeclaration(node.parent.parent)
+        && !!node.parent.parent.initializer && contextValue(node.parent.parent.initializer)) {
       report(node, "uiRouteUrl was removed. Use ctx.routeUrl({ ... }) and select uiPath or absoluteUiPath.");
     }
     if (ts.isPropertyAccessExpression(node) && ["route", "uiRoute", "current", "path"].includes(node.name.text)

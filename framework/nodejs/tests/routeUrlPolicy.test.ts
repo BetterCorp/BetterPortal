@@ -129,3 +129,20 @@ test("direct and mapped handler responses reject internal destinations without r
     'export default createHandler({}, ctx => { return { publicLink: ctx.routeUrl()?.absoluteUiPath }; });'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("destructured removed helpers trace handler/render contexts and leave provider models alone", () => {
+  for (const source of [
+    'const { uiRouteUrl } = providerConfig;',
+    'const { uiRouteUrl: providerLink } = providerConfig;',
+    'const model = providerConfig; const { uiRouteUrl } = model;',
+    'export default createHandler({}, ctx => { const model = providerConfig; const { uiRouteUrl } = model; return { value: uiRouteUrl }; });',
+    'function provider(ctx) { const { uiRouteUrl } = ctx; return uiRouteUrl; }'
+  ]) assert.deepEqual(inspectRouteUrlSource("bp-routes/users/GET.ts", source), [], source);
+  for (const source of [
+    'export default createHandler({}, request => { const { uiRouteUrl } = request; return uiRouteUrl("users"); });',
+    'export default createHandler({}, request => { const alias = request as any; const { uiRouteUrl: link } = alias; return link("users"); });',
+    'export function handler(request) { const { uiRouteUrl } = request; return uiRouteUrl("users"); }'
+  ]) assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", source).length, source);
+  assert.ok(inspectRouteUrlSource("bp-routes/users/_renderer.bootstrap5/GET.tsx", 'export function render(data, view) { const alias = view; const { uiRouteUrl } = alias; return uiRouteUrl("users"); }').length);
+});
