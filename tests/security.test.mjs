@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { loadNycConfig } from "@istanbuljs/load-nyc-config";
 import test from "node:test";
 import uri from "fast-uri";
 import serialize from "serialize-javascript";
@@ -55,4 +58,17 @@ test("locked dependencies retain patched versions for the advisory groups", () =
       (actual[1] > minimum[1] || (actual[1] === minimum[1] && actual[2] >= minimum[2]))),
     `${name}@${version} is below the patched version ${minimum.join(".")}`);
   }
+});
+
+
+test("coverage still loads YAML configuration with the maintained parser", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "bp-nyc-yaml-"));
+  try {
+    writeFileSync(join(directory, "package.json"), JSON.stringify({ name: "coverage-fixture" }));
+    writeFileSync(join(directory, ".nycrc.yml"), 'all: true\ninclude:\n  - "src/**/*.ts"\nreporter:\n  - text\n');
+    const nycConfig = await loadNycConfig({ cwd: directory });
+    assert.equal(nycConfig.all, true);
+    assert.deepEqual(nycConfig.include, ["src/**/*.ts"]);
+    assert.deepEqual(nycConfig.reporter, ["text"]);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
