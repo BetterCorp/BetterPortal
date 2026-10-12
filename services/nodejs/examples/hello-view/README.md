@@ -41,3 +41,5 @@ Array element selection retains destination provenance. Explicit string-typed re
 Array destructuring retains element provenance, including aliases and rest values. Character selection from route strings is scalar state; selecting a complete path from an array remains an internal destination.
 
 A dependency mount without a resolved service path cannot identify a service endpoint, so resolution returns null rather than guessing or throwing.
+
+Prebuild and generation both inspect configured `betterportal.routes` and `betterportal.shells` folders, including locations outside `src`, as well as default source helpers. Nested roots are deduplicated.

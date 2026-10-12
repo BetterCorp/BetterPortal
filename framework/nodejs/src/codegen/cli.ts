@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { scanRoutes } from "./scanner.js";
 import { emitRegistry, emitRouteRuntime } from "./emitter.js";
-import { checkProjectRouteUrls } from "./routeUrlPolicy.js";
+import { checkConfiguredRouteUrls } from "./routeUrlPolicy.js";
 import { validateScanResult } from "./validate.js";
 
 interface BetterPortalConfig {
@@ -60,7 +60,7 @@ function run(): void {
     process.exit(1);
   }
 
-  const urlErrors = checkProjectRouteUrls(path.join(packageDir, "src"));
+  const urlErrors = checkConfiguredRouteUrls(packageDir, config);
   if (urlErrors.length) {
     for (const error of urlErrors) console.error(`[bp-codegen] ERROR: ${error.file}: ${error.message}`);
     process.exit(1);
