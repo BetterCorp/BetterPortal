@@ -171,6 +171,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAccessExpression(expression)) return internalPaths.has(expression.name.text) && internalValue(expression.expression);
     if (ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) return internalPaths.has(expression.argumentExpression.text) && internalValue(expression.expression);
     if (ts.isNewExpression(expression)) return isGlobal(expression.expression, "Array") || isGlobal(expression.expression, "String");
+    if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && ["trim", "trimStart", "trimEnd", "replace", "replaceAll", "toLowerCase", "toUpperCase", "normalize", "substring", "substr", "padStart", "padEnd", "repeat", "split", "slice", "filter", "map", "flatMap"].includes(expression.expression.name.text)) return hasScalarLength(expression.expression.expression, seen);
     if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Promise") && expression.expression.name.text === "resolve") return !!expression.arguments[0] && hasScalarLength(expression.arguments[0], seen);
     if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
     let scope: ts.Node | undefined = expression.parent;
@@ -290,7 +291,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       if (ts.isPropertyAccessExpression(expression.expression)) {
         const operation = expression.expression.name.text;
-        if (["toString", "valueOf", "join"].includes(operation)) return internalValue(expression.expression.expression, seen);
+        if (["toString", "valueOf", "join", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "normalize", "substring", "substr", "charAt", "at", "padStart", "padEnd", "repeat", "split"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
         if (["with", "toSpliced"].includes(operation)) return internalValue(expression.expression.expression, seen)
@@ -350,7 +351,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     : ts.isPropertyAccessExpression(expression) ? factoryNames.has(expression.name.text) && factoryImport(expression.expression, true, seen)
       || expression.name.text === "forContext" && factory(expression.expression, seen)
         : ts.isCallExpression(expression) ? factory(expression.expression, seen) : false;
-  const routeHandlerFile = /(?:^|[/])bp-routes[/](?:.*[/])?(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|SSE|STREAM)\.tsx?$/.test(file.replace(/\\/g, "/"));
+  const routeHandlerFile = /(?:^|[/])bp-routes[/](?:.*[/])?(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|SSE|STREAM)\.(?:[cm]?ts|tsx)$/.test(file.replace(/\\/g, "/"));
   const isReturnedValue = (node: ts.Node): boolean => {
     let current = node.parent;
     while (current && !ts.isFunctionLike(current)) {
@@ -556,6 +557,6 @@ export function checkProjectRouteUrls(directory: string): RouteUrlPolicyError[] 
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     if ((entry.name.startsWith(".") && entry.name !== ".well-known") || entry.name === "node_modules") return [];
     const file = path.join(directory, entry.name);
-    return entry.isDirectory() ? checkProjectRouteUrls(file) : /\.tsx?$/.test(file) ? inspectRouteUrlSource(file, fs.readFileSync(file, "utf8")) : [];
+    return entry.isDirectory() ? checkProjectRouteUrls(file) : /\.(?:[cm]?ts|tsx)$/.test(file) ? inspectRouteUrlSource(file, fs.readFileSync(file, "utf8")) : [];
   });
 }

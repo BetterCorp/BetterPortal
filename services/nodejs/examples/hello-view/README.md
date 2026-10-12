@@ -31,3 +31,5 @@ HTML/HTMX forms select `absoluteViewPath`; JSON requests select `absoluteApiPath
 Returned local response factories and immediately invoked helpers receive the same URL payload checks. String/array lengths and standard collection sizes are derived scalar state and remain valid API response data.
 
 Named response callbacks retain the provenance of caller-supplied parameters, including Array.from/map inputs and fulfilled promise values. Local response helpers follow passed handler contexts too; scalar state and opaque domain-client results remain valid.
+
+`sse: true` resolves only a known registered GET SSE/finite-stream endpoint on the current service. Ordinary routes, non-GET methods and dependency mounts without streaming capability return null instead of a guessed stream URL.

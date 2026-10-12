@@ -107,6 +107,7 @@ class Urls:
         self._hosts = tuple(scope.app["hostnames"])
         self._aliases = dict(registry.dependencies) if registry is not None else {}
         self._routes = {route.view_id: (route.paths, {op.declaration["method"] for op in route.operations}) for route in registry.routes} if registry is not None else {}
+        self._sse_views = {route.view_id for route in registry.routes if route.has_sse} if registry is not None else set()
         self._service_id, self._path = service_id, path
         self._app_origin = None
         allowed = {origin for host in self._hosts for origin in _origins(host)}
@@ -151,6 +152,7 @@ class Urls:
         ids, own = self._ids(target), self._ids(self._service_id)
         if not ids or self_target and ids != own: return None
         method = opts.get("method", method if self_target else "GET")
+        if opts["sse"] and (method != "GET" or ids != own or len(ids) != 1): return None
         parameters = {**(params if self_target else {}), **opts["params"]}
         embedded: dict[str, Any] = {}
         for name, value in parse_qsl(urlsplit(opts.get("path", "")).query, keep_blank_values=True):
@@ -206,7 +208,7 @@ class Urls:
             unique = {(mount["serviceId"], value): (mount, value) for mount, value in targets}
             if len(unique) != 1: return None
             mount, path = next(iter(unique.values())); target, view_id = mount["serviceId"], mount["viewId"]
-        if path is None: return None
+        if path is None or opts["sse"] and view_id not in self._sse_views: return None
         pages = set()
         if method == "GET" and not any(opts.get(key) for key in ("sse", "component", "fragment")):
             for mount in self._mounts:

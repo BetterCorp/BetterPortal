@@ -1080,3 +1080,5 @@ Callbacks receive safe presentation fields, scoped service `config`, `urls`,
 BP element attributes for service fragments or shell chrome; its child HTML is
 trusted application output. Shell fragment endpoints require this service to be
 the active shell for the resolved app, with normal origin restrictions.
+
+`sse: true` resolves only a known registered GET SSE/finite-stream endpoint on the current service. Ordinary routes, non-GET methods and dependency mounts without streaming capability return null instead of a guessed stream URL.
