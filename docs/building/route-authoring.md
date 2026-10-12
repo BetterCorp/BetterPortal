@@ -368,3 +368,5 @@ has access. Explicit alternatives are **Always show**, **Only signed out**,
 at least one named role, and parent group conditions also apply to descendants.
 An explicit **Always show** choice remains an override of automatic visibility.
 Menu visibility does not replace service-side authorization.
+
+The authoring gate checks response-producing promise continuations as well as synchronous returns. Framework auth redirect helpers are identified by their imports and aliases; unrelated provider helpers may use the same name. Keep internal destinations out of these API response paths and resolve them in the view.

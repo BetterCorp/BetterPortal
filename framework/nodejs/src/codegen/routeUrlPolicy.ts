@@ -179,7 +179,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAccessExpression(expression) && expression.name.text === "absoluteUiPath"
       || ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === "absoluteUiPath") return false;
     if (ts.isPropertyAccessExpression(expression) && internalPaths.has(expression.name.text)) return internalValue(expression.expression, seen);
-    if (ts.isCallExpression(expression) && (ts.isIdentifier(expression.expression) && expression.expression.text === "resolveAppAuthRedirect"
+    if (ts.isCallExpression(expression) && (authRedirectFunction(expression.expression)
       || isResolverFunction(expression.expression))) return true;
     if (ts.isPropertyAccessExpression(expression)) return internalValue(expression.expression, seen);
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
@@ -217,6 +217,22 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
         if (["with", "toSpliced"].includes(operation)) return internalValue(expression.expression.expression, seen)
           || expression.arguments.slice(operation === "with" ? 1 : 2).some(argument => internalValue(argument, seen));
+      }
+      if (ts.isPropertyAccessExpression(expression.expression) && ["then", "catch", "finally"].includes(expression.expression.name.text)) {
+        const operation = expression.expression.name.text;
+        if (operation === "finally") return internalValue(expression.expression.expression, seen);
+        for (const callback of expression.arguments) {
+          if (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback)) continue;
+          if (!ts.isBlock(callback.body)) { if (internalValue(callback.body, seen)) return true; continue; }
+          let internal = false;
+          const returned = (node: ts.Node): void => {
+            if (node !== callback.body && ts.isFunctionLike(node)) return;
+            if (ts.isReturnStatement(node) && node.expression && internalValue(node.expression, seen)) internal = true;
+            ts.forEachChild(node, returned);
+          };
+          returned(callback.body); if (internal) return true;
+        }
+        return (operation === "catch" || !expression.arguments[0]) && internalValue(expression.expression.expression, seen);
       }
       if (isResponseConstructor(expression.expression)) return !!expression.arguments[0] && internalValue(expression.arguments[0], seen);
       if (ts.isPropertyAccessExpression(expression.expression) && ["map", "flatMap"].includes(expression.expression.name.text)) {
@@ -301,7 +317,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (!ts.isCallExpression(parent)) return false;
     const callee = parent.expression;
     // A callback contributes to the response only when its call result is returned.
-    return ts.isPropertyAccessExpression(callee) && ["map", "flatMap", "transaction"].includes(callee.name.text)
+    return ts.isPropertyAccessExpression(callee) && ["map", "flatMap", "transaction", "then", "catch"].includes(callee.name.text)
       && isReturnedValue(parent) && belongsToHandler(parent.parent);
   };
   const inReturnedObject = (node: ts.Node): boolean => {
@@ -346,6 +362,31 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       scope = scope.parent;
     }
     return false;
+  };
+  const authRedirectHelpers = new Set<string>();
+  const authRedirectNamespaces = new Set<string>();
+  for (const statement of tree.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)
+      || !/^@betterportal\/framework(?:\/|$)/.test(statement.moduleSpecifier.text) || statement.importClause?.isTypeOnly) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) authRedirectNamespaces.add(bindings.name.text);
+    if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements)
+      if (!binding.isTypeOnly && (binding.propertyName?.text ?? binding.name.text) === "resolveAppAuthRedirect") authRedirectHelpers.add(binding.name.text);
+  }
+  const authRedirectFunction = (expression: ts.Node, namespace = false, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return authRedirectFunction(expression.expression, namespace, seen);
+    if (ts.isPropertyAccessExpression(expression)) return expression.name.text === "resolveAppAuthRedirect" && authRedirectFunction(expression.expression, true, seen);
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return authRedirectFunction(initializer, namespace, new Set([...seen, expression.text]));
+      const selected = selections.get(scope)?.get(expression.text);
+      if (selected) return selected.field === "resolveAppAuthRedirect" && authRedirectFunction(selected.expression, true, new Set([...seen, expression.text]));
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return false;
+      scope = scope.parent;
+    }
+    return (namespace ? authRedirectNamespaces : authRedirectHelpers).has(expression.text) && isGlobal(expression, expression.text, true);
   };
   const jsonHelpers = new Set<string>();
   for (const statement of tree.statements) {

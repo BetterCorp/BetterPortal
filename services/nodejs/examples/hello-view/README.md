@@ -19,3 +19,5 @@ Import BP handler factories from `@betterportal/framework` or the generated `.bp
 For a request such as `?tag=a&tag=b`, `ctx.routeUrl()` preserves both tags; `ctx.routeUrl({ query: { tag: "latest" } })` replaces them. APIs can return domain cursors/filter state and leave the view to resolve navigation. Standard entry collections such as Map/Set must not forward internal destinations through serialization.
 
 Renderer selection uses the explicit `component` or `fragment` option. Reserved `_c`/`_f` keys in query input, supplied paths, or the current request are removed before resolution; only view destinations receive an explicit selector. API and mounted page destinations remain free of renderer selectors.
+
+The authoring gate checks response-producing promise continuations as well as synchronous returns. Framework auth redirect helpers are identified by their imports and aliases; unrelated provider helpers may use the same name. Keep internal destinations out of these API response paths and resolve them in the view.
