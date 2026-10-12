@@ -880,3 +880,19 @@ test("local recovery parameters preserve explicitly rejected reasons", () => {
   assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { const recover = failure => failure.catch(endpoint => ({ endpoint })); return recover(Promise.reject(ctx.routeUrl()?.apiPath)); }').length);
   assert.deepEqual(inspectRouteUrlSource(file, 'export function handler(ctx) { const recover = failure => failure.catch(() => ({ status: "failed" })); return recover(Promise.reject(ctx.routeUrl()?.apiPath)); }'), []);
 });
+
+
+test("static spreads expand before call apply and bound callback parameter mapping", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Promise.resolve(ctx.routeUrl()?.apiPath).then(((a, b, value) => ({ endpoint: value })).bind(null, ...["x", "y"]));',
+    'const payload = (first, value) => ({ endpoint: value }); return payload.apply(null, [...["safe"], ctx.routeUrl()?.apiPath]);',
+    'const payload = (first, value) => ({ endpoint: value }); return payload.call(...[null, "safe", ctx.routeUrl()?.apiPath]);',
+    'const helpers = { payload: ((first, value) => ({ endpoint: value })).bind(null, "safe") }; return Promise.resolve(ctx.routeUrl()?.apiPath).then(helpers.payload);'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'return Promise.resolve(ctx.routeUrl()?.apiPath).then(((first, value) => ({ endpoint: value })).bind(null, ...["x", "y"]));',
+    'const payload = first => ({ endpoint: first }); return payload.apply(null, [...["safe"], ctx.routeUrl()?.apiPath]);',
+    'const helpers = { payload: (value => ({ endpoint: value })).bind(null, "safe") }; return Promise.resolve(ctx.routeUrl()?.apiPath).then(helpers.payload);'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});

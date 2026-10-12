@@ -29,3 +29,5 @@ BP `ctx.response()` bodies participate in the same checks as `Response` and JSON
 The authoring gate follows explicitly rejected promise reasons into recovery callbacks and local response factories invoked through `call`, `apply` and `bind`. Recovery that returns domain data and factories that consume destinations without returning them remain valid. This source check covers recognized static patterns; it is not a proof of arbitrary JavaScript data flow.
 
 Bound callback arguments precede caller-supplied promise/collection inputs during source checks. Explicit rejection reasons also follow local recovery parameters, preserving safe recovery without overlooking returned destinations.
+
+Statically known spread arguments are expanded before call/apply/bind parameter mapping, including bound callbacks stored in known object fields.
