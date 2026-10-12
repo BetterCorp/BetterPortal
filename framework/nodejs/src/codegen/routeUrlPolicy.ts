@@ -171,6 +171,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAccessExpression(expression)) return internalPaths.has(expression.name.text) && internalValue(expression.expression);
     if (ts.isElementAccessExpression(expression) && ts.isStringLiteralLike(expression.argumentExpression)) return internalPaths.has(expression.argumentExpression.text) && internalValue(expression.expression);
     if (ts.isNewExpression(expression)) return isGlobal(expression.expression, "Array") || isGlobal(expression.expression, "String");
+    if (ts.isCallExpression(expression) && isGlobal(expression.expression, "String")) return true;
     if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && ["trim", "trimStart", "trimEnd", "replace", "replaceAll", "toLowerCase", "toUpperCase", "normalize", "substring", "substr", "padStart", "padEnd", "repeat", "split", "slice", "filter", "map", "flatMap"].includes(expression.expression.name.text)) return hasScalarLength(expression.expression.expression, seen);
     if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && isGlobal(expression.expression.expression, "Promise") && expression.expression.name.text === "resolve") return !!expression.arguments[0] && hasScalarLength(expression.arguments[0], seen);
     if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
@@ -291,6 +292,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       if (ts.isPropertyAccessExpression(expression.expression)) {
         const operation = expression.expression.name.text;
+        if (["replace", "replaceAll"].includes(operation) && hasScalarLength(expression.expression.expression)) {
+          const replacement = expression.arguments[1];
+          const callback = resolveCallback(replacement);
+          return internalValue(expression.expression.expression, seen) || (callback
+            ? callbackInternal(callback, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
+        }
         if (["toString", "valueOf", "join", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "replace", "replaceAll", "toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "normalize", "substring", "substr", "charAt", "at", "padStart", "padEnd", "repeat", "split"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (["filter", "slice", "sort", "reverse", "toSorted", "toReversed", "flat"].includes(operation)) return internalValue(expression.expression.expression, seen);
         if (operation === "concat") return internalValue(expression.expression.expression, seen) || expression.arguments.some(argument => internalValue(argument, seen));
@@ -299,6 +306,12 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       }
       if (ts.isPropertyAccessExpression(expression.expression) && ["then", "catch", "finally"].includes(expression.expression.name.text)) {
         const operation = expression.expression.name.text;
+        if (["replace", "replaceAll"].includes(operation) && hasScalarLength(expression.expression.expression)) {
+          const replacement = expression.arguments[1];
+          const callback = resolveCallback(replacement);
+          return internalValue(expression.expression.expression, seen) || (callback
+            ? callbackInternal(callback, seen, [expression.expression.expression]) : !!replacement && internalValue(replacement, seen));
+        }
         if (operation === "finally") return internalValue(expression.expression.expression, seen);
         for (const argument of expression.arguments) {
           const callback = resolveCallback(argument);
@@ -492,7 +505,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isIdentifier(expression)) return jsonHelpers.has(expression.text) && isGlobal(expression, expression.text, true);
     return ts.isPropertyAccessExpression(expression) && (isGlobal(expression.expression, "Response") && expression.name.text === "json"
       || isGlobal(expression.expression, "JSON") && ["stringify", "parse"].includes(expression.name.text)
-      || isGlobal(expression.expression, "Promise") && ["resolve", "all", "allSettled", "race"].includes(expression.name.text));
+      || isGlobal(expression.expression, "Promise") && ["resolve", "all", "allSettled", "race", "any"].includes(expression.name.text));
   };
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl" && contextValue(node.expression)

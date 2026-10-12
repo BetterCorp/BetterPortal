@@ -33,3 +33,5 @@ Returned local response factories and immediately invoked helpers receive the sa
 Named response callbacks retain the provenance of caller-supplied parameters, including Array.from/map inputs and fulfilled promise values. Local response helpers follow passed handler contexts too; scalar state and opaque domain-client results remain valid.
 
 `sse: true` resolves only a known registered GET SSE/finite-stream endpoint on the current service. Ordinary routes, non-GET methods and dependency mounts without streaming capability return null instead of a guessed stream URL.
+
+Embedded query values may contain raw question marks, for example `/items?q=what?x&next=/a?b`; the resolver preserves and encodes the complete values before applying query overrides.
