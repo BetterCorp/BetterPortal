@@ -11,14 +11,14 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
   return <section class="container-fluid px-0">
     <h1 class="h5">Incident queue</h1>
     <div class="bp-split-pane" data-bp-split-pane-key="incidents" data-bp-detail-open={data.active ? "true" : "false"}>
-      <div id="incident-queue" class="bp-split-pane__content" hx-get={ctx.url.route("incidents.index", { component: "queue" })} hx-trigger="incidents:changed from:body">
+      <div id="incident-queue" class="bp-split-pane__content" hx-get={ctx.routeUrl({ viewId: "incidents.index",  component: "queue" })?.absoluteViewPath} hx-trigger="incidents:changed from:body">
         {renderQueue(data, ctx)}
       </div>
       <aside id="incident-active" class="bp-split-pane__detail" aria-label="Selected incident">
         {renderActive(data, ctx)}
       </aside>
     </div>
-    <div hx-ext="sse" sse-connect={ctx.url.route("incidents.index", { sse: true, fragment: "body.live" })} sse-swap="message"></div>
+    <div hx-ext="sse" sse-connect={ctx.routeUrl({ viewId: "incidents.index",  sse: true, fragment: "body.live" })?.absoluteViewPath} sse-swap="message"></div>
   </section>;
 }
 ```
@@ -38,7 +38,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
       <td><button
         data-bp-detail-toggle
         data-bp-focus-key={`open-${incident.id}`}
-        hx-get={ctx.url.route("incidents.index", { component: "active", query: { incidentId: incident.id } })}
+        hx-get={ctx.routeUrl({ viewId: "incidents.index",  component: "active", query: { incidentId: incident.id } })?.absoluteViewPath}
         hx-target="#incident-active"
         hx-swap="outerHTML"
       >Open</button></td>
@@ -57,7 +57,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
     <button type="button" class="btn-close float-end" data-bp-detail-close aria-label="Close details"></button>
     <h2 class="h6">{data.active.id} - {data.active.title}</h2>
     <form
-      hx-post={ctx.url.route("incidents.index", { component: "active" })}
+      hx-post={ctx.routeUrl({ viewId: "incidents.index", method: "POST", component: "active" })?.absoluteViewPath}
       hx-target="#incident-active"
       hx-swap="outerHTML"
     >
@@ -107,10 +107,10 @@ The paired SSE renderer receives the normal server-populated view context:
 import type { HtmlRenderable, ViewRenderContext } from "@betterportal/framework";
 
 export function renderTick(data: IncidentEvent, ctx: ViewRenderContext): HtmlRenderable {
-  const detailUrl = ctx.url.route("incidents.index", {
+  const detailUrl = ctx.routeUrl({ viewId: "incidents.index",
     component: "incident-detail",
     query: { incidentId: data.id }
-  });
+  })?.absoluteViewPath;
   return <tr id={`incident-row-${data.id}`} data-detail-url={detailUrl ?? ""} hx-swap-oob="outerHTML"></tr>;
 }
 ```

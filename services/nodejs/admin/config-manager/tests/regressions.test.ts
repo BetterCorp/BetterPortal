@@ -5,7 +5,15 @@ import { registerWebhookRoutes } from "../src/plugins/service-betterportal-confi
 import { Plugin as ConfigManagerPlugin } from "../src/plugins/service-betterportal-config-manager/index.js";
 import { test } from "node:test";
 import * as av from "anyvali";
-import { BetterPortalConfigSchema, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue } from "@betterportal/framework";
+import { BetterPortalConfigSchema, ScopedAppSchema, resolveAppServiceOrigins, generateKeyPair, publicKeyToJwk, uuidv7, type BetterPortalConfig, type JsonValue, type ViewRenderContext } from "@betterportal/framework";
+const managementViewContext = {
+  routeUrl: (input: { path?: string; query?: Record<string, string> }) => {
+    const url = new URL(input.path ?? "/", "https://config.example");
+    for (const [key, value] of Object.entries(input.query ?? {})) url.searchParams.set(key, value);
+    return { absoluteViewPath: url.toString() };
+  }
+} as unknown as ViewRenderContext;
+
 import { groupVisualRoutes, render as renderRoutes } from "../src/plugins/service-betterportal-config-manager/bp-routes/routes/_renderer.bootstrap5/GET.js";
 import { apiRoutePath, appRoutePatternKey } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { applyVerifiedServiceOrigin, registerSetupEndpoints, servicePluginIdsMatch } from "../src/plugins/service-betterportal-config-manager/setupTokens.js";
@@ -1562,9 +1570,8 @@ test("tenant edit script targets the active checkbox, not its hidden fallback", 
     apps: [],
     shellServices: [],
     authServices: [],
-    adminApiBase: "/.well-known/bp/admin",
-    tenantsPath: "/tenants"
-  }));
+    adminApiBase: "/.well-known/bp/admin"
+  }, managementViewContext));
   assert.match(html, /input\[type=checkbox\]\[name=active\]/);
   assert.match(html, /name="afterLoginServiceId"/);
   assert.match(html, /name="afterLogoutViewId"/);
@@ -2150,7 +2157,6 @@ test("standalone preview API authenticates and upserts deployments by POST", asy
 test("preview environment editor keeps config crypto in the browser", () => {
   const data: Parameters<typeof renderPreviewEnvironments>[0] = {
     title: "Preview Environments",
-    previewPath: "/preview-environments",
     deploymentApiBase: "/api/preview-groups",
     configTicketUrl: "https://config.example/.well-known/bp/admin/config-ticket",
     sourceTenants: [],
@@ -2194,8 +2200,8 @@ test("preview environment editor keeps config crypto in the browser", () => {
     }],
     issuedCredentials: []
   };
-  const page = String(renderPreviewEnvironments(data));
-  const html = String(renderPreviewConfigEditor(data));
+  const page = String(renderPreviewEnvironments(data, managementViewContext));
+  const html = String(renderPreviewConfigEditor(data, managementViewContext));
   assert.match(page, /name="elevatedRoleIds"/);
   assert.match(page, /admin\nstaff\nclient/);
   assert.match(page, /_c=config&amp;groupId=/);

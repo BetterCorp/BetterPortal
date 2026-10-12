@@ -33,7 +33,6 @@ export const ResponseSchema = av.object({
   alreadyLoggedIn: av.optional(av.bool()),
   loggedOut: av.optional(av.bool()),
   signedIn: av.optional(av.bool()),
-  nextUrl: av.optional(av.string()),
   user: av.optional(av.object({
     id: av.optional(av.string()),
     name: av.optional(av.string()),
@@ -74,12 +73,11 @@ export default createHandler(
         message: "Signed out.",
         loginUI: config?.loginUI ?? "default",
         loggedOut: true,
-        nextUrl: resolveAppAuthRedirect(ctx, "afterLogout")
       };
     }
 
     if (!config) {
-      return { status: "error" as const, message: "WorkOS config is missing clientId or apiKey.", loginUI: "default" as const, nextUrl };
+      return { status: "error" as const, message: "WorkOS config is missing clientId or apiKey.", loginUI: "default" as const };
     }
 
     if (query.error) {
@@ -87,7 +85,6 @@ export default createHandler(
         status: "error" as const,
         message: query.error_description || query.error,
         loginUI: config.loginUI ?? "default",
-        nextUrl
       };
     }
 
@@ -139,7 +136,6 @@ export default createHandler(
           message: "Signed in.",
           loginUI: config.loginUI ?? "default",
           signedIn: true,
-          nextUrl,
           user: {
             id: auth.user.id,
             name: firstString(auth.user.name, [auth.user.firstName, auth.user.lastName].filter(Boolean).join(" ")),
@@ -149,7 +145,7 @@ export default createHandler(
         };
       } catch (error: any) {
         ctx.obs?.error(error);
-        return { status: "error" as const, message: `WorkOS sign in failed: ${(error as Error).message}`, loginUI: config.loginUI ?? "default", nextUrl };
+        return { status: "error" as const, message: `WorkOS sign in failed: ${(error as Error).message}`, loginUI: config.loginUI ?? "default" };
       }
     }
 
@@ -159,7 +155,6 @@ export default createHandler(
         message: "Already signed in.",
         loginUI: config.loginUI ?? "default",
         alreadyLoggedIn: true,
-        nextUrl,
         user: {
           id: ctx.user.sub,
           name: ctx.user.name,
@@ -169,16 +164,14 @@ export default createHandler(
       };
     }
 
-    const redirectUri =
-      ctx.uiRouteUrl?.("login.index", { absolute: true }) ??
-      ctx.routeUrl?.("login.index", { absolute: true }) ??
-      "/login";
+    const login = ctx.routeUrl?.({ path: "/login" });
+    const redirectUri = login?.absoluteUiPath ?? login?.absoluteViewPath;
+    if (!redirectUri) return { status: "error" as const, message: "The sign-in callback URL is unavailable.", loginUI: config.loginUI ?? "default" };
     return {
       status: "ok" as const,
       message: "Continue to WorkOS.",
       loginUI: config.loginUI ?? "default",
       authorizationUrl: ctx.plugin.getAuthorizationUrl(config, { redirectUri, state: nextUrl }),
-      nextUrl
     };
   }
 );

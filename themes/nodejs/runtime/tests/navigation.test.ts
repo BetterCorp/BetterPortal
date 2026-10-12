@@ -289,7 +289,7 @@ test("cancelling elevation leaves the session and submitted action untouched", a
   assert.deepEqual(errors, []);
 });
 
-const passwordLoginForm = '<form id="bp-login-form" hx-post="this" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="alice"><input name="password" value="password"><input name="next" value="/tools/dashboard"><button type="submit">Sign in</button></form><p id="bp-login-error" class="d-none"></p>';
+const passwordLoginForm = '<form id="bp-login-form" data-factor-endpoint="https://auth.test/account" hx-post="this" hx-swap="none" onsubmit="return window.bpLoginSubmit(event)"><input name="username" value="alice"><input name="password" value="password"><input name="next" value="/tools/dashboard"><button type="submit">Sign in</button></form><p id="bp-login-error" class="d-none"></p>';
 const loginJson = (route: Route, body: unknown, status = 200, headers = {}) => route.fulfill({ status, json: body, headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true", "access-control-expose-headers": "BP-SetHeader,HX-Trigger", ...headers } });
 
 for (const enroll of [false, true]) test(`password login completes ${enroll ? "factor enrollment" : "MFA"} before navigation with a shared auth origin`, async t => {
@@ -308,7 +308,7 @@ for (const enroll of [false, true]) test(`password login completes ${enroll ? "f
     if (request.method() === "POST") {
       logins++;
       assert.equal(new URLSearchParams(request.postData()!).get("next"), "/tools/dashboard");
-      return loginJson(route, { status: "ok", accountUrl: "https://auth.test/account", challenge: { id: "login-ticket", secret: "login-proof", methods: ["totp"], enroll, ...(enroll ? { totpSecret: "enrollment-secret" } : {}) } });
+      return loginJson(route, { status: "ok", challenge: { id: "login-ticket", secret: "login-proof", methods: ["totp"], enroll, ...(enroll ? { totpSecret: "enrollment-secret" } : {}) } });
     }
     return html(route, passwordLoginForm);
   }, {}, "https://auth.test/login", "/auth/login", true);
@@ -342,7 +342,7 @@ test("cancelled or rejected login verification stays on the form without storing
   const { page, errors } = await shell(t, route => {
     if (route.request().url().endsWith("/dashboard")) { dashboards++; return html(route, "Unexpected navigation"); }
     if (route.request().url().endsWith("/account")) { completions++; return loginJson(route, { status: "error", message: "Invalid verification code." }, 403); }
-    if (route.request().method() === "POST") return loginJson(route, { status: "ok", accountUrl: "/account", challenge: { id: "ticket", secret: "proof", methods: ["recovery"] } });
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok", challenge: { id: "ticket", secret: "proof", methods: ["recovery"] } });
     return html(route, passwordLoginForm);
   }, {}, "https://auth.test/login", "/auth/login");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -377,11 +377,11 @@ test("login challenges cannot send verification proof to another installed servi
   let otherRequests = 0;
   const { page, errors } = await shell(t, route => {
     if (new URL(route.request().url()).origin === "https://service.test") { otherRequests++; return loginJson(route, { status: "ok" }); }
-    if (route.request().method() === "POST") return loginJson(route, { status: "ok", accountUrl: "https://service.test/account", challenge: { id: "ticket", secret: "proof", methods: ["totp"] } });
-    return html(route, passwordLoginForm);
+    if (route.request().method() === "POST") return loginJson(route, { status: "ok", challenge: { id: "ticket", secret: "proof", methods: ["totp"] } });
+    return html(route, passwordLoginForm.replace("https://auth.test/account", "https://service.test/account"));
   }, {}, "https://auth.test/login", "/auth/login");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.locator("#bp-login-error").getByText("The auth service returned an invalid verification endpoint.").waitFor();
+  await page.locator("#bp-login-error").getByText("The login view has an invalid verification endpoint.").waitFor();
   assert.equal(otherRequests, 0); assert.equal(await page.locator("dialog").count(), 0); assert.deepEqual(errors, []);
 });
 
@@ -413,7 +413,7 @@ test("generated JSX anchors preserve mounted queries and Back/Forward across ori
     import type { ResponseData } from "../GET.js";
     export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
       if (data.detail) return <p id="call-detail">Call 42</p>;
-      return <a id="call-link" href={ctx.url.route("archive.call", { query: { id: "call 42" } }) ?? undefined}>Call 42</a>;
+      return <a id="call-link" href={ctx.routeUrl({ viewId: "archive.call", query: { id: "call 42" } })?.uiPath ?? undefined}>Call 42</a>;
     }
   `);
   const scanned = scanRoutes(root);
@@ -616,5 +616,34 @@ test("shared-origin history replay keeps credentials scoped to the matched servi
   await page.waitForSelector("#replayed");
   assert.equal(authorization, "Bearer other-service");
   assert.equal(wrongScope, undefined);
+  assert.deepEqual(errors, []);
+});
+
+
+for (const metadata of [true, false]) test(`service base prefixes survive template navigation and history (${metadata ? "base metadata" : "request URL fallback"})`, async t => {
+  const requests: string[] = [];
+  let reports = 0;
+  const { page, errors } = await shell(t, route => {
+    requests.push(new URL(route.request().url()).pathname);
+    if (route.request().url().includes("/prefix/reports/1")) return html(route, `<p id="report">Report ${++reports}</p>`);
+    return html(route, '<a id="report-link" href="/preview/reports/1?tab=rows">Report</a>');
+  }, {}, "https://service.test/prefix/dashboard", "/tools/dashboard", false, [
+    { href: "/preview/reports/:id", servicePath: "/reports/:id", serviceId: "service", kind: "page", methods: ["GET"],
+      ...(metadata ? { serviceBaseUrl: "https://service.test/prefix///" } : { requestUrl: "https://service.test/prefix/reports/seed" }) }
+  ]);
+  await page.waitForSelector("#report-link");
+  assert.equal(await page.getAttribute("#report-link", "hx-get"), "https://service.test/prefix/reports/1?tab=rows");
+  const historyPath = await page.evaluate(() => {
+    const detail = { history: { path: "https://service.test/prefix/reports/1?tab=rows" } };
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update", { detail }));
+    return detail.history.path;
+  });
+  assert.equal(historyPath, "/preview/reports/1?tab=rows");
+  await page.locator("#report-link").click();
+  await page.waitForSelector("#report");
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent("htmx:before:history:restore", { cancelable: true, detail: { path: "/preview/reports/1?tab=rows" } })));
+  await page.waitForFunction(() => document.querySelector("#report")?.textContent === "Report 2");
+  assert.ok(requests.filter(path => path === "/prefix/reports/1").length >= 2);
+  assert.ok(!requests.includes("/reports/1"));
   assert.deepEqual(errors, []);
 });

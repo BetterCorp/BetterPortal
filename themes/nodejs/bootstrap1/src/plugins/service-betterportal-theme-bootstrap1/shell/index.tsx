@@ -17,6 +17,8 @@ export interface Bootstrap1RouteLink {
   title: string;
   href: string;
   requestUrl?: string;
+  /** Service endpoint base, including its deployment path prefix. */
+  serviceBaseUrl?: string;
   serviceId: string;
   active: boolean;
   error?: string;

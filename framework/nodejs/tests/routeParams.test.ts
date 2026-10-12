@@ -8,6 +8,7 @@ import {
   buildServiceViewUrl,
   resolveAppRoute,
   serviceBaseUrl,
+  safeServiceBaseUrl,
   type BetterPortalApp,
   type BetterPortalRegistry,
   type RegisteredRoute
@@ -204,4 +205,14 @@ test("static app routes win and fixed service params resolve without leaking pla
     buildServiceViewUrl({ hostname: "https://plans.example" }, { ...mounted, fixedParams: undefined }, "/plans"),
     null
   );
+});
+
+
+test("public service base metadata rejects credentials and URL payloads while preserving prefixes", () => {
+  for (const hostname of ["https://user:pass@plans.example/prefix", "https://user@plans.example", "https://:pass@plans.example", "javascript:alert(1)", "//plans.example", "invalid", "https://plans.example/?token=secret", "https://plans.example/#secret"]) {
+    assert.equal(safeServiceBaseUrl({ hostname }), undefined);
+    assert.equal(safeServiceBaseUrl({ endpointBaseUrl: hostname }), undefined);
+  }
+  assert.equal(safeServiceBaseUrl({ hostname: "https://plans.example/prefix/" }), "https://plans.example/prefix");
+  assert.equal(safeServiceBaseUrl({ endpointBaseUrl: "http://plans.example:8080/prefix" }), "http://plans.example:8080/prefix");
 });

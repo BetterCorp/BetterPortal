@@ -15,11 +15,11 @@ test("user management submits multiple and empty role arrays and preserves off-p
       return new Response(JSON.stringify({ message: "Saved." }), { headers: { "Content-Type": "application/json" } });
     } };`);
   await page.route("https://app.test/**", route => route.fulfill({ contentType: "text/html", body: "<!doctype html>" + toHtmlString(render({
-    endpoint: "https://auth.test/users", registration: "invite", roleIds: ["reader", "editor"], canManageDirectory: true,
+    registration: "invite", roleIds: ["reader", "editor"], canManageDirectory: true,
     users: [{ id: "alice", email: "alice@example.test", roles: ["reader"], effectiveRoles: ["reader"], enabled: true },
       { id: "root", username: "root", roles: ["*"], effectiveRoles: ["*"], protected: true, enabled: true }],
     groups: [{ id: "team", name: "Team", members: ["alice", "off-page"], roles: ["reader"] }]
-  })) }));
+  }, { request: { query: {} }, routeUrl: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never)) }));
   await page.goto("https://app.test/users");
   const form = page.locator('form:has(input[name="action"][value="roles"])');
   assert.equal(await form.count(), 1);
@@ -46,4 +46,19 @@ test("user management submits multiple and empty role arrays and preserves off-p
   assert.deepEqual(payload.roles, ["reader", "editor"]);
   assert.deepEqual(errors, []);
   assert.equal(await page.getByRole("heading", { name: "User management" }).count(), 1);
+});
+
+
+test("closed registration stays in the users response and hides invitations", async () => {
+  const { default: users } = await import("../src/plugins/service-betterportal-auth-default/bp-routes/users/GET.js");
+  const tx = { failedMail: async () => [], page: async () => [], list: async () => [] };
+  const ctx = {
+    plugin: { runtime: { policy: async () => ({ registration: "closed", isolation: "app", allowedRoleIds: [] }),
+      identity: { storage: { mode: "json", transaction: async (_scope: unknown, callback: (value: typeof tx) => unknown) => callback(tx) } } } },
+    tenant: { id: "tenant" }, app: { id: "app" }, query: {}
+  };
+  const result = await users(ctx as never) as Record<string, unknown>;
+  assert.equal(result.registration, "closed");
+  const markup = toHtmlString(render(result, { request: { query: {} }, routeUrl: () => ({ absoluteApiPath: "https://auth.test/users" }) } as never));
+  assert.doesNotMatch(markup, /value="invite"/);
 });

@@ -219,13 +219,16 @@ Check a failed POST followed by menu navigation, Back/Forward, prefetched naviga
 
 ## Service route links
 
-Service HTML should use `{view.id}` tokens for service-owned links and HTMX paths:
+API handlers and renderers share `ctx.routeUrl(input?)`. Resolve a mounted page for navigation, or its service view destination for an explicit HTMX request:
 
-```html
-<a hx-get="{profile.summary}">Profile</a>
+```tsx
+const profile = ctx.routeUrl({ viewId: "profile.summary" });
+return profile?.uiPath
+  ? <a href={profile.uiPath} hx-get={profile.absoluteViewPath ?? profile.viewPath}>Profile</a>
+  : <span aria-disabled="true">Profile unavailable</span>;
 ```
 
-The framework rewrites those tokens to service route paths before sending HTML. Do not emit absolute service URLs from renderers.
+Use `apiPath`/`absoluteApiPath` for API requests and `absoluteUiPath` for public links. Omit the selector to resolve self. Literal route tokens were removed; internal URL payload fields and old helper calls fail builds.
 
 ### Auth-aware navigation
 

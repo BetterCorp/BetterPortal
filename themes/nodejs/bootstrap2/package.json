@@ -16,7 +16,8 @@
     "bp:contract": "bp run contract",
     "publish:bp": "bp publish",
     "prepublishOnly": "npm run build",
-    "publish:client": "bsb-client-cli publish"
+    "publish:client": "bsb-client-cli publish",
+    "prebuild": "bp run check-routes"
   },
   "keywords": [
     "betterportal",
@@ -28,7 +29,7 @@
   "license": "(AGPL-3.0-only OR Commercial)",
   "type": "module",
   "devDependencies": {
-    "@bsb/tests": "^9.7.3",
+    "@bsb/tests": "^9.7.4",
     "@types/node": "^26.5.1",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3"
@@ -37,7 +38,7 @@
     "@betterportal/framework": "10.6.35",
     "@betterportal/plugin-bsb": "10.6.35",
     "@betterportal/theme-runtime": "10.6.35",
-    "@bsb/base": "^9.7.3",
+    "@bsb/base": "^9.7.4",
     "anyvali": "^1.1.6",
     "bootstrap": "^5.3.8",
     "jsx-htmx": "4.0.100"

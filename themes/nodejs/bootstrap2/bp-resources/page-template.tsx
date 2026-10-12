@@ -8,7 +8,7 @@ export const render: RegisteredViewRenderer["render"] = (data, ctx: ViewRenderCo
         <h1 class="h5 mb-1">Work queue</h1>
         <p class="small text-body-secondary mb-0">Current operational items requiring attention.</p>
       </div>
-      <a class="btn btn-sm btn-primary" href={ctx.url.uiRoute("example.create") ?? "#"}>Create</a>
+      <a class="btn btn-sm btn-primary" href={ctx.routeUrl({ viewId: "example.create" })?.uiPath ?? undefined}>Create</a>
     </div>
 
     <div class="bp-split-pane" data-bp-detail-open="true">

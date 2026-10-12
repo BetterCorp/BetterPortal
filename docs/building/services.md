@@ -129,19 +129,22 @@ Runnable BetterPortal services are BSB plugins. They need `@bsb/base` at runtime
 ```json
 {
   "dependencies": {
-    "@bsb/base": "^9.6.86",
+    "@bsb/base": "^9.7.4",
+    "anyvali": "^1.1.6",
     "@betterportal/framework": "10.0.0",
     "@betterportal/plugin-bsb": "10.0.0"
   }
 }
 ```
 
+The repository baseline is BSB 9.7.4 and AnyVali 1.1.6 (npm, PyPI and NuGet). Python and .NET pin AnyVali 1.1.6; Node service/theme packages require at least those BSB and AnyVali releases.
+
 Packages that want the shared BSB plugin lifecycle checks add `@bsb/tests` as a dev dependency and keep the BSB CLI as the public test command:
 
 ```json
 {
   "devDependencies": {
-    "@bsb/tests": "^9.6.86"
+    "@bsb/tests": "^9.7.4"
   },
   "scripts": {
     "test": "bsb-plugin-cli test"

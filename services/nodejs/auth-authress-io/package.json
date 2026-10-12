@@ -16,7 +16,8 @@
     "bp:gen": "bp run gen",
     "bp:types": "bp run types",
     "bp:contract": "bp run contract",
-    "publish:bp": "bp publish"
+    "publish:bp": "bp publish",
+    "prebuild": "bp run check-routes"
   },
   "keywords": [
     "betterportal",
@@ -37,7 +38,7 @@
     "@authress/sdk": "^3.2.280",
     "@betterportal/framework": "10.6.35",
     "@betterportal/plugin-bsb": "10.6.35",
-    "@bsb/base": "^9.7.3",
+    "@bsb/base": "^9.7.4",
     "anyvali": "^1.1.6",
     "jsonwebtoken": "^9.0.2",
     "jsx-htmx": "4.0.100"

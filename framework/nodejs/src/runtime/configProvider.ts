@@ -373,6 +373,15 @@ export function serviceBaseUrl(service: { hostname: string } | { endpointBaseUrl
   return url.slice(0, end);
 }
 
+/** Public shell metadata may contain only credential-free HTTP(S) service bases. */
+export function safeServiceBaseUrl(service: { hostname: string } | { endpointBaseUrl: string }): string | undefined {
+  try {
+    const parsed = new URL(serviceBaseUrl(service));
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) return undefined;
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch { return undefined; }
+}
+
 function splitRoutePath(pathname: string): string[] {
   return pathname.replace(/^\/+|\/+$/g, "").split("/").filter((segment) => segment.length > 0);
 }

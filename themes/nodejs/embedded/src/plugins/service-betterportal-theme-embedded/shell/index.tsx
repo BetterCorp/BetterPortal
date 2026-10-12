@@ -21,6 +21,8 @@ export interface EmbeddedRouteLink {
   id: string;
   href: string;
   requestUrl?: string;
+  /** Service endpoint base, including its deployment path prefix. */
+  serviceBaseUrl?: string;
   servicePath?: string;
   methods?: string[];
   fixedParams?: Record<string, string>;

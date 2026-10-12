@@ -16,7 +16,8 @@
     "bp:gen": "bp run gen",
     "bp:types": "bp run types",
     "bp:contract": "bp run contract",
-    "publish:bp": "bp publish"
+    "publish:bp": "bp publish",
+    "prebuild": "bp run check-routes"
   },
   "keywords": [
     "betterportal",
@@ -38,7 +39,7 @@
   "dependencies": {
     "@betterportal/framework": "10.6.35",
     "@betterportal/plugin-bsb": "10.6.35",
-    "@bsb/base": "^9.7.3",
+    "@bsb/base": "^9.7.4",
     "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^14.0.1",
     "anyvali": "^1.1.6",

@@ -2,7 +2,7 @@
 
 BetterPortal's shell runtime rewrites service-owned links so services can emit portable, root-relative HTML.
 
-Services should render internal navigation links only for mounted page routes. For a uniquely reversible static same-service mount, use inline renderer JSX such as `<a href={ctx.url.route("archive.call", { query: { id: c.id } }) ?? undefined}>{c.time}</a>`. This requires one enabled page mount and no collision with an existing app path. The shell uses literal/prefix matching and does not resolve parameter patterns or reject duplicate matches. Use inline `ctx.url.uiRoute(...)` for parameterized routes or non-unique reverse mappings; repair mounts if it returns null. API-only operations belong in form actions, `hx-*` requests, `fetch`, SSE, downloads, and callbacks. See the [complete renderer example](routes-and-views.md#inline-navigation-in-service-renderers), including unresolved routes and handler versus renderer helpers.
+Services render navigation links to enabled GET pages with `ctx.routeUrl({ viewId, params, query })?.uiPath`. The shell matches complete route templates, including encoded parameters, and rejects ambiguous destinations. A service-relative anchor such as `/batches/1` can map automatically to its unique mounted UI page. Unknown children are never appended to a parent mount. Resolve aliases explicitly with `mountId`; handle a null destination by disabling or omitting the link. API operations use `apiPath`/`absoluteApiPath`; explicit HTML requests use `viewPath`/`absoluteViewPath`. See the [complete renderer example](routes-and-views.md#inline-navigation-in-service-renderers).
 
 The normal design is one renderable route with both API handlers/schemas and HTML renderers. Create an API-only route only for a genuinely non-visual protocol endpoint. Never navigate the user to an API route or leave the browser displaying one; callbacks that run in the browser must redirect to a mounted page when finished.
 
@@ -76,7 +76,7 @@ data-bp-config="preload"
 | `rewrite=false` or `no-rewrite` | Leaves URLs untouched, but still allows preload unless disabled. |
 | `ignore` | Completely skips shell processing for this element. |
 
-`bp-service-id="<id>"` and `data-bp-service-id="<id>"` are shorthand for `data-bp-config="service=<id>"`. Use them when a specific element or subtree must issue requests directly to another service. For same-service contextual navigation with a uniquely reversible static mount, use the root-relative result of `ctx.url.route`. For parameterized paths, duplicate mounts, or service/app path collisions, use `ctx.url.uiRoute` and validate that it resolves uniquely. For a cross-service app link without a service wrapper, use `ctx.url.uiRoute(viewId, { serviceId: dependencyAlias })`.
+`bp-service-id="<id>"` and `data-bp-service-id="<id>"` are shorthand for `data-bp-config="service=<id>"`. Use them for subtrees that issue requests to another service. Resolve cross-service navigation with `ctx.routeUrl({ viewId, serviceId: dependencyAlias, params })?.uiPath`. Resolve HTMX HTML requests with its `absoluteViewPath`.
 
 ## Examples
 

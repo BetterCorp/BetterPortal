@@ -13,6 +13,7 @@ from .generated_types import RendererDeclaration, RendererDeclarationInput, View
 from .handler import RequestContext
 from .media import NotAcceptable
 from .urls import Urls
+from .generated_types import RouteUrlOptionsInput, ResolvedRouteUrl
 
 Result = TypeVar("Result")
 
@@ -21,6 +22,9 @@ Result = TypeVar("Result")
 class RenderContext:
     data: ViewRenderData
     urls: Urls
+
+    def route_url(self, input: RouteUrlOptionsInput | None = None) -> ResolvedRouteUrl | None:
+        return self.urls._resolve(input, self.request["method"], self.request["params"], self.request["query"])
 
     @property
     def tenant(self) -> ViewTenantContext: return self.data["tenant"]
@@ -62,7 +66,7 @@ class Renderer(Generic[Result]):
         value = self._render(data, context)
         if inspect.isawaitable(value): value = await value
         if not isinstance(value, str): raise TypeError("Renderers must return HTML strings")
-        return context.urls.rewrite(value)
+        return value
 
 
 def renderers(values: Iterable[Renderer[Result]]) -> tuple[Renderer[Result], ...]:
