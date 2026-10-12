@@ -1,6 +1,6 @@
 /** @jsxImportSource jsx-htmx */
 import { js } from "jsx-htmx";
-import type { HtmlRenderable } from "@betterportal/framework";
+import type { HtmlRenderable, HttpMethod, ViewRenderContext } from "@betterportal/framework";
 import type { ResponseData } from "../../../previewEnvironmentManagement.js";
 
 function pageScript(): HtmlRenderable {
@@ -464,7 +464,12 @@ export function configEditor(group: ResponseData["groups"][number], path: string
   );
 }
 
-export function render(data: ResponseData): HtmlRenderable {
+export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const destination = (method: HttpMethod, query: Record<string, string> = {}): string => {
+    const target = ctx.routeUrl({ path: "/preview-environments", method, query })?.absoluteViewPath;
+    if (!target) throw new Error("Preview action route is unavailable");
+    return target;
+  };
   return (
     <div class="container-fluid px-0">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
@@ -501,14 +506,14 @@ export function render(data: ResponseData): HtmlRenderable {
                   class="btn btn-sm btn-outline-secondary"
                   data-bs-toggle="collapse"
                   data-bs-target={`#bp-settings-${group.id}`}
-                  hx-get={`${data.previewPath}?_c=config&groupId=${encodeURIComponent(group.id)}`}
+                  hx-get={destination("GET", { _c: "config", groupId: group.id })}
                   hx-trigger={`click[!document.getElementById('bp-config-${group.id}').querySelector('form')]`}
                   hx-target={`#bp-config-${group.id}`}
                   hx-swap="innerHTML"
                 >Settings</button>
                 <button
                   class="btn btn-sm btn-outline-danger"
-                  hx-delete={`${data.previewPath}?entity=group&id=${encodeURIComponent(group.id)}`}
+                  hx-delete={destination("DELETE", { entity: "group", id: group.id })}
                   hx-confirm={`Delete ${group.name} and all of its previews?`}
                   hx-target="#bp-main"
                   hx-swap="innerHTML"
@@ -530,7 +535,7 @@ export function render(data: ResponseData): HtmlRenderable {
             <div class="collapse mb-4" id={`bp-new-${group.id}`}>
               <div class="border rounded p-3 bg-body-tertiary">
                 <h4 class="h6">Create preview manually</h4>
-                <form hx-post={data.previewPath} hx-target="#bp-main" hx-swap="innerHTML">
+                <form hx-post={destination("POST")} hx-target="#bp-main" hx-swap="innerHTML">
                   <input type="hidden" name="action" value="create-deployment" />
                   <input type="hidden" name="groupId" value={group.id} />
                   <div class="row g-3">
@@ -551,7 +556,7 @@ export function render(data: ResponseData): HtmlRenderable {
 
             <div class="collapse mb-4" id={`bp-settings-${group.id}`}>
               <div class="border rounded p-3">
-                <form hx-put={data.previewPath} hx-target="#bp-main" hx-swap="innerHTML">
+                <form hx-put={destination("PUT")} hx-target="#bp-main" hx-swap="innerHTML">
                   <input type="hidden" name="action" value="update-group" />
                   <input type="hidden" name="groupId" value={group.id} />
                   <div class="row g-3 mb-3">
@@ -567,7 +572,7 @@ export function render(data: ResponseData): HtmlRenderable {
                   <button class="btn btn-primary" type="submit">Save settings</button>
                 </form>
                 <hr />
-                <form hx-post={data.previewPath} hx-target="#bp-main" hx-swap="innerHTML">
+                <form hx-post={destination("POST")} hx-target="#bp-main" hx-swap="innerHTML">
                   <input type="hidden" name="action" value="rotate-key" />
                   <input type="hidden" name="groupId" value={group.id} />
                   <button class="btn btn-outline-warning" type="submit" hx-confirm="Rotate this group API key? Existing CI credentials will stop working.">Rotate API key</button>
@@ -586,7 +591,7 @@ export function render(data: ResponseData): HtmlRenderable {
                       <td><a href={deployment.hostname.startsWith("http") ? deployment.hostname : `https://${deployment.hostname}`} target="_blank" rel="noreferrer">{deployment.hostname}</a></td>
                       <td>{deployment.services.map((service) => <div class="small"><span class={`badge ${service.ready ? "text-bg-success" : "text-bg-warning"}`}>{service.status.state}</span> <span class="font-monospace">{service.serviceId}</span></div>)}</td>
                       <td>
-                        <form class="d-flex gap-2" hx-put={data.previewPath} hx-target="#bp-main" hx-swap="innerHTML">
+                        <form class="d-flex gap-2" hx-put={destination("PUT")} hx-target="#bp-main" hx-swap="innerHTML">
                           <input type="hidden" name="action" value="update-expiry" />
                           <input type="hidden" name="deploymentId" value={deployment.id} />
                           {expiryInput(deployment.expiresInDays, false, `Expiry for ${deployment.name}`)}
@@ -596,8 +601,8 @@ export function render(data: ResponseData): HtmlRenderable {
                       </td>
                       <td>
                         <button type="button" class="btn btn-sm btn-outline-secondary me-2" data-bs-toggle="offcanvas" data-bs-target="#bp-preview-debug"
-                          hx-get={`${data.previewPath}?_c=debug&deploymentId=${encodeURIComponent(deployment.id)}`} hx-target="#bp-preview-debug-body" hx-swap="innerHTML">Debug</button>
-                        <button class="btn btn-sm btn-outline-danger" hx-delete={`${data.previewPath}?entity=deployment&id=${encodeURIComponent(deployment.id)}`} hx-confirm={`Delete preview ${deployment.name}?`} hx-target="#bp-main" hx-swap="innerHTML">Delete</button>
+                          hx-get={destination("GET", { _c: "debug", deploymentId: deployment.id })} hx-target="#bp-preview-debug-body" hx-swap="innerHTML">Debug</button>
+                        <button class="btn btn-sm btn-outline-danger" hx-delete={destination("DELETE", { entity: "deployment", id: deployment.id })} hx-confirm={`Delete preview ${deployment.name}?`} hx-target="#bp-main" hx-swap="innerHTML">Delete</button>
                       </td>
                     </tr>
                   ))}</tbody>
@@ -618,7 +623,7 @@ export function render(data: ResponseData): HtmlRenderable {
           <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-          <form hx-post={data.previewPath} hx-target="#bp-main" hx-swap="innerHTML">
+          <form hx-post={destination("POST")} hx-target="#bp-main" hx-swap="innerHTML">
             <input type="hidden" name="action" value="create-group" />
             <div class="mb-3"><label class="form-label" for="bp-preview-group-name">Name</label><input id="bp-preview-group-name" class="form-control" name="name" maxlength="120" required /></div>
             <div class="mb-3">

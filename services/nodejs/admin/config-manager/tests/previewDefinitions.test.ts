@@ -289,5 +289,9 @@ test("BP schema file upload populates JSON before submission on desktop and mobi
     assert.equal(await form.locator('input[type=file]').evaluate((element: HTMLInputElement) => element.validity.valid), true);
     await page.close();
   }
-  assert.match(String(render(data)), /name="pluginIds"/);
+  assert.match(String(render(data, { routeUrl: (input: { path?: string; query?: Record<string, string> }) => {
+    const url = new URL(input.path ?? "/", "https://config.test");
+    for (const [key, value] of Object.entries(input.query ?? {})) url.searchParams.set(key, value);
+    return { absoluteViewPath: url.toString() };
+  } } as never)), /name="pluginIds"/);
 });

@@ -267,7 +267,7 @@ test("PVE readiness requires a persisted manifest, matching mounts and subsequen
 test("Debug loads on demand into its drawer without navigating or replacing the PVE list", async t => {
   const { config, deployment } = fixture();
   const group = config.previewEnvironmentGroups[0];
-  const data = ResponseSchema.parse({ ...demoScenarios[0].response, previewPath: "https://config.test/preview-environments", groups: [{
+  const data = ResponseSchema.parse({ ...demoScenarios[0].response, groups: [{
     ...group, sourceLabel: "Source", services: [], deployments: [{ ...deployment, ready: false,
       services: deployment.services.map(service => ({ ...service, ready: false, status: previewServiceStatus(config, deployment, service.instanceId) }))
     }]
@@ -288,7 +288,11 @@ test("Debug loads on demand into its drawer without navigating or replacing the 
       assert.equal(url.searchParams.get("deploymentId"), deployment.id);
       return route.fulfill({ contentType: "text/html", headers: { "access-control-allow-origin": "*" }, body: String(renderDebug({ diagnostics: buildPreviewDiagnostics(config, deployment.id) } as never)) });
     }
-    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'><style>${readFileSync(require.resolve("bootstrap/dist/css/bootstrap.min.css"), "utf8")}</style></head><body><div data-bp-shell-root data-bp-menu-health="false" data-bp-services='{"config":"https://config.test"}'><main id="bp-main" data-bp-service="config">${renderList(data)}</main></div><script>${readFileSync(require.resolve("bootstrap/dist/js/bootstrap.bundle.min.js"), "utf8")}</script><script>${runtime.body}</script></body></html>` });
+    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'><style>${readFileSync(require.resolve("bootstrap/dist/css/bootstrap.min.css"), "utf8")}</style></head><body><div data-bp-shell-root data-bp-menu-health="false" data-bp-services='{"config":"https://config.test"}'><main id="bp-main" data-bp-service="config">${renderList(data, { routeUrl: (input: { path?: string; query?: Record<string, string> }) => {
+      const url = new URL(input.path ?? "/", "https://config.test");
+      for (const [key, value] of Object.entries(input.query ?? {})) url.searchParams.set(key, value);
+      return { absoluteViewPath: url.toString() };
+    } } as never)}</main></div><script>${readFileSync(require.resolve("bootstrap/dist/js/bootstrap.bundle.min.js"), "utf8")}</script><script>${runtime.body}</script></body></html>` });
   });
   await page.goto("https://app.test/preview-environments");
   assert.equal(requests, 0);

@@ -4,7 +4,7 @@ import ts from "typescript";
 
 export interface RouteUrlPolicyError { file: string; message: string; severity: "error" }
 
-const legacyFields = new Set(["accountUrl", "loginUrl", "logoutUrl", "socialUrl", "firstAdminUrl", "nextUrl", "mailNextUrl", "sessionNextUrl"]);
+const legacyFields = new Set(["accountUrl", "loginUrl", "logoutUrl", "socialUrl", "firstAdminUrl", "nextUrl", "mailNextUrl", "sessionNextUrl", "previewPath", "tenantsPath"]);
 const internalPaths = new Set(["apiPath", "viewPath", "uiPath", "absoluteApiPath", "absoluteViewPath"]);
 
 /** Reject the old routing API and renderer-only URL payloads even in loosely typed source. */
@@ -12,6 +12,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const errors: RouteUrlPolicyError[] = [];
   const rendererFunctions = new Set<ts.Node>();
+  const declarations = new Map<ts.Node, Set<string>>();
   const selections = new Map<ts.Node, Map<string, { expression: ts.Expression; field: string; rest: boolean }>>();
   const initializers = new Map<ts.Node, Map<string, ts.Expression>>();
   const collect = (node: ts.Node): void => {
@@ -40,6 +41,19 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
         bindings.set(item.name.text, { expression: node.initializer, field: key.text, rest: !!item.dotDotDotToken });
       }
       selections.set(scope, bindings);
+    }
+    const declare = (name: string): void => {
+      let scope: ts.Node = node.parent;
+      while (!ts.isBlock(scope) && !ts.isSourceFile(scope)) scope = scope.parent;
+      const names = declarations.get(scope) ?? new Set<string>(); names.add(name); declarations.set(scope, names);
+    };
+    if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name) declare(node.name.text);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) declare(node.name.text);
+    if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly) {
+      if (node.importClause?.name) declare(node.importClause.name.text);
+      const bindings = node.importClause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) declare(bindings.name.text);
+      if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements) if (!binding.isTypeOnly) declare(binding.name.text);
     }
     ts.forEachChild(node, collect);
   };
@@ -213,18 +227,18 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       if (!binding.isTypeOnly && (binding.propertyName?.text ?? binding.name.text) === "jsonResponse") jsonHelpers.add(binding.name.text);
     }
   }
-  const isGlobal = (expression: ts.Expression, name: string): boolean => {
+  const isGlobal = (expression: ts.Expression, name: string, allowImport = false): boolean => {
     if (!ts.isIdentifier(expression) || expression.text !== name) return false;
     let scope: ts.Node | undefined = expression.parent;
     while (scope) {
-      if (initializers.get(scope)?.has(name) || selections.get(scope)?.has(name)) return false;
+      if (declarations.get(scope)?.has(name) && !(allowImport && ts.isSourceFile(scope)) || initializers.get(scope)?.has(name) || selections.get(scope)?.has(name)) return false;
       if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === name)) return false;
       scope = scope.parent;
     }
     return true;
   };
   const isResponseConstructor = (expression: ts.Expression): boolean => {
-    if (ts.isIdentifier(expression)) return jsonHelpers.has(expression.text) && isGlobal(expression, expression.text);
+    if (ts.isIdentifier(expression)) return jsonHelpers.has(expression.text) && isGlobal(expression, expression.text, true);
     return ts.isPropertyAccessExpression(expression) && (isGlobal(expression.expression, "Response") && expression.name.text === "json"
       || isGlobal(expression.expression, "JSON") && expression.name.text === "stringify"
       || isGlobal(expression.expression, "Promise") && ["resolve", "all", "allSettled", "race"].includes(expression.name.text));

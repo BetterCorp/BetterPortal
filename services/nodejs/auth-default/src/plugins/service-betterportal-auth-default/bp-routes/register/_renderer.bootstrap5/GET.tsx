@@ -39,7 +39,9 @@ function redirectStub(url: string, pushUrl: string, label: string): HtmlRenderab
   );
 }
 
-function renderForm(data: ResponseData): HtmlRenderable {
+function renderForm(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
+  const target = ctx.routeUrl({ path: "/register", method: "POST", query: { next: typeof ctx.request.query.next === "string" ? ctx.request.query.next : undefined } })?.absoluteApiPath;
+  if (!target) throw new Error("Registration action route is unavailable");
   return (
     <div class="container py-5" style="max-width: 420px;">
       <div class="card border-0 shadow-sm">
@@ -50,7 +52,7 @@ function renderForm(data: ResponseData): HtmlRenderable {
           </p>
           <form
             id="bp-register-form"
-            hx-post="this"
+            hx-post={target}
             hx-target="#bp-main"
             hx-swap="innerHTML"
           >
@@ -107,7 +109,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
 
   // POST validation error (rendered via the 400 status view) - form + message.
   if (data.status === "error") {
-    return renderForm(data);
+    return renderForm(data, ctx);
   }
 
   // GET with users already present - registrations are closed; bounce to login.
@@ -123,5 +125,5 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
   }
 
   // GET, zero users - the first-admin form.
-  return renderForm(data);
+  return renderForm(data, ctx);
 }

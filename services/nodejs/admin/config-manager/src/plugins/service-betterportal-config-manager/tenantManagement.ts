@@ -5,8 +5,7 @@ import {
   uuidv7,
   type DemoScenario,
   type BetterPortalRouteMount,
-  type CacheHints,
-  type RouteHandlerContext
+  type CacheHints
 } from "@betterportal/framework";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, AuthRoleAuthority, BetterPortalApp, BetterPortalConfig, BetterPortalThemeConfig } from "@betterportal/framework";
 import { readTenantPage, type DirectoryData } from "./appQueries.js";
@@ -87,7 +86,6 @@ export const ResponseSchema = av.object({
   shellServices: av.array(ShellServiceSchema).default([]),
   authServices: av.array(AuthServiceSchema).default([]),
   adminApiBase: av.string().minLength(1),
-  tenantsPath: av.string().minLength(1),
   serviceBaseUrl: av.optional(av.string())
 });
 export type ResponseData = Infer<typeof ResponseSchema>;
@@ -98,12 +96,12 @@ export const description = "Manage tenants and applications.";
 export const cacheHints: CacheHints = { ttlSeconds: 0, varyBy: ["accept", "origin"] };
 
 export const demoScenarios: DemoScenario<ResponseData>[] = [
-  { id: "default", title: "Default", response: { title: "Tenants & Apps", tenants: [], apps: [], shellServices: [], authServices: [], adminApiBase: "/.well-known/bp/admin", tenantsPath: "/tenants" } }
+  { id: "default", title: "Default", response: { title: "Tenants & Apps", tenants: [], apps: [], shellServices: [], authServices: [], adminApiBase: "/.well-known/bp/admin" } }
 ];
 
 export const handleGet = createHandler(
   { response: ResponseSchema },
-  (ctx) => buildResponseModel(tenantsPathFromContext(ctx))
+  () => buildResponseModel()
 );
 
 export const handlePost = createHandler(
@@ -115,7 +113,7 @@ export const handlePost = createHandler(
     } else {
       await createTenant(body);
     }
-    return buildResponseModel(tenantsPathFromContext(ctx));
+    return buildResponseModel();
   }
 );
 
@@ -128,7 +126,7 @@ export const handlePut = createHandler(
     } else {
       await updateTenant(body);
     }
-    return buildResponseModel(tenantsPathFromContext(ctx));
+    return buildResponseModel();
   }
 );
 
@@ -142,16 +140,11 @@ export const handleDelete = createHandler(
     } else {
       await deleteTenant(id);
     }
-    return buildResponseModel(tenantsPathFromContext(ctx));
+    return buildResponseModel();
   }
 );
 
-function tenantsPathFromContext(ctx: Pick<RouteHandlerContext, "routeUrl">): string {
-  return ctx.routeUrl?.({ path: "/tenants" })?.absoluteViewPath
-    ?? "/tenants";
-}
-
-async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseData> {
+async function buildResponseModel(): Promise<ResponseData> {
   const routeContext = getConfigManagerRouteContext();
   const config = routeContext.database ? await readTenantPage(routeContext.database)
     : visibleAdminConfig(await routeContext.storage.loadConfig());
@@ -197,7 +190,6 @@ async function buildResponseModel(tenantsPath = "/tenants"): Promise<ResponseDat
     shellServices: config.tenants.flatMap((tenant) => shellServicesForTenant(config, tenant.id)),
     authServices,
     adminApiBase: "/.well-known/bp/admin",
-    tenantsPath,
     serviceBaseUrl: routeContext.serviceBaseUrl
   };
 }

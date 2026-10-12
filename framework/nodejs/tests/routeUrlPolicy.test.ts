@@ -205,3 +205,14 @@ test("known JSON response constructors and promise wrappers preserve payload pro
     'import { jsonResponse as json } from "@betterportal/framework"; export function handler(ctx) { const json = client; return json({ endpoint: ctx.routeUrl()?.apiPath }); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("response constructor recognition respects imported and declared domain types", () => {
+  for (const source of [
+    'import { Response } from "provider"; export function handler(ctx) { return Response.json({ endpoint: ctx.routeUrl()?.apiPath }); }',
+    'import * as Promise from "provider"; export function handler(ctx) { return Promise.resolve({ endpoint: ctx.routeUrl()?.apiPath }); }',
+    'export function handler(ctx) { class Response { static json(input) { return client(input); } } return Response.json({ endpoint: ctx.routeUrl()?.apiPath }); }',
+    'export function handler(ctx) { function JSON() {} return JSON.stringify({ endpoint: ctx.routeUrl()?.apiPath }); }'
+  ]) assert.deepEqual(inspectRouteUrlSource("bp-routes/users/GET.ts", source), [], source);
+  assert.ok(inspectRouteUrlSource("bp-routes/users/GET.ts", 'import type { Response } from "provider"; export function handler(ctx) { return Response.json({ endpoint: ctx.routeUrl()?.apiPath }); }').length);
+});

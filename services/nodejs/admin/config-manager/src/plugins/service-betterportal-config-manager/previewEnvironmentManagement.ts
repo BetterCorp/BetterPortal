@@ -13,8 +13,7 @@ import {
   type BetterPortalEvent,
   type JsonObject,
   type DemoScenario,
-  type PreviewEnvironmentGroup,
-  type RouteHandlerContext
+  type PreviewEnvironmentGroup
 } from "@betterportal/framework";
 import { getConfigManagerRouteContext } from "./routeContext.js";
 import { getCachedManifestForService } from "./syncApi.js";
@@ -124,7 +123,6 @@ const CredentialSchema = av.object({
 
 export const ResponseSchema = av.object({
   title: av.string().minLength(1),
-  previewPath: av.string().minLength(1),
   deploymentApiBase: av.string().minLength(1),
   configTicketUrl: av.string().minLength(1),
   sourceTenants: av.array(av.object({ id: av.string().minLength(1), title: av.string().minLength(1) })),
@@ -146,7 +144,6 @@ export const demoScenarios: DemoScenario<ResponseData>[] = [{
   title: "Default",
   response: {
     title,
-    previewPath: "/preview-environments",
     deploymentApiBase: PREVIEW_DEPLOYMENT_API_BASE,
     configTicketUrl: "/.well-known/bp/admin/config-ticket",
     sourceTenants: [],
@@ -161,7 +158,6 @@ export const handleGet = createHandler(
   (ctx) => {
     const component = (ctx.rawEvent as BetterPortalEvent | undefined)?.url.searchParams.get("_c");
     return buildResponse(
-      previewPath(ctx),
       {},
       component === "config" ? stringValue(ctx.query.groupId) : undefined,
       component === "debug" ? stringValue(ctx.query.deploymentId) : undefined
@@ -171,7 +167,7 @@ export const handleGet = createHandler(
 
 export const handlePost = createHandler(
   { response: ResponseSchema },
-  async (ctx) => mutate(ctx, async () => {
+  async (ctx) => mutate(async () => {
     const action = stringValue(ctx.request.action);
     const routeContext = getConfigManagerRouteContext();
     const config = await routeContext.storage.loadConfig();
@@ -231,7 +227,7 @@ export const handlePost = createHandler(
 
 export const handlePut = createHandler(
   { response: ResponseSchema },
-  async (ctx) => mutate(ctx, async () => {
+  async (ctx) => mutate(async () => {
     const routeContext = getConfigManagerRouteContext();
     const config = await routeContext.storage.loadConfig();
     if (stringValue(ctx.request.action) === "update-group") {
@@ -259,7 +255,7 @@ export const handlePut = createHandler(
 
 export const handleDelete = createHandler(
   { response: ResponseSchema },
-  async (ctx) => mutate(ctx, async () => {
+  async (ctx) => mutate(async () => {
     const routeContext = getConfigManagerRouteContext();
     const config = await routeContext.storage.loadConfig();
     const entity = stringValue(ctx.query.entity);
@@ -272,24 +268,17 @@ export const handleDelete = createHandler(
 );
 
 async function mutate(
-  ctx: Pick<RouteHandlerContext, "routeUrl">,
   action: () => Promise<Partial<ResponseData>>
 ): Promise<ResponseData> {
   try {
-    return buildResponse(previewPath(ctx), await action());
+    return buildResponse(await action());
   } catch (error) {
     if (!(error instanceof PreviewEnvironmentError)) throw error;
-    return buildResponse(previewPath(ctx), { error: error.message });
+    return buildResponse({ error: error.message });
   }
 }
 
-function previewPath(ctx: Pick<RouteHandlerContext, "routeUrl">): string {
-  return ctx.routeUrl?.({ path: "/preview-environments" })?.absoluteViewPath
-    ?? "/preview-environments";
-}
-
 async function buildResponse(
-  path: string,
   transient: Partial<ResponseData> = {},
   configGroupId?: string,
   debugDeploymentId?: string
@@ -310,7 +299,6 @@ async function buildResponse(
     .map((group) => groupModel(fullConfig, group, configGroupId === group.id));
   return {
     title,
-    previewPath: path,
     deploymentApiBase: PREVIEW_DEPLOYMENT_API_BASE,
     configTicketUrl: `${routeContext.serviceBaseUrl.replace(/\/+$/, "")}/.well-known/bp/admin/config-ticket`,
     sourceTenants: (visibleConfig?.tenants ?? []).map((tenant) => ({ id: tenant.id, title: tenant.title })),

@@ -139,6 +139,8 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
     );
   }
 
+  const login = ctx.routeUrl({ path: "/login", method: "POST" })?.absoluteApiPath;
+  if (!login) throw new Error("Login action route is unavailable");
   return (
     <div class="container py-5" style="max-width: 420px;">
       <div class="card border-0 shadow-sm">
@@ -148,7 +150,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
           <form
             id="bp-login-form"
             data-factor-endpoint={account?.absoluteApiPath ?? undefined}
-            hx-post="this"
+            hx-post={login}
             hx-headers='{"Accept":"application/json"}'
             hx-swap="none"
             onsubmit="return window.bpLoginSubmit ? window.bpLoginSubmit(event) : false"
