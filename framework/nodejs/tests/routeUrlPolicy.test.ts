@@ -830,3 +830,31 @@ test("BP context response bodies retain destination provenance", () => {
     'return ctx.response({ status: "ready" });'
   ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
 });
+
+
+test("rejected promise reasons reach recovery callback responses", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Promise.reject(ctx.routeUrl()?.apiPath).catch(endpoint => ({ endpoint }));',
+    'const failure = Promise.reject(ctx.routeUrl()?.viewPath); return failure.then(null, endpoint => ({ endpoint }));'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'return Promise.reject(ctx.routeUrl()?.apiPath).catch(() => ({ status: "failed" }));',
+    'return Promise.reject(ctx.routeUrl()?.absoluteUiPath).catch(publicLink => ({ publicLink }));'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
+
+test("call apply and bound local factories retain response and argument provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'const payload = () => ({ endpoint: ctx.routeUrl()?.apiPath }); return payload.call(null);',
+    'const payload = value => ({ endpoint: value }); return payload.apply(null, [ctx.routeUrl()?.apiPath]);',
+    'const payload = value => ({ endpoint: value }); const bound = payload.bind(null, ctx.routeUrl()?.apiPath); return bound();',
+    'const payload = value => ({ endpoint: value }); return payload.bind(null).call(null, ctx.routeUrl()?.apiPath);'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'const payload = value => ({ status: "ready" }); return payload.call(null, ctx.routeUrl()?.apiPath);',
+    'const payload = value => ({ publicLink: value }); return payload.bind(null, ctx.routeUrl()?.absoluteUiPath)();',
+    'return client.call(null, ctx.routeUrl()?.apiPath);'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
