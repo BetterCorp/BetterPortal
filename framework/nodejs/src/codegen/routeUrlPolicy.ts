@@ -220,14 +220,36 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };
   const defaultExports = new Set(tree.statements.flatMap(statement => ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression) ? [statement.expression.text] : []));
-  const handlerFactories = new Set(["createHandler", "createRawHandler", "createStreamHandler", "createSse"]);
+  const factoryNames = new Set(["createHandler", "createRawHandler", "createStreamHandler", "createSse"]);
+  const handlerFactories = new Set<string>();
+  const handlerNamespaces = new Set<string>();
   for (const statement of tree.statements) {
-    if (!ts.isImportDeclaration(statement)) continue;
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteralLike(statement.moduleSpecifier) || statement.importClause?.isTypeOnly) continue;
+    const module = statement.moduleSpecifier.text;
+    if (module !== "@betterportal/framework" && !module.startsWith("@betterportal/framework/")
+      && !/(?:^|[/])\.bp-generated[/]route-runtime(?:\.[cm]?[jt]s)?$/.test(module)) continue;
     const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) handlerNamespaces.add(bindings.name.text);
     if (bindings && ts.isNamedImports(bindings)) for (const binding of bindings.elements) {
-      if (handlerFactories.has(binding.propertyName?.text ?? binding.name.text)) handlerFactories.add(binding.name.text);
+      if (!binding.isTypeOnly && factoryNames.has(binding.propertyName?.text ?? binding.name.text)) handlerFactories.add(binding.name.text);
     }
   }
+  const factoryImport = (expression: ts.Expression, namespace = false, seen = new Set<string>()): boolean => {
+    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return factoryImport(expression.expression, namespace, seen);
+    if (!ts.isIdentifier(expression) || seen.has(expression.text)) return false;
+    let scope: ts.Node | undefined = expression.parent;
+    while (scope) {
+      const initializer = initializers.get(scope)?.get(expression.text);
+      if (initializer) return namespace ? factoryImport(initializer, true, new Set([...seen, expression.text])) : factory(initializer, new Set([...seen, expression.text]));
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => ts.isIdentifier(parameter.name) && parameter.name.text === expression.text)) return false;
+      scope = scope.parent;
+    }
+    return (namespace ? handlerNamespaces : handlerFactories).has(expression.text) && isGlobal(expression, expression.text, true);
+  };
+  const factory = (expression: ts.Expression, seen = new Set<string>()): boolean => ts.isIdentifier(expression) ? factoryImport(expression, false, seen)
+    : ts.isPropertyAccessExpression(expression) ? factoryNames.has(expression.name.text) && factoryImport(expression.expression, true, seen)
+      || expression.name.text === "forContext" && factory(expression.expression, seen)
+        : ts.isCallExpression(expression) ? factory(expression.expression, seen) : false;
   const routeHandlerFile = /(?:^|[/])bp-routes[/](?:.*[/])?(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|SSE|STREAM)\.tsx?$/.test(file.replace(/\\/g, "/"));
   const isReturnedValue = (node: ts.Node): boolean => {
     let current = node.parent;
@@ -249,9 +271,6 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       && (["handler", "handle"].includes(parent.name.text) || defaultExports.has(parent.name.text))) return true;
     if (routeHandlerFile && ts.isExportAssignment(parent)) return true;
     if (!ts.isCallExpression(parent)) return false;
-    const factory = (expression: ts.Expression): boolean => ts.isIdentifier(expression) ? handlerFactories.has(expression.text)
-      : ts.isPropertyAccessExpression(expression) ? handlerFactories.has(expression.name.text) || expression.name.text === "forContext" && factory(expression.expression)
-        : ts.isCallExpression(expression) ? factory(expression.expression) : false;
     return factory(parent.expression);
   };
   const belongsToHandler = (node: ts.Node | undefined): boolean => {
