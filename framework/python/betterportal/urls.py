@@ -42,6 +42,15 @@ def _path(value: str) -> str:
     return quote(path, safe="/!$&'()*+,-.:;=@_%~")
 
 
+def _matches(template: str, path: str) -> bool:
+    """Compare URI segments without treating encoded delimiters as separators."""
+    left = template.split("?", 1)[0].rstrip("/").split("/")
+    right = path.split("?", 1)[0].rstrip("/").split("/")
+    try:
+        return len(left) == len(right) and all(a.startswith(":") or b.startswith(":") or unquote(a, errors="strict") == unquote(b, errors="strict") for a, b in zip(left, right))
+    except (ValueError, UnicodeError): return False
+
+
 def _fill(path: str, params: Mapping[str, Any]) -> str | None:
     parts = []
     for part in path.split("?")[0].split("/"):
@@ -126,7 +135,6 @@ class Urls:
         return self._resolve(input, "GET", {}, {})
 
     def _resolve(self, input: RouteUrlOptionsInput | None, method: str, params: Mapping[str, Any], query: Mapping[str, Any]) -> ResolvedRouteUrl | None:
-        from .registry import _path_matches
         opts = parse("RouteUrlOptionsSchema", input or {})
         if "path" in opts and "viewId" in opts: return None
         if "path" in opts:
@@ -148,12 +156,12 @@ class Urls:
             candidates = [(name, candidate) for name, (paths, methods) in self._routes.items() if method in methods for candidate in paths
                           if name == view_id] if view_id is not None else [
                 (name, candidate) for name, (paths, methods) in self._routes.items() if method in methods for candidate in paths
-                if selector is not None and _path_matches(candidate, selector.split("?", 1)[0])]
+                if selector is not None and _matches(candidate, selector.split("?", 1)[0])]
             resolved = []
             for name, candidate in candidates:
                 mounts = [mount for mount in self._mounts if mount["enabled"] and mount["serviceId"] in ids and mount["viewId"] == name
                     and method in mount.get("resolvedMethods", []) and (not opts.get("mountId") or opts["mountId"] == mount["id"])
-                    and ((template := self._service_path(mount)) is None or _path_matches(candidate, template))]
+                    and ((template := self._service_path(mount)) is None or _matches(candidate, template))]
                 defaults = [mount.get("fixedParams", {}) for mount in mounts] if mounts else [{}]
                 for fixed in defaults:
                     values = {**fixed, **(self._parameters(candidate, self._path) if self_target else {}), **parameters}
@@ -171,7 +179,7 @@ class Urls:
                 template = self._service_path(mount)
                 if not mount["enabled"] or mount["serviceId"] not in ids or method not in mount.get("resolvedMethods", []): continue
                 if opts.get("mountId") and opts["mountId"] != mount["id"]: continue
-                if not template or (mount["viewId"] != view_id if view_id is not None else not selector or not _path_matches(template, selector.split("?", 1)[0])): continue
+                if not template or (mount["viewId"] != view_id if view_id is not None else not selector or not _matches(template, selector.split("?", 1)[0])): continue
                 value = _fill(selector or template, {**mount.get("fixedParams", {}), **parameters})
                 if value is not None: targets.append((mount, value))
             unique = {(mount["serviceId"], value): (mount, value) for mount, value in targets}
@@ -185,13 +193,13 @@ class Urls:
                 if opts.get("mountId") and opts["mountId"] != mount["id"]: continue
                 template = self._service_path(mount)
                 if template is None and ids == own:
-                    template = next((candidate for candidate in self._routes.get(view_id, ((), set()))[0] if _path_matches(candidate, path.split("?", 1)[0])), None)
+                    template = next((candidate for candidate in self._routes.get(view_id, ((), set()))[0] if _matches(candidate, path.split("?", 1)[0])), None)
                 if template is None: continue
                 values = {**mount.get("fixedParams", {}), **parameters, **self._parameters(template, path)}
                 ui_names = {part[1:] for part in mount["path"].split("/") if part.startswith(":")}
                 if any(name not in ui_names and values.get(name) != value for name, value in mount.get("fixedParams", {}).items()): continue
                 mounted, service = _fill(mount["path"], values), _fill(template, values)
-                if mounted is not None and service == path.split("?", 1)[0]: pages.add(_render(mounted, {"query": opts["query"]}))
+                if mounted is not None and service is not None and _matches(service, path.split("?", 1)[0]): pages.add(_render(mounted, {"query": opts["query"]}))
         ui = next(iter(pages)) if len(pages) == 1 else None
         origin = self._service_origin(target)
         try:
@@ -212,7 +220,6 @@ class Urls:
         return mount.get("resolvedServicePath", mount.get("servicePathVariant", mount.get("targetPath")))
 
     def element(self, reference: BPElementReferenceInput) -> ResolvedBPElementReference:
-        from .registry import _path_matches
         value = parse("BPElementReferenceSchema", reference)
         def unavailable(reason): return parse("ResolvedBPElementReferenceSchema", {"unavailable": reason})
         if not value["fragment"].strip(): return unavailable("fragment_required")
@@ -227,7 +234,7 @@ class Urls:
             if not value.get("path", "").startswith("/"): return unavailable("service_path_required")
             ids = self._ids(value["service"])
             mounts = [item for item in self._mounts if item["enabled"] and item["serviceId"] in ids and self._service_path(item)
-                      and _path_matches(cast(str, self._service_path(item)), value["path"])]
+                      and _matches(cast(str, self._service_path(item)), value["path"])]
             if len(mounts) != 1: return unavailable("ambiguous_provider" if mounts else "service_unavailable")
             mount = mounts[0]; service_id = mount["serviceId"]; origin = self._service_origin(service_id)
             if not origin: return unavailable("service_unavailable")

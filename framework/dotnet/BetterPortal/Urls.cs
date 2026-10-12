@@ -203,7 +203,7 @@ public sealed class Urls
                 var uiNames = ((string)mount["path"]!).Split('/').Where(part => part.StartsWith(':')).Select(part => part[1..]).ToHashSet(StringComparer.Ordinal);
                 if (((Node)mount.GetValueOrDefault("fixedParams", new Node())!).Any(pair => !uiNames.Contains(pair.Key) && !Equals(values.GetValueOrDefault(pair.Key), pair.Value))) continue;
                 var ui = Fill((string)mount["path"]!, values);
-                if (ui is not null && Fill(template, values) == path.Split('?', 2)[0]) pagePaths.Add(Render(ui, new() { ["query"] = query }));
+                if (ui is not null && Fill(template, values) is { } service && Parameters(service, path) is not null) pagePaths.Add(Render(ui, new() { ["query"] = query }));
             }
         }
         try
@@ -227,7 +227,7 @@ public sealed class Urls
         var values = new Node();
         for (var index = 0; index < left.Length; index++)
             if (left[index].StartsWith(':')) values[left[index][1..]] = Uri.UnescapeDataString(right[index]);
-            else if (left[index] != right[index]) return null;
+            else if (Uri.UnescapeDataString(left[index]) != Uri.UnescapeDataString(right[index])) return null;
         return values;
     }
     public Generated.ResolvedBPElementReference Element(Generated.BPElementReferenceInput reference)

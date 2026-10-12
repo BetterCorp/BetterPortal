@@ -38,6 +38,16 @@ def run_urls(urls, labels):
     case("unsupported-method", {"method": "DELETE"}, None)
     case("hash-rejected", {"path": "/check/item#anchor"}, None)
     case("dot-param-rejected", {"viewId": "check", "params": {"key": ".."}}, None)
+    def literal_path(body, raw, encoded):
+        body["routes"][0]["path"] = raw
+        body["request"]["path"] = encoded + "?hello=world"
+        body["snapshot"]["apps"][0]["routes"][0].update(path="/literal", resolvedServicePath=raw)
+        body["snapshot"]["apps"][0]["appRoutes"][0].update(path="/literal", resolvedServicePath=raw)
+    for raw, encoded, runtimes in (("/café", "/caf%C3%A9", None), ("/orders today", "/orders%20today", ["node"])):
+        change = lambda body, raw=raw, encoded=encoded: literal_path(body, raw, encoded)
+        case("literal-self-" + raw, None, resolved(encoded + "?hello=world", ui="/literal?hello=world"), change, runtimes=runtimes)
+        case("literal-path-" + raw, {"path": encoded}, resolved(encoded, ui="/literal"), change, runtimes=runtimes)
+    case("encoded-concrete-path", {"path": "/check/a%2Fb"}, resolved("/check/a%2Fb", ui="/app/a%2Fb"))
     case("method", {"method": "POST"}, resolved("/check/item?hello=world"))
     case("unknown-view", {"viewId": "unknown"}, None)
     case("unknown-path", {"path": "/unknown"}, None)

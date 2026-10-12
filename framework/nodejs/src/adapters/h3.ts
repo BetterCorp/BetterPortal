@@ -627,7 +627,8 @@ function routePathsMatch(left: string, right: string): boolean {
   if (a.length !== b.length) return false;
   return a.every((segment, index) => {
     const other = b[index];
-    return segment === other || pathParamName(segment) !== null || pathParamName(other) !== null;
+    if (pathParamName(segment) !== null || pathParamName(other) !== null) return true;
+    try { return decodeURIComponent(segment) === decodeURIComponent(other); } catch { return false; }
   });
 }
 
@@ -962,7 +963,7 @@ function createRouteUrlBuilder(
       if (Object.entries(mount.fixedParams ?? {}).some(([name, value]) => !uiNames.has(name) && values[name] !== value)) return [];
       const target = fillAppPath(mount.path, values);
       const service = fillAppPath(routeMountServicePath(mount) ?? (ownService ? routes.find(route => route.viewId === viewId && routePathsMatch(route.path, path!.split("?", 1)[0]))?.path : undefined) ?? "", values);
-      return target && service && service === path!.split("?", 1)[0] ? [appendQuery(target, query)] : [];
+      return target && service && routePathsMatch(service, path!.split("?", 1)[0]) ? [appendQuery(target, query)] : [];
     }));
     const uiPath = pagePaths.size === 1 ? [...pagePaths][0] : null;
     const appBase = requestAppOrigin(extraContext.app, event) ?? (extraContext.app.hostnames.length ? appOrigin(extraContext.app) : undefined);
