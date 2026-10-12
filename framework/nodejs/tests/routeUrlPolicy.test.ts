@@ -111,3 +111,21 @@ test("removed helpers and internal response spreads cannot bypass the authoring 
   assert.deepEqual(inspectRouteUrlSource(file, 'export default createHandler({}, ctx => { const requests = [{ ...ctx.routeUrl() }]; client(requests); return { ok: true }; });'), []);
   assert.deepEqual(inspectRouteUrlSource("bp-routes/users/_renderer.bootstrap5/GET.tsx", 'export function linkProps(ctx) { return { ...ctx.routeUrl() }; }'), []);
 });
+
+
+test("direct and mapped handler responses reject internal destinations without rejecting client requests", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export default createHandler({}, ctx => ctx.routeUrl());',
+    'export function handler(ctx) { return ctx.routeUrl({ viewId: "users" }); }',
+    'export default createHandler({}, ctx => items.map(() => ctx.routeUrl()));',
+    'export default createHandler({}, ctx => { const routes = items.map(() => ctx.routeUrl()); return routes; });',
+    'export default createHandler({}, ctx => { return [ctx.routeUrl()]; });',
+    'export default createHandler({}, ctx => items.flatMap(() => [ctx.routeUrl()?.apiPath]));'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export default createHandler({}, ctx => client(() => ctx.routeUrl()?.absoluteApiPath));',
+    'export default createHandler({}, ctx => items.map(() => { const endpoint = ctx.routeUrl()?.absoluteApiPath; return client(endpoint); }));',
+    'export default createHandler({}, ctx => { return { publicLink: ctx.routeUrl()?.absoluteUiPath }; });'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

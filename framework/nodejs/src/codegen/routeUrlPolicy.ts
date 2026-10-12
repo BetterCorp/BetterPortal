@@ -78,7 +78,22 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isPropertyAccessExpression(expression)) return internalValue(expression.expression, seen);
     if (ts.isPropertyAssignment(expression)) return internalValue(expression.initializer, seen);
     // An arbitrary function may consume a URL while returning unrelated domain data.
-    if (ts.isCallExpression(expression)) return false;
+    if (ts.isCallExpression(expression)) {
+      if (ts.isPropertyAccessExpression(expression.expression) && ["map", "flatMap"].includes(expression.expression.name.text)) {
+        const callback = expression.arguments[0];
+        if (callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) {
+          if (!ts.isBlock(callback.body)) return internalValue(callback.body, seen);
+          let internal = false;
+          const returned = (node: ts.Node): void => {
+            if (node !== callback.body && ts.isFunctionLike(node)) return;
+            if (ts.isReturnStatement(node) && node.expression && internalValue(node.expression, seen)) internal = true;
+            ts.forEachChild(node, returned);
+          };
+          returned(callback.body); return internal;
+        }
+      }
+      return false;
+    }
     return expression.getChildren(tree).some(child => internalValue(child, seen));
   };
   const defaultExports = new Set(tree.statements.flatMap(statement => ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression) ? [statement.expression.text] : []));
@@ -117,7 +132,8 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isIdentifier(callee) && handlerFactories.has(callee.text)
       || ts.isPropertyAccessExpression(callee) && handlerFactories.has(callee.name.text)) return true;
     // A callback contributes to the response only when its call result is returned.
-    return isReturnedValue(parent) && belongsToHandler(parent.parent);
+    return ts.isPropertyAccessExpression(callee) && ["map", "flatMap", "transaction"].includes(callee.name.text)
+      && isReturnedValue(parent) && belongsToHandler(parent.parent);
   };
   const inReturnedObject = (node: ts.Node): boolean => {
     let current = node.parent;
@@ -162,6 +178,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       && ts.isParameter(node.parent.parent) && rendererFunctions.has(node.parent.parent.parent)
       && ts.isFunctionLike(node.parent.parent.parent) && node.parent.parent.parent.parameters[0] === node.parent.parent;
     if (field && legacyFields.has(field) && (payloadAccess || payloadBinding || payloadParameter)) report(node, `Legacy internal URL field '${field}' was removed. Return domain data/cursors and resolve destinations in the renderer.`);
+    const returned = ts.isReturnStatement(node) && node.expression && belongsToHandler(node.parent) ? node.expression
+      : ts.isArrowFunction(node) && !ts.isBlock(node.body) && belongsToHandler(node) ? node.body : undefined;
+    if (returned && internalValue(returned)) report(node, "Do not return internal route destinations from API handlers. Return domain data and resolve destinations at the point of use.");
     if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node) || ts.isSpreadAssignment(node)) && inReturnedObject(node) && internalValue(ts.isSpreadAssignment(node) ? node.expression : ts.isPropertyAssignment(node) ? node.initializer : node.name)) {
       report(node, "Do not return internal route paths as API response fields. Resolve them at the point of use; only public absoluteUiPath links belong in domain responses.");
     }
