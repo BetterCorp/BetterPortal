@@ -27,3 +27,7 @@ Destructuring a handler context does not bypass the routing migration check. Ret
 Response callback checks follow local named functions and lexical aliases. Transparent iterable constructors such as URLSearchParams/Headers retain destination provenance when serialized; public links and unrelated provider constructors remain valid.
 
 HTML/HTMX forms select `absoluteViewPath`; JSON requests select `absoluteApiPath`. Public service base metadata strips a root trailing slash while preserving non-root prefixes. Source helpers under `src/lib` and `src/dist` use the same authoring gate.
+
+Returned local response factories and immediately invoked helpers receive the same URL payload checks. String/array lengths and standard collection sizes are derived scalar state and remain valid API response data.
+
+Named response callbacks retain the provenance of caller-supplied parameters, including Array.from/map inputs and fulfilled promise values. Local response helpers follow passed handler contexts too; scalar state and opaque domain-client results remain valid.
