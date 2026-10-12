@@ -199,8 +199,8 @@ import { viewId as submitViewId } from "../submit/index.js";
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const submit = ctx.routeUrl({ viewId: submitViewId, method: "POST" });
-  if (!submit?.absoluteApiPath) throw new Error("Submit route is unavailable");
-  return <form hx-post={submit.absoluteApiPath} method="post">...</form>;
+  if (!submit?.absoluteViewPath) throw new Error("Submit route is unavailable");
+  return <form hx-post={submit.absoluteViewPath} method="post">...</form>;
 }
 ```
 
