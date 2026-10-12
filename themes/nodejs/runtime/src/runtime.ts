@@ -1182,7 +1182,7 @@ export function betterPortalShellRuntimeSource(): string {
           if (!origin) return;
           try {
             // Hosts reject service targets on the theme origin, including template-only routes.
-            if (new URL(origin).origin === window.location.origin) return;
+            if (new URL(origin).host.toLowerCase() === window.location.host.toLowerCase()) return;
             const tenantPath = normalizePath(tenantPathRaw || "/");
             const servicePath = normalizePath(template ?? new URL(requestUrl).pathname);
             routes.push({ tenantPath, servicePath, serviceOrigin: origin, serviceId, kind, methods, fixedParams });
