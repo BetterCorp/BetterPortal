@@ -398,3 +398,7 @@ Standard reversible URI/base64 encoders retain destination provenance. Numeric i
 Streamed API items emitted by `yield` or `yield*` follow the same destination checks as returned payloads. Streams return domain items/public links; renderers resolve internal navigation locally.
 
 Destructuring assignments into existing variables or response properties retain destination provenance just like declarations; public links and domain-client request building remain valid.
+
+Standard Object.defineProperty/defineProperties response mutations retain descriptor value provenance; public links and objects consumed by domain clients remain valid.
+
+The authoring check recognizes statically named computed properties in destructuring assignments and follows the selected field of known objects. Selecting domain data from an object that also contains an internal destination remains valid; returning the internal destination fails the build. Object property descriptor mutations are checked too.
