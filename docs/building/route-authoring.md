@@ -390,3 +390,5 @@ Array element selection retains destination provenance. Explicit string-typed re
 Array destructuring retains element provenance, including aliases and rest values. Character selection from route strings is scalar state; selecting a complete path from an array remains an internal destination.
 
 Promise constructor fulfillment payloads retain destination provenance, including resolver aliases and called callbacks. Unused helper declarations, public links and domain-client request building remain valid.
+
+Prebuild and generation both inspect configured `betterportal.routes` and `betterportal.shells` folders, including locations outside `src`, as well as default source helpers. Nested roots are deduplicated.

@@ -667,3 +667,27 @@ test("Promise constructors inspect fulfilled payloads and resolver aliases", () 
     'import { Promise } from "provider"; export function handler(ctx) { return new Promise(ctx.routeUrl()?.apiPath); }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("prebuild and generation inspect configured roots outside src", () => {
+  const root = mkdtempSync(join(tmpdir(), "bp-configured-route-check-"));
+  try {
+    mkdirSync(join(root, "routes", "bp-routes"), { recursive: true });
+    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "fixture", betterportal: { routes: ["routes/bp-routes/"] } }));
+    writeFileSync(join(root, "routes", "bp-routes", "GET.ts"), 'import { createHandler } from "@betterportal/framework"; export default createHandler({}, ctx => ctx.routeUrl("legacy"));');
+    for (const command of ["check-routes", "gen"]) {
+      const result = spawnSync(process.execPath, [new URL("../lib/cli/bp.js", import.meta.url).pathname, "run", command], { cwd: root, encoding: "utf8" });
+      assert.equal(result.status, 1, result.stderr);
+      assert.match(result.stderr, /routeUrl no longer accepts/);
+    }
+    rmSync(join(root, "routes"), { recursive: true });
+    mkdirSync(join(root, "shells", "bp-shells"), { recursive: true });
+    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "fixture", betterportal: { shells: ["shells/bp-shells/"] } }));
+    writeFileSync(join(root, "shells", "bp-shells", "index.tsx"), 'export function render() { return <a href="{legacy}">Old</a>; }');
+    for (const command of ["check-routes", "gen"]) {
+      const result = spawnSync(process.execPath, [new URL("../lib/cli/bp.js", import.meta.url).pathname, "run", command], { cwd: root, encoding: "utf8" });
+      assert.equal(result.status, 1, result.stderr);
+      assert.match(result.stderr, /Legacy route tokens were removed/);
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

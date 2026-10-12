@@ -672,3 +672,15 @@ export function checkProjectRouteUrls(directory: string): RouteUrlPolicyError[] 
     return entry.isDirectory() ? checkProjectRouteUrls(file) : /\.(?:[cm]?ts|tsx)$/.test(file) ? inspectRouteUrlSource(file, fs.readFileSync(file, "utf8")) : [];
   });
 }
+
+
+/** Inspect default source helpers and every configured route/shell input root. */
+export function checkConfiguredRouteUrls(packageDir: string, config: { routes?: readonly string[]; shells?: readonly string[] } = {}): RouteUrlPolicyError[] {
+  const roots = [...new Set(["src", ...config.routes ?? [], ...config.shells ?? []].map(directory => path.resolve(packageDir, directory)))];
+  const minimal = roots.filter(root => !roots.some(parent => {
+    if (parent === root) return false;
+    const relative = path.relative(parent, root);
+    return relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
+  }));
+  return minimal.flatMap(checkProjectRouteUrls);
+}
