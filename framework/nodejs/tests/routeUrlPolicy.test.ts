@@ -300,3 +300,24 @@ test("incremental response mutations follow aliases and keep request-only object
     'export function handler(ctx) { const payload = {}; const Object = client; Object.assign(payload, { endpoint: ctx.routeUrl()?.apiPath }); return payload; }'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("standard array factories preserve URLs while mapped domain results remain valid", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return Array.from([ctx.routeUrl()?.apiPath]); }',
+    'export function handler(ctx) { return Array.of(ctx.routeUrl()?.viewPath); }',
+    'export function handler(ctx) { return new Array(ctx.routeUrl()?.apiPath); }',
+    'export function handler(ctx) { return Array.from([ctx.routeUrl()?.apiPath], value => value); }',
+    'export function handler(ctx) { return Array.from([ctx.routeUrl()], value => value.apiPath); }',
+    'export function handler(ctx) { return Array.from(items, () => { return ctx.routeUrl()?.viewPath; }); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return Array.from([ctx.routeUrl()?.absoluteUiPath]); }',
+    'export function handler(ctx) { return Array.from([ctx.routeUrl()], value => value.absoluteUiPath); }',
+    'export function handler(ctx) { return Array.from([ctx.routeUrl()?.apiPath], value => client(value)); }',
+    'export function handler(ctx) { return Array.from([ctx.routeUrl()?.apiPath], () => "ready"); }',
+    'import { Array } from "provider"; export function handler(ctx) { return Array.from([ctx.routeUrl()?.apiPath]); }',
+    'export function handler(ctx) { const Array = provider; return Array.of(ctx.routeUrl()?.apiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
