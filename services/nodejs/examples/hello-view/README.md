@@ -39,3 +39,5 @@ Embedded query values may contain raw question marks, for example `/items?q=what
 Array element selection retains destination provenance. Explicit string-typed replacement receivers are checked even when initialized dynamically; unrelated provider methods and public links remain valid.
 
 Array destructuring retains element provenance, including aliases and rest values. Character selection from route strings is scalar state; selecting a complete path from an array remains an internal destination.
+
+A dependency mount without a resolved service path cannot identify a service endpoint, so resolution returns null rather than guessing or throwing.

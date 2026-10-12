@@ -650,3 +650,20 @@ test("string character selection remains scalar state while array selection reta
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
   assert.ok(inspectRouteUrlSource(file, 'export function handler(ctx) { return { endpoint: [ctx.routeUrl()?.apiPath].at(0) }; }').length);
 });
+
+
+test("Promise constructors inspect fulfilled payloads and resolver aliases", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { return new Promise(resolve => resolve({ endpoint: ctx.routeUrl()?.apiPath })); }',
+    'export function handler(ctx) { return new Promise(resolve => { const finish = resolve; finish({ endpoint: ctx.routeUrl()?.apiPath }); }); }',
+    'export function handler(ctx) { return new Promise(resolve => { function finish(value) { resolve(value); } finish({ endpoint: ctx.routeUrl()?.apiPath }); }); }',
+    'export function handler(ctx) { return new Promise(resolve => setTimeout(() => resolve({ endpoint: ctx.routeUrl()?.apiPath }), 0)); }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { return new Promise(resolve => resolve({ publicLink: ctx.routeUrl()?.absoluteUiPath })); }',
+    'export function handler(ctx) { return new Promise(resolve => { const unused = () => resolve({ endpoint: ctx.routeUrl()?.apiPath }); resolve({ ok: true }); }); }',
+    'export function handler(ctx) { return new Promise(resolve => { client(ctx.routeUrl()?.apiPath); resolve({ ok: true }); }); }',
+    'import { Promise } from "provider"; export function handler(ctx) { return new Promise(ctx.routeUrl()?.apiPath); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});

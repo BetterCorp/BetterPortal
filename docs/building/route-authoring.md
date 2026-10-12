@@ -388,3 +388,5 @@ Standard Promise.any results and string replacement values retain internal desti
 Array element selection retains destination provenance. Explicit string-typed replacement receivers are checked even when initialized dynamically; unrelated provider methods and public links remain valid.
 
 Array destructuring retains element provenance, including aliases and rest values. Character selection from route strings is scalar state; selecting a complete path from an array remains an internal destination.
+
+Promise constructor fulfillment payloads retain destination provenance, including resolver aliases and called callbacks. Unused helper declarations, public links and domain-client request building remain valid.
