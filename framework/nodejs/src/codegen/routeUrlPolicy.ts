@@ -89,7 +89,34 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     if (ts.isBinaryExpression(node) && [ts.SyntaxKind.EqualsToken, ts.SyntaxKind.PlusEqualsToken,
       ts.SyntaxKind.BarBarEqualsToken, ts.SyntaxKind.AmpersandAmpersandEqualsToken,
       ts.SyntaxKind.QuestionQuestionEqualsToken].includes(node.operatorToken.kind)) {
-      pendingMutations.push({ target: node.left, values: [node.right] });
+      const assigned = (target: ts.Expression, value: ts.Expression): void => {
+        if (ts.isParenthesizedExpression(target)) { assigned(target.expression, value); return; }
+        if (ts.isArrayLiteralExpression(target)) {
+          for (const [index, item] of target.elements.entries()) {
+            if (ts.isOmittedExpression(item)) continue;
+            if (ts.isSpreadElement(item)) {
+              const values = ts.isArrayLiteralExpression(value) ? value.elements.slice(index) : [value];
+              pendingMutations.push({ target: item.expression, values });
+            } else assigned(item, ts.isArrayLiteralExpression(value) && !value.elements.some(ts.isSpreadElement)
+              ? value.elements[index] ?? ts.factory.createIdentifier("undefined") : value);
+          }
+          return;
+        }
+        if (ts.isObjectLiteralExpression(target)) {
+          for (const item of target.properties) {
+            if (ts.isSpreadAssignment(item)) { pendingMutations.push({ target: item.expression, values: [value] }); continue; }
+            if (!ts.isPropertyAssignment(item) && !ts.isShorthandPropertyAssignment(item)) continue;
+            const name = item.name;
+            if (!ts.isIdentifier(name) && !ts.isStringLiteralLike(name)) continue;
+            const source = ts.isObjectLiteralExpression(value) ? value.properties.find(property => property.name && property.name.getText(tree).replace(/^["']|["']$/g, "") === name.text) : undefined;
+            const selected = source && ts.isPropertyAssignment(source) ? source.initializer : source && ts.isShorthandPropertyAssignment(source) ? source.name : ts.factory.createPropertyAccessExpression(value, name.text);
+            assigned(ts.isPropertyAssignment(item) ? item.initializer : item.name, selected);
+          }
+          return;
+        }
+        pendingMutations.push({ target, values: [value] });
+      };
+      assigned(node.left, node.right);
     }
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
       const method = node.expression.name.text;
