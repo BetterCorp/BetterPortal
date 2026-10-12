@@ -41,10 +41,10 @@ npm run bp-codegen
 Tag releases publish npm packages and BSB registry schemas. The separate BetterPortal contract publish job is intentionally disabled until its registry setup is enabled. Set and commit the workspace version before tagging:
 
 ```bash
-node scripts/release/set-workspace-version.mjs 10.7.0
+node scripts/release/set-workspace-version.mjs 10.7.1
 npm install --package-lock-only --ignore-scripts
-git commit -S -am "chore(release): prepare v10.7.0"
-git tag -s v10.7.0 -m "BetterPortal v10.7.0"
+git commit -S -am "chore(release): prepare v10.7.1"
+git tag -s v10.7.1 -m "BetterPortal v10.7.1"
 ```
 
 Verify the commit/tag signatures with the configured signing identity before pushing. Push the release commit to master, then push the signed tag to start publication.
