@@ -728,3 +728,19 @@ test("streamed yield items retain API response destination provenance", () => {
     'import { createStreamHandler } from "provider"; export default createStreamHandler({}, async function* (ctx) { yield { endpoint: ctx.routeUrl("provider") }; });'
   ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
 });
+
+
+test("destructuring assignments retain response destination provenance", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'export function handler(ctx) { let endpoint; [endpoint] = [ctx.routeUrl()?.apiPath]; return { endpoint }; }',
+    'export function handler(ctx) { let endpoint; ({ endpoint } = { endpoint: ctx.routeUrl()?.apiPath }); return { endpoint }; }',
+    'export function handler(ctx) { let endpoint; ({ apiPath: endpoint } = ctx.routeUrl()); return { endpoint }; }',
+    'export function handler(ctx) { const payload = {}; [payload.endpoint] = [ctx.routeUrl()?.apiPath]; return payload; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  for (const source of [
+    'export function handler(ctx) { let publicLink; [publicLink] = [ctx.routeUrl()?.absoluteUiPath]; return { publicLink }; }',
+    'export function handler(ctx) { let publicLink; ({ absoluteUiPath: publicLink } = ctx.routeUrl()); return { publicLink }; }',
+    'export function handler(ctx) { let endpoint; [endpoint] = [ctx.routeUrl()?.apiPath]; return client(endpoint); }'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, source), [], source);
+});
