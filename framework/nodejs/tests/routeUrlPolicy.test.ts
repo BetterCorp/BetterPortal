@@ -97,3 +97,17 @@ test("handler request-building callbacks are separate from response-producing ca
     'export default createHandler({}, ctx => storage.transaction(tx => { return { endpoint: ctx.routeUrl()?.apiPath }; }));'
   ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
 });
+
+
+test("removed helpers and internal response spreads cannot bypass the authoring gate", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const source of [
+    'const { uiRouteUrl } = ctx; uiRouteUrl("users");',
+    'const { uiRouteUrl: link } = ctx; link("users");',
+    'ctx["uiRouteUrl"]("users");',
+    'export default createHandler({}, ctx => ({ ...ctx.routeUrl({ viewId: "users" }) }));',
+    'export function handler(ctx) { const links = ctx.routeUrl(); return { ...links }; }'
+  ]) assert.ok(inspectRouteUrlSource(file, source).length, source);
+  assert.deepEqual(inspectRouteUrlSource(file, 'export default createHandler({}, ctx => { const requests = [{ ...ctx.routeUrl() }]; client(requests); return { ok: true }; });'), []);
+  assert.deepEqual(inspectRouteUrlSource("bp-routes/users/_renderer.bootstrap5/GET.tsx", 'export function linkProps(ctx) { return { ...ctx.routeUrl() }; }'), []);
+});

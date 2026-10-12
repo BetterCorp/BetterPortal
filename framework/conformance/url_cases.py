@@ -102,6 +102,10 @@ def run_urls(urls, labels):
     for raw, encoded in (("https://service.test/prefix", "https://service.test/prefix"), ("https://service.test/prefix///", "https://service.test/prefix"), ("https://service.test/café", "https://service.test/caf%C3%A9")):
         case("service-base-" + raw, {"viewId": "check", "params": {"key": "a/b"}}, resolved("/check/a%2Fb", ui="/app/a%2Fb", origin=encoded),
              lambda body, raw=raw: body["snapshot"]["tenants"][0]["services"][0].update(hostname=raw))
+    for raw in ("https://user:pass@service.test/prefix", "https://user@service.test", "https://:pass@service.test", "https://service.test/?token=secret", "https://service.test/#secret"):
+        change = lambda body, raw=raw: body["snapshot"]["tenants"][0]["services"][0].update(hostname=raw)
+        case("unsafe-service-base-" + raw, {"viewId": "check", "params": {"key": "item"}}, resolved("/check/item", ui="/app/item", origin=None), change, runtimes=["node"])
+        case("unsafe-service-base-" + raw, {"viewId": "check", "params": {"key": "item"}}, None, change, runtimes=["dotnet"] if "@" in raw else ["python", "dotnet"])
     for number in (9007199254740993, 9223372036854775807, -9223372036854775808, 18446744073709551615):
         case("integer-" + str(number), {"viewId": "check", "params": {"key": number}, "query": {"n": number}},
              resolved(f"/check/{number}?n={number}", ui=f"/app/{number}?n={number}"), native=True)

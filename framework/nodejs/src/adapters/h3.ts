@@ -1,4 +1,4 @@
-import { routeMountServicePath } from "../runtime/configProvider.js";
+import { routeMountServicePath, safeServiceBaseUrl } from "../runtime/configProvider.js";
 import type { RouteUrlInput, RouteUrlOptions, RouteUrlResolver, ResolvedRouteUrl } from "../contracts/routeUrl.js";
 import { ElevationRequired, requireElevation, elevationResponse } from "../runtime/auth/elevation.js";
 import { createEventStream, getRequestIP, getRequestURL } from "h3";
@@ -720,7 +720,7 @@ function serviceOrigin(extraContext: RequiredHandlerContext, serviceId: string, 
   const service = extraContext.tenant.services.find((candidate) =>
     candidate.enabled && (candidate.id === serviceId || candidate.serviceId === serviceId)
   );
-  return service ? service.hostname.replace(/\/+$/, "") : null;
+  return service ? safeServiceBaseUrl(service) ?? null : null;
 }
 
 function appendQuery(path: string, query: RouteUrlOptions["query"] = {}, absoluteOrigin?: string, sse = false): string {

@@ -129,7 +129,9 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
     return Boolean(current && ts.isArrowFunction(current) && !ts.isBlock(current.body) && belongsToHandler(current));
   };
   const visit = (node: ts.Node): void => {
-    if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl") {
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "uiRouteUrl"
+      || ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === "uiRouteUrl"
+      || ts.isBindingElement(node) && (node.propertyName ?? node.name).getText(tree).replace(/^["']|["']$/g, "") === "uiRouteUrl") {
       report(node, "uiRouteUrl was removed. Use ctx.routeUrl({ ... }) and select uiPath or absoluteUiPath.");
     }
     if (ts.isPropertyAccessExpression(node) && ["route", "uiRoute", "current", "path"].includes(node.name.text)
@@ -160,7 +162,7 @@ export function inspectRouteUrlSource(file: string, source: string): RouteUrlPol
       && ts.isParameter(node.parent.parent) && rendererFunctions.has(node.parent.parent.parent)
       && ts.isFunctionLike(node.parent.parent.parent) && node.parent.parent.parent.parameters[0] === node.parent.parent;
     if (field && legacyFields.has(field) && (payloadAccess || payloadBinding || payloadParameter)) report(node, `Legacy internal URL field '${field}' was removed. Return domain data/cursors and resolve destinations in the renderer.`);
-    if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node)) && inReturnedObject(node) && internalValue(ts.isPropertyAssignment(node) ? node.initializer : node.name)) {
+    if ((ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node) || ts.isSpreadAssignment(node)) && inReturnedObject(node) && internalValue(ts.isSpreadAssignment(node) ? node.expression : ts.isPropertyAssignment(node) ? node.initializer : node.name)) {
       report(node, "Do not return internal route paths as API response fields. Resolve them at the point of use; only public absoluteUiPath links belong in domain responses.");
     }
     if ((ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) && /(?:href|action|hx-(?:get|post|put|patch|delete|download))=["']\{[A-Za-z0-9_$.-]+\}["']/.test(node.text)) {
