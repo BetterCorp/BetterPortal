@@ -6,6 +6,7 @@ import { createH3Router, type H3RouterObservabilityOptions } from "../src/adapte
 import type { JwtClaims } from "../src/contracts/auth.js";
 import { createNoopObservability } from "../src/contracts/observability.js";
 import type { BetterPortalRegistry, RegisteredRoute } from "../src/contracts/registry.js";
+import { createSse } from "../src/runtime/sse.js";
 import { createHandler, createRawHandler } from "../src/runtime/handler.js";
 import type { RouteHandler } from "../src/contracts/route.js";
 import type { BetterPortalApp, BetterPortalResolvedApp, BetterPortalTenant } from "../src/contracts/platformConfig.js";
@@ -462,7 +463,7 @@ test("builds service and app route URLs for the current plugin service", async (
 
   await withServer(app, {
     routes: [
-      route("/reports/:reportId", "reports.detail.index"),
+      { ...route("/reports/:reportId", "reports.detail.index"), sse: createSse({ input: av.any(), event: av.any() }, input => input) },
       route(
         "/self",
         "self.index",

@@ -914,6 +914,7 @@ function createRouteUrlBuilder(
     if (self && !ownService) return null;
     if (!ownService && !extraContext.tenant.services.some(service => service.enabled && ids.has(service.id))) return null;
     const method = input.method ?? (self ? current.method : "GET");
+    if (input.sse && (method !== "GET" || !ownService)) return null;
     const params = { ...(self ? current.params : {}), ...input.params };
     const embeddedQuery: Record<string, string | string[]> = {};
     const embeddedPairs = new URLSearchParams(input.path?.split("?", 2)[1] ?? "");
@@ -962,6 +963,7 @@ function createRouteUrlBuilder(
       resolved.sort((a, b) => compare(a.route.path, b.route.path));
       const best = resolved[0];
       if (!best) return null;
+      if (input.sse && !best.route.sse && !isStreamHandler(best.route.handlers.GET)) return null;
       if (new Set(resolved.filter(entry => compare(entry.route.path, best.route.path) === 0).map(entry => entry.path)).size !== 1) return null;
       path = best.path; viewId = best.route.viewId;
     } else {
