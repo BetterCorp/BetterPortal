@@ -794,3 +794,24 @@ test("local object response methods and removed splice values retain provenance"
     'const values = [ctx.routeUrl()?.apiPath]; return values.splice();'
   ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
 });
+
+
+test("returned object descriptors and fill arrays retain internal destinations", () => {
+  const file = "bp-routes/users/GET.ts";
+  for (const body of [
+    'return Object.create(null, { endpoint: { enumerable: true, value: ctx.routeUrl()?.apiPath } });',
+    'return Object.defineProperty({}, "endpoint", { enumerable: true, value: ctx.routeUrl()?.apiPath });',
+    'return Object.defineProperties({}, { endpoint: { value: ctx.routeUrl()?.apiPath } });',
+    'return [""].fill(ctx.routeUrl()?.apiPath);',
+    'const values = []; values.push(ctx.routeUrl()?.apiPath); return values.splice(0, 1);',
+    'const values = [ctx.routeUrl()?.apiPath, "safe"]; return values.copyWithin(1, 0);',
+    'const helpers = { map() { return { endpoint: ctx.routeUrl()?.apiPath }; } }; return helpers.map();'
+  ]) assert.ok(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`).length, body);
+  for (const body of [
+    'return Object.create(null, { publicLink: { enumerable: true, value: ctx.routeUrl()?.absoluteUiPath } });',
+    'return [""].fill(ctx.routeUrl()?.absoluteUiPath);',
+    'const helpers = { fill(value) { return { name: "ready" }; } }; return helpers.fill(ctx.routeUrl()?.apiPath);',
+    'return Object.create({ endpoint: ctx.routeUrl()?.apiPath });',
+    'const Object = client; return Object.create(null, { endpoint: { value: ctx.routeUrl()?.apiPath } });'
+  ]) assert.deepEqual(inspectRouteUrlSource(file, `export function handler(ctx) { ${body} }`), [], body);
+});
