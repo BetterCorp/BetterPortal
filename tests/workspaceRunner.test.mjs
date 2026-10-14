@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 test("a failing workspace keeps the root test command red while later workspaces still run", () => {
@@ -16,7 +17,7 @@ test("a failing workspace keeps the root test command red while later workspaces
       mkdirSync(join(root, name));
       writeFileSync(join(root, name, "package.json"), JSON.stringify({ name, version: "1.0.0", scripts: { test: command } }));
     }
-    const result = spawnSync(process.execPath, [new URL("../scripts/run-workspace-tests.mjs", import.meta.url).pathname, root], {
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/run-workspace-tests.mjs", import.meta.url)), root], {
       encoding: "utf8", timeout: 15_000
     });
     assert.equal(result.status, 1, result.stderr);

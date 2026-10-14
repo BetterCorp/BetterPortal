@@ -37,8 +37,10 @@ export function verifyWorkOSState(
   proof: string | undefined,
   scope: { tenantId: string; appId: string }
 ): string | undefined {
-  if (!encoded || !proof || encoded.length > 2048 || proof.length !== encoded.length) return undefined;
-  if (!timingSafeEqual(Buffer.from(encoded), Buffer.from(proof))) return undefined;
+  if (!encoded || !proof || encoded.length > 2048) return undefined;
+  const encodedBytes = Buffer.from(encoded);
+  const proofBytes = Buffer.from(proof);
+  if (encodedBytes.length !== proofBytes.length || !timingSafeEqual(encodedBytes, proofBytes)) return undefined;
   try {
     const state = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as State;
     if (!state || typeof state.nonce !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(state.nonce)

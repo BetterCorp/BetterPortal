@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { createContext, Script } from "node:vm";
 import { toHtmlString } from "@betterportal/framework";
 import { render } from "../src/plugins/service-betterportal-auth-workos/bp-routes/login/_renderer.bootstrap5/GET.js";
@@ -30,7 +31,7 @@ test("WorkOS login script is valid on repeated swaps and redirects only in autom
   assert.equal(clicks, 2, "manual/error/empty destinations must not redirect");
 });
 
-test("WorkOS login saves the issued state before navigating to the provider", () => {
+test("WorkOS login saves only a state fingerprint before navigating to the provider", async () => {
   const html = toHtmlString(render({ status: "ok", loginUI: "redirect",
     authorizationUrl: "https://auth.test/authorize?state=issued-nonce" },
   { request: { query: {} }, app: { defaultRoute: "/" } } as never));
@@ -40,12 +41,15 @@ test("WorkOS login saves the issued state before navigating to the provider", ()
   const saved: Array<[string, string]> = [];
   let clicked = false;
   new Script(source).runInNewContext({
+    TextEncoder,
+    crypto: { subtle: { digest: async (_algorithm: string, bytes: Uint8Array) => Uint8Array.from(createHash("sha256").update(bytes).digest()).buffer } },
     sessionStorage: { setItem: (key: string, value: string) => saved.push([key, value]) },
     document: {
       currentScript: { closest: () => ({ dataset: { oauthState: "issued-nonce", stateKey: "bp:workos:oauth-state", redirectUrl: "https://auth.test/authorize", mode: "ok", autoRedirect: "true" } }) },
       createElement: () => ({ click: () => { clicked = true; }, remove() {} }), body: { appendChild() {} }
     }
   });
-  assert.deepEqual(saved, [["bp:workos:oauth-state", "issued-nonce"]]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(saved, [["bp:workos:oauth-state", createHash("sha256").update("issued-nonce").digest("hex")]]);
   assert.equal(clicked, true);
 });

@@ -7,7 +7,14 @@ import { WORKOS_STATE_STORAGE_KEY } from "../../../oauthState.js";
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const query = ctx.request.query;
-  const requested = data.loggedOut ? query.next ?? query.redirect : query.state ?? query.next ?? query.redirect;
+  let verifiedNext: string | undefined;
+  if (data.signedIn && typeof query.state === "string" && query.state.length <= 2048) {
+    try {
+      const state = JSON.parse(Buffer.from(query.state, "base64url").toString("utf8")) as { next?: unknown };
+      if (typeof state.next === "string") verifiedNext = state.next;
+    } catch { /* The handler already rejected invalid state; use the app default if unavailable. */ }
+  }
+  const requested = data.loggedOut ? query.next ?? query.redirect : data.signedIn ? verifiedNext : query.next ?? query.redirect;
   const next = resolveAppAuthRedirect(ctx, data.loggedOut ? "afterLogout" : "afterLogin", typeof requested === "string" ? requested : undefined);
   if (data.loggedOut) {
     return (
@@ -50,10 +57,13 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
       <script>
         {js(() => {
           // js() emits its body directly; keep returns and bindings inside a function.
-          (() => {
+          void (async () => {
             const root = document.currentScript?.closest(".bp-workos-shell") as HTMLElement | null;
             if (root?.dataset.oauthState && root.dataset.stateKey) {
-              sessionStorage.setItem(root.dataset.stateKey, root.dataset.oauthState);
+              const bytes = new TextEncoder().encode(root.dataset.oauthState);
+              const digest = await crypto.subtle.digest("SHA-256", bytes);
+              const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+              sessionStorage.setItem(root.dataset.stateKey, fingerprint);
             }
             const url = root?.dataset.redirectUrl;
             if (!url || root?.dataset.mode === "error" || root?.dataset.autoRedirect !== "true") return;
@@ -62,7 +72,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
             document.body.appendChild(link);
             link.click();
             link.remove();
-          })();
+          })().catch(() => { /* Without browser storage or hashing, the callback must fail closed. */ });
         })}
       </script>
       <style>

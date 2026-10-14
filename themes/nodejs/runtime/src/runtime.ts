@@ -2475,19 +2475,6 @@ export function betterPortalShellRuntimeSource(): string {
               ? elt
               : null;
           const isSseConnect = source?.hasAttribute?.("hx-sse:connect") || source?.hasAttribute?.("sse-connect");
-          const attachWorkOSState = () => {
-            try {
-              const authId = shellRoot()?.getAttribute("data-bp-auth-service") || "";
-              const authOrigin = authId ? originForServiceId(authId) : "";
-              const requestUrl = new URL(ctx.request.action, window.location.origin);
-              if (!authOrigin || requestUrl.origin !== new URL(authOrigin).origin
-                || !requestUrl.searchParams.has("code")) return;
-              const state = requestUrl.searchParams.get("state");
-              if (state && sessionStorage.getItem("bp:workos:oauth-state") === state) {
-                ctx.request.headers["X-BP-WorkOS-State"] = state;
-              }
-            } catch { /* Browser storage may be disabled. The service will reject the callback. */ }
-          };
           const mode = isSseConnect || !isMainTarget(ctx.target) ? "fragment" : "page";
           const acceptHeaderName = Object.keys(ctx.request.headers).find((key) => key.toLowerCase() === "accept") ?? "Accept";
           const acceptValue = ctx.request.headers[acceptHeaderName];
@@ -2507,7 +2494,6 @@ export function betterPortalShellRuntimeSource(): string {
             if (!action) return;
             if (source?.closest?.(NO_ROUTE_SELECTOR)) {
               attachBpHeaders(ctx.request.headers, action, serviceContextFor(source).id);
-              attachWorkOSState();
               return;
             }
             const themeOrigin = window.location.origin;
@@ -2542,7 +2528,6 @@ export function betterPortalShellRuntimeSource(): string {
 
           // Scope checks must use the final action after any service-origin rewrite.
           attachBpHeaders(ctx.request.headers, ctx.request?.action || "");
-          attachWorkOSState();
         },
 
         // Show loading state: main panel gets glaze, fragments get overlay
@@ -2562,7 +2547,27 @@ export function betterPortalShellRuntimeSource(): string {
           }
           if (preload) delete (source as any)._htmx.preload;
           const transport = detail.ctx.fetch;
-          detail.ctx.fetch = (input: RequestInfo | URL, init?: RequestInit) => fetchWithElevation(input, init, detail.ctx, transport);
+          detail.ctx.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+            try {
+              const authId = shellRoot()?.getAttribute("data-bp-auth-service") || "";
+              const authOrigin = authId ? originForServiceId(authId) : "";
+              const requestUrl = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
+              if (authOrigin && requestUrl.origin === new URL(authOrigin).origin && requestUrl.searchParams.has("code")) {
+                const state = requestUrl.searchParams.get("state");
+                if (state) {
+                  const bytes = new TextEncoder().encode(state);
+                  const digest = await crypto.subtle.digest("SHA-256", bytes);
+                  const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+                  if (sessionStorage.getItem("bp:workos:oauth-state") === fingerprint) {
+                    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+                    headers.set("X-BP-WorkOS-State", state);
+                    init = { ...init, headers };
+                  }
+                }
+              }
+            } catch { /* Browser storage may be disabled. The service will reject the callback. */ }
+            return fetchWithElevation(input, init, detail.ctx, transport);
+          };
 
           if (requestTargetEscapesLane(detail)) {
             if (source instanceof Element && sanitizeHtmxTarget(source)) {

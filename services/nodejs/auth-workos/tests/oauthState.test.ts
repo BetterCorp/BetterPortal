@@ -9,6 +9,8 @@ test("OAuth state needs the browser proof and matching app scope", () => {
   const state = createWorkOSState("/reports", scope);
   assert.equal(verifyWorkOSState(state, undefined, scope), undefined);
   assert.equal(verifyWorkOSState(state, "wrong", scope), undefined);
+  assert.doesNotThrow(() => verifyWorkOSState("éé", "AA", scope));
+  assert.equal(verifyWorkOSState("éé", "AA", scope), undefined);
   assert.equal(verifyWorkOSState(state, state, { tenantId: "tenant", appId: "other" }), undefined);
   assert.equal(verifyWorkOSState(state, state, scope), "/reports");
   assert.equal(readWorkOSStateCookie(`other=1; ${workOSStateCookie(state, true).split(";", 1)[0]}`), state);

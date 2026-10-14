@@ -10,6 +10,7 @@ import { validateScanResult } from "../../../../framework/nodejs/src/codegen/val
 import type { BetterPortalApp, BetterPortalTenant } from "../../../../framework/nodejs/src/contracts/platformConfig.js";
 import { createBetterPortalApp } from "../../../../framework/nodejs/src/runtime/h3.js";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { chromium, type Route } from "@playwright/test";
 import { buildBetterPortalShellRuntimeAsset } from "../src/runtime.js";
@@ -49,10 +50,10 @@ test("WorkOS callback sends browser-held state only to the configured auth servi
     return html(route, '<p id="loaded">Loaded</p>');
   });
   await page.waitForSelector("#loaded");
-  await page.evaluate(() => {
-    sessionStorage.setItem("bp:workos:oauth-state", "issued-state");
+  await page.evaluate(fingerprint => {
+    sessionStorage.setItem("bp:workos:oauth-state", fingerprint);
     window.htmx.ajax("GET", "https://auth.test/login?code=first&state=issued-state", { target: "#bp-main", swap: "innerHTML" });
-  });
+  }, createHash("sha256").update("issued-state").digest("hex"));
   await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=first")));
   await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login?code=second&state=forged", { target: "#bp-main", swap: "innerHTML" }));
   await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=second")));
