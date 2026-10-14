@@ -7,7 +7,9 @@ import { getManifestCache } from "../src/plugins/service-betterportal-config-man
 
 test("webhook test delivery cannot reach the control plane loopback interface", async (t) => {
   let hits = 0;
+  let connections = 0;
   const server = createServer((_request, response) => { hits++; response.writeHead(204).end(); });
+  server.on("connection", () => { connections++; });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
   const address = server.address();
@@ -17,13 +19,20 @@ test("webhook test delivery cannot reach the control plane loopback interface", 
     loadConfig: async () => ({
       apps: [{ id: "app", tenantId: "tenant", hostnames: ["cp.test"] }],
       tenants: [{ id: "tenant", active: true }],
-      webhooks: { targets: [{ id: "target", serviceId: "service", eventId: "changed", tenantId: "tenant", appId: "app", enabled: true,
-        secret: "test-only", url: `http://127.0.0.1:${address.port}/internal`, maxAttempts: 1 }] }
+      webhooks: { targets: [
+        { id: "target", serviceId: "service", eventId: "changed", tenantId: "tenant", appId: "app", enabled: true,
+          secret: "test-only", url: `http://127.0.0.1:${address.port}/internal`, maxAttempts: 1 },
+        { id: "tls-target", serviceId: "service", eventId: "changed", tenantId: "tenant", appId: "app", enabled: true,
+          secret: "test-only", url: `https://127.0.0.1:${address.port}/internal`, maxAttempts: 1 }
+      ] }
     })
   } as never);
   const response = await app.fetch(new Request("http://cp.test/.well-known/bp/manage/webhooks/targets/target/test?appId=app", { method: "POST" }));
   assert.equal(response.status, 502);
+  const tlsResponse = await app.fetch(new Request("http://cp.test/.well-known/bp/manage/webhooks/targets/tls-target/test?appId=app", { method: "POST" }));
+  assert.equal(tlsResponse.status, 502);
   assert.equal(hits, 0);
+  assert.equal(connections, 0, "HTTPS loopback must be rejected before opening a socket");
 });
 
 test("webhook target creation rejects private destinations and oversized streamed input", async (t) => {
