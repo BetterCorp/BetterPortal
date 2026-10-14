@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
   PluginIdSchema,
+  UuidV7Schema,
   PreviewEnvironmentGroupSchema,
   PreviewEnvironmentGroupServiceSchema,
   uuidv7,
@@ -17,7 +18,7 @@ import {
   type ServiceManifestCacheEntry
 } from "@betterportal/framework";
 import { generateApiKey, hashApiKey } from "./storage/core.js";
-import { apiRoutePath, pageRoutePath, appRoutePatternKey, mountSuppliesServiceParams } from "./routeMounts.js";
+import { apiRoutePath, pageRoutePath, appRoutePatternKey, mountSuppliesServiceParams, serviceRouteSlug } from "./routeMounts.js";
 
 export const PREVIEW_DEPLOYMENT_API_BASE = "/api/preview-groups";
 
@@ -367,7 +368,7 @@ export function reconcilePreviewService(
     const app = config.apps.find((candidate) => candidate.id === deployment.appId);
     if (!app) continue;
     const before = JSON.stringify({ routes: app.routes, menu: app.menu });
-    reconcileRoutesForService(app, serviceInstanceId, manifest);
+    reconcileRoutesForService(app, serviceInstanceId, { ...manifest, serviceId: servicePluginId(config, serviceInstanceId) ?? manifest.serviceId });
     rebuildPreviewMenu(config, app);
     if (before !== JSON.stringify({ routes: app.routes, menu: app.menu })) changed = true;
   }
@@ -657,10 +658,38 @@ function reconcilePreviewDeploymentFromCache(config: BetterPortalConfig, deploym
   rebuildPreviewMenu(config, app);
 }
 
+/** Recognize generated API mounts, including the source-instance UUID copied into a preview. */
+function isGeneratedPreviewApiMount(route: BetterPortalRouteMount, pluginId: string, servicePath: string): boolean {
+  const match = /^\/_bp\/service\/([^/]+)(\/.*)?$/.exec(route.path);
+  if (!match || (match[1] !== serviceRouteSlug(pluginId) && !UuidV7Schema.safeParse(match[1]).success)) return false;
+  const suffix = appRoutePatternKey(match[2] ?? "/");
+  return [servicePath, route.targetPath, route.resolvedServicePath, route.servicePathVariant]
+    .some(path => path !== undefined && appRoutePatternKey(path) === suffix);
+}
+
+/** Merge only API mounts with the same request semantics; never silently drop settings. */
+function mergePreviewApiMount(survivor: BetterPortalRouteMount, incoming: BetterPortalRouteMount): void {
+  if (survivor.resolvedServicePath !== incoming.resolvedServicePath
+    || !isDeepStrictEqual(survivor.fixedParams ?? {}, incoming.fixedParams ?? {})
+    || (survivor.query ?? "") !== (incoming.query ?? "")) {
+    throw new PreviewEnvironmentError(`Cannot consolidate preview API route ${incoming.viewId}: incompatible request settings at ${incoming.path}`, 409);
+  }
+  for (const key of ["icon", "chrome", "sitemap", "menuPermissions"] as const) {
+    const value = incoming[key];
+    if (value === undefined) continue;
+    if (survivor[key] !== undefined && !isDeepStrictEqual(survivor[key], value)) {
+      throw new PreviewEnvironmentError(`Cannot consolidate preview API route ${incoming.viewId}: incompatible ${key} settings at ${incoming.path}`, 409);
+    }
+    Object.assign(survivor, { [key]: structuredClone(value) });
+  }
+  survivor.operations = [...new Set([...survivor.operations, ...incoming.operations])];
+}
+
 function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: string, manifest: PreviewManifest): void {
   const existing = app.routes.filter((route) => route.serviceId === serviceInstanceId);
   const desired: BetterPortalRouteMount[] = [];
   const repaired = new Set<string>();
+  const apiMounts = new Map<string, BetterPortalRouteMount>();
   for (const view of Object.values(manifest.viewIndex)) {
     const pageOperations = view.operations.filter((operation) =>
       operation.method === "GET" && operation.renderable && operation.renderModes.includes("page")
@@ -674,15 +703,30 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
         && route.viewId === view.viewId
         && route.operations.some((operationId) => operations.some((operation) => operation.operationId === operationId))
       );
-      const operation = operations[0]!;
-      for (const previous of matches.length ? matches : [undefined]) {
+      const previousMounts: Array<BetterPortalRouteMount | undefined> = matches.length ? [...matches] : [undefined];
+      // Keep explicit aliases' selections while still mounting newly declared API operations.
+      if (kind === "api" && matches.length
+        && operations.some(candidate => !matches.some(route => route.operations.includes(candidate.operationId)))
+        && !matches.some(route => {
+          const servicePath = route.servicePathVariant && [view.path, ...view.pathVariants].includes(route.servicePathVariant)
+            ? route.servicePathVariant : view.path;
+          return !mountSuppliesServiceParams(route.path, servicePath, route.fixedParams)
+            || isGeneratedPreviewApiMount(route, manifest.serviceId, servicePath);
+        })) {
+        previousMounts.push(undefined);
+      }
+      for (const previous of previousMounts) {
         const servicePath = previous?.servicePathVariant && [view.path, ...view.pathVariants].includes(previous.servicePathVariant)
           ? previous.servicePathVariant : view.path;
         const generatedPath = kind === "page" ? pageRoutePath(manifest.serviceId, servicePath) : apiRoutePath(manifest.serviceId, servicePath);
         const validPrevious = previous && mountSuppliesServiceParams(previous.path, servicePath, previous.fixedParams);
-        const path = kind === "page" && validPrevious ? previous.path : generatedPath;
+        const isAlias = previous && validPrevious && (kind === "page" || !isGeneratedPreviewApiMount(previous, manifest.serviceId, servicePath));
+        const path = isAlias ? previous.path : generatedPath;
+        const selectedOperations = kind === "api" && isAlias
+          ? operations.filter(candidate => previous.operations.includes(candidate.operationId)) : operations;
+        const operation = selectedOperations[0]!;
         if (previous && path !== previous.path) repaired.add(previous.id);
-        desired.push({
+        const candidate: BetterPortalRouteMount = {
           ...(previous ? structuredClone(previous) : {
             id: uuidv7(),
             serviceId: serviceInstanceId,
@@ -704,15 +748,22 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
           ...(operation.chrome ? { chrome: operation.chrome } : {}),
           enabled: true,
           enablement: "enabled",
-          operations: operations.map((candidate) => candidate.operationId)
-        });
+          operations: selectedOperations.map(candidate => candidate.operationId)
+        };
+        if (kind === "api") {
+          const key = JSON.stringify([view.viewId, appRoutePatternKey(path)]);
+          const survivor = apiMounts.get(key);
+          if (survivor) { mergePreviewApiMount(survivor, candidate); continue; }
+          apiMounts.set(key, candidate);
+        }
+        desired.push(candidate);
       }
     }
   }
   // Check the final set: retired mounts must not block a repair, while surviving
   // mounts (including disabled routes) and repairs in this pass still reserve paths.
   const finalRoutes = [...app.routes.filter(route => route.serviceId !== serviceInstanceId), ...desired];
-  for (const route of desired.filter(route => repaired.has(route.id))) {
+  for (const route of desired.filter(route => repaired.has(route.id) || route.kind === "api")) {
     if (finalRoutes.some(other => other.id !== route.id && (other.kind ?? "page") === route.kind
       && appRoutePatternKey(other.path) === appRoutePatternKey(route.path))) {
       throw new PreviewEnvironmentError(`Cannot repair preview route ${route.viewId}: UI path ${route.path} is already mounted`, 409);

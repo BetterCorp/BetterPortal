@@ -5,6 +5,7 @@ import { BaseStorage, ConfigRevisionConflictError } from "../src/plugins/service
 import { createPreviewGroup } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { registerPreviewDeploymentApi } from "../src/plugins/service-betterportal-config-manager/previewApi.js";
 import { credentialDiagnostics } from "../src/plugins/service-betterportal-config-manager/credentialDiagnostics.js";
+import { apiRoutePath } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { registerSyncEndpoint } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 
 class ConflictStorage extends BaseStorage {
@@ -219,4 +220,38 @@ test("preview DELETE and GET expiry cleanup retry conflicts", async () => {
     assert.equal(storage.current.previewEnvironmentDeployments.length, 0);
     assert.equal(storage.current.apps[0].title, "Concurrent edit");
   }
+});
+
+
+test("deployment POST refresh migrates legacy API operation mounts without 409 and remains stable", async () => {
+  const { storage, call } = fixture();
+  const source = storage.current.apps[0];
+  const sourceId = source.routes[0].serviceId;
+  const viewId = "reports.owner.report", path = "/internal/reports/owner/reports/:reportId";
+  const operations = ["GET", "PUT", "DELETE"].map(method => ({ operationId: `${viewId}.${method.toLowerCase()}`, method, title: method, renderable: false, renderModes: [], robots: [] }));
+  source.routes = operations.map(operation => ({ id: uuidv7(), kind: "api", path: apiRoutePath(sourceId, path), targetPath: path,
+    serviceId: sourceId, viewId, enabled: true, operations: [operation.operationId], query: "format=json" }));
+  assert.equal((await call()).status, 201);
+  const deployment = storage.current.previewEnvironmentDeployments[0];
+  const instanceId = deployment.services[0].instanceId;
+  const preview = storage.current.apps.find(app => app.id === deployment.appId)!;
+  const firstId = preview.routes[0].id;
+  storage.current.manifestCache.push({ serviceId: instanceId, manifestVersion: "11", fetchedAt: new Date().toISOString(), viewIndex: {
+    [viewId]: { viewId, path, pathVariants: [], operations }
+  } } as never);
+  delete deployment.credentialReplay;
+  storage.invalidate();
+  assert.equal((await call()).status, 200, "cached-manifest refresh must not fail on equivalent mounts");
+  const migrated = storage.current.apps.find(app => app.id === deployment.appId)!;
+  assert.equal(migrated.routes.length, 1);
+  assert.equal(migrated.routes[0].id, firstId);
+  assert.equal(migrated.routes[0].path, apiRoutePath("org.example.service", path));
+  assert.equal(migrated.routes[0].query, "format=json");
+  assert.deepEqual(migrated.routes[0].operations, operations.map(operation => operation.operationId));
+  const routes = structuredClone(migrated.routes);
+  delete storage.current.previewEnvironmentDeployments[0].credentialReplay;
+  storage.invalidate();
+  assert.equal((await call()).status, 200);
+  assert.deepEqual(storage.current.apps.find(app => app.id === deployment.appId)!.routes, routes);
+  assert.deepEqual(storage.current.apps[0].routes, source.routes, "source mounts must remain untouched");
 });

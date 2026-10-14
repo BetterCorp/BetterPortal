@@ -31,7 +31,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { applyServicePublicKey, ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
-import { isPreviewService } from "./previewEnvironments.js";
+import { isPreviewService, PreviewEnvironmentError } from "./previewEnvironments.js";
 import { credentialDiagnostics } from "./credentialDiagnostics.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
@@ -836,7 +836,7 @@ export function registerSyncEndpoint(
             }
           }, signal);
         } catch (error) {
-          if (error instanceof SyncSubmissionError) return jsonResponse({ error: error.message }, error.status);
+          if (error instanceof SyncSubmissionError || error instanceof PreviewEnvironmentError) return jsonResponse({ error: error.message }, error.status);
           if (signal.aborted || error instanceof ConfigRevisionConflictError) {
             const response = jsonResponse({ error: "Config sync is busy; retry submission" }, 503);
             response.headers.set("retry-after", "5");
@@ -1148,7 +1148,11 @@ function applyServiceMetadata(
     if (manifest.authProvider && app.auth && routeServiceIds.has(app.auth.serviceId)) {
       applyAuthProviderMetadata(app.auth, manifest.authProvider);
     }
-    for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
+    // Preview reconciliation owns paths, settings and operation consolidation. Generic
+    // normalization would erase aliases and request settings before that callback runs.
+    const routeNormalizationIds = config.previewEnvironmentDeployments?.some(deployment => deployment.appId === app.id)
+      ? new Set<string>() : syncedServiceIds;
+    for (const route of app.routes.filter((candidate) => routeNormalizationIds.has(candidate.serviceId))) {
       const view = manifest.viewIndex[route.viewId];
       if (!view) {
         if (route.enabled !== false) {
@@ -1214,7 +1218,7 @@ function applyServiceMetadata(
         route.title = operation.title;
       }
     }
-    for (const serviceId of syncedServiceIds) {
+    for (const serviceId of routeNormalizationIds) {
       for (const view of Object.values(manifest.viewIndex)) {
         for (const operation of view.operations.filter((candidate) => !isPageOperation(candidate))) {
           if (app.routes.some((route) => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;

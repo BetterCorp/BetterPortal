@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { BetterPortalConfigSchema, createBetterPortalApp, generateKeyPair, uuidv7, type BetterPortalConfig } from "@betterportal/framework";
 import { BaseStorage, ConfigRevisionConflictError, hashApiKey } from "../src/plugins/service-betterportal-config-manager/storage/core.js";
 import { FileStorage } from "../src/plugins/service-betterportal-config-manager/storage/file.js";
+import { apiRoutePath } from "../src/plugins/service-betterportal-config-manager/routeMounts.js";
 import { registerSyncEndpoint } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
 import { createPreviewGroup, provisionPreviewDeployment, reconcilePreviewService } from "../src/plugins/service-betterportal-config-manager/previewEnvironments.js";
 import { buildPreviewDiagnostics, PreviewDiagnosticsSchema, previewServiceStatus } from "../src/plugins/service-betterportal-config-manager/previewDiagnostics.js";
@@ -345,4 +346,56 @@ test("config editor and preview tickets use only the active app's managed creden
   }
   assert.deepEqual(requests.map(r => r.token), ["Bearer app-a", "Bearer app-a", "Bearer app-b", "Bearer app-b"]);
   assert.ok(requests.every(r => (r.body as { tenantId: string }).tenantId === "customer"));
+});
+
+
+test("service manifest sync preserves preview API aliases and settings before consolidation", async () => {
+  const { config, deployment } = fixture(["reports"]);
+  const instanceId = deployment.services[0].instanceId;
+  const app = config.apps.find(candidate => candidate.id === deployment.appId)!;
+  const path = "/internal/reports/:reportId", variant = "/alternate/reports/:reportId", viewId = "reports.owner.report";
+  const operations = ["GET", "PUT", "DELETE"].map(method => ({ operationId: `${viewId}.${method.toLowerCase()}`, method, title: method, authRequired: false, renderable: false, renderModes: [] }));
+  app.routes = operations.map(operation => ({ id: uuidv7(), kind: "api", path: apiRoutePath(instanceId, path), targetPath: path,
+    serviceId: instanceId, viewId, operations: [operation.operationId], enabled: true, query: "format=json", fixedParams: { reportId: "featured" } }));
+  app.routes.push({ ...app.routes[0], id: uuidv7(), path: "/read-report/:reportId", fixedParams: undefined, query: "mode=read" });
+  app.routes.push({ ...app.routes[0], id: uuidv7(), path: apiRoutePath(instanceId, variant), targetPath: variant, servicePathVariant: variant });
+  const firstId = app.routes[0].id, aliasId = app.routes[3].id, variantId = app.routes[4].id;
+  class Store extends BaseStorage {
+    value = config;
+    async loadConfig() { return structuredClone(this.value); }
+    async saveConfig(snapshot: BetterPortalConfig) { this.value = BetterPortalConfigSchema.parse(snapshot); }
+    async validateApiKey() { return { scope: "tenant" as const, tenantId: deployment.tenantId, serviceId: instanceId }; }
+  }
+  const store = new Store(), key = generateKeyPair();
+  let handler!: (event: any) => Promise<Response>;
+  registerSyncEndpoint({ get() {}, post(_path: string, callback: typeof handler) { handler = callback; } } as never, store, {
+    onManifestUpdated(snapshot, ids, manifest) { for (const id of ids) reconcilePreviewService(snapshot, id, manifest); }
+  });
+  const submit = (manifestVersion: string) => handler({ req: new Request("https://config.example/.well-known/bp/sync/poll", {
+    method: "POST", headers: { authorization: "Bearer test", "content-type": "application/json" },
+    body: JSON.stringify({ publicKeyPem: key.publicKeyPem, keyId: key.kid, manifestVersion, viewIndex: {
+      [viewId]: { viewId, path, pathVariants: [variant], operations }
+    } })
+  }) });
+  assert.equal((await submit("1")).status, 200);
+  const routes = store.value.apps.find(candidate => candidate.id === deployment.appId)!.routes;
+  assert.equal(routes.length, 3);
+  assert.deepEqual(routes.map(route => route.id), [firstId, aliasId, variantId]);
+  assert.deepEqual(routes.map(route => route.path), [apiRoutePath("org.example.reports", path), "/read-report/:reportId", apiRoutePath("org.example.reports", variant)]);
+  assert.deepEqual(routes.map(route => route.query), ["format=json", "mode=read", "format=json"]);
+  assert.deepEqual(routes[0].fixedParams, { reportId: "featured" });
+  assert.deepEqual(routes[2].fixedParams, { reportId: "featured" });
+  assert.deepEqual(routes[0].operations, operations.map(operation => operation.operationId));
+  assert.deepEqual(routes[1].operations, [operations[0].operationId]);
+  assert.equal((await submit("2")).status, 200, "a fresh manifest version must run reconciliation again");
+  assert.deepEqual(store.value.apps.find(candidate => candidate.id === deployment.appId)!.routes, routes);
+  provisionPreviewDeployment(store.value, deployment.groupId, { key: "race", hostname: "race.example", services: [{ serviceId: "org.example.reports", url: "https://reports.race.example" }] }, "https://config.example");
+  assert.deepEqual(store.value.apps.find(candidate => candidate.id === deployment.appId)!.routes, routes, "cache-driven deployment refresh uses the same generated paths as service sync");
+  const storedApp = store.value.apps.find(candidate => candidate.id === deployment.appId)!;
+  storedApp.routes.push({ ...storedApp.routes[0], id: uuidv7(), query: "format=pdf" });
+  const before = structuredClone(store.value);
+  const rejected = await submit("3");
+  assert.equal(rejected.status, 409, "incompatible preview settings must return an actionable conflict");
+  assert.match((await rejected.json()).error, /incompatible request settings/);
+  assert.deepEqual(store.value, before, "rejected sync must not commit its manifest, identity or route changes");
 });
