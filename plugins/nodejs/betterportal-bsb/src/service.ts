@@ -36,6 +36,7 @@ import {
   resolveEmbeddedRequestContext,
   resolveThemeSourceHeader,
   resolveThemeLlmsContext,
+  readBoundedJsonBody,
   verifySetupToken,
   verifyServiceConfigTicket,
   ElevationRequirementSchema,
@@ -2495,7 +2496,8 @@ export abstract class BPService<
   private registerInstallEndpoint(obs: Observable): void {
     this.app.post("/.well-known/bp/install", async (event) => {
       // CORS already handled by handleWithCors for public discovery paths.
-      const body = await event.req.json().catch(() => null);
+      const body = await readBoundedJsonBody(event.req, 1024 * 1024);
+      if (body instanceof Response) return body;
       if (!body || typeof body !== "object") {
         return coreJsonResponse(
           { error: "Request body must be JSON object" },
@@ -2633,7 +2635,9 @@ export abstract class BPService<
 
   private registerHostnameChangeEndpoint(obs: Observable): void {
     this.app.post("/.well-known/bp/hostname-change", async (event) => {
-      const body = await event.req.json().catch(() => null) as { changeToken?: string } | null;
+      const parsed = await readBoundedJsonBody(event.req, 1024 * 1024);
+      if (parsed instanceof Response) return parsed;
+      const body = parsed as { changeToken?: string } | null;
       if (!body || typeof body.changeToken !== "string" || body.changeToken.length === 0) {
         return coreJsonResponse(
           { error: "Missing changeToken" },
