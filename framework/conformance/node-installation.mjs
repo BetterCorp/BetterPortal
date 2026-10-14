@@ -61,11 +61,11 @@ async function run(body, directory) {
       app: createBetterPortalApp(), manifest: schema.schema.manifest, bootstrapState,
       requireBetterPortalConfigSource: true, configProvider: null,
       scopedConfig: cache.read(), scopedConfigCache: cache, seoProbeCache: new Map(),
-      inSetupMode: !stored.apiKey, resolvedCpUrl: stored.cpUrl, resolvedApiKey: stored.apiKey,
+      inSetupMode: !stored.apiKey, resolvedCpUrl: stored.cpUrl ?? body.cpUrl, resolvedApiKey: stored.apiKey,
       s2sKeyPair: null, s2sIdentityReady: false, manifestSync: { state: "pending" }, sseAbortController: null
     });
     // This is the BSB configuration boundary read by BPService.service/bp getters.
-    Object.defineProperty(runtime, "config", { value: { host: publicUrl.hostname, port: Number(publicUrl.port || 443), betterportal: { bootstrapStatePath: filePath } } });
+    Object.defineProperty(runtime, "config", { value: { host: publicUrl.hostname, port: Number(publicUrl.port || 443), betterportal: { bootstrapStatePath: filePath, controlPlaneUrl: body.cpUrl } } });
     runtime.registerInstallEndpoint(obs);
     runtime.registerHostnameChangeEndpoint(obs);
     runtime.app.get("/.well-known/bp/health", () => runtime.renderHealth(false));
