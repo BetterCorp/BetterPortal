@@ -368,7 +368,7 @@ export function reconcilePreviewService(
     const app = config.apps.find((candidate) => candidate.id === deployment.appId);
     if (!app) continue;
     const before = JSON.stringify({ routes: app.routes, menu: app.menu });
-    reconcileRoutesForService(app, serviceInstanceId, manifest);
+    reconcileRoutesForService(app, serviceInstanceId, { ...manifest, serviceId: servicePluginId(config, serviceInstanceId) ?? manifest.serviceId });
     rebuildPreviewMenu(config, app);
     if (before !== JSON.stringify({ routes: app.routes, menu: app.menu })) changed = true;
   }

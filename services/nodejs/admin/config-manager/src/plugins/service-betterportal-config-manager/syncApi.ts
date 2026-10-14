@@ -1148,7 +1148,11 @@ function applyServiceMetadata(
     if (manifest.authProvider && app.auth && routeServiceIds.has(app.auth.serviceId)) {
       applyAuthProviderMetadata(app.auth, manifest.authProvider);
     }
-    for (const route of app.routes.filter((candidate) => syncedServiceIds.has(candidate.serviceId))) {
+    // Preview reconciliation owns paths, settings and operation consolidation. Generic
+    // normalization would erase aliases and request settings before that callback runs.
+    const routeNormalizationIds = config.previewEnvironmentDeployments?.some(deployment => deployment.appId === app.id)
+      ? new Set<string>() : syncedServiceIds;
+    for (const route of app.routes.filter((candidate) => routeNormalizationIds.has(candidate.serviceId))) {
       const view = manifest.viewIndex[route.viewId];
       if (!view) {
         if (route.enabled !== false) {
@@ -1214,7 +1218,7 @@ function applyServiceMetadata(
         route.title = operation.title;
       }
     }
-    for (const serviceId of syncedServiceIds) {
+    for (const serviceId of routeNormalizationIds) {
       for (const view of Object.values(manifest.viewIndex)) {
         for (const operation of view.operations.filter((candidate) => !isPageOperation(candidate))) {
           if (app.routes.some((route) => route.serviceId === serviceId && route.operations.includes(operation.operationId))) continue;
