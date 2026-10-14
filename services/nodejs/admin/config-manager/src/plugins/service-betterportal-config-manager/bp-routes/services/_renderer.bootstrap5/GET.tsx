@@ -3,6 +3,11 @@ import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../GET.js";
 
+const TICKET_ONLY_THEME_SERVICES = new Set([
+  "org.betterportal.theme.bootstrap1",
+  "org.betterportal.theme.bootstrap2"
+]);
+
 function scriptJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
@@ -22,7 +27,7 @@ function configureAttrs(
     ...(appId ? { appId } : {})
   }).toString();
 
-  if (service.supportsCustomUi && service.customUiPath && appId) {
+  if (service.supportsCustomUi && service.customUiPath && appId && !TICKET_ONLY_THEME_SERVICES.has(service.serviceId ?? "")) {
     const target = `${service.hostname.replace(/\/+$/, "")}${service.customUiPath}?tenantId=${encodeURIComponent(service.tenantId ?? "")}&appId=${encodeURIComponent(appId)}&adminApiBase=${encodeURIComponent(adminApiBase)}`;
     const push = `${service.pushBase}?tenantId=${encodeURIComponent(service.tenantId ?? "")}&appId=${encodeURIComponent(appId)}`;
     return {
