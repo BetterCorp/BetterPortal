@@ -31,6 +31,7 @@ def run_installation(urls, labels):
         issued = post(control["url"] + "/.well-known/bp/admin/services/begin-install", {"serviceUrl": "https://service.test", "tenantId": TENANT, "instanceId": TARGET, **options})
         token = issued["setupToken"]
         if signer is not None:
+            # Negative installer cases re-sign claims with an unrelated key. Redemption must accept only the CP's own signature.
             raw = token.split(".")[1]; claims = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
             claims.update(changes or {})
             token = post(signer, {"action": "jwt-raw", "purpose": "setup", "claims": claims})["token"]
@@ -45,48 +46,46 @@ def run_installation(urls, labels):
     def cp_state(control): return post(node, {"action": "sync-peer", "id": control["id"], "command": "state"})
     for url, label in zip(urls, labels):
         if label == "node":
-            for signer, source in zip(urls, labels):
-                def node_install():
-                    with peer() as control:
-                        body = fixture(); body.update(action="installation", cpUrl=control["url"], steps=[issue(control, signer), {"kind": "restart"}, {}],
-                            key="bp_bsk_" + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("="))
-                        actual = post(url, body)
-                        assert actual["valid"], actual.get("error")
-                        steps = actual["outcomes"]
-                        assert all(row["status"] == 200 and row["ready"] for row in steps), brief(steps)
-                        assert all(row["manifestSync"]["state"] == "synced" for row in steps)
-                        assert steps[0]["apiKeyHash"] == steps[1]["apiKeyHash"] and steps[0]["jwk"] == steps[1]["jwk"]
-                        assert steps[0]["snapshot"]["serviceIdentity"]["id"] == TARGET
-                        assert not actual["loggedCredential"], "Node installer logged its control-plane API key"
-                check(label, "install-restart-from-" + source, node_install)
-            continue
-        for signer, source in zip(urls, labels):
-            def lifecycle():
+            def node_install():
                 with peer() as control:
-                    install = issue(control, signer)
-                    steps = invoke(url, control, [{}, {"path": "/.well-known/jwks.json"}, install, {"kind": "wait", "updates": 2}, {},
-                        {"path": "/check/item", "headers": {"origin": "https://app.test"}},
-                        {"method": "POST", "path": "/check/item", "headers": {"origin": "https://app.test"}},
-                        install, {"kind": "restart"}, {"kind": "state"}, {"kind": "close"}])
-                    # Assert readiness at install completion, then finish the initial SSE
-                    # replacement before testing unrelated operation/replay behavior.
-                    assert steps.pop(3)["ready"], brief(steps)
-                    assert [row["status"] for row in steps] == [503, 200, 200, 200, 200, 404, 200, 200, 200, 200], brief(steps)
-                    assert not steps[0]["ready"] and all(row["ready"] for row in steps[2:-1]) and not steps[-1]["ready"], brief(steps)
-                    response = json.loads(steps[2]["body"])
-                    assert "apiKey" not in response and response["ok"] and response["cpUrl"] == control["url"], response
-                    assert steps[2]["headers"]["cache-control"] == "no-store" and steps[2]["headers"]["access-control-allow-origin"] == "*"
-                    identity = json.loads(steps[1]["body"])["keys"][0]
-                    assert steps[2]["bootstrap"]["identity"]["kid"] == steps[8]["bootstrap"]["identity"]["kid"] == identity["kid"]
-                    assert steps[2]["apiKeyHash"] == steps[8]["apiKeyHash"] and steps[2]["configKeyHash"] == steps[8]["configKeyHash"]
-                    assert steps[2]["bootstrap"]["apiKey"] == steps[2]["bootstrap"]["identity"]["privateKeyPem"] == "__redacted__"
-                    assert "bp_sk_t_" not in steps[2]["stored"] and "PRIVATE KEY" not in steps[2]["stored"]
-                    snapshot = steps[2]["snapshot"]
-                    assert [tenant["id"] for tenant in snapshot["tenants"]] == [TENANT] and snapshot["serviceIdentity"]["id"] == TARGET, snapshot
-                    state = cp_state(control); calls = [call["path"] for call in state["calls"]]
-                    assert calls.count("/.well-known/bp/services/redeem") == 1 and calls.index("/.well-known/bp/services/redeem") < calls.index("/.well-known/bp/sync/poll"), calls
-                    assert state["config"]["manifestCache"][0]["viewIndex"]["check"]["operations"][0]["operationId"] == "check.get"
-            check(label, "install-replay-restart-from-" + source, lifecycle)
+                    body = fixture(); body.update(action="installation", cpUrl=control["url"], steps=[issue(control), {"kind": "restart"}, {}],
+                        key="bp_bsk_" + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("="))
+                    actual = post(url, body)
+                    assert actual["valid"], actual.get("error")
+                    steps = actual["outcomes"]
+                    assert all(row["status"] == 200 and row["ready"] for row in steps), brief(steps)
+                    assert all(row["manifestSync"]["state"] == "synced" for row in steps)
+                    assert steps[0]["apiKeyHash"] == steps[1]["apiKeyHash"] and steps[0]["jwk"] == steps[1]["jwk"]
+                    assert steps[0]["snapshot"]["serviceIdentity"]["id"] == TARGET
+                    assert not actual["loggedCredential"], "Node installer logged its control-plane API key"
+            check(label, "install-restart-from-control-plane", node_install)
+            continue
+        def lifecycle():
+            with peer() as control:
+                install = issue(control)
+                steps = invoke(url, control, [{}, {"path": "/.well-known/jwks.json"}, install, {"kind": "wait", "updates": 2}, {},
+                    {"path": "/check/item", "headers": {"origin": "https://app.test"}},
+                    {"method": "POST", "path": "/check/item", "headers": {"origin": "https://app.test"}},
+                    install, {"kind": "restart"}, {"kind": "state"}, {"kind": "close"}])
+                # Assert readiness at install completion, then finish the initial SSE
+                # replacement before testing unrelated operation/replay behavior.
+                assert steps.pop(3)["ready"], brief(steps)
+                assert [row["status"] for row in steps] == [503, 200, 200, 200, 200, 404, 200, 200, 200, 200], brief(steps)
+                assert not steps[0]["ready"] and all(row["ready"] for row in steps[2:-1]) and not steps[-1]["ready"], brief(steps)
+                response = json.loads(steps[2]["body"])
+                assert "apiKey" not in response and response["ok"] and response["cpUrl"] == control["url"], response
+                assert steps[2]["headers"]["cache-control"] == "no-store" and steps[2]["headers"]["access-control-allow-origin"] == "*"
+                identity = json.loads(steps[1]["body"])["keys"][0]
+                assert steps[2]["bootstrap"]["identity"]["kid"] == steps[8]["bootstrap"]["identity"]["kid"] == identity["kid"]
+                assert steps[2]["apiKeyHash"] == steps[8]["apiKeyHash"] and steps[2]["configKeyHash"] == steps[8]["configKeyHash"]
+                assert steps[2]["bootstrap"]["apiKey"] == steps[2]["bootstrap"]["identity"]["privateKeyPem"] == "__redacted__"
+                assert "bp_sk_t_" not in steps[2]["stored"] and "PRIVATE KEY" not in steps[2]["stored"]
+                snapshot = steps[2]["snapshot"]
+                assert [tenant["id"] for tenant in snapshot["tenants"]] == [TENANT] and snapshot["serviceIdentity"]["id"] == TARGET, snapshot
+                state = cp_state(control); calls = [call["path"] for call in state["calls"]]
+                assert calls.count("/.well-known/bp/services/redeem") == 1 and calls.index("/.well-known/bp/services/redeem") < calls.index("/.well-known/bp/sync/poll"), calls
+                assert state["config"]["manifestCache"][0]["viewIndex"]["check"]["operations"][0]["operationId"] == "check.get"
+        check(label, "install-replay-restart-from-control-plane", lifecycle)
         for name, claims in (("wrong-service", {"serviceUrl": "https://other.test"}), ("service-path", {"serviceUrl": "https://service.test/other"}),
                              ("wrong-cp-claim", {"cpUrl": "https://other.test"}), ("wrong-jwks", {"cpJwksUri": "https://other.test/jwks"}),
                              ("expired", {"iat": 1, "exp": 2}), ("future-issuance", {"iat": 9999999900, "exp": 9999999999})):
