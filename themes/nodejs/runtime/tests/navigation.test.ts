@@ -55,9 +55,15 @@ test("WorkOS callback sends browser-held state only to the configured auth servi
     window.htmx.ajax("GET", "https://auth.test/login?code=first&state=issued-state", { target: "#bp-main", swap: "innerHTML" });
   }, createHash("sha256").update("issued-state").digest("hex"));
   await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=first")));
+  assert.equal(await page.evaluate(() => sessionStorage.getItem("bp:workos:oauth-state")), null,
+    "a callback must consume its browser proof");
+  await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login?code=replayed&state=issued-state", { target: "#bp-main", swap: "innerHTML" }));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=replayed")));
   await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login?code=second&state=forged", { target: "#bp-main", swap: "innerHTML" }));
   await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=second")));
   assert.equal(seen.find(request => request.url.includes("code=first"))?.proof, "issued-state");
+  assert.equal(seen.find(request => request.url.includes("code=replayed"))?.proof, undefined,
+    "a second callback using the same state must not receive the proof");
   assert.equal(seen.find(request => request.url.includes("code=second"))?.proof, undefined);
   assert.deepEqual(errors, []);
 });

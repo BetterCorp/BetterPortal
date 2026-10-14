@@ -2567,6 +2567,9 @@ export function betterPortalShellRuntimeSource(): string {
                   const digest = await crypto.subtle.digest("SHA-256", bytes);
                   const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
                   if (sessionStorage.getItem("bp:workos:oauth-state") === fingerprint) {
+                    // Spend the browser proof before sending the callback so a second
+                    // code exchange cannot reuse the same OAuth state.
+                    sessionStorage.removeItem("bp:workos:oauth-state");
                     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
                     headers.set("X-BP-WorkOS-State", state);
                     init = { ...init, headers };
