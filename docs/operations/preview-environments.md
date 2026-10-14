@@ -228,3 +228,22 @@ permission-restricted pages require the user's effective grants (including the
 preview group's configured role elevation). A service operation with `menu: false`
 remains mounted but is excluded from the generated menu on every reconciliation.
 Fragment configuration continues to inherit from the source app when cloned.
+
+
+## API mount migration during refresh
+
+A source app can contain separate API mounts for each operation of one view. During preview manifest reconciliation, mounts that migrate to the same generated API URL are consolidated into one mount. For example, GET, PUT and DELETE mounts for `reports.owner.report` targeting `/internal/reports/owner/reports/:reportId` become:
+
+```yaml
+kind: api
+path: /_bp/service/za.co.robertgroup.one.reports/internal/reports/owner/reports/:reportId
+viewId: reports.owner.report
+operations:
+  - reports.owner.report.get
+  - reports.owner.report.put
+  - reports.owner.report.delete
+```
+
+The first mount's ID and route position survive. Compatible fixed parameters, query strings and presentation settings are preserved. Generated mounts receive all current API operations; a valid custom alias keeps its path and selected operations. Distinct aliases and service-path variants remain separate. If aliases do not cover a newly declared operation, reconciliation adds a generated mount for it.
+
+Repeated manifest refreshes and same-key redeployments using the accepted manifest cache keep the resulting routes stable. Incompatible request or presentation settings and URL patterns occupied by unrelated routes remain HTTP 409 errors; reconciliation does not silently pick one configuration. After upgrading Config Manager, rerun the failed staging deployment to refresh its routes. Keep the staging environment and service report URLs intact. An identical deployment POST inside the credential replay window still replays its response rather than forcing a refresh.
