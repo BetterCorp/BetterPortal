@@ -4,6 +4,23 @@ import { Plugin as Bootstrap1Plugin } from "../src/plugins/service-betterportal-
 import { Plugin as Bootstrap2Plugin } from "../../bootstrap2/src/plugins/service-betterportal-theme-bootstrap2/index.js";
 
 for (const [name, plugin] of [["bootstrap1", Bootstrap1Plugin], ["bootstrap2", Bootstrap2Plugin]] as const) {
+  test(`${name} legacy config form escapes caller-provided attributes and labels`, () => {
+    const renderer = plugin.prototype as unknown as {
+      renderConfigUiForm(base: string, tenantId: string, appId: string, values: Record<string, string>, stored: Set<string>): string;
+    };
+    const values = {
+      brandName: "Brand", documentTitle: "Title", lightLogoUrl: "", darkLogoUrl: "", faviconUrl: "",
+      mode: "light", primary: "#123456", secondary: "#123456", success: "#123456",
+      info: "#123456", warning: "#123456", danger: "#123456"
+    };
+    const html = renderer.renderConfigUiForm.call(Object.create(plugin.prototype),
+      '" onmouseover="alert(1)', '<img src=x onerror=alert(2)>', "app-a", values, new Set());
+    assert.doesNotMatch(html, /hx-post="" onmouseover=/);
+    assert.doesNotMatch(html, /<img src=x onerror=alert\(2\)>/);
+    assert.match(html, /&quot; onmouseover=&quot;/);
+    assert.match(html, /&lt;img src=x onerror=alert\(2\)&gt;/);
+  });
+
   test(`${name} legacy config UI cannot read or change theme settings anonymously`, async () => {
     let writes = 0;
     const context = Object.assign(Object.create(plugin.prototype) as object, {

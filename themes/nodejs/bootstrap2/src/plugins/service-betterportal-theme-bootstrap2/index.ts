@@ -698,12 +698,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private renderConfigUiForm(adminApiBase: string, tenantId: string, appId: string, eff: { brandName: string; documentTitle: string; lightLogoUrl: string; darkLogoUrl: string; faviconUrl: string; mode: string; primary: string; secondary: string; success: string; info: string; warning: string; danger: string }, storedKeys: Set<string>, savedFlash = false): string {
-    const safeAttr = (v: string) => String(v).replace(/"/g, "&quot;");
+    const safeAttr = (v: string) => String(v).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[c]!);
     const isStored = (k: string) => storedKeys.has(k);
     const saveUrl = `${adminApiBase.replace(/\/+$/, "")}/apps/${encodeURIComponent(appId)}/theme-config/bootstrap2`;
 
     const resetForm = (key: string) => isStored(key)
-      ? `<form hx-post="${saveUrl}" hx-target="#bp-theme-save-status" hx-swap="outerHTML" class="d-inline">
+      ? `<form hx-post="${safeAttr(saveUrl)}" hx-target="#bp-theme-save-status" hx-swap="outerHTML" class="d-inline">
            <input type="hidden" name="tenantId" value="${safeAttr(tenantId)}" />
            <input type="hidden" name="appId" value="${safeAttr(appId)}" />
            <input type="hidden" name="adminApiBase" value="${safeAttr(adminApiBase)}" />
@@ -728,7 +730,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       </div>`;
 
     return `<div id="bp-theme-designer" class="container-fluid px-0">
-  <form hx-post="${saveUrl}" hx-target="#bp-theme-save-status" hx-swap="outerHTML">
+  <form hx-post="${safeAttr(saveUrl)}" hx-target="#bp-theme-save-status" hx-swap="outerHTML">
     <input type="hidden" name="adminApiBase" value="${safeAttr(adminApiBase)}" />
     <input type="hidden" name="tenantId" value="${safeAttr(tenantId)}" />
     <input type="hidden" name="appId" value="${safeAttr(appId)}" />
