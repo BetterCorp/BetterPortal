@@ -703,7 +703,6 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
         && route.viewId === view.viewId
         && route.operations.some((operationId) => operations.some((operation) => operation.operationId === operationId))
       );
-      const operation = operations[0]!;
       const previousMounts: Array<BetterPortalRouteMount | undefined> = matches.length ? [...matches] : [undefined];
       // Keep explicit aliases' selections while still mounting newly declared API operations.
       if (kind === "api" && matches.length
@@ -725,6 +724,7 @@ function reconcileRoutesForService(app: BetterPortalApp, serviceInstanceId: stri
         const path = isAlias ? previous.path : generatedPath;
         const selectedOperations = kind === "api" && isAlias
           ? operations.filter(candidate => previous.operations.includes(candidate.operationId)) : operations;
+        const operation = selectedOperations[0]!;
         if (previous && path !== previous.path) repaired.add(previous.id);
         const candidate: BetterPortalRouteMount = {
           ...(previous ? structuredClone(previous) : {

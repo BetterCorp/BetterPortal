@@ -130,6 +130,7 @@ test("valid API aliases retain their path, selected operations and request setti
   assert.deepEqual(app.routes.map(route => route.id), ids);
   assert.deepEqual(app.routes.map(route => route.path), ["/report-api/:reportId", `/_bp/service/${manifest.serviceId}/custom-reports/:reportId`]);
   assert.deepEqual(app.routes.map(route => route.operations), operations);
+  assert.deepEqual(app.routes.map(route => route.title), ["GET", "PUT"], "alias metadata follows its selected operation");
   assert.deepEqual(app.routes.map(route => route.query), ["format=json", "mode=edit"]);
   assert.equal(reconcilePreviewService(config, instance, manifest as never), false);
 });
@@ -154,7 +155,7 @@ test("API migration keeps distinct service path variants", () => {
 });
 
 test("API migration still rejects unrelated mounts and incompatible request settings atomically", () => {
-  for (const conflict of ["other-service", "other-view", "query", "fixedParams"] as const) {
+  for (const conflict of ["other-service", "other-view", "query", "fixedParams", "icon"] as const) {
     const { config, app, instance, manifest, servicePath } = reportApiFixture();
     if (conflict === "other-service" || conflict === "other-view") {
       app.routes.push({ ...app.routes[0], id: uuidv7(), path: apiRoutePath(manifest.serviceId, servicePath),
@@ -165,7 +166,8 @@ test("API migration still rejects unrelated mounts and incompatible request sett
           operations: [{ ...manifest.viewIndex["reports.owner.report"].operations[0], operationId: "unrelated.get" }] };
       }
     } else if (conflict === "query") app.routes[1].query = "format=pdf";
-    else app.routes[1].fixedParams = { reportId: "different" };
+    else if (conflict === "fixedParams") app.routes[1].fixedParams = { reportId: "different" };
+    else app.routes[1].icon = "different-icon";
     const before = structuredClone(app.routes);
     assert.throws(() => reconcilePreviewService(config, instance, manifest as never), /already mounted|incompatible/i);
     assert.deepEqual(app.routes, before, conflict);
