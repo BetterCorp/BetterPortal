@@ -2526,6 +2526,14 @@ export abstract class BPService<
 
       try {
         const normalizedCp = normalizeControlPlaneUrl(cpUrl);
+        if (this.resolvedCpUrl && normalizedCp !== normalizeControlPlaneUrl(this.resolvedCpUrl)) {
+          return coreJsonResponse(
+            { error: "Installation control plane does not match configured trust" },
+            403,
+            "service.install_control_plane_mismatch",
+            "Installation control plane does not match configured trust"
+          );
+        }
         const jwksUri = `${normalizedCp}/.well-known/jwks.json`;
         const claims = await verifySetupToken(setupToken, {
           jwks: { jwksUri, issuer: normalizedCp },
