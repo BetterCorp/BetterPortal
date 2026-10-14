@@ -43,7 +43,6 @@ type ResolvedHttpOutcomeDiagnostic = HttpOutcomeDiagnostic & {
 
 const RESPONSE_DIAGNOSTICS = new WeakMap<Response, ResolvedHttpOutcomeDiagnostic>();
 const DIAGNOSTIC_BODY_LIMIT = 2 * 1024;
-const DIAGNOSTIC_READ_TIMEOUT_MS = 100;
 
 function observedEventState(event: BetterPortalEvent): ObservedEventState | undefined {
   return (event as unknown as { __bpObservedEvent?: ObservedEventState }).__bpObservedEvent;
@@ -356,96 +355,10 @@ function resolveDiagnostic(
   };
 }
 
-function jsonDiagnosticReason(text: string): string | undefined {
-  try {
-    const parsed = JSON.parse(text) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
-    for (const key of ["reason", "error", "message", "detail"]) {
-      const value = parsed[key];
-      if (typeof value === "string" && value.trim()) return normalizeDiagnosticReason(value);
-      if (value && typeof value === "object") {
-        const encoded = JSON.stringify(value);
-        if (encoded && encoded !== "{}") return normalizeDiagnosticReason(encoded);
-      }
-    }
-  } catch {
-    return undefined;
-  }
-  return undefined;
-}
-
-async function boundedResponseText(response: Response): Promise<{ text: string; truncated: boolean } | undefined> {
-  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-  if (!(contentType.startsWith("text/") || contentType.includes("json") || contentType.includes("+json"))) return undefined;
-  try {
-    const reader = response.clone().body?.getReader();
-    if (!reader) return undefined;
-    const chunks: Uint8Array[] = [];
-    let length = 0;
-    let truncated = false;
-    const deadline = Date.now() + DIAGNOSTIC_READ_TIMEOUT_MS;
-    while (length <= DIAGNOSTIC_BODY_LIMIT) {
-      const remainingTime = deadline - Date.now();
-      if (remainingTime <= 0) {
-        void reader.cancel().catch(() => {});
-        return undefined;
-      }
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      const result = await Promise.race([
-        reader.read(),
-        new Promise<undefined>((resolve) => {
-          timeout = setTimeout(() => resolve(undefined), remainingTime);
-        })
-      ]).finally(() => {
-        if (timeout) clearTimeout(timeout);
-      });
-      if (!result) {
-        void reader.cancel().catch(() => {});
-        return undefined;
-      }
-      const { done, value } = result;
-      if (done) break;
-      if (!value) continue;
-      const remaining = DIAGNOSTIC_BODY_LIMIT - length;
-      if (value.byteLength > remaining) {
-        if (remaining > 0) chunks.push(value.subarray(0, remaining));
-        truncated = true;
-        break;
-      }
-      chunks.push(value);
-      length += value.byteLength;
-    }
-    if (truncated) void reader.cancel().catch(() => {});
-    const bytes = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.byteLength, 0));
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return { text: new TextDecoder().decode(bytes), truncated };
-  } catch {
-    return undefined;
-  }
-}
-
-async function inferHttpOutcome(response: Response, status: number): Promise<ResolvedHttpOutcomeDiagnostic> {
-  const body = await boundedResponseText(response);
-  if (body) {
-    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-    const reason = contentType.includes("json") ? jsonDiagnosticReason(body.text) : undefined;
-    const normalized = reason ?? normalizeDiagnosticReason(body.text);
-    if (normalized) {
-      return {
-        code: "http.response_body",
-        reason: normalized,
-        source: "response-body",
-        attributes: { "bp.http.outcome_detail_truncated": body.truncated }
-      };
-    }
-  }
+function inferHttpOutcome(status: number): ResolvedHttpOutcomeDiagnostic {
   return {
     code: "http.unclassified",
-    reason: response.statusText || STATUS_CODES[status] || `HTTP ${status}`,
+    reason: STATUS_CODES[status] || `HTTP ${status}`,
     source: "http-status"
   };
 }
@@ -460,7 +373,7 @@ async function resolveHttpOutcome(
   if (attached) return attached;
   if (state?.diagnostic) return state.diagnostic;
   if (response.status >= 200 && response.status < 400) return undefined;
-  const inferred = await inferHttpOutcome(response, response.status);
+  const inferred = inferHttpOutcome(response.status);
   if (state) state.diagnostic = inferred;
   return inferred;
 }

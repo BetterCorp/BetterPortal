@@ -57,13 +57,50 @@ import {
 type MethodRegistrar = (path: string, handler: (event: BetterPortalEvent) => Response | Promise<Response>) => void;
 
 const METHOD_WRITE_BODY: ReadonlySet<string> = new Set(["POST", "PUT", "PATCH"]);
+const MAX_JSON_BODY_BYTES = 1024 * 1024;
 const MAX_BUFFERED_MULTIPART_BYTES = 25 * 1024 * 1024;
+const MAX_MULTIPART_BODY_BYTES = MAX_BUFFERED_MULTIPART_BYTES + 128 * 1024;
 const PLATFORM_ROOT_PERMISSION_ROLE_ID = "*";
 
 class MultipartTooLargeError extends Error {
   constructor() {
     super("Multipart payload exceeds buffered upload limit");
   }
+}
+
+async function readBoundedRouteBody(event: BetterPortalEvent, maxBytes: number): Promise<Uint8Array | Response> {
+  const declaredLength = event.req.headers.get("content-length");
+  if (declaredLength !== null && /^\d+$/.test(declaredLength) && Number(declaredLength) > maxBytes) {
+    void event.req.body?.cancel().catch(() => undefined);
+    return coreJsonResponse({ error: "Request body too large" }, 413, "request.body.too_large", "Request body too large");
+  }
+  const reader = event.req.body?.getReader();
+  if (!reader) return new Uint8Array();
+  const chunks: Uint8Array[] = [];
+  let used = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > maxBytes - used) {
+        void reader.cancel().catch(() => undefined);
+        return coreJsonResponse({ error: "Request body too large" }, 413, "request.body.too_large", "Request body too large");
+      }
+      chunks.push(value);
+      used += value.byteLength;
+    }
+  } catch {
+    return coreJsonResponse({ error: "Invalid request body" }, 400, "request.body.invalid", "Invalid request body");
+  } finally {
+    reader.releaseLock();
+  }
+  const body = new Uint8Array(used);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
 }
 
 type RuntimeRouteHandlerContext = RouteHandlerContext<any, any, any, any> & { readonly plugin?: unknown };
@@ -1142,11 +1179,17 @@ async function handleRouteRequest(
   let rawBody: Record<string, unknown> = {};
   let rawMultipart: MultipartRequest | undefined;
   if (METHOD_WRITE_BODY.has(method)) {
-    const contentType = (event.req.headers.get("content-type") || "").toLowerCase();
+    const rawContentType = event.req.headers.get("content-type") || "";
+    const contentType = rawContentType.toLowerCase();
+    const maxBodyBytes = contentType.includes("multipart/form-data")
+      ? MAX_MULTIPART_BODY_BYTES
+      : MAX_JSON_BODY_BYTES;
+    const bodyBytes = await readBoundedRouteBody(event, maxBodyBytes);
+    if (bodyBytes instanceof Response) return bodyBytes;
     if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
       // Standard HTML form submission (incl. plain hx-post). Parse into a flat object.
       try {
-        const fd = await event.req.formData();
+        const fd = await new Response(bodyBytes.buffer as ArrayBuffer, { headers: { "content-type": rawContentType } }).formData();
         const parsedForm = await formDataToRequest(fd);
         rawBody = parsedForm.body;
         rawMultipart = parsedForm.multipart;
@@ -1162,7 +1205,8 @@ async function handleRouteRequest(
         rawBody = {};
       }
     } else {
-      const parsed = await event.req.json().catch(() => null);
+      let parsed: unknown = null;
+      try { parsed = JSON.parse(new TextDecoder().decode(bodyBytes)); } catch { /* Invalid JSON remains an empty body for schema validation. */ }
       rawBody = (parsed && typeof parsed === "object" && !Array.isArray(parsed))
         ? parsed as Record<string, unknown>
         : {};

@@ -78,7 +78,7 @@ function fixture() {
     app.fetch(new Request(`https://config.example${path}`, {
       method: "POST", headers: { Authorization: `Bearer ${authorization}` }, body: new URLSearchParams(fields)
     }));
-  return { appId, tenantId, otherAppId, otherTenantId, storage, cpState, token, send, sendForm };
+  return { app, appId, tenantId, otherAppId, otherTenantId, storage, cpState, token, send, sendForm };
 }
 
 test("anonymous raw admin API cannot disclose config or mint platform service keys", async () => {
@@ -191,4 +191,41 @@ test("service creators cannot reconfigure or replace registered service credenti
   assert.equal(redeemed.status, 200, await redeemed.clone().text());
   assert.notEqual(storage.config.tenants[0].services[0].apiKeyHash, "existing-key-hash");
   assert.equal(storage.config.sharedServiceCatalog[0].apiKeyHash, "existing-shared-key-hash");
+});
+
+test("a forged setup token with a real token ID cannot redeem service credentials", async () => {
+  const { send, storage, appId, tenantId, token } = fixture();
+  const issued = await send("/.well-known/bp/admin/services/begin-install", "POST", {
+    serviceUrl: "https://service.example", tenantId
+  }, token(appId, tenantId));
+  assert.equal(issued.status, 200, await issued.clone().text());
+  const { setupToken } = await issued.json() as { setupToken: string };
+  const [header, payload, signature] = setupToken.split(".");
+  const forged = `${header}.${payload}.${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+  const rejected = await send("/.well-known/bp/services/redeem", "POST", {
+    setupToken: forged, pluginId: "org.example.service"
+  });
+  assert.equal(rejected.status, 401);
+  assert.equal(storage.config.tenants[0].services.some(service => service.hostname === "https://service.example"), false);
+  const valid = await send("/.well-known/bp/services/redeem", "POST", {
+    setupToken, pluginId: "org.example.service"
+  });
+  assert.equal(valid.status, 200, await valid.clone().text());
+});
+
+test("public setup redemption rejects oversized JSON without a Content-Length", async () => {
+  const { app } = fixture();
+  const oversized = new TextEncoder().encode(JSON.stringify({ setupToken: "x".repeat(256 * 1024), pluginId: "org.example.service" }));
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let offset = 0; offset < oversized.length; offset += 4096) controller.enqueue(oversized.subarray(offset, offset + 4096));
+      controller.close();
+    }
+  });
+  const request = new Request("https://config.example/.well-known/bp/services/redeem", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body, duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("Content-Length"), null);
+  const response = await app.fetch(request);
+  assert.equal(response.status, 413);
 });
