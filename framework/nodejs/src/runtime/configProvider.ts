@@ -433,7 +433,11 @@ function extractRouteParams(routePath: string, currentPath: string): Record<stri
   for (let i = 0; i < routeSegments.length; i++) {
     const paramName = routeParamName(routeSegments[i]);
     if (paramName) {
-      params[paramName] = currentSegments[i];
+      try {
+        params[paramName] = decodeURIComponent(currentSegments[i]);
+      } catch {
+        return null;
+      }
     } else if (routeSegments[i] !== currentSegments[i]) {
       return null;
     }
@@ -468,6 +472,16 @@ function interpolatePath(pathTemplate: string, params: Record<string, string>): 
   return resolvedQuery ? `${resolvedPath}?${resolvedQuery}` : resolvedPath;
 }
 
+/**
+ * Resolve a mounted public page path to its owning service URL.
+ *
+ * @param binding - Service hostname or endpoint base URL.
+ * @param route - Mount, service-path template and optional fixed parameters.
+ * @param currentPath - Encoded public pathname. Dynamic segments are decoded
+ * once before interpolation; fixed parameter values are already decoded data.
+ * @returns The service URL, or `null` for an invalid base URL, malformed path
+ * parameter or a missing required service parameter.
+ */
 export function buildServiceViewUrl(
   binding: { hostname: string } | { endpointBaseUrl: string },
   route: BetterPortalRouteMount,
@@ -478,7 +492,10 @@ export function buildServiceViewUrl(
     const parsed = new URL(baseUrl);
     if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
   } catch { return null; }
-  const params = { ...route.fixedParams, ...(extractRouteParams(route.path, currentPath) ?? {}) };
+  const pathParams = extractRouteParams(route.path, currentPath);
+  // A malformed URL parameter must not fall back to a fixed value.
+  if (routePatternMatches(route.path, currentPath) && !pathParams) return null;
+  const params = { ...route.fixedParams, ...pathParams };
   const servicePath = route.resolvedServicePath ?? route.servicePathVariant ?? route.targetPath;
   const resolvedPath = servicePath
     ? interpolatePath(servicePath, params)

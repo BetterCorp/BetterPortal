@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 import inspect
+import json
 import re
 from typing import Any, Awaitable, Callable, Generic, Iterable, Mapping, TypeVar, cast
 from urllib.parse import quote
@@ -109,6 +110,6 @@ def content_type(mode: str, chrome: Mapping[str, Any] | None = None) -> str:
     for name, value in parse("BetterPortalRouteChromeSchema", chrome or {}).items():
         key = re.sub(r"[_\s]+", "-", re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", name)).lower()
         if not re.fullmatch(r"[a-z][a-z0-9-]*", key): continue
-        encoded = quote(value, safe="~()*!.'-") if isinstance(value, str) else str(value).lower()
+        encoded = quote(json.dumps(value, ensure_ascii=False, separators=(",", ":")), safe="~()*!.'-") if isinstance(value, list) else quote(value, safe="~()*!.'-") if isinstance(value, str) else str(value).lower()
         result += f"; bp-chrome-{key}={encoded}"
     return result + "; charset=utf-8"

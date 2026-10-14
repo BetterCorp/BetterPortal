@@ -9,7 +9,7 @@ description: Build dense Bootstrap 5 service UI for the active Bootstrap2 shell.
 
 1. Read the active app's `/llms-api.txt`, `/llms-ui.txt`, and Bootstrap2 resources.
 2. Identify the view, methods, schemas, permissions, stable `viewId`, and empty/error states.
-3. Return server-rendered JSX/HTMX service content only. Never emit the shell, sidebar, top bar, global assets, service worker, or browser cache code.
+3. Return server-rendered JSX/HTMX service content only. Never emit the shell, sidebar, top bar, global assets, service worker, or browser cache code. Check the active layout and omit page titles and Back/Up buttons or links supplied by the theme; keep meaningful section headings and task-specific actions.
 4. Use the same `ctx.route(input?)` in API handlers and renderers. Omit the target for self. Select `apiPath`/`absoluteApiPath` for API requests, `viewPath`/`absoluteViewPath` for HTML requests, and `uiPath` only for explicit shell navigation/history and `absoluteUiPath` for public links; never prefer UI fields in service-renderer controls. Pass a declared dependency alias in `serviceId`; renderers resolve links from domain data and cursors. API handlers must not add internal URL fields to their response for views. Resolve POST/PUT/DELETE destinations with the corresponding method in the renderer, and use `sse: true` with `absoluteViewPath` for HTML streams.
 5. Use `BPRoute` with declared dependency aliases for cross-service fragments; use `service="shell"` only for singular shell fragments.
 6. Prefer Bootstrap 5 and native HTML. Use the documented split-pane classes for queue/detail workflows.

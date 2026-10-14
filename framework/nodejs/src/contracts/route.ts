@@ -6,6 +6,7 @@ import { PluginIdSchema, type HttpMethod } from "./common.js";
 import { JsonObjectSchema, JsonValueSchema, type JsonObject, type JsonValue } from "./json.js";
 import type { BetterPortalObservability, HttpOutcomeDiagnostic } from "./observability.js";
 import type { BetterPortalResolvedApp, BetterPortalTenant } from "./platformConfig.js";
+import type { BetterPortalRouteChrome } from "./chrome.js";
 import { ElevationRequirementSchema, type ElevationRequirement, AppAuthPermissionActionSchema, type JwtClaims } from "./auth.js";
 import { ApiCallerModeSchema, type ApiCallerMode, type M2MCallerMode, type ServiceTokenClaims } from "./m2m.js";
 
@@ -193,6 +194,23 @@ export interface RouteHandlerContextBase<
   readonly responseHeaders?: Headers;
   /** Set HTTP status without raw event reach-through. */
   readonly setStatus?: (status: number) => void;
+  /**
+   * Set presentation metadata for this request's successful GET HTML page.
+   *
+   * @param chrome - Overrides the operation's declared chrome. `title` updates
+   * the shell and browser title; `parents` lists ancestors from outermost to
+   * immediate parent. Leading-slash parents are paths in this service, resolved
+   * through enabled page mounts; other parents are plain text. `//` is invalid.
+   * @remarks
+   * JSON, fragments, components and error responses do not publish these
+   * overrides. Omitted fields use the operation defaults, not the previous page.
+   * @example
+   * ```ts
+   * ctx.chrome({ title: `Batch ${batch.id}`, parents: ["/batches"] });
+   * return batch;
+   * ```
+   */
+  readonly chrome: (chrome: BetterPortalRouteChrome) => void;
   /** Attach structured diagnostic context to the final HTTP outcome. */
   readonly diagnostic: (diagnostic: HttpOutcomeDiagnostic) => void;
   /** The service id this handler belongs to. Always present when adapter wires it. */

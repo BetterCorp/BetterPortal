@@ -8,7 +8,6 @@ These examples are service-renderer fragments, never full documents.
 
 ```tsx
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-  <h1 class="h5 mb-0">Incidents</h1>
   <div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary">Export</button><button class="btn btn-primary">New incident</button></div>
 </div>
 ```

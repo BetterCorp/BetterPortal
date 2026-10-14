@@ -53,7 +53,8 @@ public abstract class Renderer
         {
             var key = Regex.Replace(Regex.Replace(name, "([a-z0-9])([A-Z])", "$1-$2"), @"[_\s]+", "-").ToLowerInvariant();
             if (!Regex.IsMatch(key, @"\A[a-z][a-z0-9-]*\z")) continue;
-            var encoded = value is string text ? Uri.EscapeDataString(text).Replace("%21", "!").Replace("%27", "'").Replace("%28", "(").Replace("%29", ")").Replace("%2A", "*")
+            var encoded = value is List<object?> ? Uri.EscapeDataString(Json.Write(value))
+                : value is string text ? Uri.EscapeDataString(text).Replace("%21", "!").Replace("%27", "'").Replace("%28", "(").Replace("%29", ")").Replace("%2A", "*")
                 : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture)!.ToLowerInvariant();
             result += "; bp-chrome-" + key + "=" + encoded;
         }

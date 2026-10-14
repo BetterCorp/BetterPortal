@@ -1,4 +1,4 @@
-# Generated from AnyVali documents; do not edit. SHA256: bbdc5be903cfe0400f36f0c5519a0bf55f8ccb977972d398840c3471af4e9fbc
+# Generated from AnyVali documents; do not edit. SHA256: e63d51d576a9c25f4366b080830c5e455f82d7dc3f2c8ba0660f9790172f3424
 from __future__ import annotations
 from typing import Any, Literal, NoReturn, TypeAlias, Union
 from typing_extensions import NotRequired, Required, TypedDict
@@ -1423,9 +1423,9 @@ BetterPortalResource: TypeAlias = 'dict[str, BetterPortalRouteChromeValue]'
 
 BetterPortalResourceInput: TypeAlias = 'dict[str, BetterPortalRouteChromeValueInput]'
 
-BetterPortalRouteChrome: TypeAlias = 'dict[str, BetterPortalRouteChromeValue]'
+BetterPortalRouteChrome: TypeAlias = 'dict[str, Union[BetterPortalRouteChromeValue, list[str]]]'
 
-BetterPortalRouteChromeInput: TypeAlias = 'dict[str, BetterPortalRouteChromeValueInput]'
+BetterPortalRouteChromeInput: TypeAlias = 'dict[str, Union[BetterPortalRouteChromeValueInput, list[str]]]'
 
 BetterPortalRouteChromeValue: TypeAlias = 'Union[str, float, bool]'
 
@@ -3623,7 +3623,7 @@ ScopedAppInputRoutesItem = TypedDict('ScopedAppInputRoutesItem', {
     'enablement': NotRequired["Literal['auto', 'enabled', 'disabled']"],
     'operations': Required['list[str]'],
     'menu': NotRequired['bool'],
-    'chrome': NotRequired['dict[str, BetterPortalRouteChromeValueInput]'],
+    'chrome': NotRequired['dict[str, Union[BetterPortalRouteChromeValueInput, list[str]]]'],
 })
 
 ScopedAppInputRoutesItemRobotsItem = TypedDict('ScopedAppInputRoutesItemRobotsItem', {
@@ -4195,7 +4195,7 @@ ScopedAppRoutesItem = TypedDict('ScopedAppRoutesItem', {
     'enablement': NotRequired["Literal['auto', 'enabled', 'disabled']"],
     'operations': Required['list[str]'],
     'menu': NotRequired['bool'],
-    'chrome': NotRequired['dict[str, BetterPortalRouteChromeValue]'],
+    'chrome': NotRequired['dict[str, Union[BetterPortalRouteChromeValue, list[str]]]'],
 })
 
 ScopedAppRoutesItemRobotsItem = TypedDict('ScopedAppRoutesItemRobotsItem', {

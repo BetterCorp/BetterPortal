@@ -24,6 +24,7 @@ import type {
   ValidatedUserClaims
 } from "../contracts/route.js";
 import type { BetterPortalApp, BetterPortalRouteChrome } from "../contracts/platformConfig.js";
+import { BetterPortalRouteChromeSchema } from "../contracts/chrome.js";
 import { isStreamHandler, type BpStreamHandler, type StreamShellContext } from "../contracts/streaming.js";
 import { driveStream, driveStreamBuffered, ndjsonStreamResponse } from "../runtime/stream.js";
 import type { AppAuthConfig, JwtClaims } from "../contracts/auth.js";
@@ -315,14 +316,15 @@ function chromeContentTypeParams(chrome?: BetterPortalRouteChrome): string {
   if (!chrome) return "";
   const params: string[] = [];
   for (const [rawKey, value] of Object.entries(chrome)) {
-    if (!["string", "number", "boolean"].includes(typeof value)) continue;
+    if (!["string", "number", "boolean"].includes(typeof value) && !Array.isArray(value)) continue;
     if (typeof value === "number" && !Number.isFinite(value)) continue;
     const key = rawKey
       .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
       .replace(/[_\s]+/g, "-")
       .toLowerCase();
     if (!/^[a-z][a-z0-9-]*$/.test(key)) continue;
-    const stringValue = typeof value === "string" ? encodeURIComponent(value) : String(value);
+    const stringValue = Array.isArray(value) ? encodeURIComponent(JSON.stringify(value))
+      : typeof value === "string" ? encodeURIComponent(value) : String(value);
     params.push(`bp-chrome-${key}=${stringValue}`);
   }
   return params.length ? `; ${params.join("; ")}` : "";
@@ -406,6 +408,7 @@ async function prepareSseContext(
     serviceId: routerOptions.serviceId,
     route: createRouteResolver(event, registryRoutes, extraContext, dependencyAliases, routerOptions.resolveRouteServiceId?.() ?? routerOptions.serviceId, { path: url.pathname.replace(/\/__sse\/?$/, ""), template: route.path, method: "GET", params, query: queryResult.value as Record<string, unknown> }),
     diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
+    chrome: (chrome) => { BetterPortalRouteChromeSchema.parse(chrome); },
     response: responseHelper,
     file: fileResponseHelper,
     ...(obs ? { obs } : {})
@@ -1288,6 +1291,7 @@ async function handleRouteRequest(
   // -- Build context and invoke handler -----------------------------
 
   const bpHeaders = createBpHeadersCollector();
+  let pageChrome = methodRoute.chrome;
   const ctx: RouteHandlerContext = {
     params,
     query: query as Record<string, unknown>,
@@ -1308,6 +1312,7 @@ async function handleRouteRequest(
     responseHeaders: event.res.headers,
     setStatus: (status) => { event.res.status = status; },
     diagnostic: (diagnostic) => annotateHttpOutcome(event, diagnostic),
+    chrome: (chrome) => { pageChrome = { ...pageChrome, ...BetterPortalRouteChromeSchema.parse(chrome) }; },
     serviceId: routerOptions.serviceId,
     route: routeResolver,
     response: responseHelper,
@@ -1556,7 +1561,9 @@ async function handleRouteRequest(
     "bp.view.kind": "page"
   }, () => resolved.renderer.render(data, renderContext)));
   const mode = representation.mode ?? "page";
-  return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(mode, methodRoute.chrome));
+  const chrome = mode === "page" && method === "GET" && handlerStatus >= 200 && handlerStatus < 300
+    ? pageChrome : methodRoute.chrome;
+  return htmlResponse(toHtmlString(html), handlerStatus, htmlContentType(mode, chrome));
 }
 
 // -- Streaming routes (spec/streaming.md) ----------------------------

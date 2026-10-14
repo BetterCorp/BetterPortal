@@ -1164,6 +1164,22 @@
                               "inner": {
                                 "kind": "bool"
                               }
+                            },
+                            "title": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "string"
+                              }
+                            },
+                            "parents": {
+                              "kind": "optional",
+                              "inner": {
+                                "kind": "array",
+                                "items": {
+                                  "kind": "string",
+                                  "pattern": "^(?!//)"
+                                }
+                              }
                             }
                           },
                           "required": [],
@@ -1175,13 +1191,24 @@
                             "kind": "union",
                             "variants": [
                               {
-                                "kind": "string"
+                                "kind": "union",
+                                "variants": [
+                                  {
+                                    "kind": "string"
+                                  },
+                                  {
+                                    "kind": "number"
+                                  },
+                                  {
+                                    "kind": "bool"
+                                  }
+                                ]
                               },
                               {
-                                "kind": "number"
-                              },
-                              {
-                                "kind": "bool"
+                                "kind": "array",
+                                "items": {
+                                  "kind": "string"
+                                }
                               }
                             ]
                           }
@@ -6150,6 +6177,22 @@
                                     "inner": {
                                       "kind": "bool"
                                     }
+                                  },
+                                  "title": {
+                                    "kind": "optional",
+                                    "inner": {
+                                      "kind": "string"
+                                    }
+                                  },
+                                  "parents": {
+                                    "kind": "optional",
+                                    "inner": {
+                                      "kind": "array",
+                                      "items": {
+                                        "kind": "string",
+                                        "pattern": "^(?!//)"
+                                      }
+                                    }
                                   }
                                 },
                                 "required": [],
@@ -6161,13 +6204,24 @@
                                   "kind": "union",
                                   "variants": [
                                     {
-                                      "kind": "string"
+                                      "kind": "union",
+                                      "variants": [
+                                        {
+                                          "kind": "string"
+                                        },
+                                        {
+                                          "kind": "number"
+                                        },
+                                        {
+                                          "kind": "bool"
+                                        }
+                                      ]
                                     },
                                     {
-                                      "kind": "number"
-                                    },
-                                    {
-                                      "kind": "bool"
+                                      "kind": "array",
+                                      "items": {
+                                        "kind": "string"
+                                      }
                                     }
                                   ]
                                 }

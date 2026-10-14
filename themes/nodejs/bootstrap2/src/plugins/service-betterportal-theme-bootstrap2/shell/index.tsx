@@ -15,6 +15,7 @@ export interface Bootstrap2RouteLink {
   id: string;
   kind?: "page" | "api";
   title: string;
+  viewTitle?: string;
   href: string;
   requestUrl?: string;
   /** Service endpoint base, including its deployment path prefix. */
@@ -2259,6 +2260,8 @@ function Bootstrap2LandingBody(context: Bootstrap2HostPageContext): HtmlRenderab
               >
                 Menu
               </button>
+              <button class="btn btn-outline-secondary" type="button" data-bp-back="" aria-label="Go back">Back</button>
+              <a class="btn btn-outline-secondary" data-bp-up="" hidden>Up</a>
               <div class="bp-admin__topbar-context">
                 <div class="bp-admin__topbar-label bp-admin__breadcrumb" data-bp-current-breadcrumb="">{currentBreadcrumb}</div>
                 <h1 class="bp-admin__topbar-title" data-bp-current-title="">

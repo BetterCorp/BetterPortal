@@ -6,7 +6,6 @@ export const render: RegisteredViewRenderer["render"] = (data, ctx: ViewRenderCo
   <section class="container-fluid px-0">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div>
-        <h1 class="h5 mb-1">Work queue</h1>
         <p class="small text-body-secondary mb-0">Current operational items requiring attention.</p>
       </div>
       <BPRoute ctx={ctx} {...{ viewId: "example.create" }} class="btn btn-sm btn-primary"><bp-ok>Create</bp-ok></BPRoute>

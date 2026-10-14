@@ -218,3 +218,15 @@ test("public service base metadata rejects credentials and URL payloads while pr
   assert.equal(safeServiceBaseUrl({ hostname: "https://plans.example/prefix/" }), "https://plans.example/prefix");
   assert.equal(safeServiceBaseUrl({ endpointBaseUrl: "http://plans.example:8080/prefix" }), "http://plans.example:8080/prefix");
 });
+
+test("service view URLs decode dynamic segments once and preserve fixed parameter values", () => {
+  const mounted = { ...dynamicRoute, path: "/ui/plans/:planId", resolvedServicePath: "/plans/:planId" };
+  for (const [encoded, expected] of [
+    ["batch%20one", "batch%20one"], ["caf%C3%A9", "caf%C3%A9"],
+    ["a%2Fb", "a%2Fb"], ["a%252Fb", "a%252Fb"], ["100%25", "100%25"]
+  ]) {
+    assert.equal(buildServiceViewUrl({ hostname: "https://plans.example" }, mounted, `/ui/plans/${encoded}`), `https://plans.example/plans/${expected}`);
+  }
+  assert.equal(buildServiceViewUrl({ hostname: "https://plans.example" }, { ...mounted, fixedParams: { planId: "fallback" } }, "/ui/plans/%ZZ"), null);
+  assert.equal(buildServiceViewUrl({ hostname: "https://plans.example" }, { ...mounted, path: "/plans", fixedParams: { planId: "literal%20value" } }, "/plans"), "https://plans.example/plans/literal%2520value");
+});

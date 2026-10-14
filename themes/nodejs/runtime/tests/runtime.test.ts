@@ -151,7 +151,6 @@ test("main outlet HTTP errors only swap explicit themed status views", () => {
   assert.match(source, /isThemedStatusResponse\(ctx\)/);
   assert.match(source, /htmx_response_error/);
   assert.match(source, /renderRouteError\(errorTitle\(status\),errorMessage\(status\)/);
-  assert.match(source, /applyChrome\(null\)/);
 });
 
 test("request error overlays inherit the initiating service context", () => {

@@ -20,6 +20,12 @@ public sealed class ResponseState
     private readonly List<KeyValuePair<string, string>> headers = [];
     public int Status { get => status; set { _ = new RawResponse(status: value); status = value; } }
     public IReadOnlyList<KeyValuePair<string, string>> Headers => headers.AsReadOnly();
+    internal Dictionary<string, object?> PageChrome { get; } = [];
+    internal void SetChrome(Generated.BetterPortalRouteChromeInput value)
+    {
+        foreach (var (key, item) in (Dictionary<string, object?>)Contracts.Parse("BetterPortalRouteChromeSchema", value)!)
+            PageChrome[key] = item;
+    }
     public void SetHeader(string name, string value, bool append = false)
     {
         _ = new RawResponse(headers: [new(name, value)]);
@@ -53,6 +59,8 @@ public sealed record HandlerContext<TParams, TQuery, THeaders, TBody>(RequestCon
         catch (TokenException error) { throw new RequestException(error.Status, error.Message); }
     }
     public ResponseState Response => RequestContext.Response;
+    /// <summary>Override chrome for a successful GET HTML page. Parents are service paths or plain text.</summary>
+    public void Chrome(Generated.BetterPortalRouteChromeInput value) => Response.SetChrome(value);
     public Urls Urls => RequestContext.Urls;
     /// <summary>Resolve self or an explicit target, using validated params/query for self.</summary>
     public Generated.ResolvedRoute? Route(Generated.RouteOptionsInput? input = null)
