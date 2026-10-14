@@ -2,8 +2,25 @@ import assert from "node:assert/strict";
 import { H3 } from "h3";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import { registerWebhookRoutes } from "../src/plugins/service-betterportal-config-manager/webhooks.js";
+import { publicWebhookLookup, registerWebhookRoutes } from "../src/plugins/service-betterportal-config-manager/webhooks.js";
 import { getManifestCache } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+
+test("webhook DNS lookup returns Node's requested address shape after vetting every answer", async () => {
+  const resolve = (_host: string, done: (error: NodeJS.ErrnoException | null, addresses: { address: string; family: number }[]) => void) =>
+    done(null, [{ address: "8.8.8.8", family: 4 }, { address: "1.1.1.1", family: 4 }]);
+  const answers = await new Promise<unknown[]>((done) => publicWebhookLookup("webhook.example", { all: true },
+    (...args) => done(args), resolve));
+  assert.equal(answers[0], null);
+  assert.deepEqual(answers[1], [{ address: "8.8.8.8", family: 4 }, { address: "1.1.1.1", family: 4 }]);
+  const single = await new Promise<unknown[]>((done) => publicWebhookLookup("webhook.example", { all: false },
+    (...args) => done(args), resolve));
+  assert.deepEqual(single, [null, "8.8.8.8", 4]);
+  const privateAnswer = await new Promise<unknown[]>((done) => publicWebhookLookup("webhook.example", { all: true },
+    (...args) => done(args), (_host, callback) => callback(null, [
+      { address: "8.8.8.8", family: 4 }, { address: "127.0.0.1", family: 4 }
+    ])));
+  assert.ok(privateAnswer[0] instanceof Error);
+});
 
 test("webhook test delivery cannot reach the control plane loopback interface", async (t) => {
   let hits = 0;

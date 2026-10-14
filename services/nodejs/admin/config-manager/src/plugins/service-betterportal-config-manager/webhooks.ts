@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
-import { lookup } from "node:dns";
+import { lookup, type LookupAddress, type LookupOptions } from "node:dns";
 import { request as httpsRequest } from "node:https";
 import { BlockList, isIP } from "node:net";
 import {
@@ -49,6 +49,26 @@ function publicIp(address: string): boolean {
   return first >= 0x2000 && first <= 0x3fff;
 }
 
+type ResolveAll = (host: string, callback: (error: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void) => void;
+const resolveAll: ResolveAll = (host, callback) => lookup(host, { all: true }, callback);
+
+/** Node requests either a list or a scalar depending on its socket options. */
+export function publicWebhookLookup(
+  host: string,
+  options: LookupOptions,
+  callback: (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
+  resolve: ResolveAll = resolveAll
+): void {
+  resolve(host, (error, addresses) => {
+    if (error) return callback(error, options.all ? [] : "", 0);
+    if (!addresses.length || addresses.some((entry) => !publicIp(entry.address))) {
+      return callback(new Error("Webhook destination must be a public HTTPS endpoint"), options.all ? [] : "", 0);
+    }
+    if (options.all) callback(null, addresses);
+    else callback(null, addresses[0]!.address, addresses[0]!.family);
+  });
+}
+
 /** Resolve at connection time and pin the socket to a vetted public address. */
 async function secureWebhookFetch(rawUrl: string, options: RequestInit): Promise<Response> {
   const url = new URL(rawUrl);
@@ -63,15 +83,7 @@ async function secureWebhookFetch(rawUrl: string, options: RequestInit): Promise
     const req = httpsRequest(url, {
       method: "POST", agent: false, signal: options.signal ?? undefined,
       headers: Object.fromEntries(new Headers(options.headers).entries()),
-      lookup(host, _lookupOptions, callback) {
-        lookup(host, { all: true }, (error, addresses) => {
-          if (error) return callback(error, "", 0);
-          if (!addresses.length || addresses.some((entry) => !publicIp(entry.address))) {
-            return callback(new Error("Webhook destination must be a public HTTPS endpoint"), "", 0);
-          }
-          callback(null, addresses[0]!.address, addresses[0]!.family);
-        });
-      }
+      lookup: publicWebhookLookup
     }, (response) => {
       const status = response.statusCode ?? 502;
       response.destroy();
