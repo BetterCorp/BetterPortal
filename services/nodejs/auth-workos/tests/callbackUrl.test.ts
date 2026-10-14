@@ -97,6 +97,20 @@ test("an unsolicited or cross-app WorkOS callback cannot exchange its authorizat
   assert.equal(exchanges, 2, "a same-origin cookie also proves a direct service login");
 });
 
+test("a matching provider error callback clears the WorkOS proof cookie", async () => {
+  const state = createWorkOSState("/dashboard", { tenantId: "tenant", appId: "app" });
+  const responseHeaders = new Headers();
+  const result = await login({
+    query: { error: "access_denied", state },
+    headers: { "x-bp-workos-state": state, cookie: `${WORKOS_STATE_COOKIE}=${state}` },
+    config: { clientId: "client_test", apiKey: "sk_test" },
+    tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
+    responseHeaders
+  } as never);
+  assert.equal(result.status, "error");
+  assert.match(responseHeaders.get("set-cookie") ?? "", /__Host-bp_workos_oauth_state=;.*Max-Age=0/);
+});
+
 test("a public callback renders the verified destination after sign-in", async () => {
   const state = createWorkOSState("/reports", { tenantId: "tenant", appId: "app" });
   const accessToken = `header.${Buffer.from(JSON.stringify({ sid: "session" })).toString("base64url")}.signature`;

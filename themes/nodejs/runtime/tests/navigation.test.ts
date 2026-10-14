@@ -68,6 +68,29 @@ test("WorkOS callback sends browser-held state only to the configured auth servi
   assert.deepEqual(errors, []);
 });
 
+test("WorkOS provider error callback consumes its matching browser proof", async t => {
+  const seen: Array<{ url: string; proof?: string }> = [];
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    seen.push({ url: route.request().url(), proof: route.request().headers()["x-bp-workos-state"] });
+    return html(route, '<p id="loaded">Loaded</p>');
+  });
+  await page.waitForSelector("#loaded");
+  await page.evaluate(fingerprint => {
+    sessionStorage.setItem("bp:workos:oauth-state", fingerprint);
+    window.htmx.ajax("GET", "https://auth.test/login?error=access_denied&state=issued-state", { target: "#bp-main", swap: "innerHTML" });
+  }, createHash("sha256").update("issued-state").digest("hex"));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("error=access_denied")));
+  assert.equal(await page.evaluate(() => sessionStorage.getItem("bp:workos:oauth-state")), null);
+  await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login?code=replayed&state=issued-state", { target: "#bp-main", swap: "innerHTML" }));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=replayed")));
+  assert.equal(seen.find(request => request.url.includes("error=access_denied"))?.proof, "issued-state");
+  assert.equal(seen.find(request => request.url.includes("code=replayed"))?.proof, undefined);
+  assert.deepEqual(errors, []);
+});
+
 test("a login form next value cannot send the shell to an external origin", async t => {
   let externalRequests = 0;
   const { page } = await shell(t, route => {

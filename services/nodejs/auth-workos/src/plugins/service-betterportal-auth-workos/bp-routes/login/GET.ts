@@ -88,6 +88,10 @@ export default createHandler(
     }
 
     if (query.error) {
+      const proof = ctx.headers["x-bp-workos-state"] ?? readWorkOSStateCookie(ctx.headers.cookie);
+      if (verifyWorkOSState(query.state, proof, { tenantId: ctx.tenant.id, appId: ctx.app.id })) {
+        ctx.responseHeaders?.append("Set-Cookie", clearWorkOSStateCookie());
+      }
       return {
         status: "error" as const,
         message: query.error_description || query.error,

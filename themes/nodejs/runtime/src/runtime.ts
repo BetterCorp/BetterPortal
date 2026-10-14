@@ -2560,14 +2560,15 @@ export function betterPortalShellRuntimeSource(): string {
               const authId = shellRoot()?.getAttribute("data-bp-auth-service") || "";
               const authOrigin = authId ? originForServiceId(authId) : "";
               const requestUrl = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
-              if (authOrigin && requestUrl.origin === new URL(authOrigin).origin && requestUrl.searchParams.has("code")) {
+              if (authOrigin && requestUrl.origin === new URL(authOrigin).origin
+                && (requestUrl.searchParams.has("code") || requestUrl.searchParams.has("error"))) {
                 const state = requestUrl.searchParams.get("state");
                 if (state) {
                   const bytes = new TextEncoder().encode(state);
                   const digest = await crypto.subtle.digest("SHA-256", bytes);
                   const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
                   if (sessionStorage.getItem("bp:workos:oauth-state") === fingerprint) {
-                    // Spend the browser proof before sending the callback so a second
+                    // Spend the browser proof on either callback result so a later
                     // code exchange cannot reuse the same OAuth state.
                     sessionStorage.removeItem("bp:workos:oauth-state");
                     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
