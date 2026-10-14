@@ -36,6 +36,7 @@ import {
   eventObservability,
   htmlResponse,
   jsonResponse,
+  redactTelemetryUrl,
   withCoreHttpOutcome,
   type BetterPortalEvent,
   type BetterPortalH3App
@@ -548,7 +549,7 @@ function requestAttributes(
 
   return {
     "http.request.method": method,
-    "url.full": requestUrl.toString(),
+    "url.full": redactTelemetryUrl(requestUrl),
     "url.path": requestUrl.pathname,
     "network.protocol.name": requestUrl.protocol.replace(":", ""),
     "bp.route.path": route.path,

@@ -112,6 +112,20 @@ async function withServer(
   }
 }
 
+test("route-level telemetry does not record callback query values", async () => {
+  const app = { id: uuidv7(), tenantId: tenant.id, hostnames: ["app.local"], routes: [], slots: [], fragments: {} } as unknown as BetterPortalApp;
+  let attributes: Record<string, unknown> | undefined;
+  await withServer(app, { routes: [route("/.well-known/trace", "trace")] }, async baseUrl => {
+    const response = await fetch(`${baseUrl}/.well-known/trace?code=private-code&state=private-state&custom=private-value`);
+    assert.equal(response.status, 200);
+  }, { router: { createRequestObservability: (_name, received) => {
+    attributes = received;
+    return createNoopObservability();
+  } } });
+  const logged = new URL(String(attributes?.["url.full"]));
+  for (const name of ["code", "state", "custom"]) assert.equal(logged.searchParams.get(name), "[REDACTED]");
+});
+
 test("HTML renderers receive limited tenant and app presentation context", async () => {
   const serviceId = uuidv7();
   const shellServiceId = uuidv7();

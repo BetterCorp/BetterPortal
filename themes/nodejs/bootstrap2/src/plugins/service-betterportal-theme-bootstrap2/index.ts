@@ -26,6 +26,7 @@ import {
   resolveRequestContextDetailed,
   resolveThemeRequestContext,
   eventObservability,
+  redactTelemetryUrl,
   eventSessionId,
   eventHeaders,
   jsonResponse,
@@ -500,7 +501,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         host: event.req.headers.get("host") ?? "",
         authority: event.req.headers.get("authority") ?? "",
         origin: event.req.headers.get("origin") ?? "",
-        referer: event.req.headers.get("referer") ?? "",
+        referer: redactTelemetryUrl(event.req.headers.get("referer")),
         altUsed: event.req.headers.get("alt-used") ?? "",
         candidates: resolution?.candidates.map((candidate) =>
           `${candidate.source}:${candidate.host}${candidate.matchedAppId ? `->${candidate.matchedAppId}` : ""}`

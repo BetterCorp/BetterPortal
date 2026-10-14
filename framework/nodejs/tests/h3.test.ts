@@ -33,11 +33,14 @@ test("request telemetry redacts auth callback proofs while handlers receive the 
   let attributes: ObservabilityAttributes | undefined;
   const app = createBetterPortalApp({ createRequestObservability: (_name, received) => { attributes = received; return createNoopObservability(); } });
   app.get("/callback", event => jsonResponse({ code: event.url.searchParams.get("code") }));
-  const response = await app.fetch(new Request("https://auth.test/callback?code=private-code&secret=private-secret&access_token=private-token&page=2"));
+  const response = await app.fetch(new Request("https://auth.test/callback?code=private-code&state=private-state&secret=private-secret&access_token=private-token&custom=private-value&page=2", {
+    headers: { referer: "https://app.test/login?code=ref-code&state=ref-state&custom=ref-value" }
+  }));
   assert.deepEqual(await response.json(), { code: "private-code" });
   const logged = new URL(String(attributes?.["url.full"]));
-  for (const name of ["code", "secret", "access_token"]) assert.equal(logged.searchParams.get(name), "[REDACTED]");
-  assert.equal(logged.searchParams.get("page"), "2");
+  for (const name of ["code", "state", "secret", "access_token", "custom", "page"]) assert.equal(logged.searchParams.get(name), "[REDACTED]");
+  const referer = new URL(String(attributes?.["http.request.header.referer"]));
+  for (const name of ["code", "state", "custom"]) assert.equal(referer.searchParams.get(name), "[REDACTED]");
 });
 
 test("middleware response headers survive error responses", async () => {

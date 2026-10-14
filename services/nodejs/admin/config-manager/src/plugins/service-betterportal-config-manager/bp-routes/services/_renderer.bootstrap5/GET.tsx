@@ -3,6 +3,10 @@ import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../GET.js";
 
+function scriptJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 function configureAttrs(
   service: ResponseData["services"][number],
   appId: string | undefined,
@@ -595,9 +599,9 @@ export function render(data: ResponseData): HtmlRenderable {
   const alerts = document.getElementById("bp-services-alerts");
   const tenantPreview = document.getElementById("bp-tenant-service-preview");
   const sharedPreview = document.getElementById("bp-shared-service-preview");
-  const serviceBaseUrl = ${JSON.stringify(serviceBaseUrl)}.replace(/\\/+$/, "");
-  const adminApiBase = serviceBaseUrl + ${JSON.stringify(adminApiBase)};
-  const selectedServicesPath = ${JSON.stringify(selectedServicesPath)};
+  const serviceBaseUrl = ${scriptJson(serviceBaseUrl)}.replace(/\\/+$/, "");
+  const adminApiBase = serviceBaseUrl + ${scriptJson(adminApiBase)};
+  const selectedServicesPath = ${scriptJson(selectedServicesPath)};
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (ch) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[ch]);

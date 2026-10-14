@@ -118,10 +118,20 @@ export function withCoreHttpOutcome(response: Response, diagnostic: HttpOutcomeD
   return response;
 }
 
-function redactAuthQuery(url: URL): string {
-  const safe = new URL(url);
-  for (const name of safe.searchParams.keys()) if (/^(code|secret|token|password|access_?token|refresh_?token|id_?token|assertion|samlresponse|setuptoken)$/i.test(name)) safe.searchParams.set(name, "[REDACTED]");
-  return safe.toString();
+export function redactTelemetryUrl(input: string | URL | null | undefined): string {
+  if (!input) return "";
+  try {
+    const safe = new URL(input);
+    safe.username = "";
+    safe.password = "";
+    safe.hash = "";
+    const query = new URLSearchParams();
+    for (const name of safe.searchParams.keys()) query.append(name, "[REDACTED]");
+    safe.search = query.toString();
+    return safe.toString();
+  } catch {
+    return "[REDACTED]";
+  }
 }
 
 /**
@@ -187,7 +197,7 @@ export function createBetterPortalApp(options: BetterPortalAppOptions = {}): Bet
         durationMs,
         callerIp: requestIp,
         host: event.req.headers.get("host") ?? "",
-        referer: event.req.headers.get("referer") ?? "",
+        referer: redactTelemetryUrl(event.req.headers.get("referer")),
         tenantId: bpContext.__bpTenantId ?? "",
         appId: bpContext.__bpAppId ?? "",
         requestBytes: byteCountFromHeader(event.req.headers.get("content-length")),
@@ -298,10 +308,10 @@ function requestAttributes(event: BetterPortalEvent): ObservabilityAttributes {
 
   return {
     "http.request.method": event.req.method,
-    "url.full": redactAuthQuery(requestUrl),
+    "url.full": redactTelemetryUrl(requestUrl),
     "url.path": requestUrl.pathname,
     "server.address": event.req.headers.get("host") ?? "",
-    "http.request.header.referer": event.req.headers.get("referer") ?? "",
+    "http.request.header.referer": redactTelemetryUrl(event.req.headers.get("referer")),
     ...(origin ? { "http.request.header.origin": origin } : {}),
     ...(requestedMethod ? { "http.request.header.access_control_request_method": requestedMethod } : {}),
     ...(requestedHeaders ? { "http.request.header.access_control_request_headers": requestedHeaders.slice(0, 1024) } : {}),
