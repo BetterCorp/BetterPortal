@@ -1,6 +1,8 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
 const MAX_AGE_MS = 10 * 60_000;
+const MAX_NEXT_LENGTH = 1024;
+const MAX_STATE_LENGTH = 2048;
 export const WORKOS_STATE_STORAGE_KEY = "bp:workos:oauth-state";
 export const WORKOS_STATE_COOKIE = "bp_workos_oauth_state";
 
@@ -13,11 +15,14 @@ interface State {
 }
 
 export function createWorkOSState(next: string, scope: { tenantId: string; appId: string }): string {
+  if (next.length > MAX_NEXT_LENGTH) throw new RangeError("WorkOS destination is too long.");
   const state: State = {
     nonce: randomBytes(32).toString("base64url"), next,
     tenantId: scope.tenantId, appId: scope.appId, issuedAt: Date.now()
   };
-  return Buffer.from(JSON.stringify(state)).toString("base64url");
+  const encoded = Buffer.from(JSON.stringify(state)).toString("base64url");
+  if (encoded.length > MAX_STATE_LENGTH) throw new RangeError("WorkOS state is too long.");
+  return encoded;
 }
 
 export function workOSStateCookie(state: string, secure: boolean): string {
@@ -37,14 +42,14 @@ export function verifyWorkOSState(
   proof: string | undefined,
   scope: { tenantId: string; appId: string }
 ): string | undefined {
-  if (!encoded || !proof || encoded.length > 2048) return undefined;
+  if (!encoded || !proof || encoded.length > MAX_STATE_LENGTH || proof.length > MAX_STATE_LENGTH) return undefined;
   const encodedBytes = Buffer.from(encoded);
   const proofBytes = Buffer.from(proof);
   if (encodedBytes.length !== proofBytes.length || !timingSafeEqual(encodedBytes, proofBytes)) return undefined;
   try {
     const state = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as State;
     if (!state || typeof state.nonce !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(state.nonce)
-      || typeof state.next !== "string" || state.next.length > 1024
+      || typeof state.next !== "string" || state.next.length > MAX_NEXT_LENGTH
       || state.tenantId !== scope.tenantId || state.appId !== scope.appId
       || !Number.isSafeInteger(state.issuedAt) || state.issuedAt > Date.now()
       || Date.now() - state.issuedAt > MAX_AGE_MS) return undefined;

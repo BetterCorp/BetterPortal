@@ -183,7 +183,14 @@ export default createHandler(
       };
     }
 
-    const state = createWorkOSState(nextUrl, { tenantId: ctx.tenant.id, appId: ctx.app.id });
+    const scope = { tenantId: ctx.tenant.id, appId: ctx.app.id };
+    let state: string;
+    try {
+      state = createWorkOSState(nextUrl, scope);
+    } catch {
+      try { state = createWorkOSState(resolveAppAuthRedirect(ctx, "afterLogin"), scope); }
+      catch { return { status: "error" as const, message: "The configured sign-in destination is too long.", loginUI: config.loginUI ?? "default" }; }
+    }
     ctx.responseHeaders?.append("Set-Cookie", workOSStateCookie(state, redirectUri.startsWith("https://")));
     return {
       status: "ok" as const,

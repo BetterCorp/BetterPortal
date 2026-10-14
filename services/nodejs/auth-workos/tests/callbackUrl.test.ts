@@ -44,6 +44,23 @@ test("OAuth requires a public app callback so browser credentials reach the shel
   assert.equal(exchanged, false);
 });
 
+test("oversized OAuth destinations fall back before authorization starts", async () => {
+  for (const next of [`/search?q=${"x".repeat(1500)}`, `/search?q=${"漢".repeat(600)}`]) {
+    let state = "";
+    const result = await login({
+      query: { next }, config: { clientId: "client_test", apiKey: "sk_test" },
+      tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
+      responseHeaders: new Headers(), route: () => ({ absoluteUiPath: "https://app.test/login" }),
+      plugin: { getAuthorizationUrl: (_config: unknown, options: { state: string }) => {
+        state = options.state;
+        return `https://provider.test/authorize?state=${encodeURIComponent(state)}`;
+      } }
+    } as never);
+    assert.equal(result.status, "ok");
+    assert.equal(verifyWorkOSState(state, state, { tenantId: "tenant", appId: "app" }), "/dashboard");
+  }
+});
+
 test("an unsolicited or cross-app WorkOS callback cannot exchange its authorization code", async () => {
   const state = createWorkOSState("/dashboard", { tenantId: "tenant", appId: "app" });
   let exchanges = 0;
