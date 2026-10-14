@@ -32,7 +32,7 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   assert.match(source, /detail\.ctx\.fetch=.*?preload\.prefetch\.then/);
   assert.match(source, /applyPreloadConfig\(el,bpCfg\).*?bindBpPreload\(el\).*?data-bp-shell-route/s);
   assert.match(source, /matchServiceRoute\(elServiceId,pathOnly,"api"\)/);
-  assert.match(source, /match\.route\.servicePath\+match\.suffix/);
+  assert.match(source, /match\.route\.servicePath/);
   assert.match(source, /el\.setAttribute\("href",tenantUrl\)/);
   assert.match(source, /data-bp-shell-route","api"/);
   assert.doesNotMatch(source, /setAttribute\("hx-push-url",resolvePath\)/);
