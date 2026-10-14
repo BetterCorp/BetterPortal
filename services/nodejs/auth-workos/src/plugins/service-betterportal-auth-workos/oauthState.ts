@@ -4,7 +4,7 @@ const MAX_AGE_MS = 10 * 60_000;
 const MAX_NEXT_LENGTH = 1024;
 const MAX_STATE_LENGTH = 2048;
 export const WORKOS_STATE_STORAGE_KEY = "bp:workos:oauth-state";
-export const WORKOS_STATE_COOKIE = "bp_workos_oauth_state";
+export const WORKOS_STATE_COOKIE = "__Host-bp_workos_oauth_state";
 
 interface State {
   nonce: string;
@@ -25,12 +25,12 @@ export function createWorkOSState(next: string, scope: { tenantId: string; appId
   return encoded;
 }
 
-export function workOSStateCookie(state: string, secure: boolean): string {
-  return `${WORKOS_STATE_COOKIE}=${state}; Path=/; Max-Age=600; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+export function workOSStateCookie(state: string): string {
+  return `${WORKOS_STATE_COOKIE}=${state}; Path=/; Max-Age=600; HttpOnly; SameSite=Lax; Secure`;
 }
 
-export function clearWorkOSStateCookie(secure: boolean): string {
-  return `${WORKOS_STATE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+export function clearWorkOSStateCookie(): string {
+  return `${WORKOS_STATE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax; Secure`;
 }
 
 export function readWorkOSStateCookie(header: string | undefined): string | undefined {

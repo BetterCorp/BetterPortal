@@ -107,7 +107,7 @@ export default createHandler(
         return { status: "error" as const, message: "Sign-in state is missing, expired, or does not match this browser. Start sign-in again.", loginUI: config.loginUI ?? "default" };
       }
       nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", storedNext);
-      ctx.responseHeaders?.append("Set-Cookie", clearWorkOSStateCookie(false));
+      ctx.responseHeaders?.append("Set-Cookie", clearWorkOSStateCookie());
       try {
         const auth = await ctx.plugin.authenticateWithCode(config, query.code);
         const details = workOSAccessTokenDetails(auth.accessToken, config.roleClaimPath ?? "roles");
@@ -191,7 +191,7 @@ export default createHandler(
       try { state = createWorkOSState(resolveAppAuthRedirect(ctx, "afterLogin"), scope); }
       catch { return { status: "error" as const, message: "The configured sign-in destination is too long.", loginUI: config.loginUI ?? "default" }; }
     }
-    ctx.responseHeaders?.append("Set-Cookie", workOSStateCookie(state, redirectUri.startsWith("https://")));
+    ctx.responseHeaders?.append("Set-Cookie", workOSStateCookie(state));
     return {
       status: "ok" as const,
       message: "Continue to WorkOS.",

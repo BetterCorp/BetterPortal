@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import login from "../src/plugins/service-betterportal-auth-workos/bp-routes/login/GET.js";
-import { createWorkOSState, verifyWorkOSState } from "../src/plugins/service-betterportal-auth-workos/oauthState.js";
+import { createWorkOSState, verifyWorkOSState, WORKOS_STATE_COOKIE } from "../src/plugins/service-betterportal-auth-workos/oauthState.js";
 import { toHtmlString } from "@betterportal/framework";
 import { render } from "../src/plugins/service-betterportal-auth-workos/bp-routes/login/_renderer.bootstrap5/GET.js";
 
@@ -19,7 +19,7 @@ test("OAuth requires a public app callback so browser credentials reach the shel
       assert.equal(callback, publicUrl);
       assert.equal(result.authorizationUrl, "https://provider.test/authorize");
       assert.equal(verifyWorkOSState(state, state, { tenantId: "tenant", appId: "app" }), "/dashboard");
-      assert.match(responseHeaders.get("set-cookie") ?? "", /bp_workos_oauth_state=.*HttpOnly; SameSite=Lax; Secure/);
+      assert.match(responseHeaders.get("set-cookie") ?? "", /__Host-bp_workos_oauth_state=.*HttpOnly; SameSite=Lax; Secure/);
     } else {
       assert.equal(callback, "", "a service-origin callback cannot complete shell credential storage");
       assert.equal(responseHeaders.get("set-cookie"), null);
@@ -34,7 +34,7 @@ test("OAuth requires a public app callback so browser credentials reach the shel
   const state = createWorkOSState("/dashboard", { tenantId: "tenant", appId: "app" });
   let exchanged = false;
   const nativeCallback = await login({
-    query: { code: "code", state }, headers: { cookie: `bp_workos_oauth_state=${state}` },
+    query: { code: "code", state }, headers: { cookie: `${WORKOS_STATE_COOKIE}=${state}` },
     config: { clientId: "client_test", apiKey: "sk_test" },
     tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
     route: () => ({ absoluteUiPath: null, absoluteViewPath: "https://auth.test/login" }),
@@ -77,8 +77,17 @@ test("an unsolicited or cross-app WorkOS callback cannot exchange its authorizat
   assert.equal(exchanges, 0);
   assert.equal((await callback(state)).status, "error");
   assert.equal(exchanges, 1, "only a matching browser proof reaches code exchange");
+  const siblingCookie = await login({
+    query: { code: "sibling-code", state }, headers: { cookie: `bp_workos_oauth_state=${state}` },
+    config: { clientId: "client_test", apiKey: "sk_test" },
+    tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
+    route: () => ({ absoluteUiPath: "https://app.test/login" }),
+    plugin: { authenticateWithCode: async () => { exchanges++; throw new Error("exchange attempted"); } }
+  } as never);
+  assert.equal(siblingCookie.status, "error");
+  assert.equal(exchanges, 1, "a sibling-set parent-domain cookie cannot authorize an exchange");
   const direct = await login({
-    query: { code: "direct-code", state }, headers: { cookie: `bp_workos_oauth_state=${state}` },
+    query: { code: "direct-code", state }, headers: { cookie: `${WORKOS_STATE_COOKIE}=${state}` },
     config: { clientId: "client_test", apiKey: "sk_test" }, tenant: { id: "tenant" },
     app: { id: "app", defaultRoute: "/dashboard" },
     route: () => ({ absoluteUiPath: "https://app.test/login" }),
@@ -92,7 +101,7 @@ test("a public callback renders the verified destination after sign-in", async (
   const state = createWorkOSState("/reports", { tenantId: "tenant", appId: "app" });
   const accessToken = `header.${Buffer.from(JSON.stringify({ sid: "session" })).toString("base64url")}.signature`;
   const result = await login({
-    query: { code: "valid-code", state }, headers: { cookie: `bp_workos_oauth_state=${state}` },
+    query: { code: "valid-code", state }, headers: { cookie: `${WORKOS_STATE_COOKIE}=${state}` },
     config: { clientId: "client_test", apiKey: "sk_test" },
     tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
     route: () => ({ absoluteUiPath: "https://app.test/login" }),
