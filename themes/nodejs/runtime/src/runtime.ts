@@ -260,9 +260,10 @@ export function betterPortalShellRuntimeSource(): string {
         return mostSpecificMatches(matches)[0]?.route ?? null;
       };
 
+      const defaultDocumentTitle = document.title;
       const syncDocumentTitle = (pageTitle?: string) => {
         const configuredTitle = shellRoot()?.getAttribute("data-bp-document-title")?.trim();
-        if (!configuredTitle) return;
+        if (!configuredTitle) { document.title = defaultDocumentTitle; return; }
         const title = pageTitle?.trim();
         document.title = title && title !== configuredTitle ? `${title} · ${configuredTitle}` : configuredTitle;
       };
@@ -2045,8 +2046,8 @@ export function betterPortalShellRuntimeSource(): string {
         const tn = titleNode();
         if (tn) tn.textContent = pageTitle;
         if (customTitle) {
-          const appTitle = shellRoot()?.getAttribute("data-bp-document-title")?.trim();
-          if (appTitle) document.title = `${customTitle} - ${appTitle}`;
+          const appTitle = shellRoot()?.getAttribute("data-bp-document-title")?.trim() || defaultDocumentTitle.trim();
+          document.title = appTitle ? `${customTitle} - ${appTitle}` : customTitle;
         } else syncDocumentTitle(title);
         const serviceId = configuredRoute?.serviceId || routeLink?.getAttribute("data-bp-service");
         if (serviceId) mainOutlet()?.setAttribute("data-bp-service", serviceId);

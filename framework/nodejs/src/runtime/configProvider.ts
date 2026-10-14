@@ -267,6 +267,37 @@ export function resolveServiceForTenant(
 }
 
 /**
+ * Read a view label from the manifest of a service available to this app.
+ *
+ * @param config - Platform snapshot containing registrations and cached manifests.
+ * @param serviceId - Concrete tenant/platform service or shared activation ID.
+ * @param viewId - Published view identity.
+ * @param context - Resolved tenant and application for the shell request.
+ * @returns The view title, or `undefined` when the binding or view is unavailable.
+ * @remarks
+ * Shared activations use their catalog instance's manifest. Concrete instance
+ * caches take precedence over package defaults, including when several service
+ * instances have the same package identity.
+ */
+export function resolveServiceViewTitle(
+  config: BetterPortalConfig,
+  serviceId: string,
+  viewId: string,
+  context: BetterPortalResolvedRequestContext
+): string | undefined {
+  const binding = resolveServiceForTenant(config, serviceId, context);
+  if (!binding) return undefined;
+  const activation = config.sharedServiceActivations.find(item => item.id === binding.service.id);
+  const keys = [activation?.sharedServiceId, binding.service.id, binding.service.serviceId];
+  for (const key of keys) {
+    if (!key) continue;
+    const title = config.manifestCache.find(entry => entry.serviceId === key)?.viewIndex[viewId]?.title;
+    if (title) return title;
+  }
+  return undefined;
+}
+
+/**
  * Resolve the credential-destination map for a tenant's application.
  *
  * @remarks

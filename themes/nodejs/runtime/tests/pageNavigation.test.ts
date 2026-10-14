@@ -29,7 +29,7 @@ async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) =>
     const mount = resolveAppRoute(app, url.pathname);
     if (!mount) return route.fulfill({ status: 404, body: "No page mount" });
     const action = buildServiceViewUrl({ hostname: "https://service.test" }, mount, url.pathname)! + url.search;
-    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
+    return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><title>App</title><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
       <div data-bp-shell-root data-bp-menu-health="false" data-bp-document-title="App" data-bp-services='{"service":"https://service.test"}' data-bp-routes='${JSON.stringify(mounts)}'>
       <h1 data-bp-current-title></h1><div data-bp-current-breadcrumb></div><a data-bp-up hidden>Up</a><button data-bp-back>Back</button>
       <main id="bp-main" data-bp-service="service" hx-get="${action}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></main></div>${errorOutlet ? '<div id="error-outlet"></div><script>window.BetterPortalShellAdapter = { showRequestError: (status, html) => { document.getElementById("error-outlet").innerHTML = html; } };</script>' : ''}<script>${asset.body}</script></body></html>` });
@@ -192,5 +192,20 @@ test("unresolved-link DOM text cannot become error-outlet HTML", async t => {
   await page.locator("#unavailable").click();
   assert.equal(await page.locator("#error-outlet #injected").count(), 0);
   assert.equal(await page.locator("#error-outlet").textContent(), "This destination is not available in this app.");
+  assert.deepEqual(errors, []);
+});
+
+test("shells without an app-title attribute update and restore browser titles", async t => {
+  const { page, errors } = await shell(t, [list, detail], route => new URL(route.request().url()).pathname === "/batches"
+    ? response(route, '<a id="detail" href="/batches/1">Open</a>')
+    : response(route, '<p id="batch">Batch</p>', { title: "Batch 1", parents: ["/batches"] }));
+  await page.waitForSelector("#detail");
+  await page.evaluate(() => document.querySelector("[data-bp-shell-root]")?.removeAttribute("data-bp-document-title"));
+  await page.locator("#detail").click();
+  await page.waitForSelector("#batch");
+  assert.equal(await page.title(), "Batch 1 - App");
+  await page.getByRole("link", { name: "Up to Import batches" }).click();
+  await page.waitForSelector("#detail");
+  assert.equal(await page.title(), "App");
   assert.deepEqual(errors, []);
 });
