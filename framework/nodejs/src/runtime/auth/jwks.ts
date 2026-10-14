@@ -13,7 +13,38 @@ const refreshes = new Map<string, Promise<CachedClient>>();
 const nextMissRefreshAt = new Map<string, number>();
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const MISS_REFRESH_INTERVAL_MS = 2_000;
+const MAX_JWKS_BYTES = 256 * 1024;
 let cacheGeneration = 0;
+
+async function readJwksText(response: Response): Promise<string> {
+  const length = response.headers.get("content-length");
+  if (length !== null && /^\d+$/.test(length) && Number(length) > MAX_JWKS_BYTES) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new Error("JWKS response too large");
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let used = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > MAX_JWKS_BYTES - used) {
+        void reader.cancel().catch(() => undefined);
+        throw new Error("JWKS response too large");
+      }
+      chunks.push(value);
+      used += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(used);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
 
 export interface JwksLookupOptions {
   jwksUri: string;
@@ -32,13 +63,14 @@ async function loadJwksKeys(options: JwksLookupOptions, generation: number): Pro
   try {
     response = await fetch(options.jwksUri, {
       headers: { accept: "application/json" },
+      redirect: "error",
       signal: AbortSignal.timeout(5000)
     });
   } catch (error) {
     throw new Error(`JWKS fetch failed: ${options.jwksUri}: ${networkErrorDetails(error)}`, { cause: error });
   }
   const contentType = response.headers.get("content-type") ?? "";
-  const text = await response.text();
+  const text = await readJwksText(response);
   if (!response.ok) {
     throw new Error(`JWKS fetch failed: ${options.jwksUri} HTTP ${response.status} ${text.slice(0, 160)}`);
   }
