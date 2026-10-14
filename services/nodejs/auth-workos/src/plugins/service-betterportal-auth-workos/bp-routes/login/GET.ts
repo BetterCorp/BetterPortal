@@ -91,6 +91,8 @@ export default createHandler(
       const proof = ctx.headers["x-bp-workos-state"] ?? readWorkOSStateCookie(ctx.headers.cookie);
       if (verifyWorkOSState(query.state, proof, { tenantId: ctx.tenant.id, appId: ctx.app.id })) {
         ctx.responseHeaders?.append("Set-Cookie", clearWorkOSStateCookie());
+        try { ctx.plugin.claimOAuthState(query.state!); }
+        catch (error) { ctx.obs?.error(error instanceof Error ? error : new Error(String(error))); }
       }
       return {
         status: "error" as const,
@@ -109,6 +111,14 @@ export default createHandler(
       const storedNext = verifyWorkOSState(query.state, proof, { tenantId: ctx.tenant.id, appId: ctx.app.id });
       if (!storedNext) {
         return { status: "error" as const, message: "Sign-in state is missing, expired, or does not match this browser. Start sign-in again.", loginUI: config.loginUI ?? "default" };
+      }
+      try {
+        if (!ctx.plugin.claimOAuthState(query.state!)) {
+          return { status: "error" as const, message: "Sign-in state was already used. Start sign-in again.", loginUI: config.loginUI ?? "default" };
+        }
+      } catch (error) {
+        ctx.obs?.error(error instanceof Error ? error : new Error(String(error)));
+        return { status: "error" as const, message: "Sign-in state could not be checked. Start sign-in again.", loginUI: config.loginUI ?? "default" };
       }
       nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", storedNext);
       ctx.responseHeaders?.append("Set-Cookie", clearWorkOSStateCookie());
@@ -194,6 +204,11 @@ export default createHandler(
     } catch {
       try { state = createWorkOSState(resolveAppAuthRedirect(ctx, "afterLogin"), scope); }
       catch { return { status: "error" as const, message: "The configured sign-in destination is too long.", loginUI: config.loginUI ?? "default" }; }
+    }
+    try { ctx.plugin.issueOAuthState(state); }
+    catch (error) {
+      ctx.obs?.error(error instanceof Error ? error : new Error(String(error)));
+      return { status: "error" as const, message: "Sign-in state could not be created. Try again.", loginUI: config.loginUI ?? "default" };
     }
     ctx.responseHeaders?.append("Set-Cookie", workOSStateCookie(state));
     return {

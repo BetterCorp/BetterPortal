@@ -36,6 +36,7 @@ import {
 } from "@betterportal/framework";
 import { dirname, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
+import { WorkOSStateClaims } from "./oauthState.js";
 
 const SERVICE_ID = "org.betterportal.auth.workos";
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
@@ -272,10 +273,18 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   static EventSchemas = EventSchemas;
   private keyPair!: RsaKeyPair;
   private syncTimer: ReturnType<typeof setInterval> | undefined;
+  private oauthStateClaims?: WorkOSStateClaims;
 
   constructor(cfg: BSBServiceConstructor<InstanceType<typeof Config>, typeof EventSchemas>) {
     super({ ...cfg, eventSchemas: EventSchemas });
   }
+
+  private stateClaims(): WorkOSStateClaims {
+    return this.oauthStateClaims ??= new WorkOSStateClaims(`${resolve(this.config.workosStatePath)}.oauth-pending`);
+  }
+
+  issueOAuthState(state: string): void { this.stateClaims().issue(state); }
+  claimOAuthState(state: string): boolean { return this.stateClaims().claim(state); }
 
   async init(obs: Observable): Promise<void> {
     this.keyPair = loadOrGenerateKeyPair(resolve(this.config.keyStorePath));
@@ -957,8 +966,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
 
 export type PluginFeature = Pick<Plugin,
   | "authenticateWithCode"
+  | "claimOAuthState"
   | "getAuthorizationUrl"
   | "getWorkOSSessionState"
+  | "issueOAuthState"
   | "issueTokenPair"
   | "refreshWorkOSToken"
   | "verifyRefreshToken"

@@ -5,13 +5,19 @@ import { createWorkOSState, verifyWorkOSState, WORKOS_STATE_COOKIE } from "../sr
 import { toHtmlString } from "@betterportal/framework";
 import { render } from "../src/plugins/service-betterportal-auth-workos/bp-routes/login/_renderer.bootstrap5/GET.js";
 
+const pendingStates = new Set<string>();
+const stateClaims = {
+  issueOAuthState(state: string) { pendingStates.add(state); },
+  claimOAuthState(state: string) { return pendingStates.delete(state); }
+};
+
 test("OAuth requires a public app callback so browser credentials reach the shell", async () => {
   for (const publicUrl of ["https://app.test/login", null]) {
     let callback = "";
     let state = "";
     const responseHeaders = new Headers();
     const result = await login({ query: {}, config: { clientId: "client_test", apiKey: "sk_test" },
-      tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" }, plugin: { getAuthorizationUrl: (_config: unknown, options: { redirectUri: string; state: string }) => {
+      tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" }, plugin: { ...stateClaims, getAuthorizationUrl: (_config: unknown, options: { redirectUri: string; state: string }) => {
         callback = options.redirectUri; state = options.state; return "https://provider.test/authorize";
       } }, responseHeaders, route: () => ({ absoluteUiPath: publicUrl, absoluteViewPath: "https://auth.test/login" }) } as never);
     assert.equal(result.status, publicUrl ? "ok" : "error");
@@ -51,7 +57,7 @@ test("oversized OAuth destinations fall back before authorization starts", async
       query: { next }, config: { clientId: "client_test", apiKey: "sk_test" },
       tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
       responseHeaders: new Headers(), route: () => ({ absoluteUiPath: "https://app.test/login" }),
-      plugin: { getAuthorizationUrl: (_config: unknown, options: { state: string }) => {
+      plugin: { ...stateClaims, getAuthorizationUrl: (_config: unknown, options: { state: string }) => {
         state = options.state;
         return `https://provider.test/authorize?state=${encodeURIComponent(state)}`;
       } }
@@ -63,13 +69,14 @@ test("oversized OAuth destinations fall back before authorization starts", async
 
 test("an unsolicited or cross-app WorkOS callback cannot exchange its authorization code", async () => {
   const state = createWorkOSState("/dashboard", { tenantId: "tenant", appId: "app" });
+  stateClaims.issueOAuthState(state);
   let exchanges = 0;
   const callback = (proof?: string, appId = "app") => login({
     query: { code: "attacker-code", state }, headers: proof ? { "x-bp-workos-state": proof } : {},
     config: { clientId: "client_test", apiKey: "sk_test" },
     tenant: { id: "tenant" }, app: { id: appId, defaultRoute: "/dashboard" },
     route: () => ({ absoluteUiPath: "https://app.test/login" }),
-    plugin: { authenticateWithCode: async () => { exchanges++; throw new Error("exchange attempted"); } }
+    plugin: { ...stateClaims, authenticateWithCode: async () => { exchanges++; throw new Error("exchange attempted"); } }
   } as never);
   assert.equal((await callback()).status, "error");
   assert.equal((await callback("forged")).status, "error");
@@ -82,7 +89,7 @@ test("an unsolicited or cross-app WorkOS callback cannot exchange its authorizat
     config: { clientId: "client_test", apiKey: "sk_test" },
     tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
     route: () => ({ absoluteUiPath: "https://app.test/login" }),
-    plugin: { authenticateWithCode: async () => { exchanges++; throw new Error("exchange attempted"); } }
+    plugin: { ...stateClaims, authenticateWithCode: async () => { exchanges++; throw new Error("exchange attempted"); } }
   } as never);
   assert.equal(siblingCookie.status, "error");
   assert.equal(exchanges, 1, "a sibling-set parent-domain cookie cannot authorize an exchange");
@@ -91,28 +98,49 @@ test("an unsolicited or cross-app WorkOS callback cannot exchange its authorizat
     config: { clientId: "client_test", apiKey: "sk_test" }, tenant: { id: "tenant" },
     app: { id: "app", defaultRoute: "/dashboard" },
     route: () => ({ absoluteUiPath: "https://app.test/login" }),
-    plugin: { authenticateWithCode: async () => { exchanges++; throw new Error("exchange attempted"); } }
+    plugin: { ...stateClaims, authenticateWithCode: async () => { exchanges++; throw new Error("exchange attempted"); } }
   } as never);
   assert.equal(direct.status, "error");
-  assert.equal(exchanges, 2, "a same-origin cookie also proves a direct service login");
+  assert.equal(exchanges, 1, "a consumed state cannot be reused with its original cookie");
 });
 
 test("a matching provider error callback clears the WorkOS proof cookie", async () => {
   const state = createWorkOSState("/dashboard", { tenantId: "tenant", appId: "app" });
+  stateClaims.issueOAuthState(state);
   const responseHeaders = new Headers();
   const result = await login({
     query: { error: "access_denied", state },
     headers: { "x-bp-workos-state": state, cookie: `${WORKOS_STATE_COOKIE}=${state}` },
     config: { clientId: "client_test", apiKey: "sk_test" },
     tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
-    responseHeaders
+    responseHeaders, plugin: stateClaims
   } as never);
   assert.equal(result.status, "error");
   assert.match(responseHeaders.get("set-cookie") ?? "", /__Host-bp_workos_oauth_state=;.*Max-Age=0/);
+  assert.equal(stateClaims.claimOAuthState(state), false, "provider cancellation consumes the pending state");
+});
+
+test("parallel callbacks can exchange only one code for the same browser state", async () => {
+  const state = createWorkOSState("/dashboard", { tenantId: "tenant", appId: "app" });
+  const pending = new Set([state]);
+  let exchanges = 0;
+  const callback = (code: string) => login({
+    query: { code, state }, headers: { cookie: `${WORKOS_STATE_COOKIE}=${state}` },
+    config: { clientId: "client_test", apiKey: "sk_test" },
+    tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
+    route: () => ({ absoluteUiPath: "https://app.test/login" }),
+    plugin: {
+      claimOAuthState: (value: string) => pending.delete(value),
+      authenticateWithCode: async () => { exchanges++; throw new Error("exchange attempted"); }
+    }
+  } as never);
+  await Promise.all([callback("first-code"), callback("second-code")]);
+  assert.equal(exchanges, 1, "state must be consumed before the first asynchronous code exchange");
 });
 
 test("a public callback renders the verified destination after sign-in", async () => {
   const state = createWorkOSState("/reports", { tenantId: "tenant", appId: "app" });
+  stateClaims.issueOAuthState(state);
   const accessToken = `header.${Buffer.from(JSON.stringify({ sid: "session" })).toString("base64url")}.signature`;
   const result = await login({
     query: { code: "valid-code", state }, headers: { cookie: `${WORKOS_STATE_COOKIE}=${state}` },
@@ -120,7 +148,7 @@ test("a public callback renders the verified destination after sign-in", async (
     tenant: { id: "tenant" }, app: { id: "app", defaultRoute: "/dashboard" },
     route: () => ({ absoluteUiPath: "https://app.test/login" }),
     responseHeaders: new Headers(), bpHeaders: { set() {} },
-    plugin: {
+    plugin: { ...stateClaims,
       authenticateWithCode: async () => ({ accessToken, refreshToken: "refresh", user: { id: "user", email: "user@test.local" } }),
       issueTokenPair: () => ({ accessToken: "issued-access", refreshToken: "issued-refresh", accessTokenExpiresInSeconds: 900, refreshTokenExpiresInSeconds: 3600 })
     }
