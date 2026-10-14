@@ -161,7 +161,7 @@ test("bootstrap capability permits only first-install and admin role creation", 
 test("service-authenticated self-mutation keeps its own credential check", async () => {
   const { send } = fixture();
   const response = await send("/.well-known/bp/admin/services/self-mutation", "PUT", {});
-  assert.equal(response.status, 400);
+  assert.equal(response.status, 401);
 });
 
 
@@ -228,4 +228,37 @@ test("public setup redemption rejects oversized JSON without a Content-Length", 
   assert.equal(request.headers.get("Content-Length"), null);
   const response = await app.fetch(request);
   assert.equal(response.status, 413);
+});
+
+test("delegated installation authorization rejects oversized streamed JSON before cloning it", async () => {
+  const { app, storage, appId, tenantId, token } = fixture();
+  const serviceId = storage.config.tenants[0].services[0].id;
+  storage.config.apps[0].auth!.roles.push({
+    id: "installer", title: "Installer",
+    permissions: [{ serviceId, viewId: "services.index", permissions: ["create"] }]
+  });
+  const payload = new TextEncoder().encode(JSON.stringify({
+    serviceUrl: "https://new.example", tenantId, padding: "x".repeat(256 * 1024)
+  }));
+  const request = new Request("https://config.example/.well-known/bp/admin/services/begin-install", {
+    method: "POST", headers: { authorization: `Bearer ${token(appId, tenantId, ["installer"])}` },
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(payload); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("content-length"), null);
+  assert.equal((await app.fetch(request)).status, 413);
+  assert.equal(storage.saves, 0);
+});
+
+test("raw administrator routes reject oversized streamed bodies before form or JSON parsing", async () => {
+  const { app, storage, appId, tenantId, token } = fixture();
+  const payload = new TextEncoder().encode(JSON.stringify({ hostname: "https://service.example", padding: "x".repeat(2 * 1024 * 1024) }));
+  const request = new Request("https://config.example/.well-known/bp/admin/platform-services", {
+    method: "POST", headers: { authorization: `Bearer ${token(appId, tenantId)}`, "content-type": "application/json" },
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(payload); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("content-length"), null);
+  assert.equal((await app.fetch(request)).status, 413);
+  assert.equal(storage.saves, 0);
 });

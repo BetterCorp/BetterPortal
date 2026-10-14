@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, PublicJwks, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, signSetupToken, verifySetupToken } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, readBoundedJsonBody, signSetupToken, verifySetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import type { PostgresStorage } from "./storage/postgres.js";
 import { readPublicJsonBody } from "./publicJsonBody.js";
@@ -56,7 +56,9 @@ export function registerSetupEndpoints(input: {
 
   input.app.post("/.well-known/bp/admin/services/begin-hostname-change", async (event) => {
     sweep();
-    const body = await event.req.json().catch(() => null) as { instanceId?: string; serviceUrl?: string } | null;
+    const parsedBody = await readBoundedJsonBody(event.req, 128 * 1024);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody as { instanceId?: string; serviceUrl?: string } | null;
     const instanceId = typeof body?.instanceId === "string" ? body.instanceId.trim() : "";
     const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
     if (!instanceId || !serviceUrl) return jsonResponse({ error: "A service instance and valid URL origin are required" }, 400);
@@ -149,7 +151,9 @@ export function registerSetupEndpoints(input: {
   // otherwise mint one here.
   input.app.post("/.well-known/bp/admin/services/begin-install", async (event) => {
     sweep();
-    const body = await event.req.json().catch(() => null) as {
+    const parsedBody = await readBoundedJsonBody(event.req, 128 * 1024);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody as {
       serviceUrl?: string;
       tenantId?: string;
       appId?: string;

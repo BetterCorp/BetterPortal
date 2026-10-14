@@ -5,6 +5,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import {
   jsonResponse,
   eventObservability,
+  readBoundedJsonBody,
   type BetterPortalEvent,
   type BetterPortalH3App,
   type JsonValue,
@@ -190,7 +191,11 @@ async function withPreviewApiErrors(
 }
 
 async function readObject(event: BetterPortalEvent): Promise<Record<string, unknown>> {
-  const body = await event.req.json().catch(() => null);
+  const body = await readBoundedJsonBody(event.req, 1024 * 1024);
+  if (body instanceof Response) throw new PreviewEnvironmentError(
+    body.status === 413 ? "Preview request body too large" : "Invalid preview request body",
+    body.status === 413 ? 413 : 400
+  );
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new PreviewEnvironmentError("A JSON object request body is required");
   }

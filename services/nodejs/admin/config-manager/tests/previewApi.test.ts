@@ -81,8 +81,54 @@ function fixture() {
     }),
     context: { params: { groupId: group.id, key: "123" } }
   } as never);
-  return { storage, call, logs };
+  return { storage, call, logs, apiKey, group };
 }
+
+test("preview group key cannot submit an oversized streamed deployment", async () => {
+  const { storage, apiKey, group } = fixture();
+  const handlers = new Map<string, (event: never) => Promise<Response>>();
+  registerPreviewDeploymentApi({
+    app: Object.fromEntries(["get", "post", "delete"].map(method => [method,
+      (_path: string, handler: (event: never) => Promise<Response>) => handlers.set(method, handler)
+    ])) as never,
+    storage, controlPlaneUrl: "https://config.example", replayEncryptionKey: "test-key"
+  });
+  const payload = new TextEncoder().encode(JSON.stringify({
+    hostname: "pr.example", services: { "org.example.service": "https://service-pr.example" },
+    name: "x".repeat(2 * 1024 * 1024)
+  }));
+  const request = new Request("https://config.example/preview", {
+    method: "POST", headers: { authorization: `Bearer ${apiKey}` },
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(payload); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("content-length"), null);
+  const response = await handlers.get("post")!({ req: request, context: { params: { groupId: group.id, key: "big" } } } as never);
+  assert.equal(response.status, 413);
+  assert.equal(storage.saves, 0);
+});
+
+test("service sync key cannot submit an oversized streamed manifest", async () => {
+  const { storage } = fixture();
+  storage.validateApiKey = async () => ({
+    scope: "tenant" as const,
+    tenantId: storage.current.tenants[0].id,
+    serviceId: storage.current.tenants[0].services[0].id
+  });
+  const handlers = new Map<string, (event: never) => Promise<Response>>();
+  registerSyncEndpoint(Object.fromEntries(["get", "post"].map(method => [method,
+    (_path: string, handler: (event: never) => Promise<Response>) => handlers.set(method, handler)
+  ])) as never, storage);
+  const payload = new TextEncoder().encode(JSON.stringify({ title: "x".repeat(5 * 1024 * 1024) }));
+  const request = new Request("https://config.example/.well-known/bp/sync/poll", {
+    method: "POST", headers: { authorization: "Bearer valid-service-key" },
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(payload); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+  assert.equal(request.headers.get("content-length"), null);
+  const response = await handlers.get("post")!({ req: request } as never);
+  assert.equal(response.status, 413);
+});
 
 test("preview logs correlate committed and replayed credentials without exposing secrets", async () => {
   const { storage, call, logs } = fixture();

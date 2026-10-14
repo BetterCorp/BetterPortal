@@ -52,7 +52,7 @@ export interface IssuedPreviewCredential {
 }
 
 export class PreviewEnvironmentError extends Error {
-  constructor(message: string, readonly status: 400 | 401 | 404 | 409 = 400) {
+  constructor(message: string, readonly status: 400 | 401 | 404 | 409 | 413 = 400) {
     super(message);
     this.name = "PreviewEnvironmentError";
   }

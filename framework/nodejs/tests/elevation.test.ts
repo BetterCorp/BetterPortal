@@ -14,7 +14,7 @@ test("signed elevation is app-bound, short-lived and absent from normal issuance
   assert.equal(satisfiesElevation(claims, { minimum: "confirm" }, now + 60), false);
   assert.equal(satisfiesElevation({ ...claims, elevation: { ...claims.elevation!, assurance: "confirmed" } }, { minimum: "mfa" }), false);
   assert.equal(satisfiesElevation({ ...claims, exp: now + 30 }, { minimum: "mfa" }), false);
-  assert.equal(satisfiesElevation({ ...claims, elevation: { ...claims.elevation!, verifiedAt: now + 1 } }, { minimum: "mfa" }), false);
+  assert.equal(satisfiesElevation({ ...claims, elevation: { ...claims.elevation!, verifiedAt: now + 1 } }, { minimum: "mfa" }, now), false);
   const normal = issuer.issueTokenPair({ ...user, ...claims, refreshContext: {} });
   assert.equal((await issuer.verifier().verify(normal.accessToken, scope)).elevation, undefined);
   assert.equal((await issuer.verifyRefreshToken({ ...scope, refreshToken: normal.refreshToken! })).elevation, undefined);

@@ -24,7 +24,7 @@ import type {
   ViewDemoScenario,
   WebhookEventDescriptor
 } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ServiceManifestCacheEntrySchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, DeveloperResourceSchema, ServiceManifestCacheEntrySchema, ShellManifestSchema, ViewDemoScenarioSchema, deriveKeyId, eventObservability, jsonResponse, readBoundedJsonBody, toPublishedJsonSchemaDocument, uuidv7 } from "@betterportal/framework";
 import { sitemapMetadata } from "@betterportal/framework";
 import { createPublicKey } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
@@ -775,7 +775,9 @@ export function registerSyncEndpoint(
 
     // POST: extract manifest push if present and cache.
     if (event.req.method === "POST") {
-      const body = await event.req.json().catch(() => null) as {
+      const parsedBody = await readBoundedJsonBody(event.req, 4 * 1024 * 1024);
+      if (parsedBody instanceof Response) return parsedBody;
+      const body = parsedBody as {
         publicKeyPem?: string;
         keyId?: string;
         manifestVersion?: string;

@@ -14,6 +14,7 @@ import {
   eventHeaders,
   htmlResponse,
   jsonResponse,
+  readBoundedJsonBody,
   resolveEmbeddedRequestContext,
   signServiceConfigTicket,
   uuidv7,
@@ -1983,11 +1984,13 @@ export function registerAdminApiRoutes(
   app.put(`${API_BASE}/apps/:appId/auth/roles/sync`, async (event) => {
     const appId = getParam(event, "appId");
     if (!appId) return jsonResponse({ error: "appId required" }, 400);
-    const body = await readJsonBody(event);
-    const roles = Array.isArray(body.roles) ? body.roles : undefined;
-    if (!roles) return jsonResponse({ error: "roles array required" }, 400);
     const identity = await readServiceIdentity(event);
     if (identity instanceof Response) return identity;
+    const parsedBody = await readBoundedJsonBody(event.req, 1024 * 1024);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody) ? parsedBody as Record<string, unknown> : {};
+    const roles = Array.isArray(body.roles) ? body.roles : undefined;
+    if (!roles) return jsonResponse({ error: "roles array required" }, 400);
 
     return editApp(store, appId, async (config) => {
       const appDef = config.apps.find(app => app.id === appId);
@@ -2006,11 +2009,13 @@ export function registerAdminApiRoutes(
   });
 
   app.put(`${API_BASE}/services/self-mutation`, async (event) => {
-    const parsed = SelfMutationRequestSchema.safeParse(await readJsonBody(event));
-    if (!parsed.success) return jsonResponse({ error: "Invalid self-mutation request", issues: parsed.issues as unknown as JsonValue }, 400);
-    const { tenantId, appId, type, mutation } = parsed.data;
     const identity = await readServiceIdentity(event);
     if (identity instanceof Response) return identity;
+    const body = await readBoundedJsonBody(event.req, 1024 * 1024);
+    if (body instanceof Response) return body;
+    const parsed = SelfMutationRequestSchema.safeParse(body);
+    if (!parsed.success) return jsonResponse({ error: "Invalid self-mutation request", issues: parsed.issues as unknown as JsonValue }, 400);
+    const { tenantId, appId, type, mutation } = parsed.data;
 
     if (type === "theme") {
       const { config, appDef } = await getAppOr404(appId);

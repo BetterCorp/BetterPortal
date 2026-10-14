@@ -1,8 +1,57 @@
 import assert from "node:assert/strict";
 import { H3 } from "h3";
+import { createServer } from "node:http";
 import { test } from "node:test";
 import { registerWebhookRoutes } from "../src/plugins/service-betterportal-config-manager/webhooks.js";
 import { getManifestCache } from "../src/plugins/service-betterportal-config-manager/syncApi.js";
+
+test("webhook test delivery cannot reach the control plane loopback interface", async (t) => {
+  let hits = 0;
+  const server = createServer((_request, response) => { hits++; response.writeHead(204).end(); });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const app = new H3();
+  registerWebhookRoutes(app, {
+    loadConfig: async () => ({
+      apps: [{ id: "app", tenantId: "tenant", hostnames: ["cp.test"] }],
+      tenants: [{ id: "tenant", active: true }],
+      webhooks: { targets: [{ id: "target", serviceId: "service", eventId: "changed", tenantId: "tenant", appId: "app", enabled: true,
+        secret: "test-only", url: `http://127.0.0.1:${address.port}/internal`, maxAttempts: 1 }] }
+    })
+  } as never);
+  const response = await app.fetch(new Request("http://cp.test/.well-known/bp/manage/webhooks/targets/target/test?appId=app", { method: "POST" }));
+  assert.equal(response.status, 502);
+  assert.equal(hits, 0);
+});
+
+test("webhook target creation rejects private destinations and oversized streamed input", async (t) => {
+  const cache = getManifestCache();
+  cache.set("service", { webhooks: [{ id: "changed" }] } as never);
+  t.after(() => cache.delete("service"));
+  const config = {
+    apps: [{ id: "app", tenantId: "tenant", hostnames: ["cp.test"] }],
+    tenants: [{ id: "tenant", active: true }],
+    webhooks: { targets: [] as unknown[] }
+  };
+  const app = new H3();
+  registerWebhookRoutes(app, { loadConfig: async () => config, saveConfig: async () => {} } as never);
+  const targetUrl = "http://cp.test/.well-known/bp/manage/webhooks/targets?appId=app";
+  const privateTarget = await app.fetch(new Request(targetUrl, { method: "POST", body: JSON.stringify({
+    serviceId: "service", eventId: "changed", url: "https://127.0.0.1/internal"
+  }) }));
+  assert.equal(privateTarget.status, 400);
+  const body = new TextEncoder().encode(JSON.stringify({
+    serviceId: "service", eventId: "changed", url: "https://webhook.example", padding: "x".repeat(2 * 1024 * 1024)
+  }));
+  const oversized = await app.fetch(new Request(targetUrl, { method: "POST",
+    body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(body); controller.close(); } }),
+    duplex: "half"
+  } as RequestInit & { duplex: "half" }));
+  assert.equal(oversized.status, 413);
+  assert.equal(config.webhooks.targets.length, 0);
+});
 
 test("in-memory webhook idempotency survives successful delivery and rejects revoked credentials", async (t) => {
   const serviceId = "python-webhook-source";
@@ -11,12 +60,12 @@ test("in-memory webhook idempotency survives successful delivery and rejects rev
   t.after(() => cache.delete(serviceId));
   let deliveries = 0;
   let revoked = false;
-  t.mock.method(globalThis, "fetch", async () => { deliveries++; return new Response(null, { status: 204 }); });
+  const transport = async () => { deliveries++; return new Response(null, { status: 204 }); };
   const app = new H3();
   registerWebhookRoutes(app, {
     validateApiKey: async () => revoked ? null : { scope: "tenant", serviceId, tenantId: "tenant" },
     loadConfig: async () => ({ tenants: [{ id: "tenant", active: true }], webhooks: { targets: [{ id: "target", serviceId, eventId: "changed", tenantId: "tenant", enabled: true, secret: "test-only", url: "https://webhook.test", maxAttempts: 3 }] } })
-  } as never);
+  } as never, undefined, "single", transport);
   const publish = (key: string) => app.fetch(new Request("http://cp.test/.well-known/bp/webhooks/events", {
     method: "POST", headers: { authorization: "Bearer test-only", "content-type": "application/json", "idempotency-key": key },
     body: JSON.stringify({ eventId: "changed", tenantId: "tenant", payload: "hello" })
@@ -37,14 +86,14 @@ test("webhook capacity and seven-day deduplication are isolated per publisher", 
   for (const serviceId of services) cache.set(serviceId, { webhooks: [{ id: "changed" }] } as never);
   t.after(() => { for (const serviceId of services) cache.delete(serviceId); });
   let deliveries = 0;
-  t.mock.method(globalThis, "fetch", async () => { deliveries++; return new Response(null, { status: 204 }); });
+  const transport = async () => { deliveries++; return new Response(null, { status: 204 }); };
   const target = (id: string, serviceId: string) => ({ id, serviceId, eventId: "changed", tenantId: "tenant", enabled: true, secret: "test-only", url: "https://webhook.test", maxAttempts: 1 });
   let targets = Array.from({ length: 10_000 }, (_, i) => target(`target-${i}`, services[0]));
   const app = new H3();
   registerWebhookRoutes(app, {
     validateApiKey: async (key: string) => ({ scope: "tenant", serviceId: key, tenantId: "tenant" }),
     loadConfig: async () => ({ tenants: [{ id: "tenant", active: true }], webhooks: { targets } })
-  } as never);
+  } as never, undefined, "single", transport);
   const publish = (serviceId: string, key: string) => app.fetch(new Request("http://cp.test/.well-known/bp/webhooks/events", {
     method: "POST", headers: { authorization: `Bearer ${serviceId}`, "content-type": "application/json", "idempotency-key": key },
     body: JSON.stringify({ eventId: "changed", tenantId: "tenant", payload: "hello" })
@@ -69,14 +118,14 @@ test("webhook publication enforces credential tenant scope and streamed body lim
   cache.set(serviceId, { webhooks: [{ id: "changed" }] } as never);
   t.after(() => cache.delete(serviceId));
   let deliveries = 0;
-  t.mock.method(globalThis, "fetch", async () => { deliveries++; return new Response(null, { status: 204 }); });
+  const transport = async () => { deliveries++; return new Response(null, { status: 204 }); };
   const app = new H3();
   registerWebhookRoutes(app, {
     validateApiKey: async (key: string) => key === "invalid" ? null : key === "platform" ? { scope: "platform", serviceId } : { scope: "tenant", serviceId, tenantId: "a" },
     loadConfig: async () => ({ tenants: [{ id: "a", active: true }, { id: "b", active: true }], webhooks: { targets: ["a", "b"].map(tenantId => ({
       id: `target-${tenantId}`, tenantId, serviceId, eventId: "changed", enabled: true, secret: "test-only", url: "https://webhook.test", maxAttempts: 1
     })) } })
-  } as never);
+  } as never, undefined, "single", transport);
   let sequence = 0;
   const publish = (body: string | ReadableStream<Uint8Array>, key: string | null = "tenant", extra: Record<string, string> = {}) => app.fetch(new Request("http://cp.test/.well-known/bp/webhooks/events", {
     method: "POST", headers: { ...(key ? { authorization: `Bearer ${key}` } : {}), "content-type": "application/json", "idempotency-key": String(++sequence), ...extra },
