@@ -49,7 +49,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
         {data.status === "error" ? (
           <div class="alert alert-danger mb-0" role="alert">{data.message || "WorkOS sign in failed."}</div>
         ) : (
-          <a class="btn btn-primary w-100" href={redirectUrl || next}>
+          <a class="btn btn-primary w-100" href={redirectUrl || next} data-bp-continue aria-disabled={oauthState ? "true" : undefined} tabindex={oauthState ? "-1" : undefined}>
             Continue
           </a>
         )}
@@ -59,11 +59,20 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
           // js() emits its body directly; keep returns and bindings inside a function.
           void (async () => {
             const root = document.currentScript?.closest(".bp-workos-shell") as HTMLElement | null;
-            if (root?.dataset.oauthState && root.dataset.stateKey) {
+            const continueLink = root?.querySelector?.("[data-bp-continue]") as HTMLAnchorElement | null;
+            let stateReady = !root?.dataset.oauthState;
+            continueLink?.addEventListener?.("click", event => {
+              if (!stateReady) event.preventDefault();
+            });
+            if (root?.dataset.oauthState) {
+              if (!root.dataset.stateKey) return;
               const bytes = new TextEncoder().encode(root.dataset.oauthState);
               const digest = await crypto.subtle.digest("SHA-256", bytes);
               const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
               sessionStorage.setItem(root.dataset.stateKey, fingerprint);
+              stateReady = true;
+              continueLink?.removeAttribute("aria-disabled");
+              continueLink?.removeAttribute("tabindex");
             }
             const url = root?.dataset.redirectUrl;
             if (!url || root?.dataset.mode === "error" || root?.dataset.autoRedirect !== "true") return;

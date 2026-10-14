@@ -65,16 +65,17 @@ test("WorkOS callback sends browser-held state only to the configured auth servi
 test("a login form next value cannot send the shell to an external origin", async t => {
   let externalRequests = 0;
   const { page } = await shell(t, route => {
-    if (route.request().url().includes("auth.test/login")) return route.fulfill({
+    if (route.request().method() === "POST" && route.request().url().includes("auth.test/login")) return route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
-      headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true" }
+      headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "HX-Redirect", "HX-Redirect": "/tools/dashboard" }
     });
     return html(route, '<form id="bp-login-form" hx-post="https://auth.test/login" data-bp-service="auth"><input name="next" value="https://attacker.test/collect"><button>Sign in</button></form>');
-  });
+  }, {}, "https://auth.test/login", "/auth/login");
   await page.route("https://attacker.test/**", route => { externalRequests++; return html(route, "Unexpected"); });
   await page.waitForSelector("#bp-login-form");
   await page.evaluate(() => window.bpLoginSubmit({ currentTarget: document.querySelector("#bp-login-form"), preventDefault() {}, stopImmediatePropagation() {} } as never));
-  await page.waitForTimeout(150);
+  await page.waitForURL("https://app.test/tools/dashboard");
   assert.equal(externalRequests, 0);
   assert.equal(new URL(page.url()).origin, "https://app.test");
 });

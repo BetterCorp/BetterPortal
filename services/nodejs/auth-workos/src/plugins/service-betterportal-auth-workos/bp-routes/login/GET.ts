@@ -95,6 +95,11 @@ export default createHandler(
       };
     }
 
+    const redirectUri = ctx.route?.({ path: "/login" })?.absoluteUiPath;
+    if (!redirectUri) {
+      return { status: "error" as const, message: "A public app login route is required for WorkOS sign-in.", loginUI: config.loginUI ?? "default" };
+    }
+
     if (query.code) {
       const proof = ctx.headers["x-bp-workos-state"] ?? readWorkOSStateCookie(ctx.headers.cookie);
       const storedNext = verifyWorkOSState(query.state, proof, { tenantId: ctx.tenant.id, appId: ctx.app.id });
@@ -178,9 +183,6 @@ export default createHandler(
       };
     }
 
-    const login = ctx.route?.({ path: "/login" });
-    const redirectUri = login?.absoluteUiPath ?? login?.absoluteViewPath;
-    if (!redirectUri) return { status: "error" as const, message: "The sign-in callback URL is unavailable.", loginUI: config.loginUI ?? "default" };
     const state = createWorkOSState(nextUrl, { tenantId: ctx.tenant.id, appId: ctx.app.id });
     ctx.responseHeaders?.append("Set-Cookie", workOSStateCookie(state, redirectUri.startsWith("https://")));
     return {

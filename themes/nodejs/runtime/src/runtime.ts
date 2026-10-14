@@ -1598,7 +1598,15 @@ export function betterPortalShellRuntimeSource(): string {
             }
           }
           if (Array.isArray(body.recoveryCodes) && body.recoveryCodes.length) await showLoginRecoveryCodes(body.recoveryCodes);
-          if (form.isConnected) triggerShellLink(String(fd.get("next") || "/"), undefined, true);
+          if (form.isConnected) {
+            const requested = response.headers.get("HX-Redirect") || String(fd.get("next") || "/");
+            let destination = "/";
+            try {
+              const url = new URL(requested, window.location.origin);
+              if (url.origin === window.location.origin) destination = url.pathname + url.search + url.hash;
+            } catch { /* Use the app root when the target is malformed. */ }
+            triggerShellLink(destination, undefined, true);
+          }
         } catch (error) {
           if (errEl) {
             errEl.textContent = error instanceof Error ? error.message : "Login failed. Service unavailable.";

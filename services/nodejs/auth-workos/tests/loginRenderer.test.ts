@@ -53,3 +53,43 @@ test("WorkOS login saves only a state fingerprint before navigating to the provi
   assert.deepEqual(saved, [["bp:workos:oauth-state", createHash("sha256").update("issued-nonce").digest("hex")]]);
   assert.equal(clicked, true);
 });
+
+test("manual Continue stays blocked until the state fingerprint is stored", async t => {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  const html = toHtmlString(render({ status: "ok", loginUI: "clean",
+    authorizationUrl: "https://auth.test/authorize?state=issued-nonce" },
+  { request: { query: {} }, app: { defaultRoute: "/" } } as never));
+  const delayedHtml = html.replace('crypto.subtle.digest("SHA-256",bytes)', 'window.delayedDigest(bytes)');
+  assert.notEqual(delayedHtml, html, "test must delay the rendered digest call");
+  await page.addInitScript(() => {
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    (window as any).releaseDigest = release;
+    (window as any).delayedDigest = async (bytes: Uint8Array) => {
+      await pending;
+      return digest("SHA-256", bytes);
+    };
+  });
+  await page.route("https://app.test/login", route => route.fulfill({ contentType: "text/html", body: delayedHtml }));
+  await page.route("https://auth.test/**", route => route.fulfill({ contentType: "text/html", body: "Provider" }));
+  await page.goto("https://app.test/login");
+  const prevented = await page.locator("a.btn-primary").evaluate(link => {
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    let blockedByLink = false;
+    document.addEventListener("click", event => {
+      blockedByLink = event.defaultPrevented;
+      event.preventDefault();
+    }, { once: true });
+    link.dispatchEvent(click);
+    return blockedByLink;
+  });
+  assert.equal(prevented, true);
+  assert.equal(await page.evaluate(() => sessionStorage.getItem("bp:workos:oauth-state")), null);
+  await page.evaluate(() => (window as any).releaseDigest());
+  await page.waitForFunction(() => sessionStorage.getItem("bp:workos:oauth-state") !== null);
+  assert.equal(await page.locator("a.btn-primary").getAttribute("aria-disabled"), null);
+});

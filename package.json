@@ -4,10 +4,10 @@
   "description": "BetterPortal v10 workspace",
   "private": true,
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "node scripts/run-workspace-scripts.mjs . build",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
-    "test": "node --test tests/lint.test.mjs tests/security.test.mjs tests/automations.test.mjs tests/workspaceRunner.test.mjs && node scripts/run-workspace-tests.mjs"
+    "test": "node --test tests/lint.test.mjs tests/security.test.mjs tests/automations.test.mjs tests/workspaceRunner.test.mjs && node scripts/run-workspace-scripts.mjs"
   },
   "keywords": [],
   "author": "",
