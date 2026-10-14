@@ -13,7 +13,7 @@ const response = (route: Route, body: string, chrome = {}, status = 200, mode = 
   contentType: `text/html; mode=${mode}` + Object.entries(chrome).map(([key, value]) => `; bp-chrome-${key}=${encodeURIComponent(Array.isArray(value) ? JSON.stringify(value) : String(value))}`).join(""),
   headers: { "access-control-allow-origin": "*" }
 });
-async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches") {
+async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches", errorOutlet = false) {
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
@@ -32,7 +32,7 @@ async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) =>
     return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
       <div data-bp-shell-root data-bp-menu-health="false" data-bp-document-title="App" data-bp-services='{"service":"https://service.test"}' data-bp-routes='${JSON.stringify(mounts)}'>
       <h1 data-bp-current-title></h1><div data-bp-current-breadcrumb></div><a data-bp-up hidden>Up</a><button data-bp-back>Back</button>
-      <main id="bp-main" data-bp-service="service" hx-get="${action}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></main></div><script>${asset.body}</script></body></html>` });
+      <main id="bp-main" data-bp-service="service" hx-get="${action}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></main></div>${errorOutlet ? '<div id="error-outlet"></div><script>window.BetterPortalShellAdapter = { showRequestError: (status, html) => { document.getElementById("error-outlet").innerHTML = html; } };</script>' : ''}<script>${asset.body}</script></body></html>` });
   });
   await page.goto("https://app.test" + path);
   return { page, errors };
@@ -181,5 +181,16 @@ test("custom themes can expose Up without a breadcrumb outlet", async t => {
   await page.locator("#detail").click();
   await page.waitForSelector("#batch");
   assert.equal(await page.getByRole("link", { name: "Up to Import batches" }).getAttribute("href"), "/ui/batches");
+  assert.deepEqual(errors, []);
+});
+
+test("unresolved-link DOM text cannot become error-outlet HTML", async t => {
+  const { page, errors } = await shell(t, [list], route => response(route,
+    '<a id="unavailable" href="/missing">Unavailable</a>'), "/ui/batches", true);
+  await page.waitForSelector("#unavailable");
+  await page.locator("#unavailable").evaluate(element => element.setAttribute("data-bp-route-error", '<img id="injected" src="missing.png" onerror="window.injected=true">'));
+  await page.locator("#unavailable").click();
+  assert.equal(await page.locator("#error-outlet #injected").count(), 0);
+  assert.equal(await page.locator("#error-outlet").textContent(), "This destination is not available in this app.");
   assert.deepEqual(errors, []);
 });

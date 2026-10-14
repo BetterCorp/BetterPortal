@@ -2306,7 +2306,7 @@ export function betterPortalShellRuntimeSource(): string {
         if (!source) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        showRequestErrorModal(404, source.getAttribute("data-bp-route-error") || "This page is unavailable.", source);
+        showRequestErrorModal(404, "This destination is not available in this app.", source);
       }, true);
       document.body.addEventListener("click", event => {
         if ((event.target as Element)?.closest?.("[data-bp-back]")) window.history.back();
