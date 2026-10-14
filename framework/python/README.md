@@ -1106,6 +1106,8 @@ The success state's HTML `method` selects the request method unless an explicit
 `hx-get`/`hx-post`/`hx-put`/`hx-patch`/`hx-delete` attribute selects it. Methods are
 normalized to uppercase. Explicit `serviceId`, `params` and `query` take precedence
 over the `service` alias and legacy `args`, matching Node's BPRoute behavior.
+Conditional `None` values use the next non-null fallback; explicit empty parameter
+or query dictionaries remain intentional overrides.
 
 Incoming JSON rejects duplicate members, nonfinite numbers (including overflowing
 exponents) and excessive nesting before the handler runs. Exact integer tokens

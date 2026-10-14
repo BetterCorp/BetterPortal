@@ -76,6 +76,8 @@ assert 'method="post"' in control and 'hx-delete="https://service.test/check/ite
 # Success-state HTML methods and explicit route options follow Node's precedence.
 calls = []
 def resolve(options):
+    from betterportal.contracts import parse
+    options = parse('RouteOptionsSchema', options)
     calls.append(options)
     return RouteDestination({'viewPath': '/check/item', 'absoluteViewPath': 'https://service.test/check/item', 'uiPath': '/app/item'}, None, options, True, TARGET)
 fake.route = resolve
@@ -89,3 +91,19 @@ bp_route(fake, {'viewId': 'check', 'service': 'legacy', 'serviceId': TARGET,
 assert calls[-1]['serviceId'] == TARGET and calls[-1]['params'] == {'key': 'explicit'} and calls[-1]['query'] == {'tab': 'explicit'}, calls[-1]
 bp_route(fake, {'viewId': 'check', 'args': {'params': {'key': 'legacy'}, 'query': {'tab': 'legacy'}}}, {'ok': 'Show'})
 assert calls[-1]['params'] == {'key': 'legacy'} and calls[-1]['query'] == {'tab': 'legacy'}, calls[-1]
+for reference, state, attributes, expected in (
+    ({'viewId': 'check'}, {'ok': {'as': 'form', 'method': None}}, {}, 'GET'),
+    ({'viewId': 'check', 'method': 'delete'}, {'ok': {'as': 'button', 'method': None}}, {}, 'DELETE'),
+    ({'viewId': 'check', 'method': 'post'}, {'ok': 'Save'}, {'method': None}, 'POST'),
+    ({'viewId': 'check', 'method': None}, {'ok': 'Show'}, {'method': None}, 'GET'),
+):
+    control = bp_route(fake, reference, state, **attributes)
+    assert calls[-1]['method'] == expected and 'data-bp-state="ok"' in control, control
+for args in ({'params': {'key': 'legacy'}, 'query': {'tab': 'legacy'}}, {}, None):
+    control = bp_route(fake, {'viewId': 'check', 'service': TARGET, 'serviceId': None, 'params': None, 'query': None, 'args': args}, {'ok': 'Show'})
+    assert calls[-1]['serviceId'] == TARGET and calls[-1]['params'] == (args or {}).get('params', {}) and calls[-1]['query'] == (args or {}).get('query', {}), calls[-1]
+    assert 'data-bp-state="ok"' in control, control
+bp_route(fake, {'viewId': 'check', 'serviceId': None, 'params': None, 'query': None}, {'ok': 'Show'})
+assert 'serviceId' not in calls[-1] and calls[-1]['params'] == {} and calls[-1]['query'] == {}, calls[-1]
+bp_route(fake, {'viewId': 'check', 'params': {}, 'query': {}, 'args': {'params': {'key': 'legacy'}, 'query': {'tab': 'legacy'}}}, {'ok': 'Show'})
+assert calls[-1]['params'] == {} and calls[-1]['query'] == {}, calls[-1]
