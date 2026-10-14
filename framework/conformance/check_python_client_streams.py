@@ -158,7 +158,8 @@ async def main():
                 await asyncio.wait_for(entered.wait(), 1)
                 await service.apply_snapshot(deepcopy(source['snapshot']))
                 done, _ = await asyncio.wait([task], timeout=1)
-                assert task in done and task.cancelled() and stopped.is_set(), 'Retired JSON request kept using its old policy'
+                assert task in done and not task.cancelled() and stopped.is_set(), 'Retired JSON request kept using its old policy'
+                assert isinstance(task.exception(), ClientError) and task.exception().status == 503, 'Retirement lost its configuration-unavailable result'
                 assert phase != 'body' or closed.is_set(), 'Retired JSON response was not closed'
                 assert not service.clients._pending, 'Retired JSON request leaked task ownership'
             finally:

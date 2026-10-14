@@ -194,17 +194,19 @@ class ServiceClients:
                         body.extend(chunk)
                     client._context._current(expected=state)
                     return output.parse(None if response.status_code in (204, 205) and not body else loads(body.decode("utf-8")))
-            async def retire():
-                await state.retired.wait()
-                task.cancel()
-            watcher = asyncio.create_task(retire())
+            pending = asyncio.create_task(request())
+            watcher = asyncio.create_task(state.retired.wait())
             try:
-                try: return await asyncio.wait_for(request(), 30)
-                except ClientError: raise
-                except Exception: raise ClientError(502, "Dependency request or response validation failed") from None
+                done, _ = await asyncio.wait((pending, watcher), timeout=30, return_when=asyncio.FIRST_COMPLETED)
+                if not done: raise asyncio.TimeoutError
+                if watcher in done: raise ClientError(503, "Dependency configuration is unavailable or changed")
+                return await pending
+            except ClientError: raise
+            except Exception: raise ClientError(502, "Dependency request or response validation failed") from None
             finally:
+                pending.cancel()
                 watcher.cancel()
-                await asyncio.gather(watcher, return_exceptions=True)
+                await asyncio.gather(pending, watcher, return_exceptions=True)
         finally: self._release(task)
 
     @asynccontextmanager
