@@ -135,6 +135,35 @@ async def main():
         except asyncio.CancelledError: pass
         else: raise AssertionError('Retired stream was not cancelled')
         assert wire.closed
+    # JSON calls must retire promptly both before headers and during the body.
+    for phase in ('headers', 'body'):
+        async with peer([valid]) as (client, service, _, _, source):
+            entered, stopped, closed = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def block():
+                entered.set()
+                try: await asyncio.Event().wait()
+                finally: stopped.set()
+            class PendingBody(httpx.AsyncByteStream):
+                async def __aiter__(self):
+                    yield b'{'
+                    await block()
+                async def aclose(self): closed.set()
+            async def pending(request):
+                if phase == 'headers': await block()
+                return httpx.Response(200, headers={'content-type': 'application/json'}, stream=PendingBody())
+            await service.clients._http.aclose()
+            service.clients._http = httpx.AsyncClient(transport=httpx.MockTransport(pending))
+            task = asyncio.create_task(client.request('check.get', values))
+            try:
+                await asyncio.wait_for(entered.wait(), 1)
+                await service.apply_snapshot(deepcopy(source['snapshot']))
+                done, _ = await asyncio.wait([task], timeout=1)
+                assert task in done and task.cancelled() and stopped.is_set(), 'Retired JSON request kept using its old policy'
+                assert phase != 'body' or closed.is_set(), 'Retired JSON response was not closed'
+                assert not service.clients._pending, 'Retired JSON request leaked task ownership'
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
     source = fixture()
     source['routes'][0]['operations'][0]['finite'] = {'itemSchema': export(av.string()), 'summarySchema': export(av.int_())}
     with tempfile.TemporaryDirectory(prefix='bp-stream-types-') as directory:

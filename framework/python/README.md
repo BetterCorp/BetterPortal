@@ -837,7 +837,8 @@ Destinations require HTTPS, with the same exact-loopback HTTP exceptions as sync
 Clients reject redirects, cookie replay and caller overrides of BP routing/auth
 headers. JSON requests/responses are bounded to 16 MiB, URLs to 8,192 characters,
 and transport waits to 30 seconds; unsolicited compressed responses are rejected.
-Snapshot replacement invalidates captured request clients and pending responses;
+Snapshot replacement invalidates captured request clients and cancels pending JSON,
+raw and streaming HTTP work, including calls waiting for response headers;
 background clients resolve policy again on each call. Cancellation and service
 shutdown stop pending HTTP work. `ClientError` exposes the upstream status with a
 generic message; upstream error bodies are never included.
@@ -1058,7 +1059,8 @@ store. See the [deployment acceptance procedure](PRODUCTION_READINESS.md).
 Handlers expose `tenant`, `app`, `config`, `user`, `service_caller`, `caller_mode`,
 `method`, `path`, `multipart`, `clients`, `urls`, `response`, `bp_headers`, `trace`
 and `obs`. `context.require_permission(service_id, view_id, action)` resolves an
-enabled target and checks the current user's app role grants. It fails after the
+enabled target and checks the current user's app role grants. A denied handler
+check returns HTTP 403 through the normal JSON or HTML error response. It fails after the
 captured snapshot is retired. The scoped platform schema can be authored with the
 canonical generated types and validated with `contracts.parse`; environment
 configuration never replaces authenticated control-plane scope.
@@ -1099,3 +1101,14 @@ from betterportal.themes import bp_route
 ```
 
 Route results stringify to apiPath in handlers and viewPath in renderers. Immutable selector chaining uses `destination.component("summary")` or `.fragment("body.live")`. The theme maps service controls to public UI mounts; do not prefer uiPath for service-renderer hrefs.
+
+The success state's HTML `method` selects the request method unless an explicit
+`hx-get`/`hx-post`/`hx-put`/`hx-patch`/`hx-delete` attribute selects it. Methods are
+normalized to uppercase. Explicit `serviceId`, `params` and `query` take precedence
+over the `service` alias and legacy `args`, matching Node's BPRoute behavior.
+
+Incoming JSON rejects duplicate members, nonfinite numbers (including overflowing
+exponents) and excessive nesting before the handler runs. Exact integer tokens
+retain Python's integer precision. CI checks the entire runtime with mypy,
+including bodies of functions without annotations, and verifies accepted and
+rejected consumer typing examples.

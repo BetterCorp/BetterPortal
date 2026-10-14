@@ -46,7 +46,7 @@ assert recursive["definitions"], "Composition must not mutate its inputs"
 python = sys.executable
 subprocess.run([python, "-m", "betterportal", "types", "--platform", "--output",
     str(root / "framework/python/betterportal/generated_types.py"), "--check"], env=environment, check=True)
-subprocess.run([python, "-m", "mypy", str(root / "framework/python/betterportal"), "--follow-imports=silent", "--follow-untyped-imports",
+subprocess.run([python, "-m", "mypy", str(root / "framework/python/betterportal"), "--follow-imports=silent", "--follow-untyped-imports", "--check-untyped-defs",
     "--cache-dir", str(root / ".tmp-run/mypy-ports")], env=environment, check=True)
 
 directory = root / ".tmp-run/ports-types"
@@ -75,6 +75,7 @@ from betterportal.generated_types import RouteOptionsInput
 from betterportal.urls import RouteDestination
 url_options: RouteOptionsInput = {"path": "/hello", "query": {"count": 42, "missing": None}, "fragment": "nav.profile"}
 def destinations(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> RouteDestination | None:
+    context.chrome({"title": "Detail", "parents": ["/items"], "custom": ["one", "two"]})
     return context.route(url_options)
 from typing import AsyncIterator
 from betterportal.finite import FiniteHandler, StreamRenderers
@@ -141,6 +142,7 @@ legacy_options: RouteOptionsInput = {"absolute": True}
 invalid_query: RouteOptionsInput = {"query": {"array": [1]}}
 def legacy_call(context: HandlerContext[Any, Any, Any, Any]) -> None:
     context.route("check")
+    context.chrome({"custom": {"unsupported": "object"}})
 from betterportal.finite import StreamRenderers
 bad_stream = StreamRenderers[ApiAuthRequirement, ApiAuthRequirement]("bootstrap5", lambda data, context: data["missing"], lambda data, context: 42)
 from betterportal.feeds import SseFeed
@@ -149,7 +151,7 @@ async def bad_publish(feed: SseFeed[Any, Any, Any, Any, ApiAuthRequirement, ApiA
     await feed.publish(EventScope("tenant", "app"), "wrong input type")
 ''', encoding="utf-8")
 result = subprocess.run([*command, str(negative)], env=environment, capture_output=True, text=True)
-assert result.returncode == 1 and result.stdout.count(": error:") == 18, result.stdout + result.stderr
+assert result.returncode == 1 and result.stdout.count(": error:") == 19, result.stdout + result.stderr
 
 tool = root / "framework/dotnet/BetterPortal.Tool/bin/Debug/net10.0/BetterPortal.Tool.dll"
 subprocess.run(["dotnet", str(tool), "types", "--platform", "--output", str(root / "framework/dotnet/BetterPortal/GeneratedTypes.cs"), "--check"], check=True)
