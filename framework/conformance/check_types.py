@@ -60,6 +60,8 @@ value: JsonValue = {"nested": [None, True, 1.5, {"x": "value"}]}
 from typing import Any
 from betterportal.handler import Handler, HandlerContext
 from betterportal.contracts import contract
+from typing import get_type_hints
+assert "list[str]" in str(get_type_hints(HandlerContext.chrome)["value"])
 def handle(context: HandlerContext[Any, ApiAuthRequirement, Any, Any]) -> TokenLifetimeConfig:
     return {"accessTokenSeconds": 900, "refreshTokenSeconds": 604800}
 handler = Handler[Any, ApiAuthRequirement, Any, Any, TokenLifetimeConfig](contract("TokenLifetimeConfigSchema"), handle, query=contract("ApiAuthRequirementSchema"))

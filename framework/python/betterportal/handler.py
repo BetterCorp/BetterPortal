@@ -5,7 +5,7 @@ import asyncio
 from dataclasses import dataclass, field
 import inspect
 from types import MappingProxyType
-from typing import Any, Awaitable, Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, cast
+from typing import Any, Awaitable, Callable, Generic, Iterable, Mapping, TYPE_CHECKING, TypeVar, Union, cast
 
 import anyvali as av
 from .authorization import AuthorizedCaller
@@ -98,7 +98,7 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     query: Query
     headers: Headers
     request: Body
-    def chrome(self, value: Mapping[str, BetterPortalRouteChromeValueInput | list[str]]) -> None:
+    def chrome(self, value: Mapping[str, Union[BetterPortalRouteChromeValueInput, list[str]]]) -> None:
         """Override chrome for a successful GET HTML page; parents are service paths or plain text."""
         self.response.page_chrome.update(contract("BetterPortalRouteChromeSchema").parse(value))
     def require_elevation(self, requirement: Mapping[str, Any]) -> None: self.request_context.require_elevation(requirement)
