@@ -18,7 +18,7 @@ Optional config:
 
 Registry org: `betterportal`.
 
-OAuth login states are stored as SHA-256 named pending files beside `workosStatePath` and atomically removed before a callback code is exchanged. Keep this directory writable. Replicas should share the same persistent path so callbacks can complete on any replica; a replica without the issued state rejects the callback. Expired pending files are cleaned during later login starts.
+OAuth login states are stored as SHA-256 named pending files beside `workosStatePath` and atomically removed before a callback code is exchanged. Keep this directory writable. Replicas should share the same persistent path so callbacks can complete on any replica; a replica without the issued state rejects the callback. Expired pending files are cleaned during later login starts, and each replica limits its outstanding states to 10,000.
 
 After-login and after-logout destinations are app-owned `app.auth.redirects` view references configured in Tenants & Apps, not provider addon fields.
 

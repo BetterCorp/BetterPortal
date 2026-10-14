@@ -6,6 +6,7 @@ const MAX_AGE_MS = 10 * 60_000;
 const MAX_NEXT_LENGTH = 1024;
 const MAX_STATE_LENGTH = 2048;
 const CLAIM_CLEANUP_INTERVAL_MS = 60_000;
+const MAX_PENDING_STATES = 10_000;
 export const WORKOS_STATE_STORAGE_KEY = "bp:workos:oauth-state";
 export const WORKOS_STATE_COOKIE = "__Host-bp_workos_oauth_state";
 
@@ -20,8 +21,9 @@ interface State {
 /** Pending state files are consumed with one atomic unlink, including across replicas on shared storage. */
 export class WorkOSStateClaims {
   private nextCleanup = 0;
+  private pendingCount = -1;
 
-  constructor(private readonly directory: string) {}
+  constructor(private readonly directory: string, private readonly maxPending = MAX_PENDING_STATES) {}
 
   private path(state: string): string {
     return join(this.directory, createHash("sha256").update(state).digest("hex"));
@@ -30,25 +32,31 @@ export class WorkOSStateClaims {
   issue(state: string): void {
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });
     const now = Date.now();
-    if (now >= this.nextCleanup) {
+    if (now >= this.nextCleanup || this.pendingCount < 0) {
       this.nextCleanup = now + CLAIM_CLEANUP_INTERVAL_MS;
+      let pending = 0;
       for (const name of readdirSync(this.directory)) {
         if (!/^[0-9a-f]{64}$/.test(name)) continue;
         const path = join(this.directory, name);
         try {
           if (statSync(path).mtimeMs < now - MAX_AGE_MS - CLAIM_CLEANUP_INTERVAL_MS) unlinkSync(path);
+          else pending++;
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
       }
+      this.pendingCount = pending;
     }
+    if (this.pendingCount >= this.maxPending) throw new RangeError("Too many pending WorkOS sign-ins");
     writeFileSync(this.path(state), "", { flag: "wx", mode: 0o600 });
+    this.pendingCount++;
   }
 
   claim(state: string): boolean {
     if (state.length > MAX_STATE_LENGTH) return false;
     try {
       unlinkSync(this.path(state));
+      if (this.pendingCount > 0) this.pendingCount--;
       return true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
