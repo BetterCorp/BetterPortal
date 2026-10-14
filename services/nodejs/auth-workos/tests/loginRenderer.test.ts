@@ -29,3 +29,23 @@ test("WorkOS login script is valid on repeated swaps and redirects only in autom
   script.runInContext(context);
   assert.equal(clicks, 2, "manual/error/empty destinations must not redirect");
 });
+
+test("WorkOS login saves the issued state before navigating to the provider", () => {
+  const html = toHtmlString(render({ status: "ok", loginUI: "redirect",
+    authorizationUrl: "https://auth.test/authorize?state=issued-nonce" },
+  { request: { query: {} }, app: { defaultRoute: "/" } } as never));
+  assert.match(html, /data-oauth-state="issued-nonce"/);
+  const source = /<script>([\s\S]*?)<\/script>/i.exec(html)?.[1];
+  assert(source);
+  const saved: Array<[string, string]> = [];
+  let clicked = false;
+  new Script(source).runInNewContext({
+    sessionStorage: { setItem: (key: string, value: string) => saved.push([key, value]) },
+    document: {
+      currentScript: { closest: () => ({ dataset: { oauthState: "issued-nonce", stateKey: "bp:workos:oauth-state", redirectUrl: "https://auth.test/authorize", mode: "ok", autoRedirect: "true" } }) },
+      createElement: () => ({ click: () => { clicked = true; }, remove() {} }), body: { appendChild() {} }
+    }
+  });
+  assert.deepEqual(saved, [["bp:workos:oauth-state", "issued-nonce"]]);
+  assert.equal(clicked, true);
+});

@@ -39,6 +39,45 @@ async function shell(t: TestContext, respond: (route: Route) => Promise<void>, s
 
 const html = (route: Route, body: string, status = 200, headers = {}) => route.fulfill({ status, contentType: "text/html", body, headers: { "access-control-allow-origin": "*", "access-control-expose-headers": "HX-Location,HX-Redirect,HX-Trigger,BP-SetHeader", ...headers } });
 
+test("WorkOS callback sends browser-held state only to the configured auth service", async t => {
+  const seen: Array<{ url: string; proof?: string }> = [];
+  const { page, errors } = await shell(t, route => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+      "access-control-allow-origin": "*", "access-control-allow-methods": "GET,OPTIONS", "access-control-allow-headers": "*"
+    } });
+    seen.push({ url: route.request().url(), proof: route.request().headers()["x-bp-workos-state"] });
+    return html(route, '<p id="loaded">Loaded</p>');
+  });
+  await page.waitForSelector("#loaded");
+  await page.evaluate(() => {
+    sessionStorage.setItem("bp:workos:oauth-state", "issued-state");
+    window.htmx.ajax("GET", "https://auth.test/login?code=first&state=issued-state", { target: "#bp-main", swap: "innerHTML" });
+  });
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=first")));
+  await page.evaluate(() => window.htmx.ajax("GET", "https://auth.test/login?code=second&state=forged", { target: "#bp-main", swap: "innerHTML" }));
+  await page.waitForFunction(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("code=second")));
+  assert.equal(seen.find(request => request.url.includes("code=first"))?.proof, "issued-state");
+  assert.equal(seen.find(request => request.url.includes("code=second"))?.proof, undefined);
+  assert.deepEqual(errors, []);
+});
+
+test("a login form next value cannot send the shell to an external origin", async t => {
+  let externalRequests = 0;
+  const { page } = await shell(t, route => {
+    if (route.request().url().includes("auth.test/login")) return route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
+      headers: { "access-control-allow-origin": "https://app.test", "access-control-allow-credentials": "true" }
+    });
+    return html(route, '<form id="bp-login-form" hx-post="https://auth.test/login" data-bp-service="auth"><input name="next" value="https://attacker.test/collect"><button>Sign in</button></form>');
+  });
+  await page.route("https://attacker.test/**", route => { externalRequests++; return html(route, "Unexpected"); });
+  await page.waitForSelector("#bp-login-form");
+  await page.evaluate(() => window.bpLoginSubmit({ currentTarget: document.querySelector("#bp-login-form"), preventDefault() {}, stopImmediatePropagation() {} } as never));
+  await page.waitForTimeout(150);
+  assert.equal(externalRequests, 0);
+  assert.equal(new URL(page.url()).origin, "https://app.test");
+});
+
 test("absolute role-sync fragments returned by a service receive managed credentials", async t => {
   let authorization: string | undefined;
   const { page, errors } = await shell(t, route => {

@@ -122,7 +122,9 @@ export interface Bootstrap1NavGroup {
 export type Bootstrap1NavItem = Bootstrap1NavLeaf | Bootstrap1NavGroup | { kind: "external"; title: string; href: string };
 
 function normalizeRoutePath(path: string): string {
-  const normalized = path.replace(/\/+$/, "");
+  let end = path.length;
+  while (end > 0 && path[end - 1] === "/") end--;
+  const normalized = path.slice(0, end);
   return normalized === "" ? "/" : normalized;
 }
 

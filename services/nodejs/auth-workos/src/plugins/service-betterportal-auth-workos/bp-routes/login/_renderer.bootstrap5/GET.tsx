@@ -3,6 +3,7 @@
 import { resolveAppAuthRedirect, type HtmlRenderable, type ViewRenderContext } from "@betterportal/framework";
 import { css, js } from "jsx-htmx";
 import type { ResponseData } from "../GET.js";
+import { WORKOS_STATE_STORAGE_KEY } from "../../../oauthState.js";
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const query = ctx.request.query;
@@ -26,9 +27,14 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
   const loginUI = data.loginUI || "default";
   const cleanLogin = loginUI === "clean" || loginUI === "redirect";
   const autoRedirect = loginUI === "default" || loginUI === "redirect";
+  let oauthState = "";
+  if (data.authorizationUrl) {
+    try { oauthState = new URL(data.authorizationUrl).searchParams.get("state") ?? ""; }
+    catch { /* Invalid provider URLs cannot start an OAuth flow. */ }
+  }
 
   return (
-    <main class={cleanLogin ? "bp-workos-shell bp-workos-clean" : "bp-workos-shell"} data-redirect-url={redirectUrl} data-mode={data.status} data-auto-redirect={autoRedirect ? "true" : "false"}>
+    <main class={cleanLogin ? "bp-workos-shell bp-workos-clean" : "bp-workos-shell"} data-redirect-url={redirectUrl} data-mode={data.status} data-auto-redirect={autoRedirect ? "true" : "false"} data-oauth-state={oauthState} data-state-key={WORKOS_STATE_STORAGE_KEY}>
       <section class="bp-workos-panel">
         {!cleanLogin ? <div class="bp-workos-mark" aria-hidden="true">W</div> : null}
         <h1>Sign in</h1>
@@ -46,6 +52,9 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
           // js() emits its body directly; keep returns and bindings inside a function.
           (() => {
             const root = document.currentScript?.closest(".bp-workos-shell") as HTMLElement | null;
+            if (root?.dataset.oauthState && root.dataset.stateKey) {
+              sessionStorage.setItem(root.dataset.stateKey, root.dataset.oauthState);
+            }
             const url = root?.dataset.redirectUrl;
             if (!url || root?.dataset.mode === "error" || root?.dataset.autoRedirect !== "true") return;
             const link = document.createElement("a");

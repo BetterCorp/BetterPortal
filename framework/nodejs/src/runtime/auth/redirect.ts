@@ -5,8 +5,20 @@ export type AppAuthRedirectKind = "afterLogin" | "afterLogout";
 function normalizeRedirect(raw: string | undefined): string | undefined {
   const redirect = raw?.trim();
   if (!redirect) return undefined;
-  if (redirect.startsWith("http://") || redirect.startsWith("https://")) return redirect;
-  return redirect.startsWith("/") ? redirect : `/${redirect}`;
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(redirect)) return undefined;
+  const path = redirect.startsWith("/") ? redirect : `/${redirect}`;
+  // This value can come from ?next= and is sent in HX-Redirect after sign-in.
+  // Browsers interpret leading double slashes and backslashes as external URLs.
+  if (path.startsWith("//") || path.includes("\\")) return undefined;
+  for (const char of path) {
+    const code = char.charCodeAt(0);
+    if (code < 32 || code === 127) return undefined;
+  }
+  const base = "https://betterportal.invalid";
+  try {
+    if (new URL(path, base).origin !== base) return undefined;
+  } catch { return undefined; }
+  return path;
 }
 
 export function resolveAppAuthRedirect(

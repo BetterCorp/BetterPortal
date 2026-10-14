@@ -18,6 +18,13 @@ test("Authress audience validation is opt-in", () => {
   assert.equal(config?.jwksUri, "https://auth.example.com/.well-known/openid-configuration/jwks");
 });
 
+test("Authress URL normalization stays fast for long interior slash runs", () => {
+  const url = `https://auth.example.com/${"/".repeat(50_000)}path`;
+  const started = performance.now();
+  assert.equal(resolveAuthressAppConfig({ authressApiUrl: url, applicationId: "app_123" })?.authressApiUrl, url);
+  assert.ok(performance.now() - started < 250, "app configuration parsing must stay linear");
+});
+
 test("Authress refresh preserves profile claims missing from the provider token", async () => {
   let issuedInput: { roles?: string[]; name?: string; email?: string; picture?: string } | undefined;
   await handleRefresh({

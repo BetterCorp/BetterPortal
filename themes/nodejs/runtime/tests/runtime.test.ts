@@ -69,7 +69,9 @@ test("shell correlates runtime requests with per-document W3C baggage", () => {
   assert.match(source, /betterportal:session-id/);
   assert.match(source, /data-bp-session-id/);
   assert.match(source, /bp\.session_id=/);
-  assert.doesNotMatch(source, /sessionStorage/);
+  const sessionSetup = source.slice(source.indexOf("const createSessionId"), source.indexOf('document.documentElement.setAttribute("data-bp-session-id"'));
+  assert.ok(sessionSetup.length > 0);
+  assert.doesNotMatch(sessionSetup, /sessionStorage/);
   assert.doesNotMatch(source, /X-BP-Trace-Id/i);
 });
 

@@ -12,6 +12,19 @@ test("API routes are never browser navigation candidates", () => {
   assert.equal(isUserFacingRoute({ href: "/_bp/service/example/tunnels/dashboard" }), false);
 });
 
+test("navigation building stays fast with a long interior slash run", () => {
+  const href = `/${"/".repeat(50_000)}page`;
+  const started = performance.now();
+  renderBootstrap2HostPage({
+    title: "Test", brandName: "Test", themeMode: "light",
+    themeConfig: { mode: "light", bootstrap: {}, light: {}, dark: {} },
+    assetBaseUrl: "/assets", currentPath: "/", routeLinks: [
+      { href, requestUrl: "https://service.test/page", serviceId: "service", kind: "page", title: "Page", active: false }
+    ]
+  } as never);
+  assert.ok(performance.now() - started < 250, "navigation normalization must stay linear");
+});
+
 test("SSE requests keep BetterPortal headers", async () => {
   const asset = await loadBootstrap2Asset("bootstrap2-shell.js");
   const source = String(asset?.body);

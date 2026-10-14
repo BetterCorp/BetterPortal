@@ -61,3 +61,14 @@ test("encoded version traversal cannot disclose a neighboring registry JSON file
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("public registry failures do not expose internal file paths", async () => {
+  const plugin = Object.create(Plugin.prototype) as any;
+  plugin.store = { get: () => { throw new Error("/mnt/private/registry/index.json"); } };
+  let status = 0;
+  let payload = "";
+  const reply = { writeHead(code: number) { status = code; }, end(body?: string) { payload = body ?? ""; } };
+  await plugin.handle({ method: "GET", url: "/v1/packages/example/service/latest/schema.json", headers: {} }, reply);
+  assert.equal(status, 500);
+  assert.deepEqual(JSON.parse(payload), { error: "internal_error" });
+});

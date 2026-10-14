@@ -224,8 +224,13 @@ export function betterPortalShellRuntimeSource(): string {
           || target === mainOutlet()
         );
 
+      const trimTrailingSlashes = (value: string) => {
+        let end = value.length;
+        while (end > 0 && value[end - 1] === "/") end--;
+        return value.slice(0, end);
+      };
       const normalizePath = (path: string) => {
-        const normalized = (path || "/").replace(/\/+$/, "");
+        const normalized = trimTrailingSlashes(path || "/");
         return normalized === "" ? "/" : normalized;
       };
 
@@ -1120,7 +1125,7 @@ export function betterPortalShellRuntimeSource(): string {
 
       const serviceHealthUrl = (serviceId: string) => {
         const origin = serviceId ? serviceOrigins[serviceId] : "";
-        return origin ? origin.replace(/\/+$/, "") + "/.well-known/bp/health" : "";
+        return origin ? trimTrailingSlashes(origin) + "/.well-known/bp/health" : "";
       };
 
       const checkServiceHealth = async (serviceId: string) => {
@@ -1189,11 +1194,11 @@ export function betterPortalShellRuntimeSource(): string {
             // Hosts reject service targets on the theme host, including template-only routes.
             if (registered.host.toLowerCase() === window.location.host.toLowerCase()) return;
             const tenantPath = normalizePath(tenantPathRaw || "/");
-            let prefix = registered.pathname.replace(/\/+$/, "");
+            let prefix = trimTrailingSlashes(registered.pathname);
             if (baseUrl) {
               const base = new URL(baseUrl);
               if (base.origin !== registered.origin || base.username || base.password || base.search || base.hash) return;
-              prefix = base.pathname.replace(/\/+$/, "");
+              prefix = trimTrailingSlashes(base.pathname);
             } else if (requestUrl && template) {
               const request = new URL(requestUrl);
               if (request.origin !== registered.origin) return;
@@ -1202,7 +1207,7 @@ export function betterPortalShellRuntimeSource(): string {
               const suffix = count ? "/" + segments.slice(-count).join("/") : "/";
               if (!patternValues(template, suffix)) return;
               prefix = "/" + segments.slice(0, segments.length - count).join("/");
-              prefix = prefix.replace(/\/+$/, "");
+              prefix = trimTrailingSlashes(prefix);
             }
             const publishedPath = requestUrl ? new URL(requestUrl).pathname : "";
             const tenantNames = new Set(tenantPath.split("/").flatMap(part => part.startsWith(":") ? [part.slice(1)] : /^\{[^}]+\}$/.test(part) ? [part.slice(1, -1)] : []));
@@ -1329,7 +1334,13 @@ export function betterPortalShellRuntimeSource(): string {
         }
       };
 
-      const triggerShellLink = (tenantUrl: string, serviceUrl = serviceUrlForTenantUrl(tenantUrl), replace = false) => {
+      const triggerShellLink = (tenantUrl: string, serviceUrl?: string, replace = false) => {
+        try {
+          const destination = new URL(tenantUrl, window.location.origin);
+          if (destination.origin !== window.location.origin) return;
+          tenantUrl = destination.pathname + destination.search + destination.hash;
+        } catch { return; }
+        serviceUrl ??= serviceUrlForTenantUrl(tenantUrl);
         const link = document.createElement("a");
         link.href = tenantUrl;
         link.setAttribute("hx-get", serviceUrl);
@@ -2188,7 +2199,7 @@ export function betterPortalShellRuntimeSource(): string {
         await Promise.all(entries.map(async ([sid, origin]) => {
           let available = false;
           try {
-            const url = `${origin.replace(/\/+$/, "")}/.well-known/bp/health`;
+            const url = `${trimTrailingSlashes(origin)}/.well-known/bp/health`;
             const headers: Record<string, string> = { Accept: "application/json" };
             attachBpHeaders(headers, url, sid);
             const r = await fetch(url, { method: "GET", mode: "cors", cache: "no-store", headers, signal: AbortSignal.timeout(5000) });
@@ -2335,7 +2346,7 @@ export function betterPortalShellRuntimeSource(): string {
           const authId = shellRoot()?.getAttribute("data-bp-auth-service") || serviceIdForUrl(shellRoot()?.getAttribute("data-bp-login-url") || "");
           const authOrigin = originForServiceId(authId);
           if (!authOrigin || authOrigin === unresolvedServiceOrigin) throw new Error("Auth service unavailable.");
-          const url = authOrigin.replace(/\/+$/, "") + "/.well-known/bp/auth/elevate";
+          const url = trimTrailingSlashes(authOrigin) + "/.well-known/bp/auth/elevate";
           const send = async (body: unknown) => {
             const response = await fetch(url, { method: "POST", headers: { Authorization: base, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), redirect: "error" });
             if (!response.ok) throw new Error("Additional verification is unavailable or failed. Open your account settings to check your authentication methods.");
@@ -2464,6 +2475,19 @@ export function betterPortalShellRuntimeSource(): string {
               ? elt
               : null;
           const isSseConnect = source?.hasAttribute?.("hx-sse:connect") || source?.hasAttribute?.("sse-connect");
+          const attachWorkOSState = () => {
+            try {
+              const authId = shellRoot()?.getAttribute("data-bp-auth-service") || "";
+              const authOrigin = authId ? originForServiceId(authId) : "";
+              const requestUrl = new URL(ctx.request.action, window.location.origin);
+              if (!authOrigin || requestUrl.origin !== new URL(authOrigin).origin
+                || !requestUrl.searchParams.has("code")) return;
+              const state = requestUrl.searchParams.get("state");
+              if (state && sessionStorage.getItem("bp:workos:oauth-state") === state) {
+                ctx.request.headers["X-BP-WorkOS-State"] = state;
+              }
+            } catch { /* Browser storage may be disabled. The service will reject the callback. */ }
+          };
           const mode = isSseConnect || !isMainTarget(ctx.target) ? "fragment" : "page";
           const acceptHeaderName = Object.keys(ctx.request.headers).find((key) => key.toLowerCase() === "accept") ?? "Accept";
           const acceptValue = ctx.request.headers[acceptHeaderName];
@@ -2483,6 +2507,7 @@ export function betterPortalShellRuntimeSource(): string {
             if (!action) return;
             if (source?.closest?.(NO_ROUTE_SELECTOR)) {
               attachBpHeaders(ctx.request.headers, action, serviceContextFor(source).id);
+              attachWorkOSState();
               return;
             }
             const themeOrigin = window.location.origin;
@@ -2517,6 +2542,7 @@ export function betterPortalShellRuntimeSource(): string {
 
           // Scope checks must use the final action after any service-origin rewrite.
           attachBpHeaders(ctx.request.headers, ctx.request?.action || "");
+          attachWorkOSState();
         },
 
         // Show loading state: main panel gets glaze, fragments get overlay
