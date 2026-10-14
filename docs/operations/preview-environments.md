@@ -249,3 +249,5 @@ The first mount's ID and route position survive. Compatible fixed parameters, qu
 Repeated manifest refreshes and same-key redeployments using the accepted manifest cache keep the resulting routes stable. Incompatible request or presentation settings and URL patterns occupied by unrelated routes remain HTTP 409 errors; reconciliation does not silently pick one configuration. After upgrading Config Manager, rerun the failed staging deployment to refresh its routes. Keep the staging environment and service report URLs intact. An identical deployment POST inside the credential replay window still replays its response rather than forcing a refresh.
 
 Preview reconciliation also owns API mounts during normal service manifest sync. Generic source-app normalization does not rewrite preview aliases or strip their query strings, fixed parameters or path variants before reconciliation.
+
+A rejected preview reconciliation during service manifest POST returns HTTP 409 with the conflict reason. Its manifest, service identity and route changes are not committed. Resolve the conflicting mount settings before retrying.

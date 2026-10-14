@@ -31,7 +31,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 import { apiRoutePath, pageRoutePath } from "./routeMounts.js";
 import { applyServicePublicKey, ConfigRevisionConflictError, getAvailableServiceInstanceIdsForApp, getServicePluginId, legacyOperationId, legacyOperationMethod, resolveManifestViewLabels } from "./storage/core.js";
-import { isPreviewService } from "./previewEnvironments.js";
+import { isPreviewService, PreviewEnvironmentError } from "./previewEnvironments.js";
 import { credentialDiagnostics } from "./credentialDiagnostics.js";
 
 const SYNC_PATH = "/.well-known/bp/sync";
@@ -836,7 +836,7 @@ export function registerSyncEndpoint(
             }
           }, signal);
         } catch (error) {
-          if (error instanceof SyncSubmissionError) return jsonResponse({ error: error.message }, error.status);
+          if (error instanceof SyncSubmissionError || error instanceof PreviewEnvironmentError) return jsonResponse({ error: error.message }, error.status);
           if (signal.aborted || error instanceof ConfigRevisionConflictError) {
             const response = jsonResponse({ error: "Config sync is busy; retry submission" }, 503);
             response.headers.set("retry-after", "5");

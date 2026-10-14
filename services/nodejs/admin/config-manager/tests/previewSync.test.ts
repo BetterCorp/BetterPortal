@@ -391,4 +391,11 @@ test("service manifest sync preserves preview API aliases and settings before co
   assert.deepEqual(store.value.apps.find(candidate => candidate.id === deployment.appId)!.routes, routes);
   provisionPreviewDeployment(store.value, deployment.groupId, { key: "race", hostname: "race.example", services: [{ serviceId: "org.example.reports", url: "https://reports.race.example" }] }, "https://config.example");
   assert.deepEqual(store.value.apps.find(candidate => candidate.id === deployment.appId)!.routes, routes, "cache-driven deployment refresh uses the same generated paths as service sync");
+  const storedApp = store.value.apps.find(candidate => candidate.id === deployment.appId)!;
+  storedApp.routes.push({ ...storedApp.routes[0], id: uuidv7(), query: "format=pdf" });
+  const before = structuredClone(store.value);
+  const rejected = await submit("3");
+  assert.equal(rejected.status, 409, "incompatible preview settings must return an actionable conflict");
+  assert.match((await rejected.json()).error, /incompatible request settings/);
+  assert.deepEqual(store.value, before, "rejected sync must not commit its manifest, identity or route changes");
 });
