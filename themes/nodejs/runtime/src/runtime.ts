@@ -8,7 +8,7 @@ export interface ShellRuntimeAsset {
   contentType: string;
 }
 
-export type BetterPortalShellChromeValue = string | number | boolean;
+export type BetterPortalShellChromeValue = string | number | boolean | string[];
 export type BetterPortalShellChrome = Readonly<Record<string, BetterPortalShellChromeValue>>;
 
 /**
@@ -71,7 +71,10 @@ export function betterPortalChromeAttributes(
   for (const [rawKey, value] of Object.entries(chrome ?? {})) {
     if (typeof value === "number" && !Number.isFinite(value)) continue;
     const key = chromeDataKey(rawKey);
-    if (key) attributes[`data-bp-chrome-${key}`] = String(value);
+    if (key) {
+      attributes[`data-bp-chrome-${key}`] = Array.isArray(value) ? JSON.stringify(value) : String(value);
+      if (Array.isArray(value)) attributes[`data-bp-array-chrome-${key}`] = "true";
+    }
   }
   return attributes;
 }
@@ -238,6 +241,7 @@ export function betterPortalShellRuntimeSource(): string {
         fixedParams?: Record<string, string>;
         serviceId?: string;
         title?: string;
+        viewTitle?: string;
         kind?: "page" | "api";
       };
 
@@ -252,12 +256,17 @@ export function betterPortalShellRuntimeSource(): string {
 
       const configuredRouteFor = (path: string) => {
         const normalized = normalizePath(path);
-        return configuredRoutes().find((route) => normalizePath(route.href || "/") === normalized) ?? null;
+        const matches = configuredRoutes().flatMap(route => {
+          const template = route.href || "/";
+          return patternValues(template, normalized) ? [{ route, specificity: template.split("/").map(part => part.startsWith(":") || /^\{[^}]+\}$/.test(part) ? 1 : 0) }] : [];
+        });
+        return mostSpecificMatches(matches)[0]?.route ?? null;
       };
 
+      const defaultDocumentTitle = document.title;
       const syncDocumentTitle = (pageTitle?: string) => {
         const configuredTitle = shellRoot()?.getAttribute("data-bp-document-title")?.trim();
-        if (!configuredTitle) return;
+        if (!configuredTitle) { document.title = defaultDocumentTitle; return; }
         const title = pageTitle?.trim();
         document.title = title && title !== configuredTitle ? `${title} · ${configuredTitle}` : configuredTitle;
       };
@@ -274,18 +283,29 @@ export function betterPortalShellRuntimeSource(): string {
       const camelChromeKey = (key: string) =>
         key.replace(/-([a-z0-9])/g, (_m, ch) => String(ch).toUpperCase());
 
-      const parseChromeFromContentType = (contentType: string): Record<string, string | number | boolean> | null => {
-        const chrome: Record<string, string | number | boolean> = {};
+      const parseChromeValue = (key: string, raw: string, arrayValue = false): BetterPortalShellChromeValue | undefined => {
+        if (key === "title") return raw;
+        if (key === "parents" || arrayValue) {
+          try {
+            const value = JSON.parse(raw);
+            return Array.isArray(value) && value.every(item => typeof item === "string" && (key !== "parents" || !item.startsWith("//"))) ? value : undefined;
+          } catch { return undefined; }
+        }
+        return raw === "true" ? true : raw === "false" ? false :
+          raw !== "" && Number.isFinite(Number(raw)) ? Number(raw) : raw;
+      };
+      const parseChromeFromContentType = (contentType: string): Record<string, BetterPortalShellChromeValue> | null => {
+        const chrome: Record<string, BetterPortalShellChromeValue> = {};
+        const arrays = new Set(Array.from(contentType.matchAll(/(?:^|;)\s*bp-array-chrome-([a-z][a-z0-9-]*)=true\s*(?=;|$)/g), match => camelChromeKey(match[1])));
         const re = /(?:^|;)\s*bp-chrome-([a-z][a-z0-9-]*)=([^;]*)/g;
         let match: RegExpExecArray | null;
         while ((match = re.exec(contentType)) !== null) {
           const key = camelChromeKey(match[1]);
-          const raw = decodeURIComponent((match[2] || "").trim().replace(/^"|"$/g, ""));
-          chrome[key] =
-            raw === "true" ? true :
-            raw === "false" ? false :
-            raw !== "" && Number.isFinite(Number(raw)) ? Number(raw) :
-            raw;
+          try {
+            const raw = decodeURIComponent((match[2] || "").trim().replace(/^"|"$/g, ""));
+            const value = parseChromeValue(key, raw, arrays.has(key));
+            if (value !== undefined) chrome[key] = value;
+          } catch { /* Ignore malformed presentation parameters. */ }
         }
         return Object.keys(chrome).length ? chrome : null;
       };
@@ -296,34 +316,36 @@ export function betterPortalShellRuntimeSource(): string {
           .replace(/[_\s]+/g, "-")
           .toLowerCase();
 
-      const readChromeFromRoot = (): Record<string, string | number | boolean> => {
+      const readChromeFromRoot = (): Record<string, BetterPortalShellChromeValue> => {
         const root = shellRoot();
-        const chrome: Record<string, string | number | boolean> = {};
+        const chrome: Record<string, BetterPortalShellChromeValue> = {};
         if (!root) return chrome;
         for (const attribute of Array.from(root.attributes)) {
           if (!attribute.name.startsWith("data-bp-chrome-")) continue;
           const key = camelChromeKey(attribute.name.slice("data-bp-chrome-".length));
           const raw = attribute.value;
-          chrome[key] =
-            raw === "true" ? true :
-            raw === "false" ? false :
-            raw !== "" && Number.isFinite(Number(raw)) ? Number(raw) :
-            raw;
+          const value = parseChromeValue(key, raw, root.getAttribute(`data-bp-array-chrome-${attribute.name.slice("data-bp-chrome-".length)}`) === "true");
+          if (value !== undefined) chrome[key] = value;
         }
         return chrome;
       };
 
       let activeChrome = readChromeFromRoot();
 
-      const applyChrome = (chrome: Record<string, string | number | boolean> | null) => {
+      const applyChrome = (chrome: Record<string, BetterPortalShellChromeValue> | null) => {
         const root = shellRoot();
         if (!root) return;
         const nextChrome = chrome ?? {};
         for (const key of Object.keys(activeChrome)) {
-          if (!(key in nextChrome)) root.removeAttribute(`data-bp-chrome-${kebabChromeKey(key)}`);
+          if (!(key in nextChrome)) {
+            root.removeAttribute(`data-bp-chrome-${kebabChromeKey(key)}`);
+            root.removeAttribute(`data-bp-array-chrome-${kebabChromeKey(key)}`);
+          }
         }
         for (const [key, value] of Object.entries(nextChrome)) {
-          root.setAttribute(`data-bp-chrome-${kebabChromeKey(key)}`, String(value));
+          root.setAttribute(`data-bp-chrome-${kebabChromeKey(key)}`, Array.isArray(value) ? JSON.stringify(value) : String(value));
+          if (Array.isArray(value)) root.setAttribute(`data-bp-array-chrome-${kebabChromeKey(key)}`, "true");
+          else root.removeAttribute(`data-bp-array-chrome-${kebabChromeKey(key)}`);
         }
         const previousChrome = activeChrome;
         activeChrome = { ...nextChrome };
@@ -331,11 +353,17 @@ export function betterPortalShellRuntimeSource(): string {
       };
 
       const applyChromeFromResponse = (detail: any) => {
-        if (!requestTargetsMain(detail)) return;
+        if (!requestTargetsMain(detail)) return false;
         const response = detail?.ctx?.response;
+        if (!response || response.status < 200 || response.status >= 300 || response.status === 204) return false;
+        const method = String(detail?.ctx?.request?.method || detail?.ctx?.request?.verb || "GET").toUpperCase();
+        if (method !== "GET") return false;
         const contentType = response?.headers?.get?.("content-type") || "";
-        if (!contentType.includes("text/html")) return;
+        if (!contentType.includes("text/html")) return false;
+        const mode = /(?:^|;)\s*mode=([^;]+)/i.exec(contentType)?.[1]?.trim().replace(/^"|"$/g, "");
+        if (mode && mode !== "page") return false;
         applyChrome(parseChromeFromContentType(contentType));
+        return true;
       };
 
       // -- Theme presentation lifecycle --
@@ -1308,11 +1336,11 @@ export function betterPortalShellRuntimeSource(): string {
           const url = new URL(value, window.location.origin);
           const tenantMatch = url.origin === window.location.origin ? matchTenantRoute(url.pathname) : null;
           if (tenantMatch) {
-            return normalizePath(tenantMatch.route.tenantPath + tenantMatch.suffix) + url.search + url.hash;
+            return tenantMatch.route.tenantPath + url.search + url.hash;
           }
           const match = matchServiceRoute("", url.pathname, "page", url.origin) || matchServiceRoute("", url.pathname, "api", url.origin);
           if (!match) return value;
-          return normalizePath(match.route.tenantPath + match.suffix) + url.search + url.hash;
+          return match.route.tenantPath + url.search + url.hash;
         } catch {
           return value;
         }
@@ -1323,7 +1351,7 @@ export function betterPortalShellRuntimeSource(): string {
           const url = new URL(value, window.location.origin);
           const match = matchTenantRoute(url.pathname);
           if (!match) return value;
-          return match.route.serviceOrigin + normalizePath(match.route.servicePath + match.suffix) + url.search + url.hash;
+          return match.route.serviceOrigin + match.route.servicePath + url.search + url.hash;
         } catch {
           return value;
         }
@@ -1495,14 +1523,12 @@ export function betterPortalShellRuntimeSource(): string {
         context: { id: string; origin: string }
       ) => {
         const explicitContext = explicitServiceContextFor(el);
-        if (explicitContext.origin) {
-          return explicitContext.origin + window.location.pathname + window.location.search;
-        }
-
         const routeMatch = matchTenantRoute(window.location.pathname);
-        if (routeMatch) {
-          return routeMatch.route.serviceOrigin + normalizePath(routeMatch.route.servicePath + routeMatch.suffix) + window.location.search;
+        if (routeMatch && (!explicitContext.id || explicitContext.id === routeMatch.route.serviceId)) {
+          return routeMatch.route.serviceOrigin + routeMatch.route.servicePath + window.location.search;
         }
+        // A foreign fragment must declare its service action explicitly.
+        if (explicitContext.origin) return "";
 
         const serviceOrigin = context.origin;
         if (serviceOrigin) {
@@ -1908,6 +1934,10 @@ export function betterPortalShellRuntimeSource(): string {
           const hxThisUrl = hxMethodAttr && isThisReference(hxMethodVal)
             ? resolveThisServiceUrl(el, { id: elServiceId, origin: elServiceOrigin })
             : "";
+          if (hxMethodAttr && isThisReference(hxMethodVal) && !hxThisUrl) {
+            el.setAttribute("data-bp-route-error", "This action is not available in this app.");
+            continue;
+          }
           const hxMethodPath = isRelativeServicePath(hxMethodVal) ? (hxMethodVal || "").trim() : "";
           if (hxMethodAttr && !hxMethodPath && !hxThisUrl) continue;
 
@@ -1958,9 +1988,9 @@ export function betterPortalShellRuntimeSource(): string {
             if (match) {
               // Known route - keep/use its configured tenant path and request
               // the corresponding service path.
-              const tenantUrl = normalizePath(match.route.tenantPath + match.suffix) + query;
+              const tenantUrl = match.route.tenantPath + query;
               const absoluteServiceUrl = match.route.serviceOrigin
-                + normalizePath(match.route.servicePath + match.suffix)
+                + match.route.servicePath
                 + query;
 
               if (isAnchor) el.setAttribute("href", tenantUrl);
@@ -1981,6 +2011,9 @@ export function betterPortalShellRuntimeSource(): string {
               el.setAttribute("hx-target", "#bp-main");
               el.setAttribute("hx-swap", "innerHTML");
               el.setAttribute("data-bp-shell-route", "page");
+            } else if (isAnchor && !hxMethodAttr) {
+              el.setAttribute("data-bp-route-error", "This page is not available in this app.");
+              el.removeAttribute("hx-preload");
             }
           }
 
@@ -2013,12 +2046,18 @@ export function betterPortalShellRuntimeSource(): string {
         const routeLink = activeLink as Element | null;
         const configuredRoute = configuredRouteFor(path);
         const title = configuredRoute?.title
+          || configuredRoute?.viewTitle
           || routeLink?.getAttribute("data-bp-route-title")
           || routeLink?.textContent?.trim()
           || path;
+        const customTitle = typeof activeChrome.title === "string" ? activeChrome.title.trim() : "";
+        const pageTitle = customTitle || title;
         const tn = titleNode();
-        if (tn) tn.textContent = title;
-        syncDocumentTitle(title);
+        if (tn) tn.textContent = pageTitle;
+        if (customTitle) {
+          const appTitle = shellRoot()?.getAttribute("data-bp-document-title")?.trim() || defaultDocumentTitle.trim();
+          document.title = appTitle ? `${customTitle} - ${appTitle}` : customTitle;
+        } else syncDocumentTitle(title);
         const serviceId = configuredRoute?.serviceId || routeLink?.getAttribute("data-bp-service");
         if (serviceId) mainOutlet()?.setAttribute("data-bp-service", serviceId);
 
@@ -2027,11 +2066,70 @@ export function betterPortalShellRuntimeSource(): string {
         });
 
         const bcNode = breadcrumbNode();
-        if (bcNode) {
-          const breadcrumb = activeLink ? ((activeLink as Element).getAttribute("data-bp-route-breadcrumb") || "") : "";
-          bcNode.textContent = breadcrumb;
-          bcNode.toggleAttribute("hidden", !breadcrumb);
+        let upHref: string | undefined;
+        let upLabel: string | undefined;
+        if (bcNode || document.querySelector("[data-bp-up]")) {
+          if (Array.isArray(activeChrome.parents)) {
+            const list = document.createElement("ol");
+            list.className = "breadcrumb mb-0";
+            const nav = document.createElement("nav");
+            nav.setAttribute("aria-label", "Breadcrumb");
+            nav.appendChild(list);
+            activeChrome.parents.forEach((parent, index, parents) => {
+              const item = document.createElement("li");
+              item.className = "breadcrumb-item";
+              if (parent.startsWith("/")) {
+                if (parent.startsWith("//") || !serviceId) return;
+                const url = new URL(parent, window.location.origin);
+                const match = matchServiceRoute(serviceId, url.pathname, "page");
+                if (!match || match.route.serviceId !== serviceId) return;
+                const route = configuredRouteFor(match.route.tenantPath);
+                const label = route?.title || route?.viewTitle;
+                if (!label) return;
+                const anchor = document.createElement("a");
+                anchor.textContent = label;
+                anchor.setAttribute("href", match.route.tenantPath + url.search + url.hash);
+                anchor.setAttribute("data-bp-service", serviceId);
+                item.appendChild(anchor);
+                if (index === parents.length - 1) {
+                  upHref = match.route.tenantPath + url.search + url.hash;
+                  upLabel = label;
+                }
+              } else item.textContent = parent;
+              list.appendChild(item);
+            });
+            const current = document.createElement("li");
+            current.className = "breadcrumb-item active";
+            current.setAttribute("aria-current", "page");
+            current.textContent = pageTitle;
+            list.appendChild(current);
+            if (bcNode) {
+              bcNode.replaceChildren(nav);
+              bcNode.removeAttribute("hidden");
+              resolveServiceLinks(bcNode);
+            }
+          } else if (bcNode) {
+            const breadcrumb = activeLink ? ((activeLink as Element).getAttribute("data-bp-route-breadcrumb") || "") : "";
+            bcNode.textContent = breadcrumb;
+            bcNode.toggleAttribute("hidden", !breadcrumb);
+          }
         }
+        document.querySelectorAll("[data-bp-up]").forEach(node => {
+          node.toggleAttribute("hidden", !upHref);
+          if (upHref) {
+            node.setAttribute("href", upHref);
+            node.setAttribute("aria-label", `Up to ${upLabel}`);
+            if (serviceId) node.setAttribute("data-bp-service", serviceId);
+            node.removeAttribute("data-bp-shell-route");
+            node.removeAttribute("hx-get");
+            node.removeAttribute("hx-target");
+            resolveServiceLinks(node);
+          } else {
+            node.removeAttribute("href");
+            node.removeAttribute("aria-label");
+            node.removeAttribute("hx-get");
+          }
+        });
       };
 
       // -- Click handler: error actions --
@@ -2053,15 +2151,8 @@ export function betterPortalShellRuntimeSource(): string {
         source: Element | null | undefined
       ) => {
         const route = routeContextFromSource(source);
-        applyChrome(null);
-        setActiveRoute(route.path);
-        const tn = titleNode();
-        if (tn) tn.textContent = route.title;
-        const bcNode = breadcrumbNode();
-        if (bcNode) {
-          bcNode.textContent = route.breadcrumb;
-          bcNode.toggleAttribute("hidden", !route.breadcrumb);
-        }
+        // A failed navigation has no page metadata to commit. Keep the active
+        // page title, breadcrumbs and chrome while presenting the error body.
         if (route.serviceId) mainOutlet()?.setAttribute("data-bp-service", route.serviceId);
         replaceMainWithError(title, message, action, route.path);
         markLoaded();
@@ -2220,6 +2311,16 @@ export function betterPortalShellRuntimeSource(): string {
 
       document.body.addEventListener("click", handleErrorAction);
       document.body.addEventListener("click", handleShellRouteClick);
+      document.addEventListener("click", event => {
+        const source = (event.target as Element)?.closest?.("[data-bp-route-error]");
+        if (!source) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        showRequestErrorModal(404, "This destination is not available in this app.", source);
+      }, true);
+      document.body.addEventListener("click", event => {
+        if ((event.target as Element)?.closest?.("[data-bp-back]")) window.history.back();
+      });
       document.addEventListener("htmx:before:history:update", (event: Event) => {
         const detail = (event as CustomEvent<{ history?: { path?: string } }>).detail;
         if (detail?.history?.path) {
@@ -2501,7 +2602,7 @@ export function betterPortalShellRuntimeSource(): string {
                 if (routeMatch) {
                   ctx.request.action =
                     routeMatch.route.serviceOrigin
-                    + normalizePath(routeMatch.route.servicePath + routeMatch.suffix)
+                    + routeMatch.route.servicePath
                     + url.search;
                 } else {
                   // Fallback: infer the service from the element's data-bp-service
@@ -2522,6 +2623,7 @@ export function betterPortalShellRuntimeSource(): string {
         // Show loading state: main panel gets glaze, fragments get overlay
         htmx_before_request(_elt: any, detail: any) {
           const source = detail.ctx?.sourceElement;
+          if (source instanceof Element && source.closest("[data-bp-route-error]")) return false;
           if (source instanceof Element && isDisabledControl(source)) return false;
           const bpElement = requestBpElement(detail.ctx?.__bpRoute || source);
           if (bpElement) { detail.ctx.__bpRoute = bpElement; showBpElementLoading(bpElement); }
@@ -2582,7 +2684,6 @@ export function betterPortalShellRuntimeSource(): string {
               syncMenuVisibility();
             }
           }
-          applyChromeFromResponse(detail);
 
           const localError = source instanceof Element ? mutationErrorOutlet(source) : null;
           if (status && status >= 400 && localError && !isMainTarget(target)) {
@@ -2716,7 +2817,6 @@ export function betterPortalShellRuntimeSource(): string {
           } catch { /* non-fatal */ }
 
           scheduleBootstrapOverlaySync();
-          applyChromeFromResponse(detail);
           const bpElement = requestBpElement(detail.ctx?.__bpRoute || detail.ctx?.sourceElement);
           if (bpElement
             && bpElement.getAttribute("data-bp-state") === "loading"
@@ -2787,6 +2887,9 @@ export function betterPortalShellRuntimeSource(): string {
           }
 
           if (isMainTarget(target)) {
+            if (applyChromeFromResponse(detail)) {
+              setActiveRoute(window.location.pathname);
+            }
             disableInitialMainLoad();
             markLoaded();
             setLoading(false);
@@ -2823,9 +2926,9 @@ export function betterPortalShellRuntimeSource(): string {
           scheduleBootstrapOverlaySync();
         },
 
-        // Update sidebar active state on history navigation
-        htmx_after_history_push() { setActiveRoute(window.location.pathname); },
-        htmx_after_history_replace() { setActiveRoute(window.location.pathname); },
+        // History pushes precede the swap and may be followed by a cancelled
+        // swap. Commit presentation only in after_swap; history restoration
+        // uses the same successful page request pipeline.
 
         htmx_response_error(_elt: any, detail: any) {
           const ctx = detail?.ctx;

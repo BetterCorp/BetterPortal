@@ -40,7 +40,7 @@ class HandlerOutputError(ValueError):
 
 class ResponseState:
     """Per-request status and application headers; transport/CORS stay host-owned."""
-    def __init__(self) -> None: self._status = 200; self._headers: list[tuple[str, str]] = []; self.bp_headers = BpHeaders()
+    def __init__(self) -> None: self._status = 200; self._headers: list[tuple[str, str]] = []; self.bp_headers = BpHeaders(); self.page_chrome: dict[str, Any] = {}
     @property
     def status(self) -> int: return self._status
     @status.setter
@@ -98,6 +98,9 @@ class HandlerContext(Generic[Params, Query, Headers, Body]):
     query: Query
     headers: Headers
     request: Body
+    def chrome(self, value: Mapping[str, Any]) -> None:
+        """Override chrome for a successful GET HTML page; parents are service paths or plain text."""
+        self.response.page_chrome.update(contract("BetterPortalRouteChromeSchema").parse(value))
     def require_elevation(self, requirement: Mapping[str, Any]) -> None: self.request_context.require_elevation(requirement)
     async def webhook(self, event_id: str, payload: Any, *, idempotency_key: str | None = None) -> str:
         return await self.request_context.clients.webhook(event_id, payload, idempotency_key=idempotency_key)

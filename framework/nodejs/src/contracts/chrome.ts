@@ -9,8 +9,10 @@ export const BetterPortalRouteChromeSchema = av.intersection([
     hideMenu: av.optional(av.bool()),
     hideHeader: av.optional(av.bool()),
     hideFooter: av.optional(av.bool()),
-    fullScreen: av.optional(av.bool())
+    fullScreen: av.optional(av.bool()),
+    title: av.optional(av.string()),
+    parents: av.optional(av.array(av.string().pattern("^(?!//)")))
   }),
-  av.record(BetterPortalRouteChromeValueSchema)
+  av.record(av.union([BetterPortalRouteChromeValueSchema, av.array(av.string())]))
 ]);
 export type BetterPortalRouteChrome = Infer<typeof BetterPortalRouteChromeSchema>;

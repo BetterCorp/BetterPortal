@@ -206,6 +206,24 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
 
 Route chrome is operation-owned presentation metadata. Export `chrome = { fullScreen: true }` from the relevant method file when that operation should use a full-workspace presentation. Config Manager copies the selected operation's default chrome into scoped app routes; an explicit app-route chrome value overrides it.
 
+For a record-specific title and parent breadcrumbs, set request-scoped chrome in the handler:
+
+```ts
+ctx.chrome({
+  title: `Batch ${batch.id}`,
+  parents: ["Imports", "/batches"]
+});
+return batch;
+```
+
+Overrides merge over the operation's declared `chrome` and are published only on successful GET HTML page responses. They do not change the returned data or JSON schema, fragments, components, mutations or error responses. A new page resets omitted metadata to its own defaults, and Back/Forward restores the matching page's metadata. Preloading does not change the active page.
+
+Parents run from outermost ancestor to immediate parent. A parent beginning with `/` is a path in the responding service; the shell resolves it through enabled GET page mounts, preserves its query, and labels it with the app route title or service view title. Other entries are escaped plain text. Protocol-relative `//` parents are rejected. Unresolved or ambiguously mounted paths are omitted. The last parent supplies the theme's Up link only when it resolves to a page; a final text parent does not fall back to an earlier path. Back uses browser history. A nonempty title updates the visible shell title and browser title (`Batch 1 - App Name`); an empty or absent custom title retains the route defaults.
+
+Themes render this metadata through their title and breadcrumb outlets. Bootstrap1 and Bootstrap2 provide Back and Up controls; custom and Embedded themes may expose the corresponding outlets. When the active theme supplies these controls, omit page titles and Back/Up buttons or links from service content. Keep meaningful section headings and task-specific actions.
+
+Python handlers use `ctx.chrome({...})`; .NET handlers use `ctx.Chrome(...)` with the generated chrome input type. These use the same presentation contract.
+
 Route dependencies are explicit operation references that must be mounted with the source operation. Export `{ operationId, method }` from the method that calls the operation, adding a dependency alias as `serviceId` for cross-service calls. Route URL resolution never declares dependencies. Config Manager auto-adds one dependency mount per operation.
 
 `apps[].routes[]` stores both browser-visible page routes and service/API allowlist routes:
@@ -537,6 +555,9 @@ Mount each GET operation once as an enabled Visual Route with a page renderer, f
 The shell provides the owning `data-bp-service` context and mounted route map. This ordinary same-service anchor needs no extra attributes, `hx-get`, `hx-push-url`, or routing override. Keep it in the shell-owned content lane. Do not add `data-bp-no-route`, `bp-no-override`, or `target="_blank"`: those bypass this navigation flow. An explicitly different `hx-target` makes a contextual swap rather than ordinary page navigation.
 
 The resolver validates service identity, method and parameter filling separately from UI mount availability. Use `uiPath` for href/history and `absoluteViewPath` for an HTMX HTML request. Parameterized links and auth links use the same function. Assert that required destinations resolve; a null-to-undefined JSX conversion is only an attribute type conversion.
+
+Check the active theme's guidance and layout for page titles, breadcrumbs, Back/Up controls and primary app navigation. When the theme supplies them, omit page titles and Back/Up buttons or links from service content, and do not repeat a Calls/PBXs/Settings menu. Call-table links, meaningful section headings and other task-specific controls belong in service content. Add page-level headings or navigation only when the theme delegates that responsibility to the view.
+
 
 ```tsx
 const detail = ctx.route({ viewId: "archive.call.detail", params: { callId: "call 42" } });

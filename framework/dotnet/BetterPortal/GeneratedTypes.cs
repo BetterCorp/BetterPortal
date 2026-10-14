@@ -1,4 +1,4 @@
-// Generated from AnyVali documents; do not edit. SHA256: 81ece17b9821aadf1fce7c293735474f6d205b5ff4123f82641b6e1ab44a93df
+// Generated from AnyVali documents; do not edit. SHA256: ff1aa01e7fc05abc494c52d0b4a7ea8c83980e15471eca2aa3b82f917e55a655
 #nullable enable
 using BetterPortal;
 using System.Collections.Generic;
@@ -3541,6 +3541,12 @@ public sealed record BetterPortalRouteChromeFields
     [JsonPropertyName("fullScreen")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> FullScreen { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("parents")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
 }
@@ -3567,6 +3573,12 @@ public sealed record BetterPortalRouteChromeInputFields
     [JsonPropertyName("fullScreen")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> FullScreen { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("parents")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
 }
@@ -9274,6 +9286,12 @@ public sealed record ScopedAppInputRoutesItemChromeFields
     [JsonPropertyName("fullScreen")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> FullScreen { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("parents")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
 }
@@ -10595,6 +10613,12 @@ public sealed record ScopedAppRoutesItemChromeFields
     [JsonPropertyName("fullScreen")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> FullScreen { get; init; }
+    [JsonPropertyName("title")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Title { get; init; }
+    [JsonPropertyName("parents")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> Parents { get; init; }
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; init; }
 }

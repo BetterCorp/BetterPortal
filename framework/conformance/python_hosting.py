@@ -61,6 +61,7 @@ async def hosting_request(body):
             nonlocal invoked, cancelled
             invoked += 1
             if "status" in spec: context.response.status = spec["status"]
+            if "pageChrome" in spec: context.chrome(spec["pageChrome"])
             for name, value in spec.get("responseHeaders", []): context.response.set_header(name, value, append=True)
             if spec.get("throw"): raise ValueError("private-password-must-not-leak")
             if "urlCalls" in spec: return url_calls(context, spec["urlCalls"])

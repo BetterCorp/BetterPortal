@@ -21,6 +21,7 @@ import {
   htmlResponse,
   registerServiceConfigRoutes,
   resolveServiceForTenant,
+  resolveServiceViewTitle,
   resolveAppServiceOrigins,
   resolveAppRoute,
   resolveRequestContextDetailed,
@@ -638,10 +639,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       const safeTarget = resolveSafeServiceViewTarget(routeBinding.service, route, route.path, themeOrigin);
       // Nav links keep absolute service URLs so route metadata can build the
       // service map, but unsafe theme-origin targets are withheld.
+      const viewTitle = resolveServiceViewTitle(portalConfig, route.serviceId, route.viewId, requestContext);
       return {
         id: route.id,
         kind: route.kind,
-        title: displayTitle ?? route.title ?? route.id,
+        viewTitle,
+        title: displayTitle ?? route.title ?? viewTitle ?? route.id,
         href: route.path,
           servicePath: routeMountServicePath(route),
           serviceBaseUrl: safeServiceBaseUrl(routeBinding.service),
@@ -1018,10 +1021,12 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
           route.path,
           themeOrigin
         );
+        const viewTitle = resolveServiceViewTitle(portalConfig, route.serviceId, route.viewId, requestContext);
         return {
           id: route.id,
           kind: route.kind,
-          title: displayTitle ?? route.title ?? route.id,
+          viewTitle,
+          title: displayTitle ?? route.title ?? viewTitle ?? route.id,
           href: route.path,
           servicePath: routeMountServicePath(route),
           serviceBaseUrl: safeServiceBaseUrl(routeBinding.service),

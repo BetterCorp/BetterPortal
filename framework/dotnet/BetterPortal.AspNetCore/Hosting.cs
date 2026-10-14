@@ -412,7 +412,8 @@ public static class Hosting
                     var renderContext = RenderContext.Create(requestContext, binding.Route.ViewId, binding.Path, renderer.Identity.Renderer, representation.Mode ?? "page", kind, key, status, output.Params, output.Query, context.RequestAborted);
                     var html = await renderer.RenderUntyped(output.Value, renderContext);
                     var contentMode = kind == "page" ? representation.Mode ?? "page" : "fragment";
-                    applicationHeaders.Add(new("content-type", operation.HtmlContentType(contentMode)));
+                    applicationHeaders.Add(new("content-type", operation.HtmlContentType(contentMode,
+                        contentMode == "page" && context.Request.Method == "GET" && status is >= 200 and < 300 ? requestContext.Response : null)));
                     await ReplyRaw(context, new RawResponse(Encoding.UTF8.GetBytes(html), status, applicationHeaders), responseHeaders);
                 }
                 else

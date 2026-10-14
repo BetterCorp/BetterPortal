@@ -8,6 +8,8 @@ Use Bootstrap 5 classes and server-rendered JSX/HTMX. BetterPortal service rende
 
 - Render primary content for the `main` slot. Never emit another page shell, `<html>`, `<head>`, sidebar navigation or top bar.
 - Check the configured shell before adding a page heading: omit a title/header already shown by the theme. Start with content and a short action row when actions exist; use semantic headings for distinct content sections.
+- Check the active layout for theme-provided Back/Up controls. When present, omit service-level Back/Up buttons and links; retain task-specific actions and contextual record links.
+- The shell renders dynamic titles and parent breadcrumbs supplied by the handler through `ctx.chrome({ title, parents })`. Parent paths belong to the service, such as `/batches`; the shell resolves their public URLs and labels. Back follows browser history; Up appears only for a navigable final parent. Do not construct another title, breadcrumb or Back/Up row in service markup.
 - Use `.container-fluid`, Bootstrap grid classes and responsive gaps. Avoid fixed widths except a declared `data-bp-sidebar-width`.
 - Use cards for grouped settings, tables for comparable records and list groups for status collections. The theme owns app navigation; do not repeat it as navigation cards, link grids or another menu inside a view. Local workflow navigation must serve a distinct need.
 - Keep primary actions on the right of desktop action rows and allow them to wrap on small screens.

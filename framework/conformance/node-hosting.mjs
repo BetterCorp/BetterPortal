@@ -37,6 +37,7 @@ export async function hostingRequest(body) {
       const run = context => {
         invoked++;
         if (spec.status !== undefined) context.setStatus(spec.status);
+        if (spec.pageChrome) context.chrome(spec.pageChrome);
         for (const [key, value] of spec.responseHeaders ?? []) context.responseHeaders.append(key, value);
         if (spec.throw) throw new Error("private-password-must-not-leak");
         if (spec.urlCalls) return urlCalls(context, spec.urlCalls);

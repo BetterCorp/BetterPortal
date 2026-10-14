@@ -11,7 +11,6 @@ import type { ResponseData } from "../GET.js";
 
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   return <section class="container-fluid px-0">
-    <h1 class="h5">Incident queue</h1>
     <div class="bp-split-pane" data-bp-split-pane-key="incidents" data-bp-detail-open={data.active ? "true" : "false"}>
       <div id="incident-queue" class="bp-split-pane__content" hx-get={ctx.route({ viewId: "incidents.index",  component: "queue" })?.absoluteViewPath} hx-trigger="incidents:changed from:body">
         {renderQueue(data, ctx)}

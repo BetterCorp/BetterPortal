@@ -32,7 +32,7 @@ test("shell owns header-aware preload and native API allowlist rewriting", () =>
   assert.match(source, /detail\.ctx\.fetch=.*?preload\.prefetch\.then/);
   assert.match(source, /applyPreloadConfig\(el,bpCfg\).*?bindBpPreload\(el\).*?data-bp-shell-route/s);
   assert.match(source, /matchServiceRoute\(elServiceId,pathOnly,"api"\)/);
-  assert.match(source, /match\.route\.servicePath\+match\.suffix/);
+  assert.match(source, /match\.route\.servicePath/);
   assert.match(source, /el\.setAttribute\("href",tenantUrl\)/);
   assert.match(source, /data-bp-shell-route","api"/);
   assert.doesNotMatch(source, /setAttribute\("hx-push-url",resolvePath\)/);
@@ -151,7 +151,6 @@ test("main outlet HTTP errors only swap explicit themed status views", () => {
   assert.match(source, /isThemedStatusResponse\(ctx\)/);
   assert.match(source, /htmx_response_error/);
   assert.match(source, /renderRouteError\(errorTitle\(status\),errorMessage\(status\)/);
-  assert.match(source, /applyChrome\(null\)/);
 });
 
 test("request error overlays inherit the initiating service context", () => {

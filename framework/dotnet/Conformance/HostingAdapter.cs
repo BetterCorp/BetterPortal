@@ -26,6 +26,7 @@ internal static class HostingAdapter
                 {
                     Interlocked.Increment(ref invoked);
                     if (spec.TryGetValue("status", out var statusCode)) context.Response.Status = Convert.ToInt32(statusCode);
+                    if (spec.TryGetValue("pageChrome", out var pageChrome)) context.Chrome(Contracts.Parse<BetterPortal.Generated.BetterPortalRouteChromeInput>("BetterPortalRouteChromeSchema", pageChrome));
                     foreach (var header in ((List<object?>)spec.GetValueOrDefault("responseHeaders", new List<object?>())!).Cast<List<object?>>()) context.Response.SetHeader((string)header[0]!, (string)header[1]!, append: true);
                     if (spec.GetValueOrDefault("throw") is true) throw new InvalidOperationException("private-password-must-not-leak");
                     if (spec.GetValueOrDefault("urlCalls") is List<object?> calls) return UrlCalls(context.Route, context.Urls, calls);

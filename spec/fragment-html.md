@@ -18,6 +18,18 @@ In every HTML response, all of the following MUST be root-relative paths (starti
 
 The client rewriter resolves them to absolute service-origin URLs at swap time.
 
+Navigation mapping MUST match an enabled page mount's complete path pattern. A mounted list path does not implicitly mount its child paths. Named `:param` segments are matched and substituted without changing already-encoded parameter values; static routes take precedence over parameter patterns. Current-page form actions MUST map the public page path back to the owning service path, including when the element declares an explicit same-service context. A fragment belonging to another service MUST declare its own action rather than infer it from the page's URL.
+
+### 1.1.1 Page presentation metadata
+
+Successful GET HTML page responses MAY carry `bp-chrome-title` and `bp-chrome-parents` content-type parameters alongside the existing scalar chrome flags. Titles are percent-encoded text; parents are a percent-encoded JSON array of strings. Services set these through the request-scoped chrome API, independently of their response data/schema.
+
+For each string-array chrome value, including custom theme fields, encoders also emit `bp-array-chrome-<key>=true`. Initial shell attributes use `data-bp-array-chrome-<key>="true"` alongside the JSON-valued `data-bp-chrome-<key>`. The runtime decodes marked arrays generically and resets stale type markers on navigation. The known `parents` field is also decoded as an array without a marker. Other unmarked values retain scalar decoding, so a legacy string containing JSON array syntax remains a string. Protocol-relative path validation applies specifically to `parents`, not other string arrays.
+
+Parents are ordered from outermost ancestor to immediate parent. Leading-slash values are paths relative to the responding service; other strings are plain text. Protocol-relative `//` values are invalid. The shell MUST resolve path parents through enabled GET page mounts, preserve query parameters, prefer the configured app title over the service view title, and omit unresolved or ambiguous paths. Text and labels MUST be rendered as text, never HTML. Up is available only when the final parent resolves to a navigable page; Back uses browser history.
+
+The shell MUST apply metadata only after a successful HTML page is committed to its main outlet. JSON, fragments, components, mutations, errors, preloads, bodyless responses and cancelled swaps MUST NOT alter active page presentation. New pages reset omitted metadata to their own defaults, and history restoration uses the matching page's metadata. Themes that render the title, breadcrumbs or Back/Up controls MUST tell service authors to omit those elements from service content.
+
 ### 1.2 Every interactive element MUST have service context
 
 The client rewriter resolves root-relative URLs against the service that produced the HTML. The service URL is the authority; the theme origin is never the fallback target for service-owned HTML.

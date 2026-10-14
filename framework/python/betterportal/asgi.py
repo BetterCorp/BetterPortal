@@ -319,7 +319,10 @@ def create_app(service: Service, *, max_body_bytes: int = 1024 * 1024, mode: str
                     render_context = RenderContext.create(context, route.view_id, matched, renderer.identity[0], representation.mode or "page", kind, key, status, output.params, output.query)
                     html = await renderer.render(output.value, render_context)
                     content_mode = "fragment" if kind != "page" else representation.mode or "page"
-                    return _RawReply(RawResponse(html.encode("utf-8"), status=status, headers=[*application_headers, ("content-type", html_content_type(content_mode, operation.declaration.get("chrome")))]), response_headers, head=request.method == "HEAD", service=service)
+                    chrome = operation.declaration.get("chrome")
+                    if content_mode == "page" and request.method == "GET" and 200 <= status < 300:
+                        chrome = {**(chrome or {}), **context.response.page_chrome}
+                    return _RawReply(RawResponse(html.encode("utf-8"), status=status, headers=[*application_headers, ("content-type", html_content_type(content_mode, chrome))]), response_headers, head=request.method == "HEAD", service=service)
                 content = JSONResponse(output.value).body
                 return _RawReply(RawResponse(content, status=status, headers=[*application_headers, ("content-type", "application/json")]), response_headers, head=request.method == "HEAD", service=service)
             try:
