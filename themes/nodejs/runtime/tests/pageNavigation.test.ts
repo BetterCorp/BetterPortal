@@ -10,7 +10,7 @@ const detail = { ...list, href: "/ui/batches/:batchId", requestUrl: "https://ser
 type Mount = typeof list;
 const response = (route: Route, body: string, chrome = {}, status = 200, mode = "page") => route.fulfill({
   status, body: status === 204 ? "" : body,
-  contentType: `text/html; mode=${mode}` + Object.entries(chrome).map(([key, value]) => `; bp-chrome-${key}=${encodeURIComponent(Array.isArray(value) ? JSON.stringify(value) : String(value))}`).join(""),
+  contentType: `text/html; mode=${mode}` + Object.entries(chrome).map(([key, value]) => `; bp-chrome-${key}=${encodeURIComponent(Array.isArray(value) ? JSON.stringify(value) : String(value))}` + (Array.isArray(value) ? `; bp-array-chrome-${key}=true` : "")).join(""),
   headers: { "access-control-allow-origin": "*" }
 });
 async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) => Promise<void>, path = "/ui/batches", errorOutlet = false) {
@@ -32,7 +32,7 @@ async function shell(t: TestContext, mounts: Mount[], respond: (route: Route) =>
     return route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><title>App</title><meta name="htmx-config" content='{"mode":"cors","extensions":"bp-shell, sse"}'></head><body>
       <div data-bp-shell-root data-bp-menu-health="false" data-bp-document-title="App" data-bp-services='{"service":"https://service.test"}' data-bp-routes='${JSON.stringify(mounts)}'>
       <h1 data-bp-current-title></h1><div data-bp-current-breadcrumb></div><a data-bp-up hidden>Up</a><button data-bp-back>Back</button>
-      <main id="bp-main" data-bp-service="service" hx-get="${action}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></main></div>${errorOutlet ? '<div id="error-outlet"></div><script>window.BetterPortalShellAdapter = { showRequestError: (status, html) => { document.getElementById("error-outlet").innerHTML = html; } };</script>' : ''}<script>${asset.body}</script></body></html>` });
+      <main id="bp-main" data-bp-service="service" hx-get="${action}" hx-trigger="load" hx-target="#bp-main" hx-swap="innerHTML"></main></div><div id="error-outlet"></div><script>window.BetterPortalShellAdapter = { applyChrome: chrome => { window.appliedChrome = chrome; } ${errorOutlet ? ', showRequestError: (status, html) => { document.getElementById("error-outlet").innerHTML = html; }' : ''} };</script><script>${asset.body}</script></body></html>` });
   });
   await page.goto("https://app.test" + path);
   return { page, errors };
@@ -207,5 +207,21 @@ test("shells without an app-title attribute update and restore browser titles", 
   await page.getByRole("link", { name: "Up to Import batches" }).click();
   await page.waitForSelector("#detail");
   assert.equal(await page.title(), "App");
+  assert.deepEqual(errors, []);
+});
+
+test("custom chrome arrays retain their type without converting literal JSON strings", async t => {
+  const { page, errors } = await shell(t, [list, detail], route => new URL(route.request().url()).pathname === "/batches"
+    ? response(route, '<a id="detail" href="/batches/1">Open</a>')
+    : response(route, '<p id="batch">Batch</p>', { tabs: ["summary", "//display"], literal: '["summary","//display"]', parents: ["/batches"] }));
+  await page.locator("#detail").click();
+  await page.waitForSelector("#batch");
+  const chrome = await page.evaluate(() => (window as any).appliedChrome);
+  assert.deepEqual(chrome.tabs, ["summary", "//display"]);
+  assert.equal(chrome.literal, '["summary","//display"]');
+  assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-array-chrome-tabs"), "true");
+  await page.getByRole("link", { name: "Up to Import batches" }).click();
+  await page.waitForSelector("#detail");
+  assert.equal(await page.locator("[data-bp-shell-root]").getAttribute("data-bp-array-chrome-tabs"), null);
   assert.deepEqual(errors, []);
 });

@@ -57,6 +57,7 @@ public abstract class Renderer
                 : value is string text ? Uri.EscapeDataString(text).Replace("%21", "!").Replace("%27", "'").Replace("%28", "(").Replace("%29", ")").Replace("%2A", "*")
                 : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture)!.ToLowerInvariant();
             result += "; bp-chrome-" + key + "=" + encoded;
+            if (value is List<object?>) result += "; bp-array-chrome-" + key + "=true";
         }
         return result + "; charset=utf-8";
     }

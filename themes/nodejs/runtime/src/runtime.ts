@@ -71,7 +71,10 @@ export function betterPortalChromeAttributes(
   for (const [rawKey, value] of Object.entries(chrome ?? {})) {
     if (typeof value === "number" && !Number.isFinite(value)) continue;
     const key = chromeDataKey(rawKey);
-    if (key) attributes[`data-bp-chrome-${key}`] = Array.isArray(value) ? JSON.stringify(value) : String(value);
+    if (key) {
+      attributes[`data-bp-chrome-${key}`] = Array.isArray(value) ? JSON.stringify(value) : String(value);
+      if (Array.isArray(value)) attributes[`data-bp-array-chrome-${key}`] = "true";
+    }
   }
   return attributes;
 }
@@ -280,12 +283,12 @@ export function betterPortalShellRuntimeSource(): string {
       const camelChromeKey = (key: string) =>
         key.replace(/-([a-z0-9])/g, (_m, ch) => String(ch).toUpperCase());
 
-      const parseChromeValue = (key: string, raw: string): BetterPortalShellChromeValue | undefined => {
+      const parseChromeValue = (key: string, raw: string, arrayValue = false): BetterPortalShellChromeValue | undefined => {
         if (key === "title") return raw;
-        if (key === "parents") {
+        if (key === "parents" || arrayValue) {
           try {
             const value = JSON.parse(raw);
-            return Array.isArray(value) && value.every(item => typeof item === "string" && !item.startsWith("//")) ? value : undefined;
+            return Array.isArray(value) && value.every(item => typeof item === "string" && (key !== "parents" || !item.startsWith("//"))) ? value : undefined;
           } catch { return undefined; }
         }
         return raw === "true" ? true : raw === "false" ? false :
@@ -293,13 +296,14 @@ export function betterPortalShellRuntimeSource(): string {
       };
       const parseChromeFromContentType = (contentType: string): Record<string, BetterPortalShellChromeValue> | null => {
         const chrome: Record<string, BetterPortalShellChromeValue> = {};
+        const arrays = new Set(Array.from(contentType.matchAll(/(?:^|;)\s*bp-array-chrome-([a-z][a-z0-9-]*)=true\s*(?=;|$)/g), match => camelChromeKey(match[1])));
         const re = /(?:^|;)\s*bp-chrome-([a-z][a-z0-9-]*)=([^;]*)/g;
         let match: RegExpExecArray | null;
         while ((match = re.exec(contentType)) !== null) {
           const key = camelChromeKey(match[1]);
           try {
             const raw = decodeURIComponent((match[2] || "").trim().replace(/^"|"$/g, ""));
-            const value = parseChromeValue(key, raw);
+            const value = parseChromeValue(key, raw, arrays.has(key));
             if (value !== undefined) chrome[key] = value;
           } catch { /* Ignore malformed presentation parameters. */ }
         }
@@ -320,7 +324,7 @@ export function betterPortalShellRuntimeSource(): string {
           if (!attribute.name.startsWith("data-bp-chrome-")) continue;
           const key = camelChromeKey(attribute.name.slice("data-bp-chrome-".length));
           const raw = attribute.value;
-          const value = parseChromeValue(key, raw);
+          const value = parseChromeValue(key, raw, root.getAttribute(`data-bp-array-chrome-${attribute.name.slice("data-bp-chrome-".length)}`) === "true");
           if (value !== undefined) chrome[key] = value;
         }
         return chrome;
@@ -333,10 +337,15 @@ export function betterPortalShellRuntimeSource(): string {
         if (!root) return;
         const nextChrome = chrome ?? {};
         for (const key of Object.keys(activeChrome)) {
-          if (!(key in nextChrome)) root.removeAttribute(`data-bp-chrome-${kebabChromeKey(key)}`);
+          if (!(key in nextChrome)) {
+            root.removeAttribute(`data-bp-chrome-${kebabChromeKey(key)}`);
+            root.removeAttribute(`data-bp-array-chrome-${kebabChromeKey(key)}`);
+          }
         }
         for (const [key, value] of Object.entries(nextChrome)) {
           root.setAttribute(`data-bp-chrome-${kebabChromeKey(key)}`, Array.isArray(value) ? JSON.stringify(value) : String(value));
+          if (Array.isArray(value)) root.setAttribute(`data-bp-array-chrome-${kebabChromeKey(key)}`, "true");
+          else root.removeAttribute(`data-bp-array-chrome-${kebabChromeKey(key)}`);
         }
         const previousChrome = activeChrome;
         activeChrome = { ...nextChrome };

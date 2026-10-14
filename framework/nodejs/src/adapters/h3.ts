@@ -326,6 +326,7 @@ function chromeContentTypeParams(chrome?: BetterPortalRouteChrome): string {
     const stringValue = Array.isArray(value) ? encodeURIComponent(JSON.stringify(value))
       : typeof value === "string" ? encodeURIComponent(value) : String(value);
     params.push(`bp-chrome-${key}=${stringValue}`);
+    if (Array.isArray(value)) params.push(`bp-array-chrome-${key}=true`);
   }
   return params.length ? `; ${params.join("; ")}` : "";
 }

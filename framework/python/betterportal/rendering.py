@@ -112,4 +112,5 @@ def content_type(mode: str, chrome: Mapping[str, Any] | None = None) -> str:
         if not re.fullmatch(r"[a-z][a-z0-9-]*", key): continue
         encoded = quote(json.dumps(value, ensure_ascii=False, separators=(",", ":")), safe="~()*!.'-") if isinstance(value, list) else quote(value, safe="~()*!.'-") if isinstance(value, str) else str(value).lower()
         result += f"; bp-chrome-{key}={encoded}"
+        if isinstance(value, list): result += f"; bp-array-chrome-{key}=true"
     return result + "; charset=utf-8"
