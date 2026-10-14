@@ -2523,10 +2523,18 @@ export abstract class BPService<
           "Install request is missing cpUrl"
         );
       }
+      if (!this.resolvedCpUrl) {
+        return coreJsonResponse(
+          { error: "A trusted control-plane URL must be configured before installation" },
+          503,
+          "service.install_control_plane_unconfigured",
+          "A trusted control-plane URL is required for installation"
+        );
+      }
 
       try {
         const normalizedCp = normalizeControlPlaneUrl(cpUrl);
-        if (this.resolvedCpUrl && normalizedCp !== normalizeControlPlaneUrl(this.resolvedCpUrl)) {
+        if (normalizedCp !== normalizeControlPlaneUrl(this.resolvedCpUrl)) {
           return coreJsonResponse(
             { error: "Installation control plane does not match configured trust" },
             403,

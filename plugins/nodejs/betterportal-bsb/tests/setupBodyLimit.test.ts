@@ -54,3 +54,30 @@ test("installed service refuses a foreign control plane before fetching its JWKS
   assert.equal(response.status, 403);
   assert.equal(fetches, 0, "untrusted control plane must not receive a JWKS request");
 });
+
+test("first installation requires a preconfigured control-plane trust anchor", async (t) => {
+  const service = Object.create(BPService.prototype) as BPService & {
+    app: ReturnType<typeof createBetterPortalApp>;
+    registerInstallEndpoint(observer: unknown): void;
+  };
+  service.app = createBetterPortalApp();
+  Object.assign(service, { inSetupMode: true, resolvedCpUrl: null });
+  service.registerInstallEndpoint({ log: { warn() {} } });
+  let fetches = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    fetches++;
+    return new Response("", { status: 404 });
+  });
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT", kid: "foreign" })).toString("base64url");
+  const install = () => service.app.fetch(new Request("https://service.test/.well-known/bp/install", {
+    method: "POST", body: JSON.stringify({
+      cpUrl: "https://foreign.example", setupToken: `${header}.e30.signature`
+    })
+  }));
+  const response = await install();
+  assert.equal(response.status, 503);
+  assert.equal(fetches, 0, "unconfigured service must not fetch caller-chosen JWKS");
+  Object.assign(service, { resolvedCpUrl: "https://foreign.example" });
+  assert.equal((await install()).status, 400, "preconfigured control plane may proceed to token verification");
+  assert.equal(fetches, 1);
+});
