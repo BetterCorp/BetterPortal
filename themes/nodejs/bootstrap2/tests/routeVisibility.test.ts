@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { loadBootstrap2Asset } from "../src/plugins/service-betterportal-theme-bootstrap2/assets.js";
+import { Bootstrap2AdapterSource } from "../src/plugins/service-betterportal-theme-bootstrap2/adapter.js";
 import { isUserFacingRoute, renderBootstrap2HostPage, renderBootstrap2Shell, shellStyles } from "../src/plugins/service-betterportal-theme-bootstrap2/shell/index.js";
 import { BOOTSTRAP2_VERSION, bootstrap2AssetUrl, bootstrap2ServiceWorkerSource } from "../src/plugins/service-betterportal-theme-bootstrap2/cache.js";
 import { defaultItems as criticalAlertDefaults, render as renderCriticalAlerts } from "../src/plugins/service-betterportal-theme-bootstrap2/shell/_critical-alerts/index.js";
@@ -10,6 +11,20 @@ test("API routes are never browser navigation candidates", () => {
   assert.equal(isUserFacingRoute({ kind: "page", href: "/tunnels/dashboard" }), true);
   assert.equal(isUserFacingRoute({ kind: "api", href: "/tunnels/dashboard" }), false);
   assert.equal(isUserFacingRoute({ href: "/_bp/service/example/tunnels/dashboard" }), false);
+});
+
+test("sidebar titles remain text when the adapter converts them", async t => {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.setContent('<div id="root"><section data-bp-sidebar="panel" data-bp-sidebar-title="&lt;img src=x onerror=alert(1)&gt;"><button id="existing">Open</button></section></div>');
+  await page.evaluate(() => { (window as any).bootstrap = {}; });
+  await page.addScriptTag({ content: "const __name = value => value;\n" + String(Bootstrap2AdapterSource) });
+  await page.evaluate(() => (window as any).BetterPortalShellAdapter.initComponents(document.querySelector("#root")));
+  assert.equal(await page.locator("#panel img").count(), 0);
+  assert.equal(await page.locator("#panel .offcanvas-title").innerText(), '<img src=x onerror=alert(1)>');
+  assert.equal(await page.locator("#existing").count(), 1);
 });
 
 test("navigation building stays fast with a long interior slash run", () => {
