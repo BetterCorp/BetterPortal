@@ -26,7 +26,9 @@ export async function syncPeer(body) {
       await store.saveConfig(config);
       const app = createBetterPortalApp();
       registerSyncEndpoint(app, store);
-      registerWebhookRoutes(app, store);
+      // This isolated conformance peer delivers to the loopback receiver in
+      // check_python_docker.py. Keep production delivery on the guarded transport.
+      registerWebhookRoutes(app, store, undefined, "single", fetch);
       const calls = [];
       const handler = toNodeHandler(app);
       const server = createServer((request, response) => {
