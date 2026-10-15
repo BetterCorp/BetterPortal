@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/n8n-nodes-betterportal",
-  "version": "11.0.1",
+  "version": "11.0.2",
   "description": "n8n node for BetterPortal automation discovery.",
   "main": "BetterPortal.node.js",
   "n8n": {
