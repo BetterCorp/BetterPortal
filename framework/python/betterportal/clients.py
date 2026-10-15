@@ -180,6 +180,7 @@ class ServiceClients:
         try:
             state, operation, output, address, data, headers = self._prepare_request(client, identifier, values, "json")
             async def request():
+                assert self._http is not None
                 async with self._http.stream(operation["method"], address, content=data, headers=headers) as response:
                     if not 200 <= response.status_code < 300:
                         raise ClientError(response.status_code, "Dependency returned an unsuccessful status")
@@ -193,9 +194,19 @@ class ServiceClients:
                         body.extend(chunk)
                     client._context._current(expected=state)
                     return output.parse(None if response.status_code in (204, 205) and not body else loads(body.decode("utf-8")))
-            try: return await asyncio.wait_for(request(), 30)
+            pending = asyncio.create_task(request())
+            watcher = asyncio.create_task(state.retired.wait())
+            try:
+                done, _ = await asyncio.wait((pending, watcher), timeout=30, return_when=asyncio.FIRST_COMPLETED)
+                if not done: raise asyncio.TimeoutError
+                if watcher in done: raise ClientError(503, "Dependency configuration is unavailable or changed")
+                return await pending
             except ClientError: raise
             except Exception: raise ClientError(502, "Dependency request or response validation failed") from None
+            finally:
+                pending.cancel()
+                watcher.cancel()
+                await asyncio.gather(pending, watcher, return_exceptions=True)
         finally: self._release(task)
 
     @asynccontextmanager

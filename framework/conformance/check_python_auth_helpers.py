@@ -8,6 +8,12 @@ import httpx
 import jwt
 from betterportal.auth_helpers import ExternalOidc, auth_cookie, auth_redirect, require_permission
 from betterportal.handler import ResponseState, RequestContext
+from betterportal.handler import Handler
+from betterportal.asgi import create_app
+from betterportal.registry import Registry, Route, Operation
+from betterportal.rendering import Renderer
+from betterportal.service import Service
+import anyvali as av
 from betterportal.authorization import AuthorizedCaller
 from betterportal.context import ScopedConfig
 from betterportal.security import KeyPair, TokenError, PermissionDenied
@@ -54,6 +60,23 @@ async def main():
         try: require_permission(context, TARGET, 'check', action)
         except PermissionDenied: pass
         else: raise AssertionError('Missing grant accepted')
+    # A handler-level permission check is an HTTP authorization failure, not 500.
+    def guarded(context):
+        context.require_permission(TARGET, 'check', 'write')
+        raise AssertionError('Unauthorized handler continued')
+    denied = Renderer({'renderer': 'bootstrap5', 'status': 403}, lambda data, context: '<p>Access denied</p>')
+    page = Renderer({'renderer': 'bootstrap5'}, lambda data, context: '<p>Allowed</p>')
+    operation = Operation(Handler(av.string(), guarded, renderers=[page]), source['routes'][0]['operations'][0]['declaration'], error_renderers=[denied])
+    registry = Registry([Route('check', '/check/:key', [operation])])
+    source['snapshot']['apps'][0]['shell'] = {'serviceId': TARGET, 'service': 'example', 'renderer': 'bootstrap5'}
+    async with Service(registry, source['declaration'], ScopedConfig(source['snapshot'])) as service:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(service)), base_url='http://service.test') as client:
+            for accept in ('application/json', 'text/html'):
+                response = await client.get('/check/item', headers={'origin': 'https://app.test', 'accept': accept})
+                assert response.status_code == 403, (response.status_code, response.text)
+                assert response.headers['access-control-allow-origin'] == 'https://app.test'
+                assert response.headers['cache-control'] == 'no-store'
+                assert response.json() == {'error': 'Access denied'} if accept == 'application/json' else response.text == '<p>Access denied</p>'
     print('Python auth helpers: OIDC trust/nonce, redirects, cookies, BP directives and permission targets passed')
 
 asyncio.run(main())

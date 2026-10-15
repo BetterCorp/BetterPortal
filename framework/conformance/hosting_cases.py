@@ -40,9 +40,9 @@ def run_hosting(urls, labels):
     baseline = {"params": {"key": "item"}, "query": {"hello": "world"}, "request": {}, "multipart": None,
                 "tenantId": TENANT, "appId": APP, "caller": None, "user": None}
     cases = []
-    def case(name, change=lambda body: None, status=200, invoked=None, expected=None, native=False):
+    def case(name, change=lambda body: None, status=200, invoked=None, expected=None, native=False, runtimes=None):
         body = fixture(); change(body)
-        cases.append((name, body, status, invoked, expected, native))
+        cases.append((name, body, status, invoked, expected, native, runtimes))
     case("json-get", invoked=1, expected=baseline)
     case("json-post", write, invoked=1, expected={**baseline, "request": {"hello": "world"}})
     case("wrong-operation", lambda body: body["request"].update(method="POST"), 404, 0)
@@ -119,6 +119,13 @@ def run_hosting(urls, labels):
     case("duplicate-json-member", lambda body: write(body, '{"x":1,"x":2}'), 400, 0, native=True)
     case("deep-json", lambda body: write(body, '[' * 2000 + '0' + ']' * 2000), 400, 0, native=True)
     case("nonfinite-json", lambda body: write(body, '{"x":NaN}'), 400, 0, native=True)
+    for number in ('1e999', '-1e999'):
+        def overflow_json(body, number=number):
+            write(body, '{"x":' + number + '}')
+            spec = body['routes'][0]['operations'][1]
+            spec['schemas'] = {'request': {**spec['response'], 'root': {'kind': 'unknown'}}}
+        # Python decodes fractional JSON numbers as floats; .NET retains lossless tokens.
+        case('nonfinite-exponent-' + number, overflow_json, 400, 0, runtimes=('python',))
     case("unsupported-body", lambda body: write(body, "Hello", "text/plain"), 415, 0, native=True)
     case("body-limit", lambda body: (write(body), body.update(maxBodyBytes=4)), 413, 0, native=True)
     case("unacceptable", lambda body: body["request"]["headers"].update(accept="image/png"), 406, 0, native=True)
@@ -194,8 +201,9 @@ def run_hosting(urls, labels):
     case("query-encoded-percent", lambda body: body["request"].update(path="/check/item?hello=%25ZZ"), expected={**baseline, "query": {"hello": "%ZZ"}}, native=True)
     case("form-encoded-percent", lambda body: write(body, "hello=%25ZZ", "application/x-www-form-urlencoded"), expected={**baseline, "request": {"hello": "%ZZ"}, "multipart": {"fields": {"hello": "%ZZ"}, "files": {}}}, native=True)
     case("duplicate-preflight-selector", lambda body: (body["request"].update(method="OPTIONS", path="/check/item?_f=a&_f=b"), body["request"]["headers"].update({"access-control-request-method": "GET"})), 400, 0, native=True)
-    for name, body, status, invoked, expected, native in cases:
+    for name, body, status, invoked, expected, native, runtimes in cases:
         for url, label in zip(urls, labels):
+            if runtimes is not None and label not in runtimes: continue
             if native and label == "node": continue
             def action():
                 actual = post(url, body)

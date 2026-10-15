@@ -30,10 +30,20 @@ def bp_route(context: RenderContext, reference: dict[str, Any], states: Mapping[
     success_attrs = {key: value for key, value in success.items() if key != 'content'} if isinstance(success, Mapping) else {}
     merged = {**attributes, **success_attrs}
     methods = [key for key in ('hx-get', 'hx-post', 'hx-put', 'hx-patch', 'hx-delete') if key in merged and merged[key] is not False and merged[key] is not None]
-    method = 'GET' if embedding else methods[0][3:].upper() if methods else reference.get('method', 'GET')
+    selected_method = merged.get('method')
+    if selected_method is None: selected_method = reference.get('method')
+    if selected_method is None: selected_method = 'GET'
+    method = str('GET' if embedding else methods[0][3:] if methods else selected_method).upper()
     options = {key: value for key, value in reference.items() if key not in ('service', 'args')}
-    if 'service' in reference: options['serviceId'] = reference['service']
-    options.update(reference.get('args', {})); options['method'] = method
+    if options.get('serviceId') is None:
+        if reference.get('service') is not None: options['serviceId'] = reference['service']
+        else: options.pop('serviceId', None)
+    for name in ('params', 'query'):
+        if options.get(name) is None:
+            value = (reference.get('args') or {}).get(name)
+            if value is not None: options[name] = value
+            else: options.pop(name, None)
+    options['method'] = method
     shell = reference.get('service') == 'shell' and reference.get('fragment') and not reference.get('path') and not reference.get('viewId')
     resolved_shell = context.urls.element(cast(BPRouteReferenceInput, reference)) if shell else None
     destination = None if shell else context.route(cast(Any, options))
