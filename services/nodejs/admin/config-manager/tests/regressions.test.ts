@@ -450,14 +450,14 @@ test("auth cache drops removed apps and JWKS", async () => {
   assert.equal(plugin.authConfigCache.size, 0);
 });
 
-test("webhooks claim only the next delivery and bound fetch lifetime", async (t) => {
+test("webhooks claim only the next delivery and bound fetch lifetime", async () => {
   const order: string[] = [];
   let claimed = 0;
-  t.mock.method(globalThis, "fetch", async (_url, options) => {
+  const transport = async (_url: string, options: RequestInit) => {
     assert.ok(options.signal instanceof AbortSignal);
     order.push("fetch");
     return new Response(new ReadableStream({ cancel() { order.push("cancel"); } }));
-  });
+  };
   const runtime = registerWebhookRoutes(new H3(), {
     loadConfig: async () => { throw new Error("Webhook polling must not load config"); }
   } as never, {
@@ -473,7 +473,7 @@ test("webhooks claim only the next delivery and bound fetch lifetime", async (t)
     },
     finishWebhookDelivery: async () => { order.push("finish"); },
     cleanupWebhookDeliveries: async () => {}
-  } as never);
+  } as never, "single", transport);
   await runtime.drain();
   assert.deepEqual(order, ["claim", "fetch", "cancel", "finish", "claim", "fetch", "cancel", "finish", "claim"]);
 });

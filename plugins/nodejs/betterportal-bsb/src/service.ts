@@ -36,6 +36,7 @@ import {
   resolveEmbeddedRequestContext,
   resolveThemeSourceHeader,
   resolveThemeLlmsContext,
+  readBoundedJsonBody,
   verifySetupToken,
   verifyServiceConfigTicket,
   ElevationRequirementSchema,
@@ -2495,7 +2496,8 @@ export abstract class BPService<
   private registerInstallEndpoint(obs: Observable): void {
     this.app.post("/.well-known/bp/install", async (event) => {
       // CORS already handled by handleWithCors for public discovery paths.
-      const body = await event.req.json().catch(() => null);
+      const body = await readBoundedJsonBody(event.req, 1024 * 1024);
+      if (body instanceof Response) return body;
       if (!body || typeof body !== "object") {
         return coreJsonResponse(
           { error: "Request body must be JSON object" },
@@ -2521,9 +2523,25 @@ export abstract class BPService<
           "Install request is missing cpUrl"
         );
       }
+      if (!this.resolvedCpUrl) {
+        return coreJsonResponse(
+          { error: "A trusted control-plane URL must be configured before installation" },
+          503,
+          "service.install_control_plane_unconfigured",
+          "A trusted control-plane URL is required for installation"
+        );
+      }
 
       try {
         const normalizedCp = normalizeControlPlaneUrl(cpUrl);
+        if (normalizedCp !== normalizeControlPlaneUrl(this.resolvedCpUrl)) {
+          return coreJsonResponse(
+            { error: "Installation control plane does not match configured trust" },
+            403,
+            "service.install_control_plane_mismatch",
+            "Installation control plane does not match configured trust"
+          );
+        }
         const jwksUri = `${normalizedCp}/.well-known/jwks.json`;
         const claims = await verifySetupToken(setupToken, {
           jwks: { jwksUri, issuer: normalizedCp },
@@ -2633,7 +2651,9 @@ export abstract class BPService<
 
   private registerHostnameChangeEndpoint(obs: Observable): void {
     this.app.post("/.well-known/bp/hostname-change", async (event) => {
-      const body = await event.req.json().catch(() => null) as { changeToken?: string } | null;
+      const parsed = await readBoundedJsonBody(event.req, 1024 * 1024);
+      if (parsed instanceof Response) return parsed;
+      const body = parsed as { changeToken?: string } | null;
       if (!body || typeof body.changeToken !== "string" || body.changeToken.length === 0) {
         return coreJsonResponse(
           { error: "Missing changeToken" },

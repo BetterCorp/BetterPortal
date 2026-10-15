@@ -206,8 +206,8 @@ export class Plugin extends BSBService<InstanceType<typeof Config>, typeof Event
       }
 
       json(reply, 404, { error: "not_found" });
-    } catch (error) {
-      json(reply, 500, { error: "internal_error", message: error instanceof Error ? error.message : String(error) });
+    } catch {
+      json(reply, 500, { error: "internal_error" });
     }
   }
 }

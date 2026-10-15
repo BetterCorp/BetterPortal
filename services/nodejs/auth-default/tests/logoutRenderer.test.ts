@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Script } from "node:vm";
+import { chromium } from "@playwright/test";
 import { toHtmlString, type ViewRenderContext } from "@betterportal/framework";
 import { render } from "../src/plugins/service-betterportal-auth-default/bp-routes/login/_renderer.bootstrap5/GET.js";
 
@@ -44,4 +45,19 @@ test("signed-in Continue and password forms preserve configured destinations wit
     });
     assert.equal(input.value, "/dashboard");
   }
+});
+
+test("a signed-in redirect cannot escape its inline script", async t => {
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  const next = '/</script><script>window.__authXss = true</script>';
+  const html = toHtmlString(render({ status: "ok", alreadyLoggedIn: true }, {
+    ...context, request: { ...context.request, query: { next } }
+  }));
+  await page.route("https://app.test/login", route => route.fulfill({
+    contentType: "text/html", body: `<!doctype html><html><body>${html}</body></html>`
+  }));
+  await page.goto("https://app.test/login");
+  assert.equal(await page.evaluate(() => (window as any).__authXss), undefined);
 });

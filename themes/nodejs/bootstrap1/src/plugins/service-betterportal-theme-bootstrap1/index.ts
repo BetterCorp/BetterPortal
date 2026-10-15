@@ -20,6 +20,7 @@ import {
   buildOriginPolicy,
   htmlResponse,
   registerServiceConfigRoutes,
+  checkBoundedRequestBody,
   resolveServiceForTenant,
   resolveServiceViewTitle,
   resolveAppServiceOrigins,
@@ -27,6 +28,7 @@ import {
   resolveRequestContextDetailed,
   resolveThemeRequestContext,
   eventObservability,
+  redactTelemetryUrl,
   eventSessionId,
   eventHeaders,
   jsonResponse,
@@ -500,7 +502,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
         host: event.req.headers.get("host") ?? "",
         authority: event.req.headers.get("authority") ?? "",
         origin: event.req.headers.get("origin") ?? "",
-        referer: event.req.headers.get("referer") ?? "",
+        referer: redactTelemetryUrl(event.req.headers.get("referer")),
         altUsed: event.req.headers.get("alt-used") ?? "",
         candidates: resolution?.candidates.map((candidate) =>
           `${candidate.source}:${candidate.host}${candidate.matchedAppId ? `->${candidate.matchedAppId}` : ""}`
@@ -698,12 +700,14 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private renderConfigUiForm(adminApiBase: string, tenantId: string, appId: string, eff: { brandName: string; documentTitle: string; lightLogoUrl: string; darkLogoUrl: string; faviconUrl: string; mode: string; primary: string; secondary: string; success: string; info: string; warning: string; danger: string }, storedKeys: Set<string>, savedFlash = false): string {
-    const safeAttr = (v: string) => String(v).replace(/"/g, "&quot;");
+    const safeAttr = (v: string) => String(v).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[c]!);
     const isStored = (k: string) => storedKeys.has(k);
     const saveUrl = `${adminApiBase.replace(/\/+$/, "")}/apps/${encodeURIComponent(appId)}/theme-config/bootstrap1`;
 
     const resetForm = (key: string) => isStored(key)
-      ? `<form hx-post="${saveUrl}" hx-target="#bp-theme-save-status" hx-swap="outerHTML" class="d-inline">
+      ? `<form hx-post="${safeAttr(saveUrl)}" hx-target="#bp-theme-save-status" hx-swap="outerHTML" class="d-inline">
            <input type="hidden" name="tenantId" value="${safeAttr(tenantId)}" />
            <input type="hidden" name="appId" value="${safeAttr(appId)}" />
            <input type="hidden" name="adminApiBase" value="${safeAttr(adminApiBase)}" />
@@ -728,7 +732,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       </div>`;
 
     return `<div id="bp-theme-designer" class="container-fluid px-0">
-  <form hx-post="${saveUrl}" hx-target="#bp-theme-save-status" hx-swap="outerHTML">
+  <form hx-post="${safeAttr(saveUrl)}" hx-target="#bp-theme-save-status" hx-swap="outerHTML">
     <input type="hidden" name="adminApiBase" value="${safeAttr(adminApiBase)}" />
     <input type="hidden" name="tenantId" value="${safeAttr(tenantId)}" />
     <input type="hidden" name="appId" value="${safeAttr(appId)}" />
@@ -865,7 +869,20 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     };
   }
 
+  private async authorizeConfigUi(event: BetterPortalEvent, action: "config.read" | "config.write"): Promise<ServiceConfigTicketClaims | Response> {
+    const authorization = event.req.headers.get("authorization") ?? "";
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : null;
+    const ticket = await this.validateConfigTicket(token, event, action);
+    if (!ticket || ticket.exp <= Math.floor(Date.now() / 1000)
+      || ticket.serviceId !== "org.betterportal.theme.bootstrap1" || !ticket.actions.includes(action)) {
+      return jsonResponse({ error: "A valid theme config ticket is required" }, 401);
+    }
+    return ticket;
+  }
+
   private async handleConfigUi(event: BetterPortalEvent): Promise<Response> {
+    const ticket = await this.authorizeConfigUi(event, "config.read");
+    if (ticket instanceof Response) return ticket;
     const url = new URL(event.req.url ?? "", RELATIVE_URL_PARSE_BASE);
     const tenantId = url.searchParams.get("tenantId") ?? "";
     const appId = url.searchParams.get("appId") ?? "";
@@ -874,6 +891,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     if (!tenantId || !appId) {
       return htmlResponse(`<div class="alert alert-danger">Missing tenantId or appId.</div>`, 200, "text/html; mode=fragment");
     }
+    if (ticket.tenantId !== tenantId) return jsonResponse({ error: "Config ticket tenant mismatch" }, 403);
     const { eff, storedKeys, valid } = await this.computeEffectiveAndStored(tenantId, appId);
     if (!valid) {
       return htmlResponse(`<div class="alert alert-danger">App or tenant not found.</div>`, 200, "text/html; mode=fragment");
@@ -883,6 +901,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async handleConfigUiSave(event: BetterPortalEvent): Promise<Response> {
+    const ticket = await this.authorizeConfigUi(event, "config.write");
+    if (ticket instanceof Response) return ticket;
+    const bodyError = await checkBoundedRequestBody(event.req.clone(), 1024 * 1024);
+    if (bodyError) { void event.req.body?.cancel().catch(() => undefined); return bodyError; }
     const formData = await event.req.formData();
     const tenantId = String(formData.get("tenantId") ?? "");
     const appId = String(formData.get("appId") ?? "");
@@ -890,6 +912,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     if (!tenantId || !appId) {
       return htmlResponse(`<div class="alert alert-danger">Missing tenantId or appId.</div>`, 200, "text/html; mode=fragment");
     }
+    if (ticket.tenantId !== tenantId) return jsonResponse({ error: "Config ticket tenant mismatch" }, 403);
     if (!(await this.validateConfigScope(tenantId, appId))) {
       return htmlResponse(`<div class="alert alert-danger">App or tenant not found.</div>`, 200, "text/html; mode=fragment");
     }
@@ -900,14 +923,7 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
       if (typeof v === "string" && v !== "") values[k] = v;
     });
 
-    const now = Math.floor(Date.now() / 1000);
-    this.configStore.write(tenantId, appId, values, {
-      iss: "internal", aud: ["theme"], sub: "save", exp: now + 60, iat: now,
-      jti: `save-${now}`, realm: "control-plane",
-      tenantId,
-      serviceId: "org.betterportal.theme.bootstrap1",
-      actions: ["config.write"]
-    });
+    this.configStore.write(tenantId, appId, values, ticket);
 
     const { eff, storedKeys } = await this.computeEffectiveAndStored(tenantId, appId);
     return htmlResponse(
@@ -919,6 +935,10 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
   }
 
   private async handleConfigUiReset(event: BetterPortalEvent): Promise<Response> {
+    const ticket = await this.authorizeConfigUi(event, "config.write");
+    if (ticket instanceof Response) return ticket;
+    const bodyError = await checkBoundedRequestBody(event.req.clone(), 1024 * 1024);
+    if (bodyError) { void event.req.body?.cancel().catch(() => undefined); return bodyError; }
     const formData = await event.req.formData();
     const tenantId = String(formData.get("tenantId") ?? "");
     const appId = String(formData.get("appId") ?? "");
@@ -927,18 +947,11 @@ export class Plugin extends BPService<InstanceType<typeof Config>, typeof EventS
     if (!tenantId || !appId || !key) {
       return htmlResponse(`<div class="alert alert-danger">Missing fields.</div>`, 200, "text/html; mode=fragment");
     }
+    if (ticket.tenantId !== tenantId) return jsonResponse({ error: "Config ticket tenant mismatch" }, 403);
     if (!(await this.validateConfigScope(tenantId, appId))) {
       return htmlResponse(`<div class="alert alert-danger">App or tenant not found.</div>`, 200, "text/html; mode=fragment");
     }
 
-    const now = Math.floor(Date.now() / 1000);
-    const ticket = {
-      iss: "internal", aud: ["theme"], sub: "reset", exp: now + 60, iat: now,
-      jti: `reset-${now}`, realm: "control-plane" as const,
-      tenantId, appId,
-      serviceId: "org.betterportal.theme.bootstrap1",
-      actions: ["config.write" as const]
-    };
     this.configStore.clearKey?.(tenantId, appId, key, ticket);
 
     const { eff, storedKeys } = await this.computeEffectiveAndStored(tenantId, appId);

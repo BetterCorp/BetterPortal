@@ -157,7 +157,7 @@ Do not set Compose `working_dir` or an `APP_DIR` env for BSB containers. The BSB
 
 Each vault-backed service profile still sets `package: "@betterportal/..."`; BSB resolves that package from `/mnt/plugins` first, then runtime `node_modules`. The runtime containers do not set `BSB_PLUGINS`; package sync is owned by `bsb-plugin-watcher`. The BSB runtime image provides its built-in config plugins, including config-vault.
 
-Set the config-manager issuer/public URL inside the config-manager vault profile. Do not set service API keys or control-plane URLs for first deploy; non-CM services should start in setup mode and learn the control-plane URL during browser-driven install/bootstrap.
+Set the config-manager issuer/public URL inside the config-manager vault profile. Before deploying each non-CM Node service, set its `betterportal.controlPlaneUrl` or `BP_CONTROL_PLANE_URL` to that exact URL. This is the service's trust anchor for the browser-driven installer; the install request cannot choose a different control plane. Do not set a service API key for first deploy. The service remains in setup mode until the browser completes installation.
 
 For the bundled database, config-manager storage should use the `postgres` compose hostname:
 

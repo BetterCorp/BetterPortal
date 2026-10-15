@@ -12,6 +12,10 @@ import {
   resolveWorkOSAppConfig,
   workOSAccessTokenDetails
 } from "../../index.js";
+import {
+  clearWorkOSStateCookie, createWorkOSState, readWorkOSStateCookie,
+  verifyWorkOSState, workOSStateCookie
+} from "../../oauthState.js";
 
 export const QuerySchema = av.object({
   action: av.optional(av.string()),
@@ -23,7 +27,10 @@ export const QuerySchema = av.object({
   error_description: av.optional(av.string())
 });
 
-export const HeadersSchema = av.object({});
+export const HeadersSchema = av.object({
+  "x-bp-workos-state": av.optional(av.string()),
+  cookie: av.optional(av.string())
+});
 
 export const ResponseSchema = av.object({
   status: av.enum_(["ok", "error"] as const),
@@ -62,7 +69,7 @@ export default createHandler(
   async (ctx) => {
     const query = ctx.query as Infer<typeof QuerySchema>;
     const config = resolveWorkOSAppConfig(ctx.config);
-    const nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", query.state ?? query.next ?? query.redirect);
+    let nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", query.next ?? query.redirect);
 
     if (query.action === "logout") {
       ctx.bpHeaders?.remove("Authorization");
@@ -81,6 +88,12 @@ export default createHandler(
     }
 
     if (query.error) {
+      const proof = ctx.headers["x-bp-workos-state"] ?? readWorkOSStateCookie(ctx.headers.cookie);
+      if (verifyWorkOSState(query.state, proof, { tenantId: ctx.tenant.id, appId: ctx.app.id })) {
+        ctx.responseHeaders?.append("Set-Cookie", clearWorkOSStateCookie());
+        try { ctx.plugin.claimOAuthState(query.state!); }
+        catch (error) { ctx.obs?.error(error instanceof Error ? error : new Error(String(error))); }
+      }
       return {
         status: "error" as const,
         message: query.error_description || query.error,
@@ -88,7 +101,27 @@ export default createHandler(
       };
     }
 
+    const redirectUri = ctx.route?.({ path: "/login" })?.absoluteUiPath;
+    if (!redirectUri) {
+      return { status: "error" as const, message: "A public app login route is required for WorkOS sign-in.", loginUI: config.loginUI ?? "default" };
+    }
+
     if (query.code) {
+      const proof = ctx.headers["x-bp-workos-state"] ?? readWorkOSStateCookie(ctx.headers.cookie);
+      const storedNext = verifyWorkOSState(query.state, proof, { tenantId: ctx.tenant.id, appId: ctx.app.id });
+      if (!storedNext) {
+        return { status: "error" as const, message: "Sign-in state is missing, expired, or does not match this browser. Start sign-in again.", loginUI: config.loginUI ?? "default" };
+      }
+      try {
+        if (!ctx.plugin.claimOAuthState(query.state!)) {
+          return { status: "error" as const, message: "Sign-in state was already used. Start sign-in again.", loginUI: config.loginUI ?? "default" };
+        }
+      } catch (error) {
+        ctx.obs?.error(error instanceof Error ? error : new Error(String(error)));
+        return { status: "error" as const, message: "Sign-in state could not be checked. Start sign-in again.", loginUI: config.loginUI ?? "default" };
+      }
+      nextUrl = resolveAppAuthRedirect(ctx, "afterLogin", storedNext);
+      ctx.responseHeaders?.append("Set-Cookie", clearWorkOSStateCookie());
       try {
         const auth = await ctx.plugin.authenticateWithCode(config, query.code);
         const details = workOSAccessTokenDetails(auth.accessToken, config.roleClaimPath ?? "roles");
@@ -164,14 +197,25 @@ export default createHandler(
       };
     }
 
-    const login = ctx.route?.({ path: "/login" });
-    const redirectUri = login?.absoluteUiPath ?? login?.absoluteViewPath;
-    if (!redirectUri) return { status: "error" as const, message: "The sign-in callback URL is unavailable.", loginUI: config.loginUI ?? "default" };
+    const scope = { tenantId: ctx.tenant.id, appId: ctx.app.id };
+    let state: string;
+    try {
+      state = createWorkOSState(nextUrl, scope);
+    } catch {
+      try { state = createWorkOSState(resolveAppAuthRedirect(ctx, "afterLogin"), scope); }
+      catch { return { status: "error" as const, message: "The configured sign-in destination is too long.", loginUI: config.loginUI ?? "default" }; }
+    }
+    try { ctx.plugin.issueOAuthState(state); }
+    catch (error) {
+      ctx.obs?.error(error instanceof Error ? error : new Error(String(error)));
+      return { status: "error" as const, message: "Sign-in state could not be created. Try again.", loginUI: config.loginUI ?? "default" };
+    }
+    ctx.responseHeaders?.append("Set-Cookie", workOSStateCookie(state));
     return {
       status: "ok" as const,
       message: "Continue to WorkOS.",
       loginUI: config.loginUI ?? "default",
-      authorizationUrl: ctx.plugin.getAuthorizationUrl(config, { redirectUri, state: nextUrl }),
+      authorizationUrl: ctx.plugin.getAuthorizationUrl(config, { redirectUri, state }),
     };
   }
 );

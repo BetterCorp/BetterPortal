@@ -2,9 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { jsonResponse, type BetterPortalH3App } from "@betterportal/framework/lib/runtime/h3.js";
 import { uuidv7 } from "@betterportal/framework/lib/runtime/uuid.js";
 import type { AppAuthConfig, AuthProviderRuntimeMetadata, BetterPortalConfig, PlatformConfigStore, PlatformService, PublicJwks, SharedServiceDefinition, TenantServiceRegistration } from "@betterportal/framework";
-import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, signSetupToken } from "@betterportal/framework";
+import { AuthProviderRuntimeMetadataSchema, PublicJwksSchema, readBoundedJsonBody, signSetupToken, verifySetupToken } from "@betterportal/framework";
 import type { CpBootstrapState } from "./cpBootstrap.js";
 import type { PostgresStorage } from "./storage/postgres.js";
+import { readPublicJsonBody } from "./publicJsonBody.js";
 
 interface PendingSetup {
   serviceUrl: string;
@@ -55,7 +56,9 @@ export function registerSetupEndpoints(input: {
 
   input.app.post("/.well-known/bp/admin/services/begin-hostname-change", async (event) => {
     sweep();
-    const body = await event.req.json().catch(() => null) as { instanceId?: string; serviceUrl?: string } | null;
+    const parsedBody = await readBoundedJsonBody(event.req, 128 * 1024);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody as { instanceId?: string; serviceUrl?: string } | null;
     const instanceId = typeof body?.instanceId === "string" ? body.instanceId.trim() : "";
     const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
     if (!instanceId || !serviceUrl) return jsonResponse({ error: "A service instance and valid URL origin are required" }, 400);
@@ -86,7 +89,9 @@ export function registerSetupEndpoints(input: {
   input.app.post("/.well-known/bp/services/confirm-hostname-change", async (event) => {
     const owner = uuidv7();
     sweep();
-    const body = await event.req.json().catch(() => null) as { changeToken?: string; serviceUrl?: string } | null;
+    const parsed = await readPublicJsonBody(event);
+    if (parsed instanceof Response) return parsed;
+    const body = parsed as { changeToken?: string; serviceUrl?: string };
     const changeToken = typeof body?.changeToken === "string" ? body.changeToken : "";
     const serviceUrl = normalizeServiceOrigin(body?.serviceUrl);
     const actionKey = hashSecret(changeToken);
@@ -146,7 +151,9 @@ export function registerSetupEndpoints(input: {
   // otherwise mint one here.
   input.app.post("/.well-known/bp/admin/services/begin-install", async (event) => {
     sweep();
-    const body = await event.req.json().catch(() => null) as {
+    const parsedBody = await readBoundedJsonBody(event.req, 128 * 1024);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody as {
       serviceUrl?: string;
       tenantId?: string;
       appId?: string;
@@ -233,7 +240,9 @@ export function registerSetupEndpoints(input: {
   input.app.post("/.well-known/bp/services/redeem", async (event) => {
     const owner = uuidv7();
     sweep();
-    const body = await event.req.json().catch(() => null) as {
+    const parsed = await readPublicJsonBody(event);
+    if (parsed instanceof Response) return parsed;
+    const body = parsed as {
       setupToken?: string;
       pluginId?: string;
       serviceUrl?: string;
@@ -241,13 +250,25 @@ export function registerSetupEndpoints(input: {
       publicKeyPem?: string;
       keyId?: string;
       jwks?: unknown;
-    } | null;
+    };
     if (!body || typeof body.setupToken !== "string" || typeof body.pluginId !== "string") {
       return jsonResponse({ error: "Missing setupToken or pluginId" }, 400);
     }
 
-    const jti = readJti(body.setupToken);
-    if (!jti) return jsonResponse({ error: "Setup token malformed" }, 400);
+    let jti: string;
+    try {
+      if (body.setupToken.length > 8192) throw new Error("Setup token too large");
+      const claims = await verifySetupToken(body.setupToken, {
+        expectedIssuer: input.cpState.issuer,
+        keyResolver: async kid => {
+          if (kid !== input.cpState.keyPair.kid) throw new Error("Unknown setup signing key");
+          return input.cpState.keyPair.publicKeyPem;
+        }
+      });
+      jti = claims.jti;
+    } catch {
+      return jsonResponse({ error: "Invalid setup token" }, 401);
+    }
     const claim = input.postgres ? await input.postgres.claimPendingAction({
       kind: "setup",
       key: jti,

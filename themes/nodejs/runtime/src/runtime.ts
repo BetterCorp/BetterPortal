@@ -227,8 +227,13 @@ export function betterPortalShellRuntimeSource(): string {
           || target === mainOutlet()
         );
 
+      const trimTrailingSlashes = (value: string) => {
+        let end = value.length;
+        while (end > 0 && value[end - 1] === "/") end--;
+        return value.slice(0, end);
+      };
       const normalizePath = (path: string) => {
-        const normalized = (path || "/").replace(/\/+$/, "");
+        const normalized = trimTrailingSlashes(path || "/");
         return normalized === "" ? "/" : normalized;
       };
 
@@ -1148,7 +1153,7 @@ export function betterPortalShellRuntimeSource(): string {
 
       const serviceHealthUrl = (serviceId: string) => {
         const origin = serviceId ? serviceOrigins[serviceId] : "";
-        return origin ? origin.replace(/\/+$/, "") + "/.well-known/bp/health" : "";
+        return origin ? trimTrailingSlashes(origin) + "/.well-known/bp/health" : "";
       };
 
       const checkServiceHealth = async (serviceId: string) => {
@@ -1217,11 +1222,11 @@ export function betterPortalShellRuntimeSource(): string {
             // Hosts reject service targets on the theme host, including template-only routes.
             if (registered.host.toLowerCase() === window.location.host.toLowerCase()) return;
             const tenantPath = normalizePath(tenantPathRaw || "/");
-            let prefix = registered.pathname.replace(/\/+$/, "");
+            let prefix = trimTrailingSlashes(registered.pathname);
             if (baseUrl) {
               const base = new URL(baseUrl);
               if (base.origin !== registered.origin || base.username || base.password || base.search || base.hash) return;
-              prefix = base.pathname.replace(/\/+$/, "");
+              prefix = trimTrailingSlashes(base.pathname);
             } else if (requestUrl && template) {
               const request = new URL(requestUrl);
               if (request.origin !== registered.origin) return;
@@ -1230,7 +1235,7 @@ export function betterPortalShellRuntimeSource(): string {
               const suffix = count ? "/" + segments.slice(-count).join("/") : "/";
               if (!patternValues(template, suffix)) return;
               prefix = "/" + segments.slice(0, segments.length - count).join("/");
-              prefix = prefix.replace(/\/+$/, "");
+              prefix = trimTrailingSlashes(prefix);
             }
             const publishedPath = requestUrl ? new URL(requestUrl).pathname : "";
             const tenantNames = new Set(tenantPath.split("/").flatMap(part => part.startsWith(":") ? [part.slice(1)] : /^\{[^}]+\}$/.test(part) ? [part.slice(1, -1)] : []));
@@ -1357,7 +1362,13 @@ export function betterPortalShellRuntimeSource(): string {
         }
       };
 
-      const triggerShellLink = (tenantUrl: string, serviceUrl = serviceUrlForTenantUrl(tenantUrl), replace = false) => {
+      const triggerShellLink = (tenantUrl: string, serviceUrl?: string, replace = false) => {
+        try {
+          const destination = new URL(tenantUrl, window.location.origin);
+          if (destination.origin !== window.location.origin) return;
+          tenantUrl = destination.pathname + destination.search + destination.hash;
+        } catch { return; }
+        serviceUrl ??= serviceUrlForTenantUrl(tenantUrl);
         const link = document.createElement("a");
         link.href = tenantUrl;
         link.setAttribute("hx-get", serviceUrl);
@@ -1613,7 +1624,15 @@ export function betterPortalShellRuntimeSource(): string {
             }
           }
           if (Array.isArray(body.recoveryCodes) && body.recoveryCodes.length) await showLoginRecoveryCodes(body.recoveryCodes);
-          if (form.isConnected) triggerShellLink(String(fd.get("next") || "/"), undefined, true);
+          if (form.isConnected) {
+            const requested = response.headers.get("HX-Redirect") || String(fd.get("next") || "/");
+            let destination = "/";
+            try {
+              const url = new URL(requested, window.location.origin);
+              if (url.origin === window.location.origin) destination = url.pathname + url.search + url.hash;
+            } catch { /* Use the app root when the target is malformed. */ }
+            triggerShellLink(destination, undefined, true);
+          }
         } catch (error) {
           if (errEl) {
             errEl.textContent = error instanceof Error ? error.message : "Login failed. Service unavailable.";
@@ -2279,7 +2298,7 @@ export function betterPortalShellRuntimeSource(): string {
         await Promise.all(entries.map(async ([sid, origin]) => {
           let available = false;
           try {
-            const url = `${origin.replace(/\/+$/, "")}/.well-known/bp/health`;
+            const url = `${trimTrailingSlashes(origin)}/.well-known/bp/health`;
             const headers: Record<string, string> = { Accept: "application/json" };
             attachBpHeaders(headers, url, sid);
             const r = await fetch(url, { method: "GET", mode: "cors", cache: "no-store", headers, signal: AbortSignal.timeout(5000) });
@@ -2436,7 +2455,7 @@ export function betterPortalShellRuntimeSource(): string {
           const authId = shellRoot()?.getAttribute("data-bp-auth-service") || serviceIdForUrl(shellRoot()?.getAttribute("data-bp-login-url") || "");
           const authOrigin = originForServiceId(authId);
           if (!authOrigin || authOrigin === unresolvedServiceOrigin) throw new Error("Auth service unavailable.");
-          const url = authOrigin.replace(/\/+$/, "") + "/.well-known/bp/auth/elevate";
+          const url = trimTrailingSlashes(authOrigin) + "/.well-known/bp/auth/elevate";
           const send = async (body: unknown) => {
             const response = await fetch(url, { method: "POST", headers: { Authorization: base, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), redirect: "error" });
             if (!response.ok) throw new Error("Additional verification is unavailable or failed. Open your account settings to check your authentication methods.");
@@ -2638,7 +2657,31 @@ export function betterPortalShellRuntimeSource(): string {
           }
           if (preload) delete (source as any)._htmx.preload;
           const transport = detail.ctx.fetch;
-          detail.ctx.fetch = (input: RequestInfo | URL, init?: RequestInit) => fetchWithElevation(input, init, detail.ctx, transport);
+          detail.ctx.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+            try {
+              const authId = shellRoot()?.getAttribute("data-bp-auth-service") || "";
+              const authOrigin = authId ? originForServiceId(authId) : "";
+              const requestUrl = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
+              if (authOrigin && requestUrl.origin === new URL(authOrigin).origin
+                && (requestUrl.searchParams.has("code") || requestUrl.searchParams.has("error"))) {
+                const state = requestUrl.searchParams.get("state");
+                if (state) {
+                  const bytes = new TextEncoder().encode(state);
+                  const digest = await crypto.subtle.digest("SHA-256", bytes);
+                  const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+                  if (sessionStorage.getItem("bp:workos:oauth-state") === fingerprint) {
+                    // Spend the browser proof on either callback result so a later
+                    // code exchange cannot reuse the same OAuth state.
+                    sessionStorage.removeItem("bp:workos:oauth-state");
+                    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+                    headers.set("X-BP-WorkOS-State", state);
+                    init = { ...init, headers };
+                  }
+                }
+              }
+            } catch { /* Browser storage may be disabled. The service will reject the callback. */ }
+            return fetchWithElevation(input, init, detail.ctx, transport);
+          };
 
           if (requestTargetEscapesLane(detail)) {
             if (source instanceof Element && sanitizeHtmxTarget(source)) {

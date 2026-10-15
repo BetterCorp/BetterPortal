@@ -1,7 +1,9 @@
 import {
   createStaticJwksVerifier,
+  checkBoundedRequestBody,
   eventHeaders,
   jsonResponse,
+  readBoundedJsonBody,
   resolveEmbeddedRequestContext,
   type BetterPortalApp,
   type BetterPortalConfig,
@@ -15,10 +17,20 @@ import { verifyBootstrapAdminToken } from "./bootstrapAccess.js";
 const ADMIN = "/.well-known/bp/admin";
 const MANAGE = "/.well-known/bp/manage";
 const CONFIG_MANAGER_ID = "org.betterportal.config-manager";
+const MAX_RAW_BODY_BYTES = 1024 * 1024;
+const MAX_RAW_MULTIPART_BYTES = 25 * 1024 * 1024 + 128 * 1024;
 type Action = "read" | "create" | "update" | "delete";
 
 function bearer(event: BetterPortalEvent): string | undefined {
   return /^Bearer\s+(\S+)$/i.exec(event.req.headers.get("authorization") ?? "")?.[1];
+}
+
+async function guardRawBody(event: BetterPortalEvent): Promise<Response | undefined> {
+  if (!event.req.body) return undefined;
+  const multipart = (event.req.headers.get("content-type") ?? "").toLowerCase().startsWith("multipart/form-data");
+  const result = await checkBoundedRequestBody(event.req.clone(), multipart ? MAX_RAW_MULTIPART_BYTES : MAX_RAW_BODY_BYTES);
+  if (result) void event.req.body.cancel().catch(() => undefined);
+  return result;
 }
 
 function inTree(path: string, root: string): boolean {
@@ -35,8 +47,13 @@ function bootstrapRoute(path: string, method: string, appId: string): boolean {
     || path === `${ADMIN}/apps/${encodeURIComponent(appId)}/auth/roles`);
 }
 
-async function allowedBootstrapRequest(config: BetterPortalConfig, app: BetterPortalApp, path: string, event: BetterPortalEvent): Promise<boolean> {
-  const body = await event.req.clone().json().catch(() => null) as Record<string, unknown> | null;
+async function allowedBootstrapRequest(config: BetterPortalConfig, app: BetterPortalApp, path: string, event: BetterPortalEvent): Promise<boolean | Response> {
+  const parsed = await readBoundedJsonBody(event.req.clone(), 128 * 1024);
+  if (parsed instanceof Response) {
+    void event.req.body?.cancel().catch(() => undefined);
+    return parsed;
+  }
+  const body = parsed as Record<string, unknown> | null;
   if (!body || typeof body !== "object" || Array.isArray(body)) return false;
   if (path !== `${ADMIN}/services/begin-install`) return body.id === "admin";
   if (body.tenantId !== app.tenantId || body.appId !== app.id || body.reconfigure === true || body.instanceId !== undefined) return false;
@@ -76,7 +93,7 @@ function permissionForManage(path: string, method: string): { viewId: string; ac
   return { viewId, action };
 }
 
-async function permissionForAdmin(path: string, method: string, event: BetterPortalEvent, config: BetterPortalConfig): Promise<{ viewId: string; action: Action } | undefined> {
+async function permissionForAdmin(path: string, method: string, event: BetterPortalEvent, config: BetterPortalConfig): Promise<{ viewId: string; action: Action } | Response | undefined> {
   const suffix = path.slice(ADMIN.length + 1);
   const action: Action | undefined = method === "GET" ? "read" : method === "POST" ? "create"
     : method === "PUT" || method === "PATCH" ? "update" : method === "DELETE" ? "delete" : undefined;
@@ -103,7 +120,12 @@ async function permissionForAdmin(path: string, method: string, event: BetterPor
     return { viewId: "services.index", action: suffix.endsWith("/purge") ? "delete" : suffix.endsWith("/migrate-to-shared") ? "update" : action };
   }
   if (suffix === "services/begin-install" && method === "POST") {
-    const body = await event.req.clone().json().catch(() => null) as { reconfigure?: unknown; instanceId?: unknown; sharedServiceId?: unknown } | null;
+    const parsed = await readBoundedJsonBody(event.req.clone(), 128 * 1024);
+    if (parsed instanceof Response) {
+      void event.req.body?.cancel().catch(() => undefined);
+      return parsed;
+    }
+    const body = parsed as { reconfigure?: unknown; instanceId?: unknown; sharedServiceId?: unknown } | null;
     const existingInstance = typeof body?.instanceId === "string" && (config.platformServices.some(service => service.id === body.instanceId)
       || config.tenants.some(tenant => tenant.services.some(service => service.id === body.instanceId)));
     const registeredShared = typeof body?.sharedServiceId === "string" && config.sharedServiceCatalog.some(service => service.id === body.sharedServiceId && !!service.apiKeyHash);
@@ -115,7 +137,12 @@ async function permissionForAdmin(path: string, method: string, event: BetterPor
   if (suffix === "wizard/register" && method === "POST") return { viewId: "services.index", action: "create" };
   if (suffix === "wizard/cleanup-provisional-service" && method === "POST") return { viewId: "services.index", action: "delete" };
   if (suffix === "config-ticket" && method === "POST") {
-    const body = await event.req.clone().json().catch(() => null) as { actions?: unknown } | null;
+    const parsed = await readBoundedJsonBody(event.req.clone(), 128 * 1024);
+    if (parsed instanceof Response) {
+      void event.req.body?.cancel().catch(() => undefined);
+      return parsed;
+    }
+    const body = parsed as { actions?: unknown } | null;
     return { viewId: "services.index", action: Array.isArray(body?.actions) && body.actions.includes("config.write") ? "update" : "read" };
   }
   return undefined;
@@ -161,8 +188,9 @@ export function registerRawManagementAccessControl(app: BetterPortalH3App, store
       try {
         const scope = await verifyBootstrapAdminToken(cpState, token);
         if (scope.tenantId === target.tenantId && scope.appId === target.id) {
-          return await allowedBootstrapRequest(config, target, path, event)
-            ? undefined : jsonResponse({ error: "Bootstrap operation is outside its setup scope" }, 403);
+          const allowed = await allowedBootstrapRequest(config, target, path, event);
+          if (allowed instanceof Response) return allowed;
+          return allowed ? undefined : jsonResponse({ error: "Bootstrap operation is outside its setup scope" }, 403);
         }
       } catch { /* A normal management user token may still authorize this request. */ }
     }
@@ -183,11 +211,14 @@ export function registerRawManagementAccessControl(app: BetterPortalH3App, store
     if (claims.tenantId !== target.tenantId || claims.appId !== target.id || claims.tokenType !== "access") {
       return jsonResponse({ error: "Management token scope mismatch" }, 401);
     }
+    const bodyError = await guardRawBody(event);
+    if (bodyError) return bodyError;
     const root = target.id === config.configManagement.managementAppId
       && target.tenantId === config.configManagement.adminTenantId && claims.roles.includes("*");
     if (admin) {
       if (root) return;
       const policy = await permissionForAdmin(path, method, event, config);
+      if (policy instanceof Response) return policy;
       return policy && hasPermission(config, target, claims.roles, policy.viewId, policy.action)
         ? undefined : jsonResponse({ error: "Platform management permission required" }, 403);
     }

@@ -207,6 +207,13 @@ test("static app routes win and fixed service params resolve without leaking pla
   );
 });
 
+test("route matching handles long interior slash runs without request latency amplification", () => {
+  const path = `/plans/${"/".repeat(50_000)}one`;
+  const started = performance.now();
+  assert.equal(resolveAppRoute(app([dynamicRoute]), path)?.id, dynamicRoute.id);
+  assert.ok(performance.now() - started < 250, "route matching must stay linear for request paths");
+});
+
 
 test("public service base metadata rejects credentials and URL payloads while preserving prefixes", () => {
   for (const hostname of ["https://user:pass@plans.example/prefix", "https://user@plans.example", "https://:pass@plans.example", "javascript:alert(1)", "//plans.example", "invalid", "https://plans.example/?token=secret", "https://plans.example/#secret"]) {

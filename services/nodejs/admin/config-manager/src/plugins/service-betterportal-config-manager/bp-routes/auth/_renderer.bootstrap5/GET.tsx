@@ -3,10 +3,14 @@ import { js } from "jsx-htmx";
 import type { HtmlRenderable } from "@betterportal/framework";
 import type { ResponseData } from "../GET.js";
 
+function scriptJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 function permsScript(apiBase: string, serviceUrl: string, selectedAppId: string | undefined): HtmlRenderable {
   return js(`(() => {
-    const apiBase = ${JSON.stringify(apiBase)};
-    const appId = ${JSON.stringify(selectedAppId ?? "")};
+    const apiBase = ${scriptJson(apiBase)};
+    const appId = ${scriptJson(selectedAppId ?? "")};
     const PERMISSION_FLAGS = {
       read: 1,
       create: 2,

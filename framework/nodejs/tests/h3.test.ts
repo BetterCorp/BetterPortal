@@ -33,11 +33,14 @@ test("request telemetry redacts auth callback proofs while handlers receive the 
   let attributes: ObservabilityAttributes | undefined;
   const app = createBetterPortalApp({ createRequestObservability: (_name, received) => { attributes = received; return createNoopObservability(); } });
   app.get("/callback", event => jsonResponse({ code: event.url.searchParams.get("code") }));
-  const response = await app.fetch(new Request("https://auth.test/callback?code=private-code&secret=private-secret&access_token=private-token&page=2"));
+  const response = await app.fetch(new Request("https://auth.test/callback?code=private-code&state=private-state&secret=private-secret&access_token=private-token&custom=private-value&page=2", {
+    headers: { referer: "https://app.test/login?code=ref-code&state=ref-state&custom=ref-value" }
+  }));
   assert.deepEqual(await response.json(), { code: "private-code" });
   const logged = new URL(String(attributes?.["url.full"]));
-  for (const name of ["code", "secret", "access_token"]) assert.equal(logged.searchParams.get(name), "[REDACTED]");
-  assert.equal(logged.searchParams.get("page"), "2");
+  for (const name of ["code", "state", "secret", "access_token", "custom", "page"]) assert.equal(logged.searchParams.get(name), "[REDACTED]");
+  const referer = new URL(String(attributes?.["http.request.header.referer"]));
+  for (const name of ["code", "state", "custom"]) assert.equal(referer.searchParams.get(name), "[REDACTED]");
 });
 
 test("middleware response headers survive error responses", async () => {
@@ -145,6 +148,11 @@ test("HTTP outcomes classify core, inferred, and successful responses", async ()
     }
   ));
   app.get("/fallback", () => jsonResponse({ error: "Derived failure detail" }, 418));
+  app.get("/private", () => new Response(JSON.stringify({ error: "private-response-secret" }), {
+    status: 400,
+    statusText: "private-status-secret",
+    headers: { "content-type": "application/json" }
+  }));
   app.get("/large", () => new Response("x".repeat(3_000), {
     status: 500,
     headers: { "content-type": "text/plain" }
@@ -160,6 +168,7 @@ test("HTTP outcomes classify core, inferred, and successful responses", async ()
     const base = `http://127.0.0.1:${address.port}`;
     assert.equal((await fetch(`${base}/classified`)).status, 403);
     assert.equal((await fetch(`${base}/fallback`)).status, 418);
+    assert.equal((await fetch(`${base}/private`)).status, 400);
     assert.equal((await fetch(`${base}/large`)).status, 500);
     assert.equal((await fetch(`${base}/success`)).status, 200);
 
@@ -170,13 +179,19 @@ test("HTTP outcomes classify core, inferred, and successful responses", async ()
     assert.equal(classified?.attributes["bp.http.outcome_reason"], "Insufficient permissions");
 
     const fallback = records.find((record) => record.name === "bp.http.request"
-      && record.attributes["bp.http.outcome_reason"] === "Derived failure detail");
-    assert.equal(fallback?.attributes["bp.http.outcome_source"], "response-body");
+      && record.attributes["http.response.status_code"] === 418);
+    assert.equal(fallback?.attributes["bp.http.outcome_reason"], "I'm a Teapot");
+    assert.equal(fallback?.attributes["bp.http.outcome_source"], "http-status");
+
+    const privateOutcome = records.find((record) => record.name === "bp.http.request"
+      && record.attributes["http.response.status_code"] === 400);
+    assert.equal(privateOutcome?.attributes["bp.http.outcome_reason"], "Bad Request");
+    assert.doesNotMatch(JSON.stringify(privateOutcome?.attributes), /private-(?:response|status)-secret/);
 
     const large = records.find((record) => record.name === "bp.http.request"
-      && record.attributes["bp.http.outcome_detail_truncated"] === true);
-    assert.equal(large?.attributes["bp.http.outcome_source"], "response-body");
-    assert.equal((large?.attributes["bp.http.outcome_reason"] as string).length, 2_048);
+      && record.attributes["http.response.status_code"] === 500);
+    assert.equal(large?.attributes["bp.http.outcome_source"], "http-status");
+    assert.equal(large?.attributes["bp.http.outcome_reason"], "Internal Server Error");
 
     const successful = records.find((record) => record.name === "bp.http.request"
       && record.attributes["http.response.status_code"] === 200);

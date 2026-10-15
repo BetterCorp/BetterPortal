@@ -51,6 +51,10 @@ function loginScript(): HtmlRenderable {
   })()`);
 }
 
+function inlineScriptJson(value: string): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderable {
   const account = ctx.route({ path: "/account", method: "POST" });
   const accountPage = ctx.route({ path: "/account" });
@@ -101,7 +105,7 @@ export function render(data: ResponseData, ctx: ViewRenderContext): HtmlRenderab
     return (
       <div class="d-flex justify-content-center py-5">
         <div class="spinner-border" role="status"><span class="visually-hidden">Redirecting...</span></div>
-        <script>{js(`window.htmx.ajax("GET", ${JSON.stringify(next)}, { target: "#bp-main", swap: "innerHTML", push: ${JSON.stringify(next)} })`)}</script>
+        <script>{js(`window.htmx.ajax("GET", ${inlineScriptJson(next)}, { target: "#bp-main", swap: "innerHTML", push: ${inlineScriptJson(next)} })`)}</script>
       </div>
     );
   }

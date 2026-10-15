@@ -414,7 +414,11 @@ export function safeServiceBaseUrl(service: { hostname: string } | { endpointBas
 }
 
 function splitRoutePath(pathname: string): string[] {
-  return pathname.replace(/^\/+|\/+$/g, "").split("/").filter((segment) => segment.length > 0);
+  let start = 0;
+  let end = pathname.length;
+  while (start < end && pathname[start] === "/") start++;
+  while (end > start && pathname[end - 1] === "/") end--;
+  return pathname.slice(start, end).split("/").filter((segment) => segment.length > 0);
 }
 
 function routeParamName(segment: string): string | null {

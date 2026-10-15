@@ -1,7 +1,11 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
+import { lookup, type LookupAddress, type LookupOptions } from "node:dns";
+import { request as httpsRequest } from "node:https";
+import { BlockList, isIP } from "node:net";
 import {
   eventHeaders,
   jsonResponse,
+  readBoundedJsonBody,
   resolveEmbeddedRequestContext,
   uuidv7,
   type BetterPortalConfig,
@@ -19,15 +23,95 @@ const API_BASE = "/.well-known/bp";
 const RELATIVE_URL_PARSE_BASE = "http://betterportal.invalid";
 
 type DeliveryRecord = WebhookDeliveryRecord;
+type WebhookTransport = (url: string, options: RequestInit) => Promise<Response>;
+
+const blockedIpv4 = new BlockList();
+for (const [address, prefix] of [
+  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8],
+  ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24],
+  ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15],
+  ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 4],
+  ["240.0.0.0", 4]
+] as const) blockedIpv4.addSubnet(address, prefix, "ipv4");
+const blockedIpv6 = new BlockList();
+for (const [address, prefix] of [
+  ["2001::", 32], ["2001:10::", 28], ["2001:db8::", 32],
+  ["2002::", 16], ["3fff::", 20]
+] as const) blockedIpv6.addSubnet(address, prefix, "ipv6");
+
+function publicIp(address: string): boolean {
+  const family = isIP(address);
+  if (family === 4) return !blockedIpv4.check(address, "ipv4");
+  if (family !== 6 || blockedIpv6.check(address, "ipv6")) return false;
+  // Global unicast only; this excludes loopback, mapped IPv4, link-local,
+  // unique-local, multicast and IPv6 translation ranges.
+  const first = Number.parseInt(address.split(":", 1)[0]!, 16);
+  return first >= 0x2000 && first <= 0x3fff;
+}
+
+type ResolveAll = (host: string, callback: (error: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void) => void;
+const resolveAll: ResolveAll = (host, callback) => lookup(host, { all: true }, callback);
+
+/** Node requests either a list or a scalar depending on its socket options. */
+export function publicWebhookLookup(
+  host: string,
+  options: LookupOptions,
+  callback: (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
+  resolve: ResolveAll = resolveAll
+): void {
+  resolve(host, (error, addresses) => {
+    if (error) return callback(error, options.all ? [] : "", 0);
+    if (!addresses.length || addresses.some((entry) => !publicIp(entry.address))) {
+      return callback(new Error("Webhook destination must be a public HTTPS endpoint"), options.all ? [] : "", 0);
+    }
+    if (options.all) callback(null, addresses);
+    else callback(null, addresses[0]!.address, addresses[0]!.family);
+  });
+}
+
+/** Resolve at connection time and pin the socket to a vetted public address. */
+async function secureWebhookFetch(rawUrl: string, options: RequestInit): Promise<Response> {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:" || url.username || url.password) {
+    throw new Error("Webhook destination must be a public HTTPS endpoint");
+  }
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  if (isIP(hostname) && !publicIp(hostname)) {
+    throw new Error("Webhook destination must be a public HTTPS endpoint");
+  }
+  return new Promise<Response>((resolve, reject) => {
+    const req = httpsRequest(url, {
+      method: "POST", agent: false, signal: options.signal ?? undefined,
+      headers: Object.fromEntries(new Headers(options.headers).entries()),
+      lookup: publicWebhookLookup
+    }, (response) => {
+      const status = response.statusCode ?? 502;
+      response.destroy();
+      resolve(new Response(null, { status, statusText: response.statusMessage ?? "" }));
+    });
+    req.once("error", reject);
+    req.end(options.body as string | undefined);
+  });
+}
 
 function readBearer(event: BetterPortalEvent): string | null {
   const auth = event.req.headers.get("authorization");
   return auth?.startsWith("Bearer ") ? auth.slice(7) : null;
 }
 
-async function readJson(event: BetterPortalEvent): Promise<Record<string, unknown>> {
-  const parsed = await event.req.json().catch(() => null);
+async function readJson(event: BetterPortalEvent): Promise<Record<string, unknown> | Response> {
+  const parsed = await readBoundedJsonBody(event.req, 1024 * 1024);
+  if (parsed instanceof Response) return parsed;
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+}
+
+function allowedWebhookUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "https:" || url.username || url.password) return false;
+    const hostname = url.hostname.replace(/^\[|\]$/g, "");
+    return !isIP(hostname) || publicIp(hostname);
+  } catch { return false; }
 }
 
 const MAX_EVENT_BYTES = 1024 * 1024;
@@ -97,10 +181,10 @@ function backoff(attempts: number): number {
   return Math.min(60 * 60, 2 ** Math.max(0, attempts - 1) * 30);
 }
 
-async function deliver(target: WebhookTarget, record: DeliveryRecord): Promise<{ ok: boolean; status?: number; error?: string }> {
+async function deliver(target: WebhookTarget, record: DeliveryRecord, transport: WebhookTransport): Promise<{ ok: boolean; status?: number; error?: string }> {
   const timestamp = new Date().toISOString();
   try {
-    const response = await fetch(target.url, {
+    const response = await transport(target.url, {
       method: "POST",
       signal: AbortSignal.timeout(10_000),
       headers: {
@@ -131,7 +215,8 @@ async function processDeliveries(
   store: PlatformConfigStore,
   postgres: PostgresStorage | undefined,
   owner: string,
-  memoryQueue: DeliveryRecord[]
+  memoryQueue: DeliveryRecord[],
+  transport: WebhookTransport
 ): Promise<void> {
   const config = postgres ? undefined : await store.loadConfig();
   const targets = new Map(config?.webhooks.targets.map((target) => [target.id, target]));
@@ -165,7 +250,7 @@ async function processDeliveries(
     }
 
     record.attempts += 1;
-    const result = await deliver(target, record);
+    const result = await deliver(target, record, transport);
     record.lastStatus = result.status;
     record.lastError = result.error;
     record.status = result.ok ? "delivered" : record.attempts >= record.maxAttempts ? "failed" : "pending";
@@ -184,7 +269,8 @@ export function registerWebhookRoutes(
   app: BetterPortalH3App,
   store: PlatformConfigStore,
   postgres?: PostgresStorage,
-  owner = "single"
+  owner = "single",
+  transport: WebhookTransport = secureWebhookFetch
 ): { start(): void; stop(): void; drain(): Promise<void> } {
   const memoryQueue: DeliveryRecord[] = [];
   // Keep bounded delivery IDs after successful drain, matching PostgreSQL's
@@ -219,7 +305,7 @@ export function registerWebhookRoutes(
     memoryQueue.push(...fresh);
     return true;
   };
-  const drain = () => draining ??= processDeliveries(store, postgres, owner, memoryQueue).finally(() => { draining = undefined; });
+  const drain = () => draining ??= processDeliveries(store, postgres, owner, memoryQueue, transport).finally(() => { draining = undefined; });
 
   app.get(`${API_BASE}/admin/webhooks/events`, async () => {
     const manifests = [...getManifestCache().entries()].map(([serviceId, manifest]) => ({
@@ -264,10 +350,12 @@ export function registerWebhookRoutes(
     const appDef = currentAppFromRequest(config, event);
     if (!appDef) return jsonResponse({ error: "Unable to resolve current BetterPortal app" }, 404);
     const body = await readJson(event);
+    if (body instanceof Response) return body;
     const serviceId = stringValue(body, "serviceId");
     const eventId = stringValue(body, "eventId");
     const url = stringValue(body, "url");
     if (!serviceId || !eventId || !url) return jsonResponse({ error: "serviceId, eventId and url are required" }, 400);
+    if (!allowedWebhookUrl(url)) return jsonResponse({ error: "Webhook destination must be a public HTTPS endpoint" }, 400);
     const manifest = getManifestCache().get(serviceId);
     if (!manifest?.webhooks.some((entry) => entry.id === eventId)) return jsonResponse({ error: "Webhook event is not declared by service manifest" }, 400);
     const target: WebhookTarget = {
@@ -324,17 +412,19 @@ export function registerWebhookRoutes(
       createdAt: new Date().toISOString(),
       status: "pending"
     };
-    const result = await deliver(target, record);
+    const result = await deliver(target, record, transport);
     return jsonResponse({ ok: result.ok, status: result.status, error: result.error } as JsonValue, result.ok ? 202 : 502);
   });
 
   app.post(`${API_BASE}/admin/webhooks/targets`, async (event) => {
     const body = await readJson(event);
+    if (body instanceof Response) return body;
     const tenantId = stringValue(body, "tenantId");
     const serviceId = stringValue(body, "serviceId");
     const eventId = stringValue(body, "eventId");
     const url = stringValue(body, "url");
     if (!tenantId || !serviceId || !eventId || !url) return jsonResponse({ error: "tenantId, serviceId, eventId and url are required" }, 400);
+    if (!allowedWebhookUrl(url)) return jsonResponse({ error: "Webhook destination must be a public HTTPS endpoint" }, 400);
 
     const manifest = getManifestCache().get(serviceId);
     if (!manifest?.webhooks.some((entry) => entry.id === eventId)) return jsonResponse({ error: "Webhook event is not declared by service manifest" }, 400);
@@ -386,7 +476,7 @@ export function registerWebhookRoutes(
       createdAt: new Date().toISOString(),
       status: "pending"
     };
-    const result = await deliver(target, record);
+    const result = await deliver(target, record, transport);
     return jsonResponse({ ok: result.ok, status: result.status, error: result.error } as JsonValue, result.ok ? 202 : 502);
   });
 

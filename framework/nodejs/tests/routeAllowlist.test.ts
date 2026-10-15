@@ -112,6 +112,55 @@ async function withServer(
   }
 }
 
+test("route-level telemetry does not record callback query values", async () => {
+  const app = { id: uuidv7(), tenantId: tenant.id, hostnames: ["app.local"], routes: [], slots: [], fragments: {} } as unknown as BetterPortalApp;
+  let attributes: Record<string, unknown> | undefined;
+  await withServer(app, { routes: [route("/.well-known/trace", "trace")] }, async baseUrl => {
+    const response = await fetch(`${baseUrl}/.well-known/trace?code=private-code&state=private-state&custom=private-value`);
+    assert.equal(response.status, 200);
+  }, { router: { createRequestObservability: (_name, received) => {
+    attributes = received;
+    return createNoopObservability();
+  } } });
+  const logged = new URL(String(attributes?.["url.full"]));
+  for (const name of ["code", "state", "custom"]) assert.equal(logged.searchParams.get(name), "[REDACTED]");
+});
+
+test("registered routes reject oversized streamed JSON and multipart bodies before parsing", async () => {
+  const serviceId = uuidv7();
+  const app = { id: uuidv7(), tenantId: tenant.id, hostnames: ["app.local"], routes: [
+    { id: uuidv7(), path: "/bounded", serviceId, viewId: "bounded", enabled: true, operations: ["bounded"] }
+  ], slots: [], fragments: {} } as unknown as BetterPortalApp;
+  const registered = route("/bounded", "bounded");
+  const post = { ...registered.methodRoutes!.GET!, method: "POST" as const };
+  const postRoute: RegisteredRoute = {
+    ...registered,
+    methods: ["POST"],
+    handlers: { POST: post.handler },
+    methodRoutes: { POST: post }
+  };
+  await withServer(app, { routes: [postRoute] }, async baseUrl => {
+    const oversizedJson = JSON.stringify({ data: "a".repeat(1024 * 1024) });
+    const jsonResponse = await fetch(`${baseUrl}/bounded`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(oversizedJson)); controller.close(); } }),
+      duplex: "half"
+    } as RequestInit);
+    assert.equal(jsonResponse.status, 413);
+
+    const boundary = "bp-upload-boundary";
+    const multipart = `--${boundary}\r\nContent-Disposition: form-data; name="payload"\r\n\r\n${"x".repeat(26 * 1024 * 1024)}\r\n--${boundary}--\r\n`;
+    const multipartResponse = await fetch(`${baseUrl}/bounded`, {
+      method: "POST",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+      body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(multipart)); controller.close(); } }),
+      duplex: "half"
+    } as RequestInit);
+    assert.equal(multipartResponse.status, 413);
+  }, { serviceId });
+});
+
 test("HTML renderers receive limited tenant and app presentation context", async () => {
   const serviceId = uuidv7();
   const shellServiceId = uuidv7();
