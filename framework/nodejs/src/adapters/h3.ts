@@ -3,6 +3,7 @@ import { routeMountServicePath, safeServiceBaseUrl } from "../runtime/configProv
 import type { RouteInput, RouteOptions, RouteResolver } from "../contracts/routing.js";
 import { ElevationRequired, requireElevation, elevationResponse } from "../runtime/auth/elevation.js";
 import { createEventStream, getRequestIP, getRequestURL } from "h3";
+import { decodeFormBody } from "./formBody.js";
 import type { HttpMethod } from "../contracts/common.js";
 import type { JsonValue } from "../contracts/json.js";
 import type { BpSchemaOutput, PluginManifest } from "../contracts/manifest.js";
@@ -274,42 +275,36 @@ function fileResponseHelper(body: RawResponseBody, options: FileResponseOptions 
 }
 
 async function formDataToRequest(fd: FormData): Promise<{ body: Record<string, unknown>; multipart: MultipartRequest }> {
-  const body: Record<string, unknown> = {};
+  const body = decodeFormBody(fd);
   const fields: MultipartRequest["fields"] = {};
   const files: MultipartRequest["files"] = {};
   let totalFileBytes = 0;
 
   const pushValue = <T>(target: Record<string, T | T[]>, key: string, value: T) => {
-    const existing = target[key];
+    const existing = Object.hasOwn(target, key) ? target[key] : undefined;
     if (existing === undefined) target[key] = value;
     else if (Array.isArray(existing)) existing.push(value);
     else target[key] = [existing, value];
   };
 
-  const pendingFiles: Array<Promise<void>> = [];
-  fd.forEach((value, key) => {
+  for (const [key, value] of fd) {
     if (typeof value === "string") {
-      body[key] = value;
       pushValue(fields, key, value);
     } else {
-      body[key] = value.name;
-      pendingFiles.push((async () => {
-        totalFileBytes += value.size;
-        if (totalFileBytes > MAX_BUFFERED_MULTIPART_BYTES) {
-          throw new MultipartTooLargeError();
-        }
-        const file: UploadedFile = {
-          fieldName: key,
-          filename: value.name,
-          contentType: value.type || "application/octet-stream",
-          size: value.size,
-          data: new Uint8Array(await value.arrayBuffer())
-        };
-        pushValue(files, key, file);
-      })());
+      totalFileBytes += value.size;
+      if (totalFileBytes > MAX_BUFFERED_MULTIPART_BYTES) {
+        throw new MultipartTooLargeError();
+      }
+      const file: UploadedFile = {
+        fieldName: key,
+        filename: value.name,
+        contentType: value.type || "application/octet-stream",
+        size: value.size,
+        data: new Uint8Array(await value.arrayBuffer())
+      };
+      pushValue(files, key, file);
     }
-  });
-  await Promise.all(pendingFiles);
+  }
 
   return { body, multipart: { fields, files } };
 }
@@ -1191,7 +1186,7 @@ async function handleRouteRequest(
     const bodyBytes = await readBoundedRouteBody(event, maxBodyBytes);
     if (bodyBytes instanceof Response) return bodyBytes;
     if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
-      // Standard HTML form submission (incl. plain hx-post). Parse into a flat object.
+      // Decode native dotted/indexed form names before schema validation (incl. plain hx-post).
       try {
         const fd = await new Response(bodyBytes.buffer as ArrayBuffer, { headers: { "content-type": rawContentType } }).formData();
         const parsedForm = await formDataToRequest(fd);
@@ -1206,7 +1201,14 @@ async function handleRouteRequest(
             err.message
           );
         }
-        rawBody = {};
+        const reason = err instanceof Error ? err.message : String(err);
+        return coreJsonResponse(
+          { error: "Invalid form request", detail: reason },
+          400,
+          "request.body.invalid",
+          reason,
+          { "bp.request.validation_target": "request body" }
+        );
       }
     } else {
       let parsed: unknown = null;
