@@ -622,6 +622,25 @@ export default createRawHandler(
 
 Do not export `ResponseSchema` or HTML renderers for raw routes; codegen rejects both. Use `ctx.response(body, init)` for custom raw responses and `ctx.file(body, options)` for downloadable/inline files. `ctx.file` accepts standard `Response` bodies, including `Uint8Array`, `ArrayBuffer`, `Blob`, and `ReadableStream`.
 
+### Native form input names (Node SDK)
+
+For `POST`, `PUT`, and `PATCH` requests with `application/x-www-form-urlencoded` or `multipart/form-data`, the Node HTTP adapter decodes native field names into `ctx.request` **before** validating `RequestSchema`. Use dots for object properties and zero-based brackets for array indices:
+
+```html
+<input name="clientName" value="Example" />
+<input name="existingAssets[0].productId" value="UNITTRUSTS" />
+<input name="existingAssets[0].platformId" value="EXAMPLE" />
+<input name="existingAssets[0].amount" value="1000" />
+<input name="tags" value="first" />
+<input name="tags" value="second" />
+```
+
+This produces `{ clientName: "Example", existingAssets: [{ productId: "UNITTRUSTS", platformId: "EXAMPLE", amount: "1000" }], tags: ["first", "second"] }`. Single values remain strings; repeated occurrences of the same complete name become arrays in submission order, including nested properties. Numeric/boolean coercion remains the input schema's responsibility (for example, `av.number().coerce()`). JSON request bodies retain their existing behavior, including literal dotted keys. No service-specific HTMX extension is needed; keep native browser validation enabled.
+
+Indices must be canonical non-negative integers (`[0]`, `[1]`, ...), contiguous from zero within each array; fields may arrive in any order. Nested objects and arrays can be combined, for example `rows[0].tags[0]` or `matrix[0][0]`. Empty brackets (`tags[]`), named brackets (`profile[name]`), sparse arrays, empty path segments, control characters, and scalar/object/array conflicts return `400`. The segments `__proto__`, `prototype`, and `constructor` are rejected at every level. Limits are 32 path segments, indices 0–999, 1,024 characters per field name, 10,000 submitted entries (including repeats/files), and 10,000 distinct property/index nodes per request. Exceeding these limits also returns `400`, classified as `request.body.invalid`.
+
+### Multipart uploads
+
 For multipart uploads, export the framework's concrete `MultipartRequestSchema` as `MultipartSchema` and use `createRawHandler({ multipart: MultipartSchema }, ...)`. First-pass multipart support is buffered in memory and capped at 25 MiB total file bytes per request.
 
 ```ts
@@ -638,7 +657,7 @@ export default createRawHandler(
 );
 ```
 
-`ctx.multipart.files` values are `{ fieldName, filename, contentType, size, data }`. Repeated form keys become arrays. Oversized requests return `413`. Use streaming/resumable upload protocols only when buffered uploads are too small for the use case.
+`ctx.multipart.fields` and `ctx.multipart.files` keep the original field names as flat keys (for example, `existingAssets[0].amount`), with repeated keys represented as arrays in submission order. `ctx.multipart.files` values are `{ fieldName, filename, contentType, size, data }`. Files appear as filenames in the decoded `ctx.request`; their bytes and metadata remain in `ctx.multipart.files`. Exceeding the file-byte limit returns `413`. Malformed form payloads return `400`. Use streaming/resumable upload protocols only when buffered uploads are too small for the use case.
 
 Do not put shell/UI routing assumptions in a view file. UI paths, browser-visible hostnames, and pushed URL state belong to the HTML renderer under `_renderer.<renderer>/`. A service-side view path is not the same thing as a UI path, and a service hostname is not the same thing as the shell hostname. If the UI needs a selected tab, tenant filter, or other URL state, handle that in the renderer or through explicit schema fields supplied by the service/API model.
 
