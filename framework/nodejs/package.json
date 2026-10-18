@@ -1,6 +1,6 @@
 {
   "name": "@betterportal/framework",
-  "version": "11.0.2",
+  "version": "11.0.3",
   "description": "BetterPortal v10 core library for Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
