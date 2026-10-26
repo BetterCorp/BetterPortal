@@ -37,7 +37,7 @@
   "dependencies": {
     "anyvali": "^1.1.6",
     "h3": "^2.0.1-rc.31",
-    "jose": "^6.2.10",
+    "jose": "^6.2.13",
     "jsx-htmx": "4.0.100",
     "parse5": "^8.0.1",
     "typescript": "^6.0.3",
